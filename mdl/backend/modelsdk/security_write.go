@@ -22,6 +22,12 @@ import (
 func init() {
 	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "UserRoles", 2)
 	codec.RegisterPropertyListMarker("Security$ProjectSecurity", "DemoUsers", 2)
+	// Studio Pro gives every user role a GUID; mxcli wrote new ones without, so
+	// Mendix minted one on its next save and the two revisions of the role no
+	// longer had the same properties — which Mendix's merge engine refuses to
+	// compare (mendixlabs/mxcli#1373). A new role gets GUID = $ID, as a new
+	// entity does; a stored role passes through with the GUID it has.
+	codec.RegisterTypeDefaults("Security$UserRole", codec.TypeDefaults{EmitGUID: true})
 }
 
 // loadModuleSecurityGen decodes a Security$ModuleSecurity unit by ID.
@@ -208,6 +214,18 @@ func (b *Backend) SetProjectStrictMode(unitID model.ID, enabled bool) error {
 		return err
 	}
 	ps.SetStrictMode(enabled)
+	return b.persistUnit(unitID, ps)
+}
+
+// SetProjectAdminUserName renames the built-in administrator account
+// (Security$ProjectSecurity.AdminUserName, MxAdmin by default). The password
+// is left as stored: MDL does not set it (mendixlabs/mxcli#624).
+func (b *Backend) SetProjectAdminUserName(unitID model.ID, name string) error {
+	ps, err := b.loadProjectSecurityGen(unitID)
+	if err != nil {
+		return err
+	}
+	ps.SetAdminUserName(name)
 	return b.persistUnit(unitID, ps)
 }
 

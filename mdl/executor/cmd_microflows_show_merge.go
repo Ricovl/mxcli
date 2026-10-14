@@ -124,9 +124,10 @@ func labelRejoinMerges(col *microflows.MicroflowObjectCollection) mergeLabels {
 		}
 	}
 
+	incoming := incomingCounts(flowsByOrigin)
 	needsLabel := map[model.ID]bool{}
 	for _, ef := range errorFlows {
-		m := firstMergeFrom(ef.DestinationID, objects, normalSucc)
+		m := firstMergeFrom(ef.DestinationID, objects, normalSucc, incoming)
 		if m == "" || !reachable[m] {
 			continue
 		}
@@ -171,15 +172,21 @@ func labelRejoinMerges(col *microflows.MicroflowObjectCollection) mergeLabels {
 //
 // Breadth-first, so "first" means nearest rather than whichever branch the walk
 // happened to take.
+//
+// A merge with a single way in joins nothing — Studio Pro leaves them behind
+// when a flow is re-routed — so it is walked through, not settled on
+// (isNoOpMerge). Settling on one is how a handler's retry path back to a loop
+// header was cut short (Evora: SnowflakeRESTSQL.GET_v1_RetrievePartition).
 func firstMergeFrom(
 	start model.ID,
 	objects map[model.ID]microflows.MicroflowObject,
 	succ map[model.ID][]model.ID,
+	incoming map[model.ID]int,
 ) model.ID {
 	if start == "" {
 		return ""
 	}
-	if _, ok := objects[start].(*microflows.ExclusiveMerge); ok {
+	if _, ok := objects[start].(*microflows.ExclusiveMerge); ok && !isNoOpMerge(start, objects, incoming) {
 		return start
 	}
 	seen := map[model.ID]bool{start: true}
@@ -192,13 +199,33 @@ func firstMergeFrom(
 				continue
 			}
 			seen[next] = true
-			if _, ok := objects[next].(*microflows.ExclusiveMerge); ok {
+			if _, ok := objects[next].(*microflows.ExclusiveMerge); ok && !isNoOpMerge(next, objects, incoming) {
 				return next
 			}
 			queue = append(queue, next)
 		}
 	}
 	return ""
+}
+
+// isNoOpMerge reports whether id is an ExclusiveMerge with exactly one way in:
+// a junction of nothing, which no path needs to name.
+func isNoOpMerge(id model.ID, objects map[model.ID]microflows.MicroflowObject, incoming map[model.ID]int) bool {
+	_, isMerge := objects[id].(*microflows.ExclusiveMerge)
+	return isMerge && incoming[id] == 1
+}
+
+// incomingCounts counts every flow — error flows included — into each object.
+func incomingCounts(flowsByOrigin map[model.ID][]*microflows.SequenceFlow) map[model.ID]int {
+	out := map[model.ID]int{}
+	for _, flows := range flowsByOrigin {
+		for _, f := range flows {
+			if f != nil {
+				out[f.DestinationID]++
+			}
+		}
+	}
+	return out
 }
 
 // mergeDeclarationLines renders `merge <label>;` with the merge's stored
@@ -212,16 +239,31 @@ func firstMergeFrom(
 // A canonical DESCRIBE leaves the position out when the layout engine would put
 // the merge there anyway (layout, see derivedFlowLayout): the rebuild then lands
 // it on the same spot without being told.
-func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep) []string {
+func mergeDeclarationLines(indent int, label string, obj microflows.MicroflowObject, layout *flowLayoutKeep, flowsByOrigin map[model.ID][]*microflows.SequenceFlow) []string {
 	pad := strings.Repeat("  ", indent)
-	if obj == nil || !layout.keepsPosition(obj.GetID()) {
-		return []string{pad + "merge " + label + ";"}
+	var out []string
+	if obj != nil && layout.keepsPosition(obj.GetID()) {
+		p := obj.GetPosition()
+		out = append(out, fmt.Sprintf("%s@position(%d, %d)", pad, p.X, p.Y))
 	}
-	p := obj.GetPosition()
-	return []string{
-		fmt.Sprintf("%s@position(%d, %d)", pad, p.X, p.Y),
-		pad + "merge " + label + ";",
+	// The side the flow LEAVES the merge on, when it is not the default right.
+	// An if whose closing merge is this one prints that side as its own
+	// `@anchor(from: …)` (mergeExitAnchor, #767), but once the merge is declared
+	// on its own the rebuilt if has no closing merge to apply it to, and the
+	// exit came back from the right (mendixlabs/mxcli#1414). The declaration is
+	// the statement that owns the edge, so it carries the side.
+	if obj != nil {
+		for _, flow := range flowsByOrigin[obj.GetID()] {
+			if flow == nil || flow.IsErrorHandler {
+				continue
+			}
+			if flow.OriginConnectionIndex != AnchorRight {
+				out = append(out, fmt.Sprintf("%s@anchor(from: %s)", pad, anchorSideKeyword(flow.OriginConnectionIndex)))
+			}
+			break
+		}
 	}
+	return append(out, pad+"merge "+label+";")
 }
 
 // droppedMergeWarnings flags every ExclusiveMerge the description does not
@@ -410,7 +452,7 @@ func fallThroughRejoinMerge(
 			}
 		}
 	}
-	if firstMergeFrom(errFlow.DestinationID, objects, succ) != m {
+	if firstMergeFrom(errFlow.DestinationID, objects, succ, incomingCounts(flowsByOrigin)) != m {
 		return ""
 	}
 	return m

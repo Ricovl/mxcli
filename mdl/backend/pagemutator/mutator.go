@@ -41,6 +41,11 @@ type Deps interface {
 	// Returns an error if the engine does not support DataGrid2 column ALTER (so
 	// the op refuses loudly rather than writing a corrupt column).
 	BuildDataGrid2Column(col *backend.DataGridColumnSpec, columnObjectTypeID string, columnPropertyIDs map[string]pages.PropertyTypeIDEntry) (bson.D, error)
+	// SerializeParameter builds a new Forms$PageParameter or
+	// Forms$SnippetParameter (by container kind) as raw bson.D. The engine owns
+	// it because which keys a page parameter carries depends on the project's
+	// Mendix version.
+	SerializeParameter(container backend.ContainerKind, p backend.PageParameterSpec) (bson.D, error)
 	// SaveUnit writes the (re-marshaled) unit bytes back to storage.
 	SaveUnit(unitID string, contents []byte) error
 }
@@ -86,7 +91,7 @@ func New(rawData bson.D, unitID model.ID, deps Deps) *Mutator {
 		containerType: containerType,
 		unitID:        unitID,
 		deps:          deps,
-		widgetFinder:  finder,
+		widgetFinder:  withNavItemAddresses(finder),
 	}
 }
 
@@ -424,20 +429,22 @@ func refuseWidgetsAtColumnTarget(gridRef, columnRef string) error {
 // lives in the control's TabPages list rather than a widget list.
 const tabPageType = "Forms$TabPage"
 
-// refuseTabPageSiblingEdit refuses an operation that would edit the TabPages
-// list itself: INSERT BEFORE/AFTER and REPLACE would put ordinary widgets into a
-// list that holds only tab pages, and DROP can remove the page the control's
-// DefaultPagePointer names, leaving a dangling pointer. What a tab page does
-// support — SET Caption / Visible / Name and INSERT INTO it — goes through the
-// ordinary widget paths.
+// refuseTabPageSiblingEdit refuses an operation that would put ordinary widgets
+// into, or remove entries from, the TabPages list: INSERT BEFORE/AFTER and
+// REPLACE would put widgets into a list that holds only tab pages, and DROP can
+// remove the page the control's DefaultPagePointer names, leaving a dangling
+// pointer. What a tab page does support — SET Caption / Visible / Name, INSERT
+// INTO it — goes through the ordinary widget paths; adding a tab page next to
+// it goes through InsertTabPages (#1215).
 func refuseTabPageSiblingEdit(result *bsonWidgetResult, name, op string) error {
 	if result == nil || bsonnav.DGetString(result.widget, "$Type") != tabPageType {
 		return nil
 	}
-	return fmt.Errorf("%q is a tab page: %s would edit the tab container's list of pages, "+
-		"which ALTER PAGE does not do. Use `insert into %s { … }` to add widgets to it, "+
+	return fmt.Errorf("%q is a tab page: %s would put widgets into, or remove a page from, the tab "+
+		"container's list of pages, which ALTER PAGE does not do. Use `insert into %s { … }` to add "+
+		"widgets to it, `insert after %s { tabpage … }` to add a tab page next to it, "+
 		"`set Visible = false on %s` to hide it, or `describe page` and `create or modify page` "+
-		"to add, remove or reorder tab pages", name, op, name, name)
+		"to remove or reorder tab pages", name, op, name, name, name)
 }
 
 func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position backend.InsertPosition, widgets []pages.Widget) error {
@@ -471,6 +478,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	}
 	if !strings.EqualFold(string(position), "into") {
 		if err := refuseTabPageSiblingEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
+			return err
+		}
+		if err := refuseNavItemWidgetEdit(result, widgetRef, "insert "+strings.ToLower(string(position))); err != nil {
 			return err
 		}
 	}
@@ -577,6 +587,7 @@ func containerAcceptsWidgets(container bson.D) bool {
 		"Forms$GroupBox",
 		"Forms$ScrollContainerRegion",
 		"Forms$Section",
+		navListItemType,
 		tabPageType:
 		return true
 	}
@@ -639,6 +650,9 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 		return columnAmbiguityError(widgetRef, n)
 	}
 	if err := refuseTabPageSiblingEdit(result, widgetRef, "replace"); err != nil {
+		return err
+	}
+	if err := refuseNavItemWidgetEdit(result, widgetRef, "replace"); err != nil {
 		return err
 	}
 
@@ -1507,6 +1521,14 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// NavigationList: Items[] hold no Name, but the widgets inside each one do
+	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
+	if isNavigationList(wDoc) {
+		if result := findInWidgetArray(wDoc, "Items", widgetName); result != nil {
+			return result
+		}
+	}
+
 	// ControlBar
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if result := findInWidgetArray(controlBar, "Items", widgetName); result != nil {
@@ -1928,6 +1950,9 @@ func gridColumnNames(wDoc bson.D) []string {
 // column names — columns are keyed by a derived name (attribute or caption), not
 // the authored MDL name, which is the usual cause of the miss (ledger #78).
 func (m *Mutator) widgetNotFoundError(name string) error {
+	if err := m.navItemAddressError(name); err != nil {
+		return err
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
@@ -2145,6 +2170,11 @@ func sanitizeColumnName(caption string) string {
 // carries the nearest enclosing DataSource seen so far, so a nearer non-flow
 // source correctly shadows an outer flow.
 func findNearestDataSourceDoc(rawData bson.D, widgetName string) (bson.D, bool) {
+	// A navigation list item is not a data container, so it sees what its list
+	// sees (`nav item@2` → nav).
+	if sel, ok := backend.ParseNavItemSelector(widgetName); ok {
+		widgetName = sel.List
+	}
 	if formCall := bsonnav.DGetDoc(rawData, "FormCall"); formCall != nil {
 		for _, arg := range bsonnav.DGetArrayElements(bsonnav.DGet(formCall, "Arguments")) {
 			argDoc, ok := arg.(bson.D)
@@ -2214,6 +2244,11 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	}
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
+	}
+	if isNavigationList(wDoc) {
+		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
+			return ds, true
+		}
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if ds, found := findNearestDSInWidgets(controlBar, "Items", widgetName, curDS); found {
@@ -2412,6 +2447,9 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	if isNavigationList(wDoc) {
+		collectWidgetScope(wDoc, "Items", scope)
+	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
 	}
@@ -2920,6 +2958,8 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetContentMut(widget, value)
 	case "label":
 		return setWidgetLabelMut(widget, value)
+	case "tooltip":
+		return setWidgetTooltipMut(widget, value)
 	case "buttonstyle":
 		if s, ok := value.(string); ok {
 			bsonnav.DSet(widget, "ButtonStyle", s)
@@ -3001,10 +3041,76 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetAttributeRefMut(widget, value)
 	case "dateformat", "customdateformat", "decimalprecision", "groupdigits":
 		return setWidgetFormattingMut(widget, propName, value)
+	case "submitbehaviour", "submitoninputdelay":
+		return setWidgetSubmitMut(widget, propName, value)
+	case "type", "maxfilesize", "allowedextensions", "showfileinbrowser":
+		// A file manager's own four (mendixlabs/mxcli#151). On any other
+		// widget the keys keep their old route, the pluggable setter, where
+		// `Type` may be a pluggable widget's own property.
+		if pages.IsFileManager(bsonnav.DGetString(widget, "$Type")) {
+			return setWidgetFileManagerMut(widget, propName, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "width":
+		// A layout grid's Width is its ContainerWidth enum. On any other
+		// widget the key keeps its old route, the pluggable setter.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$LayoutGrid" || typ == "Pages$LayoutGrid" {
+			s, isString := value.(string)
+			width, ok := pages.CanonicalLayoutGridWidth(s)
+			if !isString || !ok {
+				return fmt.Errorf("a layout grid's Width is FullWidth or FixedWidth, not %v", value)
+			}
+			bsonnav.DSet(widget, "Width", width)
+			return nil
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "image", "defaultimage":
+		// A legacy image viewer's image (mendixlabs/mxcli#1464). On any other
+		// widget — the pluggable Image above all — the key keeps its old route.
+		if handled, err := setLegacyImageRefMut(widget, propName, value); handled {
+			return err
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	}
+}
+
+// setLegacyImageRefMut writes a static image's Image or a dynamic image's
+// DefaultImage: the qualified name of an image-collection entry as a plain
+// string ("" when unset), the key and shape CREATE writes and DESCRIBE reads
+// (pages.ImageReferenceProperty). It reports handled=false for any widget that
+// is not a legacy image viewer, so a pluggable widget's `image` key still
+// reaches the pluggable setter. `set Image` used to fall through to that setter
+// on a static image too, which refused it as "not a property of this built-in
+// widget" although CREATE writes it and DESCRIBE prints it
+// (mendixlabs/mxcli#1464).
+func setLegacyImageRefMut(widget bson.D, propName string, value any) (bool, error) {
+	typ := bsonnav.DGetString(widget, "$Type")
+	key := pages.ImageReferenceProperty(typ)
+	if key == "" {
+		return false, nil
+	}
+	if !strings.EqualFold(key, propName) {
+		other := "DefaultImage"
+		if key == "DefaultImage" {
+			other = "Image"
+		}
+		return true, fmt.Errorf("a %s has no %s property — its image is %s (%s is the other image viewer's)",
+			widgetTypeLabel(typ), propName, key, other)
+	}
+	s, isString := value.(string)
+	if !isString {
+		return true, fmt.Errorf("%s is the quoted qualified name of an image, e.g. 'MyModule.Images.logo', not %v",
+			key, value)
+	}
+	// Every stored viewer carries the key ("" when unset); one without it is
+	// refused rather than reported as altered with nothing written.
+	if !bsonnav.DSet(widget, key, strings.TrimSpace(s)) {
+		return true, fmt.Errorf("this %s stores no %s to set", widgetTypeLabel(typ), key)
+	}
+	return true, nil
 }
 
 // setWidgetFormattingMut sets one field of an input widget's
@@ -3068,6 +3174,76 @@ func setWidgetFormattingMut(widget bson.D, propName string, value any) error {
 			return fmt.Errorf("GroupDigits is true or false, not %v", value)
 		}
 		bsonnav.DSet(fi, "GroupDigits", b)
+	}
+	return nil
+}
+
+// setWidgetFileManagerMut sets one of a file manager's own properties with the
+// values CREATE PAGE accepts (buildFileManagerV3), so `set` cannot store what
+// `create` would refuse.
+func setWidgetFileManagerMut(widget bson.D, propName string, value any) error {
+	switch strings.ToLower(propName) {
+	case "type":
+		s, isString := value.(string)
+		t, ok := pages.CanonicalFileManagerType(s)
+		if !isString || !ok {
+			return fmt.Errorf("a file manager's Type is one of Upload, Download, Both, not %v", value)
+		}
+		bsonnav.DSet(widget, "Type", string(t))
+	case "maxfilesize":
+		n, ok := formattingInt(value)
+		if !ok || n < 0 {
+			return fmt.Errorf("MaxFileSize is a whole number of megabytes, 0 or more, not %v", value)
+		}
+		// Keep the stored width, as for DecimalPrecision.
+		if _, isInt64 := bsonnav.DGet(widget, "MaxFileSize").(int64); isInt64 {
+			bsonnav.DSet(widget, "MaxFileSize", int64(n))
+		} else {
+			bsonnav.DSet(widget, "MaxFileSize", int32(n))
+		}
+	case "allowedextensions":
+		s, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("AllowedExtensions is a quoted list such as '.xlsx;.csv', not %v", value)
+		}
+		bsonnav.DSet(widget, "AllowedExtensions", s)
+	case "showfileinbrowser":
+		b, ok := editableBool(value)
+		if !ok {
+			return fmt.Errorf("ShowFileInBrowser is true or false, not %v", value)
+		}
+		bsonnav.DSet(widget, "ShowFileInBrowser", b)
+	}
+	return nil
+}
+
+// setWidgetSubmitMut sets a text box's or text area's SubmitBehaviour or
+// SubmitOnInputDelay (ako/mxcli-ledger FINDINGS #170) with the members CREATE
+// PAGE accepts. Any other widget refuses the key.
+func setWidgetSubmitMut(widget bson.D, propName string, value any) error {
+	typ := bsonnav.DGetString(widget, "$Type")
+	if !pages.HasSubmitBehaviour(typ) {
+		return fmt.Errorf("a %s has no %s property — SubmitBehaviour and SubmitOnInputDelay are a text box's and a text area's",
+			widgetTypeLabel(typ), propName)
+	}
+	if strings.EqualFold(propName, "SubmitBehaviour") {
+		s, isString := value.(string)
+		canon, ok := pages.CanonicalSubmitBehaviour(s)
+		if !isString || !ok {
+			return fmt.Errorf("SubmitBehaviour is OnEndEditing or WhileEditing, not %v", value)
+		}
+		bsonnav.DSet(widget, "SubmitBehaviour", canon)
+		return nil
+	}
+	n, ok := formattingInt(value)
+	if !ok || n < 0 || n > math.MaxInt32 {
+		return fmt.Errorf("SubmitOnInputDelay is a non-negative number of milliseconds, not %v", value)
+	}
+	// Keep the stored integer width, as for DecimalPrecision.
+	if _, isInt64 := bsonnav.DGet(widget, "SubmitOnInputDelay").(int64); isInt64 {
+		bsonnav.DSet(widget, "SubmitOnInputDelay", int64(n))
+	} else {
+		bsonnav.DSet(widget, "SubmitOnInputDelay", int32(n))
 	}
 	return nil
 }
@@ -3224,6 +3400,31 @@ func setWidgetCaptionMut(widget bson.D, value any) error {
 		return setTranslatableText(tmpl, "CaptionTemplate", value)
 	}
 	return mdlerrors.NewValidation("widget has no Caption property")
+}
+
+// setWidgetTooltipMut sets a button's tooltip, a Texts$Text under `Tooltip`
+// (empty Items when unset). It used to fall through to the pluggable setter,
+// which refused it as "not a property of this built-in widget"
+// (mendixlabs/mxcli#1307). A null Tooltip gets a fresh Texts$Text; a widget
+// with no Tooltip key at all has no tooltip to set.
+func setWidgetTooltipMut(widget bson.D, value any) error {
+	if tip := bsonnav.DGetDoc(widget, "Tooltip"); tip != nil {
+		return setTranslatableText(tip, "Tooltip", value)
+	}
+	if !hasKey(widget, "Tooltip") {
+		return fmt.Errorf("a %s has no Tooltip property",
+			widgetTypeLabel(bsonnav.DGetString(widget, "$Type")))
+	}
+	tip := bson.D{
+		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+		{Key: "$Type", Value: "Texts$Text"},
+		{Key: "Items", Value: bson.A{int32(3)}},
+	}
+	if err := setTranslatableText(tip, "Tooltip", value); err != nil {
+		return err
+	}
+	bsonnav.DSet(widget, "Tooltip", tip)
+	return nil
 }
 
 func setWidgetContentMut(widget bson.D, value any) error {

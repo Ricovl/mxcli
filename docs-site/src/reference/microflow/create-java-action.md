@@ -3,7 +3,7 @@
 ## Synopsis
 
 ```sql
-CREATE [ OR MODIFY ] JAVA ACTION module.Name [ FOLDER 'folder_path' ] ( parameters )
+CREATE [ OR MODIFY ] JAVA ACTION module.Name [ < T [, ...] > ] [ FOLDER 'folder_path' ] ( parameters )
     RETURNS type
     [ EXPOSED AS 'caption' IN 'category' ]
     AS $$ java_code $$
@@ -25,6 +25,8 @@ If `OR MODIFY` is specified and the Java action already exists, its parameters, 
 
 Java actions support generic entity handling through type parameters. A parameter declared as `ENTITY <pEntity>` creates a type parameter selector -- the caller chooses which entity type to use. Other parameters declared as bare `pEntity` (without `ENTITY`) receive instances of the selected entity type.
 
+A type parameter that no `ENTITY <T>` parameter names -- one bound by the object the caller passes in -- is declared in the header after the action name: `module.Name<T>`. The header also fixes the order of the type parameters when it differs from the order the `ENTITY <T>` parameters would give. An unqualified type that is neither a declared type parameter nor `Microflow`/`Nanoflow` is refused (`MDL-JA01`): it would be written as an entity with no module, which Mendix reports as CE1613.
+
 ### Exposed Actions
 
 The optional `EXPOSED AS` clause makes the action visible in the Studio Pro toolbox under the specified category, allowing modelers to use it directly in microflows.
@@ -33,6 +35,9 @@ The optional `EXPOSED AS` clause makes the action visible in the Studio Pro tool
 
 `module.Name`
 :   The qualified name of the Java action.
+
+`< T [, ...] >`
+:   Optional. Declares type parameters, in order. Needed only for a type parameter that no `ENTITY <T>` parameter declares; a name that is a keyword or a primitive is quoted (`<"Entity">`).
 
 `FOLDER 'folder_path'`
 :   Optional. Places the document in the named module folder, creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
@@ -86,6 +91,17 @@ CREATE JAVA ACTION MyModule.JA_Validate (
 EXPOSED AS 'Validate Entity' IN 'Validation'
 AS $$
     return InputObject != null;
+$$;
+```
+
+Java action with a type parameter that no entity selector declares -- the caller's object binds it:
+
+```sql
+CREATE JAVA ACTION MyModule.JA_Describe<pEntity> (
+    InputObject: pEntity NOT NULL
+) RETURNS String
+AS $$
+    return InputObject.toString();
 $$;
 ```
 

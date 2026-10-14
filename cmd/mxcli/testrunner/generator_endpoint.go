@@ -168,10 +168,15 @@ func failVerdictExpr(exp Expect) string {
 
 // rewriteBodyForVerdict attaches an ON ERROR handler to every CALL in the test
 // body, turning a thrown error into a FAIL verdict and an early return.
+//
+// The verdict carries the raised message: a bare "exception during execution"
+// left the user guessing, e.g. at an unresolvable [%CurrentUser%] token (tests
+// run in a system context with no user). $latestError/Message is the same
+// expression throwsHandler uses, measured there.
 func rewriteBodyForVerdict(lines []string, tc TestCase) []string {
 	handler := []string{
-		fmt.Sprintf("  SET $Verdict = '%s';",
-			escapeMDLString(verdictFailPrefix+"exception during execution")),
+		fmt.Sprintf("  SET $Verdict = '%s' + %s;",
+			escapeMDLString(verdictFailPrefix+"exception during execution: "), latestErrorMessage),
 		"  RETURN $Verdict;",
 	}
 	return attachOnError(lines, handler)
@@ -229,7 +234,7 @@ func attachOnError(lines, handler []string) []string {
 	var out []string
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
-		if !containsCallMicroflow(trimmed) {
+		if !startsErrorRaisingCall(trimmed) {
 			out = append(out, lines[i])
 			continue
 		}

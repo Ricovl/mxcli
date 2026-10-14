@@ -248,7 +248,12 @@ type EnumSplitCase struct {
 
 // EnumSplitStmt represents: CASE $Var WHEN value THEN body ... END CASE
 type EnumSplitStmt struct {
-	Variable    string // Variable or attribute path without $ prefix (e.g. EventType or Event/EventType)
+	Variable string // Variable or attribute path without $ prefix (e.g. EventType or Event/EventType)
+	// Condition is set instead of Variable when the split decides on a RULE
+	// call that returns an enumeration: `case Mod.Rule(Param = $x)`. It is the
+	// same FunctionCallExpr an `if Mod.Rule(...)` holds, and builds as a
+	// Microflows$RuleSplitCondition (mendixlabs/mxcli#1414).
+	Condition   Expression
 	Cases       []EnumSplitCase
 	ElseBody    []MicroflowStatement
 	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
@@ -288,6 +293,7 @@ type CastObjectStmt struct {
 	OutputVariable string               // Output variable name without $ prefix
 	ObjectVariable string               // Source object variable name without $ prefix
 	Annotations    *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling  *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *CastObjectStmt) isMicroflowStatement() {}
@@ -339,12 +345,22 @@ type FlowAnchors struct {
 	To   AnchorSide // DestinationConnectionIndex on the outgoing SequenceFlow
 }
 
+// HasCaption reports whether the statement states a caption, empty or not.
+func (a *ActivityAnnotations) HasCaption() bool {
+	return a != nil && (a.CaptionSet || a.Caption != "")
+}
+
 // ActivityAnnotations holds metadata annotations for microflow activities.
 // These are emitted as @position, @caption, @color, @annotation, @excluded, @anchor lines in MDL.
 type ActivityAnnotations struct {
 	Position *Position // @position(x, y)
 	Caption  string    // @caption 'text'
 	Color    string    // @color Green
+	// CaptionSet records that @caption was written, so `@caption ''` is told
+	// apart from no @caption at all. A decision with no @caption is captioned
+	// with its condition; an empty one is what Studio Pro stores when the
+	// caption is cleared, and must survive describe -> exec (#1254).
+	CaptionSet bool
 	// Notes are the @annotation lines attached to this statement, in source
 	// order. A SLICE, not one string: see MicroflowAnnotation.
 	Notes []MicroflowAnnotation
@@ -476,11 +492,25 @@ type FlowCurve struct {
 	To   *Position // control vector at the destination end
 }
 
-// ChangeItem represents a single assignment in CREATE/CHANGE: Attr = expr
+// ChangeItem represents a single assignment in CREATE/CHANGE: Attr = expr,
+// or in CHANGE also Assoc += expr / Assoc -= expr.
 type ChangeItem struct {
-	Attribute string     // Attribute name
-	Value     Expression // Value expression
+	Attribute string         // Attribute name
+	Op        MemberChangeOp // = (zero value), += or -=
+	Value     Expression     // Value expression
 }
+
+// MemberChangeOp is the operation a CHANGE member performs, matching Mendix's
+// MemberChange Type: Set assigns, Add and Remove append to or take from a
+// reference set (mendixlabs/mxcli#1473). The zero value is Set, which is what
+// `=` and every CREATE member mean.
+type MemberChangeOp int
+
+const (
+	MemberSet    MemberChangeOp = iota // =
+	MemberAdd                          // +=
+	MemberRemove                       // -=
+)
 
 // CommitFlag is the Commit setting on a create/change activity, matching Mendix's
 // Microflows$Commit enum. The zero value is CommitNo, which is Mendix's default and
@@ -556,6 +586,7 @@ type RollbackStmt struct {
 	Variable        string               // Variable to rollback
 	RefreshInClient bool                 // Whether to refresh in client
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *RollbackStmt) isMicroflowStatement() {}
@@ -884,15 +915,12 @@ type ListOperationStmt struct {
 	// falls back to the expression operation, which is what the function form
 	// has always done. The statement form sets it from the linking word: `where`
 	// sets it, `by` does not.
-	ByExpression bool
-	SortSpecs    []SortSpec           // Sort specifications for SORT
-	OffsetExpr   Expression           // Offset expression for RANGE
-	LimitExpr    Expression           // Limit expression for RANGE
-	Annotations  *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	// ErrorHandling is recorded only so the clause can be REFUSED. Mendix's
-	// ListOperationsAction has no ErrorHandlingType, so an ON ERROR here has
-	// nowhere to go; parsing it and reporting it beats dropping it silently.
-	ErrorHandling *ErrorHandlingClause
+	ByExpression  bool
+	SortSpecs     []SortSpec           // Sort specifications for SORT
+	OffsetExpr    Expression           // Offset expression for RANGE
+	LimitExpr     Expression           // Limit expression for RANGE
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause (mendixlabs/mxcli#1252)
 	// UnresolvedOperands holds the list operands that did not reduce to a
 	// variable name — see UnresolvedOperand. Empty on every well-formed statement.
 	UnresolvedOperands []UnresolvedOperand
@@ -992,10 +1020,8 @@ type AggregateListStmt struct {
 	InitialValue Expression
 	ReturnType   *DataType
 
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	// ErrorHandling is recorded only so the clause can be REFUSED — Mendix's
-	// AggregateAction has no ErrorHandlingType. See ListOperationStmt.
-	ErrorHandling *ErrorHandlingClause
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause (mendixlabs/mxcli#1252)
 	// UnresolvedOperands holds the list operand that did not reduce to a variable
 	// name — see UnresolvedOperand. Empty on every well-formed statement.
 	UnresolvedOperands []UnresolvedOperand
@@ -1005,9 +1031,10 @@ func (s *AggregateListStmt) isMicroflowStatement() {}
 
 // CreateListStmt represents: $Var = CREATE LIST OF Entity
 type CreateListStmt struct {
-	Variable    string               // Output variable name
-	EntityType  QualifiedName        // Entity type for the list
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Variable      string               // Output variable name
+	EntityType    QualifiedName        // Entity type for the list
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *CreateListStmt) isMicroflowStatement() {}
@@ -1025,6 +1052,7 @@ type AddToListStmt struct {
 	Commit          CommitFlag           // Association target only
 	RefreshInClient bool                 // Association target only
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *AddToListStmt) isMicroflowStatement() {}
@@ -1038,6 +1066,7 @@ type RemoveFromListStmt struct {
 	Commit          CommitFlag           // Association target only
 	RefreshInClient bool                 // Association target only
 	Annotations     *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling   *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *RemoveFromListStmt) isMicroflowStatement() {}
@@ -1086,7 +1115,8 @@ func (s *ClosePageStmt) isMicroflowStatement() {}
 
 // ShowHomePageStmt represents: SHOW HOME PAGE
 type ShowHomePageStmt struct {
-	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *ShowHomePageStmt) isMicroflowStatement() {}
@@ -1231,6 +1261,81 @@ type RestCallStmt struct {
 }
 
 func (s *RestCallStmt) isMicroflowStatement() {}
+
+// SendEmailStmt is the built-in Send Email activity (Microflows$SendEmailAction,
+// 11.13+): `send email from … to … subject … host … port … [on error …]`.
+type SendEmailStmt struct {
+	From    Expression
+	To      Expression
+	Cc      Expression // optional
+	Bcc     Expression // optional
+	Subject EmailTemplateClause
+	// BodyText and BodyHTML are nil when the clause is absent.
+	BodyText   *EmailTemplateClause
+	BodyHTML   *EmailTemplateClause
+	Headers    []EmailHeader
+	Attachment string // variable name without $; empty when absent
+	Host       Expression
+	Port       Expression
+	// Security is the mode word as written (none/ssl/tls, any case); empty when
+	// the clause is absent. The executor validates it.
+	Security            string
+	CheckServerIdentity bool
+	// Timeout is the connection timeout in milliseconds; 0 when absent.
+	Timeout       int
+	Auth          *RestAuth // optional `auth basic … password …`
+	ErrorHandling *ErrorHandlingClause
+	Annotations   *ActivityAnnotations
+}
+
+func (s *SendEmailStmt) isMicroflowStatement() {}
+
+// Expressions returns every expression the statement holds — addresses,
+// template texts and parameters, host, port and credentials — skipping absent
+// ones. Walkers that collect variable references use it so a new slot cannot
+// be missed by one of them.
+func (s *SendEmailStmt) Expressions() []Expression {
+	var out []Expression
+	add := func(es ...Expression) {
+		for _, e := range es {
+			if e != nil {
+				out = append(out, e)
+			}
+		}
+	}
+	addTemplate := func(t *EmailTemplateClause) {
+		if t == nil {
+			return
+		}
+		add(t.Text)
+		for _, p := range t.Params {
+			add(p.Value)
+		}
+	}
+	add(s.From, s.To, s.Cc, s.Bcc)
+	addTemplate(&s.Subject)
+	addTemplate(s.BodyText)
+	addTemplate(s.BodyHTML)
+	add(s.Host, s.Port)
+	if s.Auth != nil {
+		add(s.Auth.Username, s.Auth.Password)
+	}
+	return out
+}
+
+// EmailTemplateClause is a subject or body: template text plus optional
+// `with ({1} = …)` parameters. Text is a string literal for a template, or any
+// other expression, which the builder wraps as `{1}`.
+type EmailTemplateClause struct {
+	Text   Expression
+	Params []TemplateParam
+}
+
+// EmailHeader is one `header 'Name' = 'value'` line; both are plain strings.
+type EmailHeader struct {
+	Name  string
+	Value string
+}
 
 // SendRestRequestStmt represents: [$Var =] SEND REST REQUEST Module.Service.Operation [BODY $var] [ON ERROR ...]
 // Calls a consumed REST service operation defined via CREATE REST CLIENT.

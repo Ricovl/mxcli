@@ -41,6 +41,21 @@ its own. Inside the modules it touches, every entity is repositioned — includi
 any you arranged yourself in Studio Pro. Use `--dry-run` first; it prints every
 move as `Module.Entity (x, y) -> (x, y)` and writes nothing.
 
+To repair a model you arranged by hand, use `--only-overlapping` instead: an
+entity whose box does not collide with another entity or an annotation keeps its
+position, and of two that collide the first in reading order (top to bottom,
+then left to right) stays put while the other moves to the nearest free spot.
+Annotations are obstacles and never move.
+
+```
+$ mxcli layout -p app.mpr --module Sales --only-overlapping --dry-run
+  Sales.Small7  (100, 380) -> (100, 480)
+Sales: 1 of 7 entities would move
+```
+
+Studio Pro does not store an entity's size, so box sizes are estimated from the
+entity's name and attribute count, generously.
+
 Marketplace modules and `System` are never touched. Naming one explicitly is an
 error rather than a silent skip:
 
@@ -67,6 +82,7 @@ a build script:
 |---|---|
 | `--module <name>` | Lay out this module (repeatable). Default: every module the project owns. |
 | `--dry-run` | Print the moves, write nothing. |
+| `--only-overlapping` | Move only entities that overlap another entity or an annotation; keep every other position. |
 | `--include-marketplace` | Also lay out Marketplace modules. A module update replaces them, so this is normally pointless. |
 
 ## When you do want explicit positions
@@ -78,10 +94,13 @@ layout into MDL.
 
 Two things to know if you place entities yourself:
 
-- The coordinate is the box's **centre**, not its top-left corner.
-- An entity created with no position takes the next slot in a wrapping grid.
-  That is a default, not a layout: it keeps a large model on screen and stops
-  boxes overlapping, but it knows nothing about which entities are related.
+- The coordinate is the box's **top-left corner**, not its centre.
+- An entity created with no position takes the next free slot in a wrapping
+  grid — the first slot where its box, at its estimated height, clears every
+  entity and annotation already in the module. That is a default, not a
+  layout: it keeps a large model on screen and stops boxes overlapping, but it
+  knows nothing about which entities are related. View entities, OData external
+  entities and entities imported from a contract are placed the same way.
 
 ## Default position for an entity with no `@Position`
 

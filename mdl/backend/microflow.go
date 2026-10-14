@@ -21,6 +21,10 @@ type MicroflowBackend interface {
 	// map. Used by diff-local and other callers that have raw map data.
 	ParseMicroflowFromRaw(raw map[string]any, unitID, containerID model.ID) *microflows.Microflow
 
+	// ParseNanoflowFromRaw is ParseMicroflowFromRaw for a Microflows$Nanoflow
+	// document. nil when the map is not a nanoflow or does not decode.
+	ParseNanoflowFromRaw(raw map[string]any, unitID, containerID model.ID) *microflows.Nanoflow
+
 	// ParseMicroflowBSON parses raw microflow BSON bytes into a Microflow.
 	// Used by the executor to inspect microflows it has not necessarily
 	// loaded via ListMicroflows (e.g. to resolve a CALL MICROFLOW's return

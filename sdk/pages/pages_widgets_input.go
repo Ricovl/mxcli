@@ -3,6 +3,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -40,6 +42,14 @@ type TextBox struct {
 	ReadOnly             bool         `json:"readOnly,omitempty"`
 	OnChangeAction       ClientAction `json:"onChangeAction,omitempty"`
 	OnEnterAction        ClientAction `json:"onEnterAction,omitempty"`
+	// SubmitBehaviour is Forms$TextBox/TextArea.SubmitBehaviour: "OnEndEditing"
+	// (Studio Pro's default) or "WhileEditing", which submits as the user types.
+	// SubmitOnInputDelay is the debounce in milliseconds that goes with it; nil
+	// keeps the default 300. Empty / nil write the defaults. Both were hard-coded
+	// in the writer, so describe → exec rewrote a stored WhileEditing to the
+	// default (ako/mxcli-ledger FINDINGS #170).
+	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
+	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
 }
 
 // TextArea represents a multi-line text input widget.
@@ -55,6 +65,9 @@ type TextArea struct {
 	Rows              int                `json:"rows,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	// SubmitBehaviour / SubmitOnInputDelay: as on TextBox.
+	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
+	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
 }
 
 // FormattingInfo represents formatting configuration.
@@ -179,13 +192,16 @@ const (
 	RenderDirectionVertical   RenderDirection = "Vertical"
 )
 
-// FileManager represents a file manager widget.
+// FileManager represents the classic file manager (Forms$FileManager). It has
+// no attribute: it uploads into / downloads from the enclosing data view's
+// object, which must be a System.FileDocument (mendixlabs/mxcli#151).
 type FileManager struct {
 	BaseWidget
+	Label             string          `json:"label,omitempty"`
 	Type              FileManagerType `json:"type"`
 	AllowedExtensions string          `json:"allowedExtensions,omitempty"`
-	MaxFileSize       int             `json:"maxFileSize,omitempty"`
-	ShowButton        bool            `json:"showButton,omitempty"`
+	MaxFileSize       int             `json:"maxFileSize,omitempty"` // megabytes
+	ShowFileInBrowser bool            `json:"showFileInBrowser,omitempty"`
 }
 
 // FileManagerType represents the type of file manager.
@@ -196,6 +212,23 @@ const (
 	FileManagerTypeDownload FileManagerType = "Download"
 	FileManagerTypeBoth     FileManagerType = "Both"
 )
+
+// CanonicalFileManagerType resolves an authored file manager Type, matched
+// case-insensitively, to Mendix's member casing. An unknown member is a
+// document Studio Pro cannot load, so it is reported rather than stored.
+func CanonicalFileManagerType(s string) (FileManagerType, bool) {
+	for _, t := range []FileManagerType{FileManagerTypeUpload, FileManagerTypeDownload, FileManagerTypeBoth} {
+		if strings.EqualFold(s, string(t)) {
+			return t, true
+		}
+	}
+	return "", false
+}
+
+// IsFileManager reports whether a stored $Type is the classic file manager.
+func IsFileManager(typeName string) bool {
+	return typeName == "Forms$FileManager" || typeName == "Pages$FileManager"
+}
 
 // ImageUploader represents an image uploader widget.
 type ImageUploader struct {

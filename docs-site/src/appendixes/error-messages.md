@@ -15,14 +15,14 @@ with qualified name DomainModels$Index
 
 **Cause:** The BSON `$Type` field uses the **qualifiedName** instead of the **storageName**. These are often identical, but not always.
 
-**Solution:** Check the metamodel reflection data for the correct storage name:
+**Solution:** Use the correct storage name:
 
 | qualifiedName (wrong) | storageName (correct) |
 |-----------------------|----------------------|
 | `DomainModels$Entity` | `DomainModels$EntityImpl` |
 | `DomainModels$Index` | `DomainModels$EntityIndex` |
 
-Look up the type in `reference/mendixmodellib/reflection-data/<version>-structures.json` and use the `storageName` field value.
+Look up the type's `SetTypeName(...)` call in `modelsdk/gen/<domain>/types.go`, or dump a Studio Pro-authored document.
 
 ### CE0463: Widget definition changed
 
@@ -169,7 +169,7 @@ level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
     microflow` instead of drop + create
 ```
 
-**Cause:** With a project (`check -p`), the script leaves a microflow or nanoflow with no allowed module role while a page, snippet, layout, nanoflow, menu document or navigation profile names it. Measured on Mendix 11.14, MxBuild reports CE0106 for each of those uses (even from an unused snippet, menu document or nanoflow), but not for a published REST operation, a microflow called only from another microflow, or an excluded page. The usual way to get there is `drop microflow` in one run and `create microflow` in a later one: the later create is a *new* flow, and a new document in a module that has module roles of its own gets no access. Dropping and recreating in the same run, or using `create or modify`, keeps the stored roles.
+**Cause:** With a project (`check -p`), the script leaves a microflow or nanoflow with no allowed module role while a page, snippet, layout, nanoflow, menu document or navigation profile names it. Measured on Mendix 11.14, MxBuild reports CE0106 for each of those uses (even from an unused snippet, menu document or nanoflow), but not for a published REST operation, a microflow called only from another microflow, or an excluded page. The usual way to get there is `drop microflow` in one run and `create microflow` in a later one: the later create is a *new* flow, and a new document gets no access. A new flow in a script that creates it and a page using it, with no grant, is the other. Dropping and recreating in the same run, or using `create or modify`, keeps the stored roles.
 
 **Solution:** Add the `grant execute on microflow …` (or `… on nanoflow …`) the suggestion names, or rebuild the flow with `create or modify` instead of dropping it.
 
@@ -238,6 +238,8 @@ line 1: `create or replace …` (enumeration) is deprecated; write `create or mo
 
 `check` and `exec` report these as **warnings**. To fail the run on one, for example in CI over documentation and examples, pass `--deprecations=error`.
 
+`--deprecations=error` does not gate the `MDL-V1-*` warnings — what a headerless (`mdl 0`) script still has to change before it can carry `mdl 1;` — so a script can pass it and still not parse under `mdl 1`. `mxcli check --v1=error` fails the run on those; `--deprecations=error --v1=error` together is the full `mdl 1` readiness gate, and `mxcli fmt --upgrade --header` is the fix.
+
 `mxcli help <code>` prints the entry for any `MDL-DEPRnnn` or `MDL-V1-*` code, `mxcli syntax <topic> --deprecated` lists a topic's old spellings, and [Language Versions and Migration](../language/versions.md) tabulates them all.
 
 The registry of deprecated spellings is `mdl/deprecation/deprecation.go`. It holds the code, old form, canonical form, rewrite and removal version of each entry. A spelling is only registered where it means exactly the same as its canonical form. `create or replace view entity`, for example, drops and recreates the view entity, so it is not reported. Likewise `show` is reported as `MDL-DEPR002` only where its canonical form is `list` (plurals, relationship queries and the summary tables), and as `MDL-DEPR090` where it is `describe` with the same output. `show entity X` and `show version` are neither: the first has no mdl 1 statement (`MDL-V1-SHOWSUMMARY`), the second is a session command (`MDL-V1-SESSION`).
@@ -275,6 +277,107 @@ $n        = count $Approved;
 ```
 
 The same applies to both operands of `union`/`intersect`/`subtract`.
+
+### MDL-SET01: `set` on an object variable
+
+```
+cannot set object variable '$Cursor' (G46.Group): Mendix has no action that reassigns an
+object variable — Change variable takes only a primitive, and mxbuild rejects it with
+CE7247 "Variable 'Cursor' does not have a primitive type". [MDL-SET01]
+```
+
+**Cause:** `set $Var = …` is a Change variable activity, which takes only a primitive
+variable; on a list it is a Change list Replace. Mendix has no activity that reassigns an
+object variable, so the statement used to be written as a Change variable and fail the build
+with CE7247 (mendixlabs/mxcli#1323). It comes up naturally when walking a parent chain with
+`set $Cursor = $Next` in a `while` loop. On a parameter mxbuild words the same code
+`"Parameter 'X' cannot be changed."`.
+
+Plain `check` reports it for the objects it can see without a project — entity parameters,
+`create`, `retrieve … first`, loop iterators, casts, `head`. Whether an association retrieve
+is an object or a list depends on the association, so that case is reported by
+`check --references` and `exec`.
+
+**Solution:** Return the new object from a sub-microflow (recursion for a chain walk),
+retrieve it into a new variable, or change the object's members with `change $Obj (…)`.
+
+The same rule refuses `set` on a **parameter** of any type but a list, in a microflow, a
+nanoflow or a rule:
+
+```
+cannot set parameter '$N' (Integer): a Change variable cannot target a parameter, and
+mxbuild rejects it with CE7247 "Parameter 'N' cannot be changed". [MDL-SET01]
+```
+
+Copy the parameter into a variable and change that (`declare $Value Integer = $N;`). A list
+parameter is not refused — `set $L = $M` on one is a Change list Replace, which builds — and
+neither is a member change, `set $Param/Attr = …`.
+
+### MDL-RETRIEVE02: Retrieve by association over `System.owner` / `System.changedBy`
+
+```
+retrieve $u from $task/System.owner: System.owner is not a modelled association, and a
+retrieve by association over it has no entity — mxbuild rejects it with CE0136 "Retrieve
+object must specify the 'Entity' property." [MDL-RETRIEVE02]
+```
+
+**Cause:** `owner` and `changedBy` are not associations in any domain model — an entity
+carries them as the *Store owner* / *Store changedBy* flags (`AutoOwner`, `AutoChangedBy`).
+XPath constraints and page paths resolve them, but a retrieve by association does not:
+mxbuild finds the name and derives no entity from it, whether or not the entity stores the
+member (measured on 11.12.2, mendixlabs/mxcli#1358). `check` and `exec` both refuse it.
+
+**Solution:** Retrieve the user from the database by id:
+
+```mdl
+retrieve $u from System.User where [id = $task/System.owner] first;
+retrieve $u from System.User where [id = $task/System.changedBy] first;
+```
+
+### MDL-RETRIEVE03: `change` over a list retrieve
+
+```
+$E was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), not a single
+object, so `change $E` cannot take it — mxbuild rejects the stored member with CE1613
+"The selected attribute 'List of …' no longer exists". [MDL-RETRIEVE03]
+```
+
+**Cause:** The reverse of MDL-RETRIEVE01. A database retrieve with no range, with
+`limit n [offset n]`, or — under the `mdl 1;` header — with a bare `limit 1` binds a
+**list**; a Change object activity takes one object. Before mendixlabs/mxcli#1422, `exec`
+wrote such a change with the member qualified through the list type, which `mx check`
+reported as CE1613 (measured on 11.6.6). A member path `$E/Attr` in any later expression is
+the same mistake and is CE0117 "Error(s) in expression.". `check` and `exec` both refuse
+both. `set $E = empty` over the list is a Change list Replace and builds, so it is not
+reported.
+
+**Solution:** Retrieve the object with `first`, or change the items inside a `loop`:
+
+```mdl
+retrieve $E from Mod.Ent first;
+change $E (Attr = 'x');
+```
+
+A flow already stored with such a member describes with a `-- WARNING` on the change
+line. `create or modify` will not splice over it: without the header it rebuilds the flow
+(which repairs it), and under `mdl 1;` it refuses with the drop-and-create advice.
+
+### MDL-EMAIL02 / 03: A `send email` setting Studio Pro would not allow
+
+```
+send email: CheckServerIdentity has no effect without SecurityType: ssl (it is TLS) [MDL-EMAIL02]
+send email: header name "Bad Name!" may contain only letters, digits and hyphens [MDL-EMAIL03]
+```
+
+**Cause:** Studio Pro enables *Check Server Identity* only for SSL (MDL-EMAIL02),
+and restricts a custom header to a name of letters, digits and hyphens and a
+single-line, non-empty value (MDL-EMAIL03). mxbuild 11.15 accepts both, which is
+why they are warnings: a script is the only way to store them, and the flag is
+ignored or the header fails only when a mail is sent.
+
+**Solution:** `SecurityType: ssl, CheckServerIdentity: true`, or drop
+`CheckServerIdentity`; rename the header, e.g.
+`Headers: ('X-Correlation-Id': 'value')`.
 
 ### MDL-JSONNUM01: A locale-dependent number in hand-built JSON
 

@@ -12,6 +12,16 @@ import (
 // ContainerKind represents the type of page container (page, layout, or snippet).
 type ContainerKind string
 
+// PageParameterSpec is a page or snippet parameter for PageMutator.AddParameter.
+// Exactly one of PrimitiveType and EntityName is set: PrimitiveType is the
+// primitive's DataTypes $Type (e.g. "DataTypes$StringType"), EntityName the
+// qualified name of the entity an object parameter points at.
+type PageParameterSpec struct {
+	Name          string
+	PrimitiveType string
+	EntityName    string
+}
+
 const (
 	ContainerPage    ContainerKind = "page"
 	ContainerLayout  ContainerKind = "layout"
@@ -144,6 +154,23 @@ type PageMutator interface {
 	// list, which Studio Pro cannot open.
 	InsertListViewTemplates(listViewRef string, templates []*pages.ListViewTemplate) error
 
+	// InsertTabPages adds tab pages to a tab container: INTO the container
+	// appends, BEFORE/AFTER a tab page places them next to that sibling. A tab
+	// page lives in the container's TabPages list and is not a widget, so it
+	// cannot go through InsertWidget (#1215).
+	InsertTabPages(targetRef string, position InsertPosition, tabPages []*pages.TabPage) error
+
+	// InsertNavigationListItems adds items to a navigation list: INTO the list
+	// appends, BEFORE/AFTER an item places them next to it. An item lives in the
+	// list's Items and is not a widget, so it cannot go through InsertWidget. It
+	// has no Name either, so it is addressed as backend.NavItemSelector spells
+	// it — `nav item(t1)`, `nav item('Home')`, `nav item@2` (mendixlabs/mxcli#1388).
+	InsertNavigationListItems(targetRef string, position InsertPosition, items []*pages.NavigationListItem) error
+
+	// ReplaceNavigationListItem replaces the item targetRef addresses with the
+	// given items, in its place (mendixlabs/mxcli#1388).
+	ReplaceNavigationListItem(targetRef string, items []*pages.NavigationListItem) error
+
 	// DropListViewTemplate removes the template rendering the given
 	// specialization from a List View. A template has no name, so it is addressed
 	// by entity. Returns an error naming the templates that ARE present when the
@@ -164,6 +191,17 @@ type PageMutator interface {
 
 	// DropVariable removes a local variable by name.
 	DropVariable(name string) error
+
+	// --- Parameter operations ---
+
+	// AddParameter declares a new page or snippet parameter. It refuses a name
+	// already used by a parameter or a variable, and a layout, which has none.
+	AddParameter(param PageParameterSpec) error
+
+	// DropParameter removes a parameter by name. It refuses one the document
+	// still references — a data source or an expression bound to it — since
+	// dropping it would leave a reference that resolves to nothing.
+	DropParameter(name string) error
 
 	// --- Layout operations ---
 
@@ -348,6 +386,9 @@ type WidgetObjectBuilder interface {
 	// `imageObject`) at an image collection entry, by its three-part qualified
 	// name `Module.Collection.Image`.
 	SetImage(propertyKey string, imageQN string)
+	// SetImageEntity binds an image-typed property to the object in context,
+	// an entity specializing System.Image, rather than a collection entry.
+	SetImageEntity(propertyKey string, entityName string)
 	SetExpression(propertyKey string, value string)
 	SetDataSource(propertyKey string, ds pages.DataSource)
 	SetChildWidgets(propertyKey string, children []pages.Widget)

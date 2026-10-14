@@ -85,13 +85,20 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
-		// An activity inside a loop body is refused by the splice whatever
-		// the operation. Say so first: the checks below see only the flow
+		// An activity inside a loop body is refused by the splice for any
+		// change of the body's shape. Say so first: the checks below see only the flow
 		// around the loop, so a fragment reading the iterator would otherwise
 		// be refused as reading an undeclared variable, which is not why.
-		if loop := a.enclosingLoop(target.ID); loop != nil {
-			return fail(fmt.Errorf("%s is inside the body of %s; alter does not splice inside a loop body. %s",
+		// The one exception is an activity replaced by one activity, in place
+		// (ako/mxcli#1106): nothing in the body moves, so it needs no layout.
+		loop := a.enclosingLoop(target.ID)
+		inLoop := func() error {
+			return fail(fmt.Errorf("%s is inside the body of %s; alter does not splice inside a loop body "+
+				"but to replace one activity by one of the same kind. %s",
 				target.Statement, loop.Statement, replaceLoopAdvice(s.Kind(), s.Name.String(), loop.Statement)))
+		}
+		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.ReplaceNotes || len(op.Body) != 1) {
+			return inLoop()
 		}
 		if op.ReplaceNotes {
 			// The statement states the activity's notes, so the stored ones
@@ -137,6 +144,9 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		frag, err := a.buildFragment(ctx, op.Body)
 		if err != nil {
 			return fail(err)
+		}
+		if loop != nil && (len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0) {
+			return inLoop()
 		}
 		// A stated @position on the fragment is where it goes (ako/mxcli#818).
 		frag.Placed = firstStatementPlaced(op.Body)
@@ -217,6 +227,44 @@ func (a *alterFlowContext) enclosingLoop(id model.ID) *mfmutator.Candidate {
 		}
 	}
 	return nil
+}
+
+// loopsAround returns the loops whose body holds the stored object id, the
+// innermost first; none when id is at top level.
+func (a *alterFlowContext) loopsAround(id model.ID) []*microflows.LoopedActivity {
+	var path []*microflows.LoopedActivity
+	var find func(oc *microflows.MicroflowObjectCollection) bool
+	find = func(oc *microflows.MicroflowObjectCollection) bool {
+		if oc == nil {
+			return false
+		}
+		for _, obj := range oc.Objects {
+			if obj.GetID() == id {
+				return true
+			}
+			if l, ok := obj.(*microflows.LoopedActivity); ok {
+				if find(l.ObjectCollection) {
+					path = append(path, l)
+					return true
+				}
+			}
+		}
+		return false
+	}
+	find(a.mf.ObjectCollection)
+	return path
+}
+
+// iteratorsAround returns the iterator variables of the loops around the
+// stored object id: they exist wherever it runs.
+func (a *alterFlowContext) iteratorsAround(id model.ID) []string {
+	var out []string
+	for _, l := range a.loopsAround(id) {
+		if src, ok := l.LoopSource.(*microflows.IterableList); ok && src.VariableName != "" {
+			out = append(out, src.VariableName)
+		}
+	}
+	return out
 }
 
 func loopHolds(loop *microflows.LoopedActivity, id model.ID) bool {
@@ -311,7 +359,7 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 			ObjectCollection:   nf.ObjectCollection,
 		}
 	} else {
-		mfs, err := ctx.Backend.ListMicroflows()
+		mfs, err := microflowsNamed(ctx, s.Name.Name)
 		if err != nil {
 			return nil, mdlerrors.NewBackend("list microflows", err)
 		}
@@ -421,6 +469,7 @@ func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 		hierarchy:    hierarchy,
 		restServices: restServices,
 		isNanoflow:   a.stmt.Nanoflow,
+		scriptFlows:  ctx.scriptFlows,
 
 		// A fragment is spliced into a stored flow: a member it cannot
 		// qualify is refused, never written bare (ako/mxcli#885).
@@ -686,6 +735,9 @@ func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlo
 	for _, p := range a.mf.Parameters {
 		inScope[p.Name] = true
 	}
+	for _, v := range a.iteratorsAround(target.ID) {
+		inScope[v] = true
+	}
 	for id := range a.upstreamOf(target.ID, op.Op == ast.AlterFlowInsertAfter) {
 		for _, c := range a.cands {
 			if c.ID == id && c.OutputVariable != "" {
@@ -725,6 +777,9 @@ func (a *alterFlowContext) unscopedRefs(expr string, id model.ID) []string {
 	for _, p := range a.mf.Parameters {
 		inScope[p.Name] = true
 	}
+	for _, v := range a.iteratorsAround(id) {
+		inScope[v] = true
+	}
 	for up := range a.upstreamOf(id, false) {
 		for _, c := range a.cands {
 			if c.ID == up && c.OutputVariable != "" {
@@ -750,13 +805,31 @@ func (a *alterFlowContext) unscopedRefs(expr string, id model.ID) []string {
 // stored flows — the activities whose outputs exist when the flow gets there.
 // id itself is included only when including says so (an insert after it runs
 // once it has).
+//
+// Inside a loop body, what runs before the loop runs before id too, at every
+// level of nesting (ako/mxcli#1106).
 func (a *alterFlowContext) upstreamOf(id model.ID, including bool) map[model.ID]bool {
 	preds := map[model.ID][]model.ID{}
-	for _, f := range a.mf.ObjectCollection.Flows {
-		preds[f.DestinationID] = append(preds[f.DestinationID], f.OriginID)
+	var collect func(oc *microflows.MicroflowObjectCollection)
+	collect = func(oc *microflows.MicroflowObjectCollection) {
+		if oc == nil {
+			return
+		}
+		for _, f := range oc.Flows {
+			preds[f.DestinationID] = append(preds[f.DestinationID], f.OriginID)
+		}
+		for _, obj := range oc.Objects {
+			if l, ok := obj.(*microflows.LoopedActivity); ok {
+				collect(l.ObjectCollection)
+			}
+		}
 	}
+	collect(a.mf.ObjectCollection)
 	out := map[model.ID]bool{}
 	queue := append([]model.ID(nil), preds[id]...)
+	for _, l := range a.loopsAround(id) {
+		queue = append(queue, preds[l.ID]...)
+	}
 	for len(queue) > 0 {
 		n := queue[0]
 		queue = queue[1:]

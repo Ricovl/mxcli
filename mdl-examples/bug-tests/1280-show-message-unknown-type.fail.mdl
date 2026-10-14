@@ -1,0 +1,12 @@
+mdl 1;
+-- mendixlabs/mxcli#1280: `ok` is not a Microflows$ShowMessageType value
+-- (Information | Warning | Error). Written as-is it passes `mx check` and the
+-- runtime shows an Information dialog, so `mxcli check` must refuse it
+-- (MDL-SHOWMSG01).
+
+create module Bug1280Fail;
+
+create or modify microflow Bug1280Fail.ACT_Ok ()
+begin
+  show message 'Done' type ok;
+end;

@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 )
 
 // PropertyDef describes a single property from a widget XML definition.
@@ -325,7 +327,7 @@ func ParseMPK(mpkPath string) (*WidgetDefinition, error) {
 			if f.UncompressedSize64 > maxFileSize {
 				return nil, fmt.Errorf("package.xml exceeds max file size (%d > %d)", f.UncompressedSize64, maxFileSize)
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				return nil, fmt.Errorf("failed to open package.xml: %w", err)
 			}
@@ -359,7 +361,7 @@ func ParseMPK(mpkPath string) (*WidgetDefinition, error) {
 			if f.UncompressedSize64 > maxFileSize {
 				return nil, fmt.Errorf("%s exceeds max file size (%d > %d)", widgetFilePath, f.UncompressedSize64, maxFileSize)
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				return nil, fmt.Errorf("failed to open %s: %w", widgetFilePath, err)
 			}
@@ -635,7 +637,7 @@ func getWidgetIDsFromMPK(mpkPath string) ([]string, error) {
 			if f.UncompressedSize64 > maxFileSize {
 				return nil, fmt.Errorf("package.xml exceeds max file size (%d > %d)", f.UncompressedSize64, maxFileSize)
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				return nil, err
 			}
@@ -668,7 +670,7 @@ func getWidgetIDsFromMPK(mpkPath string) ([]string, error) {
 			if f.UncompressedSize64 > maxFileSize {
 				continue
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				continue
 			}
@@ -713,7 +715,7 @@ func ReadEditorConfig(mpkPath, widgetID string) (string, error) {
 		if f.Name != "package.xml" {
 			continue
 		}
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return "", err
 		}
@@ -738,7 +740,7 @@ func ReadEditorConfig(mpkPath, widgetID string) (string, error) {
 		if xf == nil {
 			continue
 		}
-		rc, err := xf.Open()
+		rc, err := zipentry.Open(xf)
 		if err != nil {
 			continue
 		}
@@ -761,7 +763,7 @@ func ReadEditorConfig(mpkPath, widgetID string) (string, error) {
 		if ec.UncompressedSize64 > maxFileSize {
 			return "", fmt.Errorf("editorConfig %s exceeds max file size", ecPath)
 		}
-		erc, err := ec.Open()
+		erc, err := zipentry.Open(ec)
 		if err != nil {
 			return "", err
 		}
@@ -868,7 +870,7 @@ func ParseMPKForWidget(mpkPath string, widgetID string) (*WidgetDefinition, erro
 			if f.UncompressedSize64 > maxFileSize {
 				return nil, fmt.Errorf("package.xml exceeds max size")
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				return nil, fmt.Errorf("open package.xml: %w", err)
 			}
@@ -897,7 +899,7 @@ func ParseMPKForWidget(mpkPath string, widgetID string) (*WidgetDefinition, erro
 			if f.UncompressedSize64 > maxFileSize {
 				continue
 			}
-			rc, err := f.Open()
+			rc, err := zipentry.Open(f)
 			if err != nil {
 				continue
 			}

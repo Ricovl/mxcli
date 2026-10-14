@@ -21,6 +21,10 @@ import (
 //     loop and the commit together, which bypassed the "changes inside its
 //     body" refusal: under mdl 1 the loop was silently rebuilt with new $IDs.
 //
+// Since ako/mxcli#1106 a value edit inside the body is spliced in place, so the
+// loop-body change these tests use also grows the body (growBody): a change of
+// the body's shape, which is still refused.
+//
 // The bare-commit spelling is the control for both: it always behaved.
 func commitEventsFlow(name, commit, value string) string {
 	return fmt.Sprintf(`create or modify microflow MyFirstModule.%s ($L: List of System.User)
@@ -33,6 +37,11 @@ begin
   %s;
 end;
 `, name, value, commit)
+}
+
+// growBody adds a statement to the loop body of a commitEventsFlow script.
+func growBody(script string) string {
+	return strings.Replace(script, "  end loop;", "    log info node 'N' 'more';\n  end loop;", 1)
 }
 
 func TestSpliceRerun_CommitWithEventsIsTheStoredCommit(t *testing.T) {
@@ -80,7 +89,7 @@ func TestSpliceRerun_CommitWithEventsIsTheStoredCommit(t *testing.T) {
 			// replace of the loop.
 			stored := drawnObjects(t, h.flowUnit(t, c.flow))
 			before = h.snapshot()
-			err := h.exec("mdl 1;\n" + strings.Replace(commitEventsFlow(c.flow, c.commit, "z"), "'start'", "'begin'", 1))
+			err := h.exec("mdl 1;\n" + growBody(strings.Replace(commitEventsFlow(c.flow, c.commit, "z"), "'start'", "'begin'", 1)))
 			if err == nil || !strings.Contains(err.Error(), "changes inside its body") {
 				t.Errorf("a loop-body change: want the refusal naming the loop, got %v\n%s", err, h.out.String())
 			}
@@ -136,7 +145,7 @@ func TestSpliceRerun_LoopBodyChangeBesideAnotherChangeIsRefused(t *testing.T) {
 			}
 			stored := drawnObjects(t, h.flowUnit(t, flow))
 			before := h.snapshot()
-			err := h.exec("mdl 1;\n" + commitEventsFlow(flow, c.commit, "z"))
+			err := h.exec("mdl 1;\n" + growBody(commitEventsFlow(flow, c.commit, "z")))
 			if err == nil || !strings.Contains(err.Error(), "changes inside its body") {
 				t.Errorf("want the refusal naming the loop, got %v\n%s", err, h.out.String())
 			}

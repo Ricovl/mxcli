@@ -28,11 +28,12 @@ Built-in rules check for:
   - Empty validation feedback (MPR004) - validation feedback with empty message
   - Unconfigured images (MPR005) - IMAGE widgets with no source configured
   - Empty containers (MPR006) - layout containers with no children
-  - Navigation page security (MPR007) - pages in navigation need allowed roles
+  - Navigation page security (MPR007) - pages in navigation need allowed roles, and every user role must be able to open its home page
   - Gallery selection listener (MPR009) - DataView 'DataSource: selection X' needs gallery 'ItemSelectionMode: toggle' (Studio Pro CE3637)
   - Entity access rules (SEC001) - persistent entities need access rules
   - Password policy (SEC002) - password minimum length should be 8+
   - Demo users (SEC003) - demo users should be off at Production security
+  - Unreadable page data (SEC010) - a data widget's entity must be readable by the roles that open its page (at Production it renders empty)
   - Un-describable branch structure (MDL-FLOW01) - decision branches that do not nest, so DESCRIBE cannot render them faithfully
 
 Bundled Starlark rules (in .claude/lint-rules/):
@@ -424,12 +425,14 @@ func builtinLintRules() []linter.Rule {
 		rules.NewNoEntityAccessRulesRule(),
 		rules.NewWeakPasswordPolicyRule(),
 		rules.NewDemoUsersActiveRule(),
+		rules.NewPageEntityReadAccessRule(),  // SEC010 - full catalog (widgets, permissions)
 		rules.NewOverlappingActivitiesRule(), // MPR008 - requires BSON inspection
 		rules.NewLoopChildContainmentRule(),  // MPR011 - requires BSON inspection
 		rules.NewNoCommitInLoopRule(),        // CONV011-CONV014 - require BSON inspection
 		rules.NewExclusiveSplitCaptionRule(),
 		rules.NewErrorHandlingOnCallsRule(),
 		rules.NewNoContinueErrorHandlingRule(),
-		rules.NewIrreducibleFlowGraphRule(), // MDL-FLOW01 - graph structure vs MDL nesting
+		rules.NewIrreducibleFlowGraphRule(),     // MDL-FLOW01 - graph structure vs MDL nesting
+		rules.NewImportRangeObjectMappingRule(), // MDL-MAP04 - First over an object-rooted mapping in the model
 	}
 }

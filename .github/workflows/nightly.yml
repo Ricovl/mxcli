@@ -40,7 +40,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
 
       - name: Cache ANTLR4 JAR
         uses: actions/cache@v6
@@ -70,6 +70,63 @@ jobs:
         run: make test-integration
         timeout-minutes: 60
 
+  # Mendix 9.24 (the last 9.x LTS), kept OUT of the `test` matrix on purpose:
+  # `nightly` needs `test`, and 9.x still has known writer bugs, so a matrix
+  # entry would block every release until they are fixed. continue-on-error
+  # keeps a red run from failing the workflow while the failures stay visible
+  # in the job log. Once this job is green, fold the version into the `test`
+  # matrix and delete this job.
+  test-mendix-9:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      MENDIX_VERSION: '9.24.30.51827'
+    name: test (Mendix 9.24.30.51827, non-gating)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27.2'
+
+      # mxbuild 9 draws through System.Drawing; without libgdiplus every mx call
+      # dies with "The type initializer for 'Gdip' threw an exception."
+      - name: Install libgdiplus
+        run: sudo apt-get update && sudo apt-get install -y libgdiplus
+
+      # The 9.x runtime and its Gradle build need JDK 17; pin it rather than
+      # relying on the runner image's default JAVA_HOME.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache ANTLR4 JAR
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository/org/antlr/antlr4
+          key: antlr4-4.13.2
+      - name: Install ANTLR4
+        run: pip install 'antlr4-tools==0.2.2'
+      - name: Generate parser
+        run: make grammar
+        env:
+          ANTLR4_TOOLS_ANTLR_VERSION: '4.13.2'
+      - name: Build
+        run: make build
+
+      # No `make test`: the unit tests are version-independent and already run
+      # in every `test` matrix entry.
+
+      - name: Setup mxbuild ${{ env.MENDIX_VERSION }}
+        run: ./bin/mxcli setup mxbuild --version ${{ env.MENDIX_VERSION }}
+
+      - name: "Integration tests (Mendix ${{ env.MENDIX_VERSION }})"
+        run: make test-integration
+        timeout-minutes: 60
+
   # The upgrade property test over the WHOLE mdl-examples corpus, header-only
   # scripts included (MXCLI_UPGRADE_ALL). Per-PR CI executes only the scripts
   # the upgrade rewrites beyond the header and terminators; this is the run that
@@ -87,7 +144,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
       - name: Cache ANTLR4 JAR
         uses: actions/cache@v6
         with:
@@ -118,7 +175,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
 
       - uses: oven-sh/setup-bun@v2
 

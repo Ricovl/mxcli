@@ -16,6 +16,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/internal/pathutil"
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/dmlayout"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -338,7 +339,7 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	// The folder is a clause after the name (R9); `Folder:` is its alias.
 	folder := ""
 	if folderPath != "" {
-		folder = " folder " + mdlQuoted(folderPath)
+		folder = " folder " + mdlQuote(ctx, folderPath)
 	}
 	fmt.Fprintf(ctx.Output, "create or modify published odata service %s.%s%s (\n", moduleName, svc.Name, folder)
 
@@ -369,32 +370,26 @@ func outputPublishedODataServiceMDL(ctx *ExecContext, svc *model.PublishedODataS
 	if svc.SupportsGraphQL {
 		props = append(props, "  SupportsGraphQL: Yes")
 	}
+	// Authentication is a property (R9; the trailing clause is MDL-DEPR139),
+	// with the custom-authentication microflow inside it: emitted as a comment
+	// the output looked complete but replayed into a service Mendix rejects with
+	// CE0333 (mxcli-formula1 §40).
+	authProp, authNote, hasAuth := odataAuthenticationProperty(svc)
+	if hasAuth {
+		props = append(props, "  "+authProp)
+	}
 	fmt.Fprintln(ctx.Output, strings.Join(props, ",\n"))
 
-	// The statement ends with `;` after whichever clause comes last: the
-	// property list, the authentication clause or the entity block (ADR-0010
-	// R11).
+	// The statement ends with `;` after the property list or the entity block
+	// (ADR-0010 R11).
 	hasBlock := len(svc.EntityTypes) > 0 || len(svc.EntitySets) > 0 || len(svc.Microflows) > 0
-	hasAuth := len(svc.AuthenticationTypes) > 0 || svc.AuthMicroflow != ""
-	if hasBlock || hasAuth {
+	if hasBlock {
 		fmt.Fprintln(ctx.Output, ")")
 	} else {
 		fmt.Fprintln(ctx.Output, ");")
 	}
-
-	// Authentication types. The custom-authentication microflow is part of the
-	// clause, not a comment beside it: emitted as a comment the output looked
-	// complete but replayed into a service Mendix rejects with CE0333
-	// (mxcli-formula1 §40).
-	authEnd := "\n"
-	if !hasBlock {
-		authEnd = ";\n"
-	}
-	if len(svc.AuthenticationTypes) > 0 {
-		fmt.Fprintf(ctx.Output, "authentication %s%s", odataAuthClause(svc), authEnd)
-	} else if svc.AuthMicroflow != "" {
-		// A microflow with no type recorded still has to survive the round trip.
-		fmt.Fprintf(ctx.Output, "authentication microflow %s%s", svc.AuthMicroflow, authEnd)
+	if authNote != "" {
+		fmt.Fprintf(ctx.Output, "-- Authentication is stored as %s, which MDL cannot state; executing this keeps it.\n", authNote)
 	}
 
 	// Published entities block
@@ -816,7 +811,7 @@ func outputExternalEntityMDL(ctx *ExecContext, entity *domainmodel.Entity, modul
 		// unlimited and rewrote a stored String(36) (#743).
 		typeName := "Unknown"
 		if attr.Type != nil {
-			typeName = formatAttributeType(attr.Type)
+			typeName = formatAttributeType(attr.Type) + localizeClause(attr.Type)
 		}
 		comma := ","
 		if i == len(entity.Attributes)-1 {
@@ -918,7 +913,8 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 		}
 		if len(attrs) > 0 {
 			// The rebuilt attributes keep each stored attribute's identity and
-			// what the statement cannot spell (the OData mapping, LocalizeDate),
+			// what the statement cannot spell (the OData mapping; LocalizeDate when
+			// unstated, #1373),
 			// by name; a fresh $ID and a plain StoredValue made the rewrite an
 			// unmapped attribute (#743).
 			for _, a := range attrs {
@@ -932,7 +928,7 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 			if err := checkRemoteTypes(ctx, s.Name.String(), existingEntity, attrs); err != nil {
 				return err
 			}
-			carryStoredAttributeState(existingEntity, attrs)
+			carryStoredAttributeState(existingEntity, attrs, statedLocalize(s.Attributes))
 			existingEntity.Attributes = attrs
 		}
 		// A rewrite that carried no doc comment keeps the stored one; an
@@ -952,14 +948,10 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 		return mdlerrors.NewValidation("EntitySet property is required when creating an external entity")
 	}
 
-	// Auto-position based on existing entities
-	location := model.Point{X: 100 + len(dm.Entities)*150, Y: 100}
-
 	newEntity := &domainmodel.Entity{
 		Name:                s.Name.Name,
 		Documentation:       s.Documentation,
 		Persistable:         false, // External entities are not persistable
-		Location:            location,
 		Attributes:          attrs,
 		Source:              "Rest$ODataRemoteEntitySource",
 		RemoteServiceName:   serviceRef,
@@ -972,6 +964,10 @@ func execCreateExternalEntity(ctx *ExecContext, s *ast.CreateExternalEntityStmt)
 		CreateChangeLocally: derefBool(s.AllowCreateChangeLocally),
 	}
 	newEntity.ID = model.ID(types.GenerateID())
+	// The next grid slot whose box clears everything already in the module.
+	// This used to be the single-row `100 + len(dm.Entities)*150` that CREATE
+	// ENTITY dropped long before (#1479).
+	newEntity.Location = dmlayout.Place(dm, newEntity)
 
 	if err := ctx.Backend.CreateEntity(dm.ID, newEntity); err != nil {
 		return mdlerrors.NewBackend("create external entity", err)
@@ -1561,10 +1557,11 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 						}
 						svc.Microflows = published
 					}
-					if len(stmt.AuthenticationTypes) > 0 {
+					if stmt.AuthenticationSet {
 						svc.AuthenticationTypes = stmt.AuthenticationTypes
 						// Restated auth replaces the microflow too, including
-						// clearing it when the new clause is not `microflow`.
+						// clearing it when the methods do not include
+						// `microflow`, and `none` clears both.
 						svc.AuthMicroflow = stmt.AuthMicroflow
 					}
 					// Published entities are replaced wholesale when the statement
@@ -1706,7 +1703,8 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 //     PageSize only with UsePaging, and Studio Pro stores 10000 either way);
 //   - the stored order of the entity sets, which describe prints in entity-type
 //     order; sets the stored service did not have follow, in statement order;
-//   - each member's CanBeEmpty, matched by entity and member name.
+//   - each member's CanBeEmpty, matched by entity and member name, while the
+//     member's key status is unchanged.
 func carryPublishedEntityState(storedTypes []*model.PublishedEntityType, storedSets []*model.PublishedEntitySet, svc *model.PublishedODataService) {
 	setIndex := make(map[string]int, len(storedSets))
 	setByEntity := make(map[string]*model.PublishedEntitySet, len(storedSets))
@@ -1738,7 +1736,11 @@ func carryPublishedEntityState(storedTypes []*model.PublishedEntityType, storedS
 	}
 	for _, et := range svc.EntityTypes {
 		for _, m := range et.Members {
-			if old, ok := members[et.Entity+"/"+bareMemberName(m.Name)]; ok && old.CanBeEmpty != nil {
+			// Only while the key status is the one it was stored with: a member
+			// that becomes a key would otherwise carry CanBeEmpty true onto a
+			// key, which mxbuild refuses (CE0309). On a change, the derived
+			// value (!IsPartOfKey) applies.
+			if old, ok := members[et.Entity+"/"+bareMemberName(m.Name)]; ok && old.CanBeEmpty != nil && old.IsPartOfKey == m.IsPartOfKey {
 				v := *old.CanBeEmpty
 				m.CanBeEmpty = &v
 			}
@@ -1791,6 +1793,10 @@ func alterODataService(ctx *ExecContext, stmt *ast.AlterODataServiceStmt) error 
 				default:
 					return mdlerrors.NewUnsupported(fmt.Sprintf("unknown OData service property: %s", key))
 				}
+			}
+			if stmt.AuthenticationSet {
+				svc.AuthenticationTypes = stmt.AuthenticationTypes
+				svc.AuthMicroflow = stmt.AuthMicroflow
 			}
 			if err := ctx.Backend.UpdatePublishedODataService(svc); err != nil {
 				return mdlerrors.NewBackend("alter OData service", err)
@@ -1939,6 +1945,7 @@ func extractMicroflowRef(ref string) string {
 // entity name, so callers can resolve "what's on the other side of
 // AssocName from Entity X".
 type assocMembership struct {
+	QN       string                      // the association's own qualified name (its module, not necessarily the entity's)
 	ParentQN string                      // FROM entity (CLAUDE.md: ParentPointer holds the FROM/FK side)
 	ChildQN  string                      // TO entity (ChildPointer holds the TO/referenced side)
 	Type     domainmodel.AssociationType // Reference (to-one) vs ReferenceSet (to-many)
@@ -2047,9 +2054,64 @@ func lookupEntityMembers(ctx *ExecContext, entityQN ast.QualifiedName) (map[stri
 		if parentQN != entityQN.String() && childQN != entityQN.String() {
 			continue
 		}
-		assocs[a.Name] = &assocMembership{ParentQN: parentQN, ChildQN: childQN, Type: a.Type}
+		assocs[a.Name] = &assocMembership{QN: entityQN.Module + "." + a.Name, ParentQN: parentQN, ChildQN: childQN, Type: a.Type}
 	}
+	// A cross-module association is a DomainModels$CrossAssociation, kept apart
+	// from dm.Associations and stored in the FROM entity's module, with the TO
+	// entity by name (mendixlabs/mxcli#1335). Missing it here sent the member to
+	// the attribute fallback: CE1613 on a PublishedAttribute named after it.
+	for _, ca := range dm.CrossAssociations {
+		if parentQN := entityIDToQN[ca.ParentID]; parentQN == entityQN.String() {
+			assocs[ca.Name] = &assocMembership{QN: entityQN.Module + "." + ca.Name, ParentQN: parentQN, ChildQN: ca.ChildRef, Type: ca.Type}
+		}
+	}
+	// Published from the TO side, the association lives in another module's
+	// domain model, so the published entity's own one cannot find it.
+	addCrossAssociationsTo(ctx, entityQN, assocs)
 	return attrs, assocs
+}
+
+// addCrossAssociationsTo adds the cross-module associations whose TO entity is
+// entityQN. Best-effort like lookupEntityMembers: a backend failure leaves assocs
+// as it was. An association name already present (local to the module) wins.
+func addCrossAssociationsTo(ctx *ExecContext, entityQN ast.QualifiedName, assocs map[string]*assocMembership) {
+	modules, err := getModulesFromCache(ctx)
+	if err != nil {
+		return
+	}
+	dms, err := ctx.Backend.ListDomainModels()
+	if err != nil {
+		return
+	}
+	moduleNames := make(map[model.ID]string, len(modules))
+	for _, m := range modules {
+		moduleNames[m.ID] = m.Name
+	}
+	for _, dm := range dms {
+		modName := moduleNames[dm.ContainerID]
+		if modName == "" || modName == entityQN.Module {
+			continue
+		}
+		for _, ca := range dm.CrossAssociations {
+			if ca.ChildRef != entityQN.String() {
+				continue
+			}
+			if _, taken := assocs[ca.Name]; taken {
+				continue
+			}
+			var parentQN string
+			for _, e := range dm.Entities {
+				if e.ID == ca.ParentID {
+					parentQN = modName + "." + e.Name
+					break
+				}
+			}
+			if parentQN == "" {
+				continue
+			}
+			assocs[ca.Name] = &assocMembership{QN: modName + "." + ca.Name, ParentQN: parentQN, ChildQN: ca.ChildRef, Type: ca.Type}
+		}
+	}
 }
 
 // astEntityDefToModel converts an AST PublishedEntityDef to model PublishedEntityType
@@ -2059,8 +2121,8 @@ func lookupEntityMembers(ctx *ExecContext, entityQN ast.QualifiedName) (map[stri
 // Member kinds (attribute vs association) are auto-detected against the
 // entity's attributes and the module's associations: if a member's name
 // matches an attribute on the entity, it's an attribute; otherwise we
-// look for an association in the same module that involves this entity
-// and emit it as a PublishedAssociationEnd. The user writes the bare
+// look for an association that involves this entity — same-module, or a
+// cross-module one from either side — and emit it as a PublishedAssociationEnd. The user writes the bare
 // association name (e.g. `Order_Customer as 'Orders'`) and the executor
 // fills in the target entity and qualified names from the domain model.
 func astEntityDefToModel(ctx *ExecContext, def *ast.PublishedEntityDef) (*model.PublishedEntityType, *model.PublishedEntitySet) {
@@ -2105,6 +2167,9 @@ func astEntityDefToModel(ctx *ExecContext, def *ast.PublishedEntityDef) (*model.
 			member.EnumerationAsString = pub.AsString
 		} else if assoc := moduleAssocs[m.Name]; assoc != nil {
 			member.Kind = "association"
+			// Qualified here, not by the writer: it can only prefix the published
+			// entity's module, which is wrong from a cross association's TO side.
+			member.Name = assoc.QN
 			member.ExposedAssociationName = m.Name
 			// Target entity = the OTHER side of the association. Multiplicity
 			// (IsMany) of the exposed navigation: a ReferenceSet is to-many
@@ -2473,25 +2538,44 @@ func bareMemberName(name string) string {
 	return name
 }
 
-// odataAuthClause renders a service's authentication methods as MDL, attaching
-// the microflow to the `Microflow` method rather than trailing it as a comment.
-// Custom authentication is the only method that names a target.
-func odataAuthClause(svc *model.PublishedODataService) string {
+// odataAuthenticationProperty renders a published service's stored
+// authentication as the `Authentication:` property, in the stored order, with
+// the microflow attached to the Microflow method. ok is false when there is
+// nothing to print (no methods: the creation default) or when the stored value
+// has no MDL spelling: a method MDL has no keyword for, or a microflow without
+// the Microflow method or the reverse. note then says what is stored, for a
+// comment; leaving the property out keeps the stored value when the output is
+// executed. Printing `microflow M.F` for a microflow stored without the method
+// used to add the method on replay.
+func odataAuthenticationProperty(svc *model.PublishedODataService) (prop, note string, ok bool) {
+	if len(svc.AuthenticationTypes) == 0 && svc.AuthMicroflow == "" {
+		return "", "", false
+	}
 	parts := make([]string, 0, len(svc.AuthenticationTypes))
-	named := false
+	spellable, hasMicroflow := true, false
 	for _, t := range svc.AuthenticationTypes {
-		if strings.EqualFold(t, "Microflow") && svc.AuthMicroflow != "" {
-			parts = append(parts, t+" "+svc.AuthMicroflow)
-			named = true
-			continue
+		switch t {
+		case "Basic", "Session", "Guest":
+			parts = append(parts, strings.ToLower(t))
+		case "Microflow":
+			hasMicroflow = true
+			if svc.AuthMicroflow == "" {
+				spellable = false
+				continue
+			}
+			parts = append(parts, "microflow "+svc.AuthMicroflow)
+		default:
+			spellable = false
 		}
-		parts = append(parts, t)
 	}
-	// A stored microflow with no matching method would otherwise be dropped.
-	if !named && svc.AuthMicroflow != "" {
-		parts = append(parts, "Microflow "+svc.AuthMicroflow)
+	if spellable && hasMicroflow == (svc.AuthMicroflow != "") && len(parts) > 0 {
+		return "Authentication: (" + strings.Join(parts, ", ") + ")", "", true
 	}
-	return strings.Join(parts, ", ")
+	note = "methods [" + strings.Join(svc.AuthenticationTypes, ", ") + "]"
+	if svc.AuthMicroflow != "" {
+		note += ", microflow " + svc.AuthMicroflow
+	}
+	return "", note, false
 }
 
 // printPublishedMicroflowMDL writes a `publish microflow` block. Parameter data

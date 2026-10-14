@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	bsonv1 "go.mongodb.org/mongo-driver/bson"
@@ -15,9 +16,11 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend/widgetobj"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/canon"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
+	mversion "github.com/mendixlabs/mxcli/modelsdk/version"
 	mwidgets "github.com/mendixlabs/mxcli/modelsdk/widgets"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -27,7 +30,7 @@ import (
 // serializer. The registry speaks bson v2; the builder + pages.CustomWidget speak
 // v1, so the template is bridged here.
 func (b *Backend) LoadWidgetTemplate(widgetID string, projectPath string) (backend.WidgetObjectBuilder, error) {
-	typeBSON, objBSON, propIDs, objectTypeID, _, err := mwidgets.GetTemplateFullBSON(widgetID, mmpr.GenerateID, projectPath)
+	typeBSON, objBSON, propIDs, objectTypeID, err := templateFullBSONIDs(widgetID, projectPath, b.ProjectVersion())
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +39,84 @@ func (b *Backend) LoadWidgetTemplate(widgetID string, projectPath string) (backe
 	}
 	return widgetobj.New(widgetID, v2ToV1BSON(typeBSON), v2ToV1BSON(objBSON),
 		propIDs, objectTypeID, codecChildSerializer{}), nil
+}
+
+// templateFullBSONIDs loads a pluggable widget's template (augmented from the
+// project's .mpk) with its Type written in the shape the project's Mendix
+// version declares — see widgetTypeForVersion. Every template-built widget goes
+// through it: LoadWidgetTemplate and BuildFilterWidget alike.
+func templateFullBSONIDs(widgetID, projectPath string, pv *types.ProjectVersion) (bsonv2.D, bsonv2.D, map[string]mwidgets.PropertyTypeIDEntry, string, error) {
+	typeBSON, objBSON, propIDs, objectTypeID, _, err := mwidgets.GetTemplateFullBSON(widgetID, mmpr.GenerateID, projectPath)
+	if err != nil || typeBSON == nil {
+		return typeBSON, objBSON, propIDs, objectTypeID, err
+	}
+	return widgetTypeForVersion(typeBSON, pv), objBSON, propIDs, objectTypeID, nil
+}
+
+// widgetTypeForVersion drops from a pluggable widget Type (the
+// CustomWidgets$CustomWidgetType schema and everything under it) every key the
+// project's Mendix version does not declare yet, whatever it holds.
+//
+// The embedded templates are extracted from Mendix 11.6, so every
+// CustomWidgets$WidgetValueType in them carries SetLabel (10.5), IsLinked and
+// IsMetaData (10.14), DefaultType (10.15), ActionVariables (10.21) and
+// AllowUpload (11.8). DefaultType is "None" on every property, so the property
+// floor (canon.StripUndeclaredProperties) refused every page with a pluggable
+// widget on a Mendix 9.24 project; IsLinked / IsMetaData / SetLabel are true on
+// the combo box and the data grid filters and would be refused next.
+//
+// Dropping a value is right here and wrong at the floor: the Type is the widget
+// package's schema, copied from a newer Studio Pro, not anything the statement
+// said — Studio Pro 9.24 stores none of these keys (measured on a Studio
+// Pro-authored 9.24.30 app), and `mx convert` drops them. The Object (the
+// widget's values) is not touched; a value it holds that the version cannot
+// store is still refused by the floor.
+//
+// The version data is the floor's own (canon.PropertyDeclared), so the two
+// cannot disagree. An unreadable version keeps the template as it is, the
+// newest shape, as the floor strips nothing then either.
+//
+// Not codec.Encoder.OmitKeys: the Type is decoded from raw bytes and its
+// elements are clean, and the encoder passes a clean element's fields through
+// verbatim without consulting OmitKeys.
+func widgetTypeForVersion(t bsonv2.D, pv *types.ProjectVersion) bsonv2.D {
+	if pv == nil || pv.MajorVersion == 0 {
+		return t
+	}
+	v := mversion.Version{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion}
+	return dropUndeclaredWidgetKeys(t, v)
+}
+
+func dropUndeclaredWidgetKeys(d bsonv2.D, v mversion.Version) bsonv2.D {
+	typeName := ""
+	for _, e := range d {
+		if e.Key == "$Type" {
+			typeName, _ = e.Value.(string)
+		}
+	}
+	out := make(bsonv2.D, 0, len(d))
+	for _, e := range d {
+		if strings.HasPrefix(typeName, "CustomWidgets$") && !canon.PropertyDeclared(typeName, e.Key, v) {
+			continue
+		}
+		e.Value = dropUndeclaredWidgetValue(e.Value, v)
+		out = append(out, e)
+	}
+	return out
+}
+
+func dropUndeclaredWidgetValue(val any, v mversion.Version) any {
+	switch x := val.(type) {
+	case bsonv2.D:
+		return dropUndeclaredWidgetKeys(x, v)
+	case bsonv2.A:
+		out := make(bsonv2.A, len(x))
+		for i := range x {
+			out[i] = dropUndeclaredWidgetValue(x[i], v)
+		}
+		return out
+	}
+	return val
 }
 
 // SerializeWidgetToOpaque converts a domain widget to its raw BSON form (for
@@ -61,7 +142,7 @@ func (b *Backend) BuildCreateAttributeObject(attributePath string, objectTypeID,
 // of the CustomWidget envelope (Appearance, editability, …) is added when the
 // widget is serialized via customWidgetToGen.
 func (b *Backend) BuildFilterWidget(spec backend.FilterWidgetSpec, projectPath string) (pages.Widget, error) {
-	typeBSON, objBSON, propertyTypeIDs, _, _, err := mwidgets.GetTemplateFullBSON(spec.WidgetID, mmpr.GenerateID, projectPath)
+	typeBSON, objBSON, propertyTypeIDs, _, err := templateFullBSONIDs(spec.WidgetID, projectPath, b.ProjectVersion())
 	if err != nil {
 		return nil, fmt.Errorf("BuildFilterWidget: load template %s: %w", spec.WidgetID, err)
 	}

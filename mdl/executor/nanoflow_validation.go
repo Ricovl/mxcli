@@ -69,6 +69,8 @@ func checkDisallowedNanoflowAction(stmt ast.MicroflowStatement) string {
 		return "REST calls are not allowed in nanoflows"
 	case *ast.SendRestRequestStmt:
 		return "REST requests are not allowed in nanoflows"
+	case *ast.SendEmailStmt:
+		return "SEND EMAIL is not allowed in nanoflows — mail is sent over SMTP from the server"
 	case *ast.ImportFromMappingStmt:
 		return "import mapping is not allowed in nanoflows"
 	case *ast.ExportToMappingStmt:
@@ -190,9 +192,18 @@ func checkNanoflowErrorHandling(stmt ast.MicroflowStatement) string {
 		return ""
 	}
 	var keyword string
-	switch stmt.(type) {
+	switch s := stmt.(type) {
 	case *ast.ChangeObjectStmt:
 		keyword = "change"
+	case *ast.AddToListStmt, *ast.RemoveFromListStmt:
+		// A reference-set target is a Change object activity (#1288); a list
+		// target is a Change list activity, which takes a handler without
+		// rollback (#1252).
+		if assoc := addRemoveAssociation(s); assoc != "" {
+			keyword = "change"
+		} else {
+			return checkNanoflowWithoutRollbackOnly(stmt)
+		}
 	case *ast.LogStmt:
 		keyword = "log"
 	case *ast.ShowPageStmt:
@@ -203,12 +214,13 @@ func checkNanoflowErrorHandling(stmt ast.MicroflowStatement) string {
 		keyword = "show message"
 	case *ast.ValidationFeedbackStmt:
 		keyword = "validation feedback"
-	case *ast.CreateObjectStmt, *ast.MfCommitStmt, *ast.CallNanoflowStmt, *ast.CallMicroflowStmt:
+	case *ast.CreateObjectStmt, *ast.MfCommitStmt, *ast.CallNanoflowStmt, *ast.CallMicroflowStmt,
+		*ast.ListOperationStmt, *ast.AggregateListStmt, *ast.CreateListStmt, *ast.CastObjectStmt:
 		return checkNanoflowWithoutRollbackOnly(stmt)
 	default:
 		// declare and set are deliberately absent: both variable activities accept
 		// every form in a nanoflow, and so do retrieve and delete (measured,
-		// mendixlabs/mxcli#591). The remaining statements that carry the clause
+		// mendixlabs/mxcli#591) and rollback (11.12.3, mendixlabs/mxcli#1252). The remaining statements that carry the clause
 		// are unmeasured here, and refusing them would reject nanoflows that
 		// build today.
 		return ""
@@ -233,6 +245,11 @@ func checkNanoflowErrorHandling(stmt ast.MicroflowStatement) string {
 //	Retrieve                      ok         ok        ok          ok
 //	Delete                        ok         ok        ok          ok
 //
+// mendixlabs/mxcli#1252 added the list activities and cast, MEASURED on 11.12.3
+// the same way and with the same row as Create object: List operation,
+// Aggregate list, Create list, Change list (add/remove) and Cast object accept
+// only the handler without rollback. Rollback object accepts every form.
+//
 // With no clause the activity stores the nanoflow default Abort, which builds;
 // a nanoflow has no transaction for "rollback" to undo, and Studio Pro's own
 // nanoflows in ako/TestApp store only Abort and CustomWithoutRollBack.
@@ -241,6 +258,12 @@ var nanoflowWithoutRollbackOnly = map[string]string{
 	"commit":         "Commit object(s) activity",
 	"call nanoflow":  "Nanoflow call action activity",
 	"call microflow": "Call microflow activity",
+	"list operation": "List operation activity",
+	"aggregate":      "Aggregate list activity",
+	"create list":    "Create list activity",
+	"add":            "Change list activity",
+	"remove":         "Change list activity",
+	"cast":           "Cast object activity",
 }
 
 func checkNanoflowWithoutRollbackOnly(stmt ast.MicroflowStatement) string {
@@ -258,6 +281,18 @@ func checkNanoflowWithoutRollbackOnly(stmt ast.MicroflowStatement) string {
 		keyword = "call nanoflow"
 	case *ast.CallMicroflowStmt:
 		keyword = "call microflow"
+	case *ast.ListOperationStmt:
+		keyword = "list operation"
+	case *ast.AggregateListStmt:
+		keyword = "aggregate"
+	case *ast.CreateListStmt:
+		keyword = "create list"
+	case *ast.AddToListStmt:
+		keyword = "add"
+	case *ast.RemoveFromListStmt:
+		keyword = "remove"
+	case *ast.CastObjectStmt:
+		keyword = "cast"
 	default:
 		return ""
 	}
@@ -272,4 +307,16 @@ func checkNanoflowWithoutRollbackOnly(stmt ast.MicroflowStatement) string {
 		nanoflowWithoutRollbackOnly[keyword] + " there with CE6035 \"Error handling type is not supported\". " +
 		"A nanoflow has no transaction to roll back: drop the clause (the activity aborts the flow on error), " +
 		"or handle the error with `on error without rollback begin … end error`"
+}
+
+// addRemoveAssociation returns the association an add/remove targets, or "" for
+// a list target.
+func addRemoveAssociation(stmt ast.MicroflowStatement) string {
+	switch s := stmt.(type) {
+	case *ast.AddToListStmt:
+		return s.Association
+	case *ast.RemoveFromListStmt:
+		return s.Association
+	}
+	return ""
 }

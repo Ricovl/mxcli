@@ -4,9 +4,11 @@
 package mpr
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -88,42 +90,22 @@ func (r *Reader) listUnitsByType(typeName string) ([]rawUnit, error) {
 	return r.listUnitsByTypeV1(typeName)
 }
 
-// listUnitsByTypeV1 handles MPR v1 format (contents in database).
-func (r *Reader) listUnitsByTypeV1(typeName string) ([]rawUnit, error) {
-	rows, err := r.db.Query(`
-		SELECT UnitID, ContainerID, ContainmentName, Contents
-		FROM Unit
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query units: %w", err)
+// listUnitTypes returns every unit's metadata and $Type without reading the
+// contents of any unit whose type is already indexed (Contents is nil). For
+// callers that need the project's shape, not its documents.
+func (r *Reader) listUnitTypes() ([]rawUnit, error) {
+	if r.version != MPRVersionV2 {
+		return r.listUnitTypesV1()
 	}
-	defer rows.Close()
-
-	var units []rawUnit
-	for rows.Next() {
-		var unitID, containerID []byte
-		var containmentName string
-		var contents []byte
-
-		if err := rows.Scan(&unitID, &containerID, &containmentName, &contents); err != nil {
-			return nil, fmt.Errorf("failed to scan unit row: %w", err)
-		}
-
-		if held, ok := r.overlaid(blobToUUID(unitID)); ok {
-			contents = held
-		}
-		unitType := getTypeFromContents(contents)
-		if typeName == "" || unitType == typeName {
-			units = append(units, rawUnit{
-				ID:              blobToUUID(unitID),
-				ContainerID:     blobToUUID(containerID),
-				ContainmentName: containmentName,
-				Type:            unitType,
-				Contents:        contents,
-			})
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return nil, err
 		}
 	}
-
+	units := make([]rawUnit, 0, len(r.unitCache))
+	for _, cu := range r.unitCache {
+		units = append(units, rawUnit{ID: cu.ID, ContainerID: cu.ContainerID, ContainmentName: cu.ContainmentName, Type: cu.Type})
+	}
 	return units, nil
 }
 
@@ -214,26 +196,71 @@ func (r *Reader) InvalidateCache() {
 	r.decodedMu.Unlock()
 	// Clear content cache entries but keep the map non-nil so caching stays active.
 	// If contentCache is nil (per-request mode), remain disabled.
+	r.contentMu.Lock()
 	if r.contentCache != nil {
 		clear(r.contentCache)
 	}
+	r.contentMu.Unlock()
 }
 
 // EnableContentCache activates the in-memory content cache for this reader.
 // Call once after Connect in persistent daemon mode. The cache survives across
 // requests; InvalidateCache empties it (but keeps caching active) on writes.
 func (r *Reader) EnableContentCache() {
+	r.contentMu.Lock()
+	defer r.contentMu.Unlock()
 	if r.contentCache == nil {
 		r.contentCache = make(map[string][]byte)
 	}
+	r.cacheScopes = -1
 }
+
+// CacheUnitReads holds every unit read from mprcontents/ in memory until
+// release is called, so a pass that looks documents up again and again reads
+// each file once (mendixlabs/mxcli#1272: check -p re-read every microflow of
+// the project several times per `create or modify` it predicted). Scopes
+// nest; the cache is dropped when the outermost one is released, so it never
+// outlives the pass — a long session must not keep serving bytes Studio Pro
+// has since rewritten. A write through this reader empties it as before.
+//
+// MPR v1 reads its contents from SQLite, which caches its own pages; there
+// the scope changes nothing.
+func (r *Reader) CacheUnitReads() (release func()) {
+	r.contentMu.Lock()
+	defer r.contentMu.Unlock()
+	if r.cacheScopes < 0 {
+		return func() {} // cached for the reader's lifetime
+	}
+	if r.contentCache == nil {
+		r.contentCache = make(map[string][]byte)
+	}
+	r.cacheScopes++
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			r.contentMu.Lock()
+			defer r.contentMu.Unlock()
+			if r.cacheScopes <= 0 {
+				return
+			}
+			if r.cacheScopes--; r.cacheScopes == 0 {
+				r.contentCache = nil
+			}
+		})
+	}
+}
+
+// UnitFileReads is how many unit files this reader has read from
+// mprcontents/. For tests.
+func (r *Reader) UnitFileReads() int64 { return r.fileReads.Load() }
 
 // readMprContents reads content from the mprcontents folder for v2 format.
 // The path is: mprcontents/XX/YY/UUID.mxunit where XX and YY are first two chars of UUID.
 //
-// When r.contentCache is non-nil (persistent daemon mode), the result is cached
-// in memory so subsequent reads of the same unit skip the file I/O entirely.
-// The cache is invalidated by InvalidateCache (called after every write).
+// While the content cache is on (EnableContentCache, CacheUnitReads) a unit is
+// read from disk once and served from memory after that, as a copy: every
+// caller gets bytes of its own, as os.ReadFile gave it, so one that edits them
+// cannot change what the next caller reads.
 func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 	if len(unitUUID) < 4 {
 		return nil, fmt.Errorf("invalid unit UUID: %s", unitUUID)
@@ -246,21 +273,26 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 		return data, nil
 	}
 
-	// Fast path: content cache hit (persistent daemon only).
-	if r.contentCache != nil {
-		if data, ok := r.contentCache[unitUUID]; ok {
-			return data, nil
-		}
+	r.contentMu.Lock()
+	cached, ok := r.contentCache[unitUUID]
+	caching := r.contentCache != nil
+	r.contentMu.Unlock()
+	if ok {
+		return bytes.Clone(cached), nil
 	}
 
 	data, err := r.readMprContentsUncached(unitUUID)
 	if err != nil {
 		return nil, err
 	}
+	r.fileReads.Add(1)
 
-	// Populate cache (persistent daemon only).
-	if r.contentCache != nil {
-		r.contentCache[unitUUID] = data
+	if caching {
+		r.contentMu.Lock()
+		if r.contentCache != nil {
+			r.contentCache[unitUUID] = bytes.Clone(data)
+		}
+		r.contentMu.Unlock()
 	}
 	return data, nil
 }

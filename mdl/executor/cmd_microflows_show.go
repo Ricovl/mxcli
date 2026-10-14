@@ -347,16 +347,7 @@ func describeMicroflowMode(ctx *ExecContext, name ast.QualifiedName, opts descri
 
 	lines = append(lines, "end;")
 
-	// Add GRANT EXECUTE if roles are assigned
-	if len(targetMf.AllowedModuleRoles) > 0 {
-		roles := make([]string, len(targetMf.AllowedModuleRoles))
-		for i, r := range targetMf.AllowedModuleRoles {
-			roles[i] = string(r)
-		}
-		lines = append(lines, "")
-		lines = append(lines, fmt.Sprintf("grant execute on microflow %s.%s to %s;",
-			name.Module, name.Name, strings.Join(roles, ", ")))
-	}
+	lines = append(lines, flowGrantLines("microflow", name, targetMf.AllowedModuleRoles)...)
 
 	// Output
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
@@ -487,6 +478,7 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lines = append(lines, "end;")
+	lines = append(lines, flowGrantLines("nanoflow", name, targetNf.AllowedModuleRoles)...)
 
 	fmt.Fprintln(ctx.Output, strings.Join(lines, "\n"))
 	return nil
@@ -579,19 +571,23 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// Wrap nanoflow as a Microflow so renderMicroflowMDL can handle it
-	wrapperMf := &microflows.Microflow{
-		Documentation:      targetNf.Documentation,
-		Excluded:           targetNf.Excluded,
-		Parameters:         targetNf.Parameters,
-		ReturnType:         targetNf.ReturnType,
-		ReturnVariableName: targetNf.ReturnVariableName,
-		ObjectCollection:   targetNf.ObjectCollection,
-		AllowedModuleRoles: targetNf.AllowedModuleRoles,
-	}
-
 	sourceMap := make(map[string]elkSourceRange)
-	mdl := renderMicroflowMDL(ctx, "nanoflow", wrapperMf, name, entityNames, nil, sourceMap)
+	mdl := renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(targetNf), name, entityNames, nil, sourceMap)
 	return mdl, sourceMap, nil
+}
+
+// nanoflowAsMicroflow wraps a nanoflow as a Microflow so renderMicroflowMDL
+// can render it; shared by DESCRIBE NANOFLOW and diff-local.
+func nanoflowAsMicroflow(nf *microflows.Nanoflow) *microflows.Microflow {
+	return &microflows.Microflow{
+		Documentation:      nf.Documentation,
+		Excluded:           nf.Excluded,
+		Parameters:         nf.Parameters,
+		ReturnType:         nf.ReturnType,
+		ReturnVariableName: nf.ReturnVariableName,
+		ObjectCollection:   nf.ObjectCollection,
+		AllowedModuleRoles: nf.AllowedModuleRoles,
+	}
 }
 
 // renderMicroflowMDL formats a parsed Microflow as MDL text.
@@ -685,17 +681,26 @@ func renderMicroflowMDL(
 
 	lines = append(lines, "end;")
 
-	if len(mf.AllowedModuleRoles) > 0 {
-		roles := make([]string, len(mf.AllowedModuleRoles))
-		for i, r := range mf.AllowedModuleRoles {
-			roles[i] = string(r)
-		}
-		lines = append(lines, "")
-		lines = append(lines, fmt.Sprintf("grant execute on %s %s.%s to %s;",
-			flowType, name.Module, name.Name, strings.Join(roles, ", ")))
-	}
+	lines = append(lines, flowGrantLines(flowType, name, mf.AllowedModuleRoles)...)
 
 	return strings.Join(lines, "\n")
+}
+
+// flowGrantLines renders the `grant execute` statement that follows a
+// described microflow or nanoflow body, or nothing when no role is allowed.
+// The three describe renderers share it: describe nanoflow kept its own copy
+// of the body loop without this block, and a describe -> exec round trip
+// silently dropped the nanoflow's access rules (mendixlabs/mxcli#1345).
+func flowGrantLines(flowType string, name ast.QualifiedName, allowed []model.ID) []string {
+	if len(allowed) == 0 {
+		return nil
+	}
+	roles := make([]string, len(allowed))
+	for i, r := range allowed {
+		roles[i] = string(r)
+	}
+	return []string{"", fmt.Sprintf("grant execute on %s %s.%s to %s;",
+		flowType, name.Module, name.Name, strings.Join(roles, ", "))}
 }
 
 func microflowHasReturnValue(mf *microflows.Microflow) bool {
@@ -1339,7 +1344,12 @@ func irreducibleGraphWarnings(oc *microflows.MicroflowObjectCollection, declared
 		// retires the warning on the strength of something nothing emitted —
 		// caught on Administration.ManageMyAccount, where the description is
 		// byte-identical with and without Mode 2.
-		if len(f.Entries) == 1 && declaredCrossed[f.Entries[0]] {
+		//
+		// Every entry, not just a single one: a multi-way split whose arms share
+		// a region is interleaved (the region and the split's join are both
+		// entries), and when the description declared both, every arm says
+		// where it goes (sharedArmEntries).
+		if allDeclared(f.Entries, declaredCrossed) {
 			continue
 		}
 		pos := ""
@@ -1720,4 +1730,18 @@ func describableMessage(t *model.Text) (string, []string) {
 		return "", nil
 	}
 	return t.Translations[langs[0]], langs[1:]
+}
+
+// allDeclared reports whether every id is a crossed merge the description
+// declared. An empty list is not "all declared": nothing was emitted for it.
+func allDeclared(ids []model.ID, declared map[model.ID]bool) bool {
+	if len(ids) == 0 {
+		return false
+	}
+	for _, id := range ids {
+		if !declared[id] {
+			return false
+		}
+	}
+	return true
 }

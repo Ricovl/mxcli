@@ -4,6 +4,8 @@
 package microflows
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -75,6 +77,9 @@ type RollbackObjectAction struct {
 	model.BaseElement
 	RollbackVariable string `json:"rollbackVariable"`
 	RefreshInClient  bool   `json:"refreshInClient"`
+	// ErrorHandlingType is empty unless the author wrote an `on error` clause:
+	// the writer has never stored one on a rollback (mendixlabs/mxcli#1252).
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (RollbackObjectAction) isMicroflowAction() {}
@@ -206,10 +211,10 @@ type AggregateListAction struct {
 	AttributeQualifiedName string            `json:"attributeQualifiedName,omitempty"` // BY_NAME_REFERENCE: Module.Entity.Attribute
 	UseExpression          bool              `json:"useExpression,omitempty"`          // true when Expression is used instead of Attribute
 	Expression             string            `json:"expression,omitempty"`             // Mendix expression string (when UseExpression=true)
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 
 	// ReduceInitialValue and ReduceReturnType are what REDUCE folds from, and
@@ -277,10 +282,10 @@ type ListOperationAction struct {
 	model.BaseElement
 	Operation      ListOperation `json:"operation,omitempty"`
 	OutputVariable string        `json:"outputVariable,omitempty"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -419,10 +424,10 @@ type CreateListAction struct {
 	EntityID            model.ID `json:"entityId,omitempty"`
 	EntityQualifiedName string   `json:"entityQualifiedName,omitempty"`
 	OutputVariable      string   `json:"outputVariable"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -434,10 +439,10 @@ type ChangeListAction struct {
 	ChangeVariable string         `json:"changeVariable"`
 	Type           ChangeListType `json:"type"`
 	Value          string         `json:"value,omitempty"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -481,10 +486,10 @@ type CastAction struct {
 	model.BaseElement
 	ObjectVariable string `json:"objectVariable"`
 	OutputVariable string `json:"outputVariable"`
-	// ErrorHandlingType is the flow flavour's default: Rollback in a microflow,
-	// Abort in a nanoflow. MDL has no clause for it, and "Rollback" in a
-	// nanoflow is CE6035 (mendixlabs/mxcli#591). Empty means the writer's
-	// historical "Rollback".
+	// ErrorHandlingType is the `on error` clause (mendixlabs/mxcli#1252), else
+	// the flow flavour's default: Rollback in a microflow, Abort in a nanoflow,
+	// where "Rollback" is CE6035 (mendixlabs/mxcli#591). Empty means the
+	// writer's historical "Rollback".
 	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
@@ -533,6 +538,9 @@ const (
 // ShowHomePageAction shows the home page.
 type ShowHomePageAction struct {
 	model.BaseElement
+	// ErrorHandlingType is empty unless the author wrote an `on error` clause:
+	// the writer has never stored one here (mendixlabs/mxcli#1252).
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
 }
 
 func (ShowHomePageAction) isMicroflowAction() {}
@@ -567,6 +575,22 @@ const (
 	MessageTypeError       MessageType = "Error"
 )
 
+// MessageTypes lists the values of Microflows$ShowMessageType, in Studio Pro's order.
+var MessageTypes = []MessageType{MessageTypeInformation, MessageTypeWarning, MessageTypeError}
+
+// CanonicalMessageType matches s case-insensitively against the
+// ShowMessageType values and returns the enumeration's own spelling.
+// The stored value is case-sensitive: the runtime does not recognise "error"
+// and shows an Information dialog instead (mendixlabs/mxcli#1280).
+func CanonicalMessageType(s string) (MessageType, bool) {
+	for _, t := range MessageTypes {
+		if strings.EqualFold(s, string(t)) {
+			return t, true
+		}
+	}
+	return MessageType(s), false
+}
+
 // ValidationFeedbackAction shows validation feedback.
 type ValidationFeedbackAction struct {
 	model.BaseElement
@@ -591,6 +615,74 @@ type DownloadFileAction struct {
 }
 
 func (DownloadFileAction) isMicroflowAction() {}
+
+// EmailSecurityType is the transport security of a Send Email action's SMTP
+// connection. Values are the Mendix Model SDK's `SecurityType` enum.
+type EmailSecurityType string
+
+const (
+	EmailSecurityNone EmailSecurityType = "None"
+	EmailSecuritySSL  EmailSecurityType = "SSL"
+	// EmailSecurityTLS is the platform default.
+	EmailSecurityTLS EmailSecurityType = "TLS"
+)
+
+// DefaultEmailConnectionTimeout is EmailConnectionConfig.ConnectionTimeout's
+// platform default, in milliseconds.
+const DefaultEmailConnectionTimeout = 20000
+
+// EmailTemplate is one Microflows$StringTemplate of a Send Email action: fixed
+// text with {1}, {2}, … placeholders and one expression per placeholder.
+type EmailTemplate struct {
+	Text       string   `json:"text,omitempty"`
+	Parameters []string `json:"parameters,omitempty"`
+}
+
+// EmailCustomHeader is one custom header line. Name and Value are plain
+// strings, not expressions.
+type EmailCustomHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// SendEmailAction is the built-in Send Email activity (Microflows$SendEmailAction,
+// Studio Pro 11.13+ beta): it sends mail over SMTP without the Email Connector
+// module. The address, host, port and credential fields are microflow
+// expressions; Attachment is a bare variable name (no `$`).
+//
+// It models the 11.13+ shape only — subject and bodies as string templates and
+// basic authentication. The reader leaves any other stored shape as an
+// UnsupportedAction, so it can be described but never rewritten smaller.
+type SendEmailAction struct {
+	model.BaseElement
+	ErrorHandlingType ErrorHandlingType `json:"errorHandlingType,omitempty"`
+
+	// Connection (Microflows$EmailConnectionConfig).
+	From                string            `json:"from,omitempty"` // EmailId
+	Host                string            `json:"host,omitempty"`
+	Port                string            `json:"port,omitempty"`
+	SecurityType        EmailSecurityType `json:"securityType,omitempty"`
+	CheckServerIdentity bool              `json:"checkServerIdentity,omitempty"`
+	ConnectionTimeout   int               `json:"connectionTimeout,omitempty"`
+
+	// Authentication (Microflows$BasicAuthConfig). UseAuthentication is false
+	// when the action stores no authentication config.
+	UseAuthentication bool   `json:"useAuthentication,omitempty"`
+	Username          string `json:"username,omitempty"`
+	Password          string `json:"password,omitempty"`
+
+	// Message (Microflows$EmailMessage).
+	To            string              `json:"to,omitempty"`
+	Cc            string              `json:"cc,omitempty"`
+	Bcc           string              `json:"bcc,omitempty"`
+	Subject       EmailTemplate       `json:"subject"`
+	BodyPlainText EmailTemplate       `json:"bodyPlainText"`
+	BodyHTML      EmailTemplate       `json:"bodyHtml"`
+	CustomHeaders []EmailCustomHeader `json:"customHeaders,omitempty"`
+	Attachment    string              `json:"attachment,omitempty"`
+}
+
+func (SendEmailAction) isMicroflowAction() {}
 
 // Integration Actions
 

@@ -313,9 +313,9 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>'];",
+		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>'];\n\n-- This is the workflow ACTIVITY. To start a workflow from a microflow\n-- ($Wf = CALL WORKFLOW Module.WF ($Obj);) see microflow.workflow-actions.",
 		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
-		SeeAlso: []string{"workflow.create", "workflow.call-microflow"},
+		SeeAlso: []string{"workflow.create", "workflow.call-microflow", "microflow.workflow-actions"},
 	})
 
 	Register(SyntaxFeature{

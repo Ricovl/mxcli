@@ -6,7 +6,11 @@
 
 A command-line tool that enables AI coding assistants ([Claude Code](https://claude.ai/claude-code), GitHub Copilot, OpenCode, Cursor, Continue.dev, Windsurf, Aider, and others) to read, understand, and modify Mendix application projects.
 
-**[Read the documentation](https://mendixlabs.github.io/mxcli/)** | **[Try it in the Playground](https://codespaces.new/mendixlabs/mxcli-playground)** -- no install needed, runs in your browser
+**[Read the documentation](https://www.mxcli.org/)** | **[Use the bootstrap prompt](https://www.mxcli.org/tools/bootstrap-prompt.html)** -- the fastest way to spin up a Mendix project: paste it into a Claude Code cloud session on an empty repo, no local install needed
+
+[![The mxcli language poster -- click to open the interactive version](docs-site/src/poster/mxcli-poster-small.png)](https://www.mxcli.org/poster/mxcli-language-poster.html)
+
+*Click the poster to open the [interactive version](https://www.mxcli.org/poster/mxcli-language-poster.html).*
 
 ## Why mxcli?
 
@@ -34,7 +38,7 @@ mxcli is built on a single bet: the agent writes a compact, human-readable DSL, 
 - **Deterministic verification** - `mxcli check` and `mxcli lint` verify generated projects against deterministic rules -- no LLM judgement -- keeping the feedback loop fast and reliable.
 - **Longer-term: smaller local models** - generating a constrained DSL is simpler for an LLM than orchestrating tool calls, and a grammar can be enforced via grammar-constrained decoding.
 
-See [Design Principles](https://mendixlabs.github.io/mxcli/preface/design-principles.html) in the documentation for the full rationale.
+See [Design Principles](https://www.mxcli.org/preface/design-principles.html) in the documentation for the full rationale.
 
 ## What is mxcli?
 
@@ -140,7 +144,7 @@ workflow:
 4. **Paste the bootstrap prompt** into a session. The agent installs mxcli, runs `mxcli new` → `mxcli init`, starts a `FINDINGS.md`, commits the config, and boots the app with `mxcli run --local --setup --ensure-db` so it comes up testable.
 5. **Iterate** with the warm loop below; add `--hub https://hub.mxcli.org` for a shareable browser preview.
 
-> **[Developing on the Web (Claude Code)](https://mendixlabs.github.io/mxcli/tutorial/claude-code-web.html)** walks the whole workflow, and **[Bootstrap Prompt](https://mendixlabs.github.io/mxcli/tools/bootstrap-prompt.html)** has the exact copy-paste text.
+> **[Developing on the Web (Claude Code)](https://www.mxcli.org/tutorial/claude-code-web.html)** walks the whole workflow, and **[Bootstrap Prompt](https://www.mxcli.org/tools/bootstrap-prompt.html)** has the exact copy-paste text.
 
 Then iterate with the **warm local dev loop** — a Docker-free ~1-second edit→test cycle:
 
@@ -148,7 +152,7 @@ Then iterate with the **warm local dev loop** — a Docker-free ~1-second edit�
 mxcli run --local -p app.mpr --watch --screenshot   # hot-reload + auto screenshots
 ```
 
-`mxcli run --local` keeps `mxbuild --serve` and a standalone runtime hot: a page/microflow edit is hot-applied in seconds (a hot `reload_model`, or a restart + DDL for entity changes), and `--screenshot` captures each page with Playwright. See **[Local Dev Loop](https://mendixlabs.github.io/mxcli/tools/run-local.html)**.
+`mxcli run --local` keeps `mxbuild --serve` and a standalone runtime hot: a page/microflow edit is hot-applied in seconds (a hot `reload_model`, or a restart + DDL for entity changes), and `--screenshot` captures each page with Playwright. See **[Local Dev Loop](https://www.mxcli.org/tools/run-local.html)**.
 
 Add `--hub` to preview the running app **in a browser at a public URL** — the app stays local and reverse-tunnels out over a single 443 connection, so it works even from egress-only environments (e.g. Claude Code on the web):
 
@@ -156,7 +160,7 @@ Add `--hub` to preview the running app **in a browser at a public URL** — the 
 mxcli run --hub https://hub.example.com -p app.mpr        # -> a shareable preview URL
 ```
 
-`mxcli tunnel-hub --domain example.com` is the static relay you run once on a small VPS; it can front many previews at per-subdomain hosts across projects, solutions, branches, and worktrees, with a sortable availability overview at `hub.example.com/`. See **[Local Dev Loop → External browser preview](https://mendixlabs.github.io/mxcli/tools/run-local.html)**.
+`mxcli tunnel-hub --domain example.com` is the static relay you run once on a small VPS; it can front many previews at per-subdomain hosts across projects, solutions, branches, and worktrees, with a sortable availability overview at `hub.example.com/`. See **[Local Dev Loop → External browser preview](https://www.mxcli.org/tools/run-local.html)**.
 
 > **`--hub` and `tunnel-hub` are Linux-only.** The tunnel exists to get a preview out of a Linux container — the only place it ever ran — so it is built for Linux alone. Embedding a general-purpose tunnelling tool in the Windows and macOS binaries, which can never use it, got them flagged by Microsoft Defender and enterprise EDR, blocking mxcli on the managed corporate laptops most Mendix developers work on. On those platforms the commands still exist and show help, but fail with an explanatory message; run mxcli inside the project's devcontainer to use `--hub`. Everything else in `mxcli run --local` is unaffected. We did **not** obfuscate the dependency to dodge the scanners — the fix is not shipping the capability where it is unused. Rationale: [ADR-0009](docs/13-decisions/0009-tunnel-is-linux-only.md).
 

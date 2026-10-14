@@ -1,8 +1,8 @@
 # Working Outside Studio Pro
 
 A project edited with mxcli, git and an editor is sometimes opened in Studio Pro
-afterwards. Two kinds of state that Studio Pro depends on are invisible to
-`mx check`, and mxcli checks both.
+afterwards. Several kinds of state that Studio Pro depends on are invisible to
+`mx check`, and mxcli checks them.
 
 ## The ContentsHash index: `mxcli fix hashes`
 
@@ -34,6 +34,44 @@ and the command says so.
 `mxcli exec` and `mxcli docker check` run the verify too and print a one-line
 warning when it finds a mismatch or a missing file. It never fails them;
 measured on a 900-unit project, the whole verify takes about 0.2 s.
+
+## Property names Studio Pro's merge compares: `mxcli fix property-sets`
+
+Mendix's diff and merge engine compares two revisions of an element by its
+property **names** before any value, and throws when they differ:
+
+```
+Objects with ID … of type Microflows$RestOperationCallAction do not have the same properties.
+```
+
+The model is valid — `mx check`, the build and the runtime fill an absent
+property with its default — but `mx diff`, merging and Studio Pro's Version
+Control panel fail on it once Studio Pro has saved the document with its full
+property set. Every mxcli write gives a unit the property set Studio Pro writes
+for the project's Mendix version. A unit written by an older mxcli and not
+rewritten since keeps its gaps; this command reaches those.
+
+```bash
+mxcli fix property-sets -p app.mpr --dry-run   # list the units that would change; exits 1 when one would
+mxcli fix property-sets -p app.mpr             # write them
+```
+
+Each unit's report counts the keys added (with the value Mendix gives an absent
+one) and the empty keys stripped (properties the project's version does not
+declare yet). A project user role with no `GUID` — older mxcli wrote them
+without one — gets its own `$ID` as its GUID, the value a role mxcli creates
+now gets; every mxcli write of the security settings does the same. Without
+it the build invents a random GUID each time, so the runtime can only match
+the role's database row by name. A role that already has a GUID keeps it.
+Nothing else changes: no element `$ID` moves, and no existing `GUID` is
+touched. A second run writes nothing.
+
+The filled GUID protects a later **rename** of the role only in a database
+first synchronised after the fill. A database synchronised before it keeps
+the old random GUID and still finds the role by name, so renaming the role
+there still deletes its row and the user assignments that are not demo users. A unit holding a *value* in a
+key its version does not declare is reported and left alone, and, like every
+mxcli write, the command is refused while Studio Pro has the project open.
 
 ## Git states that crash Studio Pro
 
@@ -69,3 +107,52 @@ mxcli diag -p app.mpr
 ```
 
 prints mxcli's diagnostics followed by a *Project* section with both checks.
+
+## Commit metadata: `mxcli git note`
+
+Studio Pro attaches a git note under `refs/notes/mx_metadata` to every commit
+it makes:
+
+```json
+{"BranchName":"feature-x","ModelerVersion":"11.13.0",
+ "ModelChanges":[{"Status":"Modified","UnitID":"…","UnitType":"Forms$Page",
+                  "UnitName":"Home_Web","Module":"MyModule"}],
+ "RelatedStories":[],"SolutionVersion":"","MPRFormatVersion":"Version2","HasModelerVersion":true}
+```
+
+It reads the note to check that a revision's Mendix version is compatible and to
+show what the revision changed. A commit made with plain git has none, and
+Studio Pro 11.13 back-fills one with `"(unknown)"` values and no changes.
+
+```bash
+mxcli git note -p app.mpr            # preview the notes for commits not yet pushed
+mxcli git note -p app.mpr --write    # attach them
+git push origin <branch> refs/notes/mx_metadata
+```
+
+The note is computed from the commit: the `.mpr` unit index and the
+`mprcontents` units at the commit and at its parent. With no commit argument it
+covers `@{upstream}..HEAD`, or `HEAD` when the branch has no upstream. A note
+Studio Pro wrote is kept unless you pass `--force`; a placeholder is replaced.
+
+| Status | Meaning |
+|--------|---------|
+| `Added` / `Deleted` | the unit is new / gone. A deleted module is listed once, as its `Projects$ModuleImpl` |
+| `Modified` | the unit's content changed. A re-serialisation that only mints new element IDs is not a change |
+| `Moved` | the unit moved to another folder (its container in the `.mpr` changed) |
+
+Measured against Studio Pro's own notes on a Team Server repository: for
+ordinary commits the note is identical, header and change list. For a Mendix
+**version upgrade** the header is identical but the change list is longer than
+Studio Pro's, because an upgrade re-serialises units in ways only Studio Pro
+knows to ignore. Upgrades are done in Studio Pro, which writes its own note. MPR
+v1 projects are not supported.
+
+**Push the notes ref soon.** `git push` does not push notes, and while the
+project is open Studio Pro fetches every few minutes and force-replaces the local
+`refs/notes/mx_metadata` with the Team Server's copy, discarding notes that were
+not pushed. If that happens, `mxcli git note --write` again: the discarded notes
+have become placeholders, which it replaces.
+
+The whole workflow (server branches, what to stage, never merging model history
+with git) is in the `teamserver-git` skill that `mxcli init` installs.

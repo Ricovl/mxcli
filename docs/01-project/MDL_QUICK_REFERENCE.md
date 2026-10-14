@@ -63,6 +63,7 @@ create persistent entity Module.Photo (
 | Show modules | `list modules;` | List all modules |
 | Describe module | `describe module ModuleName;` | All contents (entities, microflows, pages, etc.) |
 | Create module | `create module ModuleName;` | |
+| Module documentation | `/** text */ create or modify module ModuleName;` | Stored as the module's **domain model** documentation (a module has none of its own) — what lint reads as `modules().domain_model_documentation`. `describe module` prints it the same way. No comment leaves it as stored; `/** */` clears it; a plain `create module` of an existing module changes nothing |
 | Drop module | `drop module [if exists] ModuleName;` | |
 | Rename module | `rename module OldName to NewName;` | Updates all qualified name references |
 
@@ -85,6 +86,7 @@ create persistent entity Module.Photo (
 |-----------|--------|-------|
 | Create entity | `create [or modify] persistent\|non-persistent entity Module.Name (attrs);` | Persistent is default |
 | Create with extends | `create persistent entity Module.Name extends Parent.Entity (attrs);` | EXTENDS before `(` |
+| DateTime localization | `Born: DateTime not localized` | Studio Pro's **Localize** checkbox (`LocalizeDate`), DateTime only — on any other type it is a check error. `not localized` = stored in UTC and shown without time-zone conversion (a calendar date such as a birth date); unstated or `localized` = converted to the user's time zone (Mendix's default). A rewrite that does not state it (`create or modify`, `modify attribute`) keeps the stored value; a stated one wins. `describe` prints only `not localized` |
 | Create with auditing | `create persistent entity Module.Name (attrs, owner: autoowner, ChangedBy: autochangedby, CreatedDate: autocreateddate, ChangedDate: autochangeddate);` | Pseudo-types like AutoNumber |
 | Create view entity | `create view entity Module.Name (attrs) as select ...;` | OQL-backed read-only |
 | View entity clause order | `... as select … from …;` **or** `... as from … group by … select …;` | Both are Mendix OQL and both are checked. The second is what **Studio Pro stores**, so it is what `DESCRIBE ENTITY` emits — describe → edit → exec round-trips. The declared attributes are matched to the select columns **by position**, in either order |
@@ -115,7 +117,7 @@ Modifies an existing entity without full replacement.
 |-----------|--------|-------|
 | Add attribute | `alter entity Module.Name add attribute [if not exists] attr: type [constraints];` | Comma-separate the whole action to add several: `add attribute A: integer, add attribute B: string(20)`. `if not exists` skips instead of erroring, so the script re-runs |
 | Drop attribute | `alter entity Module.Name drop attribute [if exists] AttrName;` | `if exists` skips when it is already gone |
-| Modify attribute | `alter entity Module.Name modify attribute Attr: NewType [constraints];` | Change type/constraints. Always `Name: Type`; without the colon warns MDL-DEPR065 |
+| Modify attribute | `alter entity Module.Name modify attribute Attr: NewType [constraints];` | Change type/constraints. Always `Name: Type`; without the colon warns MDL-DEPR065. A DateTime keeps its stored localization unless `localized` / `not localized` is stated |
 | Rename attribute | `alter entity Module.Name rename attribute OldName to NewName;` | Also rewrites stored references (microflow members, page widgets, validation/access rules) and XPath constraints. Microflow expressions are free text and are **not** rewritten |
 | Add index | `alter entity Module.Name add index [if not exists] [name] [on] (Col1 [asc\|desc], ...);` | `on` is optional (SQL-like). **Without `if not exists`, re-running is an error** — a second identical index fails the build with CE0072 |
 | Document an association | `/** What it links. */`<br>`create association Mod.C_P from Mod.C to Mod.P;` | Documentation is a doc comment, as on every document. `... comment 'What it links.'` still parses as a deprecated alias (`MDL-DEPR100`, also on constants, JSON structures and image collections); the doc comment wins when both are present |
@@ -430,15 +432,15 @@ create published odata service MyModule.CustomerAPI (
   path: 'odata/customers/',     -- no leading slash (CE6550); trailing slash required (CE6552)
   version: '1.0.0',
   ODataVersion: OData4,
-  namespace: 'MyModule.Customers'
+  namespace: 'MyModule.Customers',
+  Authentication: (basic, session)   -- the methods in order; `none` = no authentication
 )
-authentication basic, session
 -- Inside the { } body, alongside `publish entity`, a microflow can be published
 -- as an OData action (an ActionImport in $metadata):
 --   publish microflow Module.DoThing as 'DoThing'
 --     expose ( Note as 'note', Amount as 'amount' (CanBeEmpty) );
 -- Parameter types and the return type are read off the microflow, not restated.
--- or: authentication microflow Module.Authenticate
+-- or: Authentication: (microflow Module.Authenticate)
 --   Custom authentication. The microflow takes a List of System.HttpHeader and
 --   returns a System.User (empty denies). It removes the per-request password
 --   hash that `basic` pays on every call. Requires app security on (CE6600) and
@@ -548,6 +550,7 @@ it is for pages.
 | Create object | `$Var = create Module.Entity (attr = value) [commit [without events]] [refresh];` | `commit` = Commit Yes, `commit without events` = YesWithoutEvents; omitted = No (the default) |
 | Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client. On a reference set, `(Module.Assoc = $x)` **assigns the whole set** — the rows already in it are dropped |
 | Add to / remove from a reference set | `add $x to $entity/Module.Assoc [commit …] [refresh];` / `remove $x from $entity/Module.Assoc …;` | A Change object activity with one **Add** / **Remove** member (Studio Pro's Add/Remove buttons); `$x` may be an object or a list. Reference sets only — on an attribute or a plain Reference mxbuild answers CE0033, and mxcli refuses it (mendixlabs/mxcli#1288) |
+| Mixed Set / Add / Remove | `change $entity (attr = v, Module.Assoc += $x, Module.Assoc -= $y);` | One Change object activity whose members are Set (`=`), **Add** (`+=`) and **Remove** (`-=`), as Studio Pro's dialog allows; same reference-set rule as above (mendixlabs/mxcli#1473) |
 | Commit | `commit $entity [without events] [refresh];` | **Omitted = with events**, matching Studio Pro's default. `without events` is the deviation and the only form that changes the stored value; `with events` still parses and means the default |
 | Delete | `delete $entity [refresh];` | |
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
@@ -566,6 +569,7 @@ it is for pages.
 | Call microflow on a queue | `call microflow Module.Name (Param = $value) in queue Module.Queue;` | Background execution; the queue must exist (CE1613), and the called microflow must return nothing, else CE7033 (**MDL088**) |
 | Call Java action on a queue | `call java action Module.Name (Param = $value) in queue Module.Queue;` | The Java action must `returns void`, else CE7038 |
 | Call nanoflow | `$Result = call nanoflow Module.Name (Param = $value);` | |
+| Blank call argument | `call microflow Module.Name (A = $a, B = nothing);` | Keeps the parameter mapping with an **empty** expression — what Studio Pro stores for an argument field left blank. Not `B = empty` (the Mendix value `empty`, stored as that text) and not omitting `B` (no mapping at all). Call microflow / call nanoflow only. It exists so `describe` can round-trip such a call: Mendix reports a blank argument as **CE0127** "Missing argument" |
 | Call JS action | `$Result = call javascript action Module.Name (Param = $value);` | JavaScript action (nanoflow/microflow) |
 | Call Java action | `$Result = call java action Module.Name (Param = $value);` | Java action (microflow only) |
 | Call web service | `$Result = call web service Module.Service operation OperationName;` | Legacy SOAP; quoted refs are fallback for dangling raw IDs |
@@ -586,11 +590,12 @@ it is for pages.
 | REST call (mapping list) | `$Var = call rest service get '<url>' returns mapping Module.IMM as list of Module.Entity;` | List result |
 | REST call (none) | `call rest service get '<url>' returns nothing;` | Discard response |
 | Show page | `show page Module.PageName (Param = $value);` | `Param = expression`, as at every call site. `($Param = …)` and `(Param: …)` are deprecated (MDL-DEPR006/007) |
-| Close page | `close page;` | |
+| Close page | `close page [n];` | `n` pages, default 1 (stored as `NumberOfPagesToClose`) |
 | Download file | `download file $FileDocument [show in browser];` | Streams a `System.FileDocument` |
 | Show message | `show message 'text' [type Information\|Warning\|Error] [with ({1} = $a, {2} = $b)] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after the `with` list and before `on error`. `with ({1} = $a, {2} = $b)` is the deprecated spelling of the list (MDL-DEPR009). Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured) |
 | Database connection | `create database connection Mod.Db ( Type: 'PostgreSQL', ConnectionString: @Mod.Url, Username: @Mod.User, Password: @Mod.Pass ) { query Q ( Sql: $$…$$, Parameters: ( p: Integer default '0' ), Returns: Mod.E, Map: ( Attr = column ) ) }` | Properties in `( )`, queries as children in `{ }` (R2). The clause form with `begin … end` still parses and warns (MDL-DEPR127) |
 | Database connection credentials | `ConnectionString: @Mod.Const`, `Username: @Mod.Const`, `Password: @Mod.Const` | Constant **references** only. A literal writes an unopenable project — MDL058 |
+| Send email (11.13+, microflow only) | `send email ( From: <expr>, To: <expr>, [Cc: …, Bcc: …,] Subject: 'Order {1}' with ({1} = …), [Body: template '…', HtmlBody: template '…', Headers: ('X-Name': 'value'), Attachment: $Doc,] Host: <expr>, Port: <expr>, [SecurityType: none\|ssl\|tls, CheckServerIdentity: true, ConnectionTimeout: ms, Authentication: basic (Username: …, Password: …)] );` | Built-in Send Email activity (`Microflows$SendEmailAction`), SMTP without the Email Connector. One settings list (ADR-0013); From, Host, Port and one of To/Cc/Bcc are required (CE0166). Addresses, host and credentials are String expressions, port Integer/Long (E009 at check, CE9528 at build). `mxcli syntax microflow.send-email` |
 | Synchronize (nanoflow only) | `synchronize all;` / `synchronize unsynchronized;` / `synchronize $Obj, $List;` | Offline sync. `unsynchronized` needs Mendix 9.4+. In a microflow this is MDL057 / CE0009 |
 | Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE |
 | Log | `log [info\|warning\|error] [node 'name'] 'message';` | Level `info` and node `'Application'` are the defaults; `describe` leaves them out |
@@ -620,7 +625,7 @@ it is for pages.
 | Execute DB query | `$Result = execute database query Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
 | Import mapping | `[$Var =] import from mapping Module.IMM($SourceVar) [all\|first\|limit <e> [offset <e>]];` | Apply import mapping to string variable. Trailing clause is Studio Pro's Range; omitted = infer from the mapping's root. `first` binds one OBJECT (`limit 1` is a one-element LIST). Mendix rejects `offset` on a non-list mapping (CE6100), and `first` on an object-rooted one throws at runtime — both MDL-MAP04 |
 | Export mapping | `$Var = export to mapping Module.EMM($EntityVar);` | Apply export mapping to entity, returns string |
-| Error handling | `... on error continue\|rollback\|[without rollback] begin handler end error;` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `begin handler end error` is accepted on all of them. The list-operation and aggregate forms of `set` have no error handling at all (MDL077). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** only `declare` and `set` take a clause at all — `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 there in every form, and are refused. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
+| Error handling | `... on error continue\|rollback\|[without rollback] begin handler end error;` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `begin handler end error` is accepted on all of them. List operations, aggregates, `create list of`, `add`/`remove`, `cast` and `show home page` take a custom handler and `on error rollback` but not `continue` (MDL076); `rollback` takes every form (mendixlabs/mxcli#1252, measured on 11.12.3). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 in every form, and are refused; create, commit, the calls, the list activities and `cast` take only `on error without rollback begin … end error`. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
 | Re-raise the error | `raise error;` | **Inside an `on error begin … end error` handler only.** The error event re-raises the error being handled, so Mendix needs one in scope; Studio Pro will not draw the shape and mxbuild rejects it with **CE0710** "The main flow cannot join an error flow or end in an error event". On the main flow — at any nesting depth, and in a rule too — it is **MDL084**. Mendix has no main-flow "throw": call a Java action that throws |
 | Named join point | `merge <label>;` / `join <label>;` | Declares an ExclusiveMerge and sends a path to it. The label is MDL-only — a Mendix merge stores no name, so it is resolved at build and at describe time and never written to the model. Forward and backward references both resolve, so `merge attempt; … on error begin join attempt; end error` is a retry loop. This is how an **error path that rejoins the normal one** is written: without it the only spellings are "terminate" and "fall through to the enclosing branch's continuation", and DESCRIBE emitted an empty handler for anything else — MDL that re-executes to a different graph with nothing reporting it. Also covers **crossed branches**, where an inner split's branch lands where an outer split's branch lands. Refused inside a `loop`/`while` body (MDL-FLOW04): a LoopedActivity owns its own object collection and a sequence flow cannot leave it. An unresolved or unjoined label is MDL-FLOW02; a duplicate declaration MDL-FLOW03. A path that already ended does not fall through into a following `merge` |
 
@@ -708,6 +713,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Toggle demo users | `alter app security ( EnableDemoUsers: true\|false );` | Several keys may go in one list |
 | Enable guest access | `alter app security ( EnableGuestAccess: true, GuestUserRole: UserRole );` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
 | Disable guest access | `alter app security ( EnableGuestAccess: false );` | Keeps the stored role, so re-enabling needs no `GuestUserRole` |
+| Rename admin user | `alter app security ( AdminUserName: 'appadmin' );` | The built-in administrator (default `MxAdmin`), read by lint as `project_security().admin_user_name`. Its password is not settable from MDL |
 | Create demo user | `create demo user 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `password … (…)` warns MDL-DEPR137 |
 | Drop demo user | `drop demo user [if exists] 'name';` | `if exists` makes a cleanup script re-runnable |
 | Update security | `update security [[in] Module];` | Re-syncs access rules with their domain model — Studio Pro's **Update security** button, headless. Repairs **CE0066** "Entity access is out of date", which a model authored elsewhere can carry (a module imported or updated outside Studio Pro). Not needed after mxcli's own writes: every write path reconciles as it writes. Writes nothing when the rules already match, and skips `System` |
@@ -1122,13 +1128,16 @@ Respond in {{Language}}.$$,
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
+| Show an uploaded image | `image imgPhoto (Image: $currentObject, DefaultImage: 'Module.Collection.ImageName');` | Inside a data view over an entity that extends `System.Image`. `DefaultImage:` is shown when the object holds no image, and only with `$currentObject` (CE0463 otherwise) |
 
 An `image` widget's default source **is** an image collection entry, so a bare
 `image imgLogo (...)` with no `Image:` builds into a model mxbuild refuses ("No
 image selected."); `mxcli check` reports it as MDL-WIDGET22. A name that does not
 resolve is reported by `mxcli check --references` rather than by the build
 (CE1613). The other two sources are `ImageType: imageUrl, ImageUrl: '…'` and
-`ImageType: icon`.
+`ImageType: icon`; any other `ImageType` is a MDL-WIDGET22 warning, because mx
+check accepts it. An uploaded image is not a separate `ImageType` — it is the
+default source bound to the object: `Image: $currentObject`.
 
 ### Binding a pluggable widget's text-template property
 
@@ -1470,7 +1479,7 @@ MDL uses explicit property declarations for pages:
 | Pop-up close button | `PopupCloseAction: <widgetName>` | `(Layout: Atlas_Core.PopupLayout, PopupCloseAction: cancelButton1)` — names a widget on this page. Not carried from the stored document on a rewrite: the statement rebuilds the widget tree, so a carried name could dangle |
 | DataView read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `dataview dv (datasource: $O, ReadOnlyStyle: Text)` — a DataView's own, distinct from a checkbox's. **Control** is Studio Pro's default here, not Inherit |
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
-| Page variables | `variables: ( $name: type = 'expr' )` | `variables: ( $show: boolean = 'true' )` |
+| Page variables | `variables: ( $name: type = <expr> )` | `variables: ( $show: boolean = true )` |
 | Page parameters | `params: ( $name: type, … )` | `params: ( $Order: Shop.Order )` — a map, in `( )`; `params: { … }` is the deprecated spelling (MDL-DEPR123) |
 | Snippet call arguments | `snippetcall s (snippet: M.S, params: (Param = $var))` | Bound as at every call site, `Param = value` (R4). `params: {$Param: $var}` is deprecated (MDL-DEPR126) |
 | Text template parameters | `contentparams: ({1} = expr, …)` | Also `captionparams:` and a pluggable widget's `<Name>Params:`. `[…]` is deprecated (MDL-DEPR124) |
@@ -1482,6 +1491,8 @@ MDL uses explicit property declarations for pages:
 | Attribute binding | `attribute: AttrName` | `textbox txt (label: 'Name', attribute: Name)` |
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` — works on textbox, textarea, datepicker, dropdown, checkbox and radiobuttons, the same as on a data grid column |
 | Password field | `Password: true` on a textbox | `textbox tbPw (attribute: Secret, Password: true)` — omitted when false. Without it a describe → exec round trip turns a password field into a plaintext one |
+| Submit while typing | `SubmitBehaviour: OnEndEditing \| WhileEditing`, `SubmitOnInputDelay: <ms>` on a textbox or textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — defaults `OnEndEditing` / `300`, omitted by describe when default. An invalid value is MDL-WIDGET18; on any other widget the keys draw MDL-WIDGET07 |
+| Layout grid width | `Width: FullWidth \| FixedWidth` on a layoutgrid | `layoutgrid lg (Width: FixedWidth) { … }` — default `FullWidth`, omitted by describe when default |
 | Widget validation | `Validation: '<expression>'`, `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — a Mendix expression over `$value`, QUOTED not bracketed (`[...]` is the XPath spelling and parses as an array) |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
 | Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` — the forms are a closed set (`mxcli syntax page.action`); anything else is **MDL-WIDGET28** |
@@ -1678,7 +1689,7 @@ A column cannot bind the association itself: `column c (attribute: Order_Custome
 dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
 dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat: DateTime)))
 ```
-Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
+Keys: `decimalPrecision` (int ≥ 0, or -1 for no fixed precision), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
 **Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
 ```sql
@@ -1713,8 +1724,12 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
 | Drop attribute | `drop dgGrid column(Attr)` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add attribute to DataGrid; a column takes no name |
-| Add variable | `add variables $name: type = 'expr'` | Add a page variable |
+| Address a nav item | `drop navList1 item@2` | A navigation list item by a widget it holds `item(t1)`, a text it shows `item('Home')`, or position `item@n`; `@n` also picks among content matches |
+| Insert nav item | `insert after navList1 item(t1) { item (…) { … } }` | `insert into navList1 { item … }` appends; `replace navList1 item@1 with { item … }` swaps one |
+| Add variable | `add variables $name: type = <expr>` | Add a page variable |
 | Drop variable | `drop variables $name` | Remove a page variable |
+| Add parameter | `add parameters $name: type` | Add a page/snippet parameter (entity or primitive; snippet: entity only). A page with a `Url` needs a `{name}` segment — `set (Url: …)` in the same statement |
+| Drop parameter | `drop parameters $name` | Remove a parameter; refused while the page still uses it |
 | Set layout | `set layout = Module.LayoutName` | Change page layout, auto-maps placeholders |
 | Set layout + map | `set layout = Module.Layout map (Old as New)` | Explicit placeholder mapping |
 

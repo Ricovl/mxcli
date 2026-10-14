@@ -171,16 +171,19 @@ func TestValidateMicroflow_EnumSplitBranchScopedVariable(t *testing.T) {
 	t.Fatalf("expected MDL005 for variable declared inside ENUM split branch, got %#v", violations)
 }
 
-func TestValidateMicroflowBody_EnumSplitRejectsMoreThanSupportedBranches(t *testing.T) {
+// mendixlabs/mxcli#1416: `check -p` refused what DESCRIBE prints and Studio Pro
+// writes, an enum split of more than 16 branches.
+func TestValidateMicroflowBody_EnumSplitAcceptsMoreThanSixteenBranches(t *testing.T) {
 	stmt := &ast.CreateMicroflowStmt{
 		Name: ast.QualifiedName{Module: "Sample", Name: "Route"},
 		Body: []ast.MicroflowStatement{
-			enumSplitWithBranchCount(maxEnumSplitBranches + 1),
+			enumSplitWithBranchCount(29),
 		},
 	}
 
-	errors := strings.Join(ValidateMicroflowBody(stmt), "\n")
-	if !strings.Contains(errors, "enum split has 17 branches; at most 16 branches are supported") {
-		t.Fatalf("expected unsupported branch count error, got %q", errors)
+	for _, e := range ValidateMicroflowBody(stmt) {
+		if strings.Contains(e, "enum split has") {
+			t.Fatalf("29-branch enum split refused: %s", e)
+		}
 	}
 }

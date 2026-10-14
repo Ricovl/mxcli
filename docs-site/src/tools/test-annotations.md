@@ -145,6 +145,14 @@ $result = call microflow Sales.ACT_Submit(Order = $empty);
 Anything after `@throws` that is not a single-quoted string is an error, not a
 message — `@throws not found` is refused rather than read as an unquoted one.
 
+The handler is attached to every **call** in the body: `call microflow`,
+`call nanoflow`, `call java action`, `call external action`, `call web service`,
+`call workflow`, `call rest service`, `send rest request` and
+`execute database query`. An error raised by any other statement — a `commit`,
+a `change`, a `create` — is not caught; move it into a microflow and call that.
+The same handler turns an unexpected error in a test without `@throws` into a
+FAIL reading `exception during execution: <message>`.
+
 ## `@setup`
 
 Names a **microflow** to call before the test's own statements — a fixture in a

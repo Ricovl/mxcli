@@ -102,9 +102,17 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 	} else if join := mfCtx.JoinStatement(); join != nil {
 		stmt = &ast.JoinStmt{Label: mergeJoinLabel(join.IDENTIFIER(), join.QUOTED_IDENTIFIER())}
 	} else if listOp := mfCtx.ListOperationStatement(); listOp != nil {
-		stmt = buildListOperationStatement(listOp)
+		lo := buildListOperationStatement(listOp)
+		if errClause := listOp.OnErrorClause(); errClause != nil && lo != nil {
+			lo.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = lo
 	} else if aggr := mfCtx.AggregateListStatement(); aggr != nil {
-		stmt = buildAggregateListStatement(aggr)
+		ag := buildAggregateListStatement(aggr)
+		if errClause := aggr.OnErrorClause(); errClause != nil && ag != nil {
+			ag.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = ag
 	} else if addTo := mfCtx.AddToListStatement(); addTo != nil {
 		stmt = buildAddToListStatement(addTo)
 	} else if removeFrom := mfCtx.RemoveFromListStatement(); removeFrom != nil {
@@ -115,12 +123,23 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 		stmt = buildShowPageStatement(showPage)
 	} else if closePage := mfCtx.ClosePageStatement(); closePage != nil {
 		close := &ast.ClosePageStmt{NumberOfPages: 1}
+		// `close page n`: a count that is not a positive whole number is
+		// refused by ExitClosePageStatement.
+		if num := closePage.NUMBER_LITERAL(); num != nil {
+			if n, err := strconv.Atoi(num.GetText()); err == nil && n >= 1 {
+				close.NumberOfPages = n
+			}
+		}
 		if errClause := closePage.OnErrorClause(); errClause != nil {
 			close.ErrorHandling = buildOnErrorClause(errClause)
 		}
 		stmt = close
-	} else if mfCtx.ShowHomePageStatement() != nil {
-		stmt = &ast.ShowHomePageStmt{}
+	} else if homePage := mfCtx.ShowHomePageStatement(); homePage != nil {
+		home := &ast.ShowHomePageStmt{}
+		if errClause := homePage.OnErrorClause(); errClause != nil {
+			home.ErrorHandling = buildOnErrorClause(errClause)
+		}
+		stmt = home
 	} else if showMsg := mfCtx.ShowMessageStatement(); showMsg != nil {
 		stmt = buildShowMessageStatement(showMsg)
 	} else if download := mfCtx.DownloadFileStatement(); download != nil {
@@ -131,6 +150,8 @@ func buildMicroflowStatement(ctx parser.IMicroflowStatementContext) ast.Microflo
 		stmt = buildValidationFeedbackStatement(valFeedback)
 	} else if restCall := mfCtx.RestCallStatement(); restCall != nil {
 		stmt = buildRestCallStatement(restCall)
+	} else if sendEmail := mfCtx.SendEmailStatement(); sendEmail != nil {
+		stmt = buildSendEmailStatement(sendEmail)
 	} else if sendRest := mfCtx.SendRestRequestStatement(); sendRest != nil {
 		stmt = buildSendRestRequestStatement(sendRest)
 	} else if importMapping := mfCtx.ImportFromMappingStatement(); importMapping != nil {
@@ -184,6 +205,9 @@ func buildCaseStatement(ctx parser.ICaseStatementContext) *ast.EnumSplitStmt {
 			stmt.Variable = strings.TrimPrefix(attr.GetText(), "$")
 		} else if variable := sourceCtx.VARIABLE(); variable != nil {
 			stmt.Variable = strings.TrimPrefix(variable.GetText(), "$")
+		} else if call := sourceCtx.FunctionCall(); call != nil {
+			// `case Mod.Rule(Param = $x)` — the rule call an `if` takes (#1414).
+			stmt.Condition = buildFunctionCall(call)
 		}
 	}
 
@@ -265,10 +289,13 @@ func extractMicroflowAnnotations(annotations []parser.IAnnotationContext) *ast.A
 
 		case "caption":
 			// @caption 'text' — bare annotationValue
+			// An empty string is kept: `@caption ''` is a cleared caption, which
+			// describe prints so a decision does not come back captioned with its
+			// condition (#1254).
 			if valCtx := ann.AnnotationValue(); valCtx != nil {
-				text := extractAnnotationValueString(valCtx)
-				if text != "" {
+				if text, ok := annotationValueString(valCtx); ok {
 					result.Caption = text
+					result.CaptionSet = true
 					hasAny = true
 				}
 			}
@@ -607,21 +634,29 @@ func parseAnchorSideFromValue(val parser.IAnnotationValueContext) (ast.AnchorSid
 
 // extractAnnotationValueString extracts a string value from an annotationValue context.
 func extractAnnotationValueString(ctx parser.IAnnotationValueContext) string {
+	text, _ := annotationValueString(ctx)
+	return text
+}
+
+// annotationValueString is extractAnnotationValueString that also reports
+// whether the value was a string literal, so an empty string is told apart
+// from no string at all.
+func annotationValueString(ctx parser.IAnnotationValueContext) (string, bool) {
 	valCtx := ctx.(*parser.AnnotationValueContext)
 	if lit := valCtx.Literal(); lit != nil {
 		litCtx := lit.(*parser.LiteralContext)
 		if litCtx.STRING_LITERAL() != nil {
-			return unquoteStringLit(litCtx.STRING_LITERAL())
+			return unquoteStringLit(litCtx.STRING_LITERAL()), true
 		}
 	}
 	// Also try expression — it might be a string literal parsed as expression
 	if expr := valCtx.Expression(); expr != nil {
 		text := expr.GetText()
 		if len(text) >= 2 && text[0] == '\'' && text[len(text)-1] == '\'' {
-			return unquoteStringLit(expr)
+			return unquoteStringLit(expr), true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // extractAnnotationValueIdentifier extracts an identifier value from an annotationValue context.
@@ -747,6 +782,9 @@ func buildCastObjectStatement(ctx parser.ICastObjectStatementContext) *ast.CastO
 	}
 	castCtx := ctx.(*parser.CastObjectStatementContext)
 	stmt := &ast.CastObjectStmt{}
+	if errClause := castCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
 	vars := castCtx.AllVARIABLE()
 	if len(vars) == 1 {
 		stmt.OutputVariable = strings.TrimPrefix(vars[0].GetText(), "$")
@@ -766,10 +804,9 @@ func buildCastObjectStatement(ctx parser.ICastObjectStatementContext) *ast.CastO
 // this returns the specialized statement type instead of MfSetStmt.
 //
 // The ON ERROR clause is attached here rather than at each of the dozen return
-// points below. Only the plain MfSetStmt form can honour it — Mendix gives
-// ChangeVariableAction an ErrorHandlingType but gives ListOperationsAction and
-// AggregateAction none — so the specialized nodes carry it only to be refused by
-// MDL077, never to be executed.
+// points below. Every activity this can produce — Change variable, List
+// operation, Aggregate list — is a Microflows$MicroflowAction and carries an
+// ErrorHandlingType, so each node takes the clause (mendixlabs/mxcli#1252).
 func buildSetStatement(ctx parser.ISetStatementContext) ast.MicroflowStatement {
 	stmt := buildSetStatementNode(ctx)
 	if stmt == nil || ctx == nil {
@@ -1211,8 +1248,9 @@ func buildCommitClause(ctx parser.ICommitClauseContext) ast.CommitFlag {
 }
 
 // buildChangeObjectStatement converts CHANGE statement context to ChangeObjectStmt.
-// Grammar: CHANGE VARIABLE (LPAREN memberAssignmentList? RPAREN)?
+// Grammar: CHANGE VARIABLE (LPAREN changeMemberAssignmentList? RPAREN)?
 // Example: CHANGE $Product (Name = $NewName, ModifiedDate = [%CurrentDateTime%]);
+// Example: CHANGE $Order (Module.Order_Line += $Line, Module.Order_Line -= $Old);
 func buildChangeObjectStatement(ctx parser.IChangeObjectStatementContext) *ast.ChangeObjectStmt {
 	if ctx == nil {
 		return nil
@@ -1227,8 +1265,8 @@ func buildChangeObjectStatement(ctx parser.IChangeObjectStatementContext) *ast.C
 	}
 
 	// Get SET member assignments
-	if memberList := changeCtx.MemberAssignmentList(); memberList != nil {
-		stmt.Changes = buildMemberAssignmentList(memberList)
+	if memberList := changeCtx.ChangeMemberAssignmentList(); memberList != nil {
+		stmt.Changes = buildChangeMemberAssignmentList(memberList)
 	}
 	stmt.Commit = buildCommitClause(changeCtx.CommitClause())
 	stmt.RefreshInClient = changeCtx.REFRESH() != nil
@@ -1322,6 +1360,10 @@ func buildRollbackStatement(ctx parser.IRollbackStatementContext) *ast.RollbackS
 	// Check for REFRESH keyword
 	stmt.RefreshInClient = rollCtx.REFRESH() != nil
 
+	if errClause := rollCtx.OnErrorClause(); errClause != nil {
+		stmt.ErrorHandling = buildOnErrorClause(errClause)
+	}
+
 	return stmt
 }
 
@@ -1379,7 +1421,9 @@ func buildRetrieveStatement(ctx parser.IRetrieveStatementContext) *ast.RetrieveS
 					if prc, ok := xpathExpr.(antlr.ParserRuleContext); ok {
 						if source := strings.TrimSpace(extractExpressionText(prc)); source != "" {
 							source = storedExpressionSource(source, lexedWithStrictEscapes(prc))
-							predicateSources = append(predicateSources, normalizeXPathTokens("["+source+"]"))
+							// Strip quoted names as the single-predicate path does: kept,
+							// "A" is a string literal to Mendix (mendixlabs/mxcli#1243).
+							predicateSources = append(predicateSources, stripExpressionIdentifierQuotes(normalizeXPathTokens("["+source+"]")))
 						}
 					}
 				}

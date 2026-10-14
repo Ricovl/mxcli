@@ -14,7 +14,9 @@ import (
 
 // Encoder serializes Element trees back to BSON bytes.
 type Encoder struct {
-	// OmitKeys suppresses BSON keys, per $Type, for this encoder only.
+	// OmitKeys suppresses BSON keys, per $Type, for this encoder only — a key a
+	// gen property would emit and a key a registered Studio Pro default would add
+	// alike (a Microflow's StableId is the latter: mendixlabs/mxcli#1410).
 	//
 	// It exists for **version-floored properties**. Mendix introduces properties
 	// over time, and a key introduced after the project's own version is one that
@@ -160,6 +162,16 @@ func (e *Encoder) buildDoc(elem element.Element) (bson.D, error) {
 		for _, prop := range elem.Properties() {
 			idx := findRebuild(bytesOf(prop.Name()))
 			if idx < 0 {
+				// An untouched PartList is empty on a new element. One Studio
+				// Pro always writes is emitted as its bare marker, in place.
+				if clp, isList := prop.(element.ChildListProperty); isList &&
+					len(clp.ChildElements()) == 0 &&
+					isMandatoryPropertyList(elem.TypeName(), prop.Name()) &&
+					!e.omits(elem.TypeName(), prop.Name()) {
+					m, _ := lookupPropertyListMarker(elem.TypeName(), prop.Name())
+					doc = append(doc, bson.E{Key: prop.Name(), Value: bson.A{m}})
+					emitted[prop.Name()] = true
+				}
 				continue
 			}
 			val, err := e.encodeEntry(elem.TypeName(), rebuild[idx])
@@ -200,27 +212,27 @@ func (e *Encoder) buildDoc(elem element.Element) (bson.D, error) {
 				}
 			}
 			for _, name := range d.NullFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: nil})
 				}
 			}
 			for _, name := range d.EmptyStringFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: ""})
 				}
 			}
 			for _, name := range d.FalseFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: false})
 				}
 			}
 			for _, name := range d.ZeroGUIDFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: zeroGUIDBinary()})
 				}
 			}
 			for _, name := range d.FreshGUIDFields {
-				if !emitted[name] {
+				if !emitted[name] && !e.omits(elem.TypeName(), name) {
 					doc = append(doc, bson.E{Key: name, Value: idToBinarySubtype0("")})
 				}
 			}

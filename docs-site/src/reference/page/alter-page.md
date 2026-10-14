@@ -15,7 +15,8 @@ ALTER SNIPPET module.Name {
 `ALTER LAYOUT module.Name { … }` takes the same operations. This is the
 generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
 every document type shares; a page's targets are widget names, DataGrid 2
-columns `grid column(Attr)` / `grid column('Caption')`, or a layout region
+columns `grid column(Attr)` / `grid column('Caption')`, navigation list items
+`nav item(widget)` / `nav item('Text')` / `nav item@n`, or a layout region
 `container.top`.
 
 The older spellings still run and warn with a deprecation code:
@@ -53,7 +54,7 @@ DROP widgetName1, widgetName2;
 REPLACE widgetName WITH { widget_definitions };
 
 -- Add a page variable
-ADD Variables $name : type = 'expression';
+ADD Variables $name : type = <expression>;
 
 -- Drop a page variable
 DROP Variables $name;
@@ -89,7 +90,72 @@ Inserts new widgets immediately before or after a named widget within its parent
 
 Appends new widgets as the **last children** of a named container. This is the only way to fill an **empty** container, and the natural way to add a widget to a container or data view without needing a sibling to anchor to. Widgets inserted into a data view take that data view's entity as their context.
 
-Supported on simple containers (container/DivContainer, data view, group box, scroll-container region). A layout grid (rows/columns) and tab container have no single child list — insert relative to a widget inside the target column or tab instead.
+Supported on simple containers (container/DivContainer, data view, group box, tab page, scroll-container region). A layout grid (rows/columns) has no single child list — insert relative to a widget inside the target column instead. A tab container's children are tab pages; see below.
+
+### Adding Tab Pages
+
+A tab container holds tab pages, and only tab pages. `INSERT INTO` the tab
+container appends one; `INSERT BEFORE` / `INSERT AFTER` a tab page places it next
+to that sibling. The container keeps its default tab.
+
+```sql
+mdl 1;
+alter page ModT.TabsPage {
+  insert after tpOne { tabpage tpTwo (Caption: 'Two') { dynamictext txtTwo (Content: 'two') } }
+};
+alter page ModT.TabsPage {
+  insert into tabsMain { tabpage tpThree (Caption: 'Three') { dynamictext txtThree (Content: 'three') } }
+};
+```
+
+A tab page cannot go next to an ordinary widget or inside another tab page, and
+one `INSERT` cannot mix tab pages with widgets. Dropping, replacing or reordering
+tab pages still needs `CREATE OR MODIFY PAGE`.
+
+A navigation list holds items, and only items. `INSERT INTO` the list appends
+one and leaves the existing items as they are. The widgets inside an item are
+targets by their own names.
+
+```sql
+mdl 1;
+alter snippet Shop.Menu {
+  insert into navList1 { item (Action: show page Shop.Home) { dynamictext t2 (Content: 'Second') } }
+};
+alter snippet Shop.Menu {
+  insert after t2 { dynamictext t3 (Content: 'Third') }
+};
+```
+
+### Navigation List Item Operations
+
+A navigation list item has no stored name either, so — like a DataGrid 2
+column — it is addressed by what it holds or where it is:
+
+| Address | Means |
+|---------|-------|
+| `nav item(t1)` | the item holding the widget named `t1` |
+| `nav item('Home')` | the item showing the text `Home` (any language) |
+| `nav item@2` | the second item |
+| `nav item('Home')@2` | the second of several items showing `Home` |
+
+An address that matches several items is refused unless `@n` picks one, and a
+miss lists every item's addresses. Prefer the content forms: a position moves
+when an item is inserted before it.
+
+```sql
+mdl 1;
+alter snippet Shop.Menu {
+  insert before navList1 item@1 { item (Action: show page Shop.Orders) { dynamictext t0 (Content: 'Orders') } }
+  insert after navList1 item(t1) { item (Action: show page Shop.Home) { dynamictext t5 (Content: 'Home') } }
+  set (Action: show page Shop.Orders) on navList1 item('Home')@2;
+  insert into navList1 item('Orders') { dynamictext t0b (Content: 'All orders') }
+  replace navList1 item(t2) with { item (Action: show page Shop.Home) { dynamictext t2 (Content: 'Second') } }
+  drop navList1 item@3;
+};
+```
+
+Only items go next to an item or in its place: `INSERT BEFORE` / `AFTER` an item
+and `REPLACE` of one take `item` blocks, and widgets go `INTO` an item.
 
 ### DROP
 
@@ -195,7 +261,7 @@ Add and drop page variables:
 ```sql
 mdl 1;
 ALTER PAGE Sales.Order_Edit {
-    ADD Variables $showAdvanced : Boolean = 'false';
+    ADD Variables $showAdvanced : Boolean = false;
 };
 
 ALTER PAGE Sales.Order_Edit {

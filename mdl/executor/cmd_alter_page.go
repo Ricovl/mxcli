@@ -47,6 +47,12 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 		}
 	}
 
+	if containerType == "page" {
+		if err := checkAddedParameterURLSegments(ctx, s, h); err != nil {
+			return err
+		}
+	}
+
 	// Texts are written in the project's default language (the one DESCRIBE
 	// shows): resolve it before the first mutation, since the mutator reads it
 	// through model.AuthoringLanguage rather than as a parameter.
@@ -110,6 +116,18 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 			if err := mutator.DropVariable(o.VariableName); err != nil {
 				return mdlerrors.NewBackend("drop VARIABLE", err)
 			}
+		case *ast.AddParameterOp:
+			spec, err := alterParameterSpec(ctx, s, containerType, o.Parameter)
+			if err != nil {
+				return err
+			}
+			if err := mutator.AddParameter(spec); err != nil {
+				return mdlerrors.NewBackend("add PARAMETER", err)
+			}
+		case *ast.DropParameterOp:
+			if err := mutator.DropParameter(o.ParameterName); err != nil {
+				return mdlerrors.NewBackend("drop PARAMETER", err)
+			}
 		case *ast.SetLayoutOp:
 			if containerType == "snippet" {
 				return mdlerrors.NewUnsupported("set Layout is not supported for snippets")
@@ -133,6 +151,97 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 
 	fmt.Fprintf(ctx.Output, "Altered %s %s\n", strings.ToLower(containerType), s.PageName.String())
 	return nil
+}
+
+// checkAddedParameterURLSegments refuses `add parameters` on a page whose URL
+// would then lack a `{Name}` segment for the new parameter — MDL-PAGE20 on
+// CREATE, CE5601 from mxbuild. Measured on 11.12.1: adding $Order to a page
+// with Url 'customer-edit/{Customer}' and nothing else fails `mx check` with
+// "The URL property of this Page is missing a parameter segment for parameter
+// "Order"." The URL a statement ends with is what counts, so a `set (Url: …)`
+// in the same statement that names the parameter satisfies it. Parameters the
+// page already had are not this statement's business.
+func checkAddedParameterURLSegments(ctx *ExecContext, s *ast.AlterPageStmt, h *ContainerHierarchy) error {
+	var added []string
+	url, urlSet := "", false
+	for _, op := range s.Operations {
+		switch o := op.(type) {
+		case *ast.AddParameterOp:
+			added = append(added, o.Parameter.Name)
+		case *ast.SetPropertyOp:
+			if o.Target.Widget != "" {
+				continue
+			}
+			for k, v := range o.Properties {
+				if strings.EqualFold(k, "Url") {
+					url, _ = v.(string)
+					urlSet = true
+				}
+			}
+		}
+	}
+	if len(added) == 0 {
+		return nil
+	}
+	if !urlSet {
+		page, err := findPageByName(ctx, s.PageName, h)
+		if err != nil {
+			return err
+		}
+		url = page.URL
+	}
+	if url == "" {
+		return nil
+	}
+	var missing []string
+	suggested := url
+	for _, name := range added {
+		if !urlBindsParameter(url, name) {
+			missing = append(missing, name)
+			suggested = strings.TrimRight(suggested, "/") + "/{" + name + "}"
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return mdlerrors.NewValidationf(
+		"page %s has Url '%s' with no segment for parameter %s — Mendix binds each page "+
+			"parameter from the URL, and mxbuild rejects the page (CE5601). Set the URL in the "+
+			"same statement: `set (Url: '%s');`",
+		s.PageName.String(), url, quoteList(missing), suggested)
+}
+
+// alterParameterSpec resolves an `add parameters` declaration the way CREATE
+// resolves its Params clause (cmd_pages_builder_v3.go): a primitive becomes its
+// DataTypes $Type, anything else must name an entity that exists, and a snippet
+// takes entities only (MDL087 — mxbuild's CE0046 otherwise).
+func alterParameterSpec(ctx *ExecContext, s *ast.AlterPageStmt, containerType string, p ast.PageParameter) (backend.PageParameterSpec, error) {
+	spec := backend.PageParameterSpec{Name: p.Name}
+	bsonType := pageParamBSONType(p.Type)
+	if strings.EqualFold(containerType, "snippet") {
+		if caption := types.SnippetParameterTypeRule(bsonType); caption != "" {
+			return spec, mdlerrors.NewValidationf(
+				"snippet '%s' cannot take parameter $%s with the primitive type %s — a snippet "+
+					"parameter must be an entity, and mxbuild rejects a primitive one with "+
+					"CE0046 (\"Invalid data type '%s'.\"). Pass the value on an object, or "+
+					"keep the primitive on the calling page's parameters.",
+				s.PageName.String(), p.Name, paramTypeSourceName(p.Type), caption)
+		}
+	}
+	if bsonType != "" {
+		spec.PrimitiveType = bsonType
+		return spec, nil
+	}
+	if p.EntityType.Name == "" || p.EntityType.Module == "" {
+		return spec, mdlerrors.NewValidationf(
+			"parameter $%s: a page parameter is an entity (Module.Entity) or one of "+
+				"String, Integer, Long, Decimal, Boolean, DateTime", p.Name)
+	}
+	if _, err := findEntity(ctx, p.EntityType.Module, p.EntityType.Name); err != nil {
+		return spec, mdlerrors.NewBackend("resolve entity "+p.EntityType.String(), err)
+	}
+	spec.EntityName = p.EntityType.String()
+	return spec, nil
 }
 
 // alterTargetOf converts an operation's target, as the visitor recorded it,
@@ -271,7 +380,7 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 		} else if propName == "Action" {
 			// Action is a polymorphic node, not a scalar — it goes through the
 			// same builder CREATE PAGE uses rather than being written as a value.
-			action, err := convertASTAction(ctx, value, moduleName, moduleID)
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
 			if err != nil {
 				return err
 			}
@@ -284,7 +393,7 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 			// Same builder as `Action`; the mutator checks the key is an
 			// action-typed property of the stored widget. Through
 			// SetWidgetProperty it would be stringified into a PrimitiveValue.
-			action, err := convertASTAction(ctx, value, moduleName, moduleID)
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
 			if err != nil {
 				return err
 			}
@@ -363,21 +472,31 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 // alternative is the failure mode #855 documents for DataSource, where SET
 // carried a narrower vocabulary than REPLACE and each missing case surfaced as
 // its own bug report.
-func convertASTAction(ctx *ExecContext, value any, moduleName string, moduleID model.ID) (pages.ClientAction, error) {
+//
+// The builder is seeded with the stored document's parameters and variables, as
+// buildWidgetsFromAST is. Without them a `$Param` argument cannot be told from an
+// expression and is written as one, which Studio Pro does not bind
+// (mendixlabs/mxcli#1317, the #1140 rule).
+func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, moduleName string, moduleID model.ID) (pages.ClientAction, error) {
 	action, ok := value.(*ast.ActionV3)
 	if !ok {
 		return nil, mdlerrors.NewValidation("Action value must be an action expression, " +
 			"for example `set (Action: microflow Module.MF) on btnSave`")
 	}
+	paramScope, paramEntityNames := mutator.ParamScope()
 	pb := &pageBuilder{
-		ctx:           ctx,
-		backend:       ctx.Backend,
-		moduleID:      moduleID,
-		moduleName:    moduleName,
-		execCache:     ctx.Cache,
-		fragments:     ctx.Fragments,
-		themeRegistry: ctx.GetThemeRegistry(),
-		widgetBackend: ctx.Backend,
+		ctx:              ctx,
+		backend:          ctx.Backend,
+		moduleID:         moduleID,
+		moduleName:       moduleName,
+		paramScope:       paramScope,
+		paramEntityNames: paramEntityNames,
+		execCache:        ctx.Cache,
+		fragments:        ctx.Fragments,
+		themeRegistry:    ctx.GetThemeRegistry(),
+		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
+		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 	return pb.buildClientActionV3(action)
 }
@@ -405,9 +524,10 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 	// Special path: inserting columns into a DataGrid2 column. Columns are
 	// CustomWidgets$WidgetObject, not Forms$* widgets, so we go through
 	// InsertColumns to serialize them correctly. Column children inherit the
-	// grid's data source entity as their entity context.
+	// grid's data source entity as their entity context — for a flow source, the
+	// flow's return entity, which the BSON walk alone does not see (#1468).
 	if op.Target.IsColumn() && allColumns(op.Widgets) {
-		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
+		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
 		specs, err := buildColumnSpecsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
 		if err != nil {
 			return mdlerrors.NewBackend("build column specs", err)
@@ -445,6 +565,43 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 	// a dataview's entity).
 	into := strings.EqualFold(op.Position, "INTO")
 	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, into, moduleName, moduleID)
+
+	// Special path: adding tab pages to a tab container (#1215). A tab page lives
+	// in the container's TabPages list and is not a widget, so the builder
+	// refuses one on its own ("tabpage must be a direct child of tabcontainer")
+	// and InsertWidget would put it in a widget list. INTO targets the container,
+	// BEFORE/AFTER a sibling tab page; the mutator checks which the target is.
+	if allTabPages(op.Widgets) {
+		tabPages, err := buildTabPagesFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
+		if err != nil {
+			return mdlerrors.NewBackend("build tab pages", err)
+		}
+		return mutator.InsertTabPages(op.Target.Widget, backend.InsertPosition(op.Position), tabPages)
+	}
+	if hasTabPage(op.Widgets) {
+		return mdlerrors.NewValidation(
+			"mixing `tabpage` blocks with ordinary widgets in one INSERT is not supported: " +
+				"tab pages go in a tab container's list of pages, widgets inside a tab page. " +
+				"Use one INSERT for the tab pages and another for the widgets")
+	}
+
+	// Special path: adding items to a navigation list (#1388). An item lives in
+	// the list's Items and is not a widget, so the builder refuses one on its own
+	// ("item must be a direct child of navigationlist") and InsertWidget would
+	// put it in a widget list. The mutator checks what the target is.
+	if allNavigationListItems(op.Widgets) {
+		items, err := buildNavigationListItemsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
+		if err != nil {
+			return mdlerrors.NewBackend("build navigation list items", err)
+		}
+		return mutator.InsertNavigationListItems(op.Target.Widget, backend.InsertPosition(op.Position), items)
+	}
+	if hasNavigationListItem(op.Widgets) {
+		return mdlerrors.NewValidation(
+			"mixing `item` blocks with ordinary widgets in one INSERT is not supported: " +
+				"items go in a navigation list's list of items, widgets inside an item. " +
+				"Use one INSERT for the items and another for the widgets")
+	}
 
 	// Build new widgets from AST
 	widgets, err := buildWidgetsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
@@ -513,9 +670,13 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Special path: replacing a DataGrid2 column with new columns. Columns are
 	// CustomWidgets$WidgetObject, not Forms$* widgets. Column children inherit
-	// the grid's data source entity as their entity context.
+	// the grid's data source entity as their entity context. A microflow or
+	// nanoflow source names no entity in the BSON, so it is resolved through
+	// the flow's return type; reading the BSON alone left a replacement column's
+	// Attribute unqualified, it was not written, and mxbuild failed with "An
+	// attribute is required when column sorting is enabled" (#1468).
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
-		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
+		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
 		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)
@@ -534,6 +695,22 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
 	for n := range replaced {
 		exclude = append(exclude, n)
+	}
+
+	// Special path: replacing one navigation list item with items (#1388). An
+	// item lives in the list's Items, so it is not a widget REPLACE; the mutator
+	// checks the target is an item.
+	if allNavigationListItems(op.NewWidgets) {
+		items, err := buildNavigationListItemsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
+		if err != nil {
+			return mdlerrors.NewBackend("build replacement navigation list items", err)
+		}
+		return mutator.ReplaceNavigationListItem(op.Target.Widget, items)
+	}
+	if hasNavigationListItem(op.NewWidgets) {
+		return mdlerrors.NewValidation(
+			"mixing `item` blocks with ordinary widgets in one REPLACE is not supported: " +
+				"items go in a navigation list's list of items, widgets inside an item")
 	}
 	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil {
@@ -788,6 +965,7 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 
 	var result []*backend.DataGridColumnSpec
@@ -862,27 +1040,7 @@ func resolveDataSourceFlowEntity(ctx *ExecContext, moduleName string, moduleID m
 // excludeFromScope removes named widgets from the duplicate-detection scope,
 // used when replacing a widget so the new one may reuse the target's name.
 func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]pages.Widget, error) {
-	paramScope, paramEntityNames := mutator.ParamScope()
-	widgetScope := mutator.WidgetScope()
-	for _, name := range excludeFromScope {
-		delete(widgetScope, name)
-	}
-
-	pb := &pageBuilder{
-		ctx:              ctx,
-		backend:          ctx.Backend,
-		moduleID:         moduleID,
-		moduleName:       moduleName,
-		entityContext:    entityContext,
-		widgetScope:      widgetScope,
-		paramScope:       paramScope,
-		paramEntityNames: paramEntityNames,
-		execCache:        ctx.Cache,
-		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
-		widgetBackend:    ctx.Backend,
-		localVariables:   storedPageVariables(mutator),
-	}
+	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
 
 	var result []pages.Widget
 	for _, w := range widgets {
@@ -896,4 +1054,110 @@ func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName s
 		result = append(result, widget)
 	}
 	return result, nil
+}
+
+// buildTabPagesFromAST builds the tab pages an INSERT adds to a tab container,
+// with the same builder CREATE PAGE uses for a tab container's children.
+func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator) ([]*pages.TabPage, error) {
+	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator)
+	out := make([]*pages.TabPage, 0, len(nodes))
+	for _, node := range nodes {
+		tp, err := pb.buildTabPageV3(node)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("build tab page "+node.Name, err)
+		}
+		out = append(out, tp)
+	}
+	return out, nil
+}
+
+// buildNavigationListItemsFromAST builds the items an INSERT adds to a
+// navigation list, with the same builder CREATE uses for a list's children.
+func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]*pages.NavigationListItem, error) {
+	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
+	out := make([]*pages.NavigationListItem, 0, len(nodes))
+	for _, node := range nodes {
+		item, err := pb.buildNavigationListItemV3(node)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// allNavigationListItems reports whether every inserted node is a navigation
+// list item.
+func allNavigationListItems(widgets []*ast.WidgetV3) bool {
+	if len(widgets) == 0 {
+		return false
+	}
+	for _, w := range widgets {
+		if !strings.EqualFold(w.Type, "item") {
+			return false
+		}
+	}
+	return true
+}
+
+// hasNavigationListItem reports whether ANY inserted node is a navigation list
+// item, so a mixed insert is refused rather than half-applied.
+func hasNavigationListItem(widgets []*ast.WidgetV3) bool {
+	for _, w := range widgets {
+		if strings.EqualFold(w.Type, "item") {
+			return true
+		}
+	}
+	return false
+}
+
+// allTabPages reports whether every inserted node is a tab page.
+func allTabPages(widgets []*ast.WidgetV3) bool {
+	if len(widgets) == 0 {
+		return false
+	}
+	for _, w := range widgets {
+		if !strings.EqualFold(w.Type, "tabpage") {
+			return false
+		}
+	}
+	return true
+}
+
+// hasTabPage reports whether ANY inserted node is a tab page, so a mixed insert
+// is refused rather than sending the tab pages down the widget path.
+func hasTabPage(widgets []*ast.WidgetV3) bool {
+	for _, w := range widgets {
+		if strings.EqualFold(w.Type, "tabpage") {
+			return true
+		}
+	}
+	return false
+}
+
+// newAlterPageBuilder returns a page builder scoped to the stored page an ALTER
+// edits: its parameters, its widget names and its local variables.
+func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) *pageBuilder {
+	paramScope, paramEntityNames := mutator.ParamScope()
+	widgetScope := mutator.WidgetScope()
+	for _, name := range excludeFromScope {
+		delete(widgetScope, name)
+	}
+
+	return &pageBuilder{
+		ctx:              ctx,
+		backend:          ctx.Backend,
+		moduleID:         moduleID,
+		moduleName:       moduleName,
+		entityContext:    entityContext,
+		widgetScope:      widgetScope,
+		paramScope:       paramScope,
+		paramEntityNames: paramEntityNames,
+		execCache:        ctx.Cache,
+		fragments:        ctx.Fragments,
+		themeRegistry:    ctx.GetThemeRegistry(),
+		widgetBackend:    ctx.Backend,
+		localVariables:   storedPageVariables(mutator),
+		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
+	}
 }

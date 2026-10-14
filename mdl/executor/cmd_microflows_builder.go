@@ -23,6 +23,15 @@ type flowBuilder struct {
 	// validator scoped names per branch and counted every call output, so it
 	// was wrong both ways. Rules keep it — MDL063 does not run on them.
 	duplicateNamesOwnedElsewhere bool
+	// checkAssocShapes is check --references' view of the project's and the
+	// script's associations, so the validator types a forward Reference
+	// retrieve as the object it yields (validateFlowBody). nil on the exec path,
+	// which resolves associations through the backend instead.
+	checkAssocShapes map[string]assocShape
+	// assocObjectVars are the variables checkAssocShapes typed as one object,
+	// the only objects whose `set` the validator reports itself (MDL-SET01
+	// reports the rest without a project).
+	assocObjectVars map[string]bool
 
 	objects         []microflows.MicroflowObject
 	flows           []*microflows.SequenceFlow
@@ -120,6 +129,10 @@ type flowBuilder struct {
 	// statement itself, not the project: on a first create the document does
 	// not exist yet, so a recursive flow was refused "not found" (#843).
 	self *selfFlow
+	// scriptFlows are the flows earlier statements of the script declare
+	// (ExecContext.scriptFlows): a call to one resolves to its declaration.
+	// Set only while check predicts flow verdicts.
+	scriptFlows map[string]*selfFlow
 	// Pending custom error-handler routing uses two representations: the
 	// currently active handler lives in the flat fields below, while handlers
 	// postponed across branch boundaries are queued in pendingErrorHandlers.
@@ -157,6 +170,12 @@ type flowBuilder struct {
 	// would fight the box rather than help the reader.
 	allowWrap bool
 	row       rowTracker
+	// joinScopes is the check-time validator's view of what is declared at
+	// each `join <label>`, keyed by label, so a `merge <label>` statement sees
+	// the variables of the paths that reach it (recordJoinScope). nil outside
+	// validateFlowBody. A map, so the per-branch copies validateScopedStatements
+	// makes all record into the same table.
+	joinScopes map[string]flowBuilderVariableState
 }
 
 type flowBuilderVariableState struct {
@@ -204,6 +223,29 @@ func (fb *flowBuilder) GetErrors() []string {
 
 func (fb *flowBuilder) hasDeclaredReturnValue() bool {
 	return fb.returnType != nil && fb.returnType.Type.Kind != ast.TypeVoid
+}
+
+// addUndeclaredSetError reports `set $X = …` on a variable that is not
+// declared. When $X is the flow's `returns … as $X` name the generic message
+// reads as contradicting that clause, so it says what the clause does: it names
+// the result for callers and declares nothing (mendixlabs/mxcli#1436).
+func (fb *flowBuilder) addUndeclaredSetError(target string) {
+	name := strings.TrimPrefix(target, "$")
+	if fb.returnType != nil && fb.returnType.Variable != "" &&
+		strings.TrimPrefix(fb.returnType.Variable, "$") == name {
+		typ := fb.returnType.Type.Kind.String()
+		if ref := fb.returnType.Type.EntityRef; ref != nil {
+			typ = ref.Module + "." + ref.Name
+		}
+		fb.addErrorWithExample(
+			fmt.Sprintf("variable '%s' is not declared: `returns … as $%s` names the result for callers "+
+				"and does not declare $%s — declare it before the first `set`", name, name, name),
+			fmt.Sprintf("    declare $%s %s = …;\n    ...\n    set $%s = …;", name, typ, name))
+		return
+	}
+	fb.addErrorWithExample(
+		fmt.Sprintf("variable '%s' is not declared", target),
+		errorExampleDeclareVariable(target))
 }
 
 // errorExampleDeclareVariable returns an example for declaring a variable.
@@ -293,9 +335,27 @@ func (fb *flowBuilder) isSelf(qualifiedName string, nanoflow bool) bool {
 	return fb.self != nil && fb.self.nanoflow == nanoflow && fb.self.qualifiedName == qualifiedName
 }
 
+// declaredFlow returns the declaration a call to qualifiedName resolves to
+// without the project: the flow being built, or one an earlier statement of
+// the script declares (scriptFlows). Nil means the project answers.
+func (fb *flowBuilder) declaredFlow(qualifiedName string, nanoflow bool) *selfFlow {
+	if fb.isSelf(qualifiedName, nanoflow) {
+		return fb.self
+	}
+	return fb.scriptFlows[scriptFlowKey(nanoflow, qualifiedName)]
+}
+
+// scriptFlowKey keys ExecContext.scriptFlows.
+func scriptFlowKey(nanoflow bool, qualifiedName string) string {
+	if nanoflow {
+		return "nanoflow:" + qualifiedName
+	}
+	return "microflow:" + qualifiedName
+}
+
 func (fb *flowBuilder) lookupMicroflowReturnType(qualifiedName string) microflows.DataType {
-	if fb.isSelf(qualifiedName, false) {
-		return fb.self.returnType
+	if d := fb.declaredFlow(qualifiedName, false); d != nil {
+		return d.returnType
 	}
 	if fb.backend == nil || qualifiedName == "" {
 		return nil
@@ -345,8 +405,8 @@ func (fb *flowBuilder) lookupMicroflowReturnType(qualifiedName string) microflow
 }
 
 func (fb *flowBuilder) lookupNanoflowReturnType(qualifiedName string) microflows.DataType {
-	if fb.isSelf(qualifiedName, true) {
-		return fb.self.returnType
+	if d := fb.declaredFlow(qualifiedName, true); d != nil {
+		return d.returnType
 	}
 	if fb.backend == nil || qualifiedName == "" {
 		return nil
@@ -399,7 +459,7 @@ func (fb *flowBuilder) lookupNanoflowReturnType(qualifiedName string) microflows
 // in the connected project. Returns true (no error) when no backend is available
 // or when backend calls fail, so offline / syntax-check mode is unaffected.
 func (fb *flowBuilder) microflowExists(qualifiedName string) bool {
-	if fb.backend == nil || fb.isSelf(qualifiedName, false) {
+	if fb.backend == nil || fb.declaredFlow(qualifiedName, false) != nil {
 		return true
 	}
 	// Fast path: name-indexed lookup; succeeds without loading the full list.
@@ -441,7 +501,7 @@ func (fb *flowBuilder) microflowExists(qualifiedName string) bool {
 // nanoflowExists returns true if qualifiedName refers to a nanoflow present
 // in the connected project. Same fallback-to-true semantics as microflowExists.
 func (fb *flowBuilder) nanoflowExists(qualifiedName string) bool {
-	if fb.backend == nil || fb.isSelf(qualifiedName, true) {
+	if fb.backend == nil || fb.declaredFlow(qualifiedName, true) != nil {
 		return true
 	}
 	if rawUnit, err := fb.backend.GetRawUnitByName("nanoflow", qualifiedName); err == nil && rawUnit != nil {

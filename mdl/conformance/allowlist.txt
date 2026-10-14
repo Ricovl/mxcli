@@ -54,7 +54,6 @@
 7	syntax	.claude/skills/mendix/test-microflows/reference/annotations.md
 3	syntax	.claude/skills/mendix/theme-styling/SKILL.md
 2	syntax	.claude/skills/mendix/translations/SKILL.md
-1	syntax	.claude/skills/mendix/validation-microflows/SKILL.md
 1	syntax	.claude/skills/mendix/write-layouts/SKILL.md
 17	syntax	.claude/skills/mendix/write-microflows/SKILL.md
 1	syntax	.claude/skills/mendix/write-microflows/reference/integration.md
@@ -69,7 +68,6 @@
 7	syntax	docs-site/src/appendixes/common-mistakes.md
 1	syntax	docs-site/src/appendixes/quick-reference.md
 3	syntax	docs-site/src/appendixes/version-compatibility.md
-5	syntax	docs-site/src/examples/crm-module.md
 1	syntax	docs-site/src/examples/data-import.md
 1	syntax	docs-site/src/examples/rest-integration.md
 4	syntax	docs-site/src/ide/customizing-skills.md

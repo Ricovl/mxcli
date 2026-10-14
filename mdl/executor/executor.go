@@ -216,6 +216,11 @@ const (
 	defaultExecuteTimeout = 5 * time.Minute
 )
 
+// executeTimeoutDefault is the limit effectiveExecuteTimeout applies when no
+// MXCLI_EXEC_TIMEOUT is set. A variable so a test can bring it below the
+// duration of a catalog build.
+var executeTimeoutDefault = defaultExecuteTimeout
+
 // configuredExecuteTimeout returns the per-statement wall-clock timeout. The
 // value is read from the MXCLI_EXEC_TIMEOUT environment variable on every call
 // so long-running audits can opt into a higher ceiling without recompiling.
@@ -251,7 +256,7 @@ func effectiveExecuteTimeout(stmt ast.Statement) time.Duration {
 	if isExemptFromExecuteTimeout(stmt) {
 		return 0
 	}
-	return defaultExecuteTimeout
+	return executeTimeoutDefault
 }
 
 // isExemptFromExecuteTimeout reports whether a statement is a known long-running
@@ -278,22 +283,28 @@ type Executor struct {
 	scriptDir      string           // directory of the .mdl file being executed (see SetScriptDir)
 	langVersion    langver.Version  // `mdl <n>;` of the program being run (see enterLanguage)
 	describeLang   *langver.Version // the language DESCRIBE writes, when set (SetDescribeLanguage)
-	settings       map[string]any
-	cache          *executorCache
-	catalog        *catalog.Catalog
-	quiet          bool            // suppress connection and status messages
-	tally          *mutationTally  // collapses a program run's "Unchanged" reports into one line
-	accessRun      *accessRuleRun  // the open run of access-rule statements, if any (#872, #890)
-	format         OutputFormat    // output format (table, json)
-	logger         *diaglog.Logger // session diagnostics logger (nil = no logging)
-	tracer         *backend.Tracer // MCP tool-call tracer (--mcp-trace; nil = off)
-	stmtGuard      func(ast.Statement) (ast.Statement, error)
-	fragments      map[string]*ast.DefineFragmentStmt // script-scoped fragment definitions
-	sqlMgr         *sqllib.Manager                    // external SQL connection manager (lazy init)
-	themeRegistry  *ThemeRegistry                     // cached theme design property definitions (lazy init)
-	registry       *Registry                          // statement dispatch registry
-	catalogMu      sync.RWMutex                       // protects catalog field from background goroutine writes
-	catalogGen     uint64                             // monotonic generation counter for catalog swaps
+	// forwardFlowCalls is set when the run is all-or-nothing (SetForwardFlowCalls);
+	// scriptFlows then holds every flow the program being run declares.
+	forwardFlowCalls bool
+	scriptFlows      map[string]*selfFlow
+	settings         map[string]any
+	cache            *executorCache
+	catalog          *catalog.Catalog
+	quiet            bool            // suppress connection and status messages
+	tally            *mutationTally  // collapses a program run's "Unchanged" reports into one line
+	accessRun        *accessRuleRun  // the open run of access-rule statements, if any (#872, #890)
+	format           OutputFormat    // output format (table, json)
+	logger           *diaglog.Logger // session diagnostics logger (nil = no logging)
+	tracer           *backend.Tracer // MCP tool-call tracer (--mcp-trace; nil = off)
+	stmtGuard        func(ast.Statement) (ast.Statement, error)
+	fragments        map[string]*ast.DefineFragmentStmt // script-scoped fragment definitions
+	sqlMgr           *sqllib.Manager                    // external SQL connection manager (lazy init)
+	themeRegistry    *ThemeRegistry                     // cached theme design property definitions (lazy init)
+	registry         *Registry                          // statement dispatch registry
+	catalogMu        sync.RWMutex                       // protects catalog field from background goroutine writes
+	untimedMu        sync.Mutex                         // protects untimed
+	untimed          *untimedWork                       // the running statement's untimed-work tracker (see untimed_work.go)
+	catalogGen       uint64                             // monotonic generation counter for catalog swaps
 }
 
 // New creates a new executor with the given output writer.
@@ -385,38 +396,100 @@ func (e *Executor) Execute(stmt ast.Statement) error {
 		e.guard.reset()
 	}
 
-	// Enforce wall-clock timeout via context.WithTimeout.
+	// Enforce the wall-clock timeout with a timer that skips untimed work.
 	// The goroutine pattern is retained because handlers are not yet
 	// context-aware; threading context through handlers is a follow-up.
 	executeTimeout := effectiveExecuteTimeout(stmt)
+
+	// Time spent rebuilding the catalog implicitly is not counted against the
+	// default limit, for the reason REFRESH CATALOG is exempt from it
+	// (mendixlabs/mxcli#1329). An explicit MXCLI_EXEC_TIMEOUT caps it, as it
+	// caps REFRESH CATALOG.
+	untimed := e.pushUntimed(os.Getenv("MXCLI_EXEC_TIMEOUT") == "")
+	defer e.popUntimed(untimed)
+	baseCtx := withUntimedWork(context.Background(), untimed)
 
 	var err error
 	if executeTimeout <= 0 {
 		// No wall-clock guard for exempt statements (e.g. REFRESH CATALOG on a
 		// large project). The output-line guard still bounds runaway output.
-		err = e.executeInner(context.Background(), stmt)
+		err = e.executeInner(baseCtx, stmt)
 	} else {
-		ctx, cancel := context.WithTimeout(context.Background(), executeTimeout)
+		ctx, cancel := context.WithCancel(baseCtx)
 		defer cancel()
 
 		type result struct{ err error }
 		ch := make(chan result, 1)
+		begun := time.Now()
 		go func() {
 			ch <- result{e.executeInner(ctx, stmt)}
 		}()
 
-		select {
-		case r := <-ch:
-			err = r.err
-		case <-ctx.Done():
-			err = mdlerrors.NewValidationf("statement timed out after %v (raise the limit with MXCLI_EXEC_TIMEOUT, e.g. MXCLI_EXEC_TIMEOUT=30m)", executeTimeout)
+		timer := time.NewTimer(executeTimeout)
+		defer timer.Stop()
+	wait:
+		for {
+			select {
+			case r := <-ch:
+				err = r.err
+				break wait
+			case <-timer.C:
+				now := time.Now()
+				counted := now.Sub(begun) - untimed.excluded(now)
+				if remaining := executeTimeout - counted; remaining > 0 {
+					timer.Reset(remaining)
+					continue
+				}
+				cancel()
+				err = executeTimeoutError(executeTimeout, untimed.inProgress())
+				break wait
+			}
 		}
+	}
+
+	// A handler that ignored the guard's Write error still "succeeded" with its
+	// output cut off at the limit; that must fail the statement, not exit 0
+	// (mendixlabs/mxcli#1425).
+	if err == nil && e.guard != nil {
+		err = e.guard.exceededError()
 	}
 
 	if e.logger != nil {
 		e.logger.Command(stmtTypeName(stmt), stmtSummary(stmt), time.Since(start), err)
 	}
 	return err
+}
+
+// executeTimeoutError is the error for a statement the wall-clock guard
+// stopped. When it stopped an implicit catalog rebuild it says so: the build
+// is only saved once it finishes, so the next statement that needs the catalog
+// starts the same rebuild over — without the hint, every retry looks like a new
+// failure (mendixlabs/mxcli#1329).
+func executeTimeoutError(limit time.Duration, building string) error {
+	if building == "" {
+		return mdlerrors.NewValidationf("statement timed out after %v (raise the limit with MXCLI_EXEC_TIMEOUT, e.g. MXCLI_EXEC_TIMEOUT=30m)", limit)
+	}
+	return mdlerrors.NewValidationf("statement timed out after %v while rebuilding the catalog (%s); the catalog cache was not updated, so the next statement that needs it rebuilds again. Rebuild it once with REFRESH CATALOG FULL SOURCE (with MXCLI_EXEC_TIMEOUT unset, so the default limit does not apply), or raise the limit with MXCLI_EXEC_TIMEOUT, e.g. MXCLI_EXEC_TIMEOUT=30m", limit, building)
+}
+
+// pushUntimed installs a fresh untimed-work tracker for the statement about to
+// run, chained to the enclosing statement's when Execute is re-entered by
+// EXECUTE SCRIPT.
+func (e *Executor) pushUntimed(exclude bool) *untimedWork {
+	e.untimedMu.Lock()
+	defer e.untimedMu.Unlock()
+	w := newUntimedWork(e.untimed, exclude)
+	e.untimed = w
+	return w
+}
+
+// popUntimed restores the enclosing statement's tracker.
+func (e *Executor) popUntimed(w *untimedWork) {
+	e.untimedMu.Lock()
+	defer e.untimedMu.Unlock()
+	if e.untimed == w {
+		e.untimed = w.parent
+	}
 }
 
 // ExecuteProgram runs all statements in a program.
@@ -438,6 +511,7 @@ func (e *Executor) ExecuteProgramReportingStop(prog *ast.Program) (stoppedAt int
 		defer e.flushTally()
 	}
 	defer e.enterLanguage(prog.LanguageVersion)()
+	defer e.enterScriptFlows(prog)()
 
 	// Collect all names defined in the script for forward-reference hints.
 	allDefined := newScriptContext()
@@ -471,6 +545,41 @@ func (e *Executor) ExecuteProgramReportingStop(prog *ast.Program) (stoppedAt int
 		return -1, err
 	}
 	return -1, e.finalizeProgramExecution()
+}
+
+// SetForwardFlowCalls says whether a call may name a microflow or nanoflow a
+// LATER statement of the script creates (mendixlabs/mxcli#1405). A call is
+// stored by name, so it can be written before its callee; what makes it unsafe
+// is a later statement failing and leaving the call dangling. Only a run that
+// rolls back on failure — plain `mxcli exec` under the #1408 journal — may
+// allow it, and `mxcli check`, which cannot know how the script will run.
+// Off by default: --continue-on-error, the REPL and -c refuse it.
+func (e *Executor) SetForwardFlowCalls(on bool) { e.forwardFlowCalls = on }
+
+// enterScriptFlows makes every flow the program declares resolvable by a call
+// in it, wherever the declaration stands, and returns the function that
+// restores the previous set. Only a run that can roll back does this
+// (SetForwardFlowCalls); otherwise a call still resolves in statement order.
+// A nested EXECUTE SCRIPT sees its caller's flows as well as its own.
+func (e *Executor) enterScriptFlows(prog *ast.Program) func() {
+	if !e.forwardFlowCalls {
+		return func() {}
+	}
+	prev := e.scriptFlows
+	flows := make(map[string]*selfFlow, len(prev))
+	for k, v := range prev {
+		flows[k] = v
+	}
+	for _, stmt := range prog.Statements {
+		switch s := stmt.(type) {
+		case *ast.CreateMicroflowStmt:
+			declareScriptFlow(flows, false, s.Name, s.ReturnType)
+		case *ast.CreateNanoflowStmt:
+			declareScriptFlow(flows, true, s.Name, s.ReturnType)
+		}
+	}
+	e.scriptFlows = flows
+	return func() { e.scriptFlows = prev }
 }
 
 // enterLanguage runs the following statements under a program's language
@@ -583,6 +692,12 @@ func (e *Executor) Backend() backend.FullBackend {
 		return nil
 	}
 	return e.backend
+}
+
+// CacheUnitReads holds the units the backend reads in memory until release is
+// called, for a pass that writes nothing (see ExecContext.CacheUnitReads).
+func (e *Executor) CacheUnitReads() (release func()) {
+	return (&ExecContext{Backend: e.Backend()}).CacheUnitReads()
 }
 
 // Close closes the connection to the project and all SQL connections.

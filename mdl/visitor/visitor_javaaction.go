@@ -39,19 +39,27 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 		}
 	}
 
-	// Extract type parameters from ENTITY <pEntity> parameter declarations
+	// Type parameters: those the `Name<T, U>` header declares, in its order,
+	// then any ENTITY <pEntity> parameter declares that the header did not
+	// (mendixlabs/mxcli#1404).
+	declare := func(name string) {
+		for _, existing := range stmt.TypeParameters {
+			if existing == name {
+				return
+			}
+		}
+		stmt.TypeParameters = append(stmt.TypeParameters, name)
+	}
+	if tps := ctx.JavaActionTypeParameters(); tps != nil {
+		for _, id := range tps.AllIdentifierOrKeyword() {
+			if name := identifierOrKeywordText(id); name != "" {
+				declare(name)
+			}
+		}
+	}
 	for _, param := range stmt.Parameters {
 		if param.Type.Kind == ast.TypeEntityTypeParam && param.Type.TypeParamName != "" {
-			found := false
-			for _, existing := range stmt.TypeParameters {
-				if existing == param.Type.TypeParamName {
-					found = true
-					break
-				}
-			}
-			if !found {
-				stmt.TypeParameters = append(stmt.TypeParameters, param.Type.TypeParamName)
-			}
+			declare(param.Type.TypeParamName)
 		}
 	}
 

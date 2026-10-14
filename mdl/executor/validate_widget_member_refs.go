@@ -8,154 +8,25 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
-	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/mdl/xpathrefs"
 )
 
-// Two member positions inside a widget that reference checking walked past.
-// Both passed `check --references`, passed `exec`, and failed the build.
+// A member position inside a widget that reference checking walked past: an
+// XPATH CONSTRAINT naming a member the constrained entity does not have
+// (mendixlabs/mxcli#1049). It passed `check --references`, passed `exec`, and
+// failed the build. The check resolved the entity in `database from
+// Bench.Order` and never looked inside the `where […]`:
 //
-//   - An XPATH CONSTRAINT naming a member the constrained entity does not have
-//     (mendixlabs/mxcli#1049). The check resolved the entity in
-//     `database from Bench.Order` and never looked inside the `where […]`:
+//	where [Bench.Order_Status = 'Open']
+//	mx check -> [CE1613] "The selected association 'Bench.Order_Status'
+//	no longer exists."
 //
-//     where [Bench.Order_Status = 'Open']
-//     mx check -> [CE1613] "The selected association 'Bench.Order_Status'
-//     no longer exists."
-//
-//   - A CONTENTPARAMS value written as a `$variable/` PATH where the position
-//     takes an attribute reachable from the widget's context object
-//     (mendixlabs/mxcli#1046). The writer put the whole string in the attribute
-//     name, so the model came out naming an attribute that could never exist:
-//
-//     ContentParams: ({1} = $Customer/Name)
-//     mx check -> [CE1613] "The selected attribute
-//     'Bench.Customer.$Customer/Name' no longer exists."
-//
-// They sit in one file because they are the same defect in two spellings, but
-// they run in different TIERS, and that difference is worth keeping: the XPath
-// one is a question about the model and needs -p, while the ContentParams one is
-// answerable from the statement alone. Putting the second under --references
-// would mean `mxcli check page.mdl` stayed silent on a mistake it can see.
-
-// ---------------------------------------------------------------------------
-// ContentParams: a path where a bare attribute belongs (no project needed)
-// ---------------------------------------------------------------------------
-
-// ValidateWidgetParamPaths flags a template parameter whose value carries a
-// `$variable/` prefix.
-//
-// An association PATH is legal here — `{1} = Customer/Name` is an attribute
-// reached over an association, which the writer stores as AttributeRef plus
-// steps. What is not legal is rooting that path in a variable: the parameter is
-// evaluated against the widget's own context object, so there is nowhere for a
-// `$Customer/` to be resolved, and the writer keeps it as part of the name.
-func ValidateWidgetParamPaths(prog *ast.Program) []linter.Violation {
-	if prog == nil {
-		return nil
-	}
-	var out []linter.Violation
-	for _, stmt := range prog.Statements {
-		forEachWidget(stmt, func(w *ast.WidgetV3, where string) {
-			for _, prop := range []string{"ContentParams", "CaptionParams"} {
-				params, ok := w.Properties[prop].([]ast.ParamAssignmentV3)
-				if !ok {
-					continue
-				}
-				for _, p := range params {
-					text := paramValueText(p.Value)
-					rest, bad := templateParamDefect(text)
-					if !bad {
-						continue
-					}
-					out = append(out, linter.Violation{
-						RuleID:   "MDL-WIDGET24",
-						Severity: linter.SeverityError,
-						Message: fmt.Sprintf(
-							"%s: %s parameter {%d} is written as %q — a template parameter is "+
-								"evaluated against the widget's own context object, so it takes the "+
-								"attribute name (or an association path to one), not a path rooted in "+
-								"a variable. Write %q. Left as-is the prefix becomes part of the "+
-								"attribute name and mxbuild reports CE1613 \"The selected attribute "+
-								"'….%s' no longer exists\"",
-							where, prop, p.Index, text, rest, text),
-					})
-				}
-			}
-		})
-	}
-	return out
-}
-
-// templateParamDefect decides whether a parameter value is one the writer
-// cannot resolve, and what to write instead.
-//
-// The rule is narrower than "a variable root is wrong", because the writer
-// already strips one specific prefix. Measured on 11.13.0, five shapes, each
-// executed and built:
-//
-//	OrderNo                                       clean
-//	Bench.Order_Customer/Name                     clean  (association hop)
-//	$currentObject/Bench.Order_Customer/Name      clean  (prefix stripped)
-//	$currentObject/OrderNo                        CE1613
-//	$Customer/Name                                CE1613
-//
-// So `$currentObject/` is only stripped on the association branch
-// (resolveAssociationAttributePath), and falls through with the prefix intact
-// when the remainder is a bare attribute. Flagging every `$` root would report
-// the third line, which builds — a false error on a working page.
-//
-// The fifth shape in that measurement, `Assoc/Entity/Attr` (the XPath spelling),
-// also fails — but deciding it needs the model to say which segments are
-// associations, so it belongs in the --references tier and is not claimed here.
-func templateParamDefect(text string) (fix string, bad bool) {
-	if !strings.HasPrefix(text, "$") {
-		return "", false
-	}
-	slash := strings.Index(text, "/")
-	if slash < 0 || slash == len(text)-1 {
-		return "", false
-	}
-	variable, rest := text[1:slash], text[slash+1:]
-	if variable == "currentObject" {
-		// Stripped by the writer when what follows is an association path;
-		// broken when it is a bare attribute.
-		if strings.Contains(rest, "/") {
-			return "", false
-		}
-		return rest, true
-	}
-	// Any other variable root is kept verbatim, whatever follows it.
-	return rest, true
-}
-
-// paramValueText renders a parameter value back to the text the author wrote,
-// as far as the AST preserves it. A value this cannot render is reported as
-// empty and skipped, never guessed at.
-func paramValueText(v any) string {
-	switch e := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return e
-	case *ast.IdentifierExpr:
-		return e.Name
-	case *ast.VariableExpr:
-		return "$" + e.Name
-	case *ast.AttributePathExpr:
-		// The only shape that can carry the defect: a variable root plus a
-		// path. Rendered here rather than through expressionToString so the
-		// separator the author wrote is preserved.
-		if e.Variable == "" || len(e.Path) == 0 {
-			return ""
-		}
-		return "$" + e.Variable + "/" + strings.Join(e.Path, "/")
-	case ast.Expression:
-		return expressionToString(e)
-	}
-	return ""
-}
+// This file also held MDL-WIDGET24, which refused a `$variable/` template
+// parameter (#1046) because the writer bound it as an attribute named
+// `$Customer/Name`. The writer now stores that spelling as the Mendix expression
+// it is, as Studio Pro does (isVariableRootedTemplatePath, #1406), so the rule
+// had nothing left to prevent and refused describe output of Studio Pro pages.
 
 // ---------------------------------------------------------------------------
 // XPath constraints: members of the entity being constrained (needs -p)
@@ -377,8 +248,8 @@ func (v *xpathMemberVisitor) walkPath(steps []ast.XPathStep, cur string) {
 				v.noteQualified(qn, cur)
 			}
 		}
-		if st.Predicate != nil {
-			v.walk(st.Predicate, next)
+		for _, pred := range st.Predicates {
+			v.walk(pred, next)
 		}
 		cur = next
 	}
@@ -443,7 +314,7 @@ func forEachWidget(stmt ast.Statement, fn func(w *ast.WidgetV3, where string)) {
 		roots = append(roots, s.Widgets...)
 	case *ast.CreateLayoutStmt:
 		doc = "layout " + s.Name.String()
-		roots = append(roots, s.Widgets...)
+		roots = append(roots, s.AllWidgets()...)
 	case *ast.AlterPageStmt:
 		doc = strings.ToLower(s.ContainerType) + " " + s.PageName.String()
 		for _, op := range s.Operations {

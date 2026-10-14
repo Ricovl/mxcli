@@ -25,7 +25,7 @@ mdl 1;
 CREATE MODULE OrderManagement;
 
 CREATE PERSISTENT ENTITY Sales.Order (
-  OrderId: AutoNumber NOT NULL UNIQUE,
+  OrderId: AutoNumber NOT NULL UNIQUE DEFAULT 1,
   OrderDate: DateTime NOT NULL,
 )
 INDEX (OrderDate DESC);
@@ -122,7 +122,7 @@ What `mdl 1` makes strict:
 - A session command — `connect`, `disconnect`, `use`, `set format = …`, `status`, `show version`, `show status`, `show connections`, `show catalog status`, `check`, `build`, `lint`, `debug`, `execute script`, `execute runtime`, `help`, `introspect api` — is an error in a script. Type it at the REPL, or use the command-line flag (`mxcli exec script.mdl -p app.mpr --json`).
 - `DynamicClasses`, `DynamicCellClass` and an OData client's credential or header value take the expression bare; a quoted value is a Mendix string.
 
-The manual, the skills, `mxcli syntax` and the example scripts are written in the canonical form, and CI holds them to it: `make check-conformance` parses every MDL block in them as `mdl 1` and fails on a deprecated spelling (`mxcli check --deprecations=error` does the same for a script of your own). The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
+The manual, the skills, `mxcli syntax` and the example scripts are written in the canonical form, and CI holds them to it: `make check-conformance` parses every MDL block in them as `mdl 1` and fails on a deprecated spelling (`mxcli check --deprecations=error` does the same for a script of your own; add `--v1=error` to also fail on what a headerless script must change before it can carry `mdl 1;`). The design is in [ADR-0011](https://github.com/mendixlabs/mxcli/blob/main/docs/13-decisions/0011-mdl-language-versioning.md); `mxcli syntax language-header` has the details.
 
 ## Re-runnable Creates: `or modify` and `if not exists`
 

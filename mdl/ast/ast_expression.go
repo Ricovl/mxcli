@@ -134,6 +134,15 @@ type SourceExpr struct {
 
 func (e *SourceExpr) isExpression() {}
 
+// BlankExpr is a call argument left blank — `Param = nothing` in a call
+// microflow / call nanoflow. The parameter mapping exists and its expression
+// is the empty string, which is what Studio Pro stores for an argument field
+// left empty. It is not `empty` (a Mendix value, stored as the text "empty").
+// Every expression renderer returns "" for it.
+type BlankExpr struct{}
+
+func (e *BlankExpr) isExpression() {}
+
 // ============================================================================
 // XPath-Specific Expression Types
 // ============================================================================
@@ -150,6 +159,6 @@ func (e *XPathPathExpr) isExpression() {}
 
 // XPathStep represents a single step in an XPath path expression.
 type XPathStep struct {
-	Expr      Expression // The step expression (IdentifierExpr, QualifiedNameExpr, VariableExpr, LiteralExpr, TokenExpr)
-	Predicate Expression // Optional nested predicate expression (the content inside [...])
+	Expr       Expression   // The step expression (IdentifierExpr, QualifiedNameExpr, VariableExpr, LiteralExpr, TokenExpr)
+	Predicates []Expression // Nested predicates in source order, the content of each [...] — `Entity[a][b]` has two
 }

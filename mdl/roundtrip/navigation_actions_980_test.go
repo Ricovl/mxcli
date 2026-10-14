@@ -20,7 +20,9 @@ import (
 // is covered by the whole-fixture round trip; this adds, to the Studio
 // Pro-authored Responsive profile, one item per action kind in the shape
 // Studio Pro stores it (measured on TestApp's buttons and menu), each with
-// non-default settings, plus the two properties MDL cannot spell.
+// non-default settings, plus the two properties MDL cannot spell. A static
+// link address carries `AttributeRef: null` here as on a page: `mx convert`
+// adds it to a menu item's address written without it (measured 11.15.0).
 //
 // Each must survive describe -> exec (GetPut: nothing written) and describe
 // again (PutGet: the same text). Then the same description with every caption
@@ -68,7 +70,7 @@ func TestNavigationMenuActionsRoundTrip_980(t *testing.T) {
 			{Key: "$ID", Value: newID()}, {Key: "$Type", Value: "Forms$OpenLinkClientAction"},
 			{Key: "Address", Value: bson.D{
 				{Key: "$ID", Value: newID()}, {Key: "$Type", Value: "Forms$StaticOrDynamicString"},
-				{Key: "IsDynamic", Value: false}, {Key: "Value", Value: "https://docs.mendix.com"},
+				{Key: "AttributeRef", Value: nil}, {Key: "IsDynamic", Value: false}, {Key: "Value", Value: "https://docs.mendix.com"},
 			}},
 			{Key: "DisabledDuringExecution", Value: true},
 			{Key: "LinkType", Value: "Web"},
@@ -87,7 +89,7 @@ func TestNavigationMenuActionsRoundTrip_980(t *testing.T) {
 			{Key: "$ID", Value: newID()}, {Key: "$Type", Value: "Forms$OpenLinkClientAction"},
 			{Key: "Address", Value: bson.D{
 				{Key: "$ID", Value: newID()}, {Key: "$Type", Value: "Forms$StaticOrDynamicString"},
-				{Key: "IsDynamic", Value: false}, {Key: "Value", Value: "support@example.com"},
+				{Key: "AttributeRef", Value: nil}, {Key: "IsDynamic", Value: false}, {Key: "Value", Value: "support@example.com"},
 			}},
 			{Key: "DisabledDuringExecution", Value: true},
 			{Key: "LinkType", Value: "Email"},

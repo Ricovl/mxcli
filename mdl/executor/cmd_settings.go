@@ -359,11 +359,23 @@ func storedModelSettings(ps *model.ProjectSettings) map[string]any {
 // property the type may not define), so without this check the statement would
 // report success and change nothing — the silent no-op shape of #805.
 //
-// JavaVersion is exempt: it is stored under either JavaVersion or
-// JavaMajorVersion, and settingsoverlay.JavaVersionKey resolves which.
+// JavaVersion is stored under either JavaVersion or JavaMajorVersion, and
+// settingsoverlay.JavaVersionKey resolves which. A document carrying neither
+// (Mendix 9.x) has no Java version setting at all, and the overlay would write
+// nothing — mendixlabs/mxcli#1438 reported "Unchanged model settings" there.
 func refuseIfNotStored(raw map[string]any, key string) error {
-	if raw == nil || key == "JavaVersion" {
+	if raw == nil {
 		return nil
+	}
+	if key == "JavaVersion" {
+		if settingsoverlay.JavaVersionKey(raw) != "" {
+			return nil
+		}
+		return mdlerrors.NewUnsupported(
+			"this project does not store the model setting JavaVersion\n" +
+				"  The JavaVersion setting does not exist on this project's Mendix version " +
+				"(Mendix 9.x has none); the JDK is chosen by the platform.\n" +
+				"  hint: upgrade the project to choose a Java version in the model")
 	}
 	if settingsoverlay.Has(raw, key) {
 		return nil
@@ -726,6 +738,31 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 	return nil
 }
 
+// settingsConstantType returns the data type of the constant a configuration
+// override names (Module.Name), or the zero type when it cannot be resolved — an
+// unresolved constant's value is then stored as written.
+func settingsConstantType(ctx *ExecContext, constantID string) model.ConstantDataType {
+	modName, name, ok := strings.Cut(constantID, ".")
+	if !ok {
+		return model.ConstantDataType{}
+	}
+	constants, err := ctx.Backend.ListConstants()
+	if err != nil {
+		return model.ConstantDataType{}
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return model.ConstantDataType{}
+	}
+	for _, c := range constants {
+		if strings.EqualFold(c.Name, name) &&
+			strings.EqualFold(h.GetModuleName(h.FindModuleID(c.ContainerID)), modName) {
+			return c.Type
+		}
+	}
+	return model.ConstantDataType{}
+}
+
 func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *ast.AlterSettingsStmt) error {
 	if ps.Configuration == nil {
 		return mdlerrors.NewNotFound("settings section", "configuration")
@@ -769,6 +806,9 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 		return mdlerrors.NewNotFoundMsg("constant", stmt.ConstantId, fmt.Sprintf("constant '%s' not found in configuration '%s'", stmt.ConstantId, targetConfig))
 	}
 
+	// A Boolean override is stored as "True" / "False", like the default (#1321).
+	value := storedConstantDefault(settingsConstantType(ctx, stmt.ConstantId), stmt.Value)
+
 	// Find or create the constant value
 	found := false
 	for _, cv := range cfg.ConstantValues {
@@ -785,7 +825,7 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 						"or use `alter settings drop constant @%s in configuration '%s'` to remove the override",
 					stmt.ConstantId, targetConfig, stmt.ConstantId, targetConfig)
 			}
-			cv.Value = stmt.Value
+			cv.Value = value
 			found = true
 			break
 		}
@@ -793,7 +833,7 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 	if !found {
 		cv := &model.ConstantValue{
 			ConstantId: stmt.ConstantId,
-			Value:      stmt.Value,
+			Value:      value,
 		}
 		cv.TypeName = "Settings$ConstantValue"
 		cfg.ConstantValues = append(cfg.ConstantValues, cv)
@@ -804,7 +844,7 @@ func alterSettingsConstant(ctx *ExecContext, ps *model.ProjectSettings, stmt *as
 	}
 
 	ctx.reportWrite(fmt.Sprintf("constant '%s' in configuration '%s'", stmt.ConstantId, targetConfig),
-		"Updated constant '%s' = '%s' in configuration '%s'", stmt.ConstantId, stmt.Value, targetConfig)
+		"Updated constant '%s' = '%s' in configuration '%s'", stmt.ConstantId, value, targetConfig)
 	return nil
 }
 

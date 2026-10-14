@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mendixlabs/mxcli/internal/testutil"
 )
 
 // TestCacheReadyNeedsTheMarker guards the invariant the whole cache rests on: a
@@ -210,7 +212,7 @@ func readFile(t *testing.T, path string) string {
 // hold anything and every run would silently rebuild.
 func TestPruneKeepsNewestAndBoundOfOne(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", root)
+	testutil.SetHome(t, root)
 	refRoot := filepath.Join(root, ".mxcli", "marketplace-refs", "ref")
 
 	// Three entries, oldest first, with distinct marker times.
@@ -250,7 +252,7 @@ func TestPruneKeepsNewestAndBoundOfOne(t *testing.T) {
 // TestPruneDisabledByZero checks the escape hatch for anyone with disk to spare.
 func TestPruneDisabledByZero(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", root)
+	testutil.SetHome(t, root)
 	refRoot := filepath.Join(root, ".mxcli", "marketplace-refs", "ref")
 	for _, n := range []string{"a", "b", "c"} {
 		mustWrite(t, filepath.Join(refRoot, n, completeMarker), "")
@@ -275,8 +277,9 @@ func TestPruneDisabledByZero(t *testing.T) {
 }
 
 // TestModelOnlyCopyKeepsWhatIsRead pins the filter that makes a reference entry
-// ~14 MB instead of ~34 MB. The .mpr and mprcontents/ are the model; everything
-// else in a reference project is bulk nothing reads.
+// a fraction of the ~34 MB project. The .mpr and mprcontents/ are the model, and
+// javascriptsource/ and javasource/ are read by DESCRIBE; everything else in a
+// reference project is bulk nothing reads.
 //
 // The negative half matters as much as the positive: if widgets/ started being
 // copied again the cache would quietly double in size, and if the .mpr stopped
@@ -289,7 +292,8 @@ func TestModelOnlyCopyKeepsWhatIsRead(t *testing.T) {
 	mustWrite(t, filepath.Join(src, "widgets", "big.mpk"), "bulk")
 	mustWrite(t, filepath.Join(src, "themesource", "atlas", "style.scss"), "bulk")
 	mustWrite(t, filepath.Join(src, "theme-cache", "compiled.css"), "bulk")
-	mustWrite(t, filepath.Join(src, "javascriptsource", "a.js"), "bulk")
+	mustWrite(t, filepath.Join(src, "javascriptsource", "Mod", "actions", "A.js"), "js")
+	mustWrite(t, filepath.Join(src, "javasource", "mod", "actions", "A.java"), "java")
 
 	if err := copyTreeModelOnly(src, dst); err != nil {
 		t.Fatalf("copyTreeModelOnly: %v", err)
@@ -301,7 +305,15 @@ func TestModelOnlyCopyKeepsWhatIsRead(t *testing.T) {
 	if got := readFile(t, filepath.Join(dst, "mprcontents", "nested", "unit.mxunit")); got != "unit" {
 		t.Errorf("mprcontents unit = %q, want %q", got, "unit")
 	}
-	for _, bulk := range []string{"widgets", "themesource", "theme-cache", "javascriptsource"} {
+	// DESCRIBE reads action sources beside the .mpr; dropping them made every
+	// cache hit report each action as edited (mendixlabs/mxcli#1441).
+	if got := readFile(t, filepath.Join(dst, "javascriptsource", "Mod", "actions", "A.js")); got != "js" {
+		t.Errorf("javascriptsource action = %q, want %q", got, "js")
+	}
+	if got := readFile(t, filepath.Join(dst, "javasource", "mod", "actions", "A.java")); got != "java" {
+		t.Errorf("javasource action = %q, want %q", got, "java")
+	}
+	for _, bulk := range []string{"widgets", "themesource", "theme-cache"} {
 		if _, err := os.Stat(filepath.Join(dst, bulk)); !os.IsNotExist(err) {
 			t.Errorf("%s/ was copied into the cache entry; nothing reads it", bulk)
 		}
@@ -315,5 +327,37 @@ func TestModelOnlyCopyKeepsWhatIsRead(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(full, "widgets", "big.mpk")); err != nil {
 		t.Error("the unfiltered copy dropped widgets/; a blank project needs its whole tree")
+	}
+}
+
+// TestLegacyModelOnlyEntryIsNotServed: an entry written before javascriptsource/
+// and javasource/ were kept is complete by its own marker, so only the key can
+// stop it being served — and serving it is mendixlabs/mxcli#1441 all over again.
+func TestLegacyModelOnlyEntryIsNotServed(t *testing.T) {
+	testutil.SetHome(t, t.TempDir())
+	t.Setenv("MXCLI_NO_REF_CACHE", "")
+	const versionID, mx = "2059615c-c6f1-4103-aedb-14820c077a1c", "11.12.1"
+
+	root, err := refCacheRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := filepath.Join(root, "ref", safeKey(mx)+"_"+safeKey(versionID))
+	mustWrite(t, filepath.Join(legacy, entryProject, "PackageRef.mpr"), "model")
+	mustWrite(t, filepath.Join(legacy, entryPackage), "pkg")
+	mustWrite(t, filepath.Join(legacy, completeMarker), "")
+
+	current, err := refCacheDir(versionID, mx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == legacy {
+		t.Fatalf("the cache key was not versioned; a model-only entry at %s would still be served", legacy)
+	}
+	if !strings.HasPrefix(filepath.Base(current), refEntryFormat+"_") {
+		t.Errorf("entry %s does not carry the format %q", current, refEntryFormat)
+	}
+	if got := CachedReference(versionID, mx, t.TempDir(), filepath.Join(t.TempDir(), "p.mpk")); got != "" {
+		t.Errorf("a pre-format entry was served: %s", got)
 	}
 }

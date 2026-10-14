@@ -1,0 +1,28 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1138 — DESCRIBE dropped a snippet-parameter data view source
+-- ============================================================================
+--
+-- The data view below stores SourceVariable { SnippetParameter: "Parent" }.
+-- `describe snippet Bug1138.SN_Parent` printed it as
+--   dataview dvParent (ReadOnlyStyle: Control) { … }
+-- with no DataSource, because the describe reader looked at the PageParameter
+-- slot only. Re-executing that output stored SourceVariable: null and mx check
+-- failed CE0488 "No entity configured for the data source of this data view".
+-- It now describes as `DataSource: $Parent`, and re-executing the output is a
+-- no-op ("Unchanged snippet").
+-- ============================================================================
+
+create module Bug1138;
+
+create persistent entity Bug1138.Parent ( Name: String(100) );
+
+create or modify snippet Bug1138.SN_Parent
+( Params: ( $Parent: Bug1138.Parent ) )
+{
+  layoutgrid lg { row { column (DesktopWidth: autofill) {
+    dataview dvParent ( DataSource: $Parent ) {
+      textbox tbName ( Attribute: Name )
+    }
+  } } }
+};

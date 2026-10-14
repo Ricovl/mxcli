@@ -30,6 +30,10 @@ from code that looks correctly configured.
 Requires network access (Maven) and the mx binary for the project's version;
 'mxcli setup mxbuild' fetches the latter.
 
+When two modules declare the same artifact at different versions, the sync
+vendors only the newest (Gradle's conflict resolution); the older declaration is
+listed as superseded, not missing.
+
 Examples:
   mxcli sync-java-deps -p app.mpr
   mxcli sync-java-deps -p app.mpr --check   # report what is missing, download nothing
@@ -55,6 +59,11 @@ Examples:
 			len(deps), len(missing))
 		for _, m := range missing {
 			fmt.Printf("  missing  %s\n", m)
+		}
+		// Another module's newer version wins Gradle's conflict resolution, so
+		// these are never vendored — and are not missing (#1450).
+		for _, s := range docker.SupersededJarDependencies(deps) {
+			fmt.Printf("  superseded  %s\n", s)
 		}
 		if checkOnly {
 			if len(missing) > 0 {

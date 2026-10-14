@@ -84,14 +84,15 @@ func init() {
 			"or replace", "or modify", "create or replace", "create or modify",
 			"idempotent", "upsert", "re-run", "already exists", "overwrite",
 		},
-		Syntax: "CREATE [OR REPLACE | OR MODIFY] <anything>;\n\n" +
+		Syntax: "CREATE [OR MODIFY] <anything>;\n\n" +
 			"-- Applies to every CREATE statement — entity, microflow, page, workflow,\n" +
 			"-- REST client, security role, and the rest. Without a modifier, creating\n" +
 			"-- something that already exists is an error.\n" +
-			"--   OR REPLACE  discard the existing document and write a fresh one\n" +
-			"--   OR MODIFY   update the existing document in place\n" +
-			"-- Both reuse the existing element's ID, so references from other\n" +
-			"-- documents survive.\n" +
+			"--   OR MODIFY   rewrite the existing document from the statement, reusing\n" +
+			"--               its ID, so references from other documents survive.\n" +
+			"-- OR REPLACE is a deprecated alias of OR MODIFY — same meaning (MDL-DEPR001;\n" +
+			"-- `mxcli fmt --upgrade` rewrites it). The one exception is\n" +
+			"-- CREATE OR REPLACE TRANSLATIONS, which replaces the whole set (see translations).\n" +
 			"--\n" +
 			"-- A rewrite rebuilds the document from the statement, so properties MDL\n" +
 			"-- cannot express are CARRIED OVER rather than reset — a microflow's URL\n" +
@@ -348,7 +349,7 @@ DISCONNECT;`,
 			"offline sync", "offline entity", "pwa", "download mode",
 			"throw error", "sync error", "partial sync", "server rejects",
 		},
-		Syntax: `CREATE OR REPLACE NAVIGATION <profile>
+		Syntax: `CREATE OR MODIFY NAVIGATION <profile>
   HOME PAGE Module.Page | HOME MICROFLOW Module.Flow | HOME NANOFLOW Module.Flow
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
@@ -469,13 +470,13 @@ CREATE OR MODIFY NAVIGATION TabletOffline
 
 	Register(SyntaxFeature{
 		Path:    "navigation.alter",
-		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR REPLACE",
+		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR MODIFY",
 		Keywords: []string{
 			"alter navigation", "modify navigation", "update navigation",
 			"round-trip", "edit menu",
 		},
-		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR REPLACE NAVIGATION ...",
-		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR REPLACE",
+		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR MODIFY NAVIGATION ...",
+		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR MODIFY",
 		SeeAlso: []string{"navigation.create", "navigation.show"},
 	})
 
@@ -687,7 +688,7 @@ LIST WORKFLOW GROUPS;
 --   Db2, Hsqldb, MySql, Oracle, PostgreSql, SapHana, SqlServer
 -- (matched case-insensitively and stored in the spelling above).
 
--- MODEL accepts these keys (an unknown one is refused and lists them):
+-- RUNTIME accepts these keys (an unknown one is refused and lists them):
 --   AfterStartupMicroflow, BeforeShutdownMicroflow, HealthCheckMicroflow,
 --   HashAlgorithm, BcryptCost, JavaVersion, RoundingMode,
 --   AllowUserMultipleSessions, ScheduledEventTimeZoneCode, DefaultTimeZoneCode,
@@ -1012,14 +1013,15 @@ DESCRIBE STRUCTURE DEPTH 1 ALL;`,
 		Syntax: `MOVE <doctype> Module.Name TO FOLDER 'Path';
 -- doctype: every top-level document, spelled as DESCRIBE spells it —
 --   PAGE | SNIPPET | BUILDING BLOCK | LAYOUT | MENU
---   MICROFLOW | NANOFLOW | WORKFLOW | QUEUE | SCHEDULED EVENT
+--   MICROFLOW | NANOFLOW | WORKFLOW | TASK QUEUE | SCHEDULED EVENT
 --   ENUMERATION | CONSTANT | REGULAR EXPRESSION
 --   JSON STRUCTURE | IMPORT MAPPING | EXPORT MAPPING
 --   JAVA ACTION | JAVASCRIPT ACTION | DATABASE CONNECTION | DATA TRANSFORMER
 --   IMAGE COLLECTION | ICON COLLECTION
---   REST CLIENT | PUBLISHED REST SERVICE | ODATA CLIENT | ODATA SERVICE
+--   CONSUMED REST SERVICE | PUBLISHED REST SERVICE
+--   CONSUMED ODATA SERVICE | PUBLISHED ODATA SERVICE
 --   BUSINESS EVENT SERVICE
---   MODEL | AGENT | KNOWLEDGE BASE | CONSUMED MCP SERVICE
+--   AI MODEL | AGENT | KNOWLEDGE BASE | CONSUMED MCP SERVICE
 -- plus ENTITY (moves between domain models) and FOLDER (moves a folder).
 MOVE <doctype> Module.Name TO TargetModule;
 MOVE <doctype> OldModule.Name TO FOLDER 'Path' IN NewModule;
@@ -1061,7 +1063,72 @@ DROP FOLDER 'OldFolder' IN Module;
 
 -- Read the placement back
 LIST FOLDERS IN MyModule;`,
-		SeeAlso: []string{"folders"},
+		SeeAlso: []string{"folders", "rename"},
+	})
+
+	// ── Rename ──────────────────────────────────────────────────────────
+
+	// RENAME parsed, ran and was in `mxcli help rename` but had no topic here,
+	// so an agent consulting `syntax` concluded a microflow could not be
+	// renamed and rebuilt it by hand (mendixlabs/mxcli#1318).
+	// rename_topic_test.go holds the target list to the grammar.
+	Register(SyntaxFeature{
+		Path:    "rename",
+		Summary: "RENAME — rename a document, entity, association or module and update every reference",
+		Keywords: []string{
+			"rename", "rename microflow", "rename nanoflow", "rename page",
+			"rename entity", "rename enumeration", "rename association",
+			"rename constant", "rename java action", "rename workflow",
+			"rename module", "dry run", "refactor", "update references",
+		},
+		Syntax: `RENAME <target> Module.OldName TO NewName [DRY RUN];
+-- target: ENTITY | MICROFLOW | NANOFLOW | PAGE | ENUMERATION | ASSOCIATION
+--         | CONSTANT | JAVA ACTION | WORKFLOW
+RENAME MODULE OldModule TO NewModule [DRY RUN];
+
+-- The new name is BARE: the element stays in its module (use MOVE to change
+-- module). An element of that name already in the module is an error.
+--
+-- Every reference is updated in the same statement: each stored string in the
+-- project that IS the old qualified name, or starts with it plus '.', is
+-- rewritten (Module.Old -> Module.New, Module.Old.Attr -> Module.New.Attr).
+-- That covers calls, page and microflow parameters, show-page actions,
+-- navigation, security, attribute types, association ends.
+-- A name inside free text — a microflow expression, an XPath string — is not
+-- such a string and is left as it was; build or 'mxcli docker check' reports
+-- what remains.
+--
+-- RENAME JAVA ACTION also renames the .java source file and the class in it
+-- (class, constructor, toString); the user and extra code are left as written.
+-- RENAME MODULE rewrites every 'OldModule.' prefix project-wide.
+--
+-- DRY RUN changes nothing and lists each document that would change and how
+-- many references it holds.
+--
+-- Members are renamed with ALTER, not RENAME:
+--   ALTER ENTITY Module.E RENAME ATTRIBUTE Old TO New;
+--   ALTER ENUMERATION Module.E RENAME VALUE Old TO New;
+--
+-- From the shell, the same statement for one element:
+--   mxcli rename -p app.mpr <type> Module.OldName NewName [--dry-run]
+--   type: entity | microflow | nanoflow | page | enumeration | association
+--         | constant | java-action | workflow | module
+--   (it also updates docs/brain/ anchors; see 'mxcli help rename')`,
+		Example: `mdl 1;
+-- See what would change first
+RENAME MICROFLOW Shop.ACT_Old TO ACT_ProcessOrder DRY RUN;
+
+RENAME MICROFLOW Shop.ACT_Old TO ACT_ProcessOrder;
+RENAME NANOFLOW Shop.NF_Old TO NF_Validate;
+RENAME PAGE Shop.OldPage TO Order_Edit;
+RENAME ENTITY Shop.Customer TO Client;
+RENAME ENUMERATION Shop.Status TO OrderStatus;
+RENAME ASSOCIATION Shop.Order_Customer TO Order_Client;
+RENAME CONSTANT Shop.ApiUrl TO ServiceUrl;
+RENAME JAVA ACTION Shop.JA_Old TO JA_Hash;
+RENAME WORKFLOW Shop.WF_Old TO WF_Approve;
+RENAME MODULE Shop TO Store;`,
+		SeeAlso: []string{"move", "domain-model.entity.alter", "domain-model.enumeration"},
 	})
 
 	// ── Folders ─────────────────────────────────────────────────────────
@@ -1097,7 +1164,7 @@ mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 
 	Register(SyntaxFeature{
 		Path:    "search",
-		Summary: "Full-text search across project strings and source definitions",
+		Summary: "Full-text search across project strings, element documentation and source definitions",
 		Keywords: []string{
 			"search", "full-text search", "find", "grep",
 			"fts", "catalog strings", "catalog source",

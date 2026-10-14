@@ -16,6 +16,7 @@ import (
 
 	modelsdk "github.com/mendixlabs/mxcli"
 	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/executor"
@@ -355,8 +356,8 @@ func CacheReference(versionID, mendixVersion, refDir, mpkPath string) {
 	if err != nil {
 		return
 	}
-	// Model only: see isModelFile for what is dropped, why nothing reads it, and
-	// what that constrains.
+	// Model and action sources: see isModelFile for what is dropped, what is
+	// kept because DESCRIBE reads it, and what that constrains.
 	if err := copyTreeModelOnly(refDir, filepath.Join(staging, entryProject)); err != nil {
 		_ = os.RemoveAll(staging)
 		return
@@ -442,7 +443,7 @@ func ModuleNameInPackage(mpkPath string) (string, error) {
 		if f.Name != "package.xml" {
 			continue
 		}
-		rc, err := f.Open()
+		rc, err := zipentry.Open(f)
 		if err != nil {
 			return "", err
 		}

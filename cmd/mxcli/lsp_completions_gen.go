@@ -231,6 +231,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "REFERENCESELECTOR", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "INPUTREFERENCESETSELECTOR", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "FILEINPUT", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
+	{Label: "FILEMANAGER", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "IMAGEINPUT", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "CUSTOMWIDGET", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "PLUGGABLEWIDGET", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
@@ -390,6 +391,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "RULE", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
 	{Label: "REQUIRED", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
 	{Label: "NULLABLE", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
+	{Label: "LOCALIZED", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
 	{Label: "ERROR", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
 	{Label: "IGNORE", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
 	{Label: "OVERRIDABLE", Kind: protocol.CompletionItemKindKeyword, Detail: "Validation keyword"},
@@ -422,6 +424,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "RESPONSE", Kind: protocol.CompletionItemKindKeyword, Detail: "REST keyword"},
 	{Label: "REQUEST", Kind: protocol.CompletionItemKindKeyword, Detail: "REST keyword"},
 	{Label: "SEND", Kind: protocol.CompletionItemKindKeyword, Detail: "REST keyword"},
+	{Label: "EMAIL", Kind: protocol.CompletionItemKindKeyword, Detail: "REST keyword"},
 
 	// Service keyword
 	{Label: "RECEIVE", Kind: protocol.CompletionItemKindKeyword, Detail: "Service keyword"},

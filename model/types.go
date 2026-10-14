@@ -789,6 +789,19 @@ type PublishedRestService struct {
 	Excluded     bool                     `json:"excluded,omitempty"`
 	AllowedRoles []string                 `json:"allowedRoles,omitempty"`
 	Resources    []*PublishedRestResource `json:"resources,omitempty"`
+
+	// AuthenticationTypes are the methods a caller may authenticate with, in
+	// the order stored: "Basic", "Session", "Microflow". Empty is "Requires
+	// authentication = No". AuthenticationMicroflow is the custom
+	// authentication microflow's qualified name, "" unless "Microflow" is
+	// among the methods (Studio Pro clears it when Custom is unticked).
+	AuthenticationTypes     []string `json:"authenticationTypes,omitempty"`
+	AuthenticationMicroflow string   `json:"authenticationMicroflow,omitempty"`
+	// Parameters are the service-level Rest$RestOperationParameter elements
+	// (Mendix 7.17+), in stored order: each binds a parameter of the
+	// authentication microflow to a query or header value of the request
+	// (mendixlabs/mxcli#1417). Each carries its stored $ID in ID.
+	Parameters []*PublishedRestOperationParameter `json:"parameters,omitempty"`
 }
 
 // GetName returns the service's name.
@@ -861,6 +874,9 @@ func (op *PublishedRestOperation) PathParameterNames() []string {
 // PublishedRestOperationParameter is one Rest$RestOperationParameter of a
 // published REST operation.
 type PublishedRestOperationParameter struct {
+	// ID is the element's stored $ID, set for a service-level parameter so a
+	// rewrite keeps it ("" mints a fresh one).
+	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`
 	// ParameterType is "Path", "Query", "Body", "Header" or "Form".
 	ParameterType string `json:"parameterType"`

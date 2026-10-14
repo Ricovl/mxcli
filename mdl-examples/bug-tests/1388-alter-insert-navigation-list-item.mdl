@@ -1,0 +1,30 @@
+-- mendixlabs/mxcli#1388: ALTER SNIPPET could not add an item to a navigation
+-- list. `insert into navList1 { item … }` failed with "item must be a direct
+-- child of navigationlist", and `insert after t1 { … }` — t1 inside an existing
+-- item — failed with `widget "t1" not found`.
+--
+-- Expected: the second item is appended, the first is untouched, and t3 lands
+-- after t2 inside the second item. `describe snippet BugTest1388.Menu` shows
+-- two items; `mxcli docker check` reports 0 errors.
+mdl 1;
+create module BugTest1388;
+
+create page BugTest1388.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create snippet BugTest1388.Menu {
+  navigationlist navList1 {
+    item (Action: show page BugTest1388.Home) { dynamictext t1 (Content: 'Home') }
+  }
+};
+
+alter snippet BugTest1388.Menu {
+  insert into navList1 {
+    item (Action: show page BugTest1388.Home) { dynamictext t2 (Content: 'Second') }
+  };
+};
+
+alter snippet BugTest1388.Menu {
+  insert after t2 { dynamictext t3 (Content: 'Third') };
+};

@@ -133,12 +133,15 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	// CREATING a profile hides the fact that the project gained a routing target
 	// it did not have — and a phone profile changes which pages a phone lands on.
 	if createdProfile {
-		fmt.Fprintf(ctx.Output, "Navigation profile '%s' created.\n", s.ProfileName)
+		fmt.Fprintf(ctx.Output, "Navigation profile %s created.\n", mdlQuoted(s.ProfileName))
 		// An offline profile changes what the platform demands of pages this
 		// statement never mentioned. Say so now, not at the next build.
 		warnOfflineIncompatiblePages(ctx, createdKind)
-	} else {
-		fmt.Fprintf(ctx.Output, "Navigation profile '%s' updated.\n", s.ProfileName)
+	} else if !ctx.reportWrite("navigation profile "+mdlQuoted(s.ProfileName),
+		"Navigation profile %s updated.", mdlQuoted(s.ProfileName)) {
+		// A re-run whose write was elided rewrote nothing, so it carried nothing
+		// either (ako/mxcli#890 is the same rule for security and settings).
+		return nil
 	}
 	reportKeptMenuActions(ctx, kept)
 	return nil
@@ -261,11 +264,11 @@ func keepStoredMenuAction(ctx *ExecContext, def ast.NavMenuItemDef, match *types
 	if menuItemStatesAction(def) || len(match.StoredAction) == 0 {
 		return false, ""
 	}
-	// A sub-menu takes no OnClick, so a stored action on one is never stated.
+	// A sub-menu cannot have an action at all — mx check CE0548 "Items with
+	// subitems cannot have an action themselves" — so nothing stored is kept on
+	// it, least of all a page item's action paired by caption
+	// (mendixlabs/mxcli#1341).
 	if len(def.Items) > 0 {
-		if t := menuActionTypeName(match); !isNoMenuAction(t) && t != "NoAction" {
-			return true, t
-		}
 		return false, ""
 	}
 	if _, note := menuItemActionMDL(ctx, match); note != "" {
@@ -296,8 +299,8 @@ func menuItemActionMDL(ctx *ExecContext, item *types.NavMenuItem) (onClick, note
 	doc := item.ActionDoc
 	if doc == nil {
 		if len(item.StoredAction) > 0 {
-			return "", fmt.Sprintf("-- menu item '%s': its action (%s) could not be read; "+
-				"a rewrite keeps the stored action while the item states none", item.Caption, item.ActionType)
+			return "", fmt.Sprintf("-- menu item %s: its action (%s) could not be read; "+
+				"a rewrite keeps the stored action while the item states none", menuCaptionNote(item.Caption), item.ActionType)
 		}
 		return "", ""
 	}
@@ -305,23 +308,31 @@ func menuItemActionMDL(ctx *ExecContext, item *types.NavMenuItem) (onClick, note
 	rendered := renderClientActionMDL(ctx, doc)
 	switch {
 	case strings.HasPrefix(rendered, "--"):
-		return "", fmt.Sprintf("-- menu item '%s': %s; a rewrite keeps the stored action while the item states none",
-			item.Caption, strings.TrimSpace(strings.TrimPrefix(rendered, "--")))
+		return "", fmt.Sprintf("-- menu item %s: %s; a rewrite keeps the stored action while the item states none",
+			menuCaptionNote(item.Caption), strings.TrimSpace(strings.TrimPrefix(rendered, "--")))
 	case rendered == "" && !isNoMenuAction(typeName):
-		return "", fmt.Sprintf("-- menu item '%s': its action (%s) has no MDL form; "+
-			"a rewrite keeps the stored action while the item states none", item.Caption, typeName)
+		return "", fmt.Sprintf("-- menu item %s: its action (%s) has no MDL form; "+
+			"a rewrite keeps the stored action while the item states none", menuCaptionNote(item.Caption), typeName)
 	}
 	if rendered != "" && !menuOnClickParses(rendered) {
 		// A stored action with its target unset renders as a bare `show page`
 		// or `create object`, which is not MDL: say so and keep it.
-		return "", fmt.Sprintf("-- menu item '%s': its action (%s, %s) has no target MDL can name; "+
-			"a rewrite keeps the stored action while the item states none", item.Caption, typeName, rendered)
+		return "", fmt.Sprintf("-- menu item %s: its action (%s, %s) has no target MDL can name; "+
+			"a rewrite keeps the stored action while the item states none", menuCaptionNote(item.Caption), typeName, rendered)
 	}
 	if extras := menuActionExtras(ctx, doc); len(extras) > 0 {
-		note = fmt.Sprintf("-- menu item '%s': %s has no MDL form; a rewrite keeps it while the item's action is unchanged",
-			item.Caption, strings.Join(extras, " and "))
+		note = fmt.Sprintf("-- menu item %s: %s has no MDL form; a rewrite keeps it while the item's action is unchanged",
+			menuCaptionNote(item.Caption), strings.Join(extras, " and "))
 	}
 	return rendered, note
+}
+
+// menuCaptionNote writes a menu caption inside a `--` note the way the item
+// line writes it, apostrophes doubled (mendixlabs/mxcli#1343), so a note reads
+// against its item. The escaped spelling keeps a line break in the caption from
+// ending the comment and leaving the rest of the note to be parsed as MDL.
+func menuCaptionNote(caption string) string {
+	return mdl0Quote(caption)
 }
 
 // menuOnClickParses reports whether an OnClick value reads back as a menu
@@ -775,7 +786,7 @@ func printMenuMDL(ctx *ExecContext, w io.Writer, items []*types.NavMenuItem, dep
 		} else if onClick != "" {
 			// Studio Pro lets a sub-menu keep an action it no longer runs; MDL
 			// has no OnClick on one, so the rewrite keeps it only as stored.
-			actionNote = fmt.Sprintf("-- menu '%s': its action (%s) belongs to a sub-menu and has no MDL form there", item.Caption, onClick)
+			actionNote = fmt.Sprintf("-- menu %s: its action (%s) belongs to a sub-menu and has no MDL form there", menuCaptionNote(item.Caption), onClick)
 		}
 		if icon := menuItemIconMDL(item); icon != "" {
 			props = append(props, "Icon: "+icon)
@@ -786,11 +797,11 @@ func printMenuMDL(ctx *ExecContext, w io.Writer, items []*types.NavMenuItem, dep
 		}
 		if len(item.Items) > 0 {
 			// Sub-menu container
-			fmt.Fprintf(w, "%smenu '%s'%s {\n", indent, item.Caption, propList)
+			fmt.Fprintf(w, "%smenu %s%s {\n", indent, mdlQuote(ctx, item.Caption), propList)
 			printMenuMDL(ctx, w, item.Items, depth+1, reproducer)
 			fmt.Fprintf(w, "%s}\n", indent)
 		} else {
-			fmt.Fprintf(w, "%smenu item '%s'%s\n", indent, item.Caption, propList)
+			fmt.Fprintf(w, "%smenu item %s%s\n", indent, mdlQuote(ctx, item.Caption), propList)
 		}
 		if note := menuItemIconNote(item, reproducer); note != "" {
 			fmt.Fprintf(w, "%s%s\n", indent, note)

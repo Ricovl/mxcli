@@ -194,3 +194,53 @@ func BySegmentMatch(q string) []SyntaxFeature {
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
 }
+
+// ByKeyword returns features listing q as a whole word of one of their
+// keywords, case-insensitively. A feature listing q as a keyword on its own
+// ranks ahead of one using it inside a phrase ("grant" before "grant microflow");
+// ties sort by path.
+//
+// Whole words, not substrings: keywords are prose, and a substring match on
+// "ant" would answer with every topic that mentions "grant".
+func ByKeyword(q string) []SyntaxFeature {
+	q = strings.ToLower(q)
+	if q == "" {
+		return nil
+	}
+	type ranked struct {
+		f     SyntaxFeature
+		exact bool
+	}
+	var hits []ranked
+	for _, f := range registry {
+		matched, exact := false, false
+		for _, kw := range f.Keywords {
+			kw = strings.ToLower(kw)
+			if kw == q {
+				matched, exact = true, true
+				break
+			}
+			for _, w := range strings.FieldsFunc(kw, func(r rune) bool {
+				return r == ' ' || r == '-' || r == '/' || r == ','
+			}) {
+				if w == q {
+					matched = true
+				}
+			}
+		}
+		if matched {
+			hits = append(hits, ranked{f, exact})
+		}
+	}
+	sort.SliceStable(hits, func(i, j int) bool {
+		if hits[i].exact != hits[j].exact {
+			return hits[i].exact
+		}
+		return hits[i].f.Path < hits[j].f.Path
+	})
+	out := make([]SyntaxFeature, len(hits))
+	for i, h := range hits {
+		out[i] = h.f
+	}
+	return out
+}

@@ -18,7 +18,7 @@ import (
 // the way out but never read back are silently reset on the return trip.
 func roundTripMicroflow(t *testing.T, mf *microflows.Microflow) *microflows.Microflow {
 	t.Helper()
-	gm := microflowToGen(mf, 11)
+	gm := microflowToGen(mf, newestFlowVersion)
 	raw, err := (&codec.Encoder{}).Encode(gm)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
@@ -229,7 +229,7 @@ func TestMicroflowRoundTrip_NoConcurrencyMessageIsInert(t *testing.T) {
 	encMessage := func(t *testing.T, mf *microflows.Microflow) []byte {
 		t.Helper()
 		mf.ID = model.ID("mf-9")
-		raw, err := (&codec.Encoder{}).Encode(microflowToGen(mf, 11).ConcurrencyErrorMessage())
+		raw, err := (&codec.Encoder{}).Encode(microflowToGen(mf, newestFlowVersion).ConcurrencyErrorMessage())
 		if err != nil {
 			t.Fatalf("encode: %v", err)
 		}

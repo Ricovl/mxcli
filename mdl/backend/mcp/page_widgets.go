@@ -158,21 +158,21 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 				}
 				cols = append(cols, map[string]any{
 					"$Type":             "Pages$LayoutGridColumn",
-					"appearance":        pageAppearance("", ""),
+					"appearance":        pageAppearance(c.Class, c.Style),
 					"weight":            weight,
 					"tabletWeight":      tablet,
 					"phoneWeight":       phone,
 					"previewWidth":      -1,
-					"verticalAlignment": "None",
+					"verticalAlignment": alignmentOrNone(c.VerticalAlignment),
 					"widgets":           kids,
 				})
 			}
 			rows = append(rows, map[string]any{
 				"$Type":                 "Pages$LayoutGridRow",
-				"appearance":            pageAppearance("", ""),
-				"verticalAlignment":     "None",
-				"horizontalAlignment":   "None",
-				"spacingBetweenColumns": true,
+				"appearance":            pageAppearance(r.Class, r.Style),
+				"verticalAlignment":     alignmentOrNone(r.VerticalAlignment),
+				"horizontalAlignment":   alignmentOrNone(r.HorizontalAlignment),
+				"spacingBetweenColumns": !r.NoSpacingBetweenColumns,
 				"columns":               cols,
 			})
 		}
@@ -181,7 +181,7 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 			"name":       wd.Name,
 			"appearance": pageAppearance(wd.Class, wd.Style),
 			"tabIndex":   wd.TabIndex,
-			"width":      "FullWidth",
+			"width":      layoutGridWidth(wd.Width),
 			"rows":       rows,
 		}, nil
 	case *pages.ListView:
@@ -236,13 +236,15 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 	case *pages.DataGrid:
 		return nil, fmt.Errorf("legacy DataGrid is not supported by the MCP backend — pg_patch_page has no Pages$DataGrid type (use a ListView, or DataGrid 2 which is a pluggable widget)")
 	case *pages.TextBox:
-		return withFormattingInfo(inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), wd.FormattingInfo), nil
+		w := withFormattingInfo(inputWidget("Pages$TextBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), wd.FormattingInfo)
+		return withSubmitBehaviour(w, wd.SubmitBehaviour, wd.SubmitOnInputDelay), nil
 	case *pages.CheckBox:
 		return inputWidget("Pages$CheckBox", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	case *pages.DatePicker:
 		return withFormattingInfo(inputWidget("Pages$DatePicker", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), wd.FormattingInfo), nil
 	case *pages.TextArea:
-		return inputWidget("Pages$TextArea", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
+		w := inputWidget("Pages$TextArea", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable)
+		return withSubmitBehaviour(w, wd.SubmitBehaviour, wd.SubmitOnInputDelay), nil
 	case *pages.RadioButtons:
 		return inputWidget("Pages$RadioButtonGroup", wd.Name, wd.Label, wd.AttributePath, wd.Class, wd.Style, wd.SourceVariable), nil
 	default:
@@ -291,6 +293,27 @@ func withFormattingInfo(w map[string]any, fi *pages.FormattingInfo) map[string]a
 		"customDateFormat": fi.CustomDateFormat,
 	}
 	return w
+}
+
+// withSubmitBehaviour adds a text box's or text area's authored submit
+// behaviour and input delay. Unset leaves both to Studio Pro's defaults
+// (OnEndEditing, 300), as before (ako/mxcli-ledger FINDINGS #170).
+func withSubmitBehaviour(w map[string]any, behaviour string, delay *int) map[string]any {
+	if behaviour != "" {
+		w["submitBehaviour"] = behaviour
+	}
+	if delay != nil {
+		w["submitOnInputDelay"] = *delay
+	}
+	return w
+}
+
+// layoutGridWidth is a layout grid's authored Width, or Studio Pro's default.
+func layoutGridWidth(width string) string {
+	if width == "" {
+		return pages.DefaultLayoutGridWidth
+	}
+	return width
 }
 
 // pageVariable builds a Pages$PageVariable naming a data view and, beside it,
@@ -602,4 +625,13 @@ func clientTemplateParam(p *pages.ClientTemplateParameter) map[string]any {
 		param["sourceVariable"] = map[string]any{"$Type": "Pages$PageVariable", "pageParameter": p.SourceVariable, "useAllPages": false}
 	}
 	return param
+}
+
+// alignmentOrNone maps an unset layout-grid row/column alignment to Mendix's
+// default.
+func alignmentOrNone(a string) string {
+	if a == "" {
+		return "None"
+	}
+	return a
 }

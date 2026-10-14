@@ -71,10 +71,7 @@ func execHelp(ctx *ExecContext, s *ast.HelpStmt) error {
 		if ctx.Format == FormatJSON {
 			return syntax.WriteJSON(ctx.Output, m.Features)
 		}
-		if !m.Exact {
-			fmt.Fprintf(ctx.Output, "No topic %q. Showing %d topic(s) matching %q:\n\n",
-				m.Path, len(m.Features), m.Fallback)
-		}
+		fmt.Fprint(ctx.Output, m.Heading())
 		syntax.WriteText(ctx.Output, m.Features)
 		return nil
 	}
@@ -214,7 +211,7 @@ Catalog Queries:
   Tables: modules, entities, attributes, microflows, nanoflows, pages,
           snippets, layouts, enumerations, JAVA_ACTIONS, ACTIVITIES*,
           widgets*, XPATH_EXPRESSIONS, REFS*, PROJECTS, SNAPSHOTS,
-          objects, ODATA_CLIENTS, ODATA_SERVICES,
+          objects, CONSUMED_ODATA_SERVICES, PUBLISHED_ODATA_SERVICES,
           BUSINESS_EVENT_SERVICES, STRINGS*, source**
   (* only populated with refresh catalog full)
   (** only populated with refresh catalog full source)
@@ -251,6 +248,7 @@ Security - Project Settings:
   alter app security ( SecurityLevel: off|prototype|production );
   alter app security ( EnableDemoUsers: true|false, StrictMode: true|false );
   alter app security ( EnableGuestAccess: true|false [, GuestUserRole: <UserRole>] );
+  alter app security ( AdminUserName: '<name>' );
   create demo user 'name' ( Password: 'pass', UserRoles: (UserRole [, ...]) );
   drop demo user 'name';
 

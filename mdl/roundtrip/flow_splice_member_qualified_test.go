@@ -5,7 +5,6 @@
 package roundtrip
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -68,10 +67,6 @@ func TestFlowModify_SplicedMembersAreQualified(t *testing.T) {
 
 	cases := []struct {
 		name, from, to string
-		// inLoop: a change inside a loop body is not spliced (see
-		// TestFlowModify_LoopBodyChangeIsNotSpliced): mdl 1 refuses it and
-		// mdl 0 rebuilds, which must qualify the iterator's members too.
-		inLoop bool
 	}{
 		{name: "change on a retrieve-bound variable", from: "(Name = 'r')", to: "(Name = 'r2')"},
 		{name: "change on a call-bound variable", from: "(Name = 'c')", to: "(Name = 'c2')"},
@@ -80,7 +75,9 @@ func TestFlowModify_SplicedMembersAreQualified(t *testing.T) {
 		{name: "find in a call-bound list", from: "BY Name = 'x'", to: "BY Name = 'y'"},
 		{name: "aggregate of a call-bound list", from: "SUM $L", to: "MAXIMUM $L"},
 		{name: "control: change on a parameter", from: "(Name = 'p')", to: "(Name = 'p2')"},
-		{name: "change on a loop iterator", from: "(Name = 'i')", to: "(Name = 'i2')", inLoop: true},
+		// Spliced in place inside the loop body (ako/mxcli#1106): the
+		// iterator's members must be qualified there too.
+		{name: "change on a loop iterator", from: "(Name = 'i')", to: "(Name = 'i2')"},
 	}
 	for _, header := range []string{"mdl 1;\n", ""} {
 		for _, c := range cases {
@@ -93,21 +90,12 @@ func TestFlowModify_SplicedMembersAreQualified(t *testing.T) {
 			if edited == memberQualifiedFlow {
 				t.Fatalf("%s: the flow has no %q", label, c.from)
 			}
-			before := h.flowUnit(t, "T885_Flow")
 			err := h.exec(header + edited)
 			switch {
-			case c.inLoop && header != "":
-				if err == nil || !strings.Contains(err.Error(), "cannot be spliced") {
-					t.Errorf("%s: want the loop-body change refused, got %v", label, err)
-				}
-				if !bytes.Equal(h.flowUnit(t, "T885_Flow"), before) {
-					t.Errorf("%s: the refused statement wrote", label)
-				}
-				continue
 			case err != nil:
 				t.Errorf("%s: exec: %v", label, err)
 				continue
-			case !c.inLoop && !strings.Contains(h.out.String(), "(spliced: 1 replaced)"):
+			case !strings.Contains(h.out.String(), "(spliced: 1 replaced)"):
 				t.Errorf("%s: want one statement replaced by a splice, got:\n%s", label, h.out.String())
 			}
 			spliced := flowMembers(t, h.flowUnit(t, "T885_Flow"))

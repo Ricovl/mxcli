@@ -29,6 +29,9 @@ func (b *Backend) ReadJavaActionByName(qualifiedName string) (*javaactions.JavaA
 	moduleName, actionName := qualifiedName[:dot], qualifiedName[dot+1:]
 	mod, err := b.GetModuleByName(moduleName)
 	if err != nil || mod == nil {
+		if ja := systemJavaActionByName(moduleName, actionName); ja != nil {
+			return ja, nil
+		}
 		return nil, fmt.Errorf("java action not found: %s", qualifiedName)
 	}
 	containers := b.containerSetForModule(string(mod.ID)) // module + nested folders
@@ -41,7 +44,27 @@ func (b *Backend) ReadJavaActionByName(qualifiedName string) (*javaactions.JavaA
 			return javaActionFromGen(u.Element, u.ContainerID), nil
 		}
 	}
+	if ja := systemJavaActionByName(moduleName, actionName); ja != nil {
+		return ja, nil
+	}
 	return nil, fmt.Errorf("java action not found: %s", qualifiedName)
+}
+
+// systemJavaActionByName resolves a System-module platform built-in (e.g.
+// System.VerifyPassword), which has no stored unit. The list paths already
+// synthesize these, so the by-name read must too or a listed action cannot be
+// described or called (mendixlabs/mxcli#1445). Stored units win; this is only
+// the fallback.
+func systemJavaActionByName(moduleName, actionName string) *javaactions.JavaAction {
+	if moduleName != "System" {
+		return nil
+	}
+	for _, ja := range meta.BuildSystemJavaActionsFull() {
+		if ja.Name == actionName {
+			return ja
+		}
+	}
+	return nil
 }
 
 // ListJavaActionsFull reads every Java action unit into the fully-parsed semantic

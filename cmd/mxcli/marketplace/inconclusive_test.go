@@ -97,3 +97,22 @@ func TestSaveEdits_RefusesToWriteAnEmptyBodyAsAnEdit(t *testing.T) {
 		t.Errorf("written = %v, want the real entity still saved", written)
 	}
 }
+
+// mendixlabs/mxcli#1441: a side whose action source was not on disk describes
+// as a placeholder. Against the other side's real code that is a missing file,
+// not an edit, and must never block an update as "changed locally".
+func TestClassify_AnOmittedActionSourceIsNotEvidenceOfAnEdit(t *testing.T) {
+	for _, tc := range []struct{ typ, placeholder string }{
+		{"JAVASCRIPT_ACTION", "// JavaScript source not available from this project; body omitted by DESCRIBE."},
+		{"JAVA_ACTION", "// Java source not available from this project; body omitted by DESCRIBE."},
+	} {
+		src := "create or modify javascript action M.A()\nas $$\nreturn Promise.resolve(true);\n$$;"
+		omitted := strings.Replace(src, "return Promise.resolve(true);", tc.placeholder, 1)
+		for _, sides := range [][2]string{{src, omitted}, {omitted, src}} {
+			f := classify(ElementKey{Type: tc.typ, Name: "A"}, Element{MDL: sides[0]}, Element{MDL: sides[1]}, true, true)
+			if f.Verdict != Unknown {
+				t.Errorf("%s: verdict = %s, want unknown — a missing source file is not a local edit", tc.typ, f.Verdict)
+			}
+		}
+	}
+}

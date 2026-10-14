@@ -9,6 +9,7 @@
 package docker
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -114,6 +115,63 @@ func TestJavaMajorOrDefault(t *testing.T) {
 	}
 	if got := javaMajorOrDefault(25); got != 25 {
 		t.Errorf("javaMajorOrDefault(25) = %d, want 25", got)
+	}
+}
+
+// mendixlabs/mxcli#1437: a Mendix 9 model stores no JavaVersion at all, and the
+// fallback was a flat 21 — so `run --local` skipped a JDK 17 JAVA_HOME and
+// mxbuild 9.24's Gradle failed with "Unsupported class file major version 65".
+// The fallback must come from the project's Mendix version.
+func TestProjectJavaMajorDefaultsToJava17ForMendix9(t *testing.T) {
+	p := v1Fixture(t) // Mendix 9.24.30, no JavaVersion setting
+	got, fromProject := ProjectJavaMajor(p)
+	if got != 17 || fromProject {
+		t.Errorf("ProjectJavaMajor(9.24 project) = (%d, %v), want (17, false)", got, fromProject)
+	}
+}
+
+func TestDefaultJavaMajorForMendixVersion(t *testing.T) {
+	tests := []struct {
+		major int
+		want  int
+	}{
+		{9, 17},
+		{10, DefaultJavaMajor},
+		{11, DefaultJavaMajor},
+		{0, DefaultJavaMajor}, // unknown version: behave as before
+	}
+	for _, tc := range tests {
+		if got := defaultJavaMajorForMendix(tc.major); got != tc.want {
+			t.Errorf("defaultJavaMajorForMendix(%d) = %d, want %d", tc.major, got, tc.want)
+		}
+	}
+}
+
+// The "build for a release you already have" hint suggests lowering JavaVersion
+// to 21. For a Mendix 9 project (needs 17) that advice is a no-op: 9.x has no
+// JavaVersion setting, and 21 is not a JDK it can build with.
+func TestResolveJDKDoesNotSuggestAlterSettingsBelowDefault(t *testing.T) {
+	env := jdkEnv{
+		goos:         "linux",
+		getenv:       func(string) string { return "" },
+		lookPath:     func(string) (string, error) { return "", errors.New("not found") },
+		evalSymlinks: func(p string) (string, error) { return p, nil },
+		isJDK:        func(string, int) bool { return false },
+		glob:         func(string) ([]string, error) { return nil, nil },
+		searchPaths:  func(int) []string { return nil },
+		versionOf:    func(string) string { return "" },
+	}
+	_, err := resolveJDKWith(env, 17)
+	if err == nil {
+		t.Fatal("expected JDK 17 not found")
+	}
+	if strings.Contains(err.Error(), "alter settings") {
+		t.Errorf("JDK 17 error suggests alter settings, which no-ops on Mendix 9.x:\n%v", err)
+	}
+	// A project asking above the default can still be steered down to it.
+	_, err = resolveJDKWith(env, 25)
+	if err == nil || !strings.Contains(err.Error(), "alter settings") {
+		t.Errorf("JDK 25 error should keep the alter settings hint, got: %v", err)
 	}
 }
 

@@ -112,6 +112,29 @@ func RegisterPropertyListMarker(ownerType, key string, marker int32) {
 	propertyListMarkers[ownerType][key] = marker
 }
 
+// mandatoryPropertyLists marks the owner/key pairs Studio Pro serializes on
+// every element of the owner type, empty or not. RegisterMandatoryPropertyList
+// fills it; the encoder writes such a list as bson.A{marker} on a new element
+// whose list is empty, where it would otherwise omit the key.
+var mandatoryPropertyLists = map[string]map[string]bool{}
+
+// RegisterMandatoryPropertyList is RegisterPropertyListMarker for a PartList
+// Studio Pro always writes: the marker applies as there, and a new element of
+// ownerType with nothing in the list still writes the key as the bare marker.
+// It is keyed on the owner, so it never adds the key to another type, and it
+// merges with — rather than replaces — the owner's RegisterTypeDefaults.
+func RegisterMandatoryPropertyList(ownerType, key string, marker int32) {
+	RegisterPropertyListMarker(ownerType, key, marker)
+	if mandatoryPropertyLists[ownerType] == nil {
+		mandatoryPropertyLists[ownerType] = map[string]bool{}
+	}
+	mandatoryPropertyLists[ownerType][key] = true
+}
+
+func isMandatoryPropertyList(ownerType, key string) bool {
+	return mandatoryPropertyLists[ownerType][key]
+}
+
 func lookupPropertyListMarker(ownerType, key string) (int32, bool) {
 	m, ok := propertyListMarkers[ownerType][key]
 	return m, ok

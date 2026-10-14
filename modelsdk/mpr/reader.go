@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mendixlabs/mxcli/modelsdk/mpr/version"
 
@@ -63,15 +64,36 @@ type Reader struct {
 	decoded   map[string]any
 
 	// contentCache stores raw BSON bytes per unit ID (MPR v2 only).
-	// Populated on first read; survives across requests when the Reader is
-	// held persistently by the per-MPR daemon. Cleared by InvalidateCache.
-	// nil means caching is disabled (zero cost on the normal per-request path).
+	// Populated on first read while caching is on (EnableContentCache, or a
+	// CacheUnitReads scope); cleared by InvalidateCache, which every write
+	// calls. nil means caching is off. contentMu guards it and cacheScopes.
+	contentMu    sync.Mutex
 	contentCache map[string][]byte
+	// cacheScopes counts the open CacheUnitReads scopes; the cache is dropped
+	// when the last one closes. -1 means EnableContentCache turned it on for
+	// the reader's lifetime, which no scope ends.
+	cacheScopes int
+
+	// fileReads counts unit files read from mprcontents/ — what the content
+	// cache saves. Read by tests (mendixlabs/mxcli#1272).
+	fileReads atomic.Int64
 
 	// overlay holds unit bytes injected by BufferedUnitStore so that reads
 	// within the same import file see buffered (uncommitted) writes.
 	// nil means no overlay is active — zero cost on the normal path.
 	overlay map[string][]byte
+
+	// v1Types is MPR v1's unit-type index (reader_units_v1.go): UnitID blob →
+	// $Type, with the blob length it was read at. It lets a typed listing
+	// skip the contents of every other unit. Revalidated on every listing, so
+	// it needs no invalidation from the writer.
+	v1TypesMu sync.Mutex
+	v1Types   map[string]v1TypeEntry
+
+	// blobReads counts full unit-content blobs read from the v1 Unit table by
+	// listings — the cost a typed listing must keep proportional to its
+	// result, not to the project. Read by tests.
+	blobReads atomic.Int64
 }
 
 // cachedUnit stores metadata about a unit for fast filtering.

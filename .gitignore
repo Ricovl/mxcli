@@ -31,7 +31,6 @@ coverage.out
 coverage.html
 reference/mendix-repl/
 reference/mxbuild/
-reference/mendixmodellib/
 reference/mdl-grammar/
 reference/mxbuild-11.6.0/
 /reference/
@@ -48,6 +47,7 @@ mdl/grammar/parser/
 cmd/mxcli/skills/
 cmd/mxcli/skillpacks/
 cmd/mxcli/commands/
+cmd/mxcli/mods/
 cmd/mxcli/lint-rules/
 cmd/mxcli/changelog.md
 cmd/mxcli/vscode-mdl.vsix

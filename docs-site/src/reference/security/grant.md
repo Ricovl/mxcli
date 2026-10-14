@@ -52,21 +52,20 @@ The nanoflow access form grants execute permission on a nanoflow to one or more 
 
 ### Default access of a new page, microflow or nanoflow
 
-Document grants are **additive** too: a GRANT adds roles to the document's allowed roles and never removes one. That matters because of what a newly created document starts with:
+Document grants are **additive** too: a GRANT adds roles to the document's allowed roles and never removes one.
 
-- In a module that has **no module roles**, mxcli creates a module role `<Module>.User` (description "Auto-created default role for mxcli document access") and grants every new page, microflow and nanoflow to it, so the document is not unreachable. `exec` says so under the create:
+A newly created page, microflow or nanoflow starts with **no** allowed roles, whatever its module holds. mxcli never creates a module role on its own: which roles exist, and which documents they open, is the author's decision. Create the module role, map it into a user role, and grant the document in the same script:
 
-  ```
-  Created page Shop.Stub
-    access: granted to auto-created role Shop.User (the module has no other roles; a later grant adds to it — revoke it to narrow access)
-  ```
+```sql
+mdl 1;
+create module role Shop.User;
+create or modify user role Customer ( ModuleRoles: (System.User, Shop.User) );
+grant view on page Shop.Overview to Shop.User;
+```
 
-  New documents keep going to `<Module>.User` for as long as it is the module's only role.
-- In a module that **has module roles of its own**, a new document gets **no** allowed roles. Grant them in the same script.
+Earlier versions of mxcli created a `<Module>.User` role (description "Auto-created default role for mxcli document access") in a module with no module roles and granted every new document to it. A project written by one of those versions still holds that role and those grants; mxcli leaves them as they are. Revoke them (`revoke view on page Shop.Stub from Shop.User;`) or drop the role if you did not intend them.
 
-So `grant view on page Shop.Stub to Shop.Admin;` on a page that was created while `Shop.User` was the only role leaves it open to `Shop.User` **and** `Shop.Admin` — every user role mapped to `Shop.User` can still open it. To restrict it, revoke the default: `revoke view on page Shop.Stub from Shop.User;`.
-
-A rewrite keeps the stored roles: `create or modify`, and `drop` followed by `create` of the same name **in one run**. A `create` in a *later* run than the `drop` is a new document and starts again from the defaults above — in a module with its own roles, with no access, which MxBuild reports as CE0106 when a page, nanoflow or navigation uses the flow. `mxcli check -p` reports that case as [MDL-SEC21](../../appendixes/error-messages.md#mdl-sec21-a-used-flow-left-without-access-ce0106).
+A rewrite keeps the stored roles: `create or modify`, and `drop` followed by `create` of the same name **in one run**. A `create` in a *later* run than the `drop` is a new document and starts again with no access, which MxBuild reports as CE0106 when a page, nanoflow or navigation uses the flow. `mxcli check -p` reports that case as [MDL-SEC21](../../appendixes/error-messages.md#mdl-sec21-a-used-flow-left-without-access-ce0106).
 
 ## Parameters
 

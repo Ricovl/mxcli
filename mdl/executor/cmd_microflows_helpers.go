@@ -166,7 +166,11 @@ func qualifiedNameToXPath(e *ast.QualifiedNameExpr) string {
 
 // xpathEnumRefRe matches 3-part qualified enum value references like Module.EnumName.Value
 // in a raw XPath string. These must be replaced with string literals for database queries.
-var xpathEnumRefRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*`)
+//
+// The value may start with an underscore: Studio Pro names a True/False
+// enumeration's values `_True` and `_False`. Requiring a letter there wrote
+// `[A = M.E._True]` verbatim, which mxbuild rejects with CE0161.
+var xpathEnumRefRe = regexp.MustCompile(`[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*`)
 
 // normalizeXPathEnumRefs converts 3-part qualified enum value references in a raw XPath
 // string to the string literal format that Mendix database queries require.
@@ -412,8 +416,8 @@ func xpathExprToMDLString(expr ast.Expression) string {
 		var parts []string
 		for _, step := range e.Steps {
 			s := xpathExprToMDLString(step.Expr)
-			if step.Predicate != nil {
-				s += "[" + xpathExprToMDLString(step.Predicate) + "]"
+			for _, pred := range step.Predicates {
+				s += "[" + xpathExprToMDLString(pred) + "]"
 			}
 			parts = append(parts, s)
 		}
@@ -434,8 +438,8 @@ func xpathPathOf(path *ast.XPathPathExpr, keepNames bool) string {
 	var parts []string
 	for _, step := range path.Steps {
 		s := xpathOf(step.Expr, keepNames)
-		if step.Predicate != nil {
-			s += "[" + xpathOf(step.Predicate, keepNames) + "]"
+		for _, pred := range step.Predicates {
+			s += "[" + xpathOf(pred, keepNames) + "]"
 		}
 		parts = append(parts, s)
 	}

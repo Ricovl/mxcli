@@ -8,7 +8,7 @@ CREATE [ OR REPLACE ] PAGE module.Name [ FOLDER 'path' ]
     [ Params: ( $param : Module.Entity | Type [, ...] ), ]
     Title: 'title',
     Layout: Module.LayoutName
-    [, Variables: ( $name : type = 'expression' [, ...] ) ]
+    [, Variables: ( $name : type = <expression> [, ...] ) ]
 )
 {
     widget_tree
@@ -46,7 +46,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `LAYOUTGRID` | Responsive grid container | `Class`, `Style` |
+| `LAYOUTGRID` | Responsive grid container | `Class`, `Style`, `Width` (`FullWidth` default, `FixedWidth`) |
 | `ROW` | Grid row | `Class` |
 | `COLUMN` | Grid column | `Class` |
 | `CONTAINER` | Generic div container | `Class`, `Style`, `DesignProperties` |
@@ -65,12 +65,13 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute` |
-| `TEXTAREA` | Multi-line text input | `Label`, `Attribute` |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300) |
+| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
 | `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
 | `DATEPICKER` | Date/time selector | `Label`, `Attribute` |
 | `COMBOBOX` | Dropdown selector | `Label`, `Attribute` |
+| `FILEMANAGER` | File upload/download, inside a data view on a `System.FileDocument` specialization | `Label`, `Type` (`Upload`, `Download`, `Both` default), `MaxFileSize` (MB, default 5), `AllowedExtensions`, `ShowFileInBrowser` |
 
 **Display Widgets**
 
@@ -307,7 +308,9 @@ CREATE PAGE MyModule.Dashboard
             }
             COLUMN (Class: 'col-md-4') {
                 CONTAINER cntStats (Class: 'card') {
-                    DYNAMICTEXT txtCount (Attribute: TotalCount)
+                    DATAVIEW dvStats (DataSource: MICROFLOW MyModule.DS_DashboardStats) {
+                        DYNAMICTEXT txtCount (Attribute: TotalCount)
+                    }
                 }
             }
         }
@@ -369,7 +372,7 @@ CREATE PAGE MyModule.AdvancedForm
     Params: ( $Item: MyModule.Item ),
     Title: 'Advanced Form',
     Layout: Atlas_Core.Atlas_Default,
-    Variables: ( $showAdvanced: Boolean = 'false' )
+    Variables: ( $showAdvanced: Boolean = false )
 )
 {
     DATAVIEW dvItem (DataSource: $Item) {

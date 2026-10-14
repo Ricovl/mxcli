@@ -193,10 +193,10 @@ CREATE TABLE activities_data (
     MicroflowQualifiedName  TEXT,
     ModuleName              TEXT,
     Folder                  TEXT,
-    EntityRef               TEXT,       -- create object / database retrieve entity
+    EntityRef               TEXT,       -- create object / database retrieve / delete entity
     ActionType              TEXT,       -- e.g. "RetrieveAction", "MicroflowCallAction"
     ServiceRef              TEXT,       -- called service (REST, web service, OData)
-    ActionRef               TEXT,       -- operation within it
+    ActionRef               TEXT,       -- operation within it, or the called microflow/nanoflow/Java/JavaScript action
     UseRequestTimeout       INTEGER,
     TimeoutExpression       TEXT,
     Description             TEXT,       -- documentation
@@ -212,6 +212,7 @@ CREATE TABLE activities_data (
     CommitType              TEXT,       -- Yes / YesWithoutEvents / No
     WithEvents              INTEGER,
     RetrieveSource          TEXT,       -- database / association
+    QueueRef                TEXT,       -- task queue a microflow/Java action call runs in
     ProjectId               TEXT,
     SnapshotId              TEXT
 );
@@ -367,7 +368,8 @@ CREATE VIRTUAL TABLE STRINGS USING fts5(
     StringContext,  -- Where it lives. For translatable text this is
                     -- <owner $Type>.<property>, e.g. Forms$ActionButton.Caption.
                     -- Non-translatable strings keep a plain label: page_url,
-                    -- log_node, documentation, rest_path, task_name, ...
+                    -- log_node, log_message, documentation, rest_path,
+                    -- task_name, domain_model_documentation, ...
     Language,       -- Language code, empty for non-translatable strings
     ElementId,      -- The owning element's $ID — what distinguishes an
                     -- enumeration's twelve values from each other
@@ -381,6 +383,14 @@ cannot otherwise read is still searchable. That includes Atlas's design
 templates (`PAGE_TEMPLATE`, `BUILDING_BLOCK`), which are roughly 70% of a stock
 project's text and never render in a running app — filter them out with
 `ObjectType` when you want only the app's own strings.
+
+The documentation of an element (an entity, attribute, constant, page, ...) is a
+plain string, not a `Texts$Text`, so it is added from the catalog tables that
+already hold it, not by the walk: `StringContext` is `documentation`,
+`ObjectType` names the element (`ENTITY`, `ATTRIBUTE`, `CONSTANT`, `PAGE`, ...)
+and `QualifiedName` is the element's own (`Sales.Order.Total` for an
+attribute). Microflow and workflow documentation is indexed with the same
+labels. See [Full-Text Search](../tools/search.md) for the full list.
 
 An empty translation — a text that exists but is not translated yet — is **not**
 a row, so a language's presence in this table means it is actually translated

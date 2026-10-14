@@ -37,7 +37,7 @@ func (b *Backend) CreateRule(rule *microflows.Rule) error {
 	if rule.ID == "" {
 		rule.ID = model.ID(mmpr.GenerateID())
 	}
-	g := ruleToGen(rule, b.majorVersion())
+	g := ruleToGen(rule, b.flowVersion())
 	g.SetID(element.ID(rule.ID))
 	assignRuleIDs(g)
 	contents, err := (&codec.Encoder{}).Encode(g)
@@ -58,7 +58,7 @@ func (b *Backend) UpdateRule(rule *microflows.Rule) error {
 	if b.writer == nil {
 		return fmt.Errorf("UpdateRule: not connected for writing")
 	}
-	g := ruleToGen(rule, b.majorVersion())
+	g := ruleToGen(rule, b.flowVersion())
 	g.SetID(element.ID(rule.ID))
 	assignRuleIDs(g)
 	contents, err := (&codec.Encoder{}).Encode(g)
@@ -96,7 +96,7 @@ func (b *Backend) DeleteRule(id model.ID) error {
 //     pre-7 legacy sibling with nothing to carry through.
 //   - No concurrency group, Url, StableId or action-info slots: those are the
 //     nine properties that make a microflow a microflow.
-func ruleToGen(rule *microflows.Rule, major int) *genMf.Rule {
+func ruleToGen(rule *microflows.Rule, v flowVersion) *genMf.Rule {
 	out := genMf.NewRule()
 	out.SetName(rule.Name)
 	out.SetDocumentation(rule.Documentation)
@@ -111,14 +111,16 @@ func ruleToGen(rule *microflows.Rule, major int) *genMf.Rule {
 	out.SetExcluded(rule.Excluded)
 	out.SetMarkAsUsed(rule.MarkAsUsed)
 	out.SetApplyEntityAccess(rule.ApplyEntityAccess)
-	out.SetReturnVariableName(rule.ReturnVariableName)
+	if v.hasReturnVariableName() { // MicroflowBase.returnVariableName, 10.12.0
+		out.SetReturnVariableName(rule.ReturnVariableName)
+	}
 	if rule.ReturnType != nil {
 		out.SetMicroflowReturnType(microflowDataTypeToGen(rule.ReturnType))
 	}
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range rule.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, major))
+		oc.AddObjects(microflowParameterToGen(p, i, v))
 	}
 	if rule.ObjectCollection != nil {
 		for _, obj := range rule.ObjectCollection.Objects {
@@ -131,12 +133,12 @@ func ruleToGen(rule *microflows.Rule, major int) *genMf.Rule {
 
 	if rule.ObjectCollection != nil {
 		for _, f := range rule.ObjectCollection.Flows {
-			out.AddFlows(sequenceFlowToGen(f, major))
+			out.AddFlows(sequenceFlowToGen(f, v))
 		}
 		// Omitted like the nanoflow's, and for the same effect: a rewrite
 		// detached every note (ako/mxcli#705).
 		for _, af := range rule.ObjectCollection.AnnotationFlows {
-			out.AddFlows(annotationFlowToGen(af, major))
+			out.AddFlows(annotationFlowToGen(af, v))
 		}
 	}
 	return out
@@ -154,10 +156,7 @@ func assignRuleIDs(r *genMf.Rule) {
 	for _, el := range r.FlowsItems() {
 		assignID(el)
 		if sf, ok := el.(*genMf.SequenceFlow); ok {
-			for _, cv := range sf.CaseValuesItems() {
-				assignID(cv)
-			}
-			assignID(sf.Line())
+			assignSequenceFlowIDs(sf)
 		}
 	}
 }

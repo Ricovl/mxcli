@@ -144,8 +144,17 @@ func withDocumentLocation(vs []linter.Violation, stmt ast.Statement) []linter.Vi
 
 func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []linter.Violation {
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		out := validateWidgetTree(widgets, registry, label)
+		out := validateDocumentWidgetTree(widgets, registry, label, documentEntityParameters(stmt))
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
+		_, isSnippet := stmt.(*ast.CreateSnippetStmtV3)
+		for _, msg := range fileManagersWithoutContext(widgets, isSnippet) {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET45",
+				Severity:   linter.SeverityError,
+				Message:    label + ": " + msg,
+				Suggestion: "Put the file manager in a data view whose object extends System.FileDocument.",
+			})
+		}
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
@@ -159,6 +168,7 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 				out = append(out, validateWidgetSubtree(o.NewWidgets, registry, "alter "+s.PageName.String())...)
 			case *ast.SetPropertyOp:
 				out = append(out, validateAlterSetLegacyExpressionText(o, "alter "+s.PageName.String())...)
+				out = append(out, validateAlterSetColumnVisibleScope(o, "alter "+s.PageName.String())...)
 			}
 		}
 		return out
@@ -174,7 +184,13 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 // $currentObject is unbound there. That is a fact this pass can state, unlike
 // validateWidgetSubtree below, and MDL-PAGEARG01 needs it (#1029).
 func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	return validateDocumentWidgetTree(widgets, registry, locationPrefix, nil)
+}
+
+// validateDocumentWidgetTree is validateWidgetTree for a document whose
+// entity-typed parameters are known (a CREATE PAGE / SNIPPET's `Params:`).
+func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, params []string) []linter.Violation {
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot().withDocumentParameters(params))
 	// Only a whole document: an ALTER fragment's parent is out of sight, and
 	// whether a row or column stores a name depends on it (#749).
 	for _, msg := range checkMissingWidgetNames(widgets) {
@@ -232,6 +248,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// …and the OLD spelling, a quoted string holding the expression's text,
 		// which now stores that text as a class name (MDL-WIDGET33).
 		out = append(out, validateLegacyExpressionText(w, locationPrefix)...)
+		// A column's Visible has no row object (MDL-WIDGET43, CE0117).
+		out = append(out, validateColumnVisibleScope(w, locationPrefix)...)
 		// #1062: an action slot holding something that is not an action, which
 		// used to check clean, exec clean, build clean and render dead. Runs for
 		// every widget kind and needs no definition, for the same reason as the
@@ -252,6 +270,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
+		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).
+		out = append(out, validateInputSubmitAndGridWidth(w, locationPrefix)...)
 		// A quoted template parameter that reads like an expression is stored
 		// as its text (ako/mxcli#969).
 		out = append(out, validateQuotedTemplateParams(w, locationPrefix)...)
@@ -288,9 +308,16 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// the wrong token — measured on `htmlelemnt frame (tagName: 'div')`,
 		// which drew a `tagName` warning beside the real error. A built-in
 		// (TypeIsGeneric false) keeps the check, since its properties are the
-		// only thing that can be wrong about it.
-		if def == nil && !isObjectListItem && !w.TypeIsGeneric {
+		// only thing that can be wrong about it. An explicit widget id
+		// (`pluggablewidget '<id>'`) is never a built-in either: with a project
+		// an unknown one is MDL-WIDGET25, and with none the registry simply has
+		// no definition for the project's own widget — the built-in allow-list
+		// would report every property it has.
+		if def == nil && !isObjectListItem && !w.TypeIsGeneric && explicitWidgetID(w) == "" {
 			out = append(out, validateStaticWidgetUnknownProps(w, locationPrefix)...)
+			// #1465: the vocabulary above is a cross-widget union, so a key a
+			// tab page cannot store (CaptionParams, Class, Style) passes it.
+			out = append(out, validateTabPageProps(w, locationPrefix)...)
 			// #928: `editable:` on a widget Mendix gives no editability — same
 			// "silently dropped on write" family, but the flat property
 			// allow-list cannot see it because it is type-agnostic.
@@ -742,8 +769,10 @@ func objectListMappingSet(def *WidgetDefinition) map[string]*ObjectListMapping {
 // self-warns). A property outside this set on a core widget is not consumed by
 // any builder — i.e. it is silently dropped — so it earns an MDL-WIDGET07
 // warning. It is deliberately generous (a union across all widget types, not
-// per-type) to avoid false positives; TestStaticWidgetKnownPropsCoverDescribe
-// guards it against describe-vocabulary drift.
+// per-type) to avoid false positives. TestStaticWidgetKnownProps_CoverSourceVocabulary
+// derives the builder and describe vocabulary from the source and fails on any
+// key missing here — the hand-typed sample in TestStaticWidgetKnownPropsCoverDescribe
+// drifted with the list it guarded (mendixlabs/mxcli#1346).
 var staticWidgetKnownProps = func() map[string]bool {
 	names := []string{
 		// grammar keyword properties (widgetPropertyV3)
@@ -776,6 +805,17 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// dynamicimage's fallback image, and the two display flags it shares
 		// with the pluggable image widget. Same reason: describe emits them.
 		"DefaultImage", "OnClickType",
+		// read by a builder and emitted by describe, but missing here until
+		// mendixlabs/mxcli#1346: a dataview's explicit footer flag (#813), the
+		// menu source and orientation of navigationtree / menubar /
+		// simplemenubar, and a scroll-container region's size mode.
+		"ShowFooter", "Menu", "Profile", "Orientation", "SizeMode",
+		// a layout-grid row's and column's alignment, read by
+		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
+		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
+		// a file manager's own four, read by buildFileManagerV3 and emitted by
+		// describe (mendixlabs/mxcli#151).
+		"Type", "MaxFileSize", "AllowedExtensions", "ShowFileInBrowser",
 		// fragment / building-block sentinel-internal keys (USE_FRAGMENT /
 		// USE_BUILDING_BLOCK), consumed by the expander, never serialized
 		"Args", "DataSourceOverride", "ActionOverride",
@@ -806,7 +846,8 @@ var staticWidgetKnownPropList = func() []string {
 		"Attributes", "FilterType", "DesignProperties", "Width", "Height", "Visible",
 		"Editable", "Tooltip", "DynamicClasses", "WidthUnit", "HeightUnit",
 		"DesktopColumns", "TabletColumns", "PhoneColumns", "PageSize", "Pagination",
-		"Image", "DefaultImage", "DisplayAs", "OnClickType")
+		"Image", "DefaultImage", "DisplayAs", "OnClickType", "ShowFooter", "Menu",
+		"Profile", "Orientation", "SizeMode")
 	return list
 }()
 
@@ -844,6 +885,11 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 		// read it. It is per type: on a widget with no FormattingInfo the key
 		// is still dropped, and still warned about.
 		if _, ok := inputFormatProp(w.Type, key); ok {
+			continue
+		}
+		// A text box's or text area's SubmitBehaviour / SubmitOnInputDelay,
+		// per type for the same reason (ako/mxcli-ledger FINDINGS #170).
+		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
 		hint := ""
@@ -920,9 +966,9 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 			}
 			switch fp.Key {
 			case "decimalprecision":
-				if n, err := strconv.Atoi(fp.Value); err != nil || n < 0 {
+				if n, err := strconv.Atoi(fp.Value); err != nil || n < -1 {
 					out = append(out, violation18(locationPrefix, w,
-						fmt.Sprintf("decimalPrecision must be a non-negative integer, got `%s`", fp.Value)))
+						fmt.Sprintf("decimalPrecision must be a non-negative integer, or -1 for no fixed precision, got `%s`", fp.Value)))
 				}
 			case "groupdigits":
 				if !strings.EqualFold(fp.Value, "true") && !strings.EqualFold(fp.Value, "false") {

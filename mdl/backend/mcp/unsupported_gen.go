@@ -1041,6 +1041,10 @@ func (unsupportedBackend) ParseMicroflowFromRaw(_ map[string]any, _ model.ID, _ 
 	return
 }
 
+func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *microflows.Nanoflow) {
+	return
+}
+
 func (unsupportedBackend) Path() (r0 string) {
 	return
 }
@@ -1154,6 +1158,16 @@ func (unsupportedBackend) SerializeWidgetToOpaque(_ pages.Widget) (r0 any) {
 
 func (unsupportedBackend) SetDomainModelAnnotations(_ model.ID, _ []*domainmodel.Annotation) (err0 error) {
 	err0 = errUnsupported("SetDomainModelAnnotations")
+	return
+}
+
+func (unsupportedBackend) SetDomainModelDocumentation(_ model.ID, _ string) (err0 error) {
+	err0 = errUnsupported("SetDomainModelDocumentation")
+	return
+}
+
+func (unsupportedBackend) SetProjectAdminUserName(_ model.ID, _ string) (err0 error) {
+	err0 = errUnsupported("SetProjectAdminUserName")
 	return
 }
 

@@ -114,8 +114,8 @@ func inputFormattingProblems(w *ast.WidgetV3) []string {
 				out = append(out, fmt.Sprintf("CustomDateFormat must be a quoted pattern such as 'dd-MM-yyyy HH:mm', got `%v`", v))
 			}
 		case "DecimalPrecision":
-			if n, isInt := toFormatInt(v); !isInt || n < 0 {
-				out = append(out, fmt.Sprintf("DecimalPrecision must be a non-negative integer, got `%v`", v))
+			if n, isInt := toFormatInt(v); !isInt || n < -1 {
+				out = append(out, fmt.Sprintf("DecimalPrecision must be a non-negative integer, or -1 for no fixed precision, got `%v`", v))
 			}
 		case "GroupDigits":
 			if _, err := propBool(v); err != nil {

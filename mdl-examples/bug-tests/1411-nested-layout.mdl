@@ -1,0 +1,38 @@
+mdl 1;
+-- mendixlabs/mxcli#1411 — a layout built on another layout
+--
+-- `describe layout ConversationalUI.Layout_MasterBase` (a layout Studio Pro
+-- built on Atlas_Core.Atlas_Default) printed an empty body, and feeding that
+-- back in was refused: "declares no placeholders at all" (MDL081). Such a
+-- layout stores its tree in Content.LayoutCall — the arguments that fill the
+-- outer layout's placeholders — and leaves Content.Widgets empty.
+--
+-- The form below is what describe now prints for it, extended with a widget.
+-- The header names the outer layout; the body is a page body: each
+-- `placeholder X { … }` fills the outer layout's X, and a bodiless
+-- `placeholder Main` inside declares the slot this layout's own pages use.
+--
+-- Verified on Mendix 11.6.6: `mx check` 0 errors for the layout and the page,
+-- and a portable package builds.
+
+create module BugTest1411;
+
+create or modify layout BugTest1411.Layout_Framed (
+  layouttype: 'Responsive',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  placeholder Main {
+    container banner (Class: 'card') {
+      dynamictext heading (Content: 'Framed area', RenderMode: H3)
+    }
+    container body1 {
+      placeholder Main
+    }
+  }
+};
+
+create or modify page BugTest1411.Pg_Framed (Title: 'Framed', Layout: BugTest1411.Layout_Framed) {
+  container c1 {
+    dynamictext t1 (Content: 'hello from a page in a nested layout')
+  }
+};

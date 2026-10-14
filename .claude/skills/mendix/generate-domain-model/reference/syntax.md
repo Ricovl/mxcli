@@ -133,12 +133,16 @@ entity one column past the furthest thing it references — so the lines mostly
 run one way. It is idempotent (a second run moves nothing) and local (adding an
 entity later moves a handful, not the model). It REPLACES positions you set by
 hand in the module it touches, which is the reason it is a separate command
-rather than something `exec` does on its own.
+rather than something `exec` does on its own. To fix only boxes that collide
+and keep every other position — a hand-arranged model — add
+`--only-overlapping`.
 
 Write `@position` when you want explicit control of a particular entity, and
-remember the coordinate is the box's **CENTRE**, not its top-left corner:
+remember the coordinate is the box's **TOP-LEFT corner**, not its centre:
 
-- 250+ apart horizontally, 250+ vertically, to clear a typical box
+- 250+ apart horizontally, to clear a typical box; vertically, leave the box's
+  height — about 35px plus 16px per attribute — plus a margin, so a
+  20-attribute entity needs ~400px before the next one below it
 - group related entities, and keep the lookups together
 - `alter entity Mod.Name set position (x, y)` moves one without restating it
 
@@ -603,8 +607,8 @@ its signature is not checked; the build has the last word on those.
 | `long` | `long` | 64-bit integer (use for IDs) |
 | `decimal` | `decimal` | Decimal number |
 | `boolean` | `boolean` | True/false |
-| `datetime` | `datetime` | Date and time |
-| `date` | `date` | Date only |
+| `datetime` | `datetime` | Date and time, shown in the user's time zone |
+| `datetime not localized` | `BirthDate: datetime not localized` | A calendar date / time with no time-zone conversion (Studio Pro's "Localize" unticked). There is no date-only type: `date` is deprecated (MDL-DEPR160) and is a *localized* datetime |
 | `binary` | `binary` | Binary data |
 | `autonumber` | `autonumber default 1` | Auto-incrementing number (requires DEFAULT start value) |
 | `enumeration(Module.Enum)` | `enumeration(Shop.Status)` | Enumeration reference |
@@ -615,6 +619,7 @@ its signature is not checked; the build has the last word on those.
 - `not null` - Field is required
 - `unique` - Value must be unique
 - `default value` - Default value
+- `not localized` / `localized` - DateTime only: Studio Pro's "Localize" setting (see Data Types)
 
 **Validation Error Messages:**
 

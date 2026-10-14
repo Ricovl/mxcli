@@ -140,3 +140,51 @@ func TestEnsureSessionStartHook_InvalidJSONUntouched(t *testing.T) {
 		t.Errorf("invalid settings.json was modified: %q", data)
 	}
 }
+
+// The bootstrap script defaults MXCLI_TAG to the release that generated it:
+// a project made by v0.25.0 must not silently pick up whatever nightly is
+// current when a reaped session re-fetches the binary. Anything that is not
+// a plain release has no fixed download, so it keeps nightly.
+func TestBootstrapDefaultTag(t *testing.T) {
+	cases := map[string]string{
+		"v0.25.0":                  "v0.25.0",
+		"v1.2.3":                   "v1.2.3",
+		"":                         "nightly",
+		"dev":                      "nightly",
+		"4ba1495f2":                "nightly",
+		"v0.24.0-888-g4ba1495f2":   "nightly",
+		"v0.24.0-dirty":            "nightly",
+		"nightly-20261011-abcdef0": "nightly",
+		"0.25.0":                   "nightly",
+		"v0.25":                    "nightly",
+	}
+	for in, want := range cases {
+		if got := bootstrapDefaultTag(in); got != want {
+			t.Errorf("bootstrapDefaultTag(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestBootstrapScript_DefaultTagIsGeneratingRelease(t *testing.T) {
+	prev := Version
+	t.Cleanup(func() { Version = prev })
+
+	Version = "v0.25.0"
+	dir := t.TempDir()
+	if _, err := writeBootstrapScript(dir, "App.mpr"); err != nil {
+		t.Fatal(err)
+	}
+	script, _ := os.ReadFile(filepath.Join(dir, filepath.Base(bootstrapScriptName)))
+	if !strings.Contains(string(script), `TAG="${MXCLI_TAG:-v0.25.0}"`) {
+		t.Errorf("release build: script does not default to its own release:\n%s", script)
+	}
+
+	Version = "v0.25.0-3-gabcdef0"
+	if _, err := writeBootstrapScript(dir, "App.mpr"); err != nil {
+		t.Fatal(err)
+	}
+	script, _ = os.ReadFile(filepath.Join(dir, filepath.Base(bootstrapScriptName)))
+	if !strings.Contains(string(script), `TAG="${MXCLI_TAG:-nightly}"`) {
+		t.Errorf("dev build: script does not default to nightly:\n%s", script)
+	}
+}

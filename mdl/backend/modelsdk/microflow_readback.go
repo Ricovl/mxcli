@@ -10,10 +10,12 @@ import (
 	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/canon"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
+	"github.com/mendixlabs/mxcli/modelsdk/version"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -33,10 +35,12 @@ func (b *Backend) ReadBackMicroflow(mf *microflows.Microflow) (*microflows.Micro
 		return nil, fmt.Errorf("ReadBackMicroflow: nil microflow")
 	}
 	encode := func(m *microflows.Microflow) ([]byte, error) {
-		gm := microflowToGen(m, b.majorVersion())
+		fv := b.flowVersion()
+		gm := microflowToGen(m, fv)
 		gm.SetID(element.ID(readBackID(m.ID)))
 		assignMicroflowIDs(gm)
-		return (&codec.Encoder{}).Encode(gm)
+		raw, err := microflowEncoder(fv).Encode(gm)
+		return b.completeAsStored(raw), err
 	}
 	written, err := encode(mf)
 	if err != nil {
@@ -67,10 +71,11 @@ func (b *Backend) ReadBackNanoflow(nf *microflows.Nanoflow) (*microflows.Nanoflo
 		return nil, fmt.Errorf("ReadBackNanoflow: nil nanoflow")
 	}
 	encode := func(n *microflows.Nanoflow) ([]byte, error) {
-		g := nanoflowToGen(n, b.majorVersion())
+		g := nanoflowToGen(n, b.flowVersion())
 		g.SetID(element.ID(readBackID(n.ID)))
 		assignNanoflowIDs(g)
-		return (&codec.Encoder{}).Encode(g)
+		raw, err := (&codec.Encoder{}).Encode(g)
+		return b.completeAsStored(raw), err
 	}
 	written, err := encode(nf)
 	if err != nil {
@@ -196,4 +201,23 @@ func writtenEqual(a, b any) bool {
 		return ok && bytes.Equal(ab, bb)
 	}
 	return fmt.Sprintf("%T:%v", a, a) == fmt.Sprintf("%T:%v", b, b)
+}
+
+// completeAsStored gives encoded contents the property set storage would give
+// them on the write (canon.StripUndeclaredProperties and
+// canon.CompletePropertySets, applied by the mpr writer to every unit). A read-back that skipped it would compare a declared flow
+// without those properties against a stored one with them — a difference on
+// every re-run wherever the comparison sees bytes, as it does for a raw
+// `call web service` payload (mendixlabs/mxcli#1373).
+func (b *Backend) completeAsStored(contents []byte) []byte {
+	pv := b.ProjectVersion()
+	if pv == nil || pv.MajorVersion == 0 || contents == nil {
+		return contents
+	}
+	v := version.Version{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion}
+	if stripped, err := canon.StripUndeclaredProperties(contents, &v); err == nil {
+		// A refusal is the write's to report; the prediction keeps the bytes.
+		contents = stripped
+	}
+	return canon.CompletePropertySets(contents, &v)
 }

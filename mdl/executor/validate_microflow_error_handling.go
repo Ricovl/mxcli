@@ -62,6 +62,17 @@ var continueUnsupportedOn = map[string]string{
 	// CE6035 on a Call workflow activity; no clause, rollback and both custom
 	// handlers build.
 	"call workflow": "Call workflow activity",
+	// mendixlabs/mxcli#1252, measured on 11.12.3, one microflow per cell: no
+	// clause, rollback and both custom handlers build on each of these, and
+	// continue is CE6035. `rollback` is the exception and is absent — it builds
+	// with continue too.
+	"list operation": "List operation activity",
+	"aggregate":      "Aggregate list activity",
+	"create list":    "Create list activity",
+	"add":            "Change list activity",
+	"remove":         "Change list activity",
+	"cast":           "Cast object activity",
+	"show home page": "Show home page action activity",
 }
 
 // checkErrorHandlingContinueSupported reports `ON ERROR CONTINUE` on a statement
@@ -101,7 +112,7 @@ func (v *microflowValidator) checkErrorHandlingContinueSupported(stmt ast.Microf
 // caption for a statement whose activity rejects Continue, or "" for one that
 // accepts it or was never measured.
 func continueUnsupportedStatement(stmt ast.MicroflowStatement) (keyword, activity string) {
-	switch stmt.(type) {
+	switch s := stmt.(type) {
 	case *ast.CreateObjectStmt:
 		keyword = "create"
 	case *ast.MfCommitStmt:
@@ -120,49 +131,32 @@ func continueUnsupportedStatement(stmt ast.MicroflowStatement) (keyword, activit
 		keyword = "validation feedback"
 	case *ast.CallWorkflowStmt:
 		keyword = "call workflow"
+	case *ast.ListOperationStmt:
+		keyword = "list operation"
+	case *ast.AggregateListStmt:
+		keyword = "aggregate"
+	case *ast.CreateListStmt:
+		keyword = "create list"
+	case *ast.AddToListStmt:
+		// `add $X to $Obj/Assoc` is a Change object activity (#1288).
+		keyword = "add"
+		if s.Association != "" {
+			keyword = "change"
+		}
+	case *ast.RemoveFromListStmt:
+		keyword = "remove"
+		if s.Association != "" {
+			keyword = "change"
+		}
+	case *ast.CastObjectStmt:
+		keyword = "cast"
+	case *ast.ShowHomePageStmt:
+		keyword = "show home page"
 	default:
 		// DeclareStmt and MfSetStmt are deliberately absent: create-variable and
-		// change-variable accept Continue on 11.14.0.
+		// change-variable accept Continue on 11.14.0. So is RollbackStmt, on
+		// 11.12.3 (#1252).
 		return "", ""
 	}
 	return keyword, continueUnsupportedOn[keyword]
-}
-
-// errorHandlingUnavailableRule flags an ON ERROR clause on a statement whose
-// Mendix activity has no ErrorHandlingType property at all.
-const errorHandlingUnavailableRule = "MDL077"
-
-// checkErrorHandlingSupported reports an ON ERROR clause the stored activity
-// cannot hold.
-//
-// The `set` statement is overloaded: `$x = $y` is a Change variable activity,
-// which HAS an ErrorHandlingType, while `$x = head($list)` and `$x = count($list)`
-// are List operation and Aggregate activities, which do not — the property is
-// absent from Microflows$ListOperationsAction and Microflows$AggregateAction in
-// the metamodel, not merely unset. One MDL statement form therefore spans
-// activities that can and cannot carry the clause.
-//
-// Refused rather than dropped. #1078 exists because an error handler that
-// disappears between the model and the script is invisible until someone
-// re-executes the script and finds the handler gone; accepting a clause here and
-// writing nothing would rebuild that same trap one statement over.
-func (v *microflowValidator) checkErrorHandlingSupported(stmt ast.MicroflowStatement) {
-	if stmtErrorHandling(stmt) == nil {
-		return
-	}
-	var form, activity string
-	switch stmt.(type) {
-	case *ast.ListOperationStmt:
-		form, activity = "a list operation", "List operation activity"
-	case *ast.AggregateListStmt:
-		form, activity = "an aggregate", "Aggregate list activity"
-	default:
-		return
-	}
-	v.addViolation(errorHandlingUnavailableRule, linter.SeverityError,
-		fmt.Sprintf("`on error` is not available on %s — Mendix's %s has no error-handling "+
-			"property, so the clause could only be discarded", form, activity),
-		"Drop the clause. To handle a failure around it, put the statement inside the "+
-			"custom handler of an activity that does support one, or split the expression "+
-			"out into a plain `set` (a Change variable activity), which does.")
 }

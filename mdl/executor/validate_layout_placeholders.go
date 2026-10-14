@@ -61,7 +61,14 @@ func validateLayoutPlaceholders(stmt ast.Statement) []linter.Violation {
 		return nil
 	}
 
+	// A layout built on another one declares its placeholders inside the
+	// argument blocks it fills the outer layout's with (mendixlabs/mxcli#1411);
+	// those count exactly as a bare declaration does.
 	names := layoutPlaceholderNames(layout.Widgets, nil)
+	for _, arg := range layout.ArgumentPlaceholders() {
+		names = layoutPlaceholderNames(arg.Widgets, names)
+	}
+	misplaced := misplacedBracedPlaceholders(layout)
 	qn := layout.Name.String()
 	loc := linter.Location{
 		Module:       layout.Name.Module,
@@ -76,7 +83,7 @@ func validateLayoutPlaceholders(stmt ast.Statement) []linter.Violation {
 	// Reported before the Main rule: a braced placeholder is not counted above
 	// (the visitor drops it), so leading with "declares no placeholder named
 	// Main" would contradict a script that plainly says `placeholder Main { }`.
-	if len(layout.BracedPlaceholders) > 0 {
+	if len(misplaced) > 0 {
 		out = append(out, linter.Violation{
 			RuleID:   "MDL083",
 			Severity: linter.SeverityError,
@@ -86,10 +93,11 @@ func validateLayoutPlaceholders(stmt ast.Statement) []linter.Violation {
 					"DECLARED and carries nothing; the braced form is the page-side spelling "+
 					"that FILLS one, and it is dropped here — leaving the layout with no "+
 					"placeholder at all",
-				qn, quoteList(layout.BracedPlaceholders)),
+				qn, quoteList(misplaced)),
 			Suggestion: fmt.Sprintf(
 				"drop the braces: `placeholder %s`. Widgets go in the region around it, "+
-					"not inside it.", layout.BracedPlaceholders[0]),
+					"not inside it. To fill the placeholders of a layout this one is built on, "+
+					"name it in the header: `Layout: Module.Outer`.", misplaced[0]),
 		})
 	}
 
@@ -130,6 +138,26 @@ func validateLayoutPlaceholders(stmt ast.Statement) []linter.Violation {
 			Suggestion: "give each placeholder a distinct name: a page binds to one as " +
 				"Module.Layout.<Name>, which cannot pick between two that share it.",
 		})
+	}
+	return out
+}
+
+// misplacedBracedPlaceholders returns the braced blocks that declare nothing.
+// With an outer layout, the top-level ones are its arguments — the page-side
+// job the braced form has — so only blocks nested inside widgets remain; without
+// one, every braced block is the #1063 mistake.
+func misplacedBracedPlaceholders(layout *ast.CreateLayoutStmt) []string {
+	args := map[string]int{}
+	for _, ph := range layout.ArgumentPlaceholders() {
+		args[ph.Name]++
+	}
+	var out []string
+	for _, name := range layout.BracedPlaceholders {
+		if args[name] > 0 {
+			args[name]--
+			continue
+		}
+		out = append(out, name)
 	}
 	return out
 }

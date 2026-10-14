@@ -114,6 +114,11 @@ Without the header a template literal that spans lines and has no parameters is 
    by the same code exec uses, so a refusal shows up here and not halfway
    through a run.
 
+   To gate a script that is meant to be ready for the header — in CI, say —
+   pass `--deprecations=error --v1=error`: the first fails on a deprecated
+   spelling (`MDL-DEPRnnn`), the second on an `MDL-V1-*` warning, which only a
+   headerless script reports. Either alone lets the other through.
+
 5. **Run it twice.** The first `exec` applies the script; the second must write
    nothing, and report every document unchanged. A second run that writes is a
    script that does not say what the project holds — the upgrade's job is to
@@ -191,7 +196,7 @@ A construct with no mechanical rewrite is reported with the reason, and `fmt` re
 
 `-p app.mpr` also settles a bare `commit $X;` in a `create or modify microflow|nanoflow`, with or without the header. Since mendixlabs/mxcli#895 a bare commit means *with* events, Studio Pro's default; an older mxcli stored the same statement *without* events. Where the stored flow commits the variable without events, `fmt --upgrade -p app.mpr` writes `commit $X without events;`, so re-running the script keeps what is stored instead of turning the event handlers on (or, inside a loop under `mdl 1`, being refused). A new flow, a new commit, or a stored commit with events is left as written; where the stored flow commits the variable both ways, the statement is left and reported. Without `-p`, `fmt` prints a note (`MDL067`) for each flow with a bare commit.
 
-`-p app.mpr` also tells the upgrade which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body or an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
+`-p app.mpr` also tells the upgrade which statements `exec` would refuse once the header is there. Under `mdl 1` a `create or modify microflow|nanoflow` of a stored flow is applied as a patch, and a change the patch cannot make (inside a loop body anything but an activity replaced by one of the same kind, an error handler, a redrawn connector, a `return` added) is refused with nothing written; without the header the same statement rebuilds the whole flow (`MDL-V1-REBUILD`). No rewrite keeps that meaning, so `fmt` names each such statement and leaves the header off that file, applying the rest of the upgrade. Change those flows with `alter`, or drop and create them, and upgrade again; `--force-header` adds the header regardless. `mxcli check script.mdl -p app.mpr` reports the same statements (an `MDL-V1-REBUILD` error under `mdl 1`, the warning without the header), computed by the same code as `exec` and `diff`.
 
 ## Behaviour changes to know about
 
@@ -226,7 +231,7 @@ refuse the spelling; until then it only warns.
 
 ### Changes of meaning (`MDL-V1-*`)
 
-22 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
+23 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
 
 | Code | Without the header (mdl 0) | Under `mdl 1;` | Decided at | Rewritten by `fmt --upgrade` |
 |---|---|---|---|---|
@@ -248,6 +253,7 @@ refuse the spelling; until then it only warns.
 | `MDL-V1-SET` | `$x = <expression>` without `set` changes the variable | an error: a reassignment is written `set $x = <expression>;` | parse | yes: `fmt --upgrade --header` |
 | `MDL-V1-SHOWSUMMARY` | `show entity X` / `show association X` prints a summary of the element | an error: `show` is dropped (R6) and the summary has no mdl 1 statement; write `describe entity X` for the definition, or `list entities in M` / `list associations in M` for the summary | parse | no: blocks `--header`; `show entity X` / `show association X` print a summary no mdl 1 statement prints: `describe` prints the definition as MDL and `list entities` / `list associations` the summary columns, so either would change the script's output; choose one by hand |
 | `MDL-V1-SLASH` | a `/` after a statement is accepted as a terminator (SQL*Plus style) | an error: `;` is the only statement terminator | parse | yes: `fmt --upgrade --header` |
+| `MDL-V1-TABPAGEPROP` | A property a tab page cannot store (CaptionParams, Class, Style, …) is accepted and dropped on write | a refusal (MDL-WIDGET44), with nothing written | exec | no: decided by exec against the project; `check -p` reports it |
 | `MDL-V1-TEMPLATE` | a message template written as one string literal that spans lines is an expression: the template is `{1}` and the literal its parameter | the template text, as a literal on one line is; a line break in a template is written into the literal | parse | yes: `fmt --upgrade --header` |
 | `MDL-V1-TEMPLATEATTR` | a text-template parameter bound to a non-String attribute (`{1} = $Order.Total`) was stored as `toString($Order/Total)` by earlier mxcli releases | an attribute reference, rendered with the attribute's formatting, as Studio Pro stores it | exec | no: decided by exec against the project; `check -p` reports it |
 | `MDL-V1-VIEWAUTONUMBER` | a view entity attribute declared `autonumber` over an AutoNumber column passes check, and mxbuild reports CE6770 "View Entity is out of sync with the OQL Query" | a check error that names the attribute and suggests `long`, the type the view gives the column | exec | no: decided by exec against the project; `check -p` reports it |
@@ -255,7 +261,7 @@ refuse the spelling; until then it only warns.
 
 ### Deprecated spellings (`MDL-DEPR*`)
 
-86 old spellings mean exactly what their new form means. They warn with their code under every version before the one in the last column, which refuses them.
+88 old spellings mean exactly what their new form means. They warn with their code under every version before the one in the last column, which refuses them.
 
 | Code | Old form | New form | Rewritten by `fmt --upgrade` | Refused from |
 |---|---|---|---|---|
@@ -287,11 +293,12 @@ refuse the spelling; until then it only warns.
 | `MDL-DEPR073` | `message definition collection M.C ( definition D for M.E ( A, M.E_B/M.B ( C ) ) )` | `message definition collection M.C { definition D for M.E { A, M.E_B/M.B { C } } }` | yes: message trees: each parenthesised definition list and member tree moves into { } | mdl 2 |
 | `MDL-DEPR074` | `alter microflow M.F { insert after $X { … } }` | `alter microflow M.F { insert after $X begin … end; }` | yes: fragment's braces: `{` becomes `begin` and `}` becomes `end` | mdl 2 |
 | `MDL-DEPR080` | `decision '<expression>' / timer '<expression>' / due date '<expression>'` | `decision <expression> / timer <expression> / due date <expression>` | yes: expression out of its string: `decision '$Ctx/Total > 1000'` becomes `decision $Ctx/Total > 1000` | mdl 2 |
-| `MDL-DEPR081` | `Visible: [<expression>] / Editable: [<expression>]` | `Visible: <expression> / Editable: <expression>` | yes: brackets into the expression they store: `Visible: [Active]` becomes `Visible: $currentObject/Active` | mdl 2 |
+| `MDL-DEPR081` | `Visible: [<expression>] / Editable: [<expression>]` | `Visible: <expression> / Editable: <expression>, each attribute as $currentObject/Attr` | yes: brackets into the expression they store: `Visible: [Active]` becomes `Visible: $currentObject/Active` | mdl 2 |
 | `MDL-DEPR082` | `revoke M.Role on M.E [(rights)]` | `revoke rights\|all on entity M.E from M.Role` | yes: rights (or `all` when none are listed) before `on entity`, roles after `from`: `revoke R on M.E (write *)` becomes `revoke write * on entity M.E from R`, `revoke R on M.E` becomes `revoke all on entity M.E from R` | mdl 2 |
 | `MDL-DEPR083` | `Username: $Const` | `Username: @Module.Const` | yes: `$Const` becomes `@<the service's module>.Const` | mdl 2 |
 | `MDL-DEPR084` | `Key: Module.Const` | `Key: @Module.Const` | yes: `@` before the constant's name | mdl 2 |
 | `MDL-DEPR085` | `alter settings constant 'Module.Const' …` | `alter settings constant @Module.Const …` | yes: constant's name out of its string, with `@`: `constant 'M.ApiUrl'` becomes `constant @M.ApiUrl` | mdl 2 |
+| `MDL-DEPR086` | `Variables: ( $name: Type = '<expression>' ) / add variables $name: Type = '<expression>'` | `Variables: ( $name: Type = <expression> ) / add variables $name: Type = <expression>` | yes: default out of its string: `$show: boolean = 'true'` becomes `$show: boolean = true` | mdl 2 |
 | `MDL-DEPR090` | `show page\|project security\|security matrix\|structure\|context of …` | `describe page\|app security\|security matrix\|structure\|context of …` | yes: verb as `describe`: `show page X` -> `describe page X`, `show project security` -> `describe app security`; the same for `list` on these forms | mdl 2 |
 | `MDL-DEPR091` | `alter user role R remove module roles (…)` | `alter user role R drop module roles (…)` | yes: `remove` → `drop` | mdl 2 |
 | `MDL-DEPR092` | `alter settings language remove '…' / alter settings workflows remove group '…'` | `alter settings language drop '…' / alter settings workflows drop group '…'` | yes: `remove` → `drop` | mdl 2 |
@@ -323,6 +330,7 @@ refuse the spelling; until then it only warns.
 | `MDL-DEPR136` | `create constant M.C type T default v [exposed to client]` | `create constant M.C ( Type: T, DefaultValue: v, ExposedToClient: true )` | yes: constant properties: `type T default v exposed to client` becomes `( Type: T, DefaultValue: v, ExposedToClient: true )` | mdl 2 |
 | `MDL-DEPR137` | `create demo user 'u' password 'p' [entity M.E] (Role, …)` | `create demo user 'u' ( Password: 'p', Entity: M.E, UserRoles: (Role, …) )` | yes: demo user properties: `password 'p' entity M.E (R1, R2)` becomes `( Password: 'p', Entity: M.E, UserRoles: (R1, R2) )` | mdl 2 |
 | `MDL-DEPR138` | `create constant M.C … private` | `create constant M.C …` | yes: constant's `private` modifier away: it is deleted | mdl 1 |
+| `MDL-DEPR139` | `create published odata service M.S ( … ) authentication basic, session, microflow M.F` | `create published odata service M.S ( …, Authentication: (basic, session, microflow M.F) )` | yes: published OData authentication: the trailing `authentication m1, m2` clause becomes the last property, `Authentication: (m1, m2)` | mdl 2 |
 | `MDL-DEPR140` | `alter workflow M.W set display 'x' / set description … / set export level … / set due date … / set overview page … / set parameter $P: M.E` | `alter workflow M.W { set ( Display: 'x', Description: …, ExportLevel: …, DueDate: …, OverviewPage: …, Parameter: $P: M.E ); }` | yes: property as `set ( Key: value )`, inside the statement's { } | mdl 2 |
 | `MDL-DEPR141` | `alter workflow M.W set activity X page M.P / description … / targeting … / due date …` | `alter workflow M.W { set ( Page: M.P, Description: …, Targeting: …, DueDate: … ) on X; }` | yes: `set activity X <prop> v` as `set ( Key: v ) on X`, inside the statement's { } | mdl 2 |
 | `MDL-DEPR142` | `alter workflow M.W insert after X <activity>;` | `alter workflow M.W { insert after X { <activity>; } }` | yes: inserted activity in { }, inside the statement's { } | mdl 2 |

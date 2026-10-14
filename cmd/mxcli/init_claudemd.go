@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -115,6 +116,17 @@ func renderProjectGates(mprPath string) string {
 	return sb.String()
 }
 
+// projectDisplayName is the name generated docs give the project: the app's,
+// taken from the .mpr file name, falling back to the folder name when there is
+// no .mpr. The folder is the repository's name in a cloud session ("seed",
+// "init-bootstrap"), which says nothing about the app.
+func projectDisplayName(dir, mprFile string) string {
+	if name := strings.TrimSuffix(filepath.Base(mprFile), ".mpr"); mprFile != "" && name != "" {
+		return name
+	}
+	return filepath.Base(dir)
+}
+
 func generateClaudeMD(projectName, mprFile string) string {
 	mprPath := mprFile
 	if mprPath == "" {
@@ -182,8 +194,9 @@ func generateClaudeMD(projectName, mprFile string) string {
 	// mean something else. Mixing the two in one file is the failure to
 	// prevent, so the upgrade comes before the edit.
 	w("**Each starts with " + bt + "mdl 1;" + bt + ".** A headerless one is " + bt + "mdl 0" + bt + ": upgrade it first,\n")
-	w(bt + "./mxcli fmt --upgrade --header -p " + mprPath + " -w <file>" + bt + ", then " + bt + "check" + bt + " it; never mix the two\n")
-	w("in a file. Exec a change twice: the second run must write nothing (unchanged).\n\n")
+	w(bt + "./mxcli fmt --upgrade --header -p " + mprPath + " -w <file>" + bt + ", then\n")
+	w(bt + "check --deprecations=error --v1=error" + bt + " it; never mix them in a file.\n")
+	w("Exec a change twice: the second run must write nothing (unchanged).\n\n")
 
 	// ── The gates ───────────────────────────────────────────────────
 	// Ordered cheapest-first on purpose: each one is only worth paying for
@@ -215,7 +228,7 @@ func generateClaudeMD(projectName, mprFile string) string {
 	w("These change every release, and a copy that disagrees with the tool is worse than none.\n\n")
 	w("| To find out | Run |\n")
 	w("|---|---|\n")
-	w("| What MDL can say, and how | " + bt + "./mxcli syntax" + bt + " → " + bt + "./mxcli syntax <topic> [sub]" + bt + " (" + bt + "--json" + bt + " for bulk) |\n")
+	w("| How to write any MDL — **before any skill** | " + bt + "./mxcli syntax" + bt + " → " + bt + "./mxcli syntax <topic> [sub]" + bt + " |\n")
 	w("| Which lint rules exist | " + bt + "./mxcli lint -p " + mprPath + " --list-rules" + bt + " |\n")
 	w("| What a command takes | " + bt + "./mxcli help <command>" + bt + " |\n")
 	w("| What this project contains | " + bt + "./mxcli -p " + mprPath + " -c \"DESCRIBE STRUCTURE\"" + bt + " |\n")
@@ -223,8 +236,19 @@ func generateClaudeMD(projectName, mprFile string) string {
 	w("\n")
 	w("**Skills** are in " + bt + ".ai-context/skills/<name>/SKILL.md" + bt + " (and " + bt + ".claude/skills/" + bt + ", which is\n")
 	w("the path Claude Code scans). Each one's frontmatter " + bt + "description" + bt + " says when to reach for\n")
-	w("it — that IS the index, so list the directory rather than looking for a table. Read the\n")
-	w("matching skill **before** writing microflows, pages, security, or anything touching data.\n\n")
+	w("it — that IS the index, so list the directory rather than looking for a table.\n\n")
+	// Measured on the BENCH-001 baseline (2026-10-10): reading the skills was
+	// ~68% of the session's re-read cost against ~31% of its calls, and one
+	// `cat write-microflows/SKILL.md` (7.1k tokens, re-read 43 times) cost more
+	// than every mxcli invocation in the costliest ten put together. The same
+	// answers cost 0.1-0.6k through `syntax`. Both paths existed; the line here
+	// said only "read the matching skill", so it read whole files.
+	//
+	// The routing itself rides the table row above rather than a paragraph of
+	// its own: this file is re-read every session, so prose about saving tokens
+	// that costs 500 bytes is self-defeating. What is left is the one thing the
+	// table cannot say.
+	w("**Read a skill's section, not the file** — each opens with a line-numbered index.\n\n")
 
 	// ── The non-derivable conventions ───────────────────────────────
 	// Short, and each one is here precisely because no command reports it.

@@ -229,6 +229,10 @@ const (
 	// property for, which was never stored (ako/mxcli#865). The one entry
 	// refused from mdl 1 rather than 2, because mdl 1 never had it.
 	ConstantPrivate = "MDL-DEPR138"
+	// ODataAuthenticationClause is a published OData service's trailing
+	// `authentication basic, session, …` clause: the `Authentication: ( … )`
+	// property in the service's list (R9), which `alter … set ( … )` can set.
+	ODataAuthenticationClause = "MDL-DEPR139"
 
 	// Codes 160-169 are the migration aliases the beta dress rehearsal found
 	// (ako/mxcli#714), numbered apart so the parallel fixes do not collide.
@@ -266,6 +270,9 @@ const (
 	// QuotedSettingsConstant is `alter settings [drop] constant 'Module.Const'`:
 	// a constant named in a string.
 	QuotedSettingsConstant = "MDL-DEPR085"
+	// QuotedVariableDefault is a page or snippet variable's default written in
+	// a string: `$show: boolean = 'true'`.
+	QuotedVariableDefault = "MDL-DEPR086"
 
 	// Codes 070-079 are R2's integration documents (ako/mxcli#754): properties
 	// in ( ), declarative children in { }.
@@ -613,6 +620,19 @@ var headerPropertyEntries = []Entry{
 		CanonicalExample: "create constant M.ApiUrl ( Type: String, DefaultValue: 'https://x', ExposedToClient: true );",
 	},
 	{
+		Code:      ODataAuthenticationClause,
+		Old:       "create published odata service M.S ( … ) authentication basic, session, microflow M.F",
+		Canonical: "create published odata service M.S ( …, Authentication: (basic, session, microflow M.F) )",
+		Rewrite: Rewrite{Structural: "published OData authentication: the trailing `authentication m1, m2` clause " +
+			"becomes the last property, `Authentication: (m1, m2)`"},
+		RemovedIn: 2,
+		Note: "The methods keep their order. A clause naming a method MDL has no keyword for is reported but not " +
+			"rewritten. The property also takes `none`, which the clause could not say, and `alter … set ( … )` " +
+			"takes it.",
+		Example:          "create published odata service M.S ( Path: 'odata/s/v1', Namespace: 'M' ) authentication basic, session;",
+		CanonicalExample: "create published odata service M.S ( Path: 'odata/s/v1', Namespace: 'M', Authentication: (basic, session) );",
+	},
+	{
 		Code:      ConstantPrivate,
 		Old:       "create constant M.C … private",
 		Canonical: "create constant M.C …",
@@ -911,9 +931,12 @@ var r5Entries = []Entry{
 			"decision $WorkflowContext/Total > 1000 outcomes true -> { } false -> { }; end workflow;",
 	},
 	{
-		Code:      BracketedWidgetCondition,
-		Old:       "Visible: [<expression>] / Editable: [<expression>]",
-		Canonical: "Visible: <expression> / Editable: <expression>",
+		Code: BracketedWidgetCondition,
+		Old:  "Visible: [<expression>] / Editable: [<expression>]",
+		// The bare form alone is not the same meaning: inside the brackets a bare
+		// attribute is rooted in $currentObject, so the canonical form names it
+		// (sudoku FINDINGS #63 migrated from this text by hand and rebound them).
+		Canonical: "Visible: <expression> / Editable: <expression>, each attribute as $currentObject/Attr",
 		Rewrite: Rewrite{Structural: "brackets into the expression they store: `Visible: [Active]` becomes " +
 			"`Visible: $currentObject/Active`"},
 		RemovedIn: 2,
@@ -973,6 +996,22 @@ var r5Entries = []Entry{
 			"constant`. A string that is not a qualified name is left in place and reported by fmt --upgrade.",
 		Example:          "alter settings constant 'M.ApiUrl' value 'https://test.example.com' in configuration 'Default';",
 		CanonicalExample: "alter settings constant @M.ApiUrl value 'https://test.example.com' in configuration 'Default';",
+	},
+	{
+		Code:      QuotedVariableDefault,
+		Old:       "Variables: ( $name: Type = '<expression>' ) / add variables $name: Type = '<expression>'",
+		Canonical: "Variables: ( $name: Type = <expression> ) / add variables $name: Type = <expression>",
+		Rewrite:   Rewrite{Structural: "default out of its string: `$show: boolean = 'true'` becomes `$show: boolean = true`"},
+		RemovedIn: 2,
+		Note: "A variable's default is an expression, written bare like every other (R5). The string form keeps " +
+			"its meaning — its content is the expression — under every language version, so it is an alias. " +
+			"A default that is itself a string (`$s: string = '''abc'''`) or empty has no other spelling yet and " +
+			"is not reported; one whose content would not read back as the same bare expression is left in " +
+			"place and reported by fmt --upgrade.",
+		Example: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, " +
+			"Variables: ( $show: boolean = 'if (3 < 4) then true else false' )) { };",
+		CanonicalExample: "create page M.P (Title: 'P', Layout: Atlas_Core.Atlas_Default, " +
+			"Variables: ( $show: boolean = if (3 < 4) then true else false )) { };",
 	},
 }
 
@@ -1309,7 +1348,9 @@ var r8Entries = []Entry{
 		Rewrite:   Rewrite{Structural: "type `date` as the type it was stored as: `DateTime`"},
 		RemovedIn: 1,
 		Note: "Mendix has no date-only type: `date` was always stored as a DateTime, and still is. " +
-			"To show only the date, give the widget a date format.",
+			"To show only the date, give the widget a date format. For a calendar date that must not shift " +
+			"with the user's time zone (a birth date), write `DateTime not localized` — the rewrite does not, " +
+			"because `date` was always stored localized.",
 		Example:          "create persistent entity M.Account ( LastImport: date );",
 		CanonicalExample: "create persistent entity M.Account ( LastImport: DateTime );",
 	},

@@ -120,6 +120,10 @@ func (v *microflowValidator) addViolation(ruleID string, severity linter.Severit
 func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkListOperationIterator(body)
 	v.checkRetrieveLimitOneAsList(body)
+	v.checkRetrieveListAsObject(body)
+	v.checkShowMessageType(body)
+	v.checkRetrieveOverSystemAssociation(body)
+	v.checkSetOnObjectVariable(v.params, body)
 	v.checkListOperationSource(body)
 	v.checkMergeJoinLabels(body)
 	v.checkAnnotationLabels(body)
@@ -229,7 +233,6 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 	for _, s := range body {
 		v.checkUnknownAnnotations(s)
 		v.checkErrorHandlingContinueSupported(s)
-		v.checkErrorHandlingSupported(s)
 		v.checkStmtExprFunctions(s)
 		// An annotation inside `on error begin … end error` is honoured like one
 		// outside it, so a malformed one there must be refused too — this walk
@@ -392,11 +395,14 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 				xp := expressionToXPath(stmt.Where)
 				v.checkXPathAssociationEmpty(stmt.Variable, xp)
 				v.checkXPathFunctionNames(stmt.Variable, xp)
+				v.checkXPathFunctionArgumentOperators(stmt.Variable, stmt.Where)
 				v.checkXPathIdConstraint(stmt.Variable, xp)
 				v.checkXPathVariableTraversal(stmt.Variable, xp)
 			}
 		case *ast.SynchronizeStmt:
 			v.checkSynchronizeIsNanoflowOnly()
+		case *ast.SendEmailStmt:
+			v.checkSendEmail(stmt)
 		case *ast.ListOperationStmt:
 			v.checkRangeHasABound(stmt)
 		case *ast.WhileStmt:
@@ -573,6 +579,8 @@ func (v *microflowValidator) checkExprFunctions(label string, expr ast.Expressio
 			suggestion = fmt.Sprintf(
 				"'%s' is an aggregate activity, not an expression function. Assign it to a variable first: $n = %s($List); then use $n in the expression.",
 				u.Name, u.Name)
+		} else if u.Token != "" {
+			suggestion = fmt.Sprintf("Use the %s token instead of '%s()'.", u.Token, u.Name)
 		} else {
 			suggestion = "Use a built-in Mendix expression function (see 'mxcli syntax microflow')."
 			if u.Suggestion != "" {
@@ -827,6 +835,91 @@ func (v *microflowValidator) checkXPathFunctionNames(variable, xpath string) {
 	}
 }
 
+// xpathArithmeticOperators are the operators an XPath function argument cannot
+// carry. Measured on mxbuild 11.14.0 (mendixlabs/mxcli#1326):
+//
+//	starts-with(Name, 'MS-' + $Key)          CE0161 "Error(s) in XPath constraint"
+//	not(contains(Name, $Key + $Key))         CE0161
+//	contains(Name, $Key - 'a')               CE0161
+//	Name = 'X-' + $Key                       clean — the same operator at top level
+//	year-from-dateTime(Due) = $N - 1         clean — an operator beside a call, not in it
+//	starts-with(Name, $P)                    clean — the value computed beforehand
+//
+// `*`, `div` and `mod` are left out on purpose: the only argument they could
+// appear in is numeric, and `contains(Name, $N)` with an Integer $N is already
+// CE0161 with no operator at all, so no measurement isolates the operator. This
+// rule blocks exec, so it covers only what was shown to fail.
+var xpathArithmeticOperators = map[string]bool{"+": true, "-": true}
+
+// xpathFunctionArgumentOperators returns, for each XPath function call in a
+// retrieve constraint whose argument is itself a `+` or `-` operation,
+// the function name and the operator. Only an argument that IS the operation
+// counts: `not(Price > $A + 1)` has a comparison for an argument and is not
+// flagged — that shape was not measured.
+func xpathFunctionArgumentOperators(expr ast.Expression) (hits [][2]string) {
+	var walk func(ast.Expression)
+	walk = func(e ast.Expression) {
+		switch n := e.(type) {
+		case *ast.FunctionCallExpr:
+			for _, arg := range n.Arguments {
+				inner := unwrapXPathArgument(arg)
+				if b, ok := inner.(*ast.BinaryExpr); ok && xpathArithmeticOperators[strings.ToLower(b.Operator)] {
+					hits = append(hits, [2]string{mendixFunctionName(n.Name), b.Operator})
+				}
+				walk(arg)
+			}
+		case *ast.BinaryExpr:
+			walk(n.Left)
+			walk(n.Right)
+		case *ast.UnaryExpr:
+			walk(n.Operand)
+		case *ast.ParenExpr:
+			walk(n.Inner)
+		case *ast.SourceExpr:
+			walk(n.Expression)
+		case *ast.XPathPathExpr:
+			for _, s := range n.Steps {
+				walk(s.Expr)
+				for _, pred := range s.Predicates {
+					walk(pred)
+				}
+			}
+		}
+	}
+	walk(expr)
+	return hits
+}
+
+// unwrapXPathArgument strips the parentheses and source wrappers around an
+// argument, down to the expression that is its value.
+func unwrapXPathArgument(e ast.Expression) ast.Expression {
+	for {
+		switch n := e.(type) {
+		case *ast.ParenExpr:
+			e = n.Inner
+		case *ast.SourceExpr:
+			e = n.Expression
+		default:
+			return e
+		}
+	}
+}
+
+// checkXPathFunctionArgumentOperators flags (MDL091) an operator inside an XPath
+// function argument — the other way an expression construct gets into a
+// retrieve constraint and out as CE0161 (mendixlabs/mxcli#1326).
+func (v *microflowValidator) checkXPathFunctionArgumentOperators(variable string, where ast.Expression) {
+	for _, h := range xpathFunctionArgumentOperators(where) {
+		v.addViolation("MDL091", linter.SeverityError,
+			fmt.Sprintf("retrieve '$%s' constraint computes `%s` inside an argument of `%s()` — XPath does not "+
+				"evaluate an operator in a function argument, and mxbuild reports CE0161 \"Error(s) in XPath constraint\"",
+				variable, h[1], h[0]),
+			fmt.Sprintf("Compute the value into a variable first, then pass the variable: "+
+				"`declare $P String = <the argument>;` and `%s(<attribute>, $P)`. An operator at the top "+
+				"level of the constraint (`Name = 'X-' + $Key`) is fine.", h[0]))
+	}
+}
+
 // xpathVarTraversalRe matches a path rooted at a $variable with TWO OR MORE
 // segments (`$P/Mod.Assoc/Name`). One segment is deliberately not matched: both
 // `$P/Code` (the parameter's own attribute) and `$P/Mod.Assoc` (one hop to the
@@ -952,36 +1045,54 @@ func (v *microflowValidator) checkXPathIdConstraint(variable, xpath string) {
 	}
 }
 
-// checkAssociationObjectArgs flags a call argument bound to an association-object
-// path (`$obj/Module.Assoc`, which yields the associated OBJECT). Mendix rejects
-// an association path used as a value with CE0117 — it must be materialized first
-// (`retrieve $x from $obj/Module.Assoc;`). An attribute value over an association
+// checkAssociationObjectArgs flags a call argument bound to a bare association
+// path (`$obj/Module.Assoc`). Mendix rejects that as a value with CE0117 — the
+// object has to be named. An attribute value over an association
 // (`$obj/Module.Assoc/Attr`) is a legal value and is NOT flagged. (ledger #43/#44)
+//
+// Naming the object is what Studio Pro itself does: it writes the target entity
+// after the association, `$obj/Module.Assoc/Module.Target`, and that is an
+// object value mxbuild accepts. Measured on mxbuild 10.24.15 and 11.13.0, one
+// microflow per argument into a fresh project:
+//
+//	$A/M.A_B                    CE0117 "Error(s) in expression."
+//	$A/M.A_B/M.B                0 errors
+//	$A/M.A_Bs/M.B  (ref set)    0 errors into a List parameter
+//	$A/M.A_B/M.B/M.B_C/M.C      0 errors
+//	$A/M.A_B/M.B/M.B_C          0 errors
+//
+// The rule used to fire on any path ending in a qualified segment, so all of
+// those were refused — including 42 untouched microflows in Evora Factory
+// Management, whose describe output exec then refused to re-apply. Only the
+// one-segment shape is reported now. Paths that fail for a TYPE reason (a
+// reverse traversal, a reference set into an object parameter) are CE0117 too,
+// but telling them apart needs the domain model, which this check does not see.
 func (v *microflowValidator) checkAssociationObjectArgs(callee string, args []ast.CallArgument) {
 	for _, a := range args {
 		if exprIsAssociationObjectPath(a.Value) {
 			v.addViolation("MDL049", linter.SeverityError,
-				fmt.Sprintf("call %s: argument '%s' passes an association path (an object reached over an association), "+
-					"which Mendix rejects as a value (CE0117 \"Error(s) in expression\")", callee, a.Name),
-				fmt.Sprintf("Materialize the object first, then pass the variable: `retrieve $%s from %s;` then `%s = $%s`.",
-					a.Name, microflowExprSource(a.Value), a.Name, a.Name))
+				fmt.Sprintf("call %s: argument '%s' passes a bare association path, which Mendix rejects "+
+					"as a value (CE0117 \"Error(s) in expression\")", callee, a.Name),
+				fmt.Sprintf("Name the associated object's entity after the association — `%s/<Module.TargetEntity>`, "+
+					"the form Studio Pro writes — or retrieve it first: `retrieve $%s from %s;` then `%s = $%s`.",
+					microflowExprSource(a.Value), a.Name, microflowExprSource(a.Value), a.Name, a.Name))
 		}
 	}
 }
 
-// exprIsAssociationObjectPath reports whether an expression is an attribute path
-// whose FINAL segment is a module-qualified association (`$obj/Module.Assoc`) —
-// i.e. it resolves to an associated OBJECT, not an attribute value. A final bare
-// segment (`$obj/Module.Assoc/Attr` → `Attr`) is an attribute and returns false.
+// exprIsAssociationObjectPath reports whether an expression is a bare
+// association path: `$obj/Module.Assoc`, one module-qualified segment and
+// nothing after it. `$obj/Module.Assoc/Module.Target` (the entity step that
+// names the object) and `$obj/Module.Assoc/Attr` (an attribute value) are not.
 func exprIsAssociationObjectPath(expr ast.Expression) bool {
 	if se, ok := expr.(*ast.SourceExpr); ok {
 		expr = se.Expression
 	}
 	ap, ok := expr.(*ast.AttributePathExpr)
-	if !ok || len(ap.Path) == 0 {
+	if !ok || len(ap.Path) != 1 {
 		return false
 	}
-	return strings.Contains(ap.Path[len(ap.Path)-1], ".")
+	return strings.Contains(ap.Path[0], ".")
 }
 
 // dateTimeLiteralFuncs are the date-construction functions whose arguments
@@ -1122,8 +1233,7 @@ func (v *microflowValidator) checkReturn(stmt *ast.ReturnStmt) {
 				return
 			}
 		}
-		v.addViolation("MDL004", linter.SeverityError,
-			"return has a value but microflow does not declare a return type",
+		v.addViolation("MDL004", linter.SeverityError, voidReturnValueMessage,
 			"Remove the return value or add a return type to the microflow")
 		return
 	}
@@ -1259,6 +1369,10 @@ func (v *microflowValidator) checkBranchScoping(body []ast.MicroflowStatement) {
 
 	for i, s := range body {
 		switch stmt := s.(type) {
+		case *ast.MergeStmt:
+			// See the break below: past a merge, branch-declared variables
+			// are the joins' business, not this linear check's.
+			branchVars = make(map[string]string)
 		case *ast.IfStmt:
 			// Collect vars declared in THEN branch
 			for varName := range collectDeclaredVars(stmt.ThenBody) {
@@ -1308,6 +1422,14 @@ func (v *microflowValidator) checkBranchScoping(body []ast.MicroflowStatement) {
 		// After processing this statement, check if subsequent statements reference branch vars
 		if len(branchVars) > 0 {
 			for _, subsequent := range body[i+1:] {
+				// Past a `merge`, what is in scope comes from the paths that
+				// join it, not from the text above it — a describe of an
+				// irreducible graph puts each shared region in a section after
+				// the branches that declare its variables. This linear check
+				// cannot see joins, so it stops rather than guess.
+				if _, isMerge := subsequent.(*ast.MergeStmt); isMerge {
+					break
+				}
 				for _, refVar := range referencedVars(subsequent) {
 					if scope, ok := branchVars[refVar]; ok {
 						v.addViolation("MDL005", linter.SeverityWarning,
@@ -1422,7 +1544,11 @@ func referencedVars(stmt ast.MicroflowStatement) []string {
 		refs = append(refs, exprVarRefs(s.Node)...)
 		refs = append(refs, exprVarRefs(s.Message)...)
 	case *ast.EnumSplitStmt:
-		refs = append(refs, extractVarName(s.Variable))
+		if s.Condition != nil {
+			refs = append(refs, exprVarRefs(s.Condition)...)
+		} else {
+			refs = append(refs, extractVarName(s.Variable))
+		}
 	case *ast.CastObjectStmt:
 		if s.ObjectVariable != "" {
 			refs = append(refs, s.ObjectVariable)
@@ -1542,6 +1668,15 @@ func isEmptyMessage(expr ast.Expression) bool {
 // which means resolving the split variable's type against the script or the
 // project. ValidateMicroflow sees only one statement. Worth adding where that
 // context exists; guessing it here would trade one false positive for another.
+// enumSplitSubject names what a case statement decides on, for messages:
+// `$Var` / `$Obj/Attr`, or the rule it calls (mendixlabs/mxcli#1414).
+func enumSplitSubject(stmt *ast.EnumSplitStmt) string {
+	if call := unwrapParenCall(stmt.Condition); call != nil {
+		return call.Name + "(…)"
+	}
+	return "$" + stmt.Variable
+}
+
 func (v *microflowValidator) checkEnumSplitEmptyBranch(stmt *ast.EnumSplitStmt) {
 	for _, c := range stmt.Cases {
 		for _, val := range c.Values {
@@ -1551,9 +1686,9 @@ func (v *microflowValidator) checkEnumSplitEmptyBranch(stmt *ast.EnumSplitStmt) 
 		}
 	}
 	v.addViolation("MDL056", linter.SeverityError,
-		fmt.Sprintf("case statement on '$%s' has no `(empty)` branch; a Mendix enumeration split needs an "+
+		fmt.Sprintf("case statement on '%s' has no `(empty)` branch; a Mendix enumeration split needs an "+
 			"outgoing flow for the unset value too, so this builds as CE0079 \"The '(empty)' condition value "+
-			"should be configured in properties for an outgoing flow\"", stmt.Variable),
+			"should be configured in properties for an outgoing flow\"", enumSplitSubject(stmt)),
 		"Add a `when (empty) then …` branch. It is required even when the attribute is `not null`. "+
 			"A branch may list several values (`when Open, (empty) then …`) if they share a path.")
 }

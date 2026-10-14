@@ -102,7 +102,7 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: ( $showStock: Boolean = 'true', ... )
+			// Variables: ( $showStock: Boolean = true, ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
@@ -277,7 +277,7 @@ func (b *Builder) parseSnippetHeaderV3(ctx parser.ISnippetHeaderV3Context, stmt 
 				stmt.Parameters = buildPageParameters(paramList)
 			}
 		} else if prop.VARIABLES_KW() != nil {
-			// Variables: ( $showStock: Boolean = 'true', ... )
+			// Variables: ( $showStock: Boolean = true, ... )
 			if varList := prop.VariableDeclarationList(); varList != nil {
 				stmt.Variables = buildVariableDeclarations(varList)
 			}
@@ -332,8 +332,12 @@ func buildSingleVariableDeclaration(vdCtx *parser.VariableDeclarationContext) as
 		v.DataType = dt.GetText()
 	}
 
+	// The default is an expression: bare, or — the old spelling, MDL-DEPR086
+	// — a string whose content is the expression (visitor_variable_default.go).
 	if str := vdCtx.STRING_LITERAL(); str != nil {
 		v.DefaultValue = unquoteStringLit(str)
+	} else if e := vdCtx.Expression(); e != nil {
+		v.DefaultValue = bareArgumentText(e)
 	}
 
 	return v
@@ -1364,9 +1368,11 @@ func buildAttributePathV3(ctx parser.IAttributePathV3Context) string {
 	text := ctx.GetText()
 	// Strip double quotes or backticks from each path segment
 	if strings.ContainsAny(text, "\"`") {
+		// A hop may be module-qualified (`"Mod"."Assoc"/Attr`), so each
+		// segment is unquoted per dotted part, not as one identifier.
 		parts := strings.Split(text, "/")
 		for i, p := range parts {
-			parts[i] = unquoteIdentifier(p)
+			parts[i] = unquoteQualifiedName(p)
 		}
 		return strings.Join(parts, "/")
 	}
@@ -1728,6 +1734,12 @@ func buildPropertyValueV3(ctx parser.IPropertyValueV3Context) any {
 	}
 	if num := pvCtx.NUMBER_LITERAL(); num != nil {
 		text := num.GetText()
+		// A signed literal (`DecimalPrecision: -1`) is a plain value, not an
+		// expression: without this alternative it fell through to the generic
+		// expression form and was refused as one (MDL-WIDGET42, #1407).
+		if pvCtx.MINUS() != nil {
+			text = "-" + text
+		}
 		if strings.Contains(text, ".") {
 			if f, err := strconv.ParseFloat(text, 64); err == nil {
 				return f
@@ -1998,8 +2010,8 @@ func xpathPathToString(path *ast.XPathPathExpr) string {
 	var parts []string
 	for _, step := range path.Steps {
 		s := xpathExprToString(step.Expr)
-		if step.Predicate != nil {
-			s += "[" + xpathExprToString(step.Predicate) + "]"
+		for _, pred := range step.Predicates {
+			s += "[" + xpathExprToString(pred) + "]"
 		}
 		parts = append(parts, s)
 	}
@@ -2077,6 +2089,7 @@ func (b *Builder) buildLayoutV3(ctx *parser.CreateLayoutStatementContext) *ast.C
 		prevIn, prevBraced := b.inLayout, b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = true, nil
 		stmt.Widgets = buildPageBodyV3(bodyCtx, b)
+		stmt.Placeholders = buildPagePlaceholdersV3(bodyCtx, b)
 		stmt.BracedPlaceholders = b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = prevIn, prevBraced
 	}

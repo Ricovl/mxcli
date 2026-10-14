@@ -24353,7 +24353,8 @@ func (o *TabContainer) InitFromRaw(raw bson.Raw) {
 			o.tabPages.AppendFromDecode(child)
 		}
 	}
-	if val, err := raw.LookupErr("DefaultPage"); err == nil {
+	// STORAGE-NAME OVERRIDE: see initTabContainer. Key is "DefaultPagePointer".
+	if val, err := raw.LookupErr("DefaultPagePointer"); err == nil {
 		if s, ok := val.StringValueOK(); ok {
 			o.defaultPage.SetFromDecode(element.ID(s))
 		} else if _, bdata, bok := val.BinaryOK(); bok {
@@ -27387,7 +27388,8 @@ func (o *WebLayoutContent) InitFromRaw(raw bson.Raw) {
 			o.layoutType.SetFromDecode(s)
 		}
 	}
-	if child, err := codec.DecodeChild(raw, "FormCall"); err == nil {
+	// STORAGE-NAME OVERRIDE (#1411), see initWebLayoutContent.
+	if child, err := codec.DecodeChild(raw, "LayoutCall"); err == nil {
 		o.layoutCall.SetFromDecode(child)
 	}
 	if children, err := codec.DecodeChildren(raw, "Widgets"); err == nil {
@@ -33183,7 +33185,11 @@ func initTabContainer() *TabContainer {
 	o.accessibilitySettings.Bind(&o.Base, 6)
 	o.tabPages = property.NewPartList[element.Element]("TabPages")
 	o.tabPages.Bind(&o.Base, 7)
-	o.defaultPage = property.NewByIdRef[element.Element]("DefaultPage")
+	// STORAGE-NAME OVERRIDE: Mendix stores the default tab as "DefaultPagePointer"
+	// (generated/metamodel: defaultPagePointer). Bound as "DefaultPage", the
+	// chosen default tab was written under a key Mendix drops and never read
+	// back from a Studio Pro document (mendixlabs/mxcli#1373).
+	o.defaultPage = property.NewByIdRef[element.Element]("DefaultPagePointer")
 	o.defaultPage.Bind(&o.Base, 8)
 	o.activePageAttributeRef = property.NewPart[element.Element]("ActivePageAttributeRef")
 	o.activePageAttributeRef.Bind(&o.Base, 9)
@@ -33875,7 +33881,12 @@ func initWebLayoutContent() *WebLayoutContent {
 	o.SetTypeName("Forms$WebLayoutContent")
 	o.layoutType = property.NewEnum[string]("LayoutType")
 	o.layoutType.Bind(&o.Base, 0)
-	o.layoutCall = property.NewPart[element.Element]("FormCall")
+	// STORAGE-NAME OVERRIDE: a layout built on another layout keeps its call
+	// under "LayoutCall" — measured on ConversationalUI.Layout_MasterBase
+	// (Studio Pro, 11.12.4), and the key generated/metamodel declares. "FormCall"
+	// is a Forms$Page's key; bound here it never decoded a stored call and wrote
+	// one where no Mendix version reads it (mendixlabs/mxcli#1411).
+	o.layoutCall = property.NewPart[element.Element]("LayoutCall")
 	o.layoutCall.Bind(&o.Base, 1)
 	o.widgets = property.NewPartList[element.Element]("Widgets")
 	o.widgets.Bind(&o.Base, 2)

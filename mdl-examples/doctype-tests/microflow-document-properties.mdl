@@ -15,6 +15,11 @@ CREATE OR MODIFY ENTITY Deeplink.Order (
   OrderNumber: String(20)
 );
 
+-- A microflow URL (deep link) exists from Mendix 10.6, and mxcli refuses it below
+-- that, so each statement that sets one is gated on its own. The rest of the
+-- script -- export level, concurrent execution, and the re-runs that mention no
+-- URL -- runs on every version.
+-- @version: 10.6+
 -- Everything at once. $Order is the PATH parameter, $Tab the query argument —
 -- they must be different parameters (CE5612 / MDL-MF02).
 CREATE OR MODIFY MICROFLOW Deeplink.ACT_ShowOrder ($Order: Deeplink.Order, $Tab: String)
@@ -25,6 +30,7 @@ DISALLOW CONCURRENT EXECUTION ERROR MESSAGE 'This order is already being process
 BEGIN
   LOG INFO $Tab;
 END;
+-- @version: any
 
 -- The error handler can be a microflow instead of a message.
 CREATE OR MODIFY MICROFLOW Deeplink.ACT_OnBusy ()
@@ -38,6 +44,7 @@ BEGIN
   LOG INFO 'importing';
 END;
 
+-- @version: 10.6+
 -- A segment may carry an attribute path: {Order/OrderNumber} binds the ORDER
 -- parameter by one of its attributes, so the leading identifier is what has to
 -- name a parameter.
@@ -46,6 +53,7 @@ URL 'order/by-number/{Order/OrderNumber}'
 BEGIN
   LOG INFO 'by number';
 END;
+-- @version: any
 
 -- Re-running a statement that mentions NONE of the clauses must leave all four
 -- alone. This is the #1120 rule, and the reason every clause is optional.
@@ -62,8 +70,11 @@ BEGIN
   LOG INFO 'importing';
 END;
 
+-- DROP URL clears a URL, and is refused with it below 10.6.
+-- @version: 10.6+
 CREATE OR MODIFY MICROFLOW Deeplink.ACT_ShowByNumber ($Order: Deeplink.Order)
 DROP URL
 BEGIN
   LOG INFO 'no longer deep-linked';
 END;
+-- @version: any

@@ -284,8 +284,11 @@ alterStatement
     | alterModuleJarDepStatement
     ;
 
+// `set ( Key: value, … )` takes create's property list (R3); the
+// `set Key = 'value'` form is the older spelling for the string properties.
 alterPublishedRestServiceAction
-    : SET publishedRestAlterAssignment (COMMA publishedRestAlterAssignment)*
+    : SET LPAREN publishedRestProperty (COMMA publishedRestProperty)* COMMA? RPAREN
+    | SET publishedRestAlterAssignment (COMMA publishedRestAlterAssignment)*
     | ADD publishedRestResource
     | DROP RESOURCE STRING_LITERAL
     ;
@@ -358,7 +361,8 @@ alterStylingAssignment
  * test fails when a marker here has no entry there (or the reverse).
  *
  * Page-family operations that have no generic spelling yet (`set layout = … map`,
- * `drop template for … in …`, `add variables`, `drop variables`) keep their own
+ * `drop template for … in …`, `add variables`, `drop variables`,
+ * `add parameters`, `drop parameters`) keep their own
  * form inside the generic block; they are not aliases.
  */
 alterDocumentType
@@ -375,6 +379,8 @@ alterOperation
     | alterPageDropTemplate SEMICOLON?
     | alterPageAddVariable SEMICOLON?
     | alterPageDropVariable SEMICOLON?
+    | alterPageAddParameter SEMICOLON?
+    | alterPageDropParameter SEMICOLON?
     ;
 
 alterSet
@@ -419,8 +425,16 @@ alterFragment
 // columns over one attribute share the address and need `@n`. FIRST, so the
 // COLUMN keyword after the grid name is not left to the plain-name form.
 // `dg.Name`, the older address by a name mxcli derived, keeps working.
+//
+// A navigation list item has no name either (Studio Pro stores none), so it is
+// addressed the same way (mendixlabs/mxcli#1388): `nav item(t1)` for the item
+// holding the widget named t1, `nav item('Home')` for the one whose text is
+// Home, and `nav item@2` for the second item. With a selector, @n chooses among
+// the items that match it.
 alterTarget
     : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
+    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
+    | identifierOrKeyword ITEM AT NUMBER_LITERAL
     | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;
@@ -562,11 +576,24 @@ alterPageDropTemplate
     ;
 
 alterPageAddVariable
-    : ADD VARIABLES_KW variableDeclaration    // ADD Variables $show: Boolean = 'true'
+    : ADD VARIABLES_KW variableDeclaration    // ADD Variables $show: Boolean = true
     ;
 
 alterPageDropVariable
     : DROP VARIABLES_KW VARIABLE              // DROP Variables $show
+    ;
+
+// A page or snippet parameter, declared with the same `pageParameter` rule as
+// CREATE's `Params: (...)`, so the two spellings cannot drift. Before these
+// existed the only way to add a parameter was CREATE OR REPLACE, which rebuilds
+// the whole page and loses whatever describe does not round-trip
+// (mendixlabs/mxcli#1234).
+alterPageAddParameter
+    : ADD PARAMETERS pageParameter            // ADD Parameters $Customer: Module.Customer
+    ;
+
+alterPageDropParameter
+    : DROP PARAMETERS VARIABLE                // DROP Parameters $Customer
     ;
 
 // A native profile's home is a page or a NANOFLOW (Navigation$NativeHomePage

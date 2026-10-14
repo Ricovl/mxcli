@@ -298,6 +298,7 @@ func loopRefVars(stmt ast.MicroflowStatement) []string {
 		add(s.ListVariable)
 	case *ast.EnumSplitStmt:
 		add(s.Variable)
+		addExpr(s.Condition)
 	case *ast.InheritanceSplitStmt:
 		add(s.Variable)
 	case *ast.CastObjectStmt:
@@ -344,6 +345,11 @@ func loopRefVars(stmt ast.MicroflowStatement) []string {
 		add(s.FileDocument)
 	case *ast.SynchronizeStmt:
 		add(s.Variables...)
+	case *ast.SendEmailStmt:
+		addExpr(s.Expressions()...)
+		if s.Attachment != "" {
+			add(s.Attachment)
+		}
 	case *ast.ValidationFeedbackStmt:
 		if s.AttributePath != nil {
 			add(s.AttributePath.Variable)

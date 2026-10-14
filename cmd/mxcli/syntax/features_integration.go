@@ -13,7 +13,7 @@ func init() {
 			"odata", "rest", "business events", "database",
 		},
 		Syntax:  "LIST CONSUMED ODATA SERVICES [IN Module];\nLIST CONSUMED REST SERVICES [IN Module];\nLIST PUBLISHED REST SERVICES [IN Module];\nLIST BUSINESS EVENT SERVICES [IN Module];\nLIST DATABASE CONNECTIONS [IN Module];\nLIST EXTERNAL ENTITIES [IN Module];\nLIST EXTERNAL ACTIONS [IN Module];",
-		Example: "LIST CONSUMED ODATA SERVICES;\nLIST CONSUMED REST SERVICES IN MyModule;\nLIST EXTERNAL ENTITIES;\nSELECT * FROM CATALOG.REST_CLIENTS;",
+		Example: "LIST CONSUMED ODATA SERVICES;\nLIST CONSUMED REST SERVICES IN MyModule;\nLIST EXTERNAL ENTITIES;\nSELECT * FROM CATALOG.CONSUMED_REST_SERVICES;",
 		SeeAlso: []string{"odata", "rest", "sql", "business-events"},
 	})
 
@@ -90,18 +90,23 @@ func init() {
 			"  namespace: 'Module.Customers',\n" +
 			"  ServiceName: 'CustomerApi',        -- optional; defaults to the document name\n" +
 			"  PublishAssociations: Yes,          -- optional; default Yes (associations as links)\n" +
-			"  SupportsGraphQL: Yes               -- optional; also answer GraphQL at the SAME\n" +
+			"  SupportsGraphQL: Yes,              -- optional; also answer GraphQL at the SAME\n" +
 			"                                     -- location (POST a query). Mendix 10.14+.\n" +
 			"                                     -- Exposed names must then be unique beyond\n" +
 			"                                     -- case (CE2881), and query fields are\n" +
 			"                                     -- camelCased: Period -> period\n" +
+			"  Authentication: (basic, session)   -- the methods, in order: basic, session,\n" +
+			"                                     -- guest, microflow Module.Authenticate;\n" +
+			"                                     -- `none` = no authentication. Left out,\n" +
+			"                                     -- CREATE OR MODIFY / ALTER keep the stored one.\n" +
 			")\n" +
-			"authentication basic, session\n" +
-			"-- or, for custom authentication (no per-request password hash):\n" +
-			"--   authentication microflow Module.Authenticate\n" +
+			"-- Custom authentication (no per-request password hash):\n" +
+			"--   Authentication: (microflow Module.Authenticate)\n" +
 			"-- The microflow takes a List of System.HttpHeader and returns a\n" +
 			"-- System.User; returning empty denies the request. Requires app\n" +
 			"-- security to be on (CE6600) and a microflow to be named (CE0333).\n" +
+			"-- The trailing `authentication basic, session` clause is the old spelling\n" +
+			"-- (MDL-DEPR139); `mxcli fmt --upgrade` moves it into the list.\n" +
 			"{\n" +
 			"  publish entity Module.Entity as 'EntitySet' (\n" +
 			"    ReadMode: source | microflow Module.Read_X,\n" +
@@ -163,9 +168,9 @@ func init() {
 			"  path: 'odata/customers/',\n" +
 			"  version: '1.0.0',\n" +
 			"  ODataVersion: OData4,\n" +
-			"  namespace: 'Shop.Customers'\n" +
+			"  namespace: 'Shop.Customers',\n" +
+			"  Authentication: (basic)\n" +
 			")\n" +
-			"authentication basic\n" +
 			"{\n" +
 			"  publish entity Shop.Customer as 'Customers' (\n" +
 			"    ReadMode: source\n" +
@@ -339,9 +344,11 @@ func init() {
 			"create published rest", "publish rest", "rest resource",
 			"rest operation", "microflow", "path parameter",
 			"query parameter", "body parameter", "import mapping", "export mapping", "commit",
-			"grant access", "revoke access",
+			"grant access", "revoke access", "authentication", "custom authentication",
+			"basic authentication", "active session", "authentication microflow",
+			"authentication parameter", "header parameter", "api key", "token",
 		},
-		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API'\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
+		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
 			"-- Operation parameters come from the microflow, as Studio Pro derives them:\n" +
 			"--   a parameter named in the path ('{id}')  -> path parameter\n" +
 			"--   an object or a list                     -> the body\n" +
@@ -349,8 +356,26 @@ func init() {
 			"--   anything else                           -> query parameter\n" +
 			"-- each with the microflow parameter's type. Create the microflow first.\n" +
 			"-- A header parameter, a renamed one or a description set in Studio Pro has\n" +
-			"-- no MDL spelling: describe notes it, CREATE OR MODIFY / ALTER keep it.\n\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
-		Example: "mdl 1;\nCREATE PUBLISHED REST SERVICE Module.OrderAPI (\n  Path: 'rest/orders/v1',\n  Version: '1.0.0',\n  ServiceName: 'Order API'\n)\n{\n  RESOURCE 'orders' {\n    GET '' MICROFLOW Module.GetAllOrders;\n    GET '{id}' MICROFLOW Module.GetOrderById;\n    POST '' MICROFLOW Module.CreateOrder;\n    DELETE '{id}' MICROFLOW Module.DeleteOrder;\n  }\n};\n\nGRANT ACCESS ON PUBLISHED REST SERVICE Module.OrderAPI\n  TO Module.User, Module.Admin;",
+			"-- no MDL spelling: describe notes it, CREATE OR MODIFY / ALTER keep it.\n\n" +
+			"-- Authentication: the methods in the order given (Studio Pro keeps that\n" +
+			"-- order): basic = username and password, session = active session,\n" +
+			"-- microflow = custom. `none` is \"Requires authentication: No\". Left out,\n" +
+			"-- CREATE OR MODIFY and ALTER keep the stored setting; a new service has none.\n" +
+			"-- The microflow returns System.User (empty: not authenticated). An object\n" +
+			"-- parameter can only be a System.HttpRequest or System.HttpResponse; any\n" +
+			"-- other parameter is an authentication parameter: a query or header value\n" +
+			"-- of the request, bound in the list after the microflow:\n" +
+			"--   microflow M.Auth ($Token: header 'X-Api-Token', $Tenant: query,\n" +
+			"--                     $Lang: query 'lang' description 'UI language')\n" +
+			"-- The type is the microflow parameter's. An unlisted parameter is a query\n" +
+			"-- parameter under its own name, so the list is optional (Mendix CE0336\n" +
+			"-- without one). MDL-REST04 refuses an unknown $Param, the request or the\n" +
+			"-- response, another kind, a parameter listed twice. describe prints the\n" +
+			"-- list only when it differs from that default.\n" +
+			"-- With authentication on, grant at least one module role (CE0338);\n" +
+			"-- custom authentication also needs app security on (CE6600).\n\n" +
+			"ALTER PUBLISHED REST SERVICE Module.Name SET ( Version: '2.0.0', Authentication: (session) );\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
+		Example: "mdl 1;\nCREATE PUBLISHED REST SERVICE Module.OrderAPI (\n  Path: 'rest/orders/v1',\n  Version: '1.0.0',\n  ServiceName: 'Order API',\n  Authentication: (basic, session)\n)\n{\n  RESOURCE 'orders' {\n    GET '' MICROFLOW Module.GetAllOrders;\n    GET '{id}' MICROFLOW Module.GetOrderById;\n    POST '' MICROFLOW Module.CreateOrder;\n    DELETE '{id}' MICROFLOW Module.DeleteOrder;\n  }\n};\n\nGRANT ACCESS ON PUBLISHED REST SERVICE Module.OrderAPI\n  TO Module.User, Module.Admin;",
 		SeeAlso: []string{"rest", "rest.consumed"},
 	})
 
@@ -621,8 +646,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"create java action", "or modify java action", "type parameter", "entity parameter",
 			"exposed as", "returns", "generics", "drop java action",
 		},
-		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name [FOLDER 'path'](\n  Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$;\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].",
-		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL\n) RETURNS String\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
+		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name[<T, ...>] [FOLDER 'path'](\n  Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$;\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].\n\nType parameters: an ENTITY <T> parameter declares T. A type parameter no\nENTITY <T> parameter names is declared in the header, Module.Name<T>; an\nunqualified type that is neither is refused (MDL-JA01), since it would be\nwritten as an entity with no module (CE1613).",
+		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL\n) RETURNS String\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Type parameter with no entity selector: the argument's entity binds it\nCREATE JAVA ACTION Utils.Describe<T>(\n  Obj: T NOT NULL\n) RETURNS String\nAS $$\nreturn Obj.toString();\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
 		SeeAlso: []string{"java-action", "javascript-action"},
 	})
 

@@ -1,0 +1,31 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1413: SET on a variable an aggregate produced
+-- ============================================================================
+--
+-- `check -p` passed, `exec` refused the microflow with
+--
+--   variable 'Sum' is not declared
+--
+-- The validate pass declared an aggregate's output variable; the build pass
+-- (addAggregateListAction) never did, so the SET that followed it failed only
+-- at exec time. Both microflows below must exec cleanly.
+-- ============================================================================
+
+create module Bug1413;
+
+create persistent entity Bug1413.EntA ( Amount: Integer );
+
+create microflow Bug1413.MF_Sum ($List: list of Bug1413.EntA) returns Integer
+begin
+  $Sum = sum $List by Amount;
+  set $Sum = $Sum + 1;
+  return $Sum;
+end;
+
+create microflow Bug1413.MF_Count ($List: list of Bug1413.EntA) returns Integer
+begin
+  $N = count $List;
+  set $N = $N + 1;
+  return $N;
+end;

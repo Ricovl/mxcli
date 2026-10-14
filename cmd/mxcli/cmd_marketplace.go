@@ -72,10 +72,12 @@ var marketplaceDownloadCmd = &cobra.Command{
 
 By default the latest version is downloaded. Use --version to pick a specific
 version number. The file is written to the current directory under its CDN
-filename unless -o is given.`,
+filename unless -o is given; -o takes a file path, or a directory to write the
+CDN filename into.`,
 	Example: `  mxcli marketplace download 2888
   mxcli marketplace download 2888 --version 7.0.2
-  mxcli marketplace download 2888 -o ./mods/dbc.mpk`,
+  mxcli marketplace download 2888 -o ./mods/dbc.mpk
+  mxcli marketplace download 2888 -o ./mods/`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMarketplaceDownload,
 }
@@ -95,7 +97,7 @@ func init() {
 
 	marketplaceDownloadCmd.Flags().String("profile", auth.ProfileDefault, "credential profile")
 	marketplaceDownloadCmd.Flags().String("version", "", "version number to download (default: latest)")
-	marketplaceDownloadCmd.Flags().StringP("output", "o", "", "output path (default: CDN filename in the current directory)")
+	marketplaceDownloadCmd.Flags().StringP("output", "o", "", "output file or directory (default: CDN filename in the current directory)")
 
 	marketplaceCmd.AddCommand(marketplaceSearchCmd)
 	marketplaceCmd.AddCommand(marketplaceInfoCmd)
@@ -150,9 +152,26 @@ func runMarketplaceDownload(cmd *cobra.Command, args []string) error {
 
 	// Stream to a temp file first, then derive the final name and rename, so a
 	// failed/cancelled download never leaves a truncated .mpk in place.
+	//
+	// An --output naming a directory (an existing one, or any path ending in a
+	// separator) receives the package under the name it would otherwise get;
+	// renaming the temp file onto the directory itself failed with "file
+	// exists" (mendixlabs/mxcli#1443).
 	dir := "."
+	intoDir := false
 	if output != "" {
 		dir = filepath.Dir(output)
+		if strings.HasSuffix(output, "/") || strings.HasSuffix(output, string(os.PathSeparator)) {
+			intoDir = true
+		} else if fi, err := os.Stat(output); err == nil && fi.IsDir() {
+			intoDir = true
+		}
+		if intoDir {
+			if err := os.MkdirAll(output, 0o755); err != nil {
+				return fmt.Errorf("create output directory: %w", err)
+			}
+			dir = output
+		}
 	}
 	tmp, err := os.CreateTemp(dir, ".mxcli-download-*.part")
 	if err != nil {
@@ -171,11 +190,14 @@ func runMarketplaceDownload(cmd *cobra.Command, args []string) error {
 	}
 
 	dest := output
-	if dest == "" {
+	if dest == "" || intoDir {
 		if filename == "" {
 			filename = fmt.Sprintf("content-%d-%s.mpk", contentID, version.VersionNumber)
 		}
 		dest = filename
+		if intoDir {
+			dest = filepath.Join(output, filename)
+		}
 	}
 	if err := os.Rename(tmpName, dest); err != nil {
 		return fmt.Errorf("write %s: %w", dest, err)

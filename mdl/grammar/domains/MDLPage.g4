@@ -74,8 +74,10 @@ variableDeclarationList
     : variableDeclaration (COMMA variableDeclaration)*
     ;
 
+// A variable's default is an expression, written bare: `$show: Boolean = true`.
+// A string whose content is the expression is the old spelling (MDL-DEPR086).
 variableDeclaration
-    : VARIABLE COLON dataType EQUALS STRING_LITERAL     // $varName: Boolean = 'expression'
+    : VARIABLE COLON dataType EQUALS (STRING_LITERAL /* @alias MDL-DEPR086 */ | expression)
     ;
 
 // A sort column. The name may navigate associations, one `/` per hop, with the
@@ -149,8 +151,10 @@ xpathPath
     : xpathStep (SLASH xpathStep)*
     ;
 
+// A step takes any number of predicates, `Entity[a][b]`, as XPath does. With
+// at most one, the second `[` was a parse error (mendixlabs/mxcli#1281).
 xpathStep
-    : xpathStepValue (LBRACKET xpathExpr RBRACKET)?
+    : xpathStepValue (LBRACKET xpathExpr RBRACKET)*
     ;
 
 xpathStepValue
@@ -409,6 +413,7 @@ widgetTypeV3
     | COMBOBOX
     | CHECKBOX
     | RADIOBUTTONS
+    | FILEMANAGER                                     // Forms$FileManager — upload/download a System.FileDocument (#151)
     | REFERENCESELECTOR
     | ACTIONBUTTON
     | LINKBUTTON
@@ -760,9 +765,22 @@ visibleValueV3
     : IDENTIFIER | QUOTED_IDENTIFIER | keyword
     ;
 
-// V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words)
+// V3 Attribute path: Name, Product/Category, "Order" (quoted to escape reserved words).
+// An association hop — every segment before the last — may be module-qualified,
+// `Module.Assoc/Attr`, the way XPath and data view sources name it. Without that
+// the qualified form missed `Attribute: attributePathV3`, parsed as the division
+// `Module.Assoc / Attr` and was refused as an expression (ChipCoV8 #10). The final
+// segment stays a bare name: a dotted name with no slash is not a path.
 attributePathV3
-    : (IDENTIFIER | QUOTED_IDENTIFIER | keyword) (SLASH (IDENTIFIER | QUOTED_IDENTIFIER | keyword))*
+    : (attributePathHopV3 SLASH)* attributePathSegmentV3
+    ;
+
+attributePathHopV3
+    : attributePathSegmentV3 (DOT attributePathSegmentV3)?
+    ;
+
+attributePathSegmentV3
+    : IDENTIFIER | QUOTED_IDENTIFIER | keyword
     ;
 
 // An attribute read from a named object: an enclosing data view, Studio Pro's
@@ -832,6 +850,7 @@ propertyValueV3
     : STRING_LITERAL
     | QUOTED_IDENTIFIER              // "AttrName" — quoted attribute value for pluggable sub-props (chart series staticXAttribute)
     | NUMBER_LITERAL
+    | MINUS NUMBER_LITERAL           // DecimalPrecision: -1 — Studio Pro's "no fixed precision" (mendixlabs/mxcli#1407)
     | booleanLiteral
     | qualifiedName
     | IDENTIFIER

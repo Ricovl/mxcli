@@ -502,6 +502,18 @@ func (m *mcpPageMutator) InsertListViewTemplates(listViewRef string, _ []*pages.
 	return fmt.Errorf("adding specialization templates to %s is not yet supported by the MCP backend", listViewRef)
 }
 
+func (m *mcpPageMutator) InsertTabPages(targetRef string, _ backend.InsertPosition, _ []*pages.TabPage) error {
+	return fmt.Errorf("adding tab pages at %s is not yet supported by the MCP backend", targetRef)
+}
+
+func (m *mcpPageMutator) InsertNavigationListItems(targetRef string, _ backend.InsertPosition, _ []*pages.NavigationListItem) error {
+	return fmt.Errorf("adding navigation list items at %s is not yet supported by the MCP backend", targetRef)
+}
+
+func (m *mcpPageMutator) ReplaceNavigationListItem(targetRef string, _ []*pages.NavigationListItem) error {
+	return fmt.Errorf("replacing navigation list item %s is not yet supported by the MCP backend", targetRef)
+}
+
 func (m *mcpPageMutator) DropListViewTemplate(listViewRef, specialization string) error {
 	return fmt.Errorf("dropping the %s template from %s is not yet supported by the MCP backend",
 		specialization, listViewRef)
@@ -590,6 +602,14 @@ func (m *mcpPageMutator) AddVariable(name, _, _ string) error {
 
 func (m *mcpPageMutator) DropVariable(name string) error {
 	return fmt.Errorf("dropping page variable %q is not yet supported by the MCP backend", name)
+}
+
+func (m *mcpPageMutator) AddParameter(param backend.PageParameterSpec) error {
+	return fmt.Errorf("adding page parameter %q is not yet supported by the MCP backend", param.Name)
+}
+
+func (m *mcpPageMutator) DropParameter(name string) error {
+	return fmt.Errorf("dropping page parameter %q is not yet supported by the MCP backend", name)
 }
 
 // ResolveAlterTarget is the MCP page mutator's backend.AlterTargetResolver.

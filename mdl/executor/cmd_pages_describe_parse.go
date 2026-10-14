@@ -3,10 +3,12 @@
 package executor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -205,6 +207,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			if tabPage.TabCaption == "" {
 				tabPage.TabCaption = extractTextCaption(ctx, tpMap)
 			}
+			// Forms$TabPage carries its own visibility (#1465); it has no
+			// editability, so only the visibility half is read.
+			extractConditionalSettings(ctx, &tabPage, tpMap)
 			for _, tw := range getBsonArrayElements(tpMap["Widgets"]) {
 				if twMap, ok := tw.(map[string]any); ok {
 					tabPage.Children = append(tabPage.Children, parseRawWidget(ctx, twMap, inheritedCtx)...)
@@ -277,21 +282,11 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 	extractConditionalSettings(ctx, &widget, w)
 
 	// Extract CSS class, style, and design properties from Appearance
-	if appearance, ok := w["Appearance"].(map[string]any); ok {
-		if class, ok := appearance["Class"].(string); ok && class != "" {
-			widget.Class = class
-		}
-		if style, ok := appearance["Style"].(string); ok && style != "" {
-			widget.Style = style
-		}
-		if dc, ok := appearance["DynamicClasses"].(string); ok && dc != "" {
-			widget.DynamicClasses = dc
-		}
-		widget.DesignProperties = extractDesignProperties(appearance)
-	}
+	extractAppearance(&widget, w)
 
 	switch typeName {
 	case "Forms$LayoutGrid", "Pages$LayoutGrid":
+		widget.LayoutGridWidth = extractString(w["Width"])
 		widget.Rows = parseLayoutGridRows(ctx, w, inheritedCtx)
 		return []rawWidget{widget}
 
@@ -325,6 +320,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 	case "Forms$ActionButton", "Pages$ActionButton":
 		widget.Caption = extractButtonCaption(ctx, w)
 		widget.Parameters = extractButtonCaptionParameters(ctx, w)
+		widget.Tooltip = extractTextsText(ctx, w, "Tooltip")
 		widget.ButtonStyle = extractButtonStyle(ctx, w)
 		widget.Action = extractButtonAction(ctx, w)
 		// RenderType "Link" is a linkbutton; the emitter uses this to choose the
@@ -368,6 +364,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
+		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
@@ -379,7 +376,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// textarea's placeholder with all its translations (ako/mxcli#705).
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		return []rawWidget{widget}
+
+	case "Forms$FileManager", "Pages$FileManager":
+		// Printed as a comment until mendixlabs/mxcli#151, so describe -> exec
+		// dropped every file manager on the page.
+		widget.Caption = extractLabelText(ctx, w)
+		widget.Editable = extractEditable(ctx, w)
+		widget.FileManagerProps = describeFileManagerProps(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$DatePicker", "Pages$DatePicker":
@@ -784,7 +790,16 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 		if !ok {
 			continue
 		}
-		row := rawWidgetRow{}
+		row := rawWidgetRow{SpacingBetweenColumns: true}
+		// A row's and a column's appearance and alignment were never read, so a
+		// describe → exec reset every one of them (the Atlas "Flex container" /
+		// "Column gap" / "Cards style" a Studio Pro page sets on its grid).
+		extractAppearance(&row.Appearance, rMap)
+		row.VerticalAlignment, _ = rMap["VerticalAlignment"].(string)
+		row.HorizontalAlignment, _ = rMap["HorizontalAlignment"].(string)
+		if v, ok := rMap["SpacingBetweenColumns"].(bool); ok {
+			row.SpacingBetweenColumns = v
+		}
 		cols := getBsonArrayElements(rMap["Columns"])
 		for _, c := range cols {
 			cMap, ok := c.(map[string]any)
@@ -792,6 +807,8 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 				continue
 			}
 			col := rawWidgetColumn{}
+			extractAppearance(&col.Appearance, cMap)
+			col.VerticalAlignment, _ = cMap["VerticalAlignment"].(string)
 			// Widths: 1..12, -1 auto-fill, -2 auto-fit content. Studio Pro
 			// stores them as int64, so read them width-agnostically — an
 			// `.(int32)` here missed every stored width and describe printed
@@ -815,6 +832,25 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 		result = append(result, row)
 	}
 	return result
+}
+
+// extractAppearance copies the CSS class, inline style, dynamic classes and
+// design properties of an element's Forms$Appearance onto dst.
+func extractAppearance(dst *rawWidget, w map[string]any) {
+	appearance, ok := w["Appearance"].(map[string]any)
+	if !ok {
+		return
+	}
+	if class, ok := appearance["Class"].(string); ok && class != "" {
+		dst.Class = class
+	}
+	if style, ok := appearance["Style"].(string); ok && style != "" {
+		dst.Style = style
+	}
+	if dc, ok := appearance["DynamicClasses"].(string); ok && dc != "" {
+		dst.DynamicClasses = dc
+	}
+	dst.DesignProperties = extractDesignProperties(appearance)
 }
 
 // parseNavigationListItems extracts items from a NavigationList widget.
@@ -852,11 +888,13 @@ func parseNavigationListItems(ctx *ExecContext, w map[string]any) []rawWidget {
 		// Extract action
 		rw.Action = extractNavigationListItemAction(ctx, itemMap)
 
-		// Extract style from Appearance class
+		// The item's own Forms$Appearance: Class, Style, DynamicClasses. It was
+		// read into ButtonStyle, a property an item does not have, so describe
+		// printed `ButtonStyle: <class>` and exec dropped the class.
 		if appearance, ok := itemMap["Appearance"].(map[string]any); ok {
-			if class, ok := appearance["Class"].(string); ok && class != "" {
-				rw.ButtonStyle = class
-			}
+			rw.Class, _ = appearance["Class"].(string)
+			rw.Style, _ = appearance["Style"].(string)
+			rw.DynamicClasses, _ = appearance["DynamicClasses"].(string)
 		}
 
 		result = append(result, rw)
@@ -1330,4 +1368,25 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
 	}
 	return rawDesignProp{}, false
+}
+
+// describeFileManagerProps renders a file manager's Type, MaxFileSize,
+// AllowedExtensions and ShowFileInBrowser, leaving out the ones that equal the
+// builder's defaults — which are the Model SDK's — so nothing is invented and
+// the omitted ones round-trip.
+func describeFileManagerProps(ctx *ExecContext, w map[string]any) []string {
+	var props []string
+	if t, _ := w["Type"].(string); t != "" && t != string(pages.FileManagerTypeBoth) {
+		props = append(props, "Type: "+t)
+	}
+	if n, ok := w["MaxFileSize"]; ok && bsonInt(n) != 5 {
+		props = append(props, fmt.Sprintf("MaxFileSize: %d", bsonInt(n)))
+	}
+	if ext, _ := w["AllowedExtensions"].(string); ext != "" {
+		props = append(props, "AllowedExtensions: "+mdlQuote(ctx, ext))
+	}
+	if show, _ := w["ShowFileInBrowser"].(bool); show {
+		props = append(props, "ShowFileInBrowser: true")
+	}
+	return props
 }

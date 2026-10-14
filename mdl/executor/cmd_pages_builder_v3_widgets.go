@@ -220,7 +220,7 @@ func (pb *pageBuilder) buildColumnSpecFromAST(child *ast.WidgetV3) (*backend.Dat
 		ShowContentAs:     child.GetStringProp("ShowContentAs"),
 		Content:           child.GetContent(),
 		ContentParams:     pb.buildClientTemplateParams(child.GetContentParams()),
-		Properties:        child.Properties,
+		Properties:        columnSpecProperties(child),
 	}
 	for _, grandchild := range child.Children {
 		if filterWidgetID := dataGridFilterWidgetID(grandchild.Type); filterWidgetID != "" {
@@ -244,6 +244,38 @@ func (pb *pageBuilder) buildColumnSpecFromAST(child *ast.WidgetV3) (*backend.Dat
 		}
 	}
 	return &col, nil
+}
+
+// columnSpecProperties puts a column's properties in the terms the column
+// builder (widgetobj.BuildDataGrid2Column) reads: each expression property as a
+// string under its canonical key. The visitor routes every expression spelling
+// of Visible — `[cond]`, `if … then … else …`, `$currentObject/Flag` — to
+// "VisibleIf", `Visible: false` arrives as a bool, and a named expression
+// property keeps the key as written; the builder reads only a string under
+// "Visible" / "DynamicCellClass", so each of these was written as the default
+// (always visible, no class) with check clean and exec reporting success.
+// The AST map is copied, never changed.
+func columnSpecProperties(child *ast.WidgetV3) map[string]any {
+	if len(child.Properties) == 0 {
+		return child.Properties
+	}
+	props := make(map[string]any, len(child.Properties))
+	for k, v := range child.Properties {
+		switch {
+		case strings.EqualFold(k, "VisibleIf"), strings.EqualFold(k, "Visible"):
+			// resolved below
+		case strings.EqualFold(k, "DynamicCellClass"):
+			props["DynamicCellClass"] = v
+		default:
+			props[k] = v
+		}
+	}
+	if expr := child.GetStringProp("VisibleIf"); expr != "" {
+		props["Visible"] = expr
+	} else if expr, ok := pages.StaticVisibleExpression(child.Properties["Visible"]); ok {
+		props["Visible"] = expr
+	}
+	return props
 }
 
 func (pb *pageBuilder) buildDataGridColumnV3(w *ast.WidgetV3) (*pages.DataGridColumn, error) {
@@ -488,14 +520,18 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	tb.ValidationExpression = w.GetStringProp("Validation")
 	tb.ValidationMessage = w.GetStringProp("ValidationMessage")
 
+	// SubmitBehaviour / SubmitOnInputDelay (ako/mxcli-ledger FINDINGS #170).
+	var err error
+	if tb.SubmitBehaviour, tb.SubmitOnInputDelay, err = inputSubmitSettings(w); err != nil {
+		return nil, mdlerrors.NewValidation(err.Error())
+	}
+
 	// Forms$FormattingInfo: date format and numeric precision/grouping. The
 	// writer hard-coded the defaults, so a Studio Pro text box with a decimal
 	// precision lost it on describe → exec (ako/mxcli#968).
-	fi, err := inputFormattingInfo(w)
-	if err != nil {
+	if tb.FormattingInfo, err = inputFormattingInfo(w); err != nil {
 		return nil, err
 	}
-	tb.FormattingInfo = fi
 
 	// Handle Label
 	if label := inputLabel(w); label != "" {
@@ -554,6 +590,12 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 	// Handle Label
 	if label := inputLabel(w); label != "" {
 		ta.Label = label
+	}
+
+	// SubmitBehaviour / SubmitOnInputDelay, as for a textbox.
+	var err error
+	if ta.SubmitBehaviour, ta.SubmitOnInputDelay, err = inputSubmitSettings(w); err != nil {
+		return nil, mdlerrors.NewValidation(err.Error())
 	}
 
 	// Placeholder, as for a textbox (ako/mxcli#705).
@@ -627,6 +669,84 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	}
 
 	return dp, nil
+}
+
+// buildFileManagerV3 builds the classic file manager (mendixlabs/mxcli#151).
+// It binds no attribute — Mendix uploads into, and downloads from, the
+// enclosing data view's object — so only the label and its own four properties
+// are read. Absent ones take the Model SDK's defaults (mendixmodelsdk 4.116.0,
+// pages.FileManager): Type Both, MaxFileSize 5, no extension filter, and
+// ShowFileInBrowser false.
+func (pb *pageBuilder) buildFileManagerV3(w *ast.WidgetV3) (*pages.FileManager, error) {
+	fm := &pages.FileManager{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$FileManager",
+			},
+			Name: w.Name,
+		},
+		Label:             inputLabel(w),
+		Type:              pages.FileManagerTypeBoth,
+		MaxFileSize:       5,
+		AllowedExtensions: w.GetStringProp("AllowedExtensions"),
+	}
+
+	// mxbuild CE6810: a file manager uploads into the data view's object, so
+	// that object must be a file. Refused only where the entity's chain is
+	// loaded and provably ends elsewhere; `exec` used to report success and
+	// leave the error to the build.
+	if pb.provablyNotSpecializationOf(pb.entityContext, "System.FileDocument") {
+		return nil, mdlerrors.NewValidation(fmt.Sprintf(
+			"filemanager %s: its data view shows %s, which is not System.FileDocument or a specialization of it — "+
+				"a file manager must be placed in a data view or snippet connected to a file entity "+
+				"(mxbuild CE6810); give %s `extends System.FileDocument`, or move the widget into a data view on such an entity",
+			w.Name, pb.entityContext, pb.entityContext))
+	}
+
+	if raw := w.GetStringProp("Type"); raw != "" {
+		t, ok := pages.CanonicalFileManagerType(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"filemanager %s: Type %q is not a file manager type (expected Upload, Download, Both)", w.Name, raw))
+		}
+		fm.Type = t
+	}
+	if raw, ok := lookupPropCI(w, "MaxFileSize"); ok {
+		n, isInt := toIntProp(raw)
+		if !isInt || n < 0 {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"filemanager %s: MaxFileSize must be a whole number of megabytes, 0 or more (got %v)", w.Name, raw))
+		}
+		fm.MaxFileSize = n
+	}
+	if raw, ok := lookupPropCI(w, "ShowFileInBrowser"); ok {
+		show, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("filemanager %s: ShowFileInBrowser: %v", w.Name, err))
+		}
+		fm.ShowFileInBrowser = show
+	}
+
+	if err := pb.registerWidgetName(w.Name, fm.ID); err != nil {
+		return nil, err
+	}
+	return fm, nil
+}
+
+// toIntProp reads a whole number from a parsed property value.
+func toIntProp(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		if n == float64(int(n)) {
+			return int(n), true
+		}
+	}
+	return 0, false
 }
 
 func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error) {
@@ -1099,6 +1219,19 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 		btn.CaptionTemplate.Parameters = pb.buildClientTemplateParams(params)
 	}
 
+	// Tooltip is a plain Texts$Text in the authoring language. The grammar and
+	// MDL-WIDGET07 both accepted it while nothing here read it, so it was
+	// dropped without a word (mendixlabs/mxcli#1307).
+	if tooltip := w.GetStringProp("Tooltip"); tooltip != "" {
+		btn.Tooltip = &model.Text{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Texts$Text",
+			},
+			Translations: map[string]string{pb.textLang(): tooltip},
+		}
+	}
+
 	// Handle ButtonStyle. Normalize case (so `primary` becomes `Primary`) and
 	// reject unknown values up front — an unrecognized style is silently
 	// degraded to btn-default by MxBuild, which is a quiet authoring footgun.
@@ -1185,6 +1318,11 @@ func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.Naviga
 			return nil, err
 		}
 	}
+
+	// The item's Forms$Appearance — what describe prints for it.
+	item.Class = w.GetClass()
+	item.Style = w.GetStyle()
+	item.DynamicClasses = w.GetDynamicClasses()
 
 	// Set caption from Caption property
 	if caption := w.GetCaption(); caption != "" {

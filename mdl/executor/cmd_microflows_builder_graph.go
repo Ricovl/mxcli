@@ -337,6 +337,10 @@ func collectListInputVariables(stmts []ast.MicroflowStatement) map[string]bool {
 				if s.ErrorHandling != nil {
 					walk(s.ErrorHandling.Body)
 				}
+			case *ast.SendEmailStmt:
+				if s.ErrorHandling != nil {
+					walk(s.ErrorHandling.Body)
+				}
 			case *ast.SendRestRequestStmt:
 				if s.ErrorHandling != nil {
 					walk(s.ErrorHandling.Body)
@@ -494,6 +498,13 @@ func collectObjectInputVariables(stmts []ast.MicroflowStatement) map[string]bool
 				if s.ErrorHandling != nil {
 					walk(s.ErrorHandling.Body)
 				}
+			case *ast.SendEmailStmt:
+				for _, e := range s.Expressions() {
+					walkExpr(e)
+				}
+				if s.ErrorHandling != nil {
+					walk(s.ErrorHandling.Body)
+				}
 			case *ast.SendRestRequestStmt:
 				for _, param := range s.Parameters {
 					for _, ref := range sourceAttributeVarRefs(param.Expression) {
@@ -645,6 +656,7 @@ func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
 		if fb.isListVariable(s.Target) {
 			return fb.addReplaceListAction(s)
 		}
+		fb.refuseSetOnObject(s.Target)
 		return fb.addChangeVariableAction(s)
 	case *ast.ReturnStmt:
 		return fb.addEndEventWithReturn(s)
@@ -720,6 +732,8 @@ func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
 		return fb.addValidationFeedbackAction(s)
 	case *ast.RestCallStmt:
 		return fb.addRestCallAction(s)
+	case *ast.SendEmailStmt:
+		return fb.addSendEmailAction(s)
 	case *ast.SendRestRequestStmt:
 		return fb.addSendRestRequestAction(s)
 	case *ast.ImportFromMappingStmt:

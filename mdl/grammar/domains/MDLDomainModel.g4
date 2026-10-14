@@ -82,6 +82,8 @@ attributeConstraint
     : NOT_NULL (constraintErrorKeyword STRING_LITERAL)?
     | NOT NULL (constraintErrorKeyword STRING_LITERAL)?
     | NULLABLE                              // explicit: clear NOT NULL (MODIFY ATTRIBUTE, Bug 12a)
+    | NOT LOCALIZED                         // DateTime only: LocalizeDate = false (#1373)
+    | LOCALIZED                             // DateTime only: LocalizeDate = true, the default stated (flips back on MODIFY)
     | UNIQUE (constraintErrorKeyword STRING_LITERAL)?
     | DEFAULT (literal | expression)
     | REQUIRED (constraintErrorKeyword STRING_LITERAL)?
@@ -383,9 +385,9 @@ moduleOptions
     : moduleOption+
     ;
 
-// COMMENT is deliberately absent, and unlike the others it could never have
-// worked: Projects$Module has no Documentation property, so there is nowhere in
-// the model for a module comment to go.
+// COMMENT is deliberately absent: Projects$Module has no Documentation
+// property. A module's documentation is its domain model's, and is written as
+// the statement's `/** … */` doc comment (mendixlabs/mxcli#1314).
 moduleOption
     : FOLDER STRING_LITERAL
     ;

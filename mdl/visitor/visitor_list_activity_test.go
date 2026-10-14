@@ -320,6 +320,24 @@ func TestNestedListOperationRefusedUnderMdl1(t *testing.T) {
 	}
 }
 
+// mendixlabs/mxcli#1436: `$Closed = true;` on a name that was never declared
+// (here: one named only by `returns Boolean as $Closed`) was told to write
+// `set`, and `set` then failed with "not declared". The message must also
+// offer the declaration for a variable that is new.
+func TestSetIsMandatory_MessageOffersDeclareForANewVariable(t *testing.T) {
+	src := "mdl 1;\ncreate or modify microflow M.F () returns Boolean as $Closed\nbegin\n  $Closed = true;\n  return $Closed;\nend;"
+	_, errs := Build(src)
+	if len(errs) == 0 {
+		t.Fatal("mdl 1 must refuse a reassignment without set")
+	}
+	msg := errs[0].Error()
+	for _, want := range []string{"set $Closed = true;", "declare $Closed <Type> = true;"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error should contain %q, got: %s", want, msg)
+		}
+	}
+}
+
 // `set` is mandatory for reassignment under mdl 1.
 func TestSetIsMandatoryUnderMdl1(t *testing.T) {
 	body := "declare $I Integer = 0;\n  $I = 5;"

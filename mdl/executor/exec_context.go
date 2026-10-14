@@ -47,6 +47,23 @@ type ExecContext struct {
 	// name rather than the bare one exec could not qualify. See describeAttr.
 	describeQualifyAttrs bool
 
+	// describeBody is set by describeWidgetBody while DESCRIBE renders a page's
+	// or snippet's widgets: which widgets come out only as a comment, so a data
+	// view selecting from one can be commented out with it (#1415). Nil
+	// outside a describe body.
+	describeBody *describeBodyState
+
+	// scriptFlows are the flows earlier statements of a script declare,
+	// keyed by scriptFlowKey, set only while check predicts a script's flow
+	// verdicts (CheckFlowVerdicts): exec builds a flow after those statements
+	// have run, so a call to one of them resolves against the declaration,
+	// not the stored project, which does not hold it yet. Nil otherwise.
+	scriptFlows map[string]*selfFlow
+
+	// forwardFlowCalls mirrors Executor.forwardFlowCalls: whether a call to a
+	// flow the script creates further down is accepted (mendixlabs/mxcli#1405).
+	forwardFlowCalls bool
+
 	// Format controls output formatting (table, json, etc.).
 	Format OutputFormat
 
@@ -124,6 +141,13 @@ type ExecContext struct {
 	// create or modify's diff (describedFlowStmt), which locates stored
 	// activities by the @position printed above them.
 	describeFullLayout bool
+
+	// describeFallsOn is true while DESCRIBE walks a branch after which the
+	// description goes on printing statements within the same loop iteration —
+	// so an activity there with no way out (which ends the iteration in the
+	// model) must say `continue;`, or it would fall into what follows. Reset at
+	// every loop body; see traverseFlowUntilMerge.
+	describeFallsOn bool
 
 	// describeIn, when set, is the exact language DESCRIBE writes, in place of
 	// describeLanguage's default. create or modify pins it to the script's own
@@ -239,6 +263,27 @@ func fileExists(path string) bool {
 // each one panics rather than skipping when exercised without a context.
 func (ctx *ExecContext) Connected() bool {
 	return ctx != nil && ctx.Backend != nil && ctx.Backend.IsConnected()
+}
+
+// unitReadCacher is a backend that can hold the unit contents it reads in
+// memory over a span (the modelsdk backend; see mpr.Reader.CacheUnitReads).
+type unitReadCacher interface {
+	CacheUnitReads() (release func())
+}
+
+// CacheUnitReads holds the units the backend reads in memory until release is
+// called, for a span that writes nothing. check's passes, and exec's plan of a
+// `create or modify`, look a flow, an entity or a module up again and again,
+// and each lookup listed every document of its kind from disk: a `create or
+// modify` of a stored microflow read every microflow file of the project ~9
+// times (mendixlabs/mxcli#1272). A backend that cannot cache gets a no-op.
+func (ctx *ExecContext) CacheUnitReads() (release func()) {
+	if ctx != nil && ctx.Backend != nil {
+		if c, ok := ctx.Backend.(unitReadCacher); ok && ctx.Backend.IsConnected() {
+			return c.CacheUnitReads()
+		}
+	}
+	return func() {}
 }
 
 // ConnectedForWrite returns true if a project is connected and the backend

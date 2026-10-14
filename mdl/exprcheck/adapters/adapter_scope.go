@@ -210,6 +210,8 @@ func StatementErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClaus
 		return s.ErrorHandling
 	case *ast.SynchronizeStmt:
 		return s.ErrorHandling
+	case *ast.SendEmailStmt:
+		return s.ErrorHandling
 	case *ast.CallJavaScriptActionStmt:
 		return s.ErrorHandling
 	case *ast.CallWebServiceStmt:
@@ -217,8 +219,7 @@ func StatementErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClaus
 	case *ast.ExecuteDatabaseQueryStmt:
 		return s.ErrorHandling
 	// The eight statements #1078 gave an onErrorClause. Without them here, MDL076
-	// cannot see a clause these statements now accept, and MDL077 cannot refuse
-	// one on a list operation or aggregate.
+	// cannot see a clause these statements now accept.
 	case *ast.DeclareStmt:
 		return s.ErrorHandling
 	case *ast.MfSetStmt:

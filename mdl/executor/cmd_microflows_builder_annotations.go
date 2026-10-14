@@ -45,8 +45,9 @@ func (fb *flowBuilder) mergeStatementAnnotations(stmt ast.MicroflowStatement) {
 	if ann.Position != nil {
 		fb.pendingAnnotations.Position = ann.Position
 	}
-	if ann.Caption != "" {
+	if ann.HasCaption() {
 		fb.pendingAnnotations.Caption = ann.Caption
+		fb.pendingAnnotations.CaptionSet = true
 	}
 	if ann.Color != "" {
 		fb.pendingAnnotations.Color = ann.Color
@@ -56,6 +57,13 @@ func (fb *flowBuilder) mergeStatementAnnotations(stmt ast.MicroflowStatement) {
 	}
 	if len(ann.FreeNotes) > 0 {
 		fb.pendingAnnotations.FreeNotes = append(fb.pendingAnnotations.FreeNotes, ann.FreeNotes...)
+	}
+	// Missing until #1328: the parser read @excluded and applyAnnotations wrote
+	// it, but this hand-written copy skipped it, so every excluded activity was
+	// written enabled. TestMergeStatementAnnotationsCopiesEveryField guards the
+	// next field added to ActivityAnnotations.
+	if ann.Excluded {
+		fb.pendingAnnotations.Excluded = true
 	}
 	if ann.Anchor != nil {
 		fb.pendingAnnotations.Anchor = ann.Anchor
@@ -89,7 +97,7 @@ func (fb *flowBuilder) applyAnnotations(activityID model.ID, ann *ast.ActivityAn
 	}
 
 	// Find the object by ID for @caption, @color, and @excluded
-	if ann.Caption != "" || ann.Color != "" || ann.Excluded {
+	if ann.HasCaption() || ann.Color != "" || ann.Excluded {
 		for _, obj := range fb.objects {
 			if obj.GetID() != activityID {
 				continue
@@ -109,8 +117,9 @@ func (fb *flowBuilder) applyAnnotations(activityID model.ID, ann *ast.ActivityAn
 				}
 			case *microflows.ExclusiveSplit:
 				// Splits carry a human-readable Caption (e.g. "Right format?")
-				// independent of the expression/rule being evaluated.
-				if ann.Caption != "" {
+				// independent of the expression/rule being evaluated. An
+				// explicit `@caption ''` clears it, as Studio Pro can (#1254).
+				if ann.HasCaption() {
 					activity.Caption = ann.Caption
 				}
 			case *microflows.InheritanceSplit:

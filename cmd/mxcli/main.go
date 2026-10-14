@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -38,16 +39,32 @@ func main() {
 	// (ako/mxcli#633).
 	startSession(os.Args[1:])
 
+	if code := runCLI(); code != 0 {
+		os.Exit(code)
+	}
+}
+
+// runCLI runs the root command and returns the process exit code, ending the
+// session on both paths.
+//
+// Closing here rather than in PersistentPostRun covers --help and --version,
+// which cobra answers before any hook and which would otherwise read as failed
+// runs. Closing on the ERROR path too is what gives a failed run a recorded
+// duration: this used to exit straight through os.Exit, so `diag loop-report`
+// summed wall time over the runs that happened to succeed and the rest landed
+// in `unclosed` with no time at all — 4 of 30 `run` invocations counted on one
+// measured project (PROPOSAL_agent_loop_efficiency.md item 2d).
+//
+// A command that calls os.Exit itself still skips this, and so does a process
+// killed with SIGKILL; both stay `unclosed`, which is now what the word means.
+func runCLI() int {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		diaglog.CloseCurrentWithExit(1)
+		return 1
 	}
-	// Close only on a normal return. A failure that exits through os.Exit —
-	// almost every one — leaves no session_end, and that absence is what
-	// `diag loop-report` reads as a non-zero exit. Closing here rather than in
-	// PersistentPostRun also covers --help and --version, which cobra answers
-	// before any hook and which would otherwise read as failed runs.
 	diaglog.CloseCurrent()
+	return 0
 }
 
 // shouldSuppressWarning checks if the warning should be suppressed
@@ -68,12 +85,18 @@ func shouldSuppressWarning() bool {
 	return false
 }
 
-// discoverProjectPath looks for a single .mpr file in the current directory.
-// Returns the filename if exactly one is found, otherwise returns "".
-func discoverProjectPath() string {
-	entries, err := os.ReadDir(".")
+// discoverProject looks for .mpr files in dir, for a command run without -p.
+// With exactly one it returns its file name (the value -p is set to) and a
+// notice naming its absolute path. With several it picks none and returns a
+// note listing them and asking for -p. With none it returns ("", "").
+//
+// The notice is the only sign that the project was guessed rather than given,
+// so it has to name where the file is: "Using project: App.mpr" read the same
+// for the intended project and a stray copy (mendixlabs/mxcli#1444).
+func discoverProject(dir string) (path, note string) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	var mprFiles []string
 	for _, e := range entries {
@@ -81,10 +104,19 @@ func discoverProjectPath() string {
 			mprFiles = append(mprFiles, e.Name())
 		}
 	}
-	if len(mprFiles) == 1 {
-		return mprFiles[0]
+	switch len(mprFiles) {
+	case 0:
+		return "", ""
+	case 1:
+		abs := filepath.Join(dir, mprFiles[0])
+		if a, err := filepath.Abs(abs); err == nil {
+			abs = a
+		}
+		return mprFiles[0], fmt.Sprintf("Using project: %s (auto-detected in the current directory; pass -p to use another)", abs)
+	default:
+		return "", fmt.Sprintf("No project auto-detected: the current directory has %d .mpr files (%s); pass -p to choose one",
+			len(mprFiles), strings.Join(mprFiles, ", "))
 	}
-	return ""
 }
 
 var rootCmd = &cobra.Command{
@@ -120,9 +152,12 @@ beta language; --mdl 0 starts them in the alpha language, and in the REPL an
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		projectPath, _ := cmd.Flags().GetString("project")
 		if projectPath == "" {
-			if discovered := discoverProjectPath(); discovered != "" {
+			discovered, note := discoverProject(".")
+			if discovered != "" {
 				_ = cmd.Flags().Set("project", discovered)
-				fmt.Fprintf(os.Stderr, "Using project: %s\n", discovered)
+				fmt.Fprintln(os.Stderr, note)
+			} else if note != "" && !shouldSuppressWarning() {
+				fmt.Fprintln(os.Stderr, note)
 			}
 		}
 		// A binary older than the mxcli that wrote this project's tooling is
@@ -349,7 +384,8 @@ func init() {
 	diffLocalCmd.Flags().IntP("width", "w", 120, "Terminal width for side-by-side format")
 
 	// Describe command flags
-	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk")
+	describeCmd.Flags().StringP("format", "f", "mdl", "Output format: mdl, json, mermaid, elk, svg")
+	describeCmd.Flags().Bool("all", false, "With module: describe everything in the module (DESCRIBE MODULE ... WITH ALL), not only the module and its roles")
 
 	// Search command flags
 	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names (for JSON use --json; \"json\" is accepted as a deprecated alias)")
@@ -403,6 +439,8 @@ func init() {
 	testRunCmd.Flags().String("configuration", "", "With --local, which project configuration's constant values to run the tests with (default: the only one, or \"Default\") — the same resolution 'mxcli run --local' uses, so a suite sees the same constants either way")
 	testRunCmd.Flags().StringArray("constant", nil, "With --local, set a constant for THIS RUN only: Module.Name=value (repeatable). Never written to the project. The value is visible in shell history and in `ps` — for a value that must not be, see docs/11-proposals/PROPOSAL_constant_values.md")
 	testRunCmd.Flags().String("mxbuild-path", "", "With --local, the mxbuild to build with, overriding resolution (Studio Pro's bundled mxbuild on macOS/Windows, the cached CDN download on Linux); also settable as MXCLI_MXBUILD_PATH")
+	testRunCmd.Flags().String("db-type", "", "With --local, the database the scratch app boots on: postgresql (default) or hsqldb (the runtime's built-in file database — no server and no provisioning, so it works without PostgreSQL). Same values as 'run --local --db-type'")
+	registerTestPortFlags(testRunCmd)
 	testRunCmd.Flags().BoolP("verbose", "v", false, "Show all runtime log output")
 	testRunCmd.Flags().BoolP("color", "", false, "Use colored output")
 	testRunCmd.Flags().StringP("timeout", "t", "5m", "Timeout for runtime startup and test execution")

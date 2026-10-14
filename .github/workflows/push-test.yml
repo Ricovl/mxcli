@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
       - name: Test the tunnel seam
         shell: bash
         # Scoped with -run to the seam's own tests. The full test binaries are still
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
       - name: Test the Windows process helpers
         shell: bash
         # Scoped with -run: the rest of the docker package's tests assert POSIX
@@ -122,7 +122,7 @@ jobs:
           submodules: true
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
       - name: Cache ANTLR4 JAR
         uses: actions/cache@v6
         with:
@@ -167,10 +167,25 @@ jobs:
         # The table of contents must describe the wiki, both directions. It
         # drifted for three months before anyone noticed.
         run: make check-wiki-pages
+      - name: Check the skill section indexes
+        # Each SKILL.md opens with a generated line-numbered index so an agent
+        # can read one section instead of the file — measured on BENCH-001 as
+        # ~68% of a session's re-read cost. A hand-kept table of contents is
+        # the drift this repo has paid for twice, so the generator owns it.
+        run: make check-skill-index
+      - name: Check every go test sets -timeout
+        # Without one Go applies 10m per test binary, and a package that passes
+        # in seconds alone can exceed it under `./...` load (mendixlabs/mxcli#1291).
+        run: make check-test-timeouts
       - name: Check skill MDL blocks
         run: ./scripts/check-skill-mdl.sh ./bin/mxcli .claude/skills/mendix
       - name: Check docs-site MDL blocks
         run: ./scripts/check-skill-mdl.sh ./bin/mxcli docs-site/src
+      - name: Check complete MDL examples (skills, docs-site) pass mxcli check
+        # The step above fails only on syntax. A whole example that parses and
+        # that `mxcli check` still rejects (MDL031, MDL063) shipped as correct
+        # until a user ran the pack through check (mendixlabs/mxcli#1357).
+        run: ./scripts/check-skill-mdl-semantics.sh ./bin/mxcli .claude/skills/mendix .claude/skills/packs docs/01-project/MDL_QUICK_REFERENCE.md docs-site/src
       - name: Check MDL conformance
         # Every MDL block in `mxcli syntax`, the skills, docs-site, the quick
         # reference and mdl-examples, parsed as mdl 1, with deprecated
@@ -241,7 +256,7 @@ jobs:
           submodules: ${{ matrix.suite == 'roundtrip' || matrix.suite == 'parity' }}
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26.6'
+          go-version: '1.27.2'
       - name: Cache ANTLR4 JAR
         uses: actions/cache@v6
         with:

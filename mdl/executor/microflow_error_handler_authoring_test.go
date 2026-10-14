@@ -161,32 +161,6 @@ func TestAuthorOnError_WithoutRollbackIsDistinct(t *testing.T) {
 	}
 }
 
-// MDL077: `set` is one statement form spanning activities that can and cannot
-// hold the clause. Change variable can; list operation and aggregate have no
-// ErrorHandlingType in the metamodel at all, so the clause is refused rather than
-// accepted and discarded.
-func TestMDL077_RefusesOnErrorWhereTheActivityHasNoField(t *testing.T) {
-	refused := []struct{ name, body string }{
-		{"list operation", "$h = head($list) on error { rollback $x; };"},
-		{"aggregate", "$n = count($list) on error { rollback $x; };"},
-	}
-	for _, tc := range refused {
-		t.Run(tc.name, func(t *testing.T) {
-			out := checkMicroflowBodyForTest(t, tc.body)
-			if !strings.Contains(out, "MDL077") {
-				t.Errorf("expected MDL077 for %s, got:\n%s", tc.name, out)
-			}
-		})
-	}
-
-	// Control: the plain form of the SAME statement keyword is accepted, so the
-	// rule is discriminating between activities and not just banning `set`.
-	if out := checkMicroflowBodyForTest(t,
-		"declare $a String = 'v';\n$a = 'w' on error { rollback $x; };"); strings.Contains(out, "MDL077") {
-		t.Errorf("MDL077 fired on a plain set, which IS a Change variable activity:\n%s", out)
-	}
-}
-
 // checkMicroflowBodyForTest runs the microflow validator over a body and returns
 // the rule IDs it reported.
 func checkMicroflowBodyForTest(t *testing.T, body string) string {

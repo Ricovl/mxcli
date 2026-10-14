@@ -122,12 +122,12 @@ CREATE CONSUMED ODATA SERVICE MyModule.ExternalAPI (
 **OData Service Example:**
 ```sql
 CREATE PUBLISHED ODATA SERVICE MyModule.CustomerAPI (
-  Path: '/odata/customers',
+  Path: 'odata/customers/',
   Version: '1.0.0',
   ODataVersion: OData4,
-  Namespace: 'MyModule.Customers'
+  Namespace: 'MyModule.Customers',
+  Authentication: (basic, session)
 )
-AUTHENTICATION Basic, Session
 {
   PUBLISH ENTITY MyModule.Customer AS 'Customers' (
     ReadMode: SOURCE,
@@ -137,7 +137,9 @@ AUTHENTICATION Basic, Session
     UsePaging: Yes,
     PageSize: 100
   )
-  EXPOSE (Name, Email, Phone);
+  -- The KEY attribute must be unique on the entity
+  -- (Email: String(200) UNIQUE), or mxbuild reports CE6624.
+  EXPOSE (Email (KEY), Name, Phone);
 };
 ```
 
@@ -159,7 +161,7 @@ AUTHENTICATION Basic, Session
 | Call microflow | `$Result = CALL MICROFLOW Module.Name (Param = $value);` | |
 | Call nanoflow | `$Result = CALL NANOFLOW Module.Name (Param = $value);` | |
 | Show page | `SHOW PAGE Module.PageName (Param = $value);` | `($Param = …)` and `(Param: …)` are deprecated |
-| Close page | `CLOSE PAGE;` | |
+| Close page | `CLOSE PAGE [n];` | `n` pages, default 1 |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` | Requires attribute path + MESSAGE |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'message';` | |
 | Position | `@position(x, y)` | Canvas position (before activity) |
@@ -226,6 +228,7 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
 | Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
 | Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
+| Rename admin user | `ALTER APP SECURITY ( AdminUserName: 'appadmin' );` | Default `MxAdmin`; the password is not settable from MDL |
 | Create demo user | `CREATE DEMO USER 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `PASSWORD … (…)` warns MDL-DEPR137 |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -352,7 +355,7 @@ MDL uses explicit property declarations for pages:
 | Element | Syntax | Example |
 |---------|-----------|---------|
 | Page properties | `(Key: value, ...)` | `(Title: 'Edit', Layout: Atlas_Core.Atlas_Default)` |
-| Page variables | `Variables: ( $name: Type = 'expr' )` | `Variables: ( $show: Boolean = 'true' )` |
+| Page variables | `Variables: ( $name: Type = <expr> )` | `Variables: ( $show: Boolean = true )` |
 | Widget name | Required after type | `TEXTBOX txtName (...)` |
 | Attribute binding | `Attribute: AttrName` | `TEXTBOX txt (Label: 'Name', Attribute: Name)` |
 | Variable binding | `DataSource: $Var` | `DATAVIEW dv (DataSource: $Product) { ... }` |
@@ -385,8 +388,8 @@ MDL uses explicit property declarations for pages:
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | `Hidable: no` |
 | `ColumnWidth` | `autoFill`, `autoFit`, `manual` | `autoFill` | `ColumnWidth: manual` |
 | `Size` | integer (px) | `1` | `Size: 200` |
-| `Visible` | expression string | `true` | `Visible: '$showColumn'` (page variable, not $currentObject) |
-| `DynamicCellClass` | expression string | (empty) | `DynamicCellClass: if(...) then ... else ...` |
+| `Visible` | expression | `true` | `Visible: $showColumn` — evaluated once for the grid: a page variable or parameter, never `$currentObject` (MDL-WIDGET43, CE0117) |
+| `DynamicCellClass` | expression | (empty) | `DynamicCellClass: if $currentObject/Stock < 10 then 'text-danger' else ''` |
 | `Tooltip` | text string | (empty) | `Tooltip: 'Price in USD'` |
 
 **Page Example:**
@@ -433,8 +436,10 @@ Modify an existing page or snippet's widget tree in-place without full `CREATE O
 | Drop widgets | `DROP name1, name2` | Remove widgets by name |
 | Replace widget | `REPLACE widgetName WITH { widgets }` | Replace widget subtree |
 | Pluggable prop | `SET ('showLabel': false) ON cbStatus` | Quoted name for pluggable widgets |
-| Add variable | `ADD Variables $name: Type = 'expr'` | Add a page variable |
+| Add variable | `ADD Variables $name: Type = <expr>` | Add a page variable |
 | Drop variable | `DROP Variables $name` | Remove a page variable |
+| Add parameter | `ADD Parameters $name: Type` | Add a page/snippet parameter (entity or primitive; snippet: entity only). A page with a `Url` needs a `{name}` segment — `SET (Url: …)` in the same statement |
+| Drop parameter | `DROP Parameters $name` | Remove a parameter; refused while the page still uses it |
 
 **Supported SET properties:** Caption, Label, ButtonStyle, Class, Style, Editable, Visible, Name, and quoted pluggable widget properties. Page-level (no `ON` clause, case-sensitive): Title, Class, Style, PopupWidth, PopupHeight, PopupResizable.
 

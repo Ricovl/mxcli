@@ -70,11 +70,7 @@ func inputBindingProblem(w *ast.WidgetV3, c pageArgContext, noEntity bool, isPag
 				"bind the input to it, or bind an attribute by name inside a data container",
 				kind, w.Name, name, name, name)
 		}
-		return fmt.Sprintf("%s `%s`: `Attribute: %s` is not an attribute binding MDL can store — the widget "+
-			"would be written with no binding at all, inside a data view or outside one. Bind the attribute by "+
-			"name inside a data container over that object: `dataview dv (DataSource: $Param) { %s %s "+
-			"(Attribute: Name) }` ($currentObject/Name is written `Name`)",
-			kind, w.Name, nonStringAttributeText(raw), kind, w.Name)
+		return nonPathBindingProblem(w, kind, c, nonStringAttributeText(raw))
 	}
 	if attr == "" {
 		return ""
@@ -123,9 +119,48 @@ func unboundBuildError(kind string) string {
 	return `CE0544 "This widget can only function inside a data context"`
 }
 
+// nonPathBindingProblem is the refusal for an `Attribute:` value that did not
+// parse as an attribute path. It quotes the value as written, names the widget
+// even when it has no name (a data grid column never does), and gives advice
+// that fits where the widget sits: a value with a `/` is an association path
+// written in a form the path syntax does not take, and inside a data container
+// there is nothing to wrap (ChipCoV8 #10).
+func nonPathBindingProblem(w *ast.WidgetV3, kind string, c pageArgContext, text string) string {
+	head := fmt.Sprintf("%s: `Attribute: %s` is not an attribute binding MDL can store — the widget would be "+
+		"written with no binding at all", widgetRefForMessage(w, kind), text)
+	if strings.Contains(text, "/") && !strings.HasPrefix(strings.TrimSpace(text), "$") {
+		return head + ". To bind an attribute over an association, write the association path as " +
+			"Assoc/Attr or Module.Assoc/Attr (e.g. `Order_Customer/Name` or `Sales.Order_Customer/Name`) — " +
+			"each name a plain identifier, with no spaces or operators"
+	}
+	if c.known && c.present {
+		return head + ". Bind an attribute of the object the enclosing data container supplies by name — " +
+			"`Name`, or `Assoc/Attr` over an association ($currentObject/Name is written `Name`)"
+	}
+	return head + fmt.Sprintf(", inside a data view or outside one. Bind the attribute by name inside a data "+
+		"container over that object: `dataview dv (DataSource: $Param) { %s (Attribute: Name) }` "+
+		"($currentObject/Name is written `Name`)", strings.TrimSpace(kind+" "+w.Name))
+}
+
+// widgetRefForMessage names a widget for a message: by its name, or — for one
+// Mendix stores no name for, such as a data grid column — by its caption.
+func widgetRefForMessage(w *ast.WidgetV3, kind string) string {
+	if w.Name != "" {
+		return fmt.Sprintf("%s `%s`", kind, w.Name)
+	}
+	if caption := w.GetCaption(); caption != "" {
+		return fmt.Sprintf("%s '%s'", kind, caption)
+	}
+	return "unnamed " + kind
+}
+
 // nonStringAttributeText renders an `Attribute:` value that did not parse as an
 // attribute path back into the spelling the author wrote, for the message.
 func nonStringAttributeText(v any) string {
+	if expr, ok := v.(*ast.WidgetExpressionV3); ok {
+		// The source text the author wrote, not the struct (`&{…}`).
+		return expr.Text
+	}
 	ds, ok := v.(*ast.DataSourceV3)
 	if !ok {
 		return fmt.Sprintf("%v", v)
@@ -168,11 +203,16 @@ func validateInputBindingContext(w *ast.WidgetV3, c pageArgContext, locationPref
 	if msg == "" {
 		return nil
 	}
+	suggestion := "An input or dynamic text shows an attribute of the object a data view, list view, gallery or data grid supplies — wrap it in one."
+	if c.known && c.present {
+		// Already inside one: the binding's spelling is the problem, not its place.
+		suggestion = "Write the attribute by name (`Name`) or as an association path (`Assoc/Attr`, `Module.Assoc/Attr`)."
+	}
 	return []linter.Violation{{
 		RuleID:     "MDL-WIDGET34",
 		Severity:   linter.SeverityError,
 		Message:    locationPrefix + ": " + msg,
-		Suggestion: "An input or dynamic text shows an attribute of the object a data view, list view, gallery or data grid supplies — wrap it in one.",
+		Suggestion: suggestion,
 	}}
 }
 
@@ -231,7 +271,7 @@ func validatePageVariableBindings(widgets []*ast.WidgetV3, variables []ast.PageV
 						RuleID:     "MDL-WIDGET34",
 						Severity:   linter.SeverityError,
 						Message:    locationPrefix + ": " + msg,
-						Suggestion: "Bind an input to a page variable by declaring it: `Variables: ( $name: Boolean = 'true' )`, then `Attribute: $name`.",
+						Suggestion: "Bind an input to a page variable by declaring it: `Variables: ( $name: Boolean = true )`, then `Attribute: $name`.",
 					})
 				}
 			}

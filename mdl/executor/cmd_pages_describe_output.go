@@ -298,6 +298,9 @@ func outputDataContainerContext(w io.Writer, prefix string, widgetName string, e
 // outputWidgetMDLV3 outputs a widget in MDL V3 syntax.
 // V3 syntax uses WIDGET Name (Props) { children } format.
 func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
+	if describeDanglingSelection(ctx, w, indent) {
+		return // listens to a widget this description cannot emit (#1415)
+	}
 	prefix := strings.Repeat("  ", indent)
 
 	switch w.Type {
@@ -386,6 +389,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.TabCaption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.TabCaption)))
 		}
+		// A tab page's visibility (#1465). Its Forms$TabPage has no Appearance,
+		// so appendAppearanceProps would print nothing else either.
+		if w.VisibleIf != "" {
+			props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
+		}
+		if prop := visibleWhenProp(w); prop != "" {
+			props = append(props, prop)
+		}
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 			for _, child := range w.Children {
@@ -447,13 +458,26 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Name != "" {
 			header += " " + mdlIdent(w.Name)
 		}
-		props := appendAppearanceProps(ctx, nil, w)
+		props := describeLayoutGridWidth(nil, w)
+		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 		for _, row := range w.Rows {
 			// Mendix stores no name on a row or a column (R12, #749), so
 			// describe writes none: an invented `row1` / `col3` churned when a
 			// row or column was inserted, and meant nothing on re-execution.
-			fmt.Fprintf(ctx.Output, "%s  row {\n", prefix)
+			// Alignment and appearance only when set, so a plain row stays `row {`.
+			var rowProps []string
+			if a := layoutGridAlignmentMDL(row.VerticalAlignment); a != "" {
+				rowProps = append(rowProps, "VerticalAlignment: "+a)
+			}
+			if a := layoutGridAlignmentMDL(row.HorizontalAlignment); a != "" {
+				rowProps = append(rowProps, "HorizontalAlignment: "+a)
+			}
+			if !row.SpacingBetweenColumns {
+				rowProps = append(rowProps, "SpacingBetweenColumns: false")
+			}
+			rowProps = appendAppearanceProps(ctx, rowProps, row.Appearance)
+			formatWidgetProps(ctx.Output, prefix+"  ", "row", rowProps, " {\n")
 			for _, col := range row.Columns {
 				// The desktop width is always printed. A tablet or phone width
 				// is printed unless it is auto-fill, which is what the builder
@@ -465,7 +489,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				if w := layoutGridWidthMDL(col.PhoneWidth); w != "AutoFill" {
 					colProps = append(colProps, "PhoneWidth: "+w)
 				}
-				fmt.Fprintf(ctx.Output, "%s    column (%s) {\n", prefix, strings.Join(colProps, ", "))
+				if a := layoutGridAlignmentMDL(col.VerticalAlignment); a != "" {
+					colProps = append(colProps, "VerticalAlignment: "+a)
+				}
+				colProps = appendAppearanceProps(ctx, colProps, col.Appearance)
+				formatWidgetProps(ctx.Output, prefix+"    ", "column", colProps, " {\n")
 				for _, cw := range col.Widgets {
 					outputWidgetMDLV3(ctx, cw, indent+3)
 				}
@@ -503,6 +531,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		}
 		if len(w.Parameters) > 0 {
 			props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
+		}
+		if w.Tooltip != "" {
+			props = append(props, fmt.Sprintf("Tooltip: %s", mdlQuote(ctx, w.Tooltip)))
 		}
 		if w.Action != "" {
 			props = append(props, actionProp("Action", w.Action))
@@ -587,6 +618,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		}
 		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
+		props = describeSubmitBehaviour(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -605,6 +637,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = describeSubmitBehaviour(props, w)
+		props = appendAppearanceProps(ctx, props, w)
+		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+
+	case "Forms$FileManager", "Pages$FileManager":
+		header := fmt.Sprintf("filemanager %s", mdlIdent(w.Name))
+		props := []string{}
+		if w.Caption != "" {
+			props = append(props, fmt.Sprintf("Label: %s", mdlQuote(ctx, w.Caption)))
+		}
+		props = append(props, w.FileManagerProps...)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -932,8 +975,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if child.Action != "" {
 				props = append(props, actionProp("Action", child.Action))
 			}
-			if child.ButtonStyle != "" && child.ButtonStyle != "Default" {
-				props = append(props, fmt.Sprintf("ButtonStyle: %s", child.ButtonStyle))
+			if child.Class != "" {
+				props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, child.Class)))
+			}
+			if child.Style != "" {
+				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, child.Style)))
+			}
+			if child.DynamicClasses != "" {
+				props = append(props, fmt.Sprintf("DynamicClasses: %s", child.DynamicClasses)) // an expression, printed as-is
 			}
 			formatWidgetProps(ctx.Output, prefix+"  ", itemHeader, props, " {\n")
 			for _, cw := range child.Children {
@@ -1118,6 +1167,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		// Atlas_Core.Atlas_SideBar, whose two Forms$SidebarToggleButton widgets
 		// do not survive describe -> exec — silent without this note, because a
 		// bare `-- Forms$X (name)` line reads as informational.
+		describeDroppedWidget(ctx, w)
 		fmt.Fprintf(ctx.Output, "%s-- %s", prefix, w.Type)
 		if w.Name != "" {
 			fmt.Fprintf(ctx.Output, " (%s)", w.Name)
@@ -1183,7 +1233,15 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 		props = append(props, fmt.Sprintf("Size: %s", col.Size))
 	}
 	if col.Visible != "" && col.Visible != "true" {
-		props = append(props, fmt.Sprintf("Visible: %s", mdlQuote(ctx, col.Visible)))
+		// The expression as written, as for a page widget's conditional
+		// visibility; `false` is the plain value, which a column reads as the
+		// expression false. The quoted text this printed before was the
+		// one spelling a column's Visible did not drop.
+		if strings.EqualFold(strings.TrimSpace(col.Visible), "false") {
+			props = append(props, "Visible: false")
+		} else {
+			props = append(props, widgetConditionMDL("Visible", col.Visible))
+		}
 	}
 	if col.DynamicCellClass != "" {
 		props = append(props, fmt.Sprintf("DynamicCellClass: %s", col.DynamicCellClass)) // an expression, printed as-is
@@ -1801,11 +1859,17 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 }
 
 func extractTextCaption(ctx *ExecContext, w map[string]any) string {
-	caption, ok := w["Caption"].(map[string]any)
+	return extractTextsText(ctx, w, "Caption")
+}
+
+// extractTextsText reads the default-language translation of the Texts$Text
+// stored under field — a widget's Caption, or an action button's Tooltip.
+func extractTextsText(ctx *ExecContext, w map[string]any, field string) string {
+	text, ok := w[field].(map[string]any)
 	if !ok {
 		return ""
 	}
-	items := getBsonArrayElements(caption["Items"])
+	items := getBsonArrayElements(text["Items"])
 	return selectTranslationText(items, describeDefaultLanguage(ctx))
 }
 
@@ -2009,8 +2073,16 @@ func describeImageWidgetProps(ctx *ExecContext, w rawWidget) []string {
 	if w.ImageType != "" && w.ImageType != "image" {
 		props = append(props, fmt.Sprintf("ImageType: %s", w.ImageType))
 	}
-	if w.ImageObject != "" {
+	switch {
+	case w.ImageFromObject:
+		// Bound to the object in context, unquoted: a quoted value is a
+		// collection entry's name (#1476).
+		props = append(props, "Image: "+imageObjectVariable)
+	case w.ImageObject != "":
 		props = append(props, fmt.Sprintf("Image: %s", mdlQuote(ctx, w.ImageObject)))
+	}
+	if w.DefaultImage != "" {
+		props = append(props, fmt.Sprintf("DefaultImage: %s", mdlQuote(ctx, w.DefaultImage)))
 	}
 	if w.ImageUrl != "" {
 		props = append(props, fmt.Sprintf("ImageUrl: %s", mdlQuote(ctx, w.ImageUrl)))
@@ -2109,4 +2181,13 @@ func layoutGridWidthMDL(weight int) string {
 		return "AutoFit"
 	}
 	return "AutoFill"
+}
+
+// layoutGridAlignmentMDL spells a stored layout-grid row or column alignment,
+// or "" for Mendix's default ("None", or absent on an older model).
+func layoutGridAlignmentMDL(a string) string {
+	if a == "" || a == "None" {
+		return ""
+	}
+	return a
 }

@@ -3,8 +3,10 @@
 package modelsdkbackend
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
@@ -70,5 +72,66 @@ func TestIsRule(t *testing.T) {
 	// Empty name short-circuits to false, no error.
 	if ok, err := b.IsRule(""); ok || err != nil {
 		t.Errorf("IsRule(\"\") = %v, %v; want false, nil", ok, err)
+	}
+}
+
+// TestIsRule_NestedFolders resolves rules nested in folders, as marketplace
+// modules keep them (Evora's sit in Private/Objects/PromptToUse): the module is
+// the first one up the containment chain, and the right name in the wrong
+// module is rejected. IsRule answers from the reader's header index, so it no
+// longer lists the project per rule — the cost that made describe of a flow
+// with a rule split run past five minutes on MPR v1.
+func TestIsRule_NestedFolders(t *testing.T) {
+	proj := copyFixture(t)
+
+	b := New()
+	if err := b.Connect(proj); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	mod, err := b.GetModuleByName("MyFirstModule")
+	if err != nil || mod == nil {
+		t.Fatalf("GetModuleByName(MyFirstModule) = %v, %v", mod, err)
+	}
+	// Rules nested two folders deep: the module is found by walking up.
+	container := mod.ID
+	for _, f := range []string{"Private", "Rules"} {
+		folder := &model.Folder{Name: f, ContainerID: container}
+		if err := b.CreateFolder(folder); err != nil {
+			t.Fatalf("create folder %s: %v", f, err)
+		}
+		container = folder.ID
+	}
+	const rules = 6
+	for i := 0; i < rules; i++ {
+		id := fmt.Sprintf("22222222-2222-2222-2222-%012d", i)
+		r := genMf.NewRule()
+		r.SetID(element.ID(id))
+		r.SetName(fmt.Sprintf("Rule_%d", i))
+		r.SetExportLevel("Hidden")
+		contents, err := (&codec.Encoder{}).Encode(r)
+		if err != nil {
+			t.Fatalf("encode rule: %v", err)
+		}
+		if err := b.writer.InsertUnit(id, string(container), "Documents", "Microflows$Rule", contents); err != nil {
+			t.Fatalf("insert rule unit: %v", err)
+		}
+	}
+
+	for _, tc := range []struct {
+		name string
+		want bool
+	}{
+		{"MyFirstModule.Rule_5", true},
+		// A name no rule carries resolves nothing.
+		{"MyFirstModule.NotARule", false},
+		// The right name in the wrong module is rejected.
+		{"OtherModule.Rule_3", false},
+	} {
+		got, err := b.IsRule(tc.name)
+		if err != nil || got != tc.want {
+			t.Errorf("IsRule(%s) = %v, %v; want %v", tc.name, got, err, tc.want)
+		}
 	}
 }

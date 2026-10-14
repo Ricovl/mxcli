@@ -133,6 +133,11 @@ type NavigationListItem struct {
 	Caption *model.Text  `json:"caption,omitempty"`
 	Action  ClientAction `json:"action,omitempty"`
 	Widgets []Widget     `json:"widgets,omitempty"` // Nested widgets beyond the caption
+	// Class, Style and DynamicClasses are the item's Forms$Appearance — the
+	// same three fields a widget's appearance carries.
+	Class          string `json:"class,omitempty"`
+	Style          string `json:"style,omitempty"`
+	DynamicClasses string `json:"dynamicClasses,omitempty"`
 }
 
 // LinkButton represents a link-style button.
@@ -216,6 +221,12 @@ type PageClientParameterMapping struct {
 	ParameterName string `json:"parameterName"`        // Page parameter name (without $)
 	Variable      string `json:"variable,omitempty"`   // Variable reference (e.g., "$Customer")
 	Expression    string `json:"expression,omitempty"` // Expression value (maps to BSON "Argument")
+	// VariableKind is set when the argument is a page or snippet parameter
+	// bound by name ("parameter" / "snippet"): the writer then stores an
+	// explicit mapping whose Variable is a Forms$PageVariable, as Studio Pro
+	// does. Empty means the argument is the context object, which Mendix infers
+	// from an empty ParameterMappings array (#296). See mendixlabs/mxcli#1403.
+	VariableKind string `json:"variableKind,omitempty"`
 }
 
 // PageSettings represents page display settings.

@@ -169,6 +169,7 @@ Container Runtime:
 		// repo the odds of it being what you meant are zero.
 		// (mxcli-formula1 findings #3.)
 		mprFile := findMprFile(absDir)
+		mprPlaceholder := false
 		if mprFile == "" {
 			candidates := findMprFilesInSubdirs(absDir)
 			switch len(candidates) {
@@ -176,6 +177,7 @@ Container Runtime:
 				fmt.Fprintf(os.Stderr, "Warning: no .mpr file found in %s.\n", absDir)
 				fmt.Fprintln(os.Stderr, "  Generated files will refer to 'project.mpr'; run this from the app folder to get real paths.")
 				mprFile = "project.mpr"
+				mprPlaceholder = true
 			case 1:
 				absDir = filepath.Dir(candidates[0])
 				mprFile = filepath.Base(candidates[0])
@@ -190,7 +192,13 @@ Container Runtime:
 				os.Exit(1)
 			}
 		}
-		projectName := filepath.Base(absDir)
+		// The app's name (from the .mpr), not the folder's: a cloud session
+		// clones into a folder named after the repository. Every use below is
+		// a display name; paths use absDir/mprFile directly.
+		projectName := projectDisplayName(absDir, mprFile)
+		if mprPlaceholder {
+			projectName = filepath.Base(absDir)
+		}
 
 		// Determine which tools to initialize
 		tools := initTools
@@ -288,6 +296,15 @@ Container Runtime:
 				rel = dest
 			}
 			fmt.Printf("  Created %d skills in %s/\n", skillRes.Total, filepath.ToSlash(rel))
+		}
+
+		// The companion mod (a Claude Code pane), beside the skills. Same
+		// code path as the SessionStart refresh, and only for Claude projects.
+		if written, err := syncCompanion(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing the companion mod: %v\n", err)
+			os.Exit(1)
+		} else if len(written) > 0 {
+			fmt.Printf("  Created the mxcli companion in .claude/skills/%s/ (/mxcli-project opens the Project pane)\n", companionFolder)
 		}
 
 		// Write tool-specific configurations

@@ -107,14 +107,43 @@ func (s *DescribeContractFromOpenAPIStmt) isStatement() {}
 //
 //	CREATE PUBLISHED REST SERVICE Module.Name (Path: '...', Version: '...') { RESOURCE ... };
 type CreatePublishedRestServiceStmt struct {
-	CreateGuard    // `create … if not exists` (ako/mxcli#731)
-	Name           QualifiedName
-	Path           string
-	Version        string
-	ServiceName    string
-	Folder         string
+	CreateGuard // `create … if not exists` (ako/mxcli#731)
+	Name        QualifiedName
+	Path        string
+	Version     string
+	ServiceName string
+	Folder      string
+	// Authentication is nil when the statement does not state it, which keeps
+	// the stored setting on create or modify.
+	Authentication *PublishedRestAuthentication
 	Resources      []*PublishedRestResourceDef
 	CreateOrModify bool
+}
+
+// PublishedRestAuthentication is `Authentication: none | ( method, … )`.
+// Methods holds the stored spellings ("Basic", "Session", "Microflow") in the
+// order written, which is the order Studio Pro stores them; empty is `none`.
+// Microflow is the custom-authentication microflow, set exactly when Methods
+// holds "Microflow".
+type PublishedRestAuthentication struct {
+	Methods   []string
+	Microflow string
+	// Parameters is the optional list after the microflow,
+	// `microflow M.F ($Token: header 'X-Api-Token', …)`, in the order written
+	// (mendixlabs/mxcli#1417). An auth-microflow parameter it does not list is
+	// a query parameter under its own name.
+	Parameters []*PublishedRestAuthParameter
+}
+
+// PublishedRestAuthParameter is one `$Name: kind ['httpName'] [description '…']`
+// entry. Name is the authentication microflow's parameter, without the `$`;
+// Kind is lowercased as written ("query" and "header" are valid); HTTPName is
+// "" when it is the parameter's own name.
+type PublishedRestAuthParameter struct {
+	Name        string
+	Kind        string
+	HTTPName    string
+	Description string
 }
 
 func (s *CreatePublishedRestServiceStmt) isStatement() {}
@@ -160,9 +189,11 @@ type PublishedRestAlterAction interface {
 	isPublishedRestAlterAction()
 }
 
-// PublishedRestSetAction represents: SET key = 'value' [, ...]
+// PublishedRestSetAction represents: SET key = 'value' [, ...] or
+// SET ( Key: value, ... ). Authentication is nil unless the list states it.
 type PublishedRestSetAction struct {
-	Changes map[string]string
+	Changes        map[string]string
+	Authentication *PublishedRestAuthentication
 }
 
 func (a *PublishedRestSetAction) isPublishedRestAlterAction() {}

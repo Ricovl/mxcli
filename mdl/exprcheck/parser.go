@@ -12,6 +12,7 @@
 package exprcheck
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/exprcheck/hints"
@@ -27,10 +28,10 @@ func (p *parserImpl) Parse(src string, ctx Context) (RobustExpr, []Hint) {
 	// Detect unconsumed trailing tokens (e.g. "emptyor" parsed as a variable,
 	// leaving "$X = ''" silently abandoned). This indicates a structural parse
 	// error — most commonly a keyword glued to an adjacent token without whitespace.
-	// TokError tokens (unrecognised characters such as ':') are excluded: the
-	// parser's E007 recovery already handles them inline; re-reporting them here
-	// would produce false positives for valid expressions that use characters
-	// the lexer does not model (e.g. "$Total : $Count" with Mendix ':' division).
+	// TokError tokens (unrecognised characters) are excluded: the parser's E007
+	// recovery already handles them inline. That exclusion is also why ':' had
+	// to become an operator rather than stay a TokError: as an error token it
+	// ended the parse silently, so `x : 4 < $Max` was checked as just `x`.
 	if t := s.Peek(); t.Kind != TokEOF && t.Kind != TokError {
 		// This hint used to carry no code, no document and no microflow: the
 		// location held only a line and column, which are the offsets WITHIN the
@@ -89,12 +90,16 @@ func checkSlotKind(expr RobustExpr, ctx Context) []Hint {
 		return nil
 	}
 	k := inferKind(expr, ctx)
-	if k == KindUnknown || k == sc.Kind {
+	if k == KindUnknown || k == sc.Kind || slices.Contains(sc.AlsoAccepts, k) {
 		return nil
 	}
 	// `empty` satisfies any slot: it is Mendix's null, not a kind of its own.
 	if k == KindEmpty {
 		return nil
+	}
+	mxbuild := sc.Mxbuild
+	if mxbuild == "" {
+		mxbuild = "CE0117 \"Error(s) in expression\""
 	}
 	fix := "Convert it, e.g. with toString(...)."
 	if sc.Kind != KindString {
@@ -107,7 +112,7 @@ func checkSlotKind(expr RobustExpr, ctx Context) []Hint {
 		Where:    hintsLocation(ctx, expr.Pos()),
 		YouWrote: "<" + typeKindName(k) + ">",
 		Problem: "This position requires " + typeKindName(sc.Kind) + ", but the expression has kind " +
-			typeKindName(k) + ". Mendix does not coerce here — it reports CE0117 \"Error(s) in expression\".",
+			typeKindName(k) + ". Mendix does not coerce here — it reports " + mxbuild + ".",
 		Fix: fix,
 	}}
 }
@@ -336,8 +341,10 @@ func parseMul(s *Stream, ctx Context) (RobustExpr, []Hint) {
 	left, hints := parseUnary(s, ctx)
 	for {
 		t := s.Peek()
+		// One left-associative level for every multiplicative operator: `*`,
+		// `div`, `:` (division, spelled after ÷) and `mod`.
 		isDivMod := t.Kind == TokIdent && (t.Text == "div" || t.Text == "mod")
-		if t.Kind != TokStar && !isDivMod {
+		if t.Kind != TokStar && t.Kind != TokColon && !isDivMod {
 			break
 		}
 		op := s.Consume().Text
@@ -400,24 +407,25 @@ func parsePrimary(s *Stream, ctx Context) (RobustExpr, []Hint) {
 	if salvage == "" {
 		salvage = s.Consume().Text
 	}
-	return &RecoveredExpr{
-			baseNode:       baseNode{P: pos},
-			SourceFragment: salvage,
-			Reason:         "unrecognised tokens at primary expression position",
-		}, []Hint{{
-			Code:     "E007",
-			Slug:     "unknown-token",
-			Severity: hints.SeverityWarning,
-			Where: hints.Location{
-				Microflow: ctx.Microflow,
-				Context:   SlotToContext(ctx.SlotPath),
-				Line:      pos.Line,
-				Column:    pos.Column,
-			},
-			YouWrote: salvage,
-			Problem:  "Unrecognised tokens at this position. The parser skipped to the next safe boundary so the rest of the expression could be parsed; additional hints below assume that recovery point.",
-			Fix:      "Replace the highlighted fragment with a valid Mendix expression — a literal, variable, qualified name, or function call.",
-		}}
+	recovered := &RecoveredExpr{
+		baseNode:       baseNode{P: pos},
+		SourceFragment: salvage,
+		Reason:         "unrecognised tokens at primary expression position",
+	}
+	return recovered, []Hint{{
+		Code:     "E007",
+		Slug:     "unknown-token",
+		Severity: hints.SeverityWarning,
+		Where: hints.Location{
+			Microflow: ctx.Microflow,
+			Context:   SlotToContext(ctx.SlotPath),
+			Line:      pos.Line,
+			Column:    pos.Column,
+		},
+		YouWrote: salvage,
+		Problem:  "Unrecognised tokens at this position. The parser skipped to the next safe boundary so the rest of the expression could be parsed; additional hints below assume that recovery point.",
+		Fix:      "Replace the highlighted fragment with a valid Mendix expression — a literal, variable, qualified name, or function call.",
+	}}
 }
 
 func parseIdentLed(s *Stream, ctx Context) (RobustExpr, []Hint) {
@@ -746,7 +754,7 @@ func inferKind(e RobustExpr, ctx Context) TypeKind {
 		switch n.Op {
 		case "AND", "OR", "=", "!=", "<", "<=", ">", ">=":
 			return KindBoolean
-		case "div":
+		case "div", ":":
 			// Mendix division always yields a Decimal, even Integer div Integer.
 			// Assigning the result to an Integer/Long fails mx check with CE0117.
 			return KindDecimal

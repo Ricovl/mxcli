@@ -51,6 +51,14 @@ type scriptContext struct {
 	// (mendixlabs/mxcli#1211).
 	queues map[string]bool
 
+	// Image collections created (Module.Collection) and the images they declare
+	// (Module.Collection.Image), both lower-cased like buildImageQualifiedNames.
+	// Missing, an image widget naming a collection the same script creates was
+	// "image collection not found" and exec refused the script
+	// (mendixlabs/mxcli#1419).
+	imageCollections map[string]bool
+	images           map[string]bool
+
 	// Microflow-typed parameters of the Java actions the script creates
 	// (Module.Action -> parameter name). Such a parameter takes a microflow
 	// NAME, never an expression (mendixlabs/mxcli#1210).
@@ -133,6 +141,8 @@ func newScriptContext() *scriptContext {
 		menus:                 make(map[string]bool),
 		constants:             make(map[string]bool),
 		queues:                make(map[string]bool),
+		imageCollections:      make(map[string]bool),
+		images:                make(map[string]bool),
 
 		javaActionFlowParams: make(map[string]map[string]bool),
 		entityDecls:          make(map[string]*ast.CreateEntityStmt),
@@ -292,6 +302,14 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.menus[s.Name.String()] = true
 		}
+	case *ast.CreateImageCollectionStmt:
+		if s.Name.Module != "" {
+			qn := strings.ToLower(s.Name.String())
+			sc.imageCollections[qn] = true
+			for _, img := range s.Images {
+				sc.images[qn+"."+strings.ToLower(img.Name)] = true
+			}
+		}
 	case *ast.CreateWorkflowStmt:
 		if s.Name.Module != "" {
 			sc.workflows[s.Name.String()] = true
@@ -361,6 +379,12 @@ func annotateForwardRef(err error, stmt ast.Statement, created, allDefined *scri
 		if created.has(name) || self.has(name) {
 			continue // already created before this statement, or defined by it
 		}
+		if (allDefined.microflows[name] || allDefined.nanoflows[name]) &&
+			(strings.Contains(msg, "CALL MICROFLOW '"+name+"'") || strings.Contains(msg, "CALL NANOFLOW '"+name+"'")) {
+			// Reached only in a run that cannot roll back: one that can
+			// resolves the call against the whole script (#1405).
+			return fmt.Errorf("%w\n  hint: %s is defined later in this script; %s", err, name, forwardFlowCallRefusal)
+		}
 		if strings.Contains(msg, name) {
 			return fmt.Errorf("%w\n  hint: %s is defined later in this script — move its create statement before this one", err, name)
 		}
@@ -426,6 +450,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// worse than the two above: a module-qualified role here makes the project
 	// unloadable rather than merely failing the build (mendixlabs/mxcli#1001).
 	errors = append(errors, validateNavigationRoles(ctx, prog)...)
+	// Resolve what a GRANT / REVOKE, a user role and a demo user name: the
+	// entity, document or member, and the module and user roles. exec refuses
+	// the grants after the statements before them are written, and writes the
+	// user-role and demo-user ones unresolved for MxBuild to report as CE1613.
+	errors = append(errors, validateGrantReferences(ctx, prog)...)
 	// Resolve CALL EXTERNAL ACTION against the consumed service's cached
 	// contract. MxBuild otherwise reports the drift as CE7252/CE7269 on the
 	// microflow — errors whose wording sends people to the entity import, which
@@ -519,6 +548,7 @@ func pageDefinedAfter(prog *ast.Program, ref string, fromIdx int) bool {
 // to objects that are defined within the script itself.
 func (e *Executor) ValidateProgram(prog *ast.Program) []error {
 	defer e.enterLanguage(prog.LanguageVersion)()
+	defer e.CacheUnitReads()()
 	return validateProgram(e.newExecContext(context.Background()), prog)
 }
 
@@ -529,6 +559,7 @@ func (e *Executor) ValidateProgramWithWarnings(prog *ast.Program) ([]error, []st
 	// The script's header decides the gated rejections check predicts
 	// (viewAutoNumberRefused), as it does for exec.
 	defer e.enterLanguage(prog.LanguageVersion)()
+	defer e.CacheUnitReads()()
 	return validateProgramWithWarnings(e.newExecContext(context.Background()), prog)
 }
 
@@ -537,12 +568,14 @@ func (e *Executor) ValidateProgramWithWarnings(prog *ast.Program) ([]error, []st
 // exists in the connected project. Names created earlier in the same script are
 // excluded — those will be caught by CheckScriptDuplicates.
 func (e *Executor) CheckProjectConflicts(prog *ast.Program) []error {
+	defer e.CacheUnitReads()()
 	return CheckProjectConflicts(e.newExecContext(context.Background()), prog)
 }
 
 // CheckProjectNameClashes returns an error for every create that would give an
 // element a name another kind already has in its module (ako/mxcli#793).
 func (e *Executor) CheckProjectNameClashes(prog *ast.Program) []error {
+	defer e.CacheUnitReads()()
 	return CheckProjectNameClashes(e.newExecContext(context.Background()), prog)
 }
 
@@ -678,6 +711,14 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+	// exec resolves a module role's module first (findModule) and stops there,
+	// after the statements above it are written (mendixlabs/mxcli#1354).
+	case *ast.CreateModuleRoleStmt:
+		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
+			if _, err := findModule(ctx, s.Name.Module); err != nil {
+				return mdlerrors.NewNotFound("module", s.Name.Module)
+			}
+		}
 	case *ast.CreateEnumerationStmt:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
@@ -694,13 +735,20 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// Reported together with the reference errors below rather than
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
-		validationErrors := ValidateMicroflowBody(s)
+		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside microflow body (pages, microflows, java actions, entities)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
+		if ctx.Connected() {
+			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("microflow", s.Name.String(), refErrors)
 			refErrors = nil
 		}
+		// The signature's types, which exec resolves (and refuses) whether or
+		// not the document is excluded — so these are never relaxed.
+		refErrors = append(flowSignatureErrors(ctx, sc, "microflow", s.Name, s.Parameters, s.ReturnType), refErrors...)
 		if len(validationErrors) > 0 || len(refErrors) > 0 {
 			return flowValidationError("microflow", s.Name.String(), validationErrors, refErrors)
 		}
@@ -718,6 +766,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if validationErrors := ValidateRuleBody(s); len(validationErrors) > 0 {
 			return mdlerrors.NewValidationf("rule '%s' has validation errors:\n  - %s",
 				s.Name.String(), strings.Join(validationErrors, "\n  - "))
+		}
+		if sigErrors := flowSignatureErrors(ctx, sc, "rule", s.Name, s.Parameters, s.ReturnType); len(sigErrors) > 0 {
+			return mdlerrors.NewValidationf("rule '%s' has reference errors:\n  - %s",
+				s.Name.String(), strings.Join(sigErrors, "\n  - "))
 		}
 		if refErrors := validateFlowBodyReferences(ctx, s.Body, sc); len(refErrors) > 0 {
 			if s.Excluded {
@@ -737,13 +789,20 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// Reported together with the reference errors below rather than
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
-		validationErrors := ValidateNanoflowBody(s)
+		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside nanoflow body (an excluded nanoflow's are warnings)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
+		if ctx.Connected() {
+			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
 			refErrors = nil
 		}
+		// The signature's types, which exec resolves (and refuses) whether or
+		// not the document is excluded — so these are never relaxed.
+		refErrors = append(flowSignatureErrors(ctx, sc, "nanoflow", s.Name, s.Parameters, s.ReturnType), refErrors...)
 		if len(validationErrors) > 0 || len(refErrors) > 0 {
 			return flowValidationError("nanoflow", s.Name.String(), validationErrors, refErrors)
 		}
@@ -752,6 +811,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
+		}
+		// The parameters' entities: exec resolves each and stops on one it
+		// cannot find, excluded page or not.
+		if paramErrors := documentParameterErrors(ctx, sc, "page", s.Name, s.Parameters); len(paramErrors) > 0 {
+			return mdlerrors.NewValidationf("page '%s' has reference errors:\n  - %s",
+				s.Name.String(), strings.Join(paramErrors, "\n  - "))
 		}
 		// Every widget-bearing field, not just the bare body — see pageWidgets.
 		pageWidgets := allPageWidgets(s)
@@ -794,15 +859,25 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// ako/mxcli#573 no layout was reference-checked at all, so
 		// `simplemenubar b (Menu: M.Typo)` passed --references and mxbuild
 		// answered CE1613 "The selected menu 'M.Typo' no longer exists."
-		if refErrors := validateWidgetReferences(ctx, s.Widgets, sc); len(refErrors) > 0 {
+		if refErrors := validateWidgetReferences(ctx, s.AllWidgets(), sc); len(refErrors) > 0 {
 			return mdlerrors.NewValidationf("layout '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
+		}
+		// The layout it is built on (mendixlabs/mxcli#1411), from this script
+		// or the project.
+		if outer := s.OuterLayout(); outer != "" && !sc.layouts[outer] && !buildLayoutQualifiedNames(ctx)[outer] {
+			return mdlerrors.NewValidationf("layout '%s' is built on %s, which was not found",
+				s.Name.String(), outer)
 		}
 	case *ast.CreateSnippetStmtV3:
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
+		}
+		if paramErrors := documentParameterErrors(ctx, sc, "snippet", s.Name, s.Parameters); len(paramErrors) > 0 {
+			return mdlerrors.NewValidationf("snippet '%s' has reference errors:\n  - %s",
+				s.Name.String(), strings.Join(paramErrors, "\n  - "))
 		}
 		// Validate widget references (DataSource, Action, Snippet). A snippet
 		// has no @excluded of its own; one exec keeps excluded (the carry) is
@@ -845,6 +920,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if len(refErrors) > 0 {
 			return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
+		}
+	case *ast.CreatePublishedRestServiceStmt:
+		return validatePublishedRestAuthMicroflow(ctx, s.Authentication, sc)
+	case *ast.AlterPublishedRestServiceStmt:
+		for _, a := range s.Actions {
+			if set, ok := a.(*ast.PublishedRestSetAction); ok {
+				if err := validatePublishedRestAuthMicroflow(ctx, set.Authentication, sc); err != nil {
+					return err
+				}
+			}
 		}
 	case *ast.AlterWorkflowStmt:
 		if refErrors := validateAlterWorkflowRefs(ctx, s, sc); len(refErrors) > 0 {
@@ -1735,48 +1820,17 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 }
 
 // getErrorHandlerBody returns the custom error handler body if present, or nil.
+//
+// It reads the clause through stmtErrorHandling — the one table of which
+// statements carry an ON ERROR clause — rather than keeping its own list. Its
+// own list had drifted: it lacked the REST statements (and call workflow, the
+// mapping statements, commit, delete, …), so every walk built on it skipped
+// those handler bodies. The visible failure was MDL-FLOW02 reporting
+// "merge X: nothing joins it" when the only join sat in a REST call's error
+// handler — the retry loop Studio Pro-authored OIDC microflows use.
 func getErrorHandlerBody(stmt ast.MicroflowStatement) []ast.MicroflowStatement {
-	switch s := stmt.(type) {
-	case *ast.CreateObjectStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.RetrieveStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.CallMicroflowStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.CallNanoflowStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.CallJavaActionStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.DownloadFileStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.SynchronizeStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.CallJavaScriptActionStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.CallWebServiceStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
-	case *ast.ExecuteDatabaseQueryStmt:
-		if s.ErrorHandling != nil && s.ErrorHandling.Body != nil {
-			return s.ErrorHandling.Body
-		}
+	if eh := stmtErrorHandling(stmt); eh != nil && eh.Body != nil {
+		return eh.Body
 	}
 	return nil
 }
@@ -1839,6 +1893,17 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// MDL-WF17: `lock workflow all` / `unlock workflow all` is CE1825, measured
 	// on 11.13.0 and 11.14.0 (mendixlabs/mxcli#870).
 	"MDL-WF17": true,
+	// MDL-SET01: `set` on an object variable or on a parameter is CE7247,
+	// measured on 11.14.0 (mendixlabs/mxcli#1323). The builder refuses an
+	// object itself; a primitive parameter it would write.
+	"MDL-SET01": true,
+	// MDL-RETRIEVE02: a retrieve by association over System.owner /
+	// System.changedBy is CE0136, measured on 11.12.2 (mendixlabs/mxcli#1358).
+	"MDL-RETRIEVE02": true,
+	// MDL-RETRIEVE03: `change` over a list retrieve is CE1613 on the stored
+	// member, measured on 11.6.6 (mendixlabs/mxcli#1422). The builder refuses
+	// it too, for the flows this AST walk cannot type.
+	"MDL-RETRIEVE03": true,
 }
 
 // validateMicroflowRules runs the MDL0xx microflow rule set (ValidateMicroflow)
@@ -2000,4 +2065,32 @@ func flowValidationError(kind, name string, validationErrors, refErrors []string
 			kind, name, strings.Join(refErrors, "\n  - ")))
 	}
 	return mdlerrors.NewValidationf("%s", strings.Join(parts, "\n  "))
+}
+
+// validatePublishedRestAuthMicroflow is exec's MDL-REST04 at check time: the
+// custom-authentication microflow exists, and a project microflow has a
+// signature Mendix accepts. A microflow the script creates is known by name
+// only here; exec checks its signature once it exists.
+func validatePublishedRestAuthMicroflow(ctx *ExecContext, auth *ast.PublishedRestAuthentication, sc *scriptContext) error {
+	if auth == nil || auth.Microflow == "" {
+		return nil
+	}
+	if problem := publishedRestAuthListProblem(auth.Parameters); problem != "" {
+		return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+	}
+	if mf, ok := liveMicroflowsByQualifiedName(ctx)[auth.Microflow]; ok {
+		if problem := publishedRestAuthMicroflowProblem(mf); problem != "" {
+			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+		}
+		// The parameter list names parameters the microflow has
+		// (mendixlabs/mxcli#1417).
+		if _, problem := resolvePublishedRestAuthParameters(auth.Microflow, mf, auth.Parameters); problem != "" {
+			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+		}
+		return nil
+	}
+	if sc.microflows[auth.Microflow] {
+		return nil
+	}
+	return mdlerrors.NewValidationf("MDL-REST04: authentication microflow not found: %s", auth.Microflow)
 }

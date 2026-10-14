@@ -1,0 +1,23 @@
+mdl 1;
+-- mendixlabs/mxcli#1428 — a markdown `*` bullet in a doc comment.
+--
+-- describe used to print the ` * ` gutter on the first documentation line
+-- only, so a bullet line came out as `* bullet one`, and the parser — which
+-- strips one leading `*` per line — read the bullet marker as the gutter.
+-- Each describe/exec cycle ate one marker. Every line is now guttered:
+--
+--   mxcli exec mdl-examples/bug-tests/1428-doc-comment-bullet.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe entity BugTest1428.EntA"   -- prints ` * * bullet one`
+create module BugTest1428;
+
+/**
+ * Intro line
+ * * bullet one
+ * * bullet two
+ */
+create persistent entity BugTest1428.EntA (
+  /**
+   * * attribute bullet
+   */
+  Name: String(50)
+);

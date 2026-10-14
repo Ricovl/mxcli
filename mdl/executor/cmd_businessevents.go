@@ -211,12 +211,8 @@ func describeBusinessEventService(ctx *ExecContext, name ast.QualifiedName) erro
 
 	if found.Definition != nil {
 		fmt.Fprintf(ctx.Output, "(\n")
-		fmt.Fprintf(ctx.Output, "  ServiceName: '%s'", found.Definition.ServiceName)
-		if found.Definition.EventNamePrefix != "" {
-			fmt.Fprintf(ctx.Output, ",\n  EventNamePrefix: '%s'", found.Definition.EventNamePrefix)
-		} else {
-			fmt.Fprintf(ctx.Output, ",\n  EventNamePrefix: ''")
-		}
+		fmt.Fprintf(ctx.Output, "  ServiceName: %s", mdlQuote(ctx, found.Definition.ServiceName))
+		fmt.Fprintf(ctx.Output, ",\n  EventNamePrefix: %s", mdlQuote(ctx, found.Definition.EventNamePrefix))
 		fmt.Fprintf(ctx.Output, "\n)\n")
 
 		fmt.Fprintf(ctx.Output, "{\n")

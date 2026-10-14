@@ -1,9 +1,11 @@
 ---
 title: Properties That Parse but Never Persist
 category: bug-pattern
-last-synced: ced830e0
+last-synced: a20932c1
+covers:
+  - mdl/executor
 sources:
-  - .claude/skills/fix-issue/findings/mdl-executor.jsonl
+  - .claude/skills/fix-issue/findings/mdl-executor/
   - mdl/executor/validate_widgets.go
   - modelsdk/widgets/definitions/
 ---
@@ -59,7 +61,45 @@ grammar keyword properties, every key the builders consume, and every property
 rather than per-type, because a per-type list would produce false warnings, and
 the describe half is included so a describe → create round trip never warns about
 its own output. A manually maintained list is a maintenance risk, which is why it
-carries a drift test rather than a promise.
+carries a drift test rather than a promise — and **the drift test must read the
+source, not a second hand-typed list.** The first guard was a typed sample of the
+describe vocabulary; when #813 taught the dataview builder and `describe` a
+`ShowFooter`, neither list learned it, and `check` warned that a property it
+wrote would be dropped (mendixlabs/mxcli#1346). A `go/parser` scan of the
+builders' `Get*Prop` / `lookupPropCI` / `Properties["…"]` reads plus describe's
+`"Key: "` strings found four more keys in the same state on its first run.
+
+**Allow-list membership is not evidence about *this* widget.** The union is
+deliberately cross-widget, so a key being on it proves only that *some* builder
+consumes it — `Tooltip:` was parsed, listed, present as a struct field and
+serialised by the codec, and no action-button builder ever assigned it. For a
+silent drop the useful grep is therefore the **struct field's writers**
+(`\.Tooltip =`), not the vocabulary list. The same asymmetry bites exemptions:
+the dynamic-text formatting keys were exempted from the warning on *every*
+widget, which turned `DateFormat:` on a date picker — where nothing read it —
+from a warned drop into a silent one. An exemption has to be per widget type
+even though the vocabulary is not.
+
+**Three writer-side tells, each cheaper to grep for than to reason about.** A
+**zero-argument constructor for a property that has content** — an image
+viewer's source builder took no parameters although the entity binding is its
+whole content, and the call site read as complete. A **hardcoded literal in a
+`*ToGen` helper**: `newAppearance("", "", "", nil)`, a literal `"Rollback"` error
+handling that is the default for one flow flavour only, an `ExportLevel:
+"Public"` that is not even a member of the generated enum (check a hardcoded
+enum literal against `generated/metamodel/*/enums.go`). And a **builder that
+returns before the common tail** — the pluggable branch returned before the pass
+that applies visibility and editability for every other widget, so two settings
+were written as nothing while the comment above said they were unsupported.
+
+**A field-by-field copy between two spellings of one type can only lose
+fields, and loses them silently.** Nothing fails: the annotation's `Excluded`
+flag was simply never copied from the AST into the builder's pending set, and a
+re-declared struct of the same shape dropped the per-property datasource link, so
+the engine reconstructed it from mapping order. Alias the type instead of
+re-declaring it, and when a property is missing, bisect by layer with the
+cheapest probe at each — a visitor probe says whether the AST carried it, a
+`bson dump` says whether disk did, and the gap between them names the hop.
 
 **Warn; do not reject.** Neither the pluggable nor the built-in vocabulary can be
 proven complete, so an error would trade silent drops for false refusals. The
@@ -125,6 +165,16 @@ answer "this shape does not fit" (MDL-WIDGET42, and an error at build) instead o
 falling to `default: continue`. When a grammar alternative is chosen by the
 *first token*, audit which other meanings that token starts.
 
+**One property, two keys: a consumer that reads one drops the other.** The
+visitor lowers `Visible:` by value shape — an expression to `VisibleIf`, a plain
+value to `Visible` — and the two writers each read only one: page widgets read
+`VisibleIf` (and once dropped `Visible: false`), DataGrid 2 columns read
+`Visible` (and dropped every expression). Grep the consumers of the *key the
+visitor writes*, not of the property name. And expect persisting a value to
+surface a rule its absence hid: a column's visibility has no row object, so the
+`$currentObject` examples that had always "worked" became CE0117 the moment they
+were written, and the fix needed a check rule to go with it.
+
 **Children drop the same way properties do.** A widget's body is distributed by
 several passes that each skip what they do not recognise, so a child matching no
 container, no slot and no catch-all is built and discarded exactly as an
@@ -142,3 +192,5 @@ spelling *this* widget uses instead of listing everything it declares.
 - [[describe-round-trip-gaps]] — the read-side half of the same failure
 - [[widget-type-object-drift]] — when the property *is* written and the widget
   definition is what disagrees
+- [[binding-context]] — when the property is written and bound to the wrong
+  object

@@ -99,6 +99,9 @@ var fieldAliases = map[string]string{
 	"Type":         "NewType",
 	"NewType":      "Type",
 	"CaseValue":    "NewCaseValue",
+	// gen now binds the case under its storage name (mendixlabs/mxcli#1410);
+	// a document holding the SDK name still reads.
+	"NewCaseValue": "CaseValue",
 }
 
 // DecodeChild decodes a single embedded document child from raw BSON by key.
@@ -154,6 +157,9 @@ func DecodeChildren(raw bson.Raw, key string) ([]element.Element, error) {
 }
 
 // decodeID extracts the $ID field, accepting either a UUID binary or a plain string.
+// PeekID is the element ID Decode would give raw, read without decoding it.
+func PeekID(raw bson.Raw) element.ID { return decodeID(raw) }
+
 func decodeID(raw bson.Raw) element.ID {
 	val, err := raw.LookupErr("$ID")
 	if err != nil {

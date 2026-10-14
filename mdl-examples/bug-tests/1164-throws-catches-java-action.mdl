@@ -1,0 +1,17 @@
+mdl 1;
+-- ako/mxcli#1164: setup for 1164-throws-catches-java-action.test.mdl.
+-- Run this against a project, then:
+--   mxcli test mdl-examples/bug-tests/1164-throws-catches-java-action.test.mdl -p app.mpr --local --db-type hsqldb
+-- Before the fix the @throws test reported ERROR with the Java exception's
+-- message: the runner attached ON ERROR to CALL MICROFLOW / CALL NANOFLOW only,
+-- so an error from CALL JAVA ACTION escaped the generated test microflow.
+create module ThrowProbe;
+
+/** Refuses anything but an http(s) url, the shape of the reported action. */
+create java action ThrowProbe.CheckUrl(Url: string not null) returns string
+as $$
+if (Url == null || !(Url.startsWith("http://") || Url.startsWith("https://"))) {
+    throw new IllegalArgumentException("Only http and https csv urls are supported: " + Url);
+}
+return "ok";
+$$;

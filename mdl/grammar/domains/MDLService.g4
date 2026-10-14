@@ -174,8 +174,28 @@ createPublishedRestServiceStatement
       LBRACE publishedRestResource* RBRACE
     ;
 
+// `Authentication: none | ( method, … )` is the one non-string value: the
+// methods in the order written, which is the order Studio Pro stores them
+// (mendixlabs/mxcli#1331). The visitor keys on the shape, not the key, so a
+// string `Authentication: 'basic'` is reported as misshapen, not dropped.
 publishedRestProperty
     : identifierOrKeyword COLON STRING_LITERAL
+    | identifierOrKeyword COLON NONE
+    | identifierOrKeyword COLON LPAREN publishedRestAuthMethod (COMMA publishedRestAuthMethod)* COMMA? RPAREN
+    ;
+
+publishedRestAuthMethod
+    : BASIC
+    | SESSION
+    | MICROFLOW qualifiedName
+      (LPAREN (publishedRestAuthParameter (COMMA publishedRestAuthParameter)* COMMA?)? RPAREN)?
+    ;
+
+/** A service-level authentication parameter (mendixlabs/mxcli#1417):
+ *  `$Token: header 'X-Api-Token' description '...'`. The kind is any word so
+ *  the executor can name a wrong one; only query and header are accepted. */
+publishedRestAuthParameter
+    : VARIABLE COLON identifierOrKeyword STRING_LITERAL? (DESCRIPTION STRING_LITERAL)?
     ;
 
 publishedRestResource
@@ -256,7 +276,7 @@ createODataServiceStatement
     : publishedODataServiceKw ifNotExists? qualifiedName
       (FOLDER STRING_LITERAL)?
       LPAREN odataPropertyAssignment (COMMA odataPropertyAssignment)* RPAREN
-      odataAuthenticationClause?
+      odataAuthenticationClause? /* @alias MDL-DEPR139 */
       (LBRACE (publishEntityBlock | publishMicroflowBlock)* RBRACE)?
     ;
 
@@ -277,8 +297,14 @@ odataPropertyValue
 // ClientCertificate, header values) and refuses an expression anywhere else,
 // so a plain-value property cannot silently read it as empty
 // (PROPOSAL_first_class_expressions.md §6.4).
+// `Authentication: none | ( method, … )` is a published service's
+// authentication (R9); the two forms come before `expression`, which would
+// otherwise read `(session)` as a parenthesised name. The trailing
+// `authentication …` clause is the old spelling (MDL-DEPR139).
 odataPropertyAssignment
     : identifierOrKeyword COLON odataPropertyValue
+    | identifierOrKeyword COLON NONE
+    | identifierOrKeyword COLON LPAREN odataAuthType (COMMA odataAuthType)* COMMA? RPAREN
     | identifierOrKeyword COLON expression
     ;
 

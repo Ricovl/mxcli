@@ -65,6 +65,20 @@ func associationMemberChangeStatement(ctx *ExecContext, varName string, a *micro
 	return "", false
 }
 
+// memberChangeOperator is the CHANGE member operator for a stored MemberChange
+// Type: Add and Remove are `+=` and `-=`, so an activity mixing them with other
+// members re-executes to the same members (mendixlabs/mxcli#1473). Written as
+// `=` they would come back as set assignments that replace the reference set.
+func memberChangeOperator(t microflows.MemberChangeType) string {
+	switch t {
+	case microflows.MemberChangeTypeAdd:
+		return "+="
+	case microflows.MemberChangeTypeRemove:
+		return "-="
+	}
+	return "="
+}
+
 // isBareVariable reports whether s is a single `$Name` reference.
 func isBareVariable(s string) bool {
 	if len(s) < 2 || s[0] != '$' {
@@ -118,6 +132,19 @@ func refreshModifier(refresh bool) string {
 //
 // Widget and workflow expressions are not microflow expressions: they are
 // stored as written in both languages, so their describers only trim.
+// describeCallArgument renders a call microflow / call nanoflow argument. A
+// blank stored argument — the mapping is present, its expression empty, which
+// is what Studio Pro writes for an argument field left empty — is `nothing`.
+// Printing it through describeExpr gave `Param = ,` / `Param = )`, which does
+// not parse; `empty` would re-store the Mendix value "empty" and omitting the
+// argument would drop the mapping, so neither round-trips.
+func describeCallArgument(ctx *ExecContext, v string) string {
+	if strings.TrimSpace(v) == "" {
+		return "nothing"
+	}
+	return describeExpr(ctx, v)
+}
+
 func describeExpr(ctx *ExecContext, v string) string {
 	return describeExprText(ctx, strings.TrimSpace(v))
 }
@@ -458,10 +485,10 @@ func formatAction(
 		}
 		if len(a.Changes) > 0 {
 			var members []string
-			var unspelled []string
+			var listQualified []string
 			for _, m := range a.Changes {
-				if m.Type == microflows.MemberChangeTypeAdd || m.Type == microflows.MemberChangeTypeRemove {
-					unspelled = append(unspelled, fmt.Sprintf("%s (%s)", m.AssociationQualifiedName, m.Type))
+				if isListQualifiedMember(m) {
+					listQualified = append(listQualified, m.AttributeQualifiedName+m.AssociationQualifiedName)
 				}
 				var memberName string
 				// Check if this is an association change or an attribute change
@@ -479,17 +506,15 @@ func formatAction(
 						memberName = parts[len(parts)-1]
 					}
 				}
-				members = append(members, fmt.Sprintf("%s = %s", memberName, escapeExpressionValue(ctx, describeExpr(ctx, m.Value))))
+				members = append(members, fmt.Sprintf("%s %s %s", memberName, memberChangeOperator(m.Type), escapeExpressionValue(ctx, describeExpr(ctx, m.Value))))
 			}
 			stmt := fmt.Sprintf("change $%s (%s)%s%s;", varName, strings.Join(members, ", "), commitModifier(a.Commit), refreshModifier(a.RefreshInClient))
-			if len(unspelled) > 0 {
-				// An Add/Remove has a spelling only as the activity's sole
-				// member (add/remove … $Obj/Assoc). Written as `=` it would
-				// re-execute as a set assignment, so say so rather than look
-				// like a faithful round trip (mendixlabs/mxcli#1288).
-				stmt += fmt.Sprintf(" -- WARNING: %s stored as Add/Remove, not a set assignment; "+
-					"re-executing this line replaces the set — split it into `add`/`remove … $%s/<Assoc>` statements",
-					strings.Join(unspelled, ", "), varName)
+			if len(listQualified) > 0 {
+				// Written over a list before mendixlabs/mxcli#1422: the bare
+				// name above is not what is stored, and mxbuild reports CE1613.
+				stmt += fmt.Sprintf(" -- WARNING: stored member %s is qualified through a list type (CE1613); "+
+					"re-create this flow with $%s retrieved as an object (`first`)",
+					strings.Join(listQualified, ", "), varName)
 			}
 			return stmt
 		}
@@ -756,7 +781,7 @@ func formatAction(
 				if idx := strings.LastIndex(paramName, "."); idx != -1 {
 					paramName = paramName[idx+1:]
 				}
-				params = append(params, fmt.Sprintf("%s = %s", paramName, describeExpr(ctx, pm.Argument)))
+				params = append(params, fmt.Sprintf("%s = %s", paramName, describeCallArgument(ctx, pm.Argument)))
 			}
 		}
 
@@ -789,7 +814,7 @@ func formatAction(
 				if idx := strings.LastIndex(paramName, "."); idx != -1 {
 					paramName = paramName[idx+1:]
 				}
-				params = append(params, fmt.Sprintf("%s = %s", paramName, describeExpr(ctx, pm.Argument)))
+				params = append(params, fmt.Sprintf("%s = %s", paramName, describeCallArgument(ctx, pm.Argument)))
 			}
 		}
 
@@ -996,6 +1021,9 @@ func formatAction(
 
 	case *microflows.RestCallAction:
 		return formatRestCallAction(ctx, a)
+
+	case *microflows.SendEmailAction:
+		return formatSendEmailAction(ctx, a)
 
 	case *microflows.RestOperationCallAction:
 		return formatRestOperationCallAction(ctx, a)
@@ -2007,6 +2035,88 @@ func (e *Executor) formatAction(action microflows.MicroflowAction, entityNames m
 
 func (e *Executor) formatListOperation(op microflows.ListOperation, outputVar string) string {
 	return formatListOperation(e.newExecContext(context.Background()), op, outputVar)
+}
+
+// formatSendEmailAction renders a Send Email activity as `send email ( … )`:
+// the dialog's settings as one property list (ADR-0013), one per line with a
+// trailing comma, in the order the visitor documents them. Platform defaults
+// (SecurityType tls, ConnectionTimeout 20000, CheckServerIdentity false, no
+// authentication) and empty optional settings are omitted, so a statement that
+// does not state them builds the same action (R12).
+func formatSendEmailAction(ctx *ExecContext, a *microflows.SendEmailAction) string {
+	var settings []string
+	set := func(key, value string) { settings = append(settings, key+": "+value) }
+	expr := func(e string) string {
+		if d := describeExpr(ctx, e); d != "" {
+			return d
+		}
+		return "''"
+	}
+	params := func(t microflows.EmailTemplate) string {
+		if len(t.Parameters) == 0 {
+			return ""
+		}
+		ps := make([]string, 0, len(t.Parameters))
+		for i, p := range t.Parameters {
+			ps = append(ps, fmt.Sprintf("{%d} = %s", i+1, expr(p)))
+		}
+		return " with (" + strings.Join(ps, ", ") + ")"
+	}
+	present := func(t microflows.EmailTemplate) bool { return t.Text != "" || len(t.Parameters) > 0 }
+
+	set("From", expr(a.From))
+	if a.To != "" {
+		set("To", describeExpr(ctx, a.To))
+	}
+	if a.Cc != "" {
+		set("Cc", describeExpr(ctx, a.Cc))
+	}
+	if a.Bcc != "" {
+		set("Bcc", describeExpr(ctx, a.Bcc))
+	}
+	if present(a.Subject) {
+		set("Subject", mdlQuote(ctx, a.Subject.Text)+params(a.Subject))
+	}
+	if present(a.BodyPlainText) {
+		set("Body", "template "+mdlQuote(ctx, a.BodyPlainText.Text)+params(a.BodyPlainText))
+	}
+	if present(a.BodyHTML) {
+		set("HtmlBody", "template "+mdlQuote(ctx, a.BodyHTML.Text)+params(a.BodyHTML))
+	}
+	if len(a.CustomHeaders) > 0 {
+		hdrs := make([]string, 0, len(a.CustomHeaders))
+		for _, h := range a.CustomHeaders {
+			hdrs = append(hdrs, mdlQuote(ctx, h.Name)+": "+mdlQuote(ctx, h.Value))
+		}
+		set("Headers", "("+strings.Join(hdrs, ", ")+")")
+	}
+	if a.Attachment != "" {
+		set("Attachment", "$"+strings.TrimPrefix(a.Attachment, "$"))
+	}
+	set("Host", expr(a.Host))
+	set("Port", expr(a.Port))
+	if a.SecurityType != "" && a.SecurityType != microflows.EmailSecurityTLS {
+		set("SecurityType", strings.ToLower(string(a.SecurityType)))
+	}
+	if a.CheckServerIdentity {
+		set("CheckServerIdentity", "true")
+	}
+	if a.ConnectionTimeout != 0 && a.ConnectionTimeout != microflows.DefaultEmailConnectionTimeout {
+		set("ConnectionTimeout", fmt.Sprintf("%d", a.ConnectionTimeout))
+	}
+	if a.UseAuthentication {
+		set("Authentication", "basic (Username: "+expr(a.Username)+", Password: "+expr(a.Password)+")")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("send email (")
+	for _, s := range settings {
+		sb.WriteString("\n    ")
+		sb.WriteString(s)
+		sb.WriteString(",")
+	}
+	sb.WriteString("\n  );")
+	return sb.String()
 }
 
 func (e *Executor) formatRestCallAction(a *microflows.RestCallAction) string {

@@ -81,24 +81,6 @@ create persistent entity R.B (Name: String(100));`,
 			want: "R.B",
 		},
 		{
-			name: "call microflow",
-			script: `create module R;
-create microflow R.Caller () returns Boolean as $O
-begin $X = call microflow R.Callee (); declare $O Boolean = true; return $O; end;
-create microflow R.Callee () returns Boolean as $O
-begin declare $O Boolean = true; return $O; end;`,
-			want: "R.Callee",
-		},
-		{
-			name: "call nanoflow",
-			script: `create module R;
-create nanoflow R.Caller () returns Boolean as $O
-begin $X = call nanoflow R.Callee (); declare $O Boolean = true; return $O; end;
-create nanoflow R.Callee () returns Boolean as $O
-begin declare $O Boolean = true; return $O; end;`,
-			want: "R.Callee",
-		},
-		{
 			name: "rule parameter type",
 			script: `create module R;
 create rule R.Chk ($T: R.Thing) returns Boolean as $O
@@ -124,21 +106,16 @@ begin declare $O Boolean = true; return $O; end;`,
 			want: "R.MF",
 		},
 		{
-			name: "call inside a loop body is reached",
+			// The call is resolved when the script runs, but its IN QUEUE is
+			// not: buildQueueSettings refuses a queue it cannot find (#1211).
+			name: "call microflow in a queue created later",
 			script: `create module R;
-create microflow R.Caller () returns Boolean as $O
-begin
-  retrieve $items from R.Seen;
-  loop $i in $items begin
-    $X = call microflow R.Callee ();
-  end loop;
-  declare $O Boolean = true;
-  return $O;
-end;
-create persistent entity R.Seen (Name: String(100));
 create microflow R.Callee () returns Boolean as $O
-begin declare $O Boolean = true; return $O; end;`,
-			want: "R.Callee",
+begin declare $O Boolean = true; return $O; end;
+create microflow R.Caller () returns Boolean as $O
+begin call microflow R.Callee () in queue R.Q; declare $O Boolean = true; return $O; end;
+create task queue R.Q (Parallelism: 1);`,
+			want: "R.Q",
 		},
 	}
 
@@ -225,6 +202,47 @@ begin $X = call microflow R.MF (); declare $O Boolean = true; return $O; end;`,
 			script: `create module R;
 create microflow R.MF ($T: Other.Thing) returns String as $O
 begin declare $O String = 'x'; return $O; end;`,
+		},
+		{
+			name: "call microflow created later (mendixlabs/mxcli#1405)",
+			script: `create module R;
+create microflow R.Caller () returns Boolean as $O
+begin $X = call microflow R.Callee (); declare $O Boolean = true; return $O; end;
+create microflow R.Callee () returns Boolean as $O
+begin declare $O Boolean = true; return $O; end;`,
+		},
+		{
+			name: "call nanoflow created later",
+			script: `create module R;
+create nanoflow R.Caller () returns Boolean as $O
+begin $X = call nanoflow R.Callee (); declare $O Boolean = true; return $O; end;
+create nanoflow R.Callee () returns Boolean as $O
+begin declare $O Boolean = true; return $O; end;`,
+		},
+		{
+			name: "call inside a loop body",
+			script: `create module R;
+create microflow R.Caller () returns Boolean as $O
+begin
+  retrieve $items from R.Seen;
+  loop $i in $items begin
+    $X = call microflow R.Callee ();
+  end loop;
+  declare $O Boolean = true;
+  return $O;
+end;
+create persistent entity R.Seen (Name: String(100));
+create microflow R.Callee () returns Boolean as $O
+begin declare $O Boolean = true; return $O; end;`,
+		},
+		{
+			// Mutual recursion: no order puts both callees first.
+			name: "mutually recursive microflows",
+			script: `create module R;
+create microflow R.A () returns Boolean as $r
+begin $r = call microflow R.B (); return $r; end;
+create microflow R.B () returns Boolean as $r
+begin $r = call microflow R.A (); return $r; end;`,
 		},
 	}
 

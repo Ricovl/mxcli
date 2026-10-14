@@ -79,6 +79,13 @@ func init() {
 	codec.RegisterTypeDefaults("CustomWidgets$CustomWidgetXPathSource", codec.TypeDefaults{
 		NullFields: []string{"SourceVariable"},
 	})
+	// Studio Pro 9's pluggable "Database" source always stores its constraint
+	// list, marker 2 whether empty or not: 10 of 10 in the FSM template at
+	// 9.24.2 (mendixlabs/mxcli#1399).
+	codec.RegisterTypeDefaults("CustomWidgets$CustomWidgetDatabaseSource", codec.TypeDefaults{
+		MandatoryListMarkers: map[string]int32{"DatabaseConstraints": 2},
+	})
+	codec.RegisterPropertyListMarker("CustomWidgets$CustomWidgetDatabaseSource", "DatabaseConstraints", 2)
 	codec.RegisterTypeDefaults("Forms$GridSortBar", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"SortItems": 2},
 	})
@@ -279,6 +286,18 @@ func init() {
 		},
 	})
 	codec.RegisterListMarker("Forms$CheckBox", 2)
+	// FileManager (mendixlabs/mxcli#151): the InputWidget null slots it has on
+	// Mendix 10/11 — no AttributeRef, SourceVariable or native accessibility,
+	// since it binds no attribute and has no native counterpart. Property set
+	// from the Model SDK (mendixmodelsdk 4.116.0) and the version table; no
+	// Studio Pro-authored file manager was available to diff against.
+	codec.RegisterTypeDefaults("Forms$FileManager", codec.TypeDefaults{
+		NullFields: []string{
+			"ScreenReaderLabel", "LabelTemplate",
+			"ConditionalVisibilitySettings", "ConditionalEditabilitySettings",
+		},
+	})
+	codec.RegisterListMarker("Forms$FileManager", 2)
 	// NavigationList: null visibility; items + the widget itself use marker 2.
 	codec.RegisterTypeDefaults("Forms$NavigationList", codec.TypeDefaults{
 		NullFields: []string{"ConditionalVisibilitySettings"},
@@ -297,6 +316,18 @@ func init() {
 	codec.RegisterListMarker("Forms$MicroflowParameterMapping", 2)
 	codec.RegisterListMarker("Forms$PageParameterMapping", 2)
 	codec.RegisterListMarker("Forms$SnippetParameterMapping", 2)
+	// A flow argument fills one of two slots and Studio Pro writes both. The
+	// Variable side already writes Expression "" (bindParameterMappingValue);
+	// an Expression-bound argument left Variable unset, so the key was omitted
+	// and Studio Pro's Changes panel threw "do not have the same properties.
+	// baseNames = Expression, Parameter, Variable; newNames = Parameter,
+	// Expression" (mendixlabs/mxcli#1317, the #1180 class).
+	codec.RegisterTypeDefaults("Forms$MicroflowParameterMapping", codec.TypeDefaults{
+		NullFields: []string{"Variable"},
+	})
+	codec.RegisterTypeDefaults("Forms$NanoflowParameterMapping", codec.TypeDefaults{
+		NullFields: []string{"Variable"},
+	})
 	codec.RegisterTypeDefaults("Forms$SnippetCall", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 	})
@@ -384,6 +415,11 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 				capText = &model.Text{Translations: map[string]string{model.AuthoringLanguage(): tp.Name}}
 			}
 			tpg.SetCaption(captionToGen(capText))
+			// A tab page's own visibility condition (mendixlabs/mxcli#1465);
+			// null otherwise, as Studio Pro writes it.
+			if tp.ConditionalVisibility != nil {
+				tpg.SetConditionalVisibilitySettings(conditionalVisibilityToGen(tp.ConditionalVisibility))
+			}
 			for _, c := range tp.Widgets {
 				cg, err := widgetToGen(c)
 				if err != nil {
@@ -415,7 +451,9 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 	case *pages.LayoutGrid:
 		g := genPg.NewLayoutGrid()
 		applyWidgetBase(g, &x.BaseWidget)
-		g.SetWidth("FullWidth")
+		// FixedWidth was rewritten to the default on every describe → exec
+		// (ako/mxcli-ledger FINDINGS #170). Empty is the default.
+		g.SetWidth(orDefaultStr(x.Width, pages.DefaultLayoutGridWidth))
 		for _, row := range x.Rows {
 			rg, err := layoutGridRowToGen(row)
 			if err != nil {
@@ -467,9 +505,13 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		return g, nil
 
 	case *pages.Title:
+		// No Caption: a Title widget shows its page's title, and Forms$Title
+		// declares no caption (generated/metamodel PagesTitle; `mx convert`
+		// strips one on 10.24 and 11.14 alike). Writing it left a key Mendix's
+		// merge engine cannot compare once Studio Pro saves the page
+		// (mendixlabs/mxcli#1373) — and never changed what the page showed.
 		g := genPg.NewTitle()
 		applyWidgetBase(g, &x.BaseWidget)
-		g.SetCaption(captionToGen(x.Caption))
 		return g, nil
 
 	case *pages.Label:
@@ -519,8 +561,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
 		return g, nil
 
@@ -582,6 +624,19 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
+	case *pages.FileManager:
+		g := genPg.NewFileManager()
+		applyWidgetBase(g, &x.BaseWidget)
+		g.SetEditable(pages.WidgetEditability(&x.BaseWidget))
+		if x.Label != "" {
+			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
+		}
+		g.SetType(string(orDefaultFileManagerType(x.Type)))
+		g.SetMaxFileSize(int32(x.MaxFileSize))
+		g.SetAllowedExtensions(x.AllowedExtensions)
+		g.SetShowFileInBrowser(x.ShowFileInBrowser)
+		return g, nil
+
 	case *pages.TextArea:
 		g := genPg.NewTextArea()
 		applyWidgetBase(g, &x.BaseWidget)
@@ -613,8 +668,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle("Inherit")
-		g.SetSubmitBehaviour("OnEndEditing")
-		g.SetSubmitOnInputDelay(300)
+		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
+		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
 		// had nowhere to carry the stored translations and deleted the message
 		// (ako/mxcli#705). Empty, like CounterMessage above.
@@ -946,20 +1001,14 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 		g.SetID(element.ID(item.ID))
 	}
 	assignID(g)
-	// The item MUST carry its name, else Studio Pro rejects the project with
-	// CE7247 "name cannot be empty" (and CE0495 "duplicate name ''" when there is
-	// more than one item). The gen NavigationListItem type has no typed Name
-	// setter, so write it as a raw property (like the legacy writer's Name key).
-	// (ledger finding #24)
-	//
-	// An unnamed item is how Studio Pro stores every one it creates: no Name key
-	// at all (all six in ako/TestApp at 11.14.0), and `mx check` accepts that.
-	// Writing `Name: ""` for it turned a describe → exec of such a list into a
-	// rewrite (ako/mxcli#950).
-	if item.Name != "" {
-		addStr(&g.Base, "Name", item.Name)
-	}
-	g.SetAppearance(newAppearance("", "", "", nil))
+	// No Name: Forms$NavigationListItem declares none. Studio Pro stores none
+	// on any item it creates (all six in ako/TestApp at 11.14.0), and `mx
+	// convert` strips one on 10.24 and 11.14 alike, so writing the MDL item name
+	// left a key Mendix's merge engine cannot compare once Studio Pro saves the
+	// document (mendixlabs/mxcli#1373). `mx check` is clean without it (measured
+	// on 11.14.0 with two named items) — the CE7247 / CE0495 an older note
+	// blamed on its absence is not reproduced.
+	g.SetAppearance(newAppearance(item.Class, item.Style, item.DynamicClasses, nil))
 	act, err := clientActionToGen(item.Action)
 	if err != nil {
 		return nil, err
@@ -986,18 +1035,20 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	return g, nil
 }
 
-// layoutGridRowToGen converts a LayoutGridRow (alignment defaults match the
-// legacy serializer; not a full widget, so no name/tabindex).
+// layoutGridRowToGen converts a LayoutGridRow (not a full widget, so no
+// name/tabindex). Its appearance and alignment are carried: hardcoding them
+// dropped every row's design properties and reset a centred row on each
+// describe → exec. Unset values write the defaults the legacy serializer did.
 func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 	g := genPg.NewLayoutGridRow()
 	if row.ID != "" {
 		g.SetID(element.ID(row.ID))
 	}
 	assignID(g)
-	g.SetAppearance(newAppearance("", "", "", nil))
-	g.SetHorizontalAlignment("None")
-	g.SetSpacingBetweenColumns(true)
-	g.SetVerticalAlignment("None")
+	g.SetAppearance(newAppearance(row.Class, row.Style, row.DynamicClasses, row.DesignProperties))
+	g.SetHorizontalAlignment(alignmentOrNone(row.HorizontalAlignment))
+	g.SetSpacingBetweenColumns(!row.NoSpacingBetweenColumns)
+	g.SetVerticalAlignment(alignmentOrNone(row.VerticalAlignment))
 	for _, col := range row.Columns {
 		cg, err := layoutGridColumnToGen(col)
 		if err != nil {
@@ -1009,19 +1060,20 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 }
 
 // layoutGridColumnToGen converts a LayoutGridColumn. Weights default to -1 (auto,
-// via columnWeight); PreviewWidth is always -1 — matching the legacy serializer.
+// via columnWeight); PreviewWidth is -1, Studio Pro's value for a new column —
+// a rewrite carries the stored one (carryLayoutGridPreviewWidth).
 func layoutGridColumnToGen(col *pages.LayoutGridColumn) (element.Element, error) {
 	g := genPg.NewLayoutGridColumn()
 	if col.ID != "" {
 		g.SetID(element.ID(col.ID))
 	}
 	assignID(g)
-	g.SetAppearance(newAppearance("", "", "", nil))
+	g.SetAppearance(newAppearance(col.Class, col.Style, col.DynamicClasses, col.DesignProperties))
 	g.SetWeight(int32(columnWeight(col.Weight)))
 	g.SetTabletWeight(int32(columnWeight(col.TabletWeight)))
 	g.SetPhoneWeight(int32(columnWeight(col.PhoneWeight)))
 	g.SetPreviewWidth(-1)
-	g.SetVerticalAlignment("None")
+	g.SetVerticalAlignment(alignmentOrNone(col.VerticalAlignment))
 	for _, w := range col.Widgets {
 		wg, err := widgetToGen(w)
 		if err != nil {
@@ -1030,6 +1082,14 @@ func layoutGridColumnToGen(col *pages.LayoutGridColumn) (element.Element, error)
 		g.AddWidgets(wg)
 	}
 	return g, nil
+}
+
+// alignmentOrNone maps an unset layout-grid alignment to Mendix's default.
+func alignmentOrNone(a string) string {
+	if a == "" {
+		return "None"
+	}
+	return a
 }
 
 // columnWeight maps an unset weight (0) to -1 (auto-fill), matching the legacy
@@ -1564,21 +1624,33 @@ func dataViewContextAssociationSourceToGen(d *pages.AssociationSource) element.E
 	}
 	assignID(src)
 	src.SetForceFullObjects(false)
-	parts := strings.SplitN(d.EntityPath, "/", 2)
-	step := genDm.NewEntityRefStep()
-	assignID(step)
-	step.SetAssociationQualifiedName(parts[0])
-	if len(parts) == 2 {
-		step.SetDestinationEntityQualifiedName(parts[1])
-	}
-	ref := genDm.NewIndirectEntityRef()
-	assignID(ref)
-	ref.AddSteps(step)
-	src.SetEntityRef(ref)
+	src.SetEntityRef(associationEntityPathToGen(d.EntityPath))
 	if d.ContextVariable != "" {
 		src.SetSourceVariable(associationContextVariableToGen(d))
 	}
 	return src
+}
+
+// associationEntityPathToGen builds the DomainModels$IndirectEntityRef of an
+// association source's EntityPath: `Assoc/Dest[/Assoc/Dest…]`, one
+// EntityRefStep per pair (a trailing association without a destination leaves
+// it unset). Splitting at the first `/` only wrote a two-hop path as ONE step
+// whose DestinationEntity was "E1/A2/E2", and the project would not load
+// (mendixlabs/mxcli#1467). Shared by both association writers.
+func associationEntityPathToGen(entityPath string) element.Element {
+	parts := strings.Split(entityPath, "/")
+	ref := genDm.NewIndirectEntityRef()
+	assignID(ref)
+	for i := 0; i < len(parts); i += 2 {
+		step := genDm.NewEntityRefStep()
+		assignID(step)
+		step.SetAssociationQualifiedName(parts[i])
+		if i+1 < len(parts) {
+			step.SetDestinationEntityQualifiedName(parts[i+1])
+		}
+		ref.AddSteps(step)
+	}
+	return ref
 }
 
 // associationContextVariableToGen builds the Forms$PageVariable an association
@@ -1691,6 +1763,9 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		return nil, nil
 
 	case *pages.DatabaseSource:
+		if d.UseConstraints {
+			return customWidgetDatabaseSourceToGen(d), nil
+		}
 		src := genCw.NewCustomWidgetXPathSource()
 		if d.ID != "" {
 			src.SetID(element.ID(d.ID))
@@ -1747,8 +1822,54 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 	}
 }
 
+// customWidgetDatabaseSourceToGen builds Studio Pro 9's "Database" source on a
+// pluggable widget, a CustomWidgets$CustomWidgetDatabaseSource
+// (mendixlabs/mxcli#1399). Its stored property set, measured on the FSM
+// template's ten at 9.24.2, is DatabaseConstraints, EntityRef and SortBar and
+// nothing else, so ForceFullObjects, EntityPath and SourceVariable are left
+// unset: the first two do not exist before 10, and the parameter a path starts
+// from is stored on the WidgetValue (widgetobj.setDataSource). The executor
+// only builds one for a 9.x project.
+func customWidgetDatabaseSourceToGen(d *pages.DatabaseSource) element.Element {
+	src := genCw.NewCustomWidgetDatabaseSource()
+	if d.ID != "" {
+		src.SetID(element.ID(d.ID))
+	}
+	assignID(src)
+	switch {
+	case len(d.EntitySteps) > 0:
+		src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+	case d.EntityName != "":
+		ref := genDm.NewDirectEntityRef()
+		assignID(ref)
+		ref.SetEntityQualifiedName(d.EntityName)
+		src.SetEntityRef(ref)
+	}
+	for _, c := range d.Constraints {
+		row := genPg.NewDatabaseConstraint()
+		assignID(row)
+		row.SetAttributeQualifiedName(c.Attribute)
+		row.SetOperator(c.Operator)
+		row.SetValue(c.Value)
+		src.AddDatabaseConstraints(row)
+	}
+	bar := genPg.NewGridSortBar()
+	assignID(bar)
+	for _, s := range d.Sorting {
+		item := genPg.NewGridSortItem()
+		assignID(item)
+		item.SetSortDirection(string(s.Direction))
+		if ref := inputAttributeRefToGen(s.AttributePath, s.AttributeRefSteps); ref != nil {
+			item.SetAttributeRef(ref)
+		}
+		bar.AddSortItems(item)
+	}
+	src.SetSortBar(bar)
+	return src
+}
+
 // associationSourceToGen builds a Forms$AssociationSource: an IndirectEntityRef
-// with one EntityRefStep (Association[/DestinationEntity]) and an optional
+// with one EntityRefStep per hop (Association[/DestinationEntity]) and an optional
 // page-parameter source variable ($currentObject leaves it empty). This is a
 // universal page data-source type — shared by DataView, ListView, and pluggable
 // widgets — mirroring the legacy sdk/mpr.serializeAssociationSource.
@@ -1759,17 +1880,7 @@ func associationSourceToGen(d *pages.AssociationSource) element.Element {
 	}
 	assignID(src)
 	src.SetForceFullObjects(false)
-	parts := strings.SplitN(d.EntityPath, "/", 2)
-	step := genDm.NewEntityRefStep()
-	assignID(step)
-	step.SetAssociationQualifiedName(parts[0])
-	if len(parts) == 2 {
-		step.SetDestinationEntityQualifiedName(parts[1])
-	}
-	ref := genDm.NewIndirectEntityRef()
-	assignID(ref)
-	ref.AddSteps(step)
-	src.SetEntityRef(ref)
+	src.SetEntityRef(associationEntityPathToGen(d.EntityPath))
 	if d.ContextVariable != "" {
 		src.SetSourceVariable(associationContextVariableToGen(d))
 	}
@@ -1870,19 +1981,52 @@ func formSettingsToGen(pageName string) element.Element {
 	return ps
 }
 
-// staticAddressToGen builds the Forms$StaticOrDynamicString an open-link action
-// nests as its Address.
+// pageSettingsWithMappings is formSettingsToGen for a show page action, adding
+// the mappings whose argument is a page or snippet parameter bound by name.
 //
-// Only the STATIC form is authored: MDL spells `OPEN_LINK 'https://…'` and has
-// no syntax for the dynamic one. 6 of the 31 Studio Pro references are dynamic
-// (IsDynamic true, an AttributeRef, an empty Value) — DESCRIBE flags those
-// rather than rendering them as a literal, because a dynamic address printed as
-// a static one round-trips into a different link.
-//
-// AttributeRef is deliberately left unset. gen declares a fourth property here,
-// `Attribute`, that not one of the 31 documents carries; writing a key Mendix
-// does not store is what makes a document mxbuild accepts and Studio Pro cannot
-// open (CLAUDE.md, "Overlay Writes: Never Invent a Key").
+// Studio Pro stores such an argument as an explicit Forms$PageParameterMapping:
+// Argument "" and a Forms$PageVariable naming the parameter (ako/TestApp
+// WorkflowCommons TaskAssignmentHelper_UserTask_Reassign, PageParameter;
+// Snip_UserTask_Detail, SnippetParameter). It is how a button outside every data
+// container passes the page's own parameter, which an empty array cannot say —
+// there is no context object to infer it from (#1029: CE1571). A mapping with
+// no VariableKind is the context object and stays inferred (#296: CE0115), so a
+// page that passes only that is written exactly as before (mendixlabs/mxcli#1403).
+func pageSettingsWithMappings(pageName string, mappings []*pages.PageClientParameterMapping) element.Element {
+	ps := genPg.NewPageSettings()
+	assignID(ps)
+	ps.SetPageQualifiedName(pageName)
+	for _, pm := range mappings {
+		if pm == nil || pm.VariableKind == "" || pm.Variable == "" {
+			continue
+		}
+		m := genPg.NewPageParameterMapping()
+		// gen stamps this type "Forms$FormCallArgument", which is Mendix's
+		// LayoutCallArgument: mxbuild then refuses to load the page ("Type
+		// …LayoutCallArgument does not contain a constructor with a parameter of
+		// type …PageSettings"). Studio Pro stores Forms$PageParameterMapping.
+		m.SetTypeName("Forms$PageParameterMapping")
+		assignID(m)
+		m.SetParameterQualifiedName(pageName + "." + pm.ParameterName)
+		m.SetArgument("")
+		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		ps.AddParameterMappings(m)
+	}
+	return ps
+}
+
+// A static address stores AttributeRef as null: 21 of 21 static
+// Forms$StaticOrDynamicString across ako/TestApp and PedApp carry the key.
+// staticAddressToGen never sets it, so without this default the key was
+// dropped and every describe → exec of a page with a link button rewrote the
+// address (ako/mxcli-ledger FINDINGS #170). dynamicAddressToGen sets a real
+// ref, which the default (applied only to an unset key) does not touch.
+func init() {
+	codec.RegisterTypeDefaults("Forms$StaticOrDynamicString", codec.TypeDefaults{
+		NullFields: []string{"AttributeRef"},
+	})
+}
+
 // dynamicAddressToGen builds a link address read from an attribute at runtime.
 // Pinned against FeedbackModule.PopupSuccess (Feedback v4.0.2): IsDynamic true,
 // Value "", and an AttributeRef with a null EntityRef naming the attribute.
@@ -1895,6 +2039,22 @@ func dynamicAddressToGen(attrQN string) element.Element {
 	return s
 }
 
+// staticAddressToGen builds the Forms$StaticOrDynamicString an open-link action
+// nests as its Address.
+//
+// Only the STATIC form is authored: MDL spells `OPEN_LINK 'https://…'` and has
+// no syntax for the dynamic one. 6 of the 31 Studio Pro references are dynamic
+// (IsDynamic true, an AttributeRef, an empty Value) — DESCRIBE flags those
+// rather than rendering them as a literal, because a dynamic address printed as
+// a static one round-trips into a different link.
+//
+// gen declares a fourth property here, `Attribute` (deleted in 7.11.0), that not
+// one of the 31 documents carries; it is never set, because writing a key Mendix
+// does not store is what makes a document mxbuild accepts and Studio Pro cannot
+// open. AttributeRef is a different key and IS stored on a static address — as
+// null, on 21 of 21 static addresses across ako/TestApp and PedApp. The init
+// above registers that null; dynamicAddressToGen sets a real ref, which the
+// default does not touch.
 func staticAddressToGen(address string) element.Element {
 	s := genPg.NewStaticOrDynamicString()
 	assignID(s)
@@ -1957,7 +2117,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		assignID(g)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetNumberOfPagesToClose2("")
-		g.SetPageSettings(formSettingsToGen(x.PageName))
+		g.SetPageSettings(pageSettingsWithMappings(x.PageName, x.ParameterMappings))
 		return g, nil
 	case *pages.LinkClientAction:
 		// open_link → Forms$OpenLinkClientAction. Note the storage name: the
@@ -2152,4 +2312,13 @@ func menuSourceToGen(widget, menu, profile string) (element.Element, error) {
 	assignID(src)
 	src.SetNavigationProfileQualifiedName(orDefaultStr(profile, "Responsive"))
 	return src, nil
+}
+
+// orDefaultFileManagerType is the Model SDK's default, Both, for an unset Type:
+// an empty enum is a value Studio Pro cannot load.
+func orDefaultFileManagerType(t pages.FileManagerType) pages.FileManagerType {
+	if t == "" {
+		return pages.FileManagerTypeBoth
+	}
+	return t
 }

@@ -127,6 +127,8 @@ func TestDescribers_HaveNoHandRolledStringLiterals(t *testing.T) {
 		"cmd_published_rest.go",
 		"cmd_rest_clients.go",
 		"cmd_agenteditor_agents.go",
+		"cmd_navigation.go", // mendixlabs/mxcli#1343
+		"cmd_businessevents.go",
 	} {
 		src, err := os.ReadFile(f)
 		if err != nil {

@@ -52,7 +52,7 @@ createRuleStatement
  * Java Action creation with inline Java source code.
  */
 createJavaActionStatement
-    : JAVA ACTION ifNotExists? qualifiedName
+    : JAVA ACTION ifNotExists? qualifiedName javaActionTypeParameters?
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -62,6 +62,15 @@ createJavaActionStatement
 
 javaActionParameterList
     : javaActionParameter (COMMA javaActionParameter)*
+    ;
+
+// `Module.Name<T, U>` declares the action's type parameters, in their stored
+// order. An `entity <T>` parameter declares T as well, so the header is needed
+// only for a type parameter no entity selector names — a parameter typed `T`
+// with nothing else declaring it (mendixlabs/mxcli#1404) — or to keep an order
+// the selectors would not give.
+javaActionTypeParameters
+    : LESS_THAN identifierOrKeyword (COMMA identifierOrKeyword)* GREATER_THAN
     ;
 
 javaActionParameter
@@ -286,6 +295,7 @@ microflowStatement
     | annotation* clearListStatement SEMICOLON
     | annotation* validationFeedbackStatement SEMICOLON
     | annotation* restCallStatement SEMICOLON
+    | annotation* sendEmailStatement SEMICOLON
     | annotation* sendRestRequestStatement SEMICOLON
     | annotation* importFromMappingStatement SEMICOLON
     | annotation* exportToMappingStatement SEMICOLON
@@ -327,6 +337,10 @@ caseStatement
 enumSplitSource
     : attributePath
     | VARIABLE
+    // A rule that returns an enumeration, called exactly as in `if Mod.Rule(…)`:
+    // `case Mod.Rule(Param = $x)`. Stored as a Microflows$RuleSplitCondition
+    // (mendixlabs/mxcli#1414).
+    | functionCall
     ;
 
 enumSplitCaseValue
@@ -359,8 +373,8 @@ inheritanceSplitElse
     ;
 
 castObjectStatement
-    : CAST VARIABLE
-    | VARIABLE EQUALS CAST VARIABLE
+    : CAST VARIABLE onErrorClause?
+    | VARIABLE EQUALS CAST VARIABLE onErrorClause?
     ;
 
 // SET is optional: `$Total = 5;` is what everyone writes, and every other
@@ -382,7 +396,7 @@ createObjectStatement
 // CHANGE $Product (Name = $NewName, ModifiedDate = [%CurrentDateTime%]);
 // CHANGE $Product (Name = $NewName) COMMIT WITHOUT EVENTS REFRESH;
 changeObjectStatement
-    : CHANGE VARIABLE (LPAREN memberAssignmentList? RPAREN)? commitClause? REFRESH? onErrorClause?
+    : CHANGE VARIABLE (LPAREN changeMemberAssignmentList? RPAREN)? commitClause? REFRESH? onErrorClause?
     ;
 
 // The Commit flag on a create/change activity: Mendix's Microflows$Commit enum.
@@ -421,7 +435,7 @@ deleteObjectStatement
 
 // ROLLBACK $Product; or ROLLBACK $Product REFRESH;
 rollbackStatement
-    : ROLLBACK VARIABLE REFRESH?
+    : ROLLBACK VARIABLE REFRESH? onErrorClause?
     ;
 
 // RETRIEVE $Product FROM MfTest.Product WHERE Code = $SearchCode SORT BY Name ASC FIRST;
@@ -710,8 +724,16 @@ callArgumentList
 // A bare expression — an argument by position — is never accepted: it parses
 // only so the visitor can refuse it AT the argument, naming `Param = …`, rather
 // than leave ANTLR to report a token error somewhere before it (#569).
+//
+// `Param = nothing` is a BLANK argument: the parameter mapping is present and
+// its expression is empty, which is what Studio Pro stores when a call's
+// argument field is left blank (`Argument: ""`). It is not `empty` — that is
+// a Mendix value, stored as the text `empty` — and not an omitted argument,
+// which writes no mapping at all. Only call microflow / call nanoflow take it
+// (the visitor refuses it elsewhere). NOTHING is listed before expression so
+// the keyword wins over reading `nothing` as a name.
 callArgument
-    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS expression
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS (NOTHING | expression)
     | parameterName COLON /* @alias MDL-DEPR007 */ expression
     | expression                                  // positional: refused by the visitor
     ;
@@ -733,12 +755,14 @@ showPageArg
     | expression                                                       // positional: refused by the visitor
     ;
 
+// CLOSE PAGE [n]: n is how many pages to close (default 1), stored as
+// Microflows$CloseFormAction.NumberOfPagesToClose (mendixlabs/mxcli#1373).
 closePageStatement
-    : CLOSE PAGE onErrorClause?
+    : CLOSE PAGE NUMBER_LITERAL? onErrorClause?
     ;
 
 showHomePageStatement
-    : SHOW HOME PAGE
+    : SHOW HOME PAGE onErrorClause?
     ;
 
 // SHOW MESSAGE 'Hello {1}' TYPE Information WITH ({1} = $Name);
@@ -895,6 +919,47 @@ restCallReturnsClause
     ;
 
 /**
+ * SEND EMAIL — the built-in Send Email activity (Microflows$SendEmailAction,
+ * Studio Pro 11.13+ beta). SMTP from a microflow, without the Email Connector.
+ *
+ *   send email (
+ *     From: @Shop.MailSender,
+ *     To: $Order/CustomerEmail,
+ *     Subject: 'Order {1} confirmed' with ({1} = $Order/Number),
+ *     Body: template 'Your order {1} ships soon.' with ({1} = $Order/Number),
+ *     Host: @Shop.SmtpHost,
+ *     Port: @Shop.SmtpPort,
+ *     Authentication: basic (Username: @Shop.SmtpUser, Password: @Shop.SmtpPassword),
+ *   ) [on error …];
+ *
+ * ADR-0013: an activity's dialog settings are one ( Key: value, … ) list. The
+ * activity has no main operand and no result, so the list follows the verb.
+ * The keys, their value shapes and the required ones are checked by the
+ * visitor (visitor_send_email_settings.go), as for `call rest service`.
+ */
+sendEmailStatement
+    : SEND EMAIL sendEmailSettings onErrorClause?
+    ;
+
+sendEmailSettings
+    : LPAREN sendEmailSetting (COMMA sendEmailSetting)* COMMA? RPAREN
+    ;
+
+sendEmailSetting
+    : identifierOrKeyword COLON sendEmailSettingValue
+    ;
+
+// The value shapes, one per key; restCallSettingValue's, less the REST-only
+// mapping and binary bodies. Ordered so a keyword-led shape is tried before a
+// bare expression.
+sendEmailSettingValue
+    : LPAREN restCallMapEntry (COMMA restCallMapEntry)* COMMA? RPAREN       // Headers: ( 'X-Id': 'value' )
+    | BASIC LPAREN restCallMapEntry (COMMA restCallMapEntry)* COMMA? RPAREN // Authentication: basic ( Username: $u, Password: $p )
+    | TEMPLATE STRING_LITERAL templateParams?                               // Body: template '…' [with ({1} = …)]
+    | expression templateParams?                                            // Subject: '…' [with (…)] / To: $x / SecurityType: tls
+    ;
+
+/**
  * SEND REST REQUEST — calls a consumed REST service operation defined via CREATE REST CLIENT.
  */
 sendRestRequestStatement
@@ -978,11 +1043,11 @@ transformJsonStatement
  * dialog, so one activity cannot be nested inside another.
  */
 listOperationStatement
-    : VARIABLE EQUALS listOperationActivity
+    : VARIABLE EQUALS listOperationActivity onErrorClause?
     // The call form. A respelling for every operation but find and contains,
     // whose call form is also the string function: the visitor version-gates
     // those instead (MDL-V1-LIST), since no rewrite can know which was meant.
-    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */
+    | VARIABLE EQUALS listOperation /* @alias MDL-DEPR003 */ onErrorClause?
     ;
 
 listOperationActivity
@@ -1042,8 +1107,8 @@ sortSpec
  * Aggregate operations on lists.
  */
 aggregateListStatement
-    : VARIABLE EQUALS aggregateListActivity
-    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */
+    : VARIABLE EQUALS aggregateListActivity onErrorClause?
+    | VARIABLE EQUALS listAggregateOperation /* @alias MDL-DEPR004 */ onErrorClause?
     ;
 
 /**
@@ -1087,23 +1152,23 @@ reduceFoldOptions
  * Create an empty list of a specific entity type.
  */
 createListStatement
-    : VARIABLE EQUALS CREATE LIST_OF qualifiedName
+    : VARIABLE EQUALS CREATE LIST_OF qualifiedName onErrorClause?
     ;
 
 /**
  * Add an item to a list.
  */
 addToListStatement
-    : ADD expression TO VARIABLE
-    | ADD expression TO associationMemberTarget commitClause? REFRESH?
+    : ADD expression TO VARIABLE onErrorClause?
+    | ADD expression TO associationMemberTarget commitClause? REFRESH? onErrorClause?
     ;
 
 /**
  * Remove an item from a list.
  */
 removeFromListStatement
-    : REMOVE VARIABLE FROM VARIABLE
-    | REMOVE VARIABLE FROM associationMemberTarget commitClause? REFRESH?
+    : REMOVE VARIABLE FROM VARIABLE onErrorClause?
+    | REMOVE VARIABLE FROM associationMemberTarget commitClause? REFRESH? onErrorClause?
     ;
 
 /**
@@ -1133,6 +1198,19 @@ memberAssignmentList
 
 memberAssignment
     : memberAttributeName EQUALS expression
+    ;
+
+// Member assignments for CHANGE: `=` sets a member; `+=` and `-=` are the Add
+// and Remove member changes Studio Pro offers for a reference set, which have
+// no other spelling in an activity with more than one member
+// (mendixlabs/mxcli#1473). CREATE keeps memberAssignment: its members are
+// initial values, with no set to add to or remove from.
+changeMemberAssignmentList
+    : changeMemberAssignment (COMMA changeMemberAssignment)*
+    ;
+
+changeMemberAssignment
+    : memberAttributeName (EQUALS | PLUS EQUALS | MINUS EQUALS) expression
     ;
 
 // Allow keywords and qualified names as member attribute names

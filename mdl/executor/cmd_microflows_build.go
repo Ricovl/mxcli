@@ -10,6 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/folderpath"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -52,10 +53,6 @@ type builtFlow struct {
 	// VarTypes is the entity each object or list variable of the body holds
 	// ("Module.Entity" or "List of Module.Entity"), as the builder resolved it.
 	VarTypes map[string]string
-	// AutoGranted is the auto-created <Module>.User role a NEW flow was granted
-	// to by defaultDocumentAccessRoles, or nil. exec reports it, because the
-	// grant is otherwise invisible and GRANT only ever adds to it.
-	AutoGranted []model.ID
 }
 
 // builtNanoflow is builtFlow for the distinct Nanoflow document type.
@@ -65,7 +62,6 @@ type builtNanoflow struct {
 	ExistingID          model.ID
 	ExistingContainerID model.ID
 	VarTypes            map[string]string
-	AutoGranted         []model.ID // see builtFlow.AutoGranted
 }
 
 // buildMicroflowFromStmt assembles a Microflow from a CREATE MICROFLOW
@@ -97,7 +93,8 @@ func findExistingMicroflow(ctx *ExecContext, s *ast.CreateMicroflowStmt, moduleI
 	if !opts.AllowCreate {
 		return ctx.Backend.GetMicroflowByName(s.Name.Module + "." + s.Name.Name)
 	}
-	existingMicroflows, err := ctx.Backend.ListMicroflows()
+	// Only the microflows with this name are decoded (mendixlabs/mxcli#1272).
+	existingMicroflows, err := microflowsNamed(ctx, s.Name.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +120,15 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 	// ValidateEntity call.
 	if opts.AllowCreate {
 		if err := validateMicroflowRules(s); err != nil {
+			return nil, err
+		}
+	}
+
+	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and bodies);
+	// an older project stores a different EmailMessage, or no such activity.
+	if bodyContains(s.Body, func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.SendEmailStmt); return ok }) {
+		if err := checkFeature(ctx, "microflows", "send_email", "send email",
+			"use the Email Connector module, or upgrade the project to 11.13+"); err != nil {
 			return nil, err
 		}
 	}
@@ -297,14 +303,10 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 	if preserveDocumentation {
 		mf.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
-	var autoGranted []model.ID
+	// A new flow starts with no allowed roles: access is the author's grant
+	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {
 		mf.AllowedModuleRoles = existingAllowedRoles
-	} else {
-		if module != nil {
-			mf.AllowedModuleRoles = defaultDocumentAccessRoles(ctx, module)
-			autoGranted = mf.AllowedModuleRoles
-		}
 	}
 	if mf.MicroflowActionInfo, mf.WorkflowActionInfo, err = applyExposeClauses(ctx,
 		s.Expose, existingActionInfo, existingWorkflowInfo, exposeWarner(ctx)); err != nil {
@@ -453,6 +455,7 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		hierarchy:     hierarchy,
 		restServices:  restServices,
 		self:          &selfFlow{qualifiedName: s.Name.Module + "." + s.Name.Name, returnType: mf.ReturnType},
+		scriptFlows:   ctx.scriptFlows,
 	}
 
 	mf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)
@@ -473,7 +476,6 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
 		VarTypes:            builder.varTypes,
-		AutoGranted:         autoGranted,
 	}, nil
 }
 
@@ -602,14 +604,10 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	if preserveDocumentation {
 		nf.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
-	var autoGranted []model.ID
+	// A new flow starts with no allowed roles: access is the author's grant
+	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {
 		nf.AllowedModuleRoles = existingAllowedRoles
-	} else {
-		if module != nil {
-			nf.AllowedModuleRoles = defaultDocumentAccessRoles(ctx, module)
-			autoGranted = nf.AllowedModuleRoles
-		}
 	}
 
 	// Load metadata needed by the entity resolver up front so backend read
@@ -754,6 +752,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		isNanoflow:   true,
 		quiet:        opts.Quiet,
 		self:         &selfFlow{qualifiedName: s.Name.Module + "." + s.Name.Name, nanoflow: true, returnType: nf.ReturnType},
+		scriptFlows:  ctx.scriptFlows,
 	}
 
 	nf.ObjectCollection = builder.buildFlowGraph(s.Body, s.ReturnType)
@@ -773,7 +772,6 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
 		VarTypes:            builder.varTypes,
-		AutoGranted:         autoGranted,
 	}, nil
 }
 
@@ -788,10 +786,7 @@ func lookupFolder(ctx *ExecContext, moduleID model.ID, folderPath string) (model
 		return "", false
 	}
 	current := moduleID
-	for _, part := range strings.Split(folderPath, "/") {
-		if part == "" {
-			continue
-		}
+	for _, part := range folderpath.Split(folderPath) {
 		found := false
 		for _, f := range folders {
 			if f.ContainerID == current && f.Name == part {

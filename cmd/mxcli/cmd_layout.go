@@ -31,6 +31,7 @@ var (
 	layoutModules            []string
 	layoutDryRun             bool
 	layoutIncludeMarketplace bool
+	layoutOnlyOverlapping    bool
 )
 
 var layoutCmd = &cobra.Command{
@@ -53,10 +54,18 @@ This REPLACES the positions of every entity in the modules it touches, including
 any you arranged by hand. Use --dry-run to see the moves first. Marketplace
 modules and System are never touched.
 
+--only-overlapping repairs instead of rearranging: an entity whose box does not
+collide with another entity or an annotation keeps its position, and of two that
+collide the first in reading order (top to bottom, then left to right) stays put
+while the other moves to the nearest free spot. Annotations never move. Box
+sizes are estimated from the entity's name and attribute count — Studio Pro
+does not store them — so the estimate errs on the generous side.
+
 To re-arrange microflows and nanoflows, use 'mxcli layout flows'.`,
 	Example: `  mxcli layout -p app.mpr
   mxcli layout -p app.mpr --module CapTrack
-  mxcli layout -p app.mpr --dry-run`,
+  mxcli layout -p app.mpr --dry-run
+  mxcli layout -p app.mpr --only-overlapping --dry-run`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return runLayout(cmd)
@@ -70,6 +79,8 @@ func init() {
 		"report the moves without writing")
 	layoutCmd.Flags().BoolVar(&layoutIncludeMarketplace, "include-marketplace", false,
 		"also lay out Marketplace modules (a module update replaces them, so this is normally pointless)")
+	layoutCmd.Flags().BoolVar(&layoutOnlyOverlapping, "only-overlapping", false,
+		"move only entities that overlap another entity or an annotation, keeping every other position")
 	rootCmd.AddCommand(layoutCmd)
 }
 
@@ -118,7 +129,12 @@ func runLayout(cmd *cobra.Command) error {
 			continue
 		}
 
-		plan := dmlayout.Plan(dm)
+		var plan map[model.ID]model.Point
+		if layoutOnlyOverlapping {
+			plan = dmlayout.ResolveOverlaps(dm)
+		} else {
+			plan = dmlayout.Plan(dm)
+		}
 		moved := 0
 		var moves []string
 		for _, e := range dm.Entities {
@@ -137,7 +153,11 @@ func runLayout(cmd *cobra.Command) error {
 
 		if moved == 0 {
 			unchangedTotal += len(dm.Entities)
-			fmt.Fprintf(cmd.OutOrStdout(), "%s: already laid out (%d entities)\n", m.Name, len(dm.Entities))
+			if layoutOnlyOverlapping {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s: no overlapping entities (%d entities)\n", m.Name, len(dm.Entities))
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s: already laid out (%d entities)\n", m.Name, len(dm.Entities))
+			}
 			continue
 		}
 		for _, line := range moves {

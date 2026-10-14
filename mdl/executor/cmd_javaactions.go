@@ -92,6 +92,8 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	// Build CREATE JAVA ACTION statement
 	sb.WriteString("create or modify java action ")
 	sb.WriteString(qualifiedName)
+	header, gap := javaActionTypeParameterHeader(ja)
+	sb.WriteString(header)
 	sb.WriteString(describeFolderClause(ctx, ja.ContainerID))
 	sb.WriteString("(")
 
@@ -105,9 +107,6 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	for i, param := range ja.Parameters {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
 		if hasParamDescriptions {
 			sb.WriteString("\n    ")
 		}
@@ -120,6 +119,14 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 		if param.IsRequired {
 			sb.WriteString(" not null")
+		}
+		// The separator precedes any `--` doc comment: written after it, the
+		// comment swallows the comma and the next parameter fails to parse (#1412).
+		if i < len(ja.Parameters)-1 {
+			sb.WriteString(",")
+			if !hasParamDescriptions {
+				sb.WriteString(" ")
+			}
 		}
 		if param.Description != "" {
 			paramDoc := strings.ReplaceAll(param.Description, "\r\n", "\n")
@@ -169,8 +176,16 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 	sb.WriteString("\n$$;")
 
-	// Output the complete statement
-	fmt.Fprintln(ctx.Output, sb.String())
+	// Output the complete statement. A shape MDL has no form for is printed
+	// commented out: a statement that parses into something else is worse than
+	// none, and re-running the script then leaves the action as it is.
+	stmt := sb.String()
+	if gap != "" {
+		fmt.Fprintf(ctx.Output, "-- NOT re-executable: %s; MDL has no form for this (mendixlabs/mxcli#1404), "+
+			"so the statement is commented out and re-running this script leaves the action unchanged\n", gap)
+		stmt = "-- " + strings.ReplaceAll(stmt, "\n", "\n-- ")
+	}
+	fmt.Fprintln(ctx.Output, stmt)
 
 	// Additional info as comments
 	if ja.ExportLevel != "" && ja.ExportLevel != "Hidden" {
@@ -181,6 +196,74 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	return nil
+}
+
+// javaActionTypeParameterHeader returns the `<T, U>` header that declares the
+// action's type parameters, and why they have no MDL form ("" when they have
+// one). An `entity <T>` parameter declares T too, so the header is printed only
+// when the selectors alone would not reproduce the stored list in its order —
+// a type parameter no selector names (mendixlabs/mxcli#1404), or another order.
+// What no spelling reaches: an entity selector bound to no type parameter, and
+// a reference to a type parameter that is not stored.
+func javaActionTypeParameterHeader(ja *javaactions.JavaAction) (header, gap string) {
+	stored := make([]string, 0, len(ja.TypeParameters))
+	storedSet := map[string]bool{}
+	for _, tp := range ja.TypeParameters {
+		if tp == nil || tp.Name == "" || storedSet[tp.Name] {
+			return "", "a type parameter is unnamed or declared twice"
+		}
+		stored = append(stored, tp.Name)
+		storedSet[tp.Name] = true
+	}
+	var bySelector []string
+	seen := map[string]bool{}
+	for _, p := range ja.Parameters {
+		e, ok := p.ParameterType.(*javaactions.EntityTypeParameterType)
+		if !ok {
+			continue
+		}
+		if e.TypeParameterName == "" {
+			return "", fmt.Sprintf("parameter %s is an entity selector bound to no type parameter", p.Name)
+		}
+		if !seen[e.TypeParameterName] {
+			seen[e.TypeParameterName] = true
+			bySelector = append(bySelector, e.TypeParameterName)
+		}
+	}
+	refGap := func(what string, t any) string {
+		name, id := "", model.ID("")
+		switch v := t.(type) {
+		case *javaactions.EntityTypeParameterType:
+			name = v.TypeParameterName
+		case *javaactions.TypeParameter:
+			name, id = v.TypeParameter, v.TypeParameterID
+		case *javaactions.ListType:
+			name, id = v.TypeParameter, v.TypeParameterID
+		}
+		switch {
+		case name == "" && id != "":
+			return what + " points at a type parameter that does not exist"
+		case name != "" && !storedSet[name]:
+			return fmt.Sprintf("%s names type parameter %s, which the action does not declare", what, name)
+		}
+		return ""
+	}
+	for _, p := range ja.Parameters {
+		if g := refGap("parameter "+p.Name, p.ParameterType); g != "" {
+			return "", g
+		}
+	}
+	if g := refGap("the return type", ja.ReturnType); g != "" {
+		return "", g
+	}
+	if strings.Join(stored, "\x00") == strings.Join(bySelector, "\x00") {
+		return "", ""
+	}
+	names := make([]string, len(stored))
+	for i, n := range stored {
+		names[i] = mdlIdent(n)
+	}
+	return "<" + strings.Join(names, ", ") + ">", ""
 }
 
 // javaSourceOmittedBody is the body DESCRIBE prints for an action whose source it
@@ -451,6 +534,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		}
 		ja.TypeParameters = append(ja.TypeParameters, tpDef)
 		typeParamNameToID[tpName] = tpDef.ID
+	}
+
+	if bad := undeclaredJavaActionTypeNames(s); len(bad) > 0 {
+		return mdlerrors.NewValidationf("java action %s: %s, which is neither a qualified entity nor a declared type parameter; %s",
+			s.Name.String(), strings.Join(bad, ", "), undeclaredJavaActionTypeHint(s))
 	}
 
 	// Build a set of type parameter names for quick lookup
@@ -817,6 +905,53 @@ func getTypeParamRefName(dt ast.DataType) string {
 		}
 	}
 	return ""
+}
+
+// undeclaredJavaActionTypeNames lists the parameters (and "the return type")
+// typed by an unqualified name that is not one of the action's type
+// parameters. Only a type parameter can be unqualified: an entity or an
+// enumeration is always Module.Name, so such a name was written as the entity
+// `.Name` — CE1613 at build time, after check and exec had both passed
+// (mendixlabs/mxcli#1404).
+func undeclaredJavaActionTypeNames(s *ast.CreateJavaActionStmt) []string {
+	declared := map[string]bool{}
+	for _, tp := range s.TypeParameters {
+		declared[tp] = true
+	}
+	unqualified := func(dt ast.DataType) string {
+		// The callback types DESCRIBE prints bare, which exec maps itself.
+		if bare := bareDataTypeName(dt); bare == "Microflow" || bare == "Nanoflow" {
+			return ""
+		}
+		switch dt.Kind {
+		case ast.TypeEntity, ast.TypeListOf:
+			if dt.EntityRef != nil && dt.EntityRef.Module == "" {
+				return dt.EntityRef.Name
+			}
+		case ast.TypeEnumeration:
+			if dt.EnumRef != nil && dt.EnumRef.Module == "" {
+				return dt.EnumRef.Name
+			}
+		}
+		return ""
+	}
+	var out []string
+	check := func(what string, dt ast.DataType) {
+		if n := unqualified(dt); n != "" && !declared[n] {
+			out = append(out, fmt.Sprintf("%s is typed %s", what, mdlIdent(n)))
+		}
+	}
+	for _, p := range s.Parameters {
+		check("parameter "+p.Name, p.Type)
+	}
+	check("the return type", s.ReturnType)
+	return out
+}
+
+// undeclaredJavaActionTypeHint is the remedy both check and exec print.
+func undeclaredJavaActionTypeHint(s *ast.CreateJavaActionStmt) string {
+	return fmt.Sprintf("qualify the entity as Module.Entity, or declare the type parameter: "+
+		"`create java action %s<T>(…)` (or an `entity <T>` parameter)", s.Name.String())
 }
 
 // listOfTypeParameter returns the list type for `list of T` when T is a type

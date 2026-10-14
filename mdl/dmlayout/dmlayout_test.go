@@ -183,7 +183,7 @@ func TestPlan_NoOverlap(t *testing.T) {
 	for _, e := range dm.Entities {
 		p := pos[e.ID]
 		w, h := boxSize(e)
-		boxes = append(boxes, rect{e.Name, p.X - w/2, p.Y - h/2, p.X + w/2, p.Y + h/2})
+		boxes = append(boxes, rect{e.Name, p.X, p.Y, p.X + w, p.Y + h})
 	}
 	for i := range boxes {
 		for j := i + 1; j < len(boxes); j++ {

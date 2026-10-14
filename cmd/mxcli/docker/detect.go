@@ -288,44 +288,95 @@ func mxbuildSearchPaths() []string {
 // constant: Mendix 11.14's blank app asks for Java 25, matching Studio Pro's own
 // support for it, while every version up to 11.13 asks for 21. Resolving 21
 // unconditionally is what made an 11.14 project impossible to build or boot.
-func resolveJDK(major int) (string, error) {
+func resolveJDK(major int) (string, error) { return resolveJDKWith(hostJDKEnv(), major) }
+
+// jdkEnv is everything resolveJDK asks of the machine, injectable so the macOS
+// path is testable from a Linux runner — the /usr/bin/java stub that hung
+// `mxcli new` exists on no machine CI runs on.
+type jdkEnv struct {
+	goos         string
+	getenv       func(string) string
+	macJavaHome  func(major int) (string, error) // /usr/libexec/java_home -v <major>
+	lookPath     func(string) (string, error)
+	evalSymlinks func(string) (string, error)
+	isJDK        func(home string, major int) bool
+	glob         func(string) ([]string, error)
+	searchPaths  func(major int) []string
+	versionOf    func(home string) string
+}
+
+func hostJDKEnv() jdkEnv {
+	return jdkEnv{
+		goos:         runtime.GOOS,
+		getenv:       os.Getenv,
+		macJavaHome:  resolveMacOSJavaHome,
+		lookPath:     exec.LookPath,
+		evalSymlinks: filepath.EvalSymlinks,
+		isJDK:        isJDK,
+		glob:         filepath.Glob,
+		searchPaths:  jdkSearchPaths,
+		versionOf:    javaVersionString,
+	}
+}
+
+// isMacOSJavaStub reports whether home is what the PATH fallback derives from
+// macOS's /usr/bin/java. That file is a launcher stub, not a symlink, so
+// EvalSymlinks leaves it alone and the derived home is /usr. Worse, isJDK
+// cannot tell: the stub forwards `-version` to the default JDK, so /usr
+// "passes" for any major that happens to be installed, and MxBuild handed
+// --java-home=/usr spins Gradle at 100% CPU indefinitely (ChipCoV8 #3).
+func isMacOSJavaStub(home string) bool {
+	return filepath.Clean(home) == "/usr"
+}
+
+func resolveJDKWith(e jdkEnv, major int) (string, error) {
 	major = javaMajorOrDefault(major)
+	darwin := e.goos == "darwin"
 	// Try JAVA_HOME
-	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
-		if isJDK(javaHome, major) {
+	if javaHome := e.getenv("JAVA_HOME"); javaHome != "" {
+		if !(darwin && isMacOSJavaStub(javaHome)) && e.isJDK(javaHome, major) {
 			return javaHome, nil
 		}
 		// JAVA_HOME set but wrong version — continue searching
 	}
 
-	// On macOS, use /usr/libexec/java_home to find the real JDK path.
-	// The /usr/bin/java shim is not a symlink, so EvalSymlinks won't resolve
-	// it to the actual JDK, and MxBuild needs the real installation path.
-	if runtime.GOOS == "darwin" {
-		if javaHome, err := resolveMacOSJavaHome(); err == nil && isJDK(javaHome, major) {
+	// On macOS, use /usr/libexec/java_home to find the real JDK path — for the
+	// PROJECT's major, not a fixed 21 (a fixed 21 always failed the check below
+	// for an 11.14+ project and fell through to the /usr/bin/java stub).
+	var macErr error
+	if darwin {
+		javaHome, err := e.macJavaHome(major)
+		switch {
+		case err != nil:
+			macErr = err
+		case isMacOSJavaStub(javaHome):
+			macErr = fmt.Errorf("java_home answered %s", javaHome)
+		case e.isJDK(javaHome, major):
 			return javaHome, nil
+		default:
+			macErr = fmt.Errorf("java_home answered %s, which is not a JDK %d", javaHome, major)
 		}
 	}
 
 	// Try java in PATH
-	if javaPath, err := exec.LookPath("java"); err == nil {
+	if javaPath, err := e.lookPath("java"); err == nil {
 		// Resolve symlinks to find the actual installation
-		resolved, err := filepath.EvalSymlinks(javaPath)
-		if err == nil {
+		if resolved, err := e.evalSymlinks(javaPath); err == nil {
 			javaPath = resolved
 		}
 		// java binary is typically at <jdk>/bin/java
 		javaHome := filepath.Dir(filepath.Dir(javaPath))
-		if isJDK(javaHome, major) {
+		if !(darwin && isMacOSJavaStub(javaHome)) && e.isJDK(javaHome, major) {
 			return javaHome, nil
 		}
 	}
 
 	// Try OS-specific known locations
-	for _, pattern := range jdkSearchPaths(major) {
-		matches, _ := filepath.Glob(pattern)
+	searched := e.searchPaths(major)
+	for _, pattern := range searched {
+		matches, _ := e.glob(pattern)
 		for _, m := range matches {
-			if isJDK(m, major) {
+			if e.isJDK(m, major) {
 				return m, nil
 			}
 		}
@@ -334,30 +385,42 @@ func resolveJDK(major int) (string, error) {
 	// Name what was searched. "JDK 21 not found" alone sent a Windows user
 	// hunting through mxcli's source for the detection logic; the list makes it
 	// obvious whether their JDK simply sits somewhere unlisted.
-	searched := jdkSearchPaths(major)
 	msg := fmt.Sprintf("JDK %d not found", major)
-	if jh := os.Getenv("JAVA_HOME"); jh != "" {
-		msg += fmt.Sprintf("\n  JAVA_HOME is set to %s but is not a JDK %d (java -version reports %s)", jh, major, javaVersionString(jh))
+	if jh := e.getenv("JAVA_HOME"); jh != "" {
+		msg += fmt.Sprintf("\n  JAVA_HOME is set to %s but is not a JDK %d (java -version reports %s)", jh, major, e.versionOf(jh))
+	}
+	if darwin {
+		msg += fmt.Sprintf("\n  /usr/libexec/java_home -v %d found none", major)
+		if macErr != nil {
+			msg += fmt.Sprintf(" (%v)", firstLine(strings.TrimSpace(macErr.Error())))
+		}
+		msg += "; /usr/bin/java is the macOS launcher stub, not a JDK home, so it is not used."
 	}
 	if len(searched) > 0 {
 		msg += "\n  Searched: " + strings.Join(searched, ", ")
 	}
 	msg += fmt.Sprintf("\n  Install Eclipse Temurin JDK %d, or set JAVA_HOME to one.", major)
+	if darwin {
+		msg += fmt.Sprintf("\n  On macOS: brew install --cask temurin@%d, then check with /usr/libexec/java_home -v %d"+
+			"\n  (or export JAVA_HOME=$(/usr/libexec/java_home -v %d)).", major, major, major)
+	}
 	// Which Java a project needs is a MODEL setting, so a user staring at this
 	// has a second way out that a bare "install a JDK" hides: build for a release
-	// they already have. Only say so when the requirement is not the default,
-	// because below 11.14 that is the only supported value and the advice would
-	// be noise.
-	if major != DefaultJavaMajor {
+	// they already have. Only say so when the requirement is above the default:
+	// below 11.14 the default is the only supported value, and a Mendix 9
+	// project (JDK 17) has no JavaVersion setting at all, so the statement would
+	// change nothing (mendixlabs/mxcli#1437).
+	if major > DefaultJavaMajor {
 		msg += fmt.Sprintf("\n  This is the project's own Settings > Model > JavaVersion. To build for a"+
 			"\n  release you already have instead: mxcli -p <project>.mpr -c \"alter settings runtime ( JavaVersion: '%d' )\"", DefaultJavaMajor)
 	}
 	return "", fmt.Errorf("%s", msg)
 }
 
-// resolveMacOSJavaHome uses /usr/libexec/java_home to find a JDK 21 on macOS.
-func resolveMacOSJavaHome() (string, error) {
-	out, err := exec.Command("/usr/libexec/java_home", "-v", "21").Output()
+// resolveMacOSJavaHome asks /usr/libexec/java_home for a JDK of the given major
+// on macOS. java_home exits non-zero when none is installed.
+func resolveMacOSJavaHome(major int) (string, error) {
+	out, err := exec.Command("/usr/libexec/java_home", "-v", strconv.Itoa(major)).Output()
 	if err != nil {
 		return "", err
 	}

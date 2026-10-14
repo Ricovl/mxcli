@@ -52,9 +52,21 @@ end;`,
 			name: "unknown call nested in an if branch",
 			src: `create nanoflow Test.NF_Dev ($x: String)
 begin
+  declare $y String = $x;
   if $x != empty then
-    set $x = trunc(1.5);
+    set $y = trunc(1.5);
   end if;
+end;`,
+			wantMDL: true,
+		},
+		{
+			// currentDateTime() is CE0117 in a nanoflow too (11.14.0); the
+			// [%CurrentDateTime%] token below is the working spelling.
+			name: "currentDateTime() is not a built-in",
+			src: `create nanoflow Test.NF_Now () returns DateTime
+begin
+  declare $d DateTime = currentDateTime();
+  return $d;
 end;`,
 			wantMDL: true,
 		},

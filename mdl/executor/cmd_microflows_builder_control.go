@@ -106,8 +106,8 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	if fb.pendingAnnotations != nil {
 		trueBranchAnchor = fb.pendingAnnotations.TrueBranchAnchor
 		falseBranchAnchor = fb.pendingAnnotations.FalseBranchAnchor
-		fb.applyAnnotations(splitID, fb.pendingAnnotations)
-		fb.pendingAnnotations = nil
+		// Records the @curve too, which applyAnnotations does not (#1414).
+		fb.applyPendingAnnotations(splitID)
 	}
 
 	// Calculate merge position (after the longest branch)
@@ -660,6 +660,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		restServices: fb.restServices, // Share REST services for parameter classification
 		isNanoflow:   fb.isNanoflow,
 		self:         fb.self,
+		scriptFlows:  fb.scriptFlows,
 		// Share the note registry, so a note declared outside the loop and
 		// referenced on a body activity attaches to the SAME Annotation rather
 		// than being refused. The describer emits exactly that (its label state
@@ -844,6 +845,8 @@ func statementErrorHandling(stmt ast.MicroflowStatement) *ast.ErrorHandlingClaus
 		return s.ErrorHandling
 	case *ast.SendRestRequestStmt:
 		return s.ErrorHandling
+	case *ast.SendEmailStmt:
+		return s.ErrorHandling
 	case *ast.ImportFromMappingStmt:
 		return s.ErrorHandling
 	case *ast.ExportToMappingStmt:
@@ -1018,6 +1021,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		restServices: fb.restServices,
 		isNanoflow:   fb.isNanoflow,
 		self:         fb.self,
+		scriptFlows:  fb.scriptFlows,
 		// Share the note registry, so a note declared outside the loop and
 		// referenced on a body activity attaches to the SAME Annotation rather
 		// than being refused. The describer emits exactly that (its label state

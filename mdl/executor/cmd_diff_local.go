@@ -212,16 +212,31 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 	// Set object type for display
 	result.ObjectType = simplifyTypeName(unitType)
 
-	// Extract UUID from file path
+	// Name the sides after what they are: both are git revisions in range
+	// mode, and the working tree against a ref otherwise. Neither is a script.
+	if isTwoRevision {
+		result.FromLabel, result.ToLabel = baseRef, targetRef
+	} else {
+		result.FromLabel, result.ToLabel = ref, "working tree"
+	}
+
+	// Extract UUID from file path; it is the unit ID.
 	unitID := extractUUIDFromPath(change.FilePath)
-	result.ObjectName = ast.QualifiedName{Name: unitID}
+	newRaw := unmarshalUnit(currentContent)
+	oldRaw := unmarshalUnit(gitContent)
+	nameSource := newRaw
+	if nameSource == nil {
+		nameSource = oldRaw
+	}
+	qualifiedName := unitQualifiedName(ctx, nameSource, unitID)
+	result.ObjectName = splitQualifiedName(qualifiedName)
 
 	// Generate MDL for both versions based on type
 	if len(currentContent) > 0 {
-		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent)
+		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent, unitQualifiedName(ctx, newRaw, unitID))
 	}
 	if len(gitContent) > 0 {
-		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent)
+		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID))
 	}
 
 	// Generate structural changes
@@ -263,30 +278,77 @@ func extractUUIDFromPath(path string) string {
 	return path
 }
 
+// unmarshalUnit decodes a unit's BSON, nil when there is none or it is unreadable.
+func unmarshalUnit(content []byte) map[string]any {
+	if len(content) == 0 {
+		return nil
+	}
+	var raw map[string]any
+	if err := bson.Unmarshal(content, &raw); err != nil {
+		return nil
+	}
+	return raw
+}
+
+// unitQualifiedName names a unit as Module.Name.
+//
+// An MPR v2 .mxunit does not carry its container: that is a column of the
+// Unit table in the .mpr, so the module has to come from the project's
+// hierarchy, keyed on the unit ID (the file name). Looking for a $Container
+// key in the document never hit, which is why diff-local printed
+// "Microflow.<uuid>" and rendered the MDL without its module (#1393).
+func unitQualifiedName(ctx *ExecContext, raw map[string]any, unitID string) string {
+	name := extractString(raw["Name"])
+	h, _ := getHierarchy(ctx)
+	if h == nil {
+		if name == "" {
+			return unitID
+		}
+		return name
+	}
+	if h.IsModule(model.ID(unitID)) {
+		if name == "" {
+			name = h.GetModuleName(model.ID(unitID))
+		}
+		if name == "" {
+			return unitID
+		}
+		return name
+	}
+	containerID := h.ContainerOf(model.ID(unitID))
+	if containerID == "" {
+		// A unit absent from the opened project (deleted since): fall back to
+		// whatever container reference the document itself holds.
+		containerID = model.ID(extractBsonID(raw["$ContainerID"]))
+		if containerID == "" {
+			containerID = model.ID(extractBsonID(raw["$Container"]))
+		}
+	}
+	modName := ""
+	if containerID != "" {
+		modName = h.GetModuleName(h.FindModuleID(containerID))
+	}
+	if name == "" {
+		// A domain model is nameless: it is the module's.
+		if modName != "" {
+			return modName
+		}
+		return unitID
+	}
+	if modName == "" {
+		return name
+	}
+	return modName + "." + name
+}
+
 // bsonToMDL converts BSON content to MDL representation based on type
-func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte) string {
+func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string) string {
 	var raw map[string]any
 	if err := bson.Unmarshal(content, &raw); err != nil {
 		return fmt.Sprintf("-- Error parsing BSON: %v", err)
 	}
-
-	// Get name from the unit
-	name := extractString(raw["Name"])
-	if name == "" {
-		name = unitID
-	}
-
-	// Try to get qualified name by finding module
-	qualifiedName := name
-	if containerID := extractBsonID(raw["$Container"]); containerID != "" {
-		// Try to resolve module name from container
-		if h, err := getHierarchy(ctx); err == nil {
-			if modName := h.GetModuleName(model.ID(containerID)); modName != "" {
-				qualifiedName = modName + "." + name
-			} else if modName := h.GetModuleName(h.FindModuleID(model.ID(containerID))); modName != "" {
-				qualifiedName = modName + "." + name
-			}
-		}
+	if qualifiedName == "" {
+		qualifiedName = unitID
 	}
 
 	switch {
@@ -294,10 +356,13 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte) string
 		return domainModelBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Entity"):
 		return entityBsonToMDL(ctx, raw, qualifiedName)
-	case strings.Contains(unitType, "Microflow"):
-		return microflowBsonToMDL(ctx, raw, qualifiedName)
+	// Nanoflow before Microflow: the storage type is "Microflows$Nanoflow",
+	// which contains "Microflow", so the other order sent every nanoflow to
+	// the microflow parser, which rejected it.
 	case strings.Contains(unitType, "Nanoflow"):
 		return nanoflowBsonToMDL(ctx, raw, qualifiedName)
+	case strings.Contains(unitType, "Microflow"):
+		return microflowBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Enumeration"):
 		return enumerationBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Page"):
@@ -428,7 +493,7 @@ func attributeBsonToMDL(_ *ExecContext, raw map[string]any) string {
 			if !ok || localize {
 				typeStr = "DateTime"
 			} else {
-				typeStr = "Date"
+				typeStr = "DateTime not localized" // #1373; `Date` is deprecated (MDL-DEPR160)
 			}
 		case strings.Contains(attrType, "AutoNumberAttributeType"):
 			typeStr = "AutoNumber"
@@ -474,7 +539,7 @@ func attributeBsonToMDL(_ *ExecContext, raw map[string]any) string {
 				if !ok || localize {
 					typeStr = "DateTime"
 				} else {
-					typeStr = "Date"
+					typeStr = "DateTime not localized" // #1373; `Date` is deprecated (MDL-DEPR160)
 				}
 			case strings.Contains(typeType, "AutoNumberAttributeType"):
 				typeStr = "AutoNumber"
@@ -550,29 +615,19 @@ func buildEntityNameLookup(ctx *ExecContext) map[model.ID]string {
 	return getEntityNames(ctx, h)
 }
 
-// nanoflowBsonToMDL converts a nanoflow BSON to MDL
-func nanoflowBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
-	var lines []string
-
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+// nanoflowBsonToMDL converts a nanoflow BSON to MDL with the renderer
+// DESCRIBE NANOFLOW uses, so diffs include activity bodies. It was a fixed
+// "-- (nanoflow body)" stub, so any change inside a nanoflow counted as
+// modified and diffed to nothing (#1393). Falls back to a header-only stub
+// if parsing fails.
+func nanoflowBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
+	qn := splitQualifiedName(qualifiedName)
+	nf := ctx.Backend.ParseNanoflowFromRaw(raw, model.ID(qn.Name), "")
+	if nf == nil {
+		return fmt.Sprintf("nanoflow %s\n  -- parse failed --\nend nanoflow\n", qualifiedName)
 	}
 
-	lines = append(lines, fmt.Sprintf("create nanoflow %s ()", qualifiedName))
-
-	returnType := "Void"
-	if rt := extractString(raw["ReturnType"]); rt != "" {
-		returnType = rt
-	}
-	lines = append(lines, fmt.Sprintf("returns %s", returnType))
-
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (nanoflow body)")
-	lines = append(lines, "end;")
-
-	return strings.Join(lines, "\n")
+	return renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(nf), qn, buildEntityNameLookup(ctx), nil, nil)
 }
 
 // enumerationBsonToMDL converts an enumeration BSON to MDL
@@ -608,68 +663,139 @@ func enumerationBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName stri
 	return strings.Join(lines, "\n")
 }
 
-// pageBsonToMDL converts a page BSON to MDL
-func pageBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
+// pageBsonToMDL converts a page BSON to MDL, widgets included, using the
+// renderer DESCRIBE PAGE uses. The body used to be a fixed
+// "-- (page widgets)" placeholder, so a change to any widget rendered the
+// same on both sides: "1 modified" and no hunk (#1393).
+func pageBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
 	var lines []string
+	lines = append(lines, docCommentLines(extractString(raw["Documentation"]))...)
 
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+	var props []string
+	if title := extractTextsText(ctx, raw, "Title"); title != "" {
+		props = append(props, fmt.Sprintf("Title: %s", mdlQuote(ctx, title)))
 	}
-
-	lines = append(lines, fmt.Sprintf("create page %s ()", qualifiedName))
-
-	if title := extractString(raw["Title"]); title != "" {
-		lines = append(lines, fmt.Sprintf("title '%s'", title))
-	}
-
-	// Layout reference
-	if layoutCall, ok := raw["LayoutCall"].(map[string]any); ok {
-		if layout := extractString(layoutCall["Layout"]); layout != "" {
-			lines = append(lines, fmt.Sprintf("layout %s", layout))
+	if formCall, ok := raw["FormCall"].(map[string]any); ok {
+		layoutName := ""
+		if layoutID := extractBinaryID(formCall["Layout"]); layoutID != "" {
+			layoutName = resolveLayoutName(ctx, model.ID(layoutID))
+		} else {
+			layoutName = extractString(formCall["Form"])
+		}
+		if layoutName != "" {
+			props = append(props, "Layout: "+layoutName)
 		}
 	}
+	if url := extractString(raw["Url"]); url != "" {
+		props = append(props, fmt.Sprintf("Url: %s", mdlQuote(ctx, url)))
+	}
+	header := "create or modify page " + qualifiedName
+	if len(props) > 0 {
+		header += " (" + strings.Join(props, ", ") + ")"
+	}
+	lines = append(lines, header+" {")
 
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (page widgets)")
-	lines = append(lines, "end;")
+	var nonEmpty []pageWidgetGroup
+	for _, g := range pageWidgetGroupsFromRawData(ctx, raw) {
+		if len(g.Widgets) > 0 {
+			nonEmpty = append(nonEmpty, g)
+		}
+	}
+	body := renderToString(ctx, func() {
+		switch {
+		case len(nonEmpty) == 0:
+		case len(nonEmpty) == 1 && nonEmpty[0].Placeholder == "Main":
+			for _, w := range nonEmpty[0].Widgets {
+				outputWidgetMDLV3(ctx, w, 1)
+			}
+		default:
+			for _, g := range nonEmpty {
+				fmt.Fprintf(ctx.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
+				for _, w := range g.Widgets {
+					outputWidgetMDLV3(ctx, w, 2)
+				}
+				fmt.Fprint(ctx.Output, "  }\n")
+			}
+		}
+	})
+	if body = strings.TrimRight(body, "\n"); body != "" {
+		lines = append(lines, body)
+	}
+	lines = append(lines, "};")
 
 	return strings.Join(lines, "\n")
 }
 
-// snippetBsonToMDL converts a snippet BSON to MDL
-func snippetBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
+// snippetBsonToMDL converts a snippet BSON to MDL, widgets included.
+func snippetBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
 	var lines []string
-
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+	lines = append(lines, docCommentLines(extractString(raw["Documentation"]))...)
+	lines = append(lines, "create or modify snippet "+qualifiedName+" {")
+	widgets := snippetWidgetsFromRawData(ctx, raw)
+	body := renderToString(ctx, func() {
+		for _, w := range widgets {
+			outputWidgetMDLV3(ctx, w, 1)
+		}
+	})
+	if body = strings.TrimRight(body, "\n"); body != "" {
+		lines = append(lines, body)
 	}
-
-	lines = append(lines, fmt.Sprintf("create snippet %s ()", qualifiedName))
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (snippet widgets)")
-	lines = append(lines, "end;")
+	lines = append(lines, "};")
 
 	return strings.Join(lines, "\n")
 }
 
-// layoutBsonToMDL converts a layout BSON to MDL
-func layoutBsonToMDL(_ *ExecContext, raw map[string]any, qualifiedName string) string {
-	var lines []string
+// renderToString captures what a DESCRIBE renderer writes to ctx.Output.
+func renderToString(ctx *ExecContext, render func()) string {
+	var buf strings.Builder
+	saved := ctx.Output
+	ctx.Output = &buf
+	defer func() { ctx.Output = saved }()
+	render()
+	return buf.String()
+}
 
-	if doc := extractString(raw["Documentation"]); doc != "" {
-		lines = append(lines, "/**")
-		lines = append(lines, " * "+doc)
-		lines = append(lines, " */")
+// docCommentLines renders documentation as a /** */ block, nil when empty.
+func docCommentLines(doc string) []string {
+	if doc == "" {
+		return nil
 	}
+	lines := []string{"/**"}
+	for line := range strings.SplitSeq(doc, "\n") {
+		lines = append(lines, " * "+line)
+	}
+	return append(lines, " */")
+}
 
-	lines = append(lines, fmt.Sprintf("create layout %s ()", qualifiedName))
-	lines = append(lines, "begin")
-	lines = append(lines, "  -- (layout structure)")
-	lines = append(lines, "end;")
+// layoutBsonToMDL converts a layout BSON to MDL, widgets included, the way
+// DESCRIBE LAYOUT prints it. The body was a fixed "-- (layout structure)"
+// stub, so a change to a layout's widgets diffed to nothing (#1393).
+func layoutBsonToMDL(ctx *ExecContext, raw map[string]any, qualifiedName string) string {
+	var lines []string
+	lines = append(lines, docCommentLines(extractString(raw["Documentation"]))...)
+
+	// LayoutType lives on the Content wrapper, the class on Appearance — see
+	// layout_write.go for the measured document shape.
+	layoutType := "(not read)"
+	if content, ok := raw["Content"].(map[string]any); ok {
+		if lt := extractString(content["LayoutType"]); lt != "" {
+			layoutType = lt
+		}
+	}
+	class := ""
+	if ap, ok := raw["Appearance"].(map[string]any); ok {
+		class = extractString(ap["Class"])
+	}
+	header := layoutHeaderMDL(ctx, layoutType, class, layoutOuterName(raw))
+	lines = append(lines, fmt.Sprintf("create or modify layout %s (\n%s\n) {", qualifiedName, header))
+
+	body := renderToString(ctx, func() {
+		outputLayoutBodyMDL(ctx, raw)
+	})
+	if body = strings.TrimRight(body, "\n"); body != "" {
+		lines = append(lines, body)
+	}
+	lines = append(lines, "};")
 
 	return strings.Join(lines, "\n")
 }

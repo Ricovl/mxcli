@@ -37,6 +37,9 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		if exec != nil {
 			if b := exec.Backend(); b != nil {
 				violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
+				// MDL004 on a void microflow's end-event value is a warning for a flow
+				// already stored that way: re-applying it changes nothing.
+				violations = executor.SettleStoredVoidReturnValues(violations, prog, executor.NewStoredVoidReturns(b))
 				// A called microflow the script does not create is read from the
 				// project for MDL-WORKFLOW10 (ako/mxcli#943).
 				violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
@@ -46,8 +49,7 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		if summary := linter.Summarize(violations); summary.Errors > 0 {
 			return fmt.Sprintf(
 				"\nRefusing to execute: %d error(s) above. Nothing was written.\n"+
-					"  exec applies statements one at a time and cannot roll back, so a script\n"+
-					"  with a known error would leave the model partly updated.\n"+
+					"  A script with a known error would fail part-way and be rolled back.\n"+
 					"  Fix them, or re-run with --no-check to apply the script anyway.\n",
 				summary.Errors)
 		}
@@ -127,7 +129,11 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 		// splice under mdl 1, an alter whose patch fails. `check -p` already
 		// runs this verdict; exec did not, so it wrote every statement before
 		// the refused one and none after, leaving the model half-applied.
-		verdicts := exec.CheckFlowVerdicts(prog)
+		flowReport := exec.CheckFlowVerdictsReport(prog)
+		verdicts := flowReport.Violations
+		if len(flowReport.Unpredicted) > 0 {
+			fmt.Fprint(w, executor.FormatUnpredictedFlows(flowReport.Unpredicted))
+		}
 		if len(verdicts) > 0 {
 			(&linter.TextFormatter{UseColor: color}).Format(verdicts, w)
 			if n := linter.Summarize(verdicts).Errors; n > 0 && !continueOnError {

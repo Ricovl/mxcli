@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -54,7 +55,11 @@ func SettleGeneratedSources(projectPath, mxPath, version string, w io.Writer) er
 	out := &syncBuffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out
-	if err := cmd.Run(); err != nil {
+	if err := runWithWatchdog(cmd, mxbuildWatchdogLimits(), javaHome); err != nil {
+		var werr *WatchdogError
+		if errors.As(err, &werr) {
+			return err // already carries the tail and the java home
+		}
 		return fmt.Errorf("mxbuild failed: %w\n%s", err, lastLines(out.String(), 20))
 	}
 	fmt.Fprintln(w, "  Generated sources are in their post-build form.")

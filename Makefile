@@ -35,7 +35,7 @@ GO_BUILD_FLAGS = -trimpath
 # Clean version for VS Code extension (must be valid semver: major.minor.patch)
 VSCE_VERSION = $(shell echo "$(VERSION)" | sed 's/^v//; s/-.*//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$$' || echo "0.0.0")
 
-.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet
+.PHONY: build build-debug size release clean test test-mdl check-mdl check-skill-mdl check-conformance conformance-shrink gen-migration-reference check-migration-reference check-skill-pack-js check-findings check-wiki-pages digest-status check-tunnel-deps check-test-timeouts check-widget-versions test-integration test-integration-executor test-integration-roundtrip test-integration-parity test-integration-upgrade test-integration-other grammar completions sync-skills sync-skill-packs sync-commands sync-mods sync-lint-rules sync-changelog sync-all docs documentation docs-site docs-serve vscode-ext vscode-install source-tree sbom sbom-report lint lint-go lint-ts fmt fmt-check vet skill-index check-skill-index
 
 # Helper: copy file only if content differs (avoids mtime updates that invalidate go build cache)
 # Usage: $(call copy-if-changed,src,dst)
@@ -47,7 +47,18 @@ endef
 # Skills are directory-shaped (<name>/SKILL.md, Agent Skills standard), so this
 # mirrors a tree rather than copying a flat list. --delete matters: a renamed or
 # removed skill must not linger in the embed dir, or the binary keeps shipping it.
-sync-skills:
+# Refresh the generated line-numbered section index at the top of each SKILL.md.
+# Measured on BENCH-001 (2026-10-10): reading the skills was ~68% of a session's
+# re-read cost, and the agent had no cheap way to read one section.
+skill-index:
+	@python3 -I scripts/skill-index.py
+
+# Fails when a SKILL.md moved on without its index. A hand-kept table of
+# contents is the drift this repo has already paid for twice.
+check-skill-index:
+	@python3 -I scripts/skill-index.py --check
+
+sync-skills: skill-index
 	@mkdir -p cmd/mxcli/skills
 	@rsync -a --delete --exclude='.DS_Store' .claude/skills/mendix/ cmd/mxcli/skills/ 2>/dev/null \
 		|| { rm -rf cmd/mxcli/skills && mkdir -p cmd/mxcli/skills && cp -R .claude/skills/mendix/. cmd/mxcli/skills/; }
@@ -59,6 +70,14 @@ sync-skill-packs:
 	@mkdir -p cmd/mxcli/skillpacks
 	@rsync -a --delete --exclude='.DS_Store' .claude/skills/packs/ cmd/mxcli/skillpacks/ 2>/dev/null \
 		|| { rm -rf cmd/mxcli/skillpacks && mkdir -p cmd/mxcli/skillpacks && cp -R .claude/skills/packs/. cmd/mxcli/skillpacks/; }
+
+# Sync Claude Code mods from mods/ to cmd/mxcli/mods for embedding. Only what a
+# project runs is shipped: a mod's tests and the types the engine lays beside a
+# loaded mod stay behind.
+sync-mods:
+	@mkdir -p cmd/mxcli/mods
+	@rsync -a --delete --exclude='.DS_Store' --exclude='tests/' --exclude='*.test.ts' --exclude='*.test.tsx' \
+		--exclude='.claude-plugin/types/' --exclude='tsconfig.json' mods/ cmd/mxcli/mods/
 
 # Sync commands from .claude/commands/mendix to cmd/mxcli/commands for embedding
 sync-commands:
@@ -100,7 +119,7 @@ sync-changelog:
 	$(call copy-if-changed,CHANGELOG.md,cmd/mxcli/changelog.md)
 
 # Sync skills, commands, lint rules, and changelog
-sync-all: sync-skills sync-skill-packs sync-commands sync-lint-rules sync-vsix sync-changelog
+sync-all: sync-skills sync-skill-packs sync-mods sync-commands sync-lint-rules sync-vsix sync-changelog
 
 # Generate LSP completion items from grammar (only rewrites file if content changed)
 completions:
@@ -164,8 +183,19 @@ release: clean grammar vscode-ext sync-all
 # where the skills layout had changed under a bare `go build` failed six tests in
 # cmd/mxcli with an error that pointed at the go:embed directive rather than at
 # the missing build step (mxcli-formula1 finding 68).
+#
+# -timeout is per test BINARY, and without one Go applies 10m. That is a
+# coin-flip under `./...`: every package runs at once, so a package's wall time
+# is set by the machine's load, not by its tests. mdl/linter passes in ~25s on
+# its own and was measured at 552s and 872s inside `make test` — the second
+# reported `panic: test timed out after 10m0s` as a FAIL in a package the PR had
+# not touched (#1291). 30m is twice the slowest measurement. Override with
+# `make test TEST_TIMEOUT=...`; scripts/check-test-timeouts.sh (make lint)
+# refuses any go test here without a -timeout.
+TEST_TIMEOUT ?= 30m
+
 test: grammar sync-all
-	CGO_ENABLED=0 go test ./...
+	CGO_ENABLED=0 go test -timeout $(TEST_TIMEOUT) ./...
 
 # Check MDL syntax for all example scripts.
 #
@@ -264,6 +294,11 @@ check-skill-mdl: build
 		echo "  ok $$f"; \
 	done
 	@./scripts/check-skill-mdl.sh ./$(BUILD_DIR)/$(BINARY_NAME) docs-site/src
+	@# The syntax pass above splits blocks into statements and ignores semantic
+	@# errors. Run each whole example through the full `mxcli check` as well:
+	@# examples marked correct that check rejects shipped until a user ran
+	@# the pack through check themselves (mendixlabs/mxcli#1357).
+	@./scripts/check-skill-mdl-semantics.sh ./$(BUILD_DIR)/$(BINARY_NAME) .claude/skills/mendix .claude/skills/packs docs/01-project/MDL_QUICK_REFERENCE.md docs-site/src
 
 # Canonical-form conformance gate (ako/mxcli#756, plan item 1.4 of
 # PROPOSAL_mdl_beta_syntax_freeze.md). Parses every MDL block in `mxcli syntax`,
@@ -276,7 +311,7 @@ check-skill-mdl: build
 # mdl-examples/deprecated-aliases/ is exempt: it is the old-spelling corpus
 # `fmt --upgrade` is proven on (see its README).
 check-conformance:
-	@go test ./mdl/conformance -count=1
+	@go test ./mdl/conformance -count=1 -timeout 20m
 
 # The "Language versions and migration" page's tables are generated from the
 # language-change and deprecation registries (mdl/migration). check- is the CI
@@ -288,7 +323,7 @@ check-migration-reference:
 	@go run ./cmd/gen-migration-reference -check
 
 conformance-shrink:
-	@MXCLI_CONFORMANCE_SHRINK=1 go test ./mdl/conformance -run 'TestConformanceGate$$' -count=1
+	@MXCLI_CONFORMANCE_SHRINK=1 go test ./mdl/conformance -timeout 20m -run 'TestConformanceGate$$' -count=1
 
 # Guard: the embedded tunnel (chisel) must stay out of the Windows/macOS builds.
 # See docs/13-decisions/0009-tunnel-is-linux-only.md. Needs no build — it reads
@@ -330,6 +365,10 @@ check-wiki-pages:
 
 check-tunnel-deps:
 	@./scripts/check-tunnel-deps.sh
+
+# Every go test above must choose its own -timeout (#1291); see the script.
+check-test-timeouts:
+	@scripts/check-test-timeouts.sh
 
 # Run integration tests (requires mx binary / mxbuild)
 #
@@ -409,7 +448,7 @@ check-widget-versions: build
 	done
 
 # Lint all code (Go + TypeScript)
-lint: lint-go lint-ts check-conformance
+lint: lint-go lint-ts check-conformance check-test-timeouts
 
 # Lint Go code
 #

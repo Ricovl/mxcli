@@ -18,7 +18,7 @@ import (
 )
 
 // CE0106, measured with mxbuild 11.14.0 on a fresh project (see the finding in
-// .claude/skills/fix-issue/findings/mdl-executor.jsonl):
+// .claude/skills/fix-issue/findings/mdl-executor/):
 //
 //	"At least one allowed role must be selected if the microflow is used from
 //	 navigation, a page, a nanoflow or a published service."
@@ -288,21 +288,22 @@ create or modify navigation Responsive
 	}
 }
 
-// A module with no roles gets the auto-created <Module>.User role on every new
-// document, so its flows are never without access.
-func TestFlowAccess_ModuleWithoutRolesGetsAutoRole(t *testing.T) {
+// A module with no roles no longer gets an auto-created <Module>.User role
+// (#1474), so a new flow used from a page is left without access there too, and
+// the fix names the role to create.
+func TestFlowAccess_ModuleWithoutRolesIsReported(t *testing.T) {
 	f := newFlowAccessFixture()
 	f.moduleRole = nil
 	f.addPage("P_Main", "Shop.MF_Button", false)
-	if got := checkFlowAccessSrc(t, f, "create microflow Shop.MF_Button () begin end;"); len(got) != 0 {
-		t.Errorf("auto-granted flow reported: %+v", got)
+	got := checkFlowAccessSrc(t, f, "create microflow Shop.MF_Button () begin end;")
+	if len(got) != 1 || !strings.Contains(got[0].Suggestion, "create module role Shop.User") {
+		t.Errorf("want one violation suggesting a role to create, got %+v", got)
 	}
-	// ...unless the script gives the module a real role first, which switches
-	// the default off.
+	// A role the script creates is the one the fix names.
 	f = newFlowAccessFixture()
 	f.moduleRole = nil
 	f.addPage("P_Main", "Shop.MF_Button", false)
-	got := checkFlowAccessSrc(t, f, `create module role Shop.Manager;
+	got = checkFlowAccessSrc(t, f, `create module role Shop.Manager;
 create microflow Shop.MF_Button () begin end;`)
 	if len(got) != 1 || !strings.Contains(got[0].Suggestion, "Shop.Manager") {
 		t.Errorf("want one violation suggesting Shop.Manager, got %+v", got)

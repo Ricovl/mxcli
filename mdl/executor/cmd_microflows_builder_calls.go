@@ -371,22 +371,22 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 			}
 		} else {
 			// Regular parameter: expression-based value
-			valueExpr := fb.exprToString(arg.Value)
 			if microflowTypeParams[arg.Name] {
 				// A Microflow parameter takes a name, never an expression
 				// (mendixlabs/mxcli#1210); the same decision reference
-				// validation reports.
+				// validation reports. The name is read without the whitespace
+				// written after it (mendixlabs/mxcli#1282).
 				if msg := microflowParamArgRefusal(actionQN, arg.Name, arg.Value); msg != "" {
 					fb.addError("%s", msg)
 				}
 				value = &microflows.MicroflowParameterValue{
 					BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-					Microflow:   strings.Trim(valueExpr, "'"),
+					Microflow:   strings.Trim(fb.exprToString(javaActionArgumentValue(arg.Value)), "'"),
 				}
 			} else {
 				value = &microflows.BasicCodeActionParameterValue{
 					BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-					Argument:    valueExpr,
+					Argument:    fb.exprToString(arg.Value),
 				}
 			}
 		}
@@ -600,7 +600,7 @@ func (fb *flowBuilder) entityTypeArgument(expr ast.Expression) string {
 }
 
 func isEmptyJavaActionArgument(expr ast.Expression) bool {
-	lit, ok := expr.(*ast.LiteralExpr)
+	lit, ok := javaActionArgumentValue(expr).(*ast.LiteralExpr)
 	return ok && (lit.Kind == ast.LiteralEmpty || lit.Kind == ast.LiteralNull)
 }
 
@@ -1194,8 +1194,11 @@ func (fb *flowBuilder) addShowPageAction(s *ast.ShowPageStmt) model.ID {
 
 // addShowHomePageAction creates a SHOW HOME PAGE statement.
 func (fb *flowBuilder) addShowHomePageAction(s *ast.ShowHomePageStmt) model.ID {
+	activityX := fb.posX
 	action := &microflows.ShowHomePageAction{
 		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		// Explicit only: no clause keeps the writer's literal "Rollback".
+		ErrorHandlingType: explicitErrorHandling(fb, s.ErrorHandling),
 	}
 
 	activity := &microflows.ActionActivity{
@@ -1212,6 +1215,7 @@ func (fb *flowBuilder) addShowHomePageAction(s *ast.ShowHomePageStmt) model.ID {
 
 	fb.objects = append(fb.objects, activity)
 	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, "")
 	return activity.ID
 }
 
@@ -1240,7 +1244,8 @@ func (fb *flowBuilder) addShowMessageAction(s *ast.ShowMessageStmt) model.ID {
 		Translations: map[string]string{fb.textLangOrDefault(): templateText},
 	}
 
-	msgType := microflows.MessageType(s.Type)
+	// The stored value is case-sensitive (mendixlabs/mxcli#1280).
+	msgType, _ := microflows.CanonicalMessageType(s.Type)
 	if msgType == "" {
 		msgType = microflows.MessageTypeInformation
 	}
@@ -1403,6 +1408,21 @@ func (fb *flowBuilder) declaringMemberRef(entityQN, memberName string) string {
 	return entityQN + "." + memberName
 }
 
+// bareFeedbackMember resolves a dotless validation-feedback member. An attribute
+// in the generalization chain wins; failing that, an association the entity (or
+// an ancestor) owns is stored as one. Neither keeps the old attribute spelling,
+// which mxbuild names.
+func (fb *flowBuilder) bareFeedbackMember(entityQN, memberName string) (attributeName, associationName string) {
+	if entityQN != "" && fb.backend != nil {
+		if _, ok := DeclaringMemberRef(fb.backend, entityQN, memberName); !ok {
+			if ref, ok := DeclaringAssociationRef(fb.backend, entityQN, memberName); ok {
+				return "", ref
+			}
+		}
+	}
+	return fb.declaringMemberRef(entityQN, memberName), ""
+}
+
 // addValidationFeedbackAction creates a VALIDATION FEEDBACK statement as a ValidationFeedbackAction.
 func (fb *flowBuilder) addValidationFeedbackAction(s *ast.ValidationFeedbackStmt) model.ID {
 	// Build the template text from the message expression.
@@ -1444,8 +1464,9 @@ func (fb *flowBuilder) addValidationFeedbackAction(s *ast.ValidationFeedbackStmt
 		if len(segs) == 1 {
 			switch strings.Count(segs[0].Name, ".") {
 			case 0:
-				// Single bare segment: direct attribute access.
-				attributeName = fb.declaringMemberRef(entityQName, segs[0].Name)
+				// Single bare segment: an attribute, or an association the
+				// entity owns (#1322) — the dot count cannot tell them apart.
+				attributeName, associationName = fb.bareFeedbackMember(entityQName, segs[0].Name)
 			case 1:
 				// Qualified association names use Module.Association.
 				associationName = segs[0].Name
@@ -1993,41 +2014,13 @@ func (fb *flowBuilder) mappingRootIsList(im *model.ImportMapping) bool {
 
 // jsonStructureLookup is the one backend call deciding a JSON mapping's root
 // shape needs.
-type jsonStructureLookup interface {
-	GetJsonStructureByQualifiedName(moduleName, name string) (*types.JsonStructure, error)
-}
+type jsonStructureLookup = types.JsonStructureLookup
 
-// jsonMappingRootIsList answers mappingRootIsList's question from the two
-// sources that are DEFINITE — the root element's JSON path, and the JSON
-// structure the mapping is built on — and reports known=false when neither
-// answers. The builder then falls back to the root element's occurrence bound;
-// a check-time rule (MDL-MAP04) stays silent instead, since a guess there
-// would be a refusal of something that may build.
+// jsonMappingRootIsList answers mappingRootIsList's question from the sources
+// that are definite; see types.JsonMappingRootIsList, shared with the lint
+// rules so both decide the shape the same way.
 func jsonMappingRootIsList(lookup jsonStructureLookup, im *model.ImportMapping) (list, known bool) {
-	if im == nil {
-		return false, false
-	}
-	// A mapping rooted BELOW an array yields one object per item, whatever the
-	// structure's own root is (#267). The structure check below answers from
-	// js.Elements[0], which for `root choices/message` is the document root —
-	// an Object — so it reported a single object and mxbuild rejected the
-	// activity with CE0243 "the mapping ... now returns a value of type
-	// 'List of X'". The mapping document itself is right: Studio Pro's own
-	// OpenAI_API.IM_OpenAI stores the same MaxOccurs 1 on that root, so
-	// list-ness cannot be read off the root element either — only off its path.
-	if len(im.Elements) > 0 && im.Elements[0] != nil &&
-		mappingRootPathCrossesArray(im.Elements[0].JsonPath) {
-		return true, true
-	}
-	if im.JsonStructure != "" && lookup != nil {
-		parts := strings.SplitN(im.JsonStructure, ".", 2)
-		if len(parts) == 2 {
-			if js, err := lookup.GetJsonStructureByQualifiedName(parts[0], parts[1]); err == nil && js != nil && len(js.Elements) > 0 {
-				return js.Elements[0].ElementType == "Array", true
-			}
-		}
-	}
-	return false, false
+	return types.JsonMappingRootIsList(lookup, im)
 }
 
 // addImportFromMappingAction adds an ImportXmlAction to the microflow.
@@ -2103,15 +2096,29 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 	// JSON structure check covers JSON-backed mappings; for XML schema or
 	// message-definition mappings JsonStructure is empty and the root
 	// element kind on the mapping itself indicates Array vs Object.
+	//
+	// A mapping that does not resolve is refused, not written around. The
+	// result entity is stored as the activity's VariableType.Entity, and an
+	// empty one makes the whole project unloadable — `mx check` dies with
+	// ArgumentNullException in EntityType.set_EntityId before validating
+	// anything (mendixlabs/mxcli#1418). The usual cause is a script that calls
+	// the mapping above its `create import mapping`; MDL-ORDER01 reports that
+	// at check time, this is the exec-time half.
 	resultEntityQN := ""
 	if fb.backend != nil {
-		if im, err := fb.backend.GetImportMappingByQualifiedName(s.Mapping.Module, s.Mapping.Name); err == nil {
+		im, err := fb.backend.GetImportMappingByQualifiedName(s.Mapping.Module, s.Mapping.Name)
+		switch {
+		case err != nil || im == nil:
+			fb.addError("import from mapping %s: import mapping not found in the project (create it above this microflow; an activity without its result entity makes the project unloadable)", s.Mapping.String())
+		default:
 			if !rangeAuthored && fb.mappingRootIsList(im) {
 				resultHandling.SingleObject = false
 			}
 			if len(im.Elements) > 0 && im.Elements[0] != nil && im.Elements[0].Entity != "" {
 				resultEntityQN = im.Elements[0].Entity
 				resultHandling.ResultEntityID = model.ID(resultEntityQN)
+			} else {
+				fb.addError("import from mapping %s: the import mapping has no root entity, so the activity's result type cannot be written (an empty one makes the project unloadable)", s.Mapping.String())
 			}
 		}
 	}
@@ -2212,29 +2219,127 @@ func (fb *flowBuilder) addExportToMappingAction(s *ast.ExportToMappingStmt) mode
 }
 
 // mappingRootPathCrossesArray reports whether a mapping root's stored JsonPath
-// passes through an array on its way down.
-//
-// An array contributes a marker segment for its item — "(Object)" for objects,
-// "(Wrapper)" for primitives — so any marker AFTER the first segment means the
-// root sits inside an array and the mapping yields many objects:
-//
-//	(Object)                             one object
-//	(Object)|data                        one object, a nested root
-//	(Array)|(Object)                     many — an array-rooted structure (#248)
-//	(Object)|choices|(Object)|message    many — rooted below an array (#267)
-//
-// The first segment is skipped because it is always the document's own root
-// marker, which says nothing about arrays.
+// passes through an array; see types.MappingRootPathCrossesArray.
 func mappingRootPathCrossesArray(jsonPath string) bool {
-	segs := strings.Split(jsonPath, "|")
-	for i, seg := range segs {
-		if i == 0 {
-			continue
+	return types.MappingRootPathCrossesArray(jsonPath)
+}
+
+// addSendEmailAction creates a SEND EMAIL activity (Microflows$SendEmailAction).
+func (fb *flowBuilder) addSendEmailAction(s *ast.SendEmailStmt) model.ID {
+	action := &microflows.SendEmailAction{
+		BaseElement:         model.BaseElement{ID: model.ID(types.GenerateID())},
+		ErrorHandlingType:   microflows.ErrorHandlingTypeRollback,
+		From:                fb.optExprToString(s.From),
+		To:                  fb.optExprToString(s.To),
+		Cc:                  fb.optExprToString(s.Cc),
+		Bcc:                 fb.optExprToString(s.Bcc),
+		Subject:             fb.emailTemplate(&s.Subject),
+		BodyPlainText:       fb.emailTemplate(s.BodyText),
+		BodyHTML:            fb.emailTemplate(s.BodyHTML),
+		Attachment:          s.Attachment,
+		Host:                fb.optExprToString(s.Host),
+		Port:                fb.optExprToString(s.Port),
+		SecurityType:        microflows.EmailSecurityTLS,
+		CheckServerIdentity: s.CheckServerIdentity,
+		ConnectionTimeout:   microflows.DefaultEmailConnectionTimeout,
+	}
+	if s.Security != "" {
+		sec, ok := emailSecurityType(s.Security)
+		if !ok {
+			fb.addError("send email: unknown security mode %q — use none, ssl or tls", s.Security)
 		}
-		switch seg {
-		case "(Object)", "(Array)", "(Wrapper)":
-			return true
+		action.SecurityType = sec
+	}
+	if s.Timeout > 0 {
+		action.ConnectionTimeout = s.Timeout
+	}
+	for _, h := range s.Headers {
+		action.CustomHeaders = append(action.CustomHeaders, microflows.EmailCustomHeader{Name: h.Name, Value: h.Value})
+	}
+	if s.Auth != nil {
+		action.UseAuthentication = true
+		action.Username = fb.optExprToString(s.Auth.Username)
+		action.Password = fb.optExprToString(s.Auth.Password)
+	}
+	if s.ErrorHandling != nil {
+		action.ErrorHandlingType = fb.ehType(s.ErrorHandling)
+	}
+
+	activity := &microflows.ActionActivity{
+		BaseActivity: microflows.BaseActivity{
+			BaseMicroflowObject: microflows.BaseMicroflowObject{
+				BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+				Position:    model.Point{X: fb.posX, Y: fb.posY},
+				Size:        model.Size{Width: ActivityWidth, Height: ActivityHeight},
+			},
+			AutoGenerateCaption: true,
+		},
+		Action: action,
+	}
+
+	activityX := fb.posX
+	fb.objects = append(fb.objects, activity)
+	fb.posX += fb.spacing
+	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, "")
+	return activity.ID
+}
+
+// emailSecurityType maps the MDL security word to the stored enum value.
+func emailSecurityType(word string) (microflows.EmailSecurityType, bool) {
+	switch strings.ToLower(word) {
+	case "none":
+		return microflows.EmailSecurityNone, true
+	case "ssl":
+		return microflows.EmailSecuritySSL, true
+	case "tls":
+		return microflows.EmailSecurityTLS, true
+	}
+	return microflows.EmailSecurityTLS, false
+}
+
+// emailTemplate turns a subject/body clause into a StringTemplate: a string
+// literal is the template text and the `with` parameters fill its {n}
+// placeholders; any other expression becomes `{1}` with the expression as its
+// one parameter — the same rule `log` applies to its message. A nil clause is
+// an empty template, which is what Studio Pro stores for an unused body.
+func (fb *flowBuilder) emailTemplate(c *ast.EmailTemplateClause) microflows.EmailTemplate {
+	if c == nil || c.Text == nil {
+		return microflows.EmailTemplate{}
+	}
+	lit, isLit := c.Text.(*ast.LiteralExpr)
+	if !isLit || lit.Kind != ast.LiteralString {
+		if len(c.Params) == 0 {
+			return microflows.EmailTemplate{Text: "{1}", Parameters: []string{fb.exprToString(c.Text)}}
+		}
+		return microflows.EmailTemplate{Text: fb.exprToString(c.Text), Parameters: fb.templateParamStrings(c.Params)}
+	}
+	return microflows.EmailTemplate{Text: fmt.Sprintf("%v", lit.Value), Parameters: fb.templateParamStrings(c.Params)}
+}
+
+// templateParamStrings orders `with ({n} = …)` parameters by placeholder index.
+func (fb *flowBuilder) templateParamStrings(params []ast.TemplateParam) []string {
+	maxIndex := 0
+	for _, p := range params {
+		if p.Index > maxIndex {
+			maxIndex = p.Index
 		}
 	}
-	return false
+	if maxIndex == 0 {
+		return nil
+	}
+	out := make([]string, maxIndex)
+	for _, p := range params {
+		if p.Index > 0 {
+			out[p.Index-1] = fb.exprToString(p.Value)
+		}
+	}
+	return out
+}
+
+// optExprToString renders an optional expression; nil is the empty string.
+func (fb *flowBuilder) optExprToString(e ast.Expression) string {
+	if e == nil {
+		return ""
+	}
+	return fb.exprToString(e)
 }

@@ -1,0 +1,21 @@
+/**
+ * ako/mxcli#1164: @throws catches an error raised by CALL JAVA ACTION, not only
+ * one raised by CALL MICROFLOW / CALL NANOFLOW.
+ *
+ * Setup: run 1164-throws-catches-java-action.mdl against the project first.
+ *
+ * @test java action refuses file urls
+ * @throws 'Only http and https csv urls are supported'
+ */
+$r = call java action ThrowProbe.CheckUrl(Url = 'file:///etc/passwd');
+/
+
+/**
+ * Control: the same action with an accepted url does not throw, so the @throws
+ * above passes because of the url and not because the handler swallows anything.
+ *
+ * @test java action accepts https urls
+ * @expect $r = 'ok'
+ */
+$r = call java action ThrowProbe.CheckUrl(Url = 'https://example.com/data.csv');
+/

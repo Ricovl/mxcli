@@ -21,8 +21,10 @@ package executor
 
 import (
 	"fmt"
-	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"regexp"
 	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // Datasource storage names. The set is the metamodel's `DataSource` interface
@@ -36,14 +38,19 @@ const (
 	dsTypeCustomNanoflow    = "CustomWidgets$CustomWidgetNanoflowSource"
 	dsTypeDatabase          = "Forms$DatabaseSource"
 	dsTypeCustomWidgetXPath = "CustomWidgets$CustomWidgetXPathSource"
-	dsTypeListViewXPath     = "Forms$ListViewXPathSource"
-	dsTypeGridXPath         = "Forms$GridXPathSource"
-	dsTypeReferenceSet      = "Forms$ReferenceSetSource"
-	dsTypeImageViewer       = "Forms$ImageViewerSource"
-	dsTypeAssociation       = "Forms$AssociationSource"
-	dsTypeDataView          = "Forms$DataViewSource"
-	dsTypeEntityPath        = "Forms$EntityPathSource"
-	dsTypeListenTarget      = "Forms$ListenTargetSource"
+	// Studio Pro 9's "Database" source on a pluggable widget: simple constraint
+	// rows instead of XPath. Mendix 10 merged it into the XPath source and
+	// converts every one on upgrade (measured with mx convert 10.12.19), so it
+	// exists only in a 9.x model (mendixlabs/mxcli#1399).
+	dsTypeCustomWidgetDatabase = "CustomWidgets$CustomWidgetDatabaseSource"
+	dsTypeListViewXPath        = "Forms$ListViewXPathSource"
+	dsTypeGridXPath            = "Forms$GridXPathSource"
+	dsTypeReferenceSet         = "Forms$ReferenceSetSource"
+	dsTypeImageViewer          = "Forms$ImageViewerSource"
+	dsTypeAssociation          = "Forms$AssociationSource"
+	dsTypeDataView             = "Forms$DataViewSource"
+	dsTypeEntityPath           = "Forms$EntityPathSource"
+	dsTypeListenTarget         = "Forms$ListenTargetSource"
 )
 
 // entityBackedSourceTypes are the datasources that name an entity plus an
@@ -98,6 +105,10 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 	case dsType == dsTypeAssociation:
 		if path, ctxVar := associationSourcePath(ds); path != "" {
 			return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
+		}
+	case dsType == dsTypeCustomWidgetDatabase:
+		if got := parseCustomWidgetDatabaseSource(ds); got != nil {
+			return got
 		}
 	case dsType == dsTypeDataView || dsType == dsTypeEntityPath:
 		if got := parseContextSource(ds); got != nil {
@@ -201,6 +212,105 @@ func parseEntityPathSource(ds map[string]any) *rawDataSource {
 	}
 }
 
+// parseCustomWidgetDatabaseSource reads a CustomWidgets$CustomWidgetDatabaseSource
+// (mendixlabs/mxcli#1399): a direct entity, or association hops from a context
+// object, plus its constraint rows and sort. It is a database retrieve either
+// way, so it reads as the `database from …` spelling the List View's database
+// source over an association already has — the constraint rows as the XPath
+// they mean, the form Mendix itself rewrites them to on the 9 → 10 upgrade.
+//
+// A constraint whose operator this build does not know makes the whole source
+// unsupported: rendering the others would describe a wider retrieve than the
+// stored one.
+func parseCustomWidgetDatabaseSource(ds map[string]any) *rawDataSource {
+	xpath, ok := databaseConstraintsXPath(ds)
+	if !ok {
+		return &rawDataSource{Unsupported: dsTypeCustomWidgetDatabase}
+	}
+	var got *rawDataSource
+	if entityRef, _ := ds["EntityRef"].(map[string]any); entityRef != nil && extractString(entityRef["Entity"]) != "" {
+		got = parseEntitySource(ds)
+	} else {
+		got = parseEntityPathSource(ds)
+	}
+	if got == nil {
+		return nil
+	}
+	got.XPathConstraint = xpath
+	return got
+}
+
+// databaseConstraintsXPath renders a database source's Forms$DatabaseConstraint
+// rows as one bracketed XPath predicate, the rows joined by `and`. ok is false
+// when a row cannot be rendered.
+func databaseConstraintsXPath(ds map[string]any) (string, bool) {
+	var terms []string
+	for _, raw := range getBsonArrayElements(ds["DatabaseConstraints"]) {
+		row, isMap := raw.(map[string]any)
+		if !isMap {
+			return "", false
+		}
+		term, ok := databaseConstraintXPath(extractString(row["Attribute"]), extractString(row["Operator"]), extractString(row["Value"]))
+		if !ok {
+			return "", false
+		}
+		terms = append(terms, term)
+	}
+	if len(terms) == 0 {
+		return "", true
+	}
+	return "[" + strings.Join(terms, " and ") + "]", true
+}
+
+// databaseConstraintOps maps a comparison DatabaseConstraintOperator to its
+// XPath operator. Contains and NotContains are functions, handled apart.
+var databaseConstraintOps = map[string]string{
+	"Equals":              "=",
+	"NotEquals":           "!=",
+	"LessThan":            "<",
+	"LessThanOrEquals":    "<=",
+	"GreaterThan":         ">",
+	"GreaterThanOrEquals": ">=",
+}
+
+// databaseConstraintXPath renders one constraint row. The stored Value is
+// untyped text, so the literal is chosen from the text alone: true/false as the
+// XPath booleans, a number bare, anything else as a quoted string. The writer
+// reads each literal back to the same text (parseDatabaseConstraints), so the
+// choice never changes what is stored.
+func databaseConstraintXPath(attribute, operator, value string) (string, bool) {
+	attr := shortAttributeName(attribute)
+	if attr == "" {
+		return "", false
+	}
+	lit := databaseConstraintLiteral(value)
+	switch operator {
+	case "Contains":
+		return "contains(" + attr + ", " + lit + ")", true
+	case "NotContains":
+		return "not(contains(" + attr + ", " + lit + "))", true
+	}
+	op, ok := databaseConstraintOps[operator]
+	if !ok {
+		return "", false
+	}
+	return attr + " " + op + " " + lit, true
+}
+
+func databaseConstraintLiteral(value string) string {
+	switch {
+	case value == "true" || value == "false":
+		return value + "()"
+	case databaseConstraintNumber.MatchString(value):
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
+// databaseConstraintNumber is a literal XPath reads as a number, and which the
+// writer keeps verbatim.
+var databaseConstraintNumber = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
+
 // entityPathExpr renders a database source's association hops as
 // `$ctx/Assoc/Entity[/Assoc/Entity…]`, every destination spelled out.
 func entityPathExpr(ds *rawDataSource) string {
@@ -216,13 +326,19 @@ func entityPathExpr(ds *rawDataSource) string {
 }
 
 // parseContextSource reads the "data from context" forms: over an association,
-// or straight from a page parameter.
+// or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
 	if path, ctxVar := associationSourcePath(ds); path != "" {
 		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
 	}
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
 		if param := extractString(sv["PageParameter"]); param != "" {
+			return &rawDataSource{Type: "parameter", Reference: param}
+		}
+		// Inside a snippet the parameter has its own slot, PageParameter left
+		// empty; reading PageParameter alone described the data view with no
+		// DataSource, and re-executing that dropped the binding.
+		if param := extractString(sv["SnippetParameter"]); param != "" {
 			return &rawDataSource{Type: "parameter", Reference: param}
 		}
 	}

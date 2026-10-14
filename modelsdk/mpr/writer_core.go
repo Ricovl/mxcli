@@ -241,12 +241,15 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 
 		// Create directory if needed
 		dir := filepath.Join(wt.writer.reader.contentsDir, swappedUUID[0:2], swappedUUID[2:4])
+		finalPath := filepath.Join(dir, swappedUUID+".mxunit")
+		if err := journalFile(finalPath); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
 		// Write to temp file first
-		finalPath := filepath.Join(dir, swappedUUID+".mxunit")
 		tempPath := finalPath + ".tmp"
 
 		if err := os.WriteFile(tempPath, contents, 0644); err != nil {
@@ -556,6 +559,10 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 		return fmt.Errorf("invalid container ID (not a valid UUID): %q", containerID)
 	}
 
+	contents, normErr := w.normalizePropertySets(unitID, contents)
+	if normErr != nil {
+		return normErr
+	}
 	contents, restoreTransactionID := w.carryIdentityFromRemovedUnit(
 		unitID, containerIDBlob, containmentName, contents)
 
@@ -565,12 +572,15 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 
 		// Create directory structure: mprcontents/XX/YY/
 		dir := filepath.Join(w.reader.contentsDir, swappedUUID[0:2], swappedUUID[2:4])
+		filePath := filepath.Join(dir, swappedUUID+".mxunit")
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
 		// Write content file
-		filePath := filepath.Join(dir, swappedUUID+".mxunit")
 		if err := os.WriteFile(filePath, contents, 0644); err != nil {
 			return fmt.Errorf("failed to write unit file: %w", err)
 		}
@@ -676,6 +686,9 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 		// Direct WriteFile would overwrite the shared inode when the target
 		// is a hard link (e.g. in test fixtures), corrupting the source file.
 		// Rename replaces the directory entry, leaving the linked inode intact.
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		tmpPath := filePath + ".tmp"
 		if err := os.WriteFile(tmpPath, contents, 0644); err != nil {
 			return fmt.Errorf("failed to write unit temp file: %w", err)
@@ -709,6 +722,12 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 // ADR-0008 decision 1) to a write against this project.
 func (w *Writer) reconcileWithStored(unitID string, contents []byte, opts ...canon.Option) (out []byte, unchanged bool, err error) {
 	w.writesOffered++
+	// Normalised before comparing, so a rebuild of a Studio Pro document that
+	// differed from it only by the properties the writer leaves out is elided.
+	contents, err = w.normalizePropertySets(unitID, contents)
+	if err != nil {
+		return nil, false, err
+	}
 	stored, readErr := w.reader.GetRawUnitBytes(unitID)
 	if readErr != nil {
 		w.writesLanded++
@@ -945,6 +964,9 @@ func (w *Writer) deleteUnit(unitID string) error {
 		subDir1 := swappedUUID[0:2]
 		subDir2 := swappedUUID[2:4]
 		filePath := filepath.Join(w.reader.contentsDir, subDir1, subDir2, swappedUUID+".mxunit")
+		if err := journalFile(filePath); err != nil {
+			return err
+		}
 		os.Remove(filePath) // Ignore error if file doesn't exist
 
 		// Clean up empty parent directories (YY/, then XX/)
@@ -1003,4 +1025,17 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 	w.reader.InvalidateCache()
 	w.updateTransactionID()
 	return nil
+}
+
+// normalizePropertySets gives every element exactly the property set Studio
+// Pro writes for its $Type on this project's version: keys the version does not
+// declare yet are stripped when empty and refused when they hold a value
+// (canon.StripUndeclaredProperties), then missing ones are added
+// (canon.CompletePropertySets). It runs on every unit that reaches storage —
+// insert, update, and the transaction path, both through reconcileWithStored —
+// because a key too many or too few from ANY writer makes the document
+// unopenable or unmergeable (mendixlabs/mxcli#1373), and a fix per writer is
+// the list that never ends.
+func (w *Writer) normalizePropertySets(unitID string, contents []byte) ([]byte, error) {
+	return normalizePropertySetsFor(w.reader.ProjectVersion(), unitID, contents)
 }

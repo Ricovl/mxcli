@@ -419,6 +419,7 @@ CHECKBOX: C H E C K B O X;
 REFERENCESELECTOR: R E F E R E N C E S E L E C T O R;
 INPUTREFERENCESETSELECTOR: I N P U T R E F E R E N C E S E T S E L E C T O R;
 FILEINPUT: F I L E I N P U T;
+FILEMANAGER: F I L E M A N A G E R;  // Forms$FileManager (mendixlabs/mxcli#151)
 IMAGEINPUT: I M A G E I N P U T;
 
 // Custom/Filter/Pluggable widgets
@@ -619,6 +620,7 @@ FEEDBACK: F E E D B A C K;
 RULE: R U L E;
 REQUIRED: R E Q U I R E D;
 NULLABLE: N U L L A B L E;                 // MODIFY ATTRIBUTE … NULLABLE — clears NOT NULL (Bug 12a)
+LOCALIZED: L O C A L I Z E D;              // DateTime [NOT] LOCALIZED — DateTimeAttributeType.LocalizeDate (#1373)
 ERROR: E R R O R;
 IGNORE: I G N O R E;
 OVERRIDABLE: O V E R R I D A B L E;
@@ -654,6 +656,9 @@ BODY: B O D Y;
 RESPONSE: R E S P O N S E;
 REQUEST: R E Q U E S T;
 SEND: S E N D;
+// Send Email activity (Microflows$SendEmailAction, 11.13+). Its settings are
+// property-list keys (identifiers), so the verb is the only new word.
+EMAIL: E M A I L;
 RECEIVE: R E C E I V E;
 DEPRECATED: D E P R E C A T E D;
 RESOURCE: R E S O U R C E;
@@ -1024,8 +1029,12 @@ VARIABLE: '$' ID_BODY+;
 IDENTIFIER: ID_START ID_BODY*;
 
 // Hyphenated identifier: starts-with, ends-with (for XPath functions)
-// Must contain at least one hyphen
-HYPHENATED_ID: ID_START (ID_BODY* '-')+ ID_BODY*;
+// Must contain at least one hyphen, and every hyphen must be followed by a
+// letter or underscore. A hyphen followed by a digit, a `$`, a space or
+// nothing is a minus: Studio Pro stores expressions as typed, so
+// `$P/Offset-1` and `($I/OEE-$B/OEE)` are ordinary stored text, and when this
+// rule also matched `Offset-1` / `OEE-` their describe output did not parse.
+HYPHENATED_ID: ID_START ID_BODY* ('-' ID_START ID_BODY*)+;
 
 // Quoted identifier: "double-quoted" (ANSI SQL) or `backtick` (MySQL) style
 QUOTED_IDENTIFIER

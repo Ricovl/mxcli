@@ -164,16 +164,10 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		location = model.Point{X: s.Position.X, Y: s.Position.Y}
 	} else if existingEntity != nil {
 		location = existingEntity.Location
-	} else {
-		// No @Position and no stored entity: take the next grid slot.
-		//
-		// This used to be `X: 100 + len(dm.Entities)*150, Y: 100` — one row, for
-		// every entity ever created. A 40-entity domain model came out as a
-		// 6,000px line, and 150px is narrower than an entity box, so the boxes
-		// touched as well. The grid is not a good layout, only a defensible
-		// default; `mxcli layout` computes one from the association graph.
-		location = dmlayout.GridSlot(len(dm.Entities))
 	}
+	// No @Position and no stored entity: auto-placed once the entity's members
+	// are known (dmlayout.Place, below) — the free slot depends on its height.
+	autoPlace := s.Position == nil && existingEntity == nil
 
 	// Determine persistable based on entity kind
 	persistable := s.Kind != ast.EntityNonPersistent
@@ -338,6 +332,10 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		idxID := model.ID(types.GenerateID())
 		var indexAttrs []*domainmodel.IndexAttribute
 		for _, col := range idx.Columns {
+			if typ := systemIndexMemberType(col.Name, storeCreatedDate, storeChangedDate); typ != "" {
+				indexAttrs = append(indexAttrs, newSystemIndexSegment(typ, col.Descending))
+				continue
+			}
 			if attrID, ok := attrNameToID[col.Name]; ok {
 				iaID := model.ID(types.GenerateID())
 				ia := &domainmodel.IndexAttribute{
@@ -377,6 +375,12 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		HasChangedBy:    storeChangedBy,
 		HasCreatedDate:  storeCreatedDate,
 		HasChangedDate:  storeChangedDate,
+	}
+	if autoPlace {
+		// The next grid slot whose box clears everything already in the module.
+		// A bare GridSlot let an entity with ~17+ attributes overlap the one
+		// below it (#1479); `mxcli layout` computes a real layout.
+		entity.Location = dmlayout.Place(dm, entity)
 	}
 
 	// Set generalization (inheritance) if specified. A bare, unqualified target
@@ -433,6 +437,9 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		// own defect report; access rules would have been the third, and the
 		// external-source and OData fields the next. Starting from what is stored
 		// and overwriting only what the statement declares has no such tail.
+		// Recorded before the merge, which may reuse the stored attributes:
+		// the views over a changed attribute are resynced after the write.
+		storedSignatures := attributeSignatures(existingEntity)
 		entity = mergeDeclaredOntoStoredEntity(existingEntity, entity, s)
 		if droppedIdx := reconcileDroppedIndexes(entity, existingEntity); droppedIdx > 0 {
 			fmt.Fprintf(ctx.Output,
@@ -451,6 +458,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "entity: %s", s.Name)
+		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 	} else {
 		// Create new entity
 		if err := ctx.Backend.CreateEntity(dm.ID, entity); err != nil {
@@ -494,7 +502,7 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 	merged.Persistable = declared.Persistable
 	merged.Location = declared.Location
 	merged.Attributes = declared.Attributes
-	carryStoredAttributeState(stored, merged.Attributes)
+	carryStoredAttributeState(stored, merged.Attributes, statedLocalize(s.Attributes))
 	merged.ValidationRules = mergeValidationRules(stored, declared)
 	merged.Indexes = declared.Indexes
 	merged.EventHandlers = declared.EventHandlers
@@ -528,8 +536,10 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 // entity attribute's OData mapping (without it the writer emits a plain
 // StoredValue and the attribute is no longer mapped to the remote property), and
 // a DateTime's LocalizeDate. The attribute set and each declared type stay the
-// statement's; LocalizeDate carries only onto a DateTime that stays one (#743).
-func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmodel.Attribute) {
+// statement's; LocalizeDate carries only onto a DateTime that stays one (#743),
+// and only when the statement did not state `localized` / `not localized`
+// itself (stated, by attribute name) — a stated one wins (#1373).
+func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmodel.Attribute, stated map[string]bool) {
 	byName := make(map[string]*domainmodel.Attribute, len(stored.Attributes))
 	for _, a := range stored.Attributes {
 		if a != nil {
@@ -559,12 +569,39 @@ func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmod
 				a.Value = &v
 			}
 		}
-		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok {
-			if odt, ok := old.Type.(*domainmodel.DateTimeAttributeType); ok {
-				dt.LocalizeDate = odt.LocalizeDate
-			}
+		if !stated[a.Name] {
+			carryStoredLocalizeDate(old.Type, a.Type)
 		}
 	}
+}
+
+// carryStoredLocalizeDate copies a stored DateTime's LocalizeDate onto a rebuilt
+// type that is still a DateTime. A type change is the statement's to decide, so
+// nothing carries onto (or from) another type.
+func carryStoredLocalizeDate(stored, rebuilt domainmodel.AttributeType) {
+	dt, ok := rebuilt.(*domainmodel.DateTimeAttributeType)
+	if !ok {
+		return
+	}
+	if odt, ok := stored.(*domainmodel.DateTimeAttributeType); ok {
+		dt.LocalizeDate = odt.LocalizeDate
+	}
+}
+
+// statedLocalize names the attributes whose definition states `localized` or
+// `not localized` — the ones whose LocalizeDate is the statement's, not the
+// stored value's.
+func statedLocalize(attrs []ast.Attribute) map[string]bool {
+	var stated map[string]bool
+	for _, a := range attrs {
+		if a.Type.Localize != ast.LocalizeUnstated {
+			if stated == nil {
+				stated = make(map[string]bool)
+			}
+			stated[a.Name] = true
+		}
+	}
+	return stated
 }
 
 // entityFieldsDeclaredByStatement names the domainmodel.Entity fields that
@@ -830,7 +867,7 @@ func reconcileDroppedIndexes(entity, existing *domainmodel.Entity) int {
 	for _, idx := range existing.Indexes {
 		var attrs []*domainmodel.IndexAttribute
 		for _, ia := range idx.Attributes {
-			if valid[ia.AttributeID] {
+			if valid[ia.AttributeID] || systemIndexSegmentStored(entity, ia) {
 				attrs = append(attrs, ia)
 			}
 		}
@@ -992,9 +1029,8 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		location = model.Point{X: s.Position.X, Y: s.Position.Y}
 	} else if existingEntity != nil {
 		location = existingEntity.Location
-	} else {
-		location = model.Point{X: 100 + len(dm.Entities)*150, Y: 100}
 	}
+	autoPlace := s.Position == nil && existingEntity == nil
 
 	// Create or update ViewEntitySourceDocument (separate document for OQL query).
 	// Written IN PLACE: this used to delete the stored document and insert a fresh
@@ -1035,7 +1071,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 				ViewReference: a.Name, // OQL column alias matches attribute name
 			},
 		}
-		if dt, ok := attr.Type.(*domainmodel.DateTimeAttributeType); ok {
+		if dt, ok := attr.Type.(*domainmodel.DateTimeAttributeType); ok && a.Type.Localize == ast.LocalizeUnstated {
 			if l, ok := localize[a.Name]; ok {
 				dt.LocalizeDate = l
 			}
@@ -1062,6 +1098,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		Source:            "DomainModels$OqlViewEntitySource",
 		SourceDocumentRef: sourceDocRef,
 		OqlQuery:          s.Query.RawQuery,
+	}
+	if autoPlace {
+		entity.Location = dmlayout.Place(dm, entity)
 	}
 
 	created := entity
@@ -1406,9 +1445,17 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return err
 		}
 		found := false
+		storedSignatures := attributeSignatures(entity)
 		for _, attr := range entity.Attributes {
 			if attr.Name == s.AttributeName {
+				storedType := attr.Type
 				attr.Type = convertDataType(s.DataType)
+				// A DateTime that stays one keeps its stored LocalizeDate unless
+				// the statement says `localized` / `not localized` (#1373);
+				// rebuilding the type reset it to true.
+				if s.DataType.Localize == ast.LocalizeUnstated {
+					carryStoredLocalizeDate(storedType, attr.Type)
+				}
 				if s.Calculated {
 					attrValue, err := resolveCalculatedValue(ctx, s.CalculatedMicroflow, s.Name.String(), s.AttributeName, s.DataType)
 					if err != nil {
@@ -1447,6 +1494,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "attribute '%s' on entity %s", s.AttributeName, s.Name)
+		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 
 	case ast.AlterEntityDropAttribute:
 		if isViewEntity(entity) {
@@ -1652,6 +1700,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		idxID := model.ID(types.GenerateID())
 		var indexAttrs []*domainmodel.IndexAttribute
 		for _, col := range s.Index.Columns {
+			if typ := systemIndexMemberType(col.Name, entity.HasCreatedDate, entity.HasChangedDate); typ != "" {
+				indexAttrs = append(indexAttrs, newSystemIndexSegment(typ, col.Descending))
+				continue
+			}
 			if attrID, ok := attrNameToID[col.Name]; ok {
 				ia := &domainmodel.IndexAttribute{
 					AttributeID: attrID,
@@ -1953,7 +2005,7 @@ func indexMatchesColumns(entity *domainmodel.Entity, index *domainmodel.Index, c
 		nameByID[attr.ID] = attr.Name
 	}
 	for i, ia := range index.Attributes {
-		if !strings.EqualFold(nameByID[ia.AttributeID], cols[i].Name) {
+		if !strings.EqualFold(indexSegmentName(ia, nameByID), cols[i].Name) {
 			return false
 		}
 		if ia.Ascending == cols[i].Descending {
@@ -1961,6 +2013,59 @@ func indexMatchesColumns(entity *domainmodel.Entity, index *domainmodel.Index, c
 		}
 	}
 	return true
+}
+
+// systemIndexMemberType returns the IndexedAttribute Type for an index column
+// that names a system date member the entity stores — "CreatedDate" or
+// "ChangedDate", spelled as describe declares it (`ChangedDate: AutoChangedDate`)
+// — or "" for an ordinary attribute column. Such a column is not an attribute,
+// so it never resolves through the attribute map (mendixlabs/mxcli#1401). The
+// names are platform-reserved for attributes (MDL020), so they cannot collide.
+func systemIndexMemberType(name string, hasCreatedDate, hasChangedDate bool) string {
+	switch {
+	case hasCreatedDate && strings.EqualFold(name, "CreatedDate"):
+		return "CreatedDate"
+	case hasChangedDate && strings.EqualFold(name, "ChangedDate"):
+		return "ChangedDate"
+	}
+	return ""
+}
+
+// unsetIndexAttributePointer is what a system-member segment's AttributePointer
+// holds: no attribute, written as the all-zero GUID Studio Pro uses for an unset
+// reference (as on the segment's AssociationPointer).
+const unsetIndexAttributePointer = model.ID("00000000-0000-0000-0000-000000000000")
+
+func newSystemIndexSegment(typ string, descending bool) *domainmodel.IndexAttribute {
+	ia := &domainmodel.IndexAttribute{
+		AttributeID: unsetIndexAttributePointer,
+		Ascending:   !descending,
+		Type:        typ,
+	}
+	ia.ID = model.ID(types.GenerateID())
+	return ia
+}
+
+// indexSegmentName is the MDL column name of an index segment: the system
+// member's declared name, or the attribute's name ("" when it does not resolve).
+func indexSegmentName(ia *domainmodel.IndexAttribute, attrNameByID map[model.ID]string) string {
+	if ia.IsSystemMember() {
+		return ia.Type
+	}
+	return attrNameByID[ia.AttributeID]
+}
+
+// systemIndexSegmentStored reports whether a system-member segment is still
+// backed by the entity: an index on changedDate survives only while the entity
+// stores changedDate.
+func systemIndexSegmentStored(e *domainmodel.Entity, ia *domainmodel.IndexAttribute) bool {
+	switch ia.Type {
+	case "CreatedDate":
+		return e.HasCreatedDate
+	case "ChangedDate":
+		return e.HasChangedDate
+	}
+	return false
 }
 
 // findIndexByColumns returns the stored index with exactly these columns, or nil.

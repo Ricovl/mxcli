@@ -37,6 +37,7 @@ type AlterPageOperation interface {
 //	dg column(Name)    Widget="dg", ColumnAttribute="Name" (a DataGrid 2 column by its attribute, #749)
 //	dg column('Total') Widget="dg", ColumnCaption="Total" (… by its caption)
 //	'Approve order'    Caption="Approve order" (content addressing, for elements with no name)
+//	nav item('Home')   Widget="nav item('Home')", Item={List: "nav", Text: "Home"} (a navigation list item, #1388)
 //	hdr@2 / 'x'@2      Ordinal=2 — picks one of several matches; never a guess
 //
 // The name stays WidgetRef because the page family is the first document type
@@ -52,6 +53,39 @@ type WidgetRef struct {
 	// then chooses among the grid's columns that match.
 	ColumnAttribute string
 	ColumnCaption   string
+	// Item is set for the navigation list item address `nav item(…)` /
+	// `nav item@n`. Widget then holds the address as Item.Spell() writes it —
+	// the spelling the page mutator's widget lookup resolves — so every
+	// operation that takes a widget reaches the item unchanged. The item's @n
+	// lives in Item, never in Ordinal.
+	Item *NavItemRef
+}
+
+// NavItemRef is a navigation list item address (mendixlabs/mxcli#1388). An item
+// has no name, so it is addressed by a widget it holds, a text it shows, or its
+// position: at most one of Widget and Text is set, and with neither, Ordinal
+// counts every item of the list.
+type NavItemRef struct {
+	List    string
+	Widget  string
+	Text    string
+	Ordinal int
+}
+
+// Spell writes the address as MDL does. backend.ParseNavItemSelector reads this
+// spelling; a test in the executor pins the two together.
+func (r NavItemRef) Spell() string {
+	s := r.List + " item"
+	switch {
+	case r.Text != "":
+		s += "('" + strings.ReplaceAll(r.Text, "'", "''") + "')"
+	case r.Widget != "":
+		s += "(" + r.Widget + ")"
+	}
+	if r.Ordinal > 0 {
+		s += "@" + strconv.Itoa(r.Ordinal)
+	}
+	return s
 }
 
 // IsColumnAddress reports whether the target is the explicit `grid column(…)`
@@ -133,7 +167,7 @@ type ReplaceWidgetOp struct {
 
 func (s *ReplaceWidgetOp) isAlterPageOperation() {}
 
-// AddVariableOp represents: ADD Variables $name: Type = 'default'
+// AddVariableOp represents: ADD Variables $name: Type = <default expression>
 type AddVariableOp struct {
 	Variable PageVariable
 }
@@ -146,6 +180,20 @@ type DropVariableOp struct {
 }
 
 func (s *DropVariableOp) isAlterPageOperation() {}
+
+// AddParameterOp represents: ADD Parameters $Name: Type
+type AddParameterOp struct {
+	Parameter PageParameter
+}
+
+func (s *AddParameterOp) isAlterPageOperation() {}
+
+// DropParameterOp represents: DROP Parameters $Name
+type DropParameterOp struct {
+	ParameterName string // without $ prefix
+}
+
+func (s *DropParameterOp) isAlterPageOperation() {}
 
 // SetLayoutOp represents: SET Layout = Module.LayoutName [MAP (Old -> New, ...)]
 type SetLayoutOp struct {

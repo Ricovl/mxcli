@@ -18,8 +18,12 @@ import (
 func outputUnifiedDiff(ctx *ExecContext, result DiffResult, useColor bool) {
 	if result.IsNew {
 		// New object - show all as additions
-		header := fmt.Sprintf("--- /dev/null\n+++ %s.%s (new)\n",
-			result.ObjectType, result.ObjectName)
+		_, toLabel := result.sideLabels()
+		if result.ToLabel == "" {
+			toLabel = "new"
+		}
+		header := fmt.Sprintf("--- /dev/null\n+++ %s.%s (%s)\n",
+			result.ObjectType, result.ObjectName, toLabel)
 		if useColor {
 			header = colorCyan + header + colorReset
 		}
@@ -41,8 +45,9 @@ func outputUnifiedDiff(ctx *ExecContext, result DiffResult, useColor bool) {
 	}
 
 	// Use difflib for unified diff
-	from := fmt.Sprintf("%s.%s (current)", result.ObjectType, result.ObjectName)
-	to := fmt.Sprintf("%s.%s (script)", result.ObjectType, result.ObjectName)
+	fromLabel, toLabel := result.sideLabels()
+	from := fmt.Sprintf("%s.%s (%s)", result.ObjectType, result.ObjectName, fromLabel)
+	to := fmt.Sprintf("%s.%s (%s)", result.ObjectType, result.ObjectName, toLabel)
 	if result.IsDeleted {
 		to = "/dev/null"
 	}
@@ -87,8 +92,10 @@ func outputSideBySideDiff(ctx *ExecContext, result DiffResult, width int, useCol
 	fmt.Fprintln(ctx.Output, header)
 	fmt.Fprintln(ctx.Output, strings.Repeat("─", width))
 
-	leftHeader := "Current"
-	rightHeader := "Script"
+	leftHeader, rightHeader := "Current", "Script"
+	if result.FromLabel != "" || result.ToLabel != "" {
+		leftHeader, rightHeader = result.sideLabels()
+	}
 	if result.IsNew {
 		leftHeader = "(new)"
 	}

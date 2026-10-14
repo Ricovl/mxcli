@@ -10,9 +10,9 @@ func init() {
 			"microflow", "nanoflow", "logic", "automation",
 			"action", "activity", "flow",
 		},
-		Syntax:  "CREATE [OR REPLACE | OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
+		Syntax:  "CREATE [OR MODIFY] MICROFLOW Module.Name ($Param: Type) RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;",
 		Example: "mdl 1;\nCREATE MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  COMMIT $NewOrder;\n  RETURN $NewOrder;\nEND;\n\n-- Re-runnable: replaces the microflow if it already exists\nCREATE OR MODIFY MICROFLOW MyModule.ACT_CreateOrder ($Code: String)\nRETURNS MyModule.Order AS $NewOrder\nBEGIN\n  $NewOrder = CREATE MyModule.Order (OrderNumber = $Code);\n  RETURN $NewOrder;\nEND;",
-		SeeAlso: []string{"microflow.create", "microflow.variables", "microflow.control-flow", "create-modifiers"},
+		SeeAlso: []string{"microflow.create", "microflow.variables", "microflow.control-flow", "create-modifiers", "rename"},
 	})
 
 	Register(SyntaxFeature{
@@ -25,6 +25,70 @@ func init() {
 		Syntax:  "SYNCHRONIZE ALL [ON ERROR ...];\nSYNCHRONIZE UNSYNCHRONIZED [ON ERROR ...];   -- Mendix 9.4+\nSYNCHRONIZE $Var[, $Var...] [ON ERROR ...];\n\nNanoflow only: in a microflow this is MDL057 / CE0009.",
 		Example: "CREATE NANOFLOW MyModule.NF_Sync ($Order: MyModule.Order)\nBEGIN\n  SYNCHRONIZE ALL;\n  SYNCHRONIZE UNSYNCHRONIZED;\n  SYNCHRONIZE $Order;\n  SYNCHRONIZE ALL ON ERROR WITHOUT ROLLBACK BEGIN\n    LOG ERROR 'sync failed';\n  END ERROR;\nEND;",
 		SeeAlso: []string{"microflow.nanoflow", "microflow.error-handling"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "microflow.send-email",
+		Summary: "SEND EMAIL — the built-in Send Email activity (SMTP, Mendix 11.13+, beta)",
+		Keywords: []string{
+			"send email", "email", "mail", "smtp", "send mail", "e-mail",
+			"cc", "bcc", "subject", "attachment", "email connector",
+		},
+		Syntax: "SEND EMAIL (\n" +
+			"  From: <expr>,                       -- required\n" +
+			"  To: <expr>, Cc: <expr>, Bcc: <expr>, -- at least one\n" +
+			"  Subject: 'text {1}' [with ({1} = <expr>, ...)],\n" +
+			"  Body: template 'text {1}' [with (...)],\n" +
+			"  HtmlBody: template '<p>{1}</p>' [with (...)],\n" +
+			"  Headers: ('X-Name': 'value', ...),\n" +
+			"  Attachment: $FileDocumentOrList,\n" +
+			"  Host: <expr>,                       -- required\n" +
+			"  Port: <expr>,                       -- required\n" +
+			"  SecurityType: none | ssl | tls,     -- default tls\n" +
+			"  CheckServerIdentity: true | false,  -- ssl only\n" +
+			"  ConnectionTimeout: <milliseconds>,  -- default 20000\n" +
+			"  Authentication: basic (Username: <expr>, Password: <expr>),\n" +
+			") [ON ERROR ...];\n\n" +
+			"Microflow only, Mendix 11.13+ (Microflows$SendEmailAction). Sends mail over\n" +
+			"SMTP without the Email Connector module. The dialog's settings are one\n" +
+			"property list (ADR-0013); order does not matter, and an unknown, repeated or\n" +
+			"misshapen key is an error. A missing From, Host, Port or recipient is\n" +
+			"refused too: mxbuild reports each as CE0166.\n\n" +
+			"From/To/Cc/Bcc, Host, Port and the credentials are expressions: String,\n" +
+			"except Port, which is Integer/Long (mxbuild CE9528 otherwise; `check`\n" +
+			"reports E009 first). Prefer constants for host, port and password.\n\n" +
+			"Subject is a text template, like LOG's message; Body and HtmlBody take\n" +
+			"template '...', like a REST body. Placeholders {1}, {2} ... are filled by\n" +
+			"WITH; each parameter must be a String (CE0117) and every placeholder needs\n" +
+			"one (CE0720). Any other expression is stored as '{1}' with the expression\n" +
+			"as its parameter.\n\n" +
+			"Headers are plain strings, not expressions: letters, digits and hyphens in\n" +
+			"the name, one line in the value (MDL-EMAIL03). Attachment names a\n" +
+			"System.FileDocument variable, a list of them, or a specialization.\n" +
+			"CheckServerIdentity applies to SSL only (MDL-EMAIL02).\n\n" +
+			"Studio Pro's Test Email tab is an editor tool and is not part of MDL: a\n" +
+			"rewrite of the microflow stores it empty.",
+		Example: "mdl 1;\n" +
+			"create or modify microflow Shop.SUB_SendConfirmation ($Order: Shop.Order, $Invoice: Shop.Invoice)\n" +
+			"returns Boolean as $Sent\n" +
+			"begin\n" +
+			"  send email (\n" +
+			"    From: @Shop.MailSender,\n" +
+			"    To: $Order/CustomerEmail,\n" +
+			"    Subject: 'Order {1} confirmed' with ({1} = $Order/OrderNumber),\n" +
+			"    Body: template 'Hi {1}, your order ships soon.' with ({1} = $Order/CustomerName),\n" +
+			"    Headers: ('X-Correlation-Id': 'order-confirmation'),\n" +
+			"    Attachment: $Invoice,\n" +
+			"    Host: @Shop.SmtpHost,\n" +
+			"    Port: @Shop.SmtpPort,\n" +
+			"    Authentication: basic (Username: @Shop.SmtpUser, Password: @Shop.SmtpPassword),\n" +
+			"  ) on error without rollback begin\n" +
+			"    log error node 'Mail' 'Sending the confirmation failed';\n" +
+			"    return false;\n" +
+			"  end error;\n" +
+			"  return true;\n" +
+			"end;",
+		SeeAlso: []string{"microflow.error-handling", "rest.call", "microflow.nanoflow"},
 	})
 
 	Register(SyntaxFeature{
@@ -70,7 +134,12 @@ func init() {
 			"DECLARE $Var Type = expression;\n" +
 			"$Var = expression;                -- assign; SET is optional\n" +
 			"$Var/Attribute = expression;\n" +
-			"SET $Var = expression;            -- same statement, explicit form",
+			"SET $Var = expression;            -- same statement, explicit form\n" +
+			"-- $Var must be a primitive or a list (a list is a Change list Replace).\n" +
+			"-- An OBJECT variable cannot be reassigned (CE7247, MDL-SET01): return the\n" +
+			"-- new object from a sub-microflow, or `change $Obj (…)` its members.\n" +
+			"-- A parameter cannot be reassigned either (CE7247, MDL-SET01) unless it is\n" +
+			"-- a list: copy it first, `DECLARE $Value Integer = $N;`.",
 		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';",
 		SeeAlso: []string{"microflow.object-operations"},
 	})
@@ -97,7 +166,11 @@ func init() {
 			"-- Notes:\n" +
 			"--   * FIRST is the one form that binds an object, in every language version.\n" +
 			"--     HEAD() or COUNT() over it is CE0097 at build time and a LOOP CE0100;\n" +
-			"--     mxcli reports both as MDL-RETRIEVE01 at check time.\n" +
+			"--     mxcli reports both as MDL-RETRIEVE01 at check time. The reverse,\n" +
+			"--     CHANGE over a list retrieve, is CE1613 and MDL-RETRIEVE03.\n" +
+			"--   * $Obj/System.owner and $Obj/System.changedBy are not associations a\n" +
+			"--     retrieve can follow (CE0136, MDL-RETRIEVE02). Use\n" +
+			"--     RETRIEVE $U FROM System.User WHERE [id = $Obj/System.owner] FIRST;\n" +
 			"--   * LIMIT 1 without OFFSET depends on the language version: under `mdl 1;`\n" +
 			"--     it is a list of one, as in `import from mapping … limit 1`. Without the\n" +
 			"--     header it keeps its old meaning, the object, and warns MDL-V1-LIMIT1 —\n" +
@@ -129,7 +202,7 @@ func init() {
 		Path:    "microflow.splits",
 		Summary: "CASE (enum split) and SPLIT TYPE (object type split)",
 		Keywords: []string{
-			"case", "when", "then", "end case", "enum split", "enumeration split",
+			"case", "when", "then", "end case", "enum split", "enumeration split", "rule split",
 			"split type", "end split", "type split", "inheritance split",
 			"specialization", "cast", "empty", "switch", "decision",
 		},
@@ -139,6 +212,10 @@ func init() {
 			"  WHEN (empty) THEN                  -- required (MDL056 / CE0079)\n" +
 			"    ...\n" +
 			"END CASE;                            -- no ELSE (MDL008)\n\n" +
+			"CASE Module.Rule(Param = $Value)     -- a RULE returning an enumeration\n" +
+			"  WHEN Value1 THEN ...               -- same call syntax as IF on a rule;\n" +
+			"  WHEN (empty) THEN ...              -- with -p every value needs a branch\n" +
+			"END CASE;\n\n" +
 			"SPLIT TYPE $ObjectVar                -- branches on the RUNTIME TYPE\n" +
 			"  WHEN Module.Specialization THEN\n" +
 			"    CAST $Specific;\n" +
@@ -185,13 +262,15 @@ func init() {
 			"--   all of them, and CONTINUE is fine on DECLARE, SET, RETRIEVE, DELETE\n" +
 			"--   and CALL MICROFLOW.\n" +
 			"--\n" +
-			"--   List operations and aggregates ($x = head $l, $n = count $l) have\n" +
-			"--   no error handling in Mendix at all -> MDL077.\n" +
+			"--   List operations, aggregates, CREATE LIST OF, ADD, REMOVE, CAST and\n" +
+			"--   SHOW HOME PAGE take a custom handler but not CONTINUE -> MDL076.\n" +
+			"--   ROLLBACK takes every form.\n" +
 			"--\n" +
 			"-- IN A NANOFLOW a statement with no clause aborts the flow on error, and\n" +
 			"-- there is no transaction to roll back. DECLARE, SET, RETRIEVE and DELETE\n" +
-			"-- take every clause. CREATE, COMMIT, CALL NANOFLOW and CALL MICROFLOW take\n" +
-			"-- only ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR. CHANGE, LOG, SHOW\n" +
+			"-- take every clause, and so does ROLLBACK. CREATE, COMMIT, CALL NANOFLOW,\n" +
+			"-- CALL MICROFLOW, list operations, aggregates, CREATE LIST OF, ADD, REMOVE\n" +
+			"-- and CAST take only ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR. CHANGE, LOG, SHOW\n" +
 			"-- PAGE, CLOSE PAGE, SHOW MESSAGE and VALIDATION FEEDBACK take none. Every\n" +
 			"-- other form is CE6035 and is refused (MDL091).\n" +
 			"--\n" +
@@ -356,12 +435,13 @@ func init() {
 			"delete", "save", "persist", "modify object",
 			"with events", "refresh", "commit flag", "without events",
 			"reference set", "referenceset", "many-to-many", "add to association",
-			"remove from association", "CE0033",
+			"remove from association", "CE0033", "+=", "-=",
 		},
 		Syntax: "$Obj = CREATE Module.Entity (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"CHANGE $Obj (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"ADD $X TO $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];      -- reference set\n" +
 			"REMOVE $X FROM $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
+			"CHANGE $Obj (Attr = …, Module.Assoc += $X, Module.Assoc -= $Y);   -- the same, mixed\n" +
 			"COMMIT $Obj [WITHOUT EVENTS] [REFRESH];\n" +
 			"DELETE $Obj [REFRESH];\n" +
 			"ROLLBACK $Obj [REFRESH];\n\n" +
@@ -383,7 +463,9 @@ func init() {
 			"-- set: what was in it is dropped. ADD/REMOVE with a $Obj/Module.Assoc\n" +
 			"-- target is the Change object activity's Add / Remove member instead; $X\n" +
 			"-- may be an object or a list. Reference sets only: on an attribute or a\n" +
-			"-- plain Reference mxbuild rejects it (CE0033), and mxcli refuses it first.",
+			"-- plain Reference mxbuild rejects it (CE0033), and mxcli refuses it first.\n" +
+			"-- Inside CHANGE, `+=` is that Add member and `-=` that Remove, so one\n" +
+			"-- activity can mix them with ordinary `=` members.",
 		Example: "$NewOrder = CREATE MyModule.Order (\n  OrderNumber = 'ORD-001',\n  Quantity = $Quantity,\n  CreateDate = [%CurrentDateTime%]\n) COMMIT;\n\nCHANGE $NewOrder (MyModule.Order_Customer = $Customer) COMMIT REFRESH;\nADD $Line TO $NewOrder/MyModule.Order_Lines;     -- append to a reference set\nCHANGE $Draft (Status = 'Imported') COMMIT WITHOUT EVENTS;\n\nCOMMIT $NewOrder;                  -- runs the commit event handlers\nCOMMIT $Staging WITHOUT EVENTS;    -- bulk import: skip them deliberately\nCOMMIT $NewOrder REFRESH;          -- and repaint it on the open page\n\nDELETE $OldOrder REFRESH;\nROLLBACK $DraftOrder;",
 		SeeAlso: []string{"microflow.retrieve", "microflow.variables"},
 	})
@@ -530,8 +612,8 @@ func init() {
 			"show page", "open page", "close page", "display page",
 			"navigate", "page action",
 		},
-		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE;",
-		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;",
+		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE [n];",
+		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
 		SeeAlso: []string{"page"},
 	})
 
@@ -540,11 +622,71 @@ func init() {
 		Summary: "Call microflows and Java actions with parameters",
 		Keywords: []string{
 			"call microflow", "call java action", "invoke", "in queue", "queued call", "background execution",
-			"sub-microflow", "java action", "parameter passing",
+			"sub-microflow", "java action", "parameter passing", "blank argument", "nothing",
 		},
 		Syntax:  "$Result = CALL MICROFLOW Module.Name (Param = value) [IN QUEUE Module.Queue];\n$Result = CALL JAVA ACTION Module.Name (Param = value) [IN QUEUE Module.Queue];",
-		Example: "$IsValid = CALL MICROFLOW MyModule.ValidateOrder (\n  Order = $NewOrder\n);\n\n$Token = CALL JAVA ACTION MyModule.GenerateToken (\n  UserId = $User/Id\n);\n\n-- Run the call on a task queue (background execution). The queue must\n-- exist; a queued CALL JAVA ACTION must return Nothing, or the build fails\n-- with CE7038.\nCALL MICROFLOW MyModule.ACT_Refresh () IN QUEUE MyModule.RefreshQueue;\nCALL JAVA ACTION MyModule.RefreshData (Url = $Url) IN QUEUE MyModule.RefreshQueue;",
-		SeeAlso: []string{"java-action", "microflow.create", "queue"},
+		Example: "$IsValid = CALL MICROFLOW MyModule.ValidateOrder (\n  Order = $NewOrder\n);\n\n$Token = CALL JAVA ACTION MyModule.GenerateToken (\n  UserId = $User/Id\n);\n\n-- Run the call on a task queue (background execution). The queue must\n-- exist; a queued CALL JAVA ACTION must return Nothing, or the build fails\n-- with CE7038.\nCALL MICROFLOW MyModule.ACT_Refresh () IN QUEUE MyModule.RefreshQueue;\nCALL JAVA ACTION MyModule.RefreshData (Url = $Url) IN QUEUE MyModule.RefreshQueue;\n\n-- A blank argument: the mapping is kept, its expression left empty, as\n-- Studio Pro stores an argument field left blank. Not the same as `empty`\n-- (a Mendix value); only CALL MICROFLOW and CALL NANOFLOW take it. Mendix\n-- reports it as CE0127 \"Missing argument\": it exists so DESCRIBE round-trips.\nCALL MICROFLOW MyModule.ACT_Log (Message = 'x', TraceId = nothing);",
+		SeeAlso: []string{"java-action", "microflow.create", "queue", "microflow.workflow-actions"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "microflow.workflow-actions",
+		Summary: "Start and manage workflows from a microflow: call workflow, get workflow data, workflow operation, lock/unlock",
+		Keywords: []string{
+			"call workflow", "start workflow", "trigger workflow", "workflow from microflow",
+			"get workflow data", "get workflows for", "get workflow activity records",
+			"workflow operation", "abort workflow", "pause workflow", "unpause workflow",
+			"retry workflow", "restart workflow", "continue workflow",
+			"open workflow", "open user task", "lock workflow", "unlock workflow",
+			"pause all", "unpause all", "workflow actions",
+		},
+		Syntax: "-- Microflow statements (not nanoflow ones). Each takes an optional ON ERROR clause.\n" +
+			"$Wf = CALL WORKFLOW Module.Workflow ($ContextObj);      -- start an instance\n" +
+			"$Data = GET WORKFLOW DATA $Wf AS Module.Workflow;       -- the instance's context object\n" +
+			"$Wfs = GET WORKFLOWS FOR $ContextObj;                   -- instances running on an object\n" +
+			"$Records = GET WORKFLOW ACTIVITY RECORDS $Wf;           -- the instance's activity history\n" +
+			"WORKFLOW OPERATION ABORT $Wf [REASON <expression>];\n" +
+			"WORKFLOW OPERATION PAUSE | UNPAUSE | RETRY | RESTART | CONTINUE $Wf;\n" +
+			"OPEN WORKFLOW $Wf;                                      -- show the instance's admin page\n" +
+			"OPEN USER TASK $Task;                                   -- show the task's page\n" +
+			"LOCK WORKFLOW $WfDef | Module.Workflow [PAUSE ALL];\n" +
+			"UNLOCK WORKFLOW $WfDef | Module.Workflow [UNPAUSE ALL];\n\n" +
+			"-- CALL WORKFLOW: a workflow has exactly one context parameter, so the argument\n" +
+			"-- is positional — the context object, not a `Param = value` list. That is the\n" +
+			"-- form DESCRIBE emits; the variable is a System.Workflow.\n" +
+			"-- $Wf is a System.Workflow, $Task a System.WorkflowUserTask, $WfDef a\n" +
+			"-- System.WorkflowDefinition. A lock always names its workflow: a bare\n" +
+			"-- `LOCK WORKFLOW ALL` is refused (MDL-WF17) — it built as CE1825. PAUSE ALL /\n" +
+			"-- UNPAUSE ALL are Studio Pro's \"Pause / Unpause instances\".\n" +
+			"-- Completing a user task and notifying a running workflow are their own\n" +
+			"-- topics: workflow.set-task-outcome and workflow.notify.",
+		Example: "mdl 1;\n" +
+			"create microflow HR.ACT_StartApproval ($Request: HR.Request)\n" +
+			"returns System.Workflow as $Workflow\n" +
+			"begin\n" +
+			"  $Workflow = call workflow HR.WF_Approval ($Request);\n" +
+			"  return $Workflow;\n" +
+			"end;\n\n" +
+			"create microflow HR.ACT_Inspect ($Request: HR.Request)\n" +
+			"begin\n" +
+			"  $Workflows = get workflows for $Request;\n" +
+			"  $Workflow = head $Workflows;\n" +
+			"  $Data = get workflow data $Workflow as HR.WF_Approval;\n" +
+			"  $Records = get workflow activity records $Workflow;\n" +
+			"  open workflow $Workflow;\n" +
+			"end;\n\n" +
+			"create microflow HR.ACT_Withdraw ($Workflow: System.Workflow, $Task: System.WorkflowUserTask)\n" +
+			"begin\n" +
+			"  workflow operation abort $Workflow reason 'Request withdrawn';\n" +
+			"  open user task $Task;\n" +
+			"end;\n\n" +
+			"-- Hold every instance of a definition during a migration, then release them\n" +
+			"create microflow HR.ACT_Maintenance ()\n" +
+			"begin\n" +
+			"  lock workflow HR.WF_Approval pause all;\n" +
+			"  unlock workflow HR.WF_Approval unpause all;\n" +
+			"end;",
+		SeeAlso: []string{"microflow.call", "workflow.call-workflow", "workflow.set-task-outcome", "workflow.notify", "workflow"},
 	})
 
 	Register(SyntaxFeature{
@@ -554,7 +696,7 @@ func init() {
 			"nanoflow", "create nanoflow", "client-side", "runs in the browser",
 			"offline", "client logic", "disallowed in nanoflow", "nanoflow restrictions",
 		},
-		Syntax: "CREATE [OR REPLACE] NANOFLOW Module.Name ($Param: Type)\n" +
+		Syntax: "CREATE [OR MODIFY] NANOFLOW Module.Name ($Param: Type)\n" +
 			"RETURNS Type AS $Result\nBEGIN\n  <statements>\nEND;\n\n" +
 			"The body is microflow syntax — every topic under `microflow` applies —\n" +
 			"MINUS what cannot run in the browser. `mxcli check` refuses each of these\n" +
@@ -600,7 +742,8 @@ func init() {
 			"LIST RULES [IN Module];\nDESCRIBE RULE Module.Name;\n" +
 			"DROP RULE Module.Name;\nMOVE RULE Module.Name TO FOLDER 'path';\n\n" +
 			"A rule is called from a decision and nowhere else:\n" +
-			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;\n\n" +
+			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;     -- Boolean rule\n" +
+			"  CASE Module.Rule_Name(Param = $Value) WHEN V THEN ... END CASE;  -- enumeration rule\n\n" +
 			"The return type is mandatory and must be Boolean or an enumeration\n" +
 			"(mxbuild: CE0103/CE0139). A rule may not create, change, delete, commit\n" +
 			"or roll back objects, talk to the client, or call a web service\n" +
@@ -737,7 +880,9 @@ func init() {
 			"mapping binds an object under ALL too (Studio Pro's own default).\n" +
 			"Mendix rejects OFFSET on a non-list mapping with CE6100, and FIRST on\n" +
 			"an object-rooted mapping builds clean and throws at runtime — mxcli\n" +
-			"check refuses both as MDL-MAP04. Drop the range on such a mapping.",
+			"check refuses both as MDL-MAP04, and mxcli lint reports an activity\n" +
+			"already in the model that stores FIRST on such a mapping under the\n" +
+			"same ID. Drop the range on such a mapping.",
 		Example: "$Pets  = import from mapping Shop.IMM_Pets($Json) all;\n" +
 			"$Pet   = import from mapping Shop.IMM_Pets($Json) first;\n" +
 			"$Page  = import from mapping Shop.IMM_Pets($Json) limit 10 offset 5;\n" +

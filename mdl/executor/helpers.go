@@ -11,9 +11,11 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/folderpath"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // ----------------------------------------------------------------------------
@@ -113,14 +115,9 @@ func resolveFolder(ctx *ExecContext, moduleID model.ID, folderPath string) (mode
 		return "", mdlerrors.NewBackend("list folders", err)
 	}
 
-	// Split path into parts
-	parts := strings.Split(folderPath, "/")
 	currentContainerID := moduleID
 
-	for _, part := range parts {
-		if part == "" {
-			continue
-		}
+	for _, part := range folderpath.Split(folderPath) {
 
 		// Find folder with this name under current container
 		var foundFolder *types.FolderInfo
@@ -291,13 +288,29 @@ func validateWidgetReferences(ctx *ExecContext, widgets []*ast.WidgetV3, sc *scr
 	}
 
 	if len(refs.images) > 0 {
-		// No same-script exemption: MDL cannot create an image collection entry,
-		// so an image reference can only ever resolve against the project.
-		known, collections := buildImageQualifiedNames(ctx)
-		errors = append(errors, imageRefErrors(refs.images, known, collections)...)
+		errors = append(errors, resolveImageRefs(ctx, refs.images, sc)...)
 	}
 
 	return errors
+}
+
+// resolveImageRefs reports the image-collection references that resolve
+// neither against the project nor against what this script creates
+// (mendixlabs/mxcli#1419). A nil project set means the project could not be
+// read, and stays nil: imageRefErrors then reports nothing rather than calling
+// every other collection missing. Shared by CREATE's widget trees and ALTER
+// PAGE SET (mendixlabs/mxcli#1464), so the two resolve a name the same way.
+func resolveImageRefs(ctx *ExecContext, refs []string, sc *scriptContext) []string {
+	known, collections := buildImageQualifiedNames(ctx)
+	if known != nil && collections != nil && sc != nil {
+		for qn := range sc.imageCollections {
+			collections[qn] = true
+		}
+		for qn := range sc.images {
+			known[qn] = true
+		}
+	}
+	return imageRefErrors(refs, known, collections)
 }
 
 // widgetRefCollector collects qualified name references from a widget tree.
@@ -495,7 +508,7 @@ func buildMicroflowQualifiedNames(ctx *ExecContext) map[string]bool {
 	if err != nil {
 		return result
 	}
-	mfs, err := ctx.Backend.ListMicroflows()
+	mfs, err := microflowHeaders(ctx)
 	if err != nil {
 		return result
 	}
@@ -504,6 +517,53 @@ func buildMicroflowQualifiedNames(ctx *ExecContext) map[string]bool {
 		result[qn] = true
 	}
 	return result
+}
+
+// microflowLookup is a backend that can find microflows without decoding
+// every one of them (the modelsdk backend).
+type microflowLookup interface {
+	ListMicroflowsNamed(name string) ([]*microflows.Microflow, error)
+	ListMicroflowHeaders() ([]types.DocumentHeader, error)
+}
+
+// microflowsNamed is the project's microflows whose local name is name, in
+// every module. A caller that looks one microflow up needs no other: the
+// modelsdk backend decodes only these, where ListMicroflows decoded the whole
+// flow of every microflow in the project — for a lookup check makes several
+// times per statement (mendixlabs/mxcli#1272).
+func microflowsNamed(ctx *ExecContext, name string) ([]*microflows.Microflow, error) {
+	if l, ok := ctx.Backend.(microflowLookup); ok {
+		return l.ListMicroflowsNamed(name)
+	}
+	all, err := ctx.Backend.ListMicroflows()
+	if err != nil {
+		return nil, err
+	}
+	var out []*microflows.Microflow
+	for _, mf := range all {
+		if mf.Name == name {
+			out = append(out, mf)
+		}
+	}
+	return out, nil
+}
+
+// microflowHeaders is every microflow's ID, container, name and Excluded flag,
+// for a name set or an ID-to-name map: no flow is decoded where the backend
+// can avoid it.
+func microflowHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
+	if l, ok := ctx.Backend.(microflowLookup); ok {
+		return l.ListMicroflowHeaders()
+	}
+	all, err := ctx.Backend.ListMicroflows()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(all))
+	for i, mf := range all {
+		out[i] = types.DocumentHeader{ID: mf.ID, ContainerID: mf.ContainerID, Name: mf.Name, Excluded: mf.Excluded}
+	}
+	return out, nil
 }
 
 // buildMicroflowReturnTypes maps each stored microflow's qualified name to the
@@ -550,6 +610,24 @@ func buildQueueQualifiedNames(ctx *ExecContext) map[string]bool {
 	}
 	for _, q := range queues {
 		result[strings.ToLower(h.GetQualifiedName(q.ContainerID, q.Name))] = true
+	}
+	return result
+}
+
+// buildImportMappingQualifiedNames returns the set of import mapping qualified
+// names in the project, matched exactly as GetImportMappingByQualifiedName does.
+func buildImportMappingQualifiedNames(ctx *ExecContext) map[string]bool {
+	result := make(map[string]bool)
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return result
+	}
+	ims, err := ctx.Backend.ListImportMappings()
+	if err != nil {
+		return result
+	}
+	for _, im := range ims {
+		result[h.GetQualifiedName(im.ContainerID, im.Name)] = true
 	}
 	return result
 }
@@ -695,7 +773,7 @@ func buildAssociationQualifiedNames(ctx *ExecContext) map[string]bool {
 // treats one of those as a hit rather than a conflict — it adopts the caller's
 // casing, rewrites the references, and returns nil — so listing it here would
 // make `check` refuse a script that runs fine, and refuse it over a role the
-// user never asked mxcli to create (`defaultDocumentAccessRoles`). A check that
+// user never asked mxcli to create (an earlier mxcli made one per role-less module). A check that
 // reports a statement exec accepts is worse than the under-report it replaces.
 //
 // Known limit: exec matches role names case-insensitively (Mendix does, CE0123),
@@ -817,7 +895,10 @@ func convertDataType(dt ast.DataType) domainmodel.AttributeType {
 	case ast.TypeBoolean:
 		return &domainmodel.BooleanAttributeType{}
 	case ast.TypeDateTime:
-		return &domainmodel.DateTimeAttributeType{LocalizeDate: true}
+		// `not localized` is the one spelling of false; unstated is Mendix's
+		// default, true. A rewrite that leaves it unstated carries the stored
+		// value afterwards (carryStoredAttributeState, MODIFY ATTRIBUTE).
+		return &domainmodel.DateTimeAttributeType{LocalizeDate: dt.Localize.LocalizeDate()}
 	case ast.TypeDate:
 		return &domainmodel.DateAttributeType{}
 	case ast.TypeAutoNumber:
@@ -881,6 +962,16 @@ func getAttributeTypeName(at domainmodel.AttributeType) string {
 
 func formatAttributeType(at domainmodel.AttributeType) string {
 	return getAttributeTypeName(at)
+}
+
+// localizeClause renders a DateTime attribute's LocalizeDate as the constraint
+// that follows its type: " not localized" when false, and nothing for the
+// default, so describe only says what differs from a fresh `DateTime` (#1373).
+func localizeClause(at domainmodel.AttributeType) string {
+	if dt, ok := at.(*domainmodel.DateTimeAttributeType); ok && !dt.LocalizeDate {
+		return " not localized"
+	}
+	return ""
 }
 
 // buildWorkflowQualifiedNames returns a set of all workflow qualified names in
@@ -949,7 +1040,7 @@ func buildConstantQualifiedNames(ctx *ExecContext) (map[string]bool, bool) {
 // ones `validate_widgets.go` already accepts for these widgets and DESCRIBE
 // already emits, so the two lists say the same thing about the same property.
 var imageRefProps = map[string][]string{
-	"image":        {"Image"},
+	"image":        {"Image", "DefaultImage"},
 	"staticimage":  {"Image"},
 	"dynamicimage": {"DefaultImage"},
 }

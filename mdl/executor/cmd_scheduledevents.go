@@ -528,7 +528,7 @@ func execDescribeScheduledEvent(ctx *ExecContext, s *ast.DescribeScheduledEventS
 	}
 
 	if ev.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", ev.Documentation)
+		outputJavadocIndented(ctx.Output, ev.Documentation, "")
 	}
 	fmt.Fprintf(ctx.Output, "create or modify scheduled event %s%s (\n", s.Name.String(), describeFolderClause(ctx, ev.ContainerID))
 	fmt.Fprintf(ctx.Output, "  Microflow: %s,\n", ev.MicroflowID)

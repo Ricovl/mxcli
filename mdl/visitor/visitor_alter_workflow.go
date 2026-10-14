@@ -108,7 +108,7 @@ func (b *Builder) alterWorkflowActivityRef(ctx parser.IAlterTargetContext) (stri
 		return "", 0, false
 	}
 	ref := b.buildAlterTarget(ctx)
-	if ref.IsColumnAddress() || ref.Column != "" {
+	if ref.IsColumnAddress() || ref.Column != "" || ref.Item != nil {
 		b.addError(fmt.Errorf("alter workflow target %s: a workflow activity is addressed by its name "+
 			"(`ReviewOrder`) or its caption (`'Review the order'`), with @n to choose one of several "+
 			"matches — `describe workflow` prints every activity's name", ref.Name()))

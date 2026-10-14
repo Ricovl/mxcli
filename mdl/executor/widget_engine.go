@@ -92,7 +92,11 @@ const defaultSlotContainer = "template"
 //	    to a value the widget hides, which mxbuild rejects with CE0463 and which
 //	    makes `mx create-module-package` refuse the module (upstream #931). Bump
 //	    forces existing projects to regenerate their defs with both.
-const WidgetDefGeneratorVersion = 17
+//	18 — DataGrid column `visible` ← `VisibleIf` alias. Every expression
+//	    spelling of a column's `Visible:` is lowered to VisibleIf, so without it
+//	    the column was written always visible. Bump forces existing projects to
+//	    regenerate so the alias reaches their datagrid def.
+const WidgetDefGeneratorVersion = 18
 
 // WidgetDefinition describes how to construct a pluggable widget from MDL syntax.
 // Loaded from embedded JSON definition files (*.def.json).
@@ -237,7 +241,10 @@ type BuildContext struct {
 	// SourceVariable names the parameter an attribute or association binding
 	// reads (`$Param.Attr`); nil for one read from the enclosing object.
 	SourceVariable *pages.WidgetVariable
-	pageBuilder    *pageBuilder
+	// ImageEntity is the entity an image-typed property binds to when it was
+	// written `$currentObject` rather than as a collection entry (#1476).
+	ImageEntity string
+	pageBuilder *pageBuilder
 }
 
 // =============================================================================
@@ -452,7 +459,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 					w.Name, def.MDLName, len(dsProps), strings.Join(dsProps, ", "))
 			}
 			for _, propKey := range dsProps {
-				dataSource, entityName, err := e.pageBuilder.buildDataSourceV3(ds)
+				dataSource, entityName, err := e.pageBuilder.buildPluggableDataSourceV3(ds)
 				if err != nil {
 					return nil, mdlerrors.NewBackend("auto datasource for "+propKey, err)
 				}
@@ -914,7 +921,11 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 		// An image collection entry, by its three-part qualified name. The
 		// value arrives through the generic source branch, so it is in
 		// PrimitiveVal like any other scalar — only the key it lands on differs.
-		builder.SetImage(propKey, ctx.PrimitiveVal)
+		if ctx.ImageEntity != "" {
+			builder.SetImageEntity(propKey, ctx.ImageEntity)
+		} else {
+			builder.SetImage(propKey, ctx.PrimitiveVal)
+		}
 	case "expression":
 		builder.SetExpression(propKey, ctx.PrimitiveVal)
 	case "datasource":
@@ -1465,7 +1476,7 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			ds = w.GetDataSource()
 		}
 		if ds != nil {
-			dataSource, entityName, err := e.pageBuilder.buildDataSourceV3(ds)
+			dataSource, entityName, err := e.pageBuilder.buildPluggableDataSourceV3(ds)
 			if err != nil {
 				return nil, mdlerrors.NewBackend("build datasource", err)
 			}
@@ -1569,6 +1580,18 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			// are invisible to GetStringProp; read them generically so numeric
 			// properties aren't silently dropped to the schema default.
 			if astVal, ok := lookupProperty(w.Properties, source); ok {
+				// `Image: $currentObject` binds the object in context; it is the
+				// one variable an image-typed property takes (#1476).
+				if mapping.Operation == "image" {
+					if ref, isRef := imageObjectReference(w, source, astVal); isRef {
+						entity, err := e.resolveImageObject(w, mapping.PropertyKey, source, ref)
+						if err != nil {
+							return nil, err
+						}
+						ctx.ImageEntity = entity
+						return ctx, nil
+					}
+				}
 				text, err := scalarPropertyText(w, source, astVal, mapping.Operation)
 				if err != nil {
 					return nil, err
@@ -2127,6 +2150,22 @@ func applyColumnHeaderFallback(spec *backend.ObjectListItemSpec, columnName stri
 		fallback = columnName
 	}
 	if fallback == "" {
+		// An unnamed column with no caption and no attribute has nothing to
+		// derive a header from. It must still not serialize as TextTemplate:
+		// null — `mx update-widgets` writes an empty Forms$ClientTemplate for
+		// the header, so null is CE0463 (ChipCoV8 #11). Flag the header
+		// EmptyTemplate; scoped by the hasHeaderSlot gate above to datagrid
+		// columns, never to other texttemplates.
+		if headerIdx >= 0 {
+			spec.Properties[headerIdx].Operation = "texttemplate"
+			spec.Properties[headerIdx].EmptyTemplate = true
+			return
+		}
+		spec.Properties = append(spec.Properties, backend.ObjectListItemProperty{
+			PropertyKey:   "header",
+			Operation:     "texttemplate",
+			EmptyTemplate: true,
+		})
 		return
 	}
 	if headerIdx >= 0 {
