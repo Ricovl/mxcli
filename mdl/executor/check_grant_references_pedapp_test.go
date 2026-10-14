@@ -113,6 +113,10 @@ func TestCheckGrantReferences_UnknownNameIsRefused(t *testing.T) {
 			"create module AutoRoleYes;\ncreate nanoflow AutoRoleYes.N () begin end;\n" +
 				"grant execute on nanoflow AutoRoleYes.N to AutoRoleYes.User;",
 			[]string{"module role AutoRoleYes.User does not exist"}},
+		{"page widget visible to a module role that does not exist (exec writes it, CE1613; #1460)",
+			"create page MyFirstModule.RoleVisProbe (Title: 'x', Layout: Atlas_Core.Atlas_Default) {\n" +
+				"  container c1 (Visible: roles (MyFirstModule.NopeRole)) { dynamictext t1 (Content: 'x') }\n};",
+			[]string{"module role MyFirstModule.NopeRole does not exist", "container \"c1\": Visible: roles"}},
 		{"grant to a role the script dropped above it",
 			"drop module role Administration.User;\ngrant read * on entity Administration.Account to Administration.User;",
 			[]string{"module role Administration.User does not exist"}},
@@ -176,6 +180,10 @@ func TestCheckGrantReferences_ResolvableNamesPass(t *testing.T) {
 		{"grant to a <Module>.User role the script creates with the module (doctype-tests/02b)",
 			"create module AutoRoleYes;\ncreate module role AutoRoleYes.User;\ncreate nanoflow AutoRoleYes.N () begin end;\n" +
 				"grant execute on nanoflow AutoRoleYes.N to AutoRoleYes.User;"},
+		{"page widget visible to a stored role and one the script creates above (#1460)",
+			"create module role MyFirstModule.Auditor;\n" +
+				"create page MyFirstModule.RoleVisProbe (Title: 'x', Layout: Atlas_Core.Atlas_Default) {\n" +
+				"  container c1 (Visible: roles (MyFirstModule.User, MyFirstModule.Auditor)) { dynamictext t1 (Content: 'x') }\n};"},
 		{"user role and demo user the script creates above",
 			"create module role MyFirstModule.Auditor;\ncreate user role Auditor ( ModuleRoles: (MyFirstModule.Auditor, System.User) );\n" +
 				"create demo user 'auditor' ( Password: 'Probe!23456789', UserRoles: (Auditor) );"},

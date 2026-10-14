@@ -335,6 +335,22 @@ container cntRunning (visible: Status in (Running, empty)) { ... }
 textbox txtPassword (label: 'Password', attribute: Password, visible: IsLocalUser in (true))
 ```
 
+**Visible for module roles** (Studio Pro's role-based visibility) is a separate
+setting — a second `visible:` line that combines with either condition above. It
+works on widgets, tab pages and navigation-list items; `check --references`
+refuses a role that does not exist:
+
+```sql
+mdl 1;
+create page MyModule.Request_Review (title: 'Review', layout: Atlas_Core.Atlas_Default) {
+  container cntAdmin (visible: roles (MyModule.Administrator)) {
+    dynamictext txtAdmin (content: 'Administrators only')
+  }
+  actionbutton btnClose (caption: 'Close', action: close page,
+    visible: false, visible: roles (MyModule.Manager))
+};
+```
+
 
 > **`visible:`/`editable:` is a Mendix *expression*, not XPath** — a different
 > function set from a datasource `where [ ... ]` clause:

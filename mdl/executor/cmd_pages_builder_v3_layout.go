@@ -350,6 +350,7 @@ func (pb *pageBuilder) buildTabPageV3(w *ast.WidgetV3) (*pages.TabPage, error) {
 		}
 		tp.ConditionalVisibility = cvs
 	}
+	tp.ConditionalVisibility = withVisibleRoles(tp.ConditionalVisibility, w)
 
 	// Build child widgets
 	for _, child := range w.Children {

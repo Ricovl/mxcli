@@ -59,6 +59,14 @@ func extractConditionalSettings(ctx *ExecContext, widget *rawWidget, w map[strin
 				widget.VisibleValues = append(widget.VisibleValues, v)
 			}
 		}
+		// "Visible for module roles": by-name Module.Role references, stored
+		// beside (not instead of) the condition above. Never read, so describe
+		// → exec removed the restriction (mendixlabs/mxcli#1460).
+		for _, r := range getBsonArrayElements(cvs["ModuleRoles"]) {
+			if name, ok := r.(string); ok && name != "" {
+				widget.VisibleRoles = append(widget.VisibleRoles, name)
+			}
+		}
 	}
 	if ces, ok := w["ConditionalEditabilitySettings"].(map[string]any); ok && ces != nil {
 		if expr, ok := ces["Expression"].(string); ok && expr != "" {
@@ -896,6 +904,9 @@ func parseNavigationListItems(ctx *ExecContext, w map[string]any) []rawWidget {
 			rw.Style, _ = appearance["Style"].(string)
 			rw.DynamicClasses, _ = appearance["DynamicClasses"].(string)
 		}
+		// The item's own visibility — 13 of the report's 97 role-locked
+		// widgets were items of one navigation list (#1460).
+		extractConditionalSettings(ctx, &rw, itemMap)
 
 		result = append(result, rw)
 	}
