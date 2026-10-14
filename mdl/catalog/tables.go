@@ -7,6 +7,11 @@ package catalog
 //
 // History:
 //
+//	25 (documentation in the strings index): strings gains a row for the
+//	    documentation of every element the catalog reads a Description for
+//	    (entities, attributes, constants, pages, ...), so SEARCH finds words
+//	    that appear only there. Without the bump a cached catalog keeps
+//	    answering "No matches found." for them.
 //	24 (Studio Pro document names): the views rest_clients, rest_operations,
 //	    odata_clients, odata_services and queues are now consumed_rest_services,
 //	    consumed_rest_operations, consumed_odata_services,
@@ -131,7 +136,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "24"
+const CatalogSchemaVersion = "25"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
