@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -98,6 +101,12 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 	}
 
 	if l.Native {
+		// Forms$NativeLayoutContent declares no LayoutCall: a native layout
+		// cannot be built on another one.
+		if l.LayoutCall != nil {
+			return nil, fmt.Errorf("layout %q: a native layout cannot be built on another layout "+
+				"(Forms$NativeLayoutContent has no layout call)", l.Name)
+		}
 		c := genPg.NewNativeLayoutContent()
 		assignID(c)
 		c.SetLayoutType(string(l.LayoutType))
@@ -112,15 +121,37 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 	for _, w := range widgets {
 		c.AddWidgets(w)
 	}
+	// A layout built on another layout (mendixlabs/mxcli#1411): the tree hangs
+	// off the call's arguments and Content.Widgets stays empty — the shape of
+	// every Studio Pro-authored one measured. The call is built by the page
+	// code's own converter, because it is the same Forms$LayoutCall a page
+	// carries; only the key it hangs under differs (LayoutCall, not FormCall).
+	if l.LayoutCall != nil {
+		if len(l.Widgets) > 0 {
+			return nil, fmt.Errorf("layout %q is built on %s, so its widgets go in that layout's "+
+				"placeholders, not in a content tree of its own", l.Name, l.LayoutCall.LayoutName)
+		}
+		lc, err := layoutCallToGen(l.LayoutCall)
+		if err != nil {
+			return nil, err
+		}
+		c.SetLayoutCall(lc)
+	}
 	return c, nil
 }
 
-// hasAnyPlaceholder walks the tree for a Forms$Placeholder.
 // checkLayoutPlaceholders applies the rule mxbuild enforces, citing the CE
 // number the author would otherwise meet a whole build later — and, until
 // DROP LAYOUT existed, with no way to undo the document mxcli had just written.
 func checkLayoutPlaceholders(l *pages.Layout) error {
 	names := layoutPlaceholderNames(l.Widgets, nil)
+	// A layout built on another one declares its placeholders inside the
+	// arguments it passes (mendixlabs/mxcli#1411).
+	if l.LayoutCall != nil {
+		for _, arg := range l.LayoutCall.Arguments {
+			names = layoutPlaceholderNames(arg.Widgets, names)
+		}
+	}
 	issue, mains, dups := types.CheckLayoutPlaceholderNames(names)
 	switch issue {
 	case types.LayoutPlaceholderNoMain:
@@ -257,6 +288,7 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 		return err
 	}
 	g.SetID(element.ID(layout.ID))
+	b.carryStoredLayoutCanvas(layout.ID, g)
 	contents, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
 		return fmt.Errorf("UpdateLayout: encode: %w", err)
@@ -270,6 +302,37 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 		return fmt.Errorf("UpdateLayout: update: %w", err)
 	}
 	return nil
+}
+
+// carryStoredLayoutCanvas copies the stored canvas size onto a rebuilt layout.
+//
+// layoutToGen writes the canvas as the constant 1280 × 800, the value Studio
+// Pro gives a new layout — but not every stored one has it, so describe → exec
+// rewrote the unit where ADR-0008 would elide the write, and reported
+// "Replaced" for a statement that changed nothing. The canvas has no MDL
+// spelling and is nothing a script asks for, so a rewrite carries it: the page
+// (#541, carryStoredPageHeader) and snippet (#705) twins of this fix.
+//
+// Read width-agnostically (bsonInt): Studio Pro stores the canvas as int64. A
+// missing or unreadable stored unit, or a zero, leaves the default in place.
+func (b *Backend) carryStoredLayoutCanvas(id model.ID, g *genPg.Layout) {
+	if b.reader == nil || id == "" {
+		return
+	}
+	raw, err := b.reader.GetRawUnitBytes(string(id))
+	if err != nil {
+		return
+	}
+	var stored bson.D
+	if err := bson.Unmarshal(raw, &stored); err != nil {
+		return
+	}
+	if v := bsonInt(bsonnav.DGet(stored, "CanvasWidth")); v > 0 {
+		g.SetCanvasWidth(int32(v))
+	}
+	if v := bsonInt(bsonnav.DGet(stored, "CanvasHeight")); v > 0 {
+		g.SetCanvasHeight(int32(v))
+	}
 }
 
 // DeleteLayout removes a Forms$Layout unit. Still on the write path rather than

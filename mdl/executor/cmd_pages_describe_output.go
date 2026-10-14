@@ -298,6 +298,9 @@ func outputDataContainerContext(w io.Writer, prefix string, widgetName string, e
 // outputWidgetMDLV3 outputs a widget in MDL V3 syntax.
 // V3 syntax uses WIDGET Name (Props) { children } format.
 func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
+	if describeDanglingSelection(ctx, w, indent) {
+		return // listens to a widget this description cannot emit (#1415)
+	}
 	prefix := strings.Repeat("  ", indent)
 
 	switch w.Type {
@@ -385,6 +388,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		var props []string
 		if w.TabCaption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.TabCaption)))
+		}
+		// A tab page's visibility (#1465). Its Forms$TabPage has no Appearance,
+		// so appendAppearanceProps would print nothing else either.
+		if w.VisibleIf != "" {
+			props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
+		}
+		if prop := visibleWhenProp(w); prop != "" {
+			props = append(props, prop)
 		}
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
@@ -627,6 +638,16 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
 		props = describeSubmitBehaviour(props, w)
+		props = appendAppearanceProps(ctx, props, w)
+		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+
+	case "Forms$FileManager", "Pages$FileManager":
+		header := fmt.Sprintf("filemanager %s", mdlIdent(w.Name))
+		props := []string{}
+		if w.Caption != "" {
+			props = append(props, fmt.Sprintf("Label: %s", mdlQuote(ctx, w.Caption)))
+		}
+		props = append(props, w.FileManagerProps...)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -1146,6 +1167,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		// Atlas_Core.Atlas_SideBar, whose two Forms$SidebarToggleButton widgets
 		// do not survive describe -> exec — silent without this note, because a
 		// bare `-- Forms$X (name)` line reads as informational.
+		describeDroppedWidget(ctx, w)
 		fmt.Fprintf(ctx.Output, "%s-- %s", prefix, w.Type)
 		if w.Name != "" {
 			fmt.Fprintf(ctx.Output, " (%s)", w.Name)
@@ -2051,8 +2073,16 @@ func describeImageWidgetProps(ctx *ExecContext, w rawWidget) []string {
 	if w.ImageType != "" && w.ImageType != "image" {
 		props = append(props, fmt.Sprintf("ImageType: %s", w.ImageType))
 	}
-	if w.ImageObject != "" {
+	switch {
+	case w.ImageFromObject:
+		// Bound to the object in context, unquoted: a quoted value is a
+		// collection entry's name (#1476).
+		props = append(props, "Image: "+imageObjectVariable)
+	case w.ImageObject != "":
 		props = append(props, fmt.Sprintf("Image: %s", mdlQuote(ctx, w.ImageObject)))
+	}
+	if w.DefaultImage != "" {
+		props = append(props, fmt.Sprintf("DefaultImage: %s", mdlQuote(ctx, w.DefaultImage)))
 	}
 	if w.ImageUrl != "" {
 		props = append(props, fmt.Sprintf("ImageUrl: %s", mdlQuote(ctx, w.ImageUrl)))

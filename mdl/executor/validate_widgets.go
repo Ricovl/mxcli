@@ -144,8 +144,17 @@ func withDocumentLocation(vs []linter.Violation, stmt ast.Statement) []linter.Vi
 
 func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []linter.Violation {
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		out := validateWidgetTree(widgets, registry, label)
+		out := validateDocumentWidgetTree(widgets, registry, label, documentEntityParameters(stmt))
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
+		_, isSnippet := stmt.(*ast.CreateSnippetStmtV3)
+		for _, msg := range fileManagersWithoutContext(widgets, isSnippet) {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET45",
+				Severity:   linter.SeverityError,
+				Message:    label + ": " + msg,
+				Suggestion: "Put the file manager in a data view whose object extends System.FileDocument.",
+			})
+		}
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
@@ -175,7 +184,13 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 // $currentObject is unbound there. That is a fact this pass can state, unlike
 // validateWidgetSubtree below, and MDL-PAGEARG01 needs it (#1029).
 func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot())
+	return validateDocumentWidgetTree(widgets, registry, locationPrefix, nil)
+}
+
+// validateDocumentWidgetTree is validateWidgetTree for a document whose
+// entity-typed parameters are known (a CREATE PAGE / SNIPPET's `Params:`).
+func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, params []string) []linter.Violation {
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot().withDocumentParameters(params))
 	// Only a whole document: an ALTER fragment's parent is out of sight, and
 	// whether a row or column stores a name depends on it (#749).
 	for _, msg := range checkMissingWidgetNames(widgets) {
@@ -300,6 +315,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// would report every property it has.
 		if def == nil && !isObjectListItem && !w.TypeIsGeneric && explicitWidgetID(w) == "" {
 			out = append(out, validateStaticWidgetUnknownProps(w, locationPrefix)...)
+			// #1465: the vocabulary above is a cross-widget union, so a key a
+			// tab page cannot store (CaptionParams, Class, Style) passes it.
+			out = append(out, validateTabPageProps(w, locationPrefix)...)
 			// #928: `editable:` on a widget Mendix gives no editability — same
 			// "silently dropped on write" family, but the flat property
 			// allow-list cannot see it because it is type-agnostic.
@@ -795,6 +813,9 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
+		// a file manager's own four, read by buildFileManagerV3 and emitted by
+		// describe (mendixlabs/mxcli#151).
+		"Type", "MaxFileSize", "AllowedExtensions", "ShowFileInBrowser",
 		// fragment / building-block sentinel-internal keys (USE_FRAGMENT /
 		// USE_BUILDING_BLOCK), consumed by the expander, never serialized
 		"Args", "DataSourceOverride", "ActionOverride",
@@ -945,9 +966,9 @@ func validateDynamicTextFormatting(w *ast.WidgetV3, locationPrefix string) []lin
 			}
 			switch fp.Key {
 			case "decimalprecision":
-				if n, err := strconv.Atoi(fp.Value); err != nil || n < 0 {
+				if n, err := strconv.Atoi(fp.Value); err != nil || n < -1 {
 					out = append(out, violation18(locationPrefix, w,
-						fmt.Sprintf("decimalPrecision must be a non-negative integer, got `%s`", fp.Value)))
+						fmt.Sprintf("decimalPrecision must be a non-negative integer, or -1 for no fixed precision, got `%s`", fp.Value)))
 				}
 			case "groupdigits":
 				if !strings.EqualFold(fp.Value, "true") && !strings.EqualFold(fp.Value, "false") {

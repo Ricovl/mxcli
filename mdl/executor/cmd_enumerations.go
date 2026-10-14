@@ -414,7 +414,7 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 		if enum.Name == name.Name && (name.Module == "" || modName == name.Module) {
 			// Output JavaDoc documentation if present
 			if enum.Documentation != "" {
-				fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", enum.Documentation)
+				outputJavadocIndented(ctx.Output, enum.Documentation, "")
 			}
 
 			// A System enumeration is a platform built-in: the write paths refuse

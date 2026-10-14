@@ -127,6 +127,11 @@ Example:
 			os.Exit(1)
 		}
 
+		// A call to a flow the script creates further down is written before
+		// its callee, so only a run that rolls back on failure may make one
+		// (mendixlabs/mxcli#1405); --continue-on-error keeps each statement.
+		exec.SetForwardFlowCalls(!continueOnError)
+
 		if refusal := execPreflight(exec, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, os.Stderr, true); refusal != "" {
 			fmt.Fprint(os.Stderr, refusal)
 			os.Exit(1)
@@ -166,6 +171,7 @@ func runScriptAtomically(exec *executor.Executor, prog *ast.Program) error {
 	journal, jerr := mmpr.BeginJournal()
 	if jerr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: %v; a failing statement will leave the earlier ones written\n", jerr)
+		exec.SetForwardFlowCalls(false)
 		if err := exec.ExecuteProgram(prog); err != nil && !errors.Is(err, executor.ErrExit) {
 			return err
 		}
@@ -186,16 +192,21 @@ func runScriptAtomically(exec *executor.Executor, prog *ast.Program) error {
 		return errors.Join(err, fmt.Errorf("could not roll back the statements that ran before it, "+
 			"so the project may be partly updated: %w", rerr))
 	}
-	ran := "the script's statements"
+	return fmt.Errorf("%w\nNothing was written: %s, and the project is as it was before exec", err, rolledBackSummary(stoppedAt))
+}
+
+// rolledBackSummary says what a rollback undid, given the 0-based index of the
+// failing statement (-1 when the run failed after its last statement).
+func rolledBackSummary(stoppedAt int) string {
 	switch {
 	case stoppedAt == 0:
-		ran = "the failing statement's partial writes"
+		return "the failing statement's partial writes were rolled back"
 	case stoppedAt == 1:
-		ran = "statement 1"
+		return "statement 1 was rolled back"
 	case stoppedAt > 1:
-		ran = fmt.Sprintf("statements 1-%d", stoppedAt)
+		return fmt.Sprintf("statements 1-%d were rolled back", stoppedAt)
 	}
-	return fmt.Errorf("%w\nNothing was written: %s were rolled back, and the project is as it was before exec", err, ran)
+	return "the script's statements were rolled back"
 }
 
 func init() {

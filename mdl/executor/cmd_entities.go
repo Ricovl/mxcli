@@ -164,16 +164,10 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		location = model.Point{X: s.Position.X, Y: s.Position.Y}
 	} else if existingEntity != nil {
 		location = existingEntity.Location
-	} else {
-		// No @Position and no stored entity: take the next grid slot.
-		//
-		// This used to be `X: 100 + len(dm.Entities)*150, Y: 100` — one row, for
-		// every entity ever created. A 40-entity domain model came out as a
-		// 6,000px line, and 150px is narrower than an entity box, so the boxes
-		// touched as well. The grid is not a good layout, only a defensible
-		// default; `mxcli layout` computes one from the association graph.
-		location = dmlayout.GridSlot(len(dm.Entities))
 	}
+	// No @Position and no stored entity: auto-placed once the entity's members
+	// are known (dmlayout.Place, below) — the free slot depends on its height.
+	autoPlace := s.Position == nil && existingEntity == nil
 
 	// Determine persistable based on entity kind
 	persistable := s.Kind != ast.EntityNonPersistent
@@ -338,6 +332,10 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		idxID := model.ID(types.GenerateID())
 		var indexAttrs []*domainmodel.IndexAttribute
 		for _, col := range idx.Columns {
+			if typ := systemIndexMemberType(col.Name, storeCreatedDate, storeChangedDate); typ != "" {
+				indexAttrs = append(indexAttrs, newSystemIndexSegment(typ, col.Descending))
+				continue
+			}
 			if attrID, ok := attrNameToID[col.Name]; ok {
 				iaID := model.ID(types.GenerateID())
 				ia := &domainmodel.IndexAttribute{
@@ -377,6 +375,12 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		HasChangedBy:    storeChangedBy,
 		HasCreatedDate:  storeCreatedDate,
 		HasChangedDate:  storeChangedDate,
+	}
+	if autoPlace {
+		// The next grid slot whose box clears everything already in the module.
+		// A bare GridSlot let an entity with ~17+ attributes overlap the one
+		// below it (#1479); `mxcli layout` computes a real layout.
+		entity.Location = dmlayout.Place(dm, entity)
 	}
 
 	// Set generalization (inheritance) if specified. A bare, unqualified target
@@ -863,7 +867,7 @@ func reconcileDroppedIndexes(entity, existing *domainmodel.Entity) int {
 	for _, idx := range existing.Indexes {
 		var attrs []*domainmodel.IndexAttribute
 		for _, ia := range idx.Attributes {
-			if valid[ia.AttributeID] {
+			if valid[ia.AttributeID] || systemIndexSegmentStored(entity, ia) {
 				attrs = append(attrs, ia)
 			}
 		}
@@ -1025,9 +1029,8 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		location = model.Point{X: s.Position.X, Y: s.Position.Y}
 	} else if existingEntity != nil {
 		location = existingEntity.Location
-	} else {
-		location = model.Point{X: 100 + len(dm.Entities)*150, Y: 100}
 	}
+	autoPlace := s.Position == nil && existingEntity == nil
 
 	// Create or update ViewEntitySourceDocument (separate document for OQL query).
 	// Written IN PLACE: this used to delete the stored document and insert a fresh
@@ -1095,6 +1098,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		Source:            "DomainModels$OqlViewEntitySource",
 		SourceDocumentRef: sourceDocRef,
 		OqlQuery:          s.Query.RawQuery,
+	}
+	if autoPlace {
+		entity.Location = dmlayout.Place(dm, entity)
 	}
 
 	created := entity
@@ -1694,6 +1700,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		idxID := model.ID(types.GenerateID())
 		var indexAttrs []*domainmodel.IndexAttribute
 		for _, col := range s.Index.Columns {
+			if typ := systemIndexMemberType(col.Name, entity.HasCreatedDate, entity.HasChangedDate); typ != "" {
+				indexAttrs = append(indexAttrs, newSystemIndexSegment(typ, col.Descending))
+				continue
+			}
 			if attrID, ok := attrNameToID[col.Name]; ok {
 				ia := &domainmodel.IndexAttribute{
 					AttributeID: attrID,
@@ -1995,7 +2005,7 @@ func indexMatchesColumns(entity *domainmodel.Entity, index *domainmodel.Index, c
 		nameByID[attr.ID] = attr.Name
 	}
 	for i, ia := range index.Attributes {
-		if !strings.EqualFold(nameByID[ia.AttributeID], cols[i].Name) {
+		if !strings.EqualFold(indexSegmentName(ia, nameByID), cols[i].Name) {
 			return false
 		}
 		if ia.Ascending == cols[i].Descending {
@@ -2003,6 +2013,59 @@ func indexMatchesColumns(entity *domainmodel.Entity, index *domainmodel.Index, c
 		}
 	}
 	return true
+}
+
+// systemIndexMemberType returns the IndexedAttribute Type for an index column
+// that names a system date member the entity stores — "CreatedDate" or
+// "ChangedDate", spelled as describe declares it (`ChangedDate: AutoChangedDate`)
+// — or "" for an ordinary attribute column. Such a column is not an attribute,
+// so it never resolves through the attribute map (mendixlabs/mxcli#1401). The
+// names are platform-reserved for attributes (MDL020), so they cannot collide.
+func systemIndexMemberType(name string, hasCreatedDate, hasChangedDate bool) string {
+	switch {
+	case hasCreatedDate && strings.EqualFold(name, "CreatedDate"):
+		return "CreatedDate"
+	case hasChangedDate && strings.EqualFold(name, "ChangedDate"):
+		return "ChangedDate"
+	}
+	return ""
+}
+
+// unsetIndexAttributePointer is what a system-member segment's AttributePointer
+// holds: no attribute, written as the all-zero GUID Studio Pro uses for an unset
+// reference (as on the segment's AssociationPointer).
+const unsetIndexAttributePointer = model.ID("00000000-0000-0000-0000-000000000000")
+
+func newSystemIndexSegment(typ string, descending bool) *domainmodel.IndexAttribute {
+	ia := &domainmodel.IndexAttribute{
+		AttributeID: unsetIndexAttributePointer,
+		Ascending:   !descending,
+		Type:        typ,
+	}
+	ia.ID = model.ID(types.GenerateID())
+	return ia
+}
+
+// indexSegmentName is the MDL column name of an index segment: the system
+// member's declared name, or the attribute's name ("" when it does not resolve).
+func indexSegmentName(ia *domainmodel.IndexAttribute, attrNameByID map[model.ID]string) string {
+	if ia.IsSystemMember() {
+		return ia.Type
+	}
+	return attrNameByID[ia.AttributeID]
+}
+
+// systemIndexSegmentStored reports whether a system-member segment is still
+// backed by the entity: an index on changedDate survives only while the entity
+// stores changedDate.
+func systemIndexSegmentStored(e *domainmodel.Entity, ia *domainmodel.IndexAttribute) bool {
+	switch ia.Type {
+	case "CreatedDate":
+		return e.HasCreatedDate
+	case "ChangedDate":
+		return e.HasChangedDate
+	}
+	return false
 }
 
 // findIndexByColumns returns the stored index with exactly these columns, or nil.

@@ -199,7 +199,7 @@ func execDescribeRegularExpression(ctx *ExecContext, s *ast.DescribeRegularExpre
 	}
 
 	if re.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", re.Documentation)
+		outputJavadocIndented(ctx.Output, re.Documentation, "")
 	}
 	fmt.Fprintf(ctx.Output, "create or modify regular expression %s%s (\n", s.Name.String(), describeFolderClause(ctx, re.ContainerID))
 	fmt.Fprintf(ctx.Output, "  Expression: '%s',\n", strings.ReplaceAll(re.Expression, "'", "''"))

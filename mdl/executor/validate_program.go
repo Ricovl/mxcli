@@ -103,6 +103,12 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if pageStmt, ok := stmt.(*ast.CreatePageStmtV3); ok {
 			violations = append(violations, ValidatePageURLParameters(pageStmt)...)
 		}
+		// A Java action parameter typed by an unqualified name that is no
+		// declared type parameter is written as the entity `.Name` — CE1613
+		// at build time (MDL-JA01, mendixlabs/mxcli#1404).
+		if jaStmt, ok := stmt.(*ast.CreateJavaActionStmt); ok {
+			violations = append(violations, validateJavaActionTypeNames(jaStmt)...)
+		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
 			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)
@@ -277,14 +283,6 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// answer is in the statement, so it runs here rather than under --references
 	// (#927).
 	violations = append(violations, ValidateExportMappingMembers(prog)...)
-
-	// Flag a template parameter written as a `$variable/` path where the
-	// position takes an attribute of the widget's context object. The writer
-	// keeps the prefix as part of the attribute name, so the model names an
-	// attribute that cannot exist (mendixlabs/mxcli#1046). The answer is in the
-	// statement, so it runs here rather than under --references — otherwise
-	// `mxcli check page.mdl` would stay silent on a mistake it can see.
-	violations = append(violations, ValidateWidgetParamPaths(prog)...)
 
 	// Flag a CREATE whose target name has no module. `exec` refuses it and
 	// `check` passed it, so a script stopped partway through with the earlier

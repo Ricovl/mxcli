@@ -174,24 +174,26 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 	}
 	formatWidgetProps(ctx.Output, "", header, props, " {\n")
-	switch {
-	case len(nonEmpty) == 0:
-		// A widget-less page still needs an (empty) body block: the CREATE PAGE
-		// grammar requires `{ }`, so omitting it made DESCRIBE output fail to
-		// re-parse through `mxcli check` (#626).
-	case len(nonEmpty) == 1 && nonEmpty[0].Placeholder == "Main":
-		for _, w := range nonEmpty[0].Widgets {
-			outputWidgetMDLV3(ctx, w, 1)
-		}
-	default:
-		for _, g := range nonEmpty {
-			fmt.Fprintf(ctx.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
-			for _, w := range g.Widgets {
-				outputWidgetMDLV3(ctx, w, 2)
+	describeWidgetBody(ctx, func(c *ExecContext) {
+		switch {
+		case len(nonEmpty) == 0:
+			// A widget-less page still needs an (empty) body block: the CREATE PAGE
+			// grammar requires `{ }`, so omitting it made DESCRIBE output fail to
+			// re-parse through `mxcli check` (#626).
+		case len(nonEmpty) == 1 && nonEmpty[0].Placeholder == "Main":
+			for _, w := range nonEmpty[0].Widgets {
+				outputWidgetMDLV3(c, w, 1)
 			}
-			fmt.Fprint(ctx.Output, "  }\n")
+		default:
+			for _, g := range nonEmpty {
+				fmt.Fprintf(c.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
+				for _, w := range g.Widgets {
+					outputWidgetMDLV3(c, w, 2)
+				}
+				fmt.Fprint(c.Output, "  }\n")
+			}
 		}
-	}
+	})
 	fmt.Fprint(ctx.Output, "};")
 
 	// Add GRANT VIEW if roles are assigned
@@ -294,9 +296,11 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 	rawWidgets := getSnippetWidgetsFromRaw(ctx, foundSnippet.ID)
 	if len(rawWidgets) > 0 {
 		fmt.Fprint(ctx.Output, " {\n")
-		for _, w := range rawWidgets {
-			outputWidgetMDLV3(ctx, w, 1)
-		}
+		describeWidgetBody(ctx, func(c *ExecContext) {
+			for _, w := range rawWidgets {
+				outputWidgetMDLV3(c, w, 1)
+			}
+		})
 		fmt.Fprint(ctx.Output, "};")
 	} else {
 		// A widget-less snippet still needs an (empty) body block to re-parse (#626).
@@ -364,19 +368,71 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// Re-executable MDL, not a comment dump: `create layout` exists now, so a
 	// describe that only narrated the tree would be the one document type whose
 	// output cannot be fed back in.
-	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutTypeStr))
-	if foundLayout.Class != "" {
-		header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, foundLayout.Class))
-	}
+	rawData, _ := ctx.Backend.GetRawUnit(foundLayout.ID)
+	header := layoutHeaderMDL(ctx, layoutTypeStr, foundLayout.Class, layoutOuterName(rawData))
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
-	for _, w := range getLayoutWidgetsFromRaw(ctx, foundLayout.ID) {
-		outputWidgetMDLV3(ctx, w, 1)
-	}
+	outputLayoutBodyMDL(ctx, rawData)
 
 	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
+}
+
+// layoutHeaderMDL renders a layout's header properties. `Layout:` names the
+// layout this one is built on, in the spelling a page header uses for the same
+// reference (mendixlabs/mxcli#1411).
+func layoutHeaderMDL(ctx *ExecContext, layoutType, class, outer string) string {
+	header := fmt.Sprintf("  layouttype: %s", mdlQuote(ctx, layoutType))
+	if class != "" {
+		header += fmt.Sprintf(",\n  class: %s", mdlQuote(ctx, class))
+	}
+	if outer != "" {
+		header += fmt.Sprintf(",\n  Layout: %s", outer)
+	}
+	return header
+}
+
+// layoutCallOf returns the call a layout built on another layout stores under
+// Content.LayoutCall, or nil for a layout with a content tree of its own (whose
+// LayoutCall is stored as null).
+func layoutCallOf(rawData map[string]any) map[string]any {
+	content, ok := rawData["Content"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	call, _ := content["LayoutCall"].(map[string]any)
+	return call
+}
+
+// layoutOuterName is the qualified name of the layout a layout is built on.
+func layoutOuterName(rawData map[string]any) string {
+	return extractString(layoutCallOf(rawData)["Form"])
+}
+
+// outputLayoutBodyMDL writes a layout's body: its own content tree, or — for a
+// layout built on another one — one `placeholder X { … }` block per argument.
+//
+// The blocks are written even for a single Main argument, unlike a page's
+// body: there a bare widget can only mean "fill Main", but in a layout a bare
+// `placeholder Main` reads as a declaration in a tree of its own, which is the
+// one thing a nested layout does not have. An empty argument is kept too, so
+// the rebuilt call has the arguments the stored one had.
+func outputLayoutBodyMDL(ctx *ExecContext, rawData map[string]any) {
+	call := layoutCallOf(rawData)
+	if call == nil {
+		for _, w := range layoutWidgetsFromRawData(ctx, rawData) {
+			outputWidgetMDLV3(ctx, w, 1)
+		}
+		return
+	}
+	for _, g := range layoutCallWidgetGroups(ctx, call) {
+		fmt.Fprintf(ctx.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
+		for _, w := range g.Widgets {
+			outputWidgetMDLV3(ctx, w, 2)
+		}
+		fmt.Fprint(ctx.Output, "  }\n")
+	}
 }
 
 // getLayoutWidgetsFromRaw extracts widgets from raw layout BSON.
@@ -600,6 +656,8 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 	}
 	steps := getBsonArrayElements(entityRef["Steps"])
 	assocs := make([]string, 0, len(steps))
+	full := make([]string, 0, 2*len(steps))
+	allDest := true
 	for _, s := range steps {
 		sm, ok := s.(map[string]any)
 		if !ok {
@@ -610,6 +668,11 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 			return "", ""
 		}
 		assocs = append(assocs, assoc)
+		dest := extractString(sm["DestinationEntity"])
+		if dest == "" {
+			allDest = false
+		}
+		full = append(full, assoc, dest)
 	}
 	if len(assocs) == 0 {
 		return "", ""
@@ -624,6 +687,13 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 		} else if sp := extractString(sv["SnippetParameter"]); sp != "" {
 			contextVar = sp
 		}
+	}
+	// More than one hop prints every stored destination: associations alone
+	// leave each hop's entity to be re-derived, which re-executes to a
+	// different step whenever Studio Pro stored a specialization of an end
+	// (mendixlabs/mxcli#1467). A single hop keeps its short spelling.
+	if len(assocs) > 1 && allDest {
+		return strings.Join(full, "/"), contextVar
 	}
 	return strings.Join(assocs, "/"), contextVar
 }
@@ -716,10 +786,13 @@ type rawWidget struct {
 	// Formatting is the widget's Forms$FormattingInfo as MDL properties
 	// (DateFormat, CustomDateFormat, DecimalPrecision, GroupDigits), only the
 	// non-default ones (ako/mxcli#968).
-	Formatting     []string
-	OnChange       string // MDL rendering of the OnChangeAction client action
-	OnClick        string // MDL rendering of a pluggable widget's onClick action (e.g. DataGrid2)
-	OnClickTrigger string // Gallery's onClickTrigger when not the default "single" (#842)
+	Formatting []string
+	// FileManagerProps are a file manager's own properties as MDL, only the
+	// ones that differ from the Model SDK's defaults (mendixlabs/mxcli#151).
+	FileManagerProps []string
+	OnChange         string // MDL rendering of the OnChangeAction client action
+	OnClick          string // MDL rendering of a pluggable widget's onClick action (e.g. DataGrid2)
+	OnClickTrigger   string // Gallery's onClickTrigger when not the default "single" (#842)
 	// Filter widget properties
 	FilterAttributes []string // Attributes to filter on
 	FilterExpression string   // Default filter expression (contains, startsWith, etc.)
@@ -821,6 +894,10 @@ type rawWidget struct {
 	// is not an image collection, or when none is selected. Without it a
 	// describe -> exec copy loses the image (mxcli-formula1 FINDINGS §142).
 	ImageObject string
+	// ImageFromObject is set when the Image widget's `imageObject` is bound to
+	// the object in context rather than a collection entry — an EntityRef on
+	// the value — and is described as `Image: $currentObject` (#1476).
+	ImageFromObject bool
 	// DefaultImage is a DYNAMIC image's fallback, shown when the bound object
 	// carries none — Forms$ImageViewer.DefaultImage, a by-name reference to
 	// Images$Image, so the same three-part Module.Collection.Image name as
@@ -996,6 +1073,13 @@ func pageWidgetGroupsFromRawData(ctx *ExecContext, rawData map[string]any) []pag
 	if !ok {
 		return nil
 	}
+	return layoutCallWidgetGroups(ctx, formCall)
+}
+
+// layoutCallWidgetGroups groups a Forms$LayoutCall's widgets by the placeholder
+// each argument fills. A page's call hangs off FormCall, a nested layout's off
+// Content.LayoutCall (mendixlabs/mxcli#1411); the call itself is the same.
+func layoutCallWidgetGroups(ctx *ExecContext, formCall map[string]any) []pageWidgetGroup {
 	layoutName := extractString(formCall["Form"]) // e.g. "Atlas_Core.Atlas_SideBar"
 	args := getBsonArrayElements(formCall["Arguments"])
 	if args == nil {

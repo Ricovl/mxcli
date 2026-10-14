@@ -38,9 +38,8 @@ import (
 // The reported way to get there: `drop microflow` in one exec run and
 // `create microflow` in a later one. Within one run exec carries the dropped
 // flow's roles over (consumeDroppedMicroflow) and `create or modify` keeps them,
-// but a create in a later run is a NEW flow, and a new flow in a module that has
-// roles of its own gets none (defaultDocumentAccessRoles) — while the page that
-// calls it is still there.
+// but a create in a later run is a NEW flow, and a new flow gets no allowed roles
+// (#1474) — while the page that calls it is still there.
 const flowAccessRule = "MDL-SEC21"
 
 // flowRefSourceTypes are the document types whose references make a flow need
@@ -82,11 +81,9 @@ func (s *flowAccessState) clone() *flowAccessState {
 	return &c
 }
 
-// moduleRoleState is a module's simulated role list. autoOnly mirrors
-// moduleUsesAutoDocumentRole: the module's only role is the one mxcli created.
+// moduleRoleState is a module's simulated role list.
 type moduleRoleState struct {
-	roles    []string // role names, in order
-	autoOnly bool
+	roles []string // role names, in order
 }
 
 // CheckFlowAccess reports MDL-SEC21 for the script.
@@ -375,29 +372,12 @@ func (s *flowAccessSim) module(name string) *moduleRoleState {
 				for _, r := range ms.ModuleRoles {
 					m.roles = append(m.roles, r.Name)
 				}
-				m.autoOnly = moduleUsesAutoDocumentRole(ms)
 			}
 			break
 		}
 	}
 	s.modules[name] = m
 	return m
-}
-
-// defaultRoles mirrors defaultDocumentAccessRoles: a new document in a module
-// with no roles gets an auto-created <Module>.User (creating it), and one in a
-// module that manages its own roles gets none.
-func (s *flowAccessSim) defaultRoles(module string) []string {
-	m := s.module(module)
-	if m.autoOnly {
-		return []string{module + "." + autoDocumentRoleName}
-	}
-	if len(m.roles) > 0 {
-		return nil
-	}
-	m.roles = []string{autoDocumentRoleName}
-	m.autoOnly = true
-	return []string{module + "." + autoDocumentRoleName}
 }
 
 func (s *flowAccessSim) flow(kind, qn string) *flowAccessState {
@@ -436,15 +416,11 @@ func (s *flowAccessSim) createFlow(kind string, name ast.QualifiedName, orModify
 				st.cause = "It had no allowed role when this script dropped it, and the create carries that over."
 			}
 		} else {
-			for _, r := range s.defaultRoles(name.Module) {
-				st.roles[r] = true
-			}
-			if len(st.roles) == 0 {
-				st.cause = fmt.Sprintf(
-					"This script creates it as a NEW %s, and a new document in a module that has module roles of its own starts with no access. "+
-						"If an earlier run dropped it, its access rules went with it: drop + create in separate runs does not carry them, `create or modify` does.",
-					kind)
-			}
+			// A new document starts with no allowed roles (#1474).
+			st.cause = fmt.Sprintf(
+				"This script creates it as a NEW %s, and a new document starts with no access until it is granted. "+
+					"If an earlier run dropped it, its access rules went with it: drop + create in separate runs does not carry them, `create or modify` does.",
+				kind)
 		}
 	}
 	if kind == "nanoflow" {
@@ -548,7 +524,6 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 			}
 		}
 		m.roles = append(m.roles, st.Name.Name)
-		m.autoOnly = false
 	case *ast.DropModuleRoleStmt:
 		m := s.module(st.Name.Module)
 		for i, r := range m.roles {
@@ -584,11 +559,6 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 		s.revoke("nanoflow", st.Nanoflow, st.Roles)
 	case *ast.CreatePageStmtV3:
 		src := "page " + st.Name.String()
-		if !s.storedPg[src] {
-			// A new page in a role-less module creates the auto role, which
-			// every later new flow in that module then gets too.
-			s.defaultRoles(st.Name.Module)
-		}
 		if st.Excluded || carriedExclusion(s.ctx, "page", st.Name, st.IsReplace || st.IsModify) {
 			delete(s.usesBy, src)
 			return

@@ -358,7 +358,10 @@ func appendSourceExpressionSuffix(
 	suffix string,
 ) ast.Expression {
 	prc := exprCtx.(antlr.ParserRuleContext)
-	source := storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc))
+	// Strip identifier quotes as buildSourceExpression does: this raw text is
+	// what gets stored, so $Other/"C" kept its quotes — CE0117, only on a slot
+	// with whitespace before its delimiter (mendixlabs/mxcli#1481).
+	source := stripExpressionIdentifierQuotes(storedExpressionSource(strings.TrimSpace(extractExpressionText(prc)), lexedWithStrictEscapes(prc)))
 	innerExpr := expr
 	if sourceExpr, ok := expr.(*ast.SourceExpr); ok {
 		source = sourceExpr.Source
@@ -753,6 +756,40 @@ func buildMemberAssignmentList(ctx parser.IMemberAssignmentListContext) []ast.Ch
 		// Get attribute name (can be IDENTIFIER, keyword, or quoted identifier)
 		if name := assign.MemberAttributeName(); name != nil {
 			ci.Attribute = memberAttributeNameText(name)
+		}
+		if expr := assign.Expression(); expr != nil {
+			value := buildSourceExpression(expr)
+			ci.Value = appendExpressionListTrailingWhitespace(listCtx, nextParserRuleContext(allAssignments, i), expr, value)
+		}
+
+		items = append(items, ci)
+	}
+
+	return items
+}
+
+// buildChangeMemberAssignmentList converts a CHANGE statement's member list,
+// whose members may also be `+=` (Add) or `-=` (Remove), to ChangeItem slice.
+func buildChangeMemberAssignmentList(ctx parser.IChangeMemberAssignmentListContext) []ast.ChangeItem {
+	if ctx == nil {
+		return nil
+	}
+	listCtx := ctx.(*parser.ChangeMemberAssignmentListContext)
+	var items []ast.ChangeItem
+
+	allAssignments := listCtx.AllChangeMemberAssignment()
+	for i, assignCtx := range allAssignments {
+		assign := assignCtx.(*parser.ChangeMemberAssignmentContext)
+		ci := ast.ChangeItem{}
+
+		if name := assign.MemberAttributeName(); name != nil {
+			ci.Attribute = memberAttributeNameText(name)
+		}
+		switch {
+		case assign.PLUS() != nil:
+			ci.Op = ast.MemberAdd
+		case assign.MINUS() != nil:
+			ci.Op = ast.MemberRemove
 		}
 		if expr := assign.Expression(); expr != nil {
 			value := buildSourceExpression(expr)

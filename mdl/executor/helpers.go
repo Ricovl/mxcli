@@ -288,23 +288,29 @@ func validateWidgetReferences(ctx *ExecContext, widgets []*ast.WidgetV3, sc *scr
 	}
 
 	if len(refs.images) > 0 {
-		// The project's images plus the ones this script creates
-		// (mendixlabs/mxcli#1419). A nil set means the project could not be read,
-		// and stays nil: imageRefErrors then reports nothing rather than calling
-		// every other collection missing.
-		known, collections := buildImageQualifiedNames(ctx)
-		if known != nil && collections != nil {
-			for qn := range sc.imageCollections {
-				collections[qn] = true
-			}
-			for qn := range sc.images {
-				known[qn] = true
-			}
-		}
-		errors = append(errors, imageRefErrors(refs.images, known, collections)...)
+		errors = append(errors, resolveImageRefs(ctx, refs.images, sc)...)
 	}
 
 	return errors
+}
+
+// resolveImageRefs reports the image-collection references that resolve
+// neither against the project nor against what this script creates
+// (mendixlabs/mxcli#1419). A nil project set means the project could not be
+// read, and stays nil: imageRefErrors then reports nothing rather than calling
+// every other collection missing. Shared by CREATE's widget trees and ALTER
+// PAGE SET (mendixlabs/mxcli#1464), so the two resolve a name the same way.
+func resolveImageRefs(ctx *ExecContext, refs []string, sc *scriptContext) []string {
+	known, collections := buildImageQualifiedNames(ctx)
+	if known != nil && collections != nil && sc != nil {
+		for qn := range sc.imageCollections {
+			collections[qn] = true
+		}
+		for qn := range sc.images {
+			known[qn] = true
+		}
+	}
+	return imageRefErrors(refs, known, collections)
 }
 
 // widgetRefCollector collects qualified name references from a widget tree.
@@ -785,7 +791,7 @@ func buildAssociationQualifiedNames(ctx *ExecContext) map[string]bool {
 // treats one of those as a hit rather than a conflict — it adopts the caller's
 // casing, rewrites the references, and returns nil — so listing it here would
 // make `check` refuse a script that runs fine, and refuse it over a role the
-// user never asked mxcli to create (`defaultDocumentAccessRoles`). A check that
+// user never asked mxcli to create (an earlier mxcli made one per role-less module). A check that
 // reports a statement exec accepts is worse than the under-report it replaces.
 //
 // Known limit: exec matches role names case-insensitively (Mendix does, CE0123),
@@ -1052,7 +1058,7 @@ func buildConstantQualifiedNames(ctx *ExecContext) (map[string]bool, bool) {
 // ones `validate_widgets.go` already accepts for these widgets and DESCRIBE
 // already emits, so the two lists say the same thing about the same property.
 var imageRefProps = map[string][]string{
-	"image":        {"Image"},
+	"image":        {"Image", "DefaultImage"},
 	"staticimage":  {"Image"},
 	"dynamicimage": {"DefaultImage"},
 }

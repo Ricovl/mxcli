@@ -446,6 +446,11 @@ func (b *Builder) publishedRestAuthMethods(pc *parser.PublishedRestPropertyConte
 		case mc.MICROFLOW() != nil && mc.QualifiedName() != nil:
 			method = "Microflow"
 			auth.Microflow = buildQualifiedName(mc.QualifiedName()).String()
+			for _, pCtx := range mc.AllPublishedRestAuthParameter() {
+				if p := publishedRestAuthParameter(pCtx.(*parser.PublishedRestAuthParameterContext)); p != nil {
+					auth.Parameters = append(auth.Parameters, p)
+				}
+			}
 		default:
 			continue
 		}
@@ -458,6 +463,28 @@ func (b *Builder) publishedRestAuthMethods(pc *parser.PublishedRestPropertyConte
 		auth.Methods = append(auth.Methods, method)
 	}
 	return auth
+}
+
+// publishedRestAuthParameter reads `$Name: kind ['httpName'] [description '…']`;
+// nil when error recovery left it without a name or a kind.
+func publishedRestAuthParameter(pc *parser.PublishedRestAuthParameterContext) *ast.PublishedRestAuthParameter {
+	ik, ok := pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext)
+	if pc.VARIABLE() == nil || !ok || ik == nil {
+		return nil
+	}
+	p := &ast.PublishedRestAuthParameter{
+		Name: strings.TrimPrefix(pc.VARIABLE().GetText(), "$"),
+		Kind: strings.ToLower(identifierOrKeywordText(ik)),
+	}
+	strs := pc.AllSTRING_LITERAL()
+	if pc.DESCRIPTION() != nil && len(strs) > 0 {
+		p.Description = unquoteStringLit(strs[len(strs)-1])
+		strs = strs[:len(strs)-1]
+	}
+	if len(strs) > 0 {
+		p.HTTPName = unquoteStringLit(strs[0])
+	}
+	return p
 }
 
 // buildPublishedRestResourceDef converts a PublishedRestResourceContext to a

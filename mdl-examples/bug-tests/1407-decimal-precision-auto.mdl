@@ -1,0 +1,28 @@
+mdl 1;
+-- mendixlabs/mxcli#1407: describe prints DecimalPrecision -1 — Studio Pro's
+-- "no fixed precision" — and check refused both spellings:
+--   format (decimalPrecision: -1)  -> extraneous input '-'
+--   DecimalPrecision: -1           -> [MDL-WIDGET18] "must be a non-negative integer"
+--                                     and [MDL-WIDGET42] (read as an expression)
+-- (The third part, `root (Wrapper)` on an import mapping over a root array of
+-- primitives, is now described with no root clause.)
+--
+-- Verify (measured on 11.6.6):
+--   mxcli check 1407-decimal-precision-auto.mdl                  -- passes
+--   mxcli exec  1407-decimal-precision-auto.mdl -p app.mpr
+--   mx check -p app.mpr                                          -- 0 errors
+--   mxcli -p app.mpr -c "describe page RT1407.P"  -> exec it -> "Unchanged page"
+
+create module RT1407;
+create persistent entity RT1407.T (Amount: Decimal);
+
+create or modify page RT1407.P (
+  Title: 'P',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $T: RT1407.T )
+) {
+  dataview dv (DataSource: $T) {
+    dynamictext dt (Content: '{1}', ContentParams: ({1} = Amount format (decimalPrecision: -1)))
+    textbox tb (Label: 'Amount', Attribute: Amount, DecimalPrecision: -1)
+  }
+};

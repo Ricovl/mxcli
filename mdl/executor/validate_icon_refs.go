@@ -183,7 +183,7 @@ func iconRefsInStatement(stmt ast.Statement) []iconRef {
 	case *ast.CreateLayoutStmt:
 		// A layout's icons are the costliest to get wrong: its topbar is shared,
 		// so one bad reference is an error on every page using the layout.
-		for _, w := range s.Widgets {
+		for _, w := range s.AllWidgets() {
 			out = append(out, iconRefsInWidget(w)...)
 		}
 	case *ast.CreateMenuStmt:

@@ -550,6 +550,7 @@ it is for pages.
 | Create object | `$Var = create Module.Entity (attr = value) [commit [without events]] [refresh];` | `commit` = Commit Yes, `commit without events` = YesWithoutEvents; omitted = No (the default) |
 | Change object | `change $entity (attr = value) [commit [without events]] [refresh];` | `commit` as above, before `refresh`; `refresh` updates the changed object in the client. On a reference set, `(Module.Assoc = $x)` **assigns the whole set** — the rows already in it are dropped |
 | Add to / remove from a reference set | `add $x to $entity/Module.Assoc [commit …] [refresh];` / `remove $x from $entity/Module.Assoc …;` | A Change object activity with one **Add** / **Remove** member (Studio Pro's Add/Remove buttons); `$x` may be an object or a list. Reference sets only — on an attribute or a plain Reference mxbuild answers CE0033, and mxcli refuses it (mendixlabs/mxcli#1288) |
+| Mixed Set / Add / Remove | `change $entity (attr = v, Module.Assoc += $x, Module.Assoc -= $y);` | One Change object activity whose members are Set (`=`), **Add** (`+=`) and **Remove** (`-=`), as Studio Pro's dialog allows; same reference-set rule as above (mendixlabs/mxcli#1473) |
 | Commit | `commit $entity [without events] [refresh];` | **Omitted = with events**, matching Studio Pro's default. `without events` is the deviation and the only form that changes the stored value; `with events` still parses and means the default |
 | Delete | `delete $entity [refresh];` | |
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
@@ -1127,13 +1128,16 @@ Respond in {{Language}}.$$,
 | Create or modify | `create or modify image collection Module.Name [...];` | Preserves UUID — preferred for AI agents |
 | Drop collection | `drop image collection [if exists] Module.Name;` | Removes collection and all embedded images |
 | Show an image on a page | `image imgLogo (Image: 'Module.Collection.ImageName');` | Three-part name, like an icon reference. `describe image collection` lists the names |
+| Show an uploaded image | `image imgPhoto (Image: $currentObject, DefaultImage: 'Module.Collection.ImageName');` | Inside a data view over an entity that extends `System.Image`. `DefaultImage:` is shown when the object holds no image, and only with `$currentObject` (CE0463 otherwise) |
 
 An `image` widget's default source **is** an image collection entry, so a bare
 `image imgLogo (...)` with no `Image:` builds into a model mxbuild refuses ("No
 image selected."); `mxcli check` reports it as MDL-WIDGET22. A name that does not
 resolve is reported by `mxcli check --references` rather than by the build
 (CE1613). The other two sources are `ImageType: imageUrl, ImageUrl: '…'` and
-`ImageType: icon`.
+`ImageType: icon`; any other `ImageType` is a MDL-WIDGET22 warning, because mx
+check accepts it. An uploaded image is not a separate `ImageType` — it is the
+default source bound to the object: `Image: $currentObject`.
 
 ### Binding a pluggable widget's text-template property
 
@@ -1685,7 +1689,7 @@ A column cannot bind the association itself: `column c (attribute: Order_Custome
 dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
 dynamictext due (content: '{1}', contentparams: ({1} = DueOn  format (dateFormat: DateTime)))
 ```
-Keys: `decimalPrecision` (int), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
+Keys: `decimalPrecision` (int ≥ 0, or -1 for no fixed precision), `groupDigits` (bool), `dateFormat` (`Date`|`DateTime`|`Time`|`Custom`), `customDateFormat` (pattern, with `dateFormat: Custom`), `enumFormat` (`Text`|`Image`).
 
 **Input widget formatting** — the same fields as widget properties on the widgets that store a FormattingInfo:
 ```sql

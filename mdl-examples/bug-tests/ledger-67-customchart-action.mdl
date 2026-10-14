@@ -25,6 +25,7 @@ mdl 1;
 -- this is exercised via exec/mx-check, not just syntax check.
 
 create module CCm;
+create module role CCm.User;
 
 create entity CCm.Data (
   ChartData: string(2000),

@@ -776,7 +776,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			toEntity := entityNames[assoc.ChildID]
 
 			if assoc.Documentation != "" {
-				fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", assoc.Documentation)
+				outputJavadocIndented(ctx.Output, assoc.Documentation, "")
 			}
 
 			describeConnectionPoints(ctx, assoc)
@@ -794,7 +794,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 
 			if ca.Documentation != "" {
-				fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", ca.Documentation)
+				outputJavadocIndented(ctx.Output, ca.Documentation, "")
 			}
 
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)

@@ -346,8 +346,9 @@ func init() {
 			"query parameter", "body parameter", "import mapping", "export mapping", "commit",
 			"grant access", "revoke access", "authentication", "custom authentication",
 			"basic authentication", "active session", "authentication microflow",
+			"authentication parameter", "header parameter", "api key", "token",
 		},
-		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
+		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
 			"-- Operation parameters come from the microflow, as Studio Pro derives them:\n" +
 			"--   a parameter named in the path ('{id}')  -> path parameter\n" +
 			"--   an object or a list                     -> the body\n" +
@@ -360,8 +361,17 @@ func init() {
 			"-- order): basic = username and password, session = active session,\n" +
 			"-- microflow = custom. `none` is \"Requires authentication: No\". Left out,\n" +
 			"-- CREATE OR MODIFY and ALTER keep the stored setting; a new service has none.\n" +
-			"-- The microflow returns System.User (empty: not authenticated) and takes\n" +
-			"-- only a System.HttpRequest and/or System.HttpResponse (MDL-REST04).\n" +
+			"-- The microflow returns System.User (empty: not authenticated). An object\n" +
+			"-- parameter can only be a System.HttpRequest or System.HttpResponse; any\n" +
+			"-- other parameter is an authentication parameter: a query or header value\n" +
+			"-- of the request, bound in the list after the microflow:\n" +
+			"--   microflow M.Auth ($Token: header 'X-Api-Token', $Tenant: query,\n" +
+			"--                     $Lang: query 'lang' description 'UI language')\n" +
+			"-- The type is the microflow parameter's. An unlisted parameter is a query\n" +
+			"-- parameter under its own name, so the list is optional (Mendix CE0336\n" +
+			"-- without one). MDL-REST04 refuses an unknown $Param, the request or the\n" +
+			"-- response, another kind, a parameter listed twice. describe prints the\n" +
+			"-- list only when it differs from that default.\n" +
 			"-- With authentication on, grant at least one module role (CE0338);\n" +
 			"-- custom authentication also needs app security on (CE6600).\n\n" +
 			"ALTER PUBLISHED REST SERVICE Module.Name SET ( Version: '2.0.0', Authentication: (session) );\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
@@ -636,8 +646,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"create java action", "or modify java action", "type parameter", "entity parameter",
 			"exposed as", "returns", "generics", "drop java action",
 		},
-		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name [FOLDER 'path'](\n  Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$;\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].",
-		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL\n) RETURNS String\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
+		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name[<T, ...>] [FOLDER 'path'](\n  Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$;\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].\n\nType parameters: an ENTITY <T> parameter declares T. A type parameter no\nENTITY <T> parameter names is declared in the header, Module.Name<T>; an\nunqualified type that is neither is refused (MDL-JA01), since it would be\nwritten as an entity with no module (CE1613).",
+		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL\n) RETURNS String\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Type parameter with no entity selector: the argument's entity binds it\nCREATE JAVA ACTION Utils.Describe<T>(\n  Obj: T NOT NULL\n) RETURNS String\nAS $$\nreturn Obj.toString();\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
 		SeeAlso: []string{"java-action", "javascript-action"},
 	})
 

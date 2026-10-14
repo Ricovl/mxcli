@@ -3,10 +3,12 @@
 package executor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -205,6 +207,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			if tabPage.TabCaption == "" {
 				tabPage.TabCaption = extractTextCaption(ctx, tpMap)
 			}
+			// Forms$TabPage carries its own visibility (#1465); it has no
+			// editability, so only the visibility half is read.
+			extractConditionalSettings(ctx, &tabPage, tpMap)
 			for _, tw := range getBsonArrayElements(tpMap["Widgets"]) {
 				if twMap, ok := tw.(map[string]any); ok {
 					tabPage.Children = append(tabPage.Children, parseRawWidget(ctx, twMap, inheritedCtx)...)
@@ -373,6 +378,14 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		return []rawWidget{widget}
+
+	case "Forms$FileManager", "Pages$FileManager":
+		// Printed as a comment until mendixlabs/mxcli#151, so describe -> exec
+		// dropped every file manager on the page.
+		widget.Caption = extractLabelText(ctx, w)
+		widget.Editable = extractEditable(ctx, w)
+		widget.FileManagerProps = describeFileManagerProps(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$DatePicker", "Pages$DatePicker":
@@ -1355,4 +1368,25 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
 	}
 	return rawDesignProp{}, false
+}
+
+// describeFileManagerProps renders a file manager's Type, MaxFileSize,
+// AllowedExtensions and ShowFileInBrowser, leaving out the ones that equal the
+// builder's defaults — which are the Model SDK's — so nothing is invented and
+// the omitted ones round-trip.
+func describeFileManagerProps(ctx *ExecContext, w map[string]any) []string {
+	var props []string
+	if t, _ := w["Type"].(string); t != "" && t != string(pages.FileManagerTypeBoth) {
+		props = append(props, "Type: "+t)
+	}
+	if n, ok := w["MaxFileSize"]; ok && bsonInt(n) != 5 {
+		props = append(props, fmt.Sprintf("MaxFileSize: %d", bsonInt(n)))
+	}
+	if ext, _ := w["AllowedExtensions"].(string); ext != "" {
+		props = append(props, "AllowedExtensions: "+mdlQuote(ctx, ext))
+	}
+	if show, _ := w["ShowFileInBrowser"].(bool); show {
+		props = append(props, "ShowFileInBrowser: true")
+	}
+	return props
 }

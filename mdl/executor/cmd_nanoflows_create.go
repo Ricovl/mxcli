@@ -54,7 +54,6 @@ func execCreateNanoflow(ctx *ExecContext, s *ast.CreateNanoflowStmt) error {
 			return mdlerrors.NewBackend("create nanoflow", err)
 		}
 		fmt.Fprintf(ctx.Output, "Created nanoflow: %s.%s\n", s.Name.Module, s.Name.Name)
-		reportAutoRoleGrant(ctx, built.AutoGranted)
 	}
 
 	// Track the created nanoflow

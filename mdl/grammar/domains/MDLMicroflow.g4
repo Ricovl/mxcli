@@ -52,7 +52,7 @@ createRuleStatement
  * Java Action creation with inline Java source code.
  */
 createJavaActionStatement
-    : JAVA ACTION ifNotExists? qualifiedName
+    : JAVA ACTION ifNotExists? qualifiedName javaActionTypeParameters?
       (FOLDER STRING_LITERAL)?
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
@@ -62,6 +62,15 @@ createJavaActionStatement
 
 javaActionParameterList
     : javaActionParameter (COMMA javaActionParameter)*
+    ;
+
+// `Module.Name<T, U>` declares the action's type parameters, in their stored
+// order. An `entity <T>` parameter declares T as well, so the header is needed
+// only for a type parameter no entity selector names — a parameter typed `T`
+// with nothing else declaring it (mendixlabs/mxcli#1404) — or to keep an order
+// the selectors would not give.
+javaActionTypeParameters
+    : LESS_THAN identifierOrKeyword (COMMA identifierOrKeyword)* GREATER_THAN
     ;
 
 javaActionParameter
@@ -328,6 +337,10 @@ caseStatement
 enumSplitSource
     : attributePath
     | VARIABLE
+    // A rule that returns an enumeration, called exactly as in `if Mod.Rule(…)`:
+    // `case Mod.Rule(Param = $x)`. Stored as a Microflows$RuleSplitCondition
+    // (mendixlabs/mxcli#1414).
+    | functionCall
     ;
 
 enumSplitCaseValue
@@ -383,7 +396,7 @@ createObjectStatement
 // CHANGE $Product (Name = $NewName, ModifiedDate = [%CurrentDateTime%]);
 // CHANGE $Product (Name = $NewName) COMMIT WITHOUT EVENTS REFRESH;
 changeObjectStatement
-    : CHANGE VARIABLE (LPAREN memberAssignmentList? RPAREN)? commitClause? REFRESH? onErrorClause?
+    : CHANGE VARIABLE (LPAREN changeMemberAssignmentList? RPAREN)? commitClause? REFRESH? onErrorClause?
     ;
 
 // The Commit flag on a create/change activity: Mendix's Microflows$Commit enum.
@@ -1185,6 +1198,19 @@ memberAssignmentList
 
 memberAssignment
     : memberAttributeName EQUALS expression
+    ;
+
+// Member assignments for CHANGE: `=` sets a member; `+=` and `-=` are the Add
+// and Remove member changes Studio Pro offers for a reference set, which have
+// no other spelling in an activity with more than one member
+// (mendixlabs/mxcli#1473). CREATE keeps memberAssignment: its members are
+// initial values, with no set to add to or remove from.
+changeMemberAssignmentList
+    : changeMemberAssignment (COMMA changeMemberAssignment)*
+    ;
+
+changeMemberAssignment
+    : memberAttributeName (EQUALS | PLUS EQUALS | MINUS EQUALS) expression
     ;
 
 // Allow keywords and qualified names as member attribute names

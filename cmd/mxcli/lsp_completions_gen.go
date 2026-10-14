@@ -231,6 +231,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "REFERENCESELECTOR", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "INPUTREFERENCESETSELECTOR", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "FILEINPUT", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
+	{Label: "FILEMANAGER", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "IMAGEINPUT", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "CUSTOMWIDGET", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},
 	{Label: "PLUGGABLEWIDGET", Kind: protocol.CompletionItemKindKeyword, Detail: "Widget keyword"},

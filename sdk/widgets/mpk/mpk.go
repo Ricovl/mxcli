@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/mendixlabs/mxcli/internal/zipentry"
 )
 
 // PropertyDef describes a single property from a widget XML definition.
@@ -150,7 +152,7 @@ func readZipEntry(f *zip.File, total *uint64) ([]byte, error) {
 	if f.UncompressedSize64 > maxFileSize {
 		return nil, fmt.Errorf("%s exceeds max file size (%d > %d)", f.Name, f.UncompressedSize64, maxFileSize)
 	}
-	rc, err := f.Open()
+	rc, err := zipentry.Open(f)
 	if err != nil {
 		return nil, err
 	}

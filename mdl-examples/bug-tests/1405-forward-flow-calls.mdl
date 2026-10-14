@@ -1,0 +1,41 @@
+mdl 1;
+-- mendixlabs/mxcli#1405: describe emits microflows in catalog order, and check
+-- and exec refused a call to a microflow created further down the script:
+--   "microflow ModA.MF_A references microflow ModA.MF_B before it is created
+--    (statement 3), and the project does not have it"
+-- so mutually recursive microflows could not be re-created from describe
+-- output in any order.
+--
+-- A call is stored by name, so plain `mxcli exec` — which rolls the whole run
+-- back if a statement fails (#1408) — resolves it against every flow the script
+-- declares. Expected: check passes; exec writes both; mx check reports 0 errors.
+-- `exec --continue-on-error`, the REPL and -c cannot roll back, and still
+-- refuse it: there, create a stub of MF_B first and `create or modify` it after.
+-- Was case 5 of 955-forward-definition-order.fail.mdl.
+create module Bug1405;
+
+create or modify microflow Bug1405.MF_A () returns Boolean as $r
+begin
+  $r = call microflow Bug1405.MF_B();
+  return $r;
+end;
+
+create or modify microflow Bug1405.MF_B () returns Boolean as $r
+begin
+  $r = call microflow Bug1405.MF_A();
+  return $r;
+end;
+
+-- A plain create calling a flow created later, as in #955's case 5.
+create microflow Bug1405.Caller () returns Boolean as $Out
+begin
+  $R = call microflow Bug1405.Callee();
+  declare $Out Boolean = true;
+  return $Out;
+end;
+
+create microflow Bug1405.Callee () returns Boolean as $Out
+begin
+  declare $Out Boolean = true;
+  return $Out;
+end;

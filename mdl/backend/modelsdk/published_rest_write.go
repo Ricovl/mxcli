@@ -137,11 +137,11 @@ func (b *Backend) UpdatePublishedRestServiceRoles(unitID model.ID, roles []strin
 // state them (mendixlabs/mxcli#1331); before that, executing the describe
 // output of a Studio Pro service turned its Basic and Session authentication
 // off (ako/mxcli#571). They are written from the model now, and an unstated
-// setting is carried by the executor, which reads it with the service.
+// setting is carried by the executor, which reads it with the service. So are
+// the authentication Parameters, since mendixlabs/mxcli#1417.
 var publishedRestServiceUnauthored = []string{
 	"CorsConfiguration",
 	"Documentation",
-	"Parameters",
 	"PublicDocumentation",
 }
 
@@ -157,12 +157,18 @@ func publishedRestServiceToGen(svc *model.PublishedRestService) element.Element 
 	if len(svc.AllowedRoles) > 0 {
 		addByNameRefList(g, "AllowedRoles", "Security$ModuleRole", svc.AllowedRoles)
 	}
-	// AllowedRoles (empty), Parameters, CorsConfiguration: emitted via the
+	// AllowedRoles (empty), CorsConfiguration: emitted via the
 	// registered TypeDefaults. AuthenticationTypes is a marker-1 string list in
 	// the order given, which is the order Studio Pro stores the ticked methods
 	// in; empty is "Requires authentication = No" (ako/TestApp, #1331).
 	addStrList(g, "AuthenticationTypes", svc.AuthenticationTypes)
 	addStr(g, "AuthenticationMicroflow", svc.AuthenticationMicroflow)
+	// The authentication parameters (mendixlabs/mxcli#1417), each with the
+	// stored $ID the executor carried onto it by its microflow-parameter
+	// binding; none is the registered empty [3].
+	if params := publishedRestParametersToGen(svc.Parameters); len(params) > 0 {
+		addPartList(g, "Parameters", params)
+	}
 
 	resources := make([]element.Element, 0, len(svc.Resources))
 	for _, res := range svc.Resources {
@@ -213,9 +219,20 @@ func publishedRestOperationToGen(op *model.PublishedRestOperation) element.Eleme
 			})
 		}
 	}
-	params := make([]element.Element, 0, len(opParams))
-	for _, param := range opParams {
-		p := newElem("Rest$RestOperationParameter", "")
+	if params := publishedRestParametersToGen(opParams); len(params) > 0 {
+		addPartList(g, "Parameters", params)
+	}
+	return g
+}
+
+// publishedRestParametersToGen builds Rest$RestOperationParameter elements
+// with Studio Pro's property set (Name, Type, ParameterType,
+// MicroflowParameter, Description; DataType was deleted in 7.9). A parameter's
+// ID is its stored $ID, "" for a new one.
+func publishedRestParametersToGen(in []*model.PublishedRestOperationParameter) []element.Element {
+	params := make([]element.Element, 0, len(in))
+	for _, param := range in {
+		p := newElem("Rest$RestOperationParameter", string(param.ID))
 		addStr(p, "Name", param.Name)
 		addPart(p, "Type", publishedRestParameterTypeToGen(param))
 		addStr(p, "ParameterType", param.ParameterType)
@@ -223,10 +240,7 @@ func publishedRestOperationToGen(op *model.PublishedRestOperation) element.Eleme
 		addStr(p, "Description", param.Description)
 		params = append(params, p)
 	}
-	if len(params) > 0 {
-		addPartList(g, "Parameters", params)
-	}
-	return g
+	return params
 }
 
 // publishedRestParameterTypeToGen builds the DataTypes$* element of an

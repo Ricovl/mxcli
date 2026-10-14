@@ -68,65 +68,18 @@ func validateCrossModuleGrant(stmt ast.Statement) error {
 	return nil
 }
 
-const (
-	autoDocumentRoleName        = "User"
-	autoDocumentRoleDescription = "Auto-created default role for mxcli document access"
-)
+// autoDocumentRoleDescription marks the <Module>.User role mxcli used to
+// create, unasked, for a new document in a module with no module roles. It no
+// longer does (mendixlabs/mxcli#1474): a security role is the author's choice.
+// Projects written by an earlier mxcli still hold the role, so the description
+// stays recognised — a later `create module role M.User` adopts it rather than
+// reporting a duplicate.
+const autoDocumentRoleDescription = "Auto-created default role for mxcli document access"
 
-// defaultDocumentAccessRoles returns a conservative fallback role set for newly
-// created pages/microflows when the target module has no module roles at all.
-//
-// Mendix accepts document access only when it references a role from the same
-// module; using an existing role from another module causes CE0148 on freshly
-// created documents. To keep mx-check green, auto-create a local `User` module
-// role only for modules that currently have zero roles. Modules that already
-// manage their own roles keep the existing "no access by default" behavior.
-func defaultDocumentAccessRoles(ctx *ExecContext, module *model.Module) []model.ID {
-	if module == nil {
-		return nil
-	}
-
-	ms, err := ctx.Backend.GetModuleSecurity(module.ID)
-	if err != nil || ms == nil {
-		return nil
-	}
-	if moduleUsesAutoDocumentRole(ms) {
-		return []model.ID{model.ID(module.Name + "." + autoDocumentRoleName)}
-	}
-	if len(ms.ModuleRoles) > 0 {
-		return nil
-	}
-
-	if err := ctx.Backend.AddModuleRole(ms.ID, autoDocumentRoleName, autoDocumentRoleDescription); err != nil {
-		return nil
-	}
-	return []model.ID{model.ID(module.Name + "." + autoDocumentRoleName)}
-}
-
-// reportAutoRoleGrant tells the user that a document exec just CREATED was
-// granted to the auto-created <Module>.User role. Without it the grant is
-// invisible, and because GRANT only adds roles, a later
-// `grant view on page M.P to M.Admin` leaves the page open to every user role
-// mapped to M.User — which surprised the people who hit it. roles is what
-// defaultDocumentAccessRoles returned: empty (the module manages its own roles)
-// prints nothing.
-func reportAutoRoleGrant(ctx *ExecContext, roles []model.ID) {
-	if ctx == nil || ctx.Quiet || len(roles) == 0 {
-		return
-	}
-	fmt.Fprintf(ctx.Output, "  access: granted to auto-created role %s (the module has no other roles; a later grant adds to it — revoke it to narrow access)\n",
-		roles[0])
-}
-
-func moduleUsesAutoDocumentRole(ms *security.ModuleSecurity) bool {
-	if ms == nil {
-		return false
-	}
-	return len(ms.ModuleRoles) == 1 &&
-		ms.ModuleRoles[0].Name == autoDocumentRoleName &&
-		ms.ModuleRoles[0].Description == autoDocumentRoleDescription
-}
-
+// remapDocumentAccessRoles carries a moved document's allowed roles to the
+// same-named roles of its target module (a document can only reference its own
+// module's roles — CE0148). A role the target does not have is dropped, never
+// created.
 func remapDocumentAccessRoles(ctx *ExecContext, targetModule *model.Module, currentRoles []model.ID) []model.ID {
 	if targetModule == nil {
 		return nil
@@ -136,8 +89,8 @@ func remapDocumentAccessRoles(ctx *ExecContext, targetModule *model.Module, curr
 	if err != nil || ms == nil {
 		return nil
 	}
-	if len(ms.ModuleRoles) == 0 || moduleUsesAutoDocumentRole(ms) {
-		return defaultDocumentAccessRoles(ctx, targetModule)
+	if len(ms.ModuleRoles) == 0 {
+		return nil
 	}
 
 	targetRoleNames := make(map[string]bool, len(ms.ModuleRoles))

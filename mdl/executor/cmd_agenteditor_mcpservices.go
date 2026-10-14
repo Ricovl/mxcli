@@ -76,7 +76,7 @@ func describeAgentEditorConsumedMCPService(ctx *ExecContext, name ast.QualifiedN
 	qualifiedName := fmt.Sprintf("%s.%s", modName, c.Name)
 
 	if c.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", c.Documentation)
+		outputJavadocIndented(ctx.Output, c.Documentation, "")
 	}
 
 	fmt.Fprintf(ctx.Output, "create or modify consumed mcp service %s%s (\n", qualifiedName, describeFolderClause(ctx, c.ContainerID))

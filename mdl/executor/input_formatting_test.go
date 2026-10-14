@@ -29,7 +29,8 @@ func TestValidateInputFormatting(t *testing.T) {
 		{"pattern without DateFormat", `datepicker d (Attribute: Moment, CustomDateFormat: 'HH:mm')`, "MDL-WIDGET18", "applies only with `DateFormat: Custom`"},
 		// Measured: mxbuild CE0493 "Date format is custom but no format string is specified."
 		{"custom without pattern", `datepicker d (Attribute: Moment, DateFormat: Custom)`, "MDL-WIDGET18", "needs a non-empty CustomDateFormat"},
-		{"negative precision", `textbox t (Attribute: Amount, DecimalPrecision: -1)`, "MDL-WIDGET18", "non-negative integer"},
+		// -1 is Studio Pro's "no fixed precision" and is accepted (mendixlabs/mxcli#1407).
+		{"precision below -1", `textbox t (Attribute: Amount, DecimalPrecision: -2)`, "MDL-WIDGET18", "non-negative integer"},
 		// A widget with no FormattingInfo still drops the key, and says so.
 		{"DateFormat on a text area", `textarea a (Attribute: Notes, DateFormat: Time)`, "MDL-WIDGET07", "DateFormat"},
 		// A text box binds no dates (CE2421), so DateFormat means nothing there.

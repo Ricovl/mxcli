@@ -1734,6 +1734,12 @@ func buildPropertyValueV3(ctx parser.IPropertyValueV3Context) any {
 	}
 	if num := pvCtx.NUMBER_LITERAL(); num != nil {
 		text := num.GetText()
+		// A signed literal (`DecimalPrecision: -1`) is a plain value, not an
+		// expression: without this alternative it fell through to the generic
+		// expression form and was refused as one (MDL-WIDGET42, #1407).
+		if pvCtx.MINUS() != nil {
+			text = "-" + text
+		}
 		if strings.Contains(text, ".") {
 			if f, err := strconv.ParseFloat(text, 64); err == nil {
 				return f
@@ -2083,6 +2089,7 @@ func (b *Builder) buildLayoutV3(ctx *parser.CreateLayoutStatementContext) *ast.C
 		prevIn, prevBraced := b.inLayout, b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = true, nil
 		stmt.Widgets = buildPageBodyV3(bodyCtx, b)
+		stmt.Placeholders = buildPagePlaceholdersV3(bodyCtx, b)
 		stmt.BracedPlaceholders = b.layoutBracedPlaceholders
 		b.inLayout, b.layoutBracedPlaceholders = prevIn, prevBraced
 	}

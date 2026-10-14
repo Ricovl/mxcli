@@ -1,0 +1,35 @@
+mdl 1;
+-- mendixlabs/mxcli#1476: "No MDL form binds the Image widget to an image
+-- object; dynamicimage fails CE0582 in React apps". In a data view over an
+-- entity that extends System.Image, the reporter tried:
+--
+--   image Photo_View_Image ()                          -- "No image selected."
+--   image Photo_View_Image (ImageType: dynamicImage)   -- passed check AND mx check;
+--                                                         not a datasource value
+--   dynamicimage Photo_View_Image (DataSource: …)      -- [CE0582] "Widget dynamic
+--                                                         image is not supported in React client."
+--
+-- The Image widget's `imageObject` takes the object in context as well as an
+-- image collection entry; MDL could only write the second. It is now
+-- `Image: $currentObject`, stored as the value's EntityRef, with `DefaultImage:`
+-- (`defaultImageDynamic`) as the fallback for an object with no image.
+--
+-- Measured on a blank Mendix 11.12.1 project, mxbuild 11.12.1:
+--   fixed exec                                -> 0 errors (--no-update-widgets)
+--   fixed describe -> exec                    -> identical describe, "Unchanged page"
+--   binding write stubbed to a no-op          -> "No image selected." (CE0463 first,
+--                                                from the now-hidden DefaultImage)
+--   EntityRef to System.User                  -> CE7247 "Entity should be the same as the enclosing …"
+--   data view over a non-image entity         -> CE7247 "Widget expects entity of type System.Image."
+--   `Image: '<entry>', DefaultImage: '<entry>'` -> CE0463 (now refused: MDL-WIDGET22)
+
+create persistent entity MyFirstModule.Photo1476 extends System.Image (
+  Caption: String(200)
+);
+
+create or modify page MyFirstModule.Photo1476_View (Title: 'Photo', Layout: Atlas_Core.PopupLayout,
+                                                    Params: ($Photo: MyFirstModule.Photo1476)) {
+  dataview Photo_View_Form (DataSource: $Photo) {
+    image Photo_View_Image (Image: $currentObject, DefaultImage: 'Atlas_Web_Content.Content.user')
+  }
+};

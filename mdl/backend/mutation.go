@@ -386,6 +386,9 @@ type WidgetObjectBuilder interface {
 	// `imageObject`) at an image collection entry, by its three-part qualified
 	// name `Module.Collection.Image`.
 	SetImage(propertyKey string, imageQN string)
+	// SetImageEntity binds an image-typed property to the object in context,
+	// an entity specializing System.Image, rather than a collection entry.
+	SetImageEntity(propertyKey string, entityName string)
 	SetExpression(propertyKey string, value string)
 	SetDataSource(propertyKey string, ds pages.DataSource)
 	SetChildWidgets(propertyKey string, children []pages.Widget)

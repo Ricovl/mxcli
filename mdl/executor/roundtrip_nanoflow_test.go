@@ -357,7 +357,10 @@ func TestNanoflow_GrantRevoke(t *testing.T) {
 	defer env.teardown()
 
 	nfName := testModule + ".RT_NF_Security"
-	createMDL := `create nanoflow ` + nfName + ` () returns Void
+	// A new nanoflow gets no role and none is created for it (#1474): the
+	// role a grant names is the script's own.
+	createMDL := `create or modify module role ` + testModule + `.User;
+create nanoflow ` + nfName + ` () returns Void
 begin
 end;`
 	if err := env.executeMDL(createMDL); err != nil {
@@ -401,7 +404,10 @@ func TestNanoflow_GrantIdempotent(t *testing.T) {
 	defer env.teardown()
 
 	nfName := testModule + ".RT_NF_GrantIdem"
-	createMDL := `create nanoflow ` + nfName + ` () returns Void
+	// A new nanoflow gets no role and none is created for it (#1474): the
+	// role a grant names is the script's own.
+	createMDL := `create or modify module role ` + testModule + `.User;
+create nanoflow ` + nfName + ` () returns Void
 begin
 end;`
 	if err := env.executeMDL(createMDL); err != nil {
