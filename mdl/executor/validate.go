@@ -736,6 +736,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
 		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside microflow body (pages, microflows, java actions, entities)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
@@ -789,6 +790,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
 		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside nanoflow body (an excluded nanoflow's are warnings)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
@@ -2067,8 +2069,16 @@ func validatePublishedRestAuthMicroflow(ctx *ExecContext, auth *ast.PublishedRes
 	if auth == nil || auth.Microflow == "" {
 		return nil
 	}
+	if problem := publishedRestAuthListProblem(auth.Parameters); problem != "" {
+		return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+	}
 	if mf, ok := liveMicroflowsByQualifiedName(ctx)[auth.Microflow]; ok {
 		if problem := publishedRestAuthMicroflowProblem(mf); problem != "" {
+			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+		}
+		// The parameter list names parameters the microflow has
+		// (mendixlabs/mxcli#1417).
+		if _, problem := resolvePublishedRestAuthParameters(auth.Microflow, mf, auth.Parameters); problem != "" {
 			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
 		}
 		return nil

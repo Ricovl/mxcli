@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-195 | Syntax |
-| 196-266 | Basic Examples |
-| 267-288 | Modifying Existing Pages |
-| 289-376 | Conditional Visibility and Editability |
-| 377-540 | Known Limitations |
-| 541-549 | Tips |
-| 550-576 | Related Commands |
-| 577-601 | PLUGGABLEWIDGET Escape Hatch |
-| 602-605 | See Also |
+| 47-196 | Syntax |
+| 197-267 | Basic Examples |
+| 268-289 | Modifying Existing Pages |
+| 290-377 | Conditional Visibility and Editability |
+| 378-541 | Known Limitations |
+| 542-550 | Tips |
+| 551-577 | Related Commands |
+| 578-602 | PLUGGABLEWIDGET Escape Hatch |
+| 603-606 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -96,6 +96,7 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
 | Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
+| Database source over an association | `datasource: database from $Ctx/Assoc/Entity` — list view; on **Mendix 9** also a pluggable widget (repeater, gallery, grid), whose `where` must then be simple rows (`Attr op value` joined by `and`) | `repeater r (datasource: database from $Form/M.Item_Form/M.Item sort by Seq asc)` |
 | Selection binding | `datasource: selection widget` | `dataview dv (datasource: selection galleryList)` |
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |
 | Inline style | `style: 'css'` | `container c (style: 'padding: 16px;')` |

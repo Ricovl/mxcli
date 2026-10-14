@@ -106,8 +106,8 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	if fb.pendingAnnotations != nil {
 		trueBranchAnchor = fb.pendingAnnotations.TrueBranchAnchor
 		falseBranchAnchor = fb.pendingAnnotations.FalseBranchAnchor
-		fb.applyAnnotations(splitID, fb.pendingAnnotations)
-		fb.pendingAnnotations = nil
+		// Records the @curve too, which applyAnnotations does not (#1414).
+		fb.applyPendingAnnotations(splitID)
 	}
 
 	// Calculate merge position (after the longest branch)

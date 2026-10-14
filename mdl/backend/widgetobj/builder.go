@@ -1253,6 +1253,16 @@ func setDataSource(val bson.D, ds pages.DataSource) bson.D {
 			result = append(result, elem)
 		}
 	}
+	// A 9.x pluggable database source declares no SourceVariable: the page or
+	// snippet parameter its association path starts from is stored on the
+	// WidgetValue beside it (mendixlabs/mxcli#1399).
+	if db, ok := ds.(*pages.DatabaseSource); ok && db.UseConstraints && db.ContextVariable != "" {
+		kind := ""
+		if db.IsSnippetParameter {
+			kind = "snippet"
+		}
+		result = setBSONField(result, "SourceVariable", PageVariableBSON("", strings.TrimPrefix(db.ContextVariable, "$"), kind))
+	}
 	return result
 }
 

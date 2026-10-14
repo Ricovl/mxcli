@@ -220,7 +220,7 @@ func emitCrossedMergeSections(
 		}
 		visited[id] = true
 		declared[id] = true
-		*lines = append(*lines, mergeDeclarationLines(0, label, activityMap[id], annotationsByTarget.layoutKeep())...)
+		*lines = append(*lines, mergeDeclarationLines(0, label, activityMap[id], annotationsByTarget.layoutKeep(), flowsByOrigin)...)
 		for _, flow := range flowsByOrigin[id] {
 			traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest,
 				splitMergeMap, visited, entityNames, microflowNames, lines, 0,
@@ -274,7 +274,9 @@ func sharedArmEntries(
 		case *microflows.InheritanceSplit:
 			candidates = append(candidates, f.SplitID)
 		case *microflows.ExclusiveSplit:
-			if _, ok := enumSplitVariable(s); ok {
+			// A rule split is an enumeration split only when its flows say so; a
+			// boolean rule split is an if/else (mendixlabs/mxcli#1414).
+			if _, ok := enumSplitVariable(s); ok || hasEnumSplitSource(s) && hasEnumCaseFlows(outgoingFlows(col, f.SplitID)) {
 				candidates = append(candidates, f.SplitID)
 			}
 		}
@@ -514,4 +516,15 @@ func reachersOf(target model.ID, pred map[model.ID][]model.ID) map[model.ID]bool
 		queue = append(queue, pred[id]...)
 	}
 	return seen
+}
+
+// outgoingFlows is every flow that leaves id.
+func outgoingFlows(col *microflows.MicroflowObjectCollection, id model.ID) []*microflows.SequenceFlow {
+	var out []*microflows.SequenceFlow
+	for _, fl := range col.Flows {
+		if fl != nil && fl.OriginID == id {
+			out = append(out, fl)
+		}
+	}
+	return out
 }

@@ -79,6 +79,13 @@ func init() {
 	codec.RegisterTypeDefaults("CustomWidgets$CustomWidgetXPathSource", codec.TypeDefaults{
 		NullFields: []string{"SourceVariable"},
 	})
+	// Studio Pro 9's pluggable "Database" source always stores its constraint
+	// list, marker 2 whether empty or not: 10 of 10 in the FSM template at
+	// 9.24.2 (mendixlabs/mxcli#1399).
+	codec.RegisterTypeDefaults("CustomWidgets$CustomWidgetDatabaseSource", codec.TypeDefaults{
+		MandatoryListMarkers: map[string]int32{"DatabaseConstraints": 2},
+	})
+	codec.RegisterPropertyListMarker("CustomWidgets$CustomWidgetDatabaseSource", "DatabaseConstraints", 2)
 	codec.RegisterTypeDefaults("Forms$GridSortBar", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"SortItems": 2},
 	})
@@ -1714,6 +1721,9 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		return nil, nil
 
 	case *pages.DatabaseSource:
+		if d.UseConstraints {
+			return customWidgetDatabaseSourceToGen(d), nil
+		}
 		src := genCw.NewCustomWidgetXPathSource()
 		if d.ID != "" {
 			src.SetID(element.ID(d.ID))
@@ -1768,6 +1778,52 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 	default:
 		return nil, fmt.Errorf("modelsdk: pluggable widget data source %T is not supported by either engine — please file an issue", ds)
 	}
+}
+
+// customWidgetDatabaseSourceToGen builds Studio Pro 9's "Database" source on a
+// pluggable widget, a CustomWidgets$CustomWidgetDatabaseSource
+// (mendixlabs/mxcli#1399). Its stored property set, measured on the FSM
+// template's ten at 9.24.2, is DatabaseConstraints, EntityRef and SortBar and
+// nothing else, so ForceFullObjects, EntityPath and SourceVariable are left
+// unset: the first two do not exist before 10, and the parameter a path starts
+// from is stored on the WidgetValue (widgetobj.setDataSource). The executor
+// only builds one for a 9.x project.
+func customWidgetDatabaseSourceToGen(d *pages.DatabaseSource) element.Element {
+	src := genCw.NewCustomWidgetDatabaseSource()
+	if d.ID != "" {
+		src.SetID(element.ID(d.ID))
+	}
+	assignID(src)
+	switch {
+	case len(d.EntitySteps) > 0:
+		src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+	case d.EntityName != "":
+		ref := genDm.NewDirectEntityRef()
+		assignID(ref)
+		ref.SetEntityQualifiedName(d.EntityName)
+		src.SetEntityRef(ref)
+	}
+	for _, c := range d.Constraints {
+		row := genPg.NewDatabaseConstraint()
+		assignID(row)
+		row.SetAttributeQualifiedName(c.Attribute)
+		row.SetOperator(c.Operator)
+		row.SetValue(c.Value)
+		src.AddDatabaseConstraints(row)
+	}
+	bar := genPg.NewGridSortBar()
+	assignID(bar)
+	for _, s := range d.Sorting {
+		item := genPg.NewGridSortItem()
+		assignID(item)
+		item.SetSortDirection(string(s.Direction))
+		if ref := inputAttributeRefToGen(s.AttributePath, s.AttributeRefSteps); ref != nil {
+			item.SetAttributeRef(ref)
+		}
+		bar.AddSortItems(item)
+	}
+	src.SetSortBar(bar)
+	return src
 }
 
 // associationSourceToGen builds a Forms$AssociationSource: an IndirectEntityRef

@@ -417,6 +417,13 @@ func (b *Backend) ListPublishedRestServices() ([]*model.PublishedRestService, er
 		}
 		svc.ID = model.ID(g.ID())
 		svc.TypeName = "Rest$PublishedRestService"
+		for _, pEl := range g.ParametersItems() {
+			if p, ok := pEl.(*genRest.RestOperationParameter); ok {
+				param := publishedRestParameterFromGen(p)
+				param.ID = model.ID(p.ID())
+				svc.Parameters = append(svc.Parameters, param)
+			}
+		}
 		for _, resEl := range g.ResourcesItems() {
 			res, ok := resEl.(*genRest.PublishedRestServiceResource)
 			if !ok {

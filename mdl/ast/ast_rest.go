@@ -128,6 +128,22 @@ type CreatePublishedRestServiceStmt struct {
 type PublishedRestAuthentication struct {
 	Methods   []string
 	Microflow string
+	// Parameters is the optional list after the microflow,
+	// `microflow M.F ($Token: header 'X-Api-Token', …)`, in the order written
+	// (mendixlabs/mxcli#1417). An auth-microflow parameter it does not list is
+	// a query parameter under its own name.
+	Parameters []*PublishedRestAuthParameter
+}
+
+// PublishedRestAuthParameter is one `$Name: kind ['httpName'] [description '…']`
+// entry. Name is the authentication microflow's parameter, without the `$`;
+// Kind is lowercased as written ("query" and "header" are valid); HTTPName is
+// "" when it is the parameter's own name.
+type PublishedRestAuthParameter struct {
+	Name        string
+	Kind        string
+	HTTPName    string
+	Description string
 }
 
 func (s *CreatePublishedRestServiceStmt) isStatement() {}
