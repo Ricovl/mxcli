@@ -891,6 +891,17 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 
 	// Visible: [expression] (conditional visibility) or Visible: false (static)
 	if propCtx.VISIBLE() != nil {
+		// `Visible: roles (Mod.A, …)` — Studio Pro's "Visible for module roles",
+		// kept under its own key so it combines with the condition forms below
+		// (mendixlabs/mxcli#1460).
+		if rl := propCtx.VisibleRoleListV3(); rl != nil {
+			var roles []string
+			for _, qn := range rl.AllQualifiedName() {
+				roles = append(roles, getQualifiedNameText(qn))
+			}
+			widget.Properties["VisibleRoles"] = roles
+			return
+		}
 		// `Visible: Attr in (v1, …)` — Studio Pro's "based on attribute value".
 		if propCtx.IN() != nil {
 			vw := &ast.VisibleWhenV3{}

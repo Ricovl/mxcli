@@ -2859,6 +2859,15 @@ func coercePopupDimension(prop string, value any) (int64, error) {
 // marker-3 Conditions, plus IgnoreSecurity/ModuleRoles for visibility). Returns
 // false when the widget has no such slot (e.g. editability on a non-input widget).
 func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression string, withSecurity bool) bool {
+	// "Visible for module roles" lives on the visibility node beside the
+	// condition; rebuilding the node for a new condition must not drop it
+	// (mendixlabs/mxcli#1460). Carried verbatim, list marker included.
+	moduleRoles := any(bson.A{int32(3)})
+	if withSecurity {
+		if stored := storedVisibleRoles(widget); stored != nil {
+			moduleRoles = stored
+		}
+	}
 	doc := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: typeName},
@@ -2876,11 +2885,30 @@ func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression s
 	if withSecurity {
 		doc = append(doc,
 			bson.E{Key: "IgnoreSecurity", Value: false},
-			bson.E{Key: "ModuleRoles", Value: bson.A{int32(3)}},
+			bson.E{Key: "ModuleRoles", Value: moduleRoles},
 		)
 	}
 	doc = append(doc, bson.E{Key: "SourceVariable", Value: nil})
 	return bsonnav.DSet(widget, field, doc)
+}
+
+// storedVisibleRoles is the widget's stored ConditionalVisibilitySettings.
+// ModuleRoles list when it names at least one role, else nil.
+func storedVisibleRoles(widget bson.D) bson.A {
+	cvs, ok := bsonnav.DGet(widget, "ConditionalVisibilitySettings").(bson.D)
+	if !ok {
+		return nil
+	}
+	roles, ok := bsonnav.DGet(cvs, "ModuleRoles").(bson.A)
+	if !ok {
+		return nil
+	}
+	for _, r := range roles {
+		if _, isName := r.(string); isName {
+			return roles
+		}
+	}
+	return nil
 }
 
 // setWidgetEditableMut writes `set Editable = …`. Two widget families store two
@@ -3009,9 +3037,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		// Pro silently dropped it). The `[expr]` bracket form arrives as VisibleIf.
 		expr, hasSetting := pages.StaticVisibleExpression(value)
 		if !hasSetting {
-			// `Visible = true` (default-visible): clear any conditional-visibility node.
-			bsonnav.DSet(widget, "ConditionalVisibilitySettings", nil)
-			return nil
+			// `Visible = true` (default-visible): clear any conditional-visibility
+			// node — unless it carries module roles, a separate setting that
+			// Studio Pro stores on the same node (#1460): then only the
+			// condition is cleared.
+			if storedVisibleRoles(widget) == nil {
+				bsonnav.DSet(widget, "ConditionalVisibilitySettings", nil)
+				return nil
+			}
 		}
 		if !setWidgetConditionalSettingMut(widget, "ConditionalVisibilitySettings",
 			"Forms$ConditionalVisibilitySettings", expr, true) {

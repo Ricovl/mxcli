@@ -205,6 +205,18 @@ func (g *grantResolver) check(stmt ast.Statement) []string {
 		if s.GuestUserRole != "" {
 			add(g.userRoleProblem(s.GuestUserRole))
 		}
+	case *ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
+		// `Visible: roles (…)` stores the names unresolved, as `create user
+		// role` does — a dangling one is CE1613 a build later (#1460).
+		forEachWidget(stmt, func(w *ast.WidgetV3, where string) {
+			for _, r := range widgetVisibleRoles(w) {
+				if qn, ok := splitQualified(r); ok {
+					if msg := g.moduleRoleProblem(qn); msg != "" {
+						add(where + ": Visible: roles: " + msg)
+					}
+				}
+			}
+		})
 	}
 	return out
 }
@@ -598,6 +610,12 @@ func grantStatementLabel(stmt ast.Statement) string {
 		return fmt.Sprintf("create demo user '%s'", s.UserName)
 	case *ast.AlterProjectSecurityStmt:
 		return "alter app security"
+	case *ast.CreatePageStmtV3:
+		return "create page " + s.Name.String()
+	case *ast.CreateSnippetStmtV3:
+		return "create snippet " + s.Name.String()
+	case *ast.AlterPageStmt:
+		return "alter " + strings.ToLower(s.ContainerType) + " " + s.PageName.String()
 	}
 	return "statement"
 }

@@ -845,7 +845,10 @@ type rawWidget struct {
 	// values that SHOW the widget, as MDL spells them (`empty` for "(empty)").
 	VisibleAttr   string
 	VisibleValues []string
-	EditableIf    string // Expression from ConditionalEditabilitySettings
+	// "Visible for module roles": qualified role names, independent of the
+	// expression/attribute condition (mendixlabs/mxcli#1460).
+	VisibleRoles []string
+	EditableIf   string // Expression from ConditionalEditabilitySettings
 	// Design properties from Appearance
 	DesignProperties []rawDesignProp
 	// Explicit widget properties (for generic PLUGGABLEWIDGET output)

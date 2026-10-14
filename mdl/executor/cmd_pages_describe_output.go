@@ -194,6 +194,9 @@ func appendAppearanceProps(ctx *ExecContext, props []string, w rawWidget) []stri
 	if prop := visibleWhenProp(w); prop != "" {
 		props = append(props, prop)
 	}
+	if prop := visibleRolesProp(w); prop != "" {
+		props = append(props, prop)
+	}
 	if w.EditableIf != "" {
 		props = append(props, widgetConditionMDL("Editable", w.EditableIf))
 	}
@@ -395,6 +398,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 		}
 		if prop := visibleWhenProp(w); prop != "" {
+			props = append(props, prop)
+		}
+		if prop := visibleRolesProp(w); prop != "" {
 			props = append(props, prop)
 		}
 		if len(w.Children) > 0 {
@@ -983,6 +989,15 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			}
 			if child.DynamicClasses != "" {
 				props = append(props, fmt.Sprintf("DynamicClasses: %s", child.DynamicClasses)) // an expression, printed as-is
+			}
+			if child.VisibleIf != "" {
+				props = append(props, widgetConditionMDL("Visible", child.VisibleIf))
+			}
+			if prop := visibleWhenProp(child); prop != "" {
+				props = append(props, prop)
+			}
+			if prop := visibleRolesProp(child); prop != "" {
+				props = append(props, prop)
 			}
 			formatWidgetProps(ctx.Output, prefix+"  ", itemHeader, props, " {\n")
 			for _, cw := range child.Children {
@@ -2171,6 +2186,16 @@ func visibleWhenProp(w rawWidget) string {
 		attr = w.VisibleAttr
 	}
 	return fmt.Sprintf("Visible: %s in (%s)", attr, strings.Join(vals, ", "))
+}
+
+// visibleRolesProp renders "Visible for module roles" as `Visible: roles
+// (Mod.A, Mod.B)`. It is a second `Visible:` line beside an expression or
+// attribute condition, as Studio Pro stores both on one settings element.
+func visibleRolesProp(w rawWidget) string {
+	if len(w.VisibleRoles) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Visible: roles (%s)", strings.Join(w.VisibleRoles, ", "))
 }
 
 // layoutGridWidthMDL spells a stored layout-grid column weight: 1..12 is
