@@ -222,7 +222,7 @@ func (b *Builder) emitMemberPermissions(stmt *sql.Stmt, rule *domainmodel.Access
 func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	mfs, err := b.reader.ListMicroflows()
+	mfs, err := b.cachedMicroflows()
 	if err != nil {
 		return 0
 	}

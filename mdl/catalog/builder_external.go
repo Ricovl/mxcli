@@ -91,11 +91,11 @@ func (b *Builder) buildExternalEntities() error {
 // buildExternalActions populates the external_actions catalog table
 // by scanning all microflows and nanoflows for CallExternalAction activities.
 func (b *Builder) buildExternalActions() error {
-	mfs, err := b.reader.ListMicroflows()
+	mfs, err := b.cachedMicroflows()
 	if err != nil {
 		return err
 	}
-	nfs, err := b.reader.ListNanoflows()
+	nfs, err := b.cachedNanoflows()
 	if err != nil {
 		return err
 	}
