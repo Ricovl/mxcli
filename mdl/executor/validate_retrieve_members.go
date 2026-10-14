@@ -33,11 +33,37 @@ func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef
 	if len(retrieves) == 0 {
 		return nil
 	}
+	m, resolve := scriptXPathResolver(ctx, sc)
+
+	var errs []string
+	for _, r := range retrieves {
+		if r.entity == "" || r.stored == "" {
+			continue
+		}
+		for _, bad := range unresolvableXPathStepsWith(ctx, m, r.stored, r.entity, resolve) {
+			errs = append(errs, fmt.Sprintf(
+				"retrieve from %s: the constraint names %q, which is neither an attribute nor an association of it — mxbuild rejects the constraint (CE0161 \"Error(s) in XPath constraint\")%s",
+				r.entity, bad.name, systemMemberSpellingHint(bad.name)))
+		}
+	}
+	return errs
+}
+
+// scriptXPathResolver is the model and bare-member lookup an XPath member walk
+// (unresolvableXPathStepsWith) needs to judge a constraint against the project
+// AND the entities and associations the script declares. Shared by the
+// microflow retrieve check and the access-rule check (mendixlabs/mxcli#1472).
+func scriptXPathResolver(ctx *ExecContext, sc *scriptContext) (*scriptXPathModel, func(entityQN, member string) memberResolution) {
 	m := &scriptXPathModel{base: &execXPathModel{ctx: ctx}, ctx: ctx, sc: sc}
 	var assocs map[string]string // unqualified association name -> qualified, loaded on demand
 	resolve := func(entityQN, member string) memberResolution {
+		// An entity the script alters may gain the member there: what the
+		// ALTER leaves is not worked out, so its members go unjudged.
+		if sc.alteredEntities[entityQN] {
+			return memberUnknown
+		}
 		decl := sc.entityDecls[entityQN]
-		if decl == nil || sc.alteredEntities[entityQN] {
+		if decl == nil {
 			return resolveMemberOnEntity(ctx, entityQN, member)
 		}
 		// Declared by the script: its attribute list is what exec writes. An
@@ -63,19 +89,7 @@ func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef
 		}
 		return memberMissing
 	}
-
-	var errs []string
-	for _, r := range retrieves {
-		if r.entity == "" || r.stored == "" {
-			continue
-		}
-		for _, bad := range unresolvableXPathStepsWith(ctx, m, r.stored, r.entity, resolve) {
-			errs = append(errs, fmt.Sprintf(
-				"retrieve from %s: the constraint names %q, which is neither an attribute nor an association of it — mxbuild rejects the constraint (CE0161 \"Error(s) in XPath constraint\")%s",
-				r.entity, bad.name, systemMemberSpellingHint(bad.name)))
-		}
-	}
-	return errs
+	return m, resolve
 }
 
 // scriptXPathModel answers xpathrefs.Model from the project AND the script.

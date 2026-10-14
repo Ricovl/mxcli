@@ -1,0 +1,220 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package executor
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
+	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/model"
+)
+
+// ALTER PAGE / SNIPPET / LAYOUT was resolved down to its document and no
+// further (mendixlabs/mxcli#1472). Two kinds of reference inside it passed
+// `check -p --references` and were then refused by exec, or written for
+// mxbuild to report as CE1613:
+//
+//   - the widget an INSERT is placed against, a REPLACE replaces, a DROP
+//     removes — exec resolves each through the document's AlterTargetResolver
+//     before the operation runs, and stops on a miss;
+//   - the flows, pages, snippets and entities the inserted or replacing
+//     widgets name — CREATE PAGE resolved those (validateWidgetReferences),
+//     ALTER never did.
+//
+// Both are answered by what exec itself runs: the targets through
+// resolveAlterPageTargets against the stored document (opened read-only, never
+// saved), the widget references through validateWidgetReferences. A SET's
+// target is not resolved here — validateAlterSetProperties dry-runs the SET and
+// already reports it, and saying it twice reads as two problems.
+//
+// "Could not establish" stays silent: a document that will not open, a target
+// the script itself puts on the document (or renames a widget to), and a grid
+// column on a document the script adds widgets to (a column is addressed by a
+// derived name, so a name match cannot say whether the script adds it).
+
+// validateAlterPageReferences reports the unresolvable targets and widget
+// references of every ALTER PAGE / SNIPPET / LAYOUT in the script.
+func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *scriptContext) []error {
+	if prog == nil || !ctx.Connected() {
+		return nil
+	}
+	h, _ := getHierarchy(ctx)
+	added := widgetsTheScriptAddsTo(prog)
+	grows := documentsTheScriptAddsWidgetsTo(prog)
+	opened := map[model.ID]backend.PageMutator{}
+	var judge columnAttrJudge
+
+	var errs []error
+	for _, stmt := range prog.Statements {
+		s, ok := stmt.(*ast.AlterPageStmt)
+		if !ok {
+			continue
+		}
+		kind := strings.ToLower(s.ContainerType)
+		if kind == "" {
+			kind = "page"
+		}
+		label := fmt.Sprintf("alter %s %s", kind, s.PageName.String())
+		doc := s.PageName.String()
+		excluded := (kind == "page" || kind == "snippet") && carriedExclusion(ctx, kind, s.PageName, true)
+
+		// The stored document, for the targets and for the entity of a grid
+		// the statement inserts columns into. None for a document the script
+		// creates, or one that does not resolve (validateAlterTarget's
+		// finding) or will not open.
+		var mutator backend.PageMutator
+		if h != nil && !alterTargetComesFromScript(sc, s) {
+			if unitID, _, _, err := resolveAlterPageUnit(ctx, s, h); err == nil {
+				m, seen := opened[unitID]
+				if !seen {
+					m, _ = ctx.Backend.OpenPageForMutation(unitID)
+					opened[unitID] = m
+				}
+				mutator = m
+			}
+		}
+
+		// The references the inserted and replacing widgets carry. They need no
+		// stored document, so a document the script creates is covered too.
+		ws := alterOpWidgets(s)
+		if refErrors := validateWidgetReferences(ctx, ws, sc); len(refErrors) > 0 {
+			// An excluded document stays excluded through an ALTER, and is
+			// relaxed the way CREATE relaxes it.
+			if excluded {
+				if err := sc.relaxExcludedWidgetRefs(kind, doc, ws, refErrors); err != nil {
+					errs = append(errs, err)
+				}
+			} else {
+				errs = append(errs, mdlerrors.NewValidationf("%s has reference errors:\n  - %s",
+					label, strings.Join(refErrors, "\n  - ")))
+			}
+		}
+
+		// DataGrid 2 column attributes: of a grid the statement
+		// carries, and of the columns it inserts into a stored grid.
+		var colErrors []string
+		if len(ws) > 0 {
+			if judge == nil {
+				judge = newColumnAttrJudge(ctx, sc)
+			}
+			colErrors = datagridColumnAttrErrors(ws, "", judge)
+			for _, op := range s.Operations {
+				target, cols := alterColumnInsertion(op)
+				if mutator == nil || len(cols) == 0 || added[doc][target.Widget] {
+					continue
+				}
+				colErrors = append(colErrors, datagridColumnAttrErrors(cols, alterColumnsEntity(mutator, target.Widget), judge)...)
+			}
+		}
+		if len(colErrors) > 0 {
+			if excluded {
+				sc.warnExcluded(kind, doc, colErrors)
+			} else {
+				errs = append(errs, mdlerrors.NewValidationf("%s has attribute binding errors:\n  - %s",
+					label, strings.Join(colErrors, "\n  - ")))
+			}
+		}
+
+		// The targets, against the stored document.
+		if mutator == nil {
+			continue
+		}
+		for _, op := range s.Operations {
+			if _, isSet := op.(*ast.SetPropertyOp); isSet {
+				continue // validateAlterSetProperties' finding
+			}
+			for _, ref := range alterPageOperationTargets(op) {
+				if ref.Widget != "" && added[doc][ref.Widget] {
+					continue
+				}
+				if ref.IsColumn() && grows[doc] {
+					continue
+				}
+				if _, err := mutator.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
+					errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
+				}
+			}
+		}
+	}
+	return errs
+}
+
+// alterColumnInsertion returns the grid target and the columns of an INSERT or
+// REPLACE that exec routes down its DataGrid 2 column path, or no columns.
+func alterColumnInsertion(op ast.AlterPageOperation) (ast.WidgetRef, []*ast.WidgetV3) {
+	switch o := op.(type) {
+	case *ast.InsertWidgetOp:
+		if o.Target.IsColumn() && allColumns(o.Widgets) {
+			return o.Target, o.Widgets
+		}
+	case *ast.ReplaceWidgetOp:
+		if o.Target.IsColumn() && allColumns(o.NewWidgets) {
+			return o.Target, o.NewWidgets
+		}
+	}
+	return ast.WidgetRef{}, nil
+}
+
+// alterOpWidgets returns the widgets the INSERT and REPLACE operations of one
+// statement carry.
+func alterOpWidgets(s *ast.AlterPageStmt) []*ast.WidgetV3 {
+	var ws []*ast.WidgetV3
+	for _, op := range s.Operations {
+		switch o := op.(type) {
+		case *ast.InsertWidgetOp:
+			ws = append(ws, o.Widgets...)
+		case *ast.ReplaceWidgetOp:
+			ws = append(ws, o.NewWidgets...)
+		}
+	}
+	return ws
+}
+
+// widgetsTheScriptAddsTo names, per document, every widget an INSERT or
+// REPLACE anywhere in the script puts on it (nested widgets included), and
+// every name a SET renames a widget to. Not ordered, for the reason
+// documentsTheScriptAddsWidgetsTo gives: a false refusal blocks a script that
+// works, a missed one costs one unreported error exec still reports.
+func widgetsTheScriptAddsTo(prog *ast.Program) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	for _, stmt := range prog.Statements {
+		s, ok := stmt.(*ast.AlterPageStmt)
+		if !ok {
+			continue
+		}
+		doc := s.PageName.String()
+		names := out[doc]
+		if names == nil {
+			names = map[string]bool{}
+			out[doc] = names
+		}
+		var walk func(ws []*ast.WidgetV3)
+		walk = func(ws []*ast.WidgetV3) {
+			for _, w := range ws {
+				if w == nil {
+					continue
+				}
+				if w.Name != "" {
+					names[w.Name] = true
+				}
+				walk(w.Children)
+			}
+		}
+		walk(alterOpWidgets(s))
+		for _, op := range s.Operations {
+			set, ok := op.(*ast.SetPropertyOp)
+			if !ok {
+				continue
+			}
+			for k, v := range set.Properties {
+				if str, isStr := v.(string); isStr && strings.EqualFold(k, "Name") {
+					names[str] = true
+				}
+			}
+		}
+	}
+	return out
+}

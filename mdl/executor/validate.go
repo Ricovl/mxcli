@@ -482,6 +482,13 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// no data container at all) a bare binding is written bare and the project
 	// no longer loads — CREATE PAGE already refused this at check time.
 	errors = append(errors, validateAlterUnscopedBindings(ctx, prog, sc)...)
+	// An ALTER PAGE's INSERT / REPLACE / DROP targets and the references its
+	// inserted widgets carry: only the document was resolved, so a typo in
+	// either passed check and stopped exec (mendixlabs/mxcli#1472).
+	errors = append(errors, validateAlterPageReferences(ctx, prog, sc)...)
+	// `Module.Enum.Key` in any expression: the key must be one of the
+	// enumeration's values (mendixlabs/mxcli#1472).
+	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
 	return errors, sc.warnings
 }
 
@@ -645,6 +652,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 					}
 				}
 			}
+		}
+		// The microflows its event handlers call (mendixlabs/mxcli#1472).
+		if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), s.EventHandlers); err != nil {
+			return err
 		}
 		// Validate index columns
 		for _, idx := range s.Indexes {
@@ -853,6 +864,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
+		// A DataGrid 2 column or filter attribute the grid's entity lacks
+		// (mendixlabs/mxcli#1472) — CE1613, unless Mendix skips the document.
+		if colErrors := datagridColumnAttrErrors(pageWidgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if s.Excluded || carriedExclusion(ctx, "page", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("page", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
+		}
 	case *ast.CreateLayoutStmt:
 		// A layout's widgets name things too — a menu widget's menu document
 		// above all, since layouts are where menu widgets live. Before
@@ -907,6 +928,14 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
+		if colErrors := datagridColumnAttrErrors(s.Widgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if carriedExclusion(ctx, "snippet", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("snippet", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
+		}
 	case *ast.CreateWorkflowStmt:
 		// Two reference passes. Missing targets first: a name that resolves to
 		// nothing is the more basic error, and reporting "parameter not mapped"
@@ -942,6 +971,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+		// The entities the query reads from (mendixlabs/mxcli#1472): first,
+		// because every column of a missing source goes untyped below.
+		if srcErrors := viewSourceEntityErrors(ctx, s.Query.RawQuery, sc); len(srcErrors) > 0 {
+			return mdlerrors.NewValidationf("view entity '%s':\n  - %s",
+				s.Name.String(), strings.Join(srcErrors, "\n  - "))
+		}
 		// An `<alias>.ID` column names an association, and the name has to be
 		// free in the module — reported here because the fix is a rename, and a
 		// rename is cheapest before the name spreads (FINDINGS §1).
@@ -966,6 +1001,11 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
+			}
+		}
+		if s.Operation == ast.AlterEntityAddEventHandler && s.EventHandler != nil {
+			if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), []ast.EventHandlerDef{*s.EventHandler}); err != nil {
+				return err
 			}
 		}
 		// ADD/DROP ATTRIBUTE on a view entity is refused by exec; say so here

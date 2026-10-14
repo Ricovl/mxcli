@@ -79,6 +79,7 @@ type grantResolver struct {
 	userRolesRead bool
 	entities      map[string]bool
 	docs          map[string]map[string]bool
+	xpath         *grantXPathResolver // built on the first WHERE
 }
 
 func (g *grantResolver) recordLater(stmt ast.Statement) {
@@ -144,6 +145,7 @@ func (g *grantResolver) check(stmt ast.Statement) []string {
 		roles(s.Roles, true)
 		if entityOK {
 			add(g.memberProblem(s.Entity, s.Rights))
+			add(g.xpathProblem(s.Entity, s.XPathConstraint))
 		}
 	case *ast.RevokeEntityAccessStmt:
 		g.entityTargetProblem(s.Entity, &out)
@@ -479,6 +481,62 @@ func (g *grantResolver) userRoleProblem(name string) string {
 // with "entity … has no member(s) …". Only a stored entity is judged, and not
 // one the script alters: a member list built from a declaration or an altered
 // entity would be a second, drifting copy of exec's.
+// xpathProblem resolves the members an access rule's WHERE names, against the
+// granted entity (mendixlabs/mxcli#1472). The constraint is judged as exec
+// stores it (accessRuleXPathConstraint), by the walk the widget and retrieve
+// constraints use, over the project and what the whole script declares — exec
+// writes the rule unresolved, so a member created further down is no defect.
+// Measured on 11.13.0 at security level Prototype:
+//
+//	where [Administration.NoSuchAssoc/…]  CE1613 "The selected association
+//	  'Administration.NoSuchAssoc' no longer exists." at Access rule of entity
+//
+// (At level Off mxbuild does not check access rules at all; the rule is still
+// dangling, and fails the build the day security is switched on.)
+func (g *grantResolver) xpathProblem(qn ast.QualifiedName, xpath string) string {
+	if strings.TrimSpace(xpath) == "" {
+		return ""
+	}
+	name := qn.String()
+	if g.whole.indirectEntities[name] {
+		return "" // members not known to the script
+	}
+	if g.xpath == nil {
+		m, resolve := scriptXPathResolver(g.ctx, g.whole)
+		// Case-insensitive, as mxbuild is here: measured on 11.13.0, an
+		// attribute `status` constrained as [Status = 'Open'] builds clean
+		// (doctype-tests/08 does exactly that).
+		ix := checkAttributeIndex(g.ctx, g.whole)
+		folded := func(entityQN, member string) memberResolution {
+			r := resolve(entityQN, member)
+			if r == memberMissing {
+				if found, _ := ix.declares(entityQN, member); found {
+					return memberFound
+				}
+			}
+			return r
+		}
+		g.xpath = &grantXPathResolver{model: m, resolve: folded}
+	}
+	stored := accessRuleXPathConstraint(g.ctx, xpath, name)
+	var bad []string
+	for _, b := range unresolvableXPathStepsWith(g.ctx, g.xpath.model, stored, name, g.xpath.resolve) {
+		bad = append(bad, fmt.Sprintf("%s %q", b.kind, b.name))
+	}
+	if len(bad) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("the access rule's constraint names %s, which %s neither an attribute nor an association of %s — "+
+		"mxbuild reports CE1613 \"The selected … no longer exists\" at the access rule",
+		strings.Join(bad, ", "), plural(len(bad), "is", "are"), name)
+}
+
+// grantXPathResolver caches the XPath walk's inputs for a script's grants.
+type grantXPathResolver struct {
+	model   *scriptXPathModel
+	resolve func(entityQN, member string) memberResolution
+}
+
 func (g *grantResolver) memberProblem(qn ast.QualifiedName, rights []ast.EntityAccessRight) string {
 	name := qn.String()
 	if g.whole.entities[name] || g.whole.indirectEntities[name] || g.whole.alteredEntities[name] {

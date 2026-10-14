@@ -62,7 +62,7 @@ pages, microflows and icons — against that project. It reaches inside stored
 documents where a name can only be answered there: an `ALTER PAGE … SET` is
 dry-run against the page it edits, so a widget the page does not have, or a
 property the stored widget does not declare, is reported here rather than
-stopping the script partway through `exec`.
+stopping the script partway through `exec`. What else it resolves, and what a pass still does not prove: [reference/references-resolved.md](reference/references-resolved.md).
 
 ```bash
 mxcli check script.mdl                 # syntax + model-free rules
