@@ -486,6 +486,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// inserted widgets carry: only the document was resolved, so a typo in
 	// either passed check and stopped exec (mendixlabs/mxcli#1472).
 	errors = append(errors, validateAlterPageReferences(ctx, prog, sc)...)
+	// `Module.Enum.Key` in any expression: the key must be one of the
+	// enumeration's values (mendixlabs/mxcli#1472).
+	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
 	return errors, sc.warnings
 }
 
