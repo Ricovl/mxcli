@@ -456,7 +456,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 					w.Name, def.MDLName, len(dsProps), strings.Join(dsProps, ", "))
 			}
 			for _, propKey := range dsProps {
-				dataSource, entityName, err := e.pageBuilder.buildDataSourceV3(ds)
+				dataSource, entityName, err := e.pageBuilder.buildPluggableDataSourceV3(ds)
 				if err != nil {
 					return nil, mdlerrors.NewBackend("auto datasource for "+propKey, err)
 				}
@@ -1469,7 +1469,7 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			ds = w.GetDataSource()
 		}
 		if ds != nil {
-			dataSource, entityName, err := e.pageBuilder.buildDataSourceV3(ds)
+			dataSource, entityName, err := e.pageBuilder.buildPluggableDataSourceV3(ds)
 			if err != nil {
 				return nil, mdlerrors.NewBackend("build datasource", err)
 			}

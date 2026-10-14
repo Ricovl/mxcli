@@ -174,24 +174,26 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 	}
 	formatWidgetProps(ctx.Output, "", header, props, " {\n")
-	switch {
-	case len(nonEmpty) == 0:
-		// A widget-less page still needs an (empty) body block: the CREATE PAGE
-		// grammar requires `{ }`, so omitting it made DESCRIBE output fail to
-		// re-parse through `mxcli check` (#626).
-	case len(nonEmpty) == 1 && nonEmpty[0].Placeholder == "Main":
-		for _, w := range nonEmpty[0].Widgets {
-			outputWidgetMDLV3(ctx, w, 1)
-		}
-	default:
-		for _, g := range nonEmpty {
-			fmt.Fprintf(ctx.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
-			for _, w := range g.Widgets {
-				outputWidgetMDLV3(ctx, w, 2)
+	describeWidgetBody(ctx, func(c *ExecContext) {
+		switch {
+		case len(nonEmpty) == 0:
+			// A widget-less page still needs an (empty) body block: the CREATE PAGE
+			// grammar requires `{ }`, so omitting it made DESCRIBE output fail to
+			// re-parse through `mxcli check` (#626).
+		case len(nonEmpty) == 1 && nonEmpty[0].Placeholder == "Main":
+			for _, w := range nonEmpty[0].Widgets {
+				outputWidgetMDLV3(c, w, 1)
 			}
-			fmt.Fprint(ctx.Output, "  }\n")
+		default:
+			for _, g := range nonEmpty {
+				fmt.Fprintf(c.Output, "  placeholder %s {\n", mdlIdent(g.Placeholder))
+				for _, w := range g.Widgets {
+					outputWidgetMDLV3(c, w, 2)
+				}
+				fmt.Fprint(c.Output, "  }\n")
+			}
 		}
-	}
+	})
 	fmt.Fprint(ctx.Output, "};")
 
 	// Add GRANT VIEW if roles are assigned
@@ -294,9 +296,11 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 	rawWidgets := getSnippetWidgetsFromRaw(ctx, foundSnippet.ID)
 	if len(rawWidgets) > 0 {
 		fmt.Fprint(ctx.Output, " {\n")
-		for _, w := range rawWidgets {
-			outputWidgetMDLV3(ctx, w, 1)
-		}
+		describeWidgetBody(ctx, func(c *ExecContext) {
+			for _, w := range rawWidgets {
+				outputWidgetMDLV3(c, w, 1)
+			}
+		})
 		fmt.Fprint(ctx.Output, "};")
 	} else {
 		// A widget-less snippet still needs an (empty) body block to re-parse (#626).

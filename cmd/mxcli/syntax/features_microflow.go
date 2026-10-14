@@ -202,7 +202,7 @@ func init() {
 		Path:    "microflow.splits",
 		Summary: "CASE (enum split) and SPLIT TYPE (object type split)",
 		Keywords: []string{
-			"case", "when", "then", "end case", "enum split", "enumeration split",
+			"case", "when", "then", "end case", "enum split", "enumeration split", "rule split",
 			"split type", "end split", "type split", "inheritance split",
 			"specialization", "cast", "empty", "switch", "decision",
 		},
@@ -212,6 +212,10 @@ func init() {
 			"  WHEN (empty) THEN                  -- required (MDL056 / CE0079)\n" +
 			"    ...\n" +
 			"END CASE;                            -- no ELSE (MDL008)\n\n" +
+			"CASE Module.Rule(Param = $Value)     -- a RULE returning an enumeration\n" +
+			"  WHEN Value1 THEN ...               -- same call syntax as IF on a rule;\n" +
+			"  WHEN (empty) THEN ...              -- with -p every value needs a branch\n" +
+			"END CASE;\n\n" +
 			"SPLIT TYPE $ObjectVar                -- branches on the RUNTIME TYPE\n" +
 			"  WHEN Module.Specialization THEN\n" +
 			"    CAST $Specific;\n" +
@@ -431,12 +435,13 @@ func init() {
 			"delete", "save", "persist", "modify object",
 			"with events", "refresh", "commit flag", "without events",
 			"reference set", "referenceset", "many-to-many", "add to association",
-			"remove from association", "CE0033",
+			"remove from association", "CE0033", "+=", "-=",
 		},
 		Syntax: "$Obj = CREATE Module.Entity (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"CHANGE $Obj (Attr = value) [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
 			"ADD $X TO $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];      -- reference set\n" +
 			"REMOVE $X FROM $Obj/Module.Assoc [COMMIT [WITHOUT EVENTS]] [REFRESH];\n" +
+			"CHANGE $Obj (Attr = …, Module.Assoc += $X, Module.Assoc -= $Y);   -- the same, mixed\n" +
 			"COMMIT $Obj [WITHOUT EVENTS] [REFRESH];\n" +
 			"DELETE $Obj [REFRESH];\n" +
 			"ROLLBACK $Obj [REFRESH];\n\n" +
@@ -458,7 +463,9 @@ func init() {
 			"-- set: what was in it is dropped. ADD/REMOVE with a $Obj/Module.Assoc\n" +
 			"-- target is the Change object activity's Add / Remove member instead; $X\n" +
 			"-- may be an object or a list. Reference sets only: on an attribute or a\n" +
-			"-- plain Reference mxbuild rejects it (CE0033), and mxcli refuses it first.",
+			"-- plain Reference mxbuild rejects it (CE0033), and mxcli refuses it first.\n" +
+			"-- Inside CHANGE, `+=` is that Add member and `-=` that Remove, so one\n" +
+			"-- activity can mix them with ordinary `=` members.",
 		Example: "$NewOrder = CREATE MyModule.Order (\n  OrderNumber = 'ORD-001',\n  Quantity = $Quantity,\n  CreateDate = [%CurrentDateTime%]\n) COMMIT;\n\nCHANGE $NewOrder (MyModule.Order_Customer = $Customer) COMMIT REFRESH;\nADD $Line TO $NewOrder/MyModule.Order_Lines;     -- append to a reference set\nCHANGE $Draft (Status = 'Imported') COMMIT WITHOUT EVENTS;\n\nCOMMIT $NewOrder;                  -- runs the commit event handlers\nCOMMIT $Staging WITHOUT EVENTS;    -- bulk import: skip them deliberately\nCOMMIT $NewOrder REFRESH;          -- and repaint it on the open page\n\nDELETE $OldOrder REFRESH;\nROLLBACK $DraftOrder;",
 		SeeAlso: []string{"microflow.retrieve", "microflow.variables"},
 	})
@@ -735,7 +742,8 @@ func init() {
 			"LIST RULES [IN Module];\nDESCRIBE RULE Module.Name;\n" +
 			"DROP RULE Module.Name;\nMOVE RULE Module.Name TO FOLDER 'path';\n\n" +
 			"A rule is called from a decision and nowhere else:\n" +
-			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;\n\n" +
+			"  IF Module.Rule_Name(Param = $Value) THEN ... END IF;     -- Boolean rule\n" +
+			"  CASE Module.Rule_Name(Param = $Value) WHEN V THEN ... END CASE;  -- enumeration rule\n\n" +
 			"The return type is mandatory and must be Boolean or an enumeration\n" +
 			"(mxbuild: CE0103/CE0139). A rule may not create, change, delete, commit\n" +
 			"or roll back objects, talk to the client, or call a web service\n" +

@@ -524,9 +524,10 @@ func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op 
 	// Special path: inserting columns into a DataGrid2 column. Columns are
 	// CustomWidgets$WidgetObject, not Forms$* widgets, so we go through
 	// InsertColumns to serialize them correctly. Column children inherit the
-	// grid's data source entity as their entity context.
+	// grid's data source entity as their entity context — for a flow source, the
+	// flow's return entity, which the BSON walk alone does not see (#1468).
 	if op.Target.IsColumn() && allColumns(op.Widgets) {
-		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
+		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
 		specs, err := buildColumnSpecsFromAST(ctx, op.Widgets, moduleName, moduleID, entityCtx, mutator)
 		if err != nil {
 			return mdlerrors.NewBackend("build column specs", err)
@@ -669,9 +670,13 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 
 	// Special path: replacing a DataGrid2 column with new columns. Columns are
 	// CustomWidgets$WidgetObject, not Forms$* widgets. Column children inherit
-	// the grid's data source entity as their entity context.
+	// the grid's data source entity as their entity context. A microflow or
+	// nanoflow source names no entity in the BSON, so it is resolved through
+	// the flow's return type; reading the BSON alone left a replacement column's
+	// Attribute unqualified, it was not written, and mxbuild failed with "An
+	// attribute is required when column sorting is enabled" (#1468).
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
-		entityCtx := mutator.EnclosingEntityForChildren(op.Target.Widget)
+		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
 		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)

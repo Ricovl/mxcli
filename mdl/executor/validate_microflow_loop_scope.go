@@ -298,6 +298,7 @@ func loopRefVars(stmt ast.MicroflowStatement) []string {
 		add(s.ListVariable)
 	case *ast.EnumSplitStmt:
 		add(s.Variable)
+		addExpr(s.Condition)
 	case *ast.InheritanceSplitStmt:
 		add(s.Variable)
 	case *ast.CastObjectStmt:

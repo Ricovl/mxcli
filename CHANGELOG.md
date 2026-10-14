@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **mxcli no longer creates a module role on its own** (mendixlabs/mxcli#1474) — a new page, microflow or nanoflow in a module with no module roles used to create `<Module>.User` ("Auto-created default role for mxcli document access") and grant the document to it, so a security role appeared that nobody chose, open to every user role later mapped to it. A new document now starts with no allowed roles in every module, and `move` maps a document's roles to same-named roles of the target module without creating any. **Breaking for scripts that granted to `<Module>.User` without creating it**: add `create module role <Module>.User;` — `check --references` and `exec` both report "module role … does not exist", and MDL-SEC21 names the fix for a flow a page uses. Roles and grants an earlier mxcli created are left as they are; `create module role M.User` still adopts such a role.
+
 ## [0.26.0] - 2026-10-11
 
 Headline: **Documents mxcli writes now survive Studio Pro's merge and diff: every element carries exactly the property names Studio Pro writes for the project's Mendix version.** Before, a key mxcli left out, or wrote for a newer version, made a document unmergeable the first time Studio Pro saved it, although `mx check`, the build and the runtime stayed green. `mxcli fix property-sets` repairs projects an older mxcli wrote. Alongside it: a Claude Code companion mod with a Project pane, `describe` → `exec` round trips that keep loop back-edges, shared error handlers and page design properties, `check -p` resolving script sets and security references the way `exec` does, `mxcli run --local` as a background service, and a run of Windows fixes for the local dev loop. The [language poster](https://www.mxcli.org/poster/mxcli-language-poster.html) puts all of mxcli and MDL on one page.

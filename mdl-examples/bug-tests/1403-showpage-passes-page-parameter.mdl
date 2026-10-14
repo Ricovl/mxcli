@@ -1,0 +1,53 @@
+mdl 1;
+-- mendixlabs/mxcli#1403 — a `show page` that passes the enclosing page's own
+-- parameter, from outside every data container.
+--
+-- POSITIVE TEST: `mxcli check` (with and without -p) and `exec` MUST accept it.
+--
+-- Studio Pro authors this (GenAI Showcase wizard buttons, ako/TestApp
+-- WorkflowCommons TaskAssignmentHelper_UserTask_Reassign) and stores it as an
+-- EXPLICIT Forms$PageParameterMapping whose Variable is a Forms$PageVariable
+-- naming the parameter. DESCRIBE prints that as `Item = $Item`, and check
+-- refused it with MDL-PAGEARG01 ("there is no context object at all"): mxcli
+-- only knew the empty, inferred mapping, which here would build to CE1571
+-- (#1029). A page or snippet parameter is bound by name and needs no context
+-- object; exec now writes the mapping Studio Pro writes. Measured on mxbuild
+-- 11.6.6: this script execs and the app checks at 0 errors.
+create module Bug1403;
+
+create persistent entity Bug1403.Item (
+  Name: String(200)
+);
+
+create page Bug1403.Detail (
+  params: ( $Item: Bug1403.Item ),
+  title: 'Detail',
+  layout: Atlas_Core.Atlas_Default
+) {
+  dataview dv (datasource: $Item) {
+    textbox txt (label: 'Name', attribute: 'Name')
+  }
+};
+
+-- The reported shape: a page-level button passing the page's own parameter.
+create page Bug1403.Wizard (
+  params: ( $Item: Bug1403.Item ),
+  title: 'Wizard',
+  layout: Atlas_Core.Atlas_Default
+) {
+  actionbutton btnNext (
+    caption: 'Next',
+    action: show page Bug1403.Detail(Item = $Item)
+  )
+};
+
+-- The snippet twin: a snippet parameter is bound by name the same way
+-- (Studio Pro: Forms$PageVariable.SnippetParameter).
+create snippet Bug1403.WizardButtons (
+  params: ( $Item: Bug1403.Item )
+) {
+  actionbutton btnOpen (
+    caption: 'Open',
+    action: show page Bug1403.Detail(Item = $Item)
+  )
+};

@@ -10,25 +10,14 @@ mdl 1;
 --      mx check -> [CE1613] "The selected association 'Bench.Order_Status'
 --                  no longer exists." at Data grid 2 'gridOrders'
 --
--- 2. A CONTENTPARAMS value rooted in a VARIABLE (mendixlabs/mxcli#1046). A
---    template parameter is evaluated against the widget's own context object,
---    so `$Customer/` has nowhere to resolve and the writer keeps it as part of
---    the attribute name:
---
---      ContentParams: [{1} = $Customer/Name]
---      mx check -> [CE1613] "The selected attribute
---                  'Bench.Customer.$Customer/Name' no longer exists."
---
--- The two run in different TIERS, and the difference is the useful part:
---
---   * the XPath one asks about the MODEL, so it needs -p;
---   * the ContentParams one is answerable from the statement alone, so it fires
---     under a bare `mxcli check` with no project (MDL-WIDGET24).
---
--- That second tier is not theoretical. `ledger-27-consecutive-dynamictext.mdl`
--- had shipped in this directory using `{1} = $currentObject/Amount`, had only
--- ever been run through `mxcli check` with no project, and built with SIX
--- CE1613s the first time anyone executed it. MDL-WIDGET24 found it.
+-- 2. A CONTENTPARAMS value rooted in a VARIABLE (mendixlabs/mxcli#1046) was
+--    bound as an attribute and the writer kept `$Customer/` as part of the
+--    attribute name (CE1613 "The selected attribute
+--    'Bench.Customer.$Customer/Name' no longer exists"). MDL-WIDGET24 refused
+--    it at check time. Since mendixlabs/mxcli#1406 the writer stores
+--    `$Customer/Name` as the Mendix EXPRESSION it is — what Studio Pro stores
+--    for an expression parameter, and what describe prints back — so the rule
+--    is gone. `$currentObject/Assoc/Attr` is still bound over the association.
 --
 -- Verify — EXEC FIRST, for the reason the sibling example gives: members are
 -- resolved against the model, so against an app that has never seen these
@@ -45,17 +34,18 @@ mdl 1;
 --     WidgetRefs.Order names "Statuss", which is neither an attribute nor an
 --     association of it — …
 --
---   {1} = OrderNo             -> {1} = $Order/OrderNo
---     (reported with NO project, by MDL-WIDGET24, naming `OrderNo` as the fix)
---
--- The shapes MDL-WIDGET24 must NOT report, all measured on 11.13.0 by executing
--- and building each one:
+-- Template parameter shapes, measured on 11.13.0 by executing and building:
 --
 --   OrderNo                                       clean
 --   WidgetRefs.Order_Customer/Name                clean  (association hop)
 --   $currentObject/WidgetRefs.Order_Customer/Name clean  (prefix stripped)
---   $currentObject/OrderNo                        CE1613
---   $Order/Name                                   CE1613
+--
+-- and, since #1406, stored as an expression (a String member builds clean on
+-- 11.6.6;
+-- an expression parameter must be a String, CE0117 otherwise):
+--
+--   $currentObject/OrderNo
+--   $Order/Name
 
 create module WidgetRefs;
 
@@ -120,7 +110,7 @@ create or modify page WidgetRefs.P_Detail
 
     -- And `$currentObject/` IS stripped when an association path follows, so
     -- this builds cleanly too. A check that flagged every variable root would
-    -- report it — the control that keeps MDL-WIDGET24 honest.
+    -- report it.
     dynamictext dtCust2 (
       Content: 'also {1}',
       ContentParams: ({1} = $currentObject/WidgetRefs.Order_Customer/Name)

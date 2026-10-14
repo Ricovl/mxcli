@@ -98,11 +98,19 @@ func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
 	ctx.scriptFlows = map[string]*selfFlow{}
 	defer func() { ctx.scriptFlows = saved }()
 	declare := func(nanoflow bool, qn ast.QualifiedName, rt *ast.MicroflowReturnType) {
-		var t microflows.DataType = &microflows.VoidType{}
-		if rt != nil {
-			t = convertASTToMicroflowDataType(rt.Type, nil)
+		declareScriptFlow(ctx.scriptFlows, nanoflow, qn, rt)
+	}
+	// A run that can roll back resolves a call against every flow the script
+	// declares, not only the earlier ones (mendixlabs/mxcli#1405).
+	if ctx.forwardFlowCalls {
+		for _, stmt := range prog.Statements {
+			switch s := stmt.(type) {
+			case *ast.CreateMicroflowStmt:
+				declare(false, s.Name, s.ReturnType)
+			case *ast.CreateNanoflowStmt:
+				declare(true, s.Name, s.ReturnType)
+			}
 		}
-		ctx.scriptFlows[scriptFlowKey(nanoflow, qn.String())] = &selfFlow{qualifiedName: qn.String(), nanoflow: nanoflow, returnType: t}
 	}
 	undeclare := func(qn ast.QualifiedName) {
 		delete(ctx.scriptFlows, scriptFlowKey(false, qn.String()))
@@ -219,6 +227,15 @@ func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
 		}
 	}
 	return r
+}
+
+// declareScriptFlow records a flow a script declares, as a call to it resolves.
+func declareScriptFlow(flows map[string]*selfFlow, nanoflow bool, qn ast.QualifiedName, rt *ast.MicroflowReturnType) {
+	var t microflows.DataType = &microflows.VoidType{}
+	if rt != nil {
+		t = convertASTToMicroflowDataType(rt.Type, nil)
+	}
+	flows[scriptFlowKey(nanoflow, qn.String())] = &selfFlow{qualifiedName: qn.String(), nanoflow: nanoflow, returnType: t}
 }
 
 // touchDropped is what CheckFlowVerdicts records for a flow or module an

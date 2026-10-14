@@ -379,6 +379,12 @@ func annotateForwardRef(err error, stmt ast.Statement, created, allDefined *scri
 		if created.has(name) || self.has(name) {
 			continue // already created before this statement, or defined by it
 		}
+		if (allDefined.microflows[name] || allDefined.nanoflows[name]) &&
+			(strings.Contains(msg, "CALL MICROFLOW '"+name+"'") || strings.Contains(msg, "CALL NANOFLOW '"+name+"'")) {
+			// Reached only in a run that cannot roll back: one that can
+			// resolves the call against the whole script (#1405).
+			return fmt.Errorf("%w\n  hint: %s is defined later in this script; %s", err, name, forwardFlowCallRefusal)
+		}
 		if strings.Contains(msg, name) {
 			return fmt.Errorf("%w\n  hint: %s is defined later in this script — move its create statement before this one", err, name)
 		}
@@ -730,6 +736,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
 		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside microflow body (pages, microflows, java actions, entities)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
@@ -783,6 +790,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		// instead of them: a body error used to hide a call's unknown
 		// parameter, which mxbuild reports as well (CE1613, #953).
 		validationErrors := validateFlowBody(s.Parameters, s.ReturnType, s.Body, true, checkAssociationShapes(ctx, sc))
+		validationErrors = append(validationErrors, ruleCaseCoverageErrors(ctx, s.Body)...)
 		// Validate references inside nanoflow body (an excluded nanoflow's are warnings)
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
@@ -2061,8 +2069,16 @@ func validatePublishedRestAuthMicroflow(ctx *ExecContext, auth *ast.PublishedRes
 	if auth == nil || auth.Microflow == "" {
 		return nil
 	}
+	if problem := publishedRestAuthListProblem(auth.Parameters); problem != "" {
+		return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+	}
 	if mf, ok := liveMicroflowsByQualifiedName(ctx)[auth.Microflow]; ok {
 		if problem := publishedRestAuthMicroflowProblem(mf); problem != "" {
+			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
+		}
+		// The parameter list names parameters the microflow has
+		// (mendixlabs/mxcli#1417).
+		if _, problem := resolvePublishedRestAuthParameters(auth.Microflow, mf, auth.Parameters); problem != "" {
 			return mdlerrors.NewValidationf("MDL-REST04: authentication microflow %s %s", auth.Microflow, problem)
 		}
 		return nil

@@ -298,6 +298,9 @@ func outputDataContainerContext(w io.Writer, prefix string, widgetName string, e
 // outputWidgetMDLV3 outputs a widget in MDL V3 syntax.
 // V3 syntax uses WIDGET Name (Props) { children } format.
 func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
+	if describeDanglingSelection(ctx, w, indent) {
+		return // listens to a widget this description cannot emit (#1415)
+	}
 	prefix := strings.Repeat("  ", indent)
 
 	switch w.Type {
@@ -1156,6 +1159,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		// Atlas_Core.Atlas_SideBar, whose two Forms$SidebarToggleButton widgets
 		// do not survive describe -> exec — silent without this note, because a
 		// bare `-- Forms$X (name)` line reads as informational.
+		describeDroppedWidget(ctx, w)
 		fmt.Fprintf(ctx.Output, "%s-- %s", prefix, w.Type)
 		if w.Name != "" {
 			fmt.Fprintf(ctx.Output, " (%s)", w.Name)

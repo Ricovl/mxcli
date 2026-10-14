@@ -1,0 +1,28 @@
+-- mendixlabs/mxcli#1474: "auto created module role is potential security issue".
+-- A new microflow, nanoflow or page in a module with no module roles used to
+-- create <Module>.User (description "Auto-created default role for mxcli
+-- document access") and grant the document to it — a security role nobody
+-- asked for. A module role is now always the author's choice: a new document
+-- starts with no allowed roles in every module.
+--
+--   mxcli exec this-file -p app.mpr
+--     before (v0.26.0):  "Created microflow: Bug1474.ACT_Hello"
+--                        "  access: granted to auto-created role Bug1474.User (…)"
+--     after:             the microflow is created with no allowed roles, and
+--                        Bug1474 holds only the role created below.
+--
+-- The grant below names a role the script creates itself; without the
+-- `create module role` line, check --references and exec both refuse it with
+-- "module role Bug1474.User does not exist".
+
+mdl 1;
+
+create module Bug1474;
+create module role Bug1474.User;
+
+create microflow Bug1474.ACT_Hello ()
+begin
+  log info node 'Bug1474' 'hello';
+end;
+
+grant execute on microflow Bug1474.ACT_Hello to Bug1474.User;

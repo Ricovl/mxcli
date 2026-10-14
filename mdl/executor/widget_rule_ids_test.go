@@ -128,6 +128,7 @@ func TestWidgetRuleIDsHaveNoGaps(t *testing.T) {
 	// start meaning a different rule.
 	retired := map[int]string{
 		14: "an expression in contentparams/captionparams; stored as the parameter's Expression since ako/mxcli#823 option C",
+		24: "a `$variable/` template parameter; stored as the Mendix expression it is since mendixlabs/mxcli#1406",
 	}
 	var missing []int
 	for i := 1; i < max; i++ {

@@ -94,3 +94,48 @@ func TestAlterPublishedRestService_SetPropertyList(t *testing.T) {
 		t.Errorf("Authentication = %+v, want %+v", set.Authentication, want)
 	}
 }
+
+// The custom-authentication microflow takes an optional list binding its
+// parameters to query or header values (mendixlabs/mxcli#1417). The kind is
+// kept as written (lowercased), so the executor can name a wrong one in
+// MDL-REST04.
+func TestPublishedRestAuthentication_Parameters(t *testing.T) {
+	prop := `Authentication: (
+    basic,
+    microflow M.Authenticate (
+      $Token: header 'X-Api-Token',
+      $Tenant: query,
+      $Lang: Query 'lang' description 'UI language, defaults to en',
+      $Other: path,
+    )
+  )`
+	prog, errs := Build("mdl 1;\n" + publishedRestWith(prop))
+	if len(errs) > 0 {
+		t.Fatalf("errors: %v", errs)
+	}
+	got := prog.Statements[len(prog.Statements)-1].(*ast.CreatePublishedRestServiceStmt).Authentication
+	want := &ast.PublishedRestAuthentication{
+		Methods: []string{"Basic", "Microflow"}, Microflow: "M.Authenticate",
+		Parameters: []*ast.PublishedRestAuthParameter{
+			{Name: "Token", Kind: "header", HTTPName: "X-Api-Token"},
+			{Name: "Tenant", Kind: "query"},
+			{Name: "Lang", Kind: "query", HTTPName: "lang", Description: "UI language, defaults to en"},
+			{Name: "Other", Kind: "path"},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		for i, p := range got.Parameters {
+			t.Logf("%d: %+v", i, *p)
+		}
+		t.Errorf("Authentication = %+v, want %+v", got, want)
+	}
+
+	// An empty list is no list: every parameter is defaulted.
+	prog, errs = Build("mdl 1;\n" + publishedRestWith("Authentication: (microflow M.Authenticate ())"))
+	if len(errs) > 0 {
+		t.Fatalf("errors: %v", errs)
+	}
+	if a := prog.Statements[len(prog.Statements)-1].(*ast.CreatePublishedRestServiceStmt).Authentication; len(a.Parameters) != 0 || a.Microflow != "M.Authenticate" {
+		t.Errorf("empty list read as %+v", a)
+	}
+}

@@ -32,8 +32,9 @@ mdl 1;
 --            no longer exists." at Text 'dMonth'   (and five more)
 --
 -- Nothing caught it because the example was only ever run through `mxcli check`
--- with no project and never executed. MDL-WIDGET24 now reports it with no
--- project at all, which is how this was found.
+-- with no project and never executed. (Since mendixlabs/mxcli#1406 that spelling
+-- is stored as an expression, as Studio Pro does; over a Decimal it would be
+-- CE0117, so the bare attribute binding below is still what this page wants.)
 -- ============================================================================
 
 create entity MyModule.Summary ( Amount: Decimal, LastImport: DateTime );

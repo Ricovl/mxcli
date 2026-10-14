@@ -127,6 +127,11 @@ Example:
 			os.Exit(1)
 		}
 
+		// A call to a flow the script creates further down is written before
+		// its callee, so only a run that rolls back on failure may make one
+		// (mendixlabs/mxcli#1405); --continue-on-error keeps each statement.
+		exec.SetForwardFlowCalls(!continueOnError)
+
 		if refusal := execPreflight(exec, prog, projectPath, filePath, skipCheck, verbose, continueOnError, depPolicy, os.Stderr, true); refusal != "" {
 			fmt.Fprint(os.Stderr, refusal)
 			os.Exit(1)
@@ -166,6 +171,7 @@ func runScriptAtomically(exec *executor.Executor, prog *ast.Program) error {
 	journal, jerr := mmpr.BeginJournal()
 	if jerr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: %v; a failing statement will leave the earlier ones written\n", jerr)
+		exec.SetForwardFlowCalls(false)
 		if err := exec.ExecuteProgram(prog); err != nil && !errors.Is(err, executor.ErrExit) {
 			return err
 		}

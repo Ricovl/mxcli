@@ -53,10 +53,6 @@ type builtFlow struct {
 	// VarTypes is the entity each object or list variable of the body holds
 	// ("Module.Entity" or "List of Module.Entity"), as the builder resolved it.
 	VarTypes map[string]string
-	// AutoGranted is the auto-created <Module>.User role a NEW flow was granted
-	// to by defaultDocumentAccessRoles, or nil. exec reports it, because the
-	// grant is otherwise invisible and GRANT only ever adds to it.
-	AutoGranted []model.ID
 }
 
 // builtNanoflow is builtFlow for the distinct Nanoflow document type.
@@ -66,7 +62,6 @@ type builtNanoflow struct {
 	ExistingID          model.ID
 	ExistingContainerID model.ID
 	VarTypes            map[string]string
-	AutoGranted         []model.ID // see builtFlow.AutoGranted
 }
 
 // buildMicroflowFromStmt assembles a Microflow from a CREATE MICROFLOW
@@ -288,14 +283,10 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 	if preserveDocumentation {
 		mf.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
-	var autoGranted []model.ID
+	// A new flow starts with no allowed roles: access is the author's grant
+	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {
 		mf.AllowedModuleRoles = existingAllowedRoles
-	} else {
-		if module != nil {
-			mf.AllowedModuleRoles = defaultDocumentAccessRoles(ctx, module)
-			autoGranted = mf.AllowedModuleRoles
-		}
 	}
 	if mf.MicroflowActionInfo, mf.WorkflowActionInfo, err = applyExposeClauses(ctx,
 		s.Expose, existingActionInfo, existingWorkflowInfo, exposeWarner(ctx)); err != nil {
@@ -465,7 +456,6 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
 		VarTypes:            builder.varTypes,
-		AutoGranted:         autoGranted,
 	}, nil
 }
 
@@ -594,14 +584,10 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	if preserveDocumentation {
 		nf.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
-	var autoGranted []model.ID
+	// A new flow starts with no allowed roles: access is the author's grant
+	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {
 		nf.AllowedModuleRoles = existingAllowedRoles
-	} else {
-		if module != nil {
-			nf.AllowedModuleRoles = defaultDocumentAccessRoles(ctx, module)
-			autoGranted = nf.AllowedModuleRoles
-		}
 	}
 
 	// Load metadata needed by the entity resolver up front so backend read
@@ -766,7 +752,6 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		ExistingID:          existingID,
 		ExistingContainerID: existingContainerID,
 		VarTypes:            builder.varTypes,
-		AutoGranted:         autoGranted,
 	}, nil
 }
 

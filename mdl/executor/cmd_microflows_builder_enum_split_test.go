@@ -188,19 +188,41 @@ func TestEnumSplitAllCasesReturnWithoutElseDoesNotCreateFallthrough(t *testing.T
 	}
 }
 
-func TestEnumSplitBuilderRejectsMoreThanSupportedBranches(t *testing.T) {
-	fb := &flowBuilder{
-		spacing:  HorizontalSpacing,
-		measurer: &layoutMeasurer{},
+// TestEnumSplitBuilderAcceptsMoreThanSixteenBranches: mendixlabs/mxcli#1416.
+// `create` refused a split of more than 16 branches ("enum split has 29
+// branches; at most 16 branches are supported") although Studio Pro writes one
+// (the FSM template's 28-value NativeModelCheck_Process) and DESCRIBE prints it.
+// The 16 was the size of the anchor-pair table that once stored the case order;
+// a split of four or more cases stores it as side + canvas depth, which has no
+// limit. The describe must read the 29 branches back in the order they were written.
+func TestEnumSplitBuilderAcceptsMoreThanSixteenBranches(t *testing.T) {
+	split := enumSplitWithBranchCount(28)
+	split.ElseBody = []ast.MicroflowStatement{
+		&ast.LogStmt{Level: ast.LogInfo, Message: &ast.LiteralExpr{Kind: ast.LiteralString, Value: "other"}},
 	}
-
-	if id := fb.addEnumSplit(enumSplitWithBranchCount(maxEnumSplitBranches + 1)); id != "" {
-		t.Fatalf("unsupported enum split returned split ID %q", id)
+	fb := &flowBuilder{posX: 100, posY: 100, spacing: HorizontalSpacing, measurer: &layoutMeasurer{}}
+	oc := fb.buildFlowGraph([]ast.MicroflowStatement{split}, nil)
+	if errs := fb.GetErrors(); len(errs) > 0 {
+		t.Fatalf("a 29-branch enum split must build, got: %s", strings.Join(errs, "\n"))
 	}
-
-	errors := strings.Join(fb.GetErrors(), "\n")
-	if !strings.Contains(errors, "enum split has 17 branches; at most 16 branches are supported") {
-		t.Fatalf("expected unsupported branch count error, got %q", errors)
+	mf := &microflows.Microflow{ObjectCollection: oc}
+	out := strings.Join(formatMicroflowActivities(newTestExecutor().newExecContext(t.Context()), mf, nil, nil), "\n")
+	var whens []string
+	for _, line := range strings.Split(out, "\n") {
+		if w := strings.TrimSpace(line); strings.HasPrefix(w, "when ") {
+			whens = append(whens, strings.TrimSuffix(strings.TrimPrefix(w, "when "), " then"))
+		}
+	}
+	if len(whens) != 28 {
+		t.Fatalf("describe printed %d cases, want 28:\n%s", len(whens), out)
+	}
+	for i, w := range whens {
+		if want := fmt.Sprintf("Value%d", i+1); w != want {
+			t.Fatalf("case %d described as %q, want %q:\n%s", i, w, want, out)
+		}
+	}
+	if !strings.Contains(out, "else") {
+		t.Fatalf("describe lost the else branch:\n%s", out)
 	}
 }
 

@@ -785,7 +785,7 @@ func buildAssociationQualifiedNames(ctx *ExecContext) map[string]bool {
 // treats one of those as a hit rather than a conflict — it adopts the caller's
 // casing, rewrites the references, and returns nil — so listing it here would
 // make `check` refuse a script that runs fine, and refuse it over a role the
-// user never asked mxcli to create (`defaultDocumentAccessRoles`). A check that
+// user never asked mxcli to create (an earlier mxcli made one per role-less module). A check that
 // reports a statement exec accepts is worse than the under-report it replaces.
 //
 // Known limit: exec matches role names case-insensitively (Mendix does, CE0123),

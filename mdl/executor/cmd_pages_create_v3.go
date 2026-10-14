@@ -141,12 +141,10 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 	if haveExistingPage {
 		page.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
-	var autoGranted []model.ID
+	// A new page starts with no allowed roles: access is the author's grant
+	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {
 		page.AllowedRoles = existingAllowedRoles
-	} else if len(page.AllowedRoles) == 0 {
-		page.AllowedRoles = defaultDocumentAccessRoles(ctx, module)
-		autoGranted = page.AllowedRoles
 	}
 
 	// Replace or create the page in the MPR
@@ -192,7 +190,6 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 		fmt.Fprintf(ctx.Output, "Replaced page %s\n", s.Name.String())
 	default:
 		fmt.Fprintf(ctx.Output, "Created page %s\n", s.Name.String())
-		reportAutoRoleGrant(ctx, autoGranted)
 	}
 	return nil
 }

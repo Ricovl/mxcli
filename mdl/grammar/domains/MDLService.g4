@@ -188,6 +188,14 @@ publishedRestAuthMethod
     : BASIC
     | SESSION
     | MICROFLOW qualifiedName
+      (LPAREN (publishedRestAuthParameter (COMMA publishedRestAuthParameter)* COMMA?)? RPAREN)?
+    ;
+
+/** A service-level authentication parameter (mendixlabs/mxcli#1417):
+ *  `$Token: header 'X-Api-Token' description '...'`. The kind is any word so
+ *  the executor can name a wrong one; only query and header are accepted. */
+publishedRestAuthParameter
+    : VARIABLE COLON identifierOrKeyword STRING_LITERAL? (DESCRIPTION STRING_LITERAL)?
     ;
 
 publishedRestResource

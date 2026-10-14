@@ -284,14 +284,6 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// (#927).
 	violations = append(violations, ValidateExportMappingMembers(prog)...)
 
-	// Flag a template parameter written as a `$variable/` path where the
-	// position takes an attribute of the widget's context object. The writer
-	// keeps the prefix as part of the attribute name, so the model names an
-	// attribute that cannot exist (mendixlabs/mxcli#1046). The answer is in the
-	// statement, so it runs here rather than under --references — otherwise
-	// `mxcli check page.mdl` would stay silent on a mistake it can see.
-	violations = append(violations, ValidateWidgetParamPaths(prog)...)
-
 	// Flag a CREATE whose target name has no module. `exec` refuses it and
 	// `check` passed it, so a script stopped partway through with the earlier
 	// statements already applied (mendixlabs/mxcli#1050).

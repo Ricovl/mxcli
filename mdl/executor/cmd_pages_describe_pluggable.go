@@ -705,11 +705,34 @@ func firstObjectPropertyDataSource(w map[string]any) *rawDataSource {
 		if !ok || ds == nil {
 			continue
 		}
-		if result := parseDataSource(ds); result != nil {
+		if result := parseDataSource(withWidgetValueSourceVariable(ds, value)); result != nil {
 			return result
 		}
 	}
 	return nil
+}
+
+// withWidgetValueSourceVariable returns ds with the WidgetValue's SourceVariable
+// when ds has no SourceVariable key of its own. Before Mendix 10 a pluggable
+// widget's datasource did not declare one (Forms$EntityPathSource.sourceVariable
+// is introduced in 10.0.0): the page or snippet parameter a source reached over
+// an association starts from is stored on the WidgetValue beside it. Reading the
+// datasource alone described the path from $currentObject (mendixlabs/mxcli#1399).
+// A source that declares the key — null included — is returned as it is.
+func withWidgetValueSourceVariable(ds, value map[string]any) map[string]any {
+	if _, declared := ds["SourceVariable"]; declared {
+		return ds
+	}
+	sv, ok := value["SourceVariable"].(map[string]any)
+	if !ok || sv == nil {
+		return ds
+	}
+	out := make(map[string]any, len(ds)+1)
+	for k, v := range ds {
+		out[k] = v
+	}
+	out["SourceVariable"] = sv
+	return out
 }
 
 func microflowSourceRef(ds map[string]any) string {
@@ -1496,7 +1519,9 @@ func namedCustomWidgetDataSources(w map[string]any) []rawNamedDataSource {
 		if !ok || ds == nil {
 			continue
 		}
-		if result := parseDataSource(ds); result != nil && result.Reference != "" {
+		// An unsupported datasource is kept too, so the emitter can say it is
+		// there: dropping it here was the silent half of mendixlabs/mxcli#1399.
+		if result := parseDataSource(withWidgetValueSourceVariable(ds, value)); result != nil && (result.Reference != "" || result.Unsupported != "") {
 			out = append(out, rawNamedDataSource{
 				Key:        propTypeKeyMap[extractBinaryID(propMap["TypePointer"])],
 				DataSource: result,

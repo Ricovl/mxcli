@@ -62,7 +62,26 @@ type defRef struct {
 	name  string
 	kinds []string
 	site  string // where the reference sits, for the message
+	// flowCall marks a CALL MICROFLOW / CALL NANOFLOW target. The call is
+	// stored by name, so a run that rolls back on failure resolves it against
+	// the whole script (mendixlabs/mxcli#1405); see flowCallRefs.
+	flowCall bool
 }
+
+// flowCallRefs marks refs as flow-call targets.
+func flowCallRefs(refs []defRef) []defRef {
+	for i := range refs {
+		refs[i].flowCall = true
+	}
+	return refs
+}
+
+// forwardFlowCallRefusal is why a run that cannot roll back refuses a call to
+// a flow created further down the script.
+const forwardFlowCallRefusal = "a call to a flow the script creates further down is written before its callee, " +
+	"and this run cannot be rolled back (--continue-on-error, the REPL, -c), so a later failure would leave the call dangling. " +
+	"Create the callee first, or create a stub of it first and `create or modify` it after the caller; " +
+	"plain `mxcli exec`, which rolls back, accepts the script as it is"
 
 // ValidateScriptDefinitionOrder flags (MDL-ORDER01) a statement that references
 // a document created LATER in the same script by a plain CREATE.
@@ -84,6 +103,10 @@ type defRef struct {
 //   - RETRIEVE … FROM an entity
 //   - CREATE <entity> inside a microflow body
 //
+// A CALL MICROFLOW / CALL NANOFLOW target is not judged here either: whether
+// it may run ahead of its callee depends on whether the run can roll back
+// (mendixlabs/mxcli#1405), which validateForwardDefRefs and exec know.
+//
 // The matrix behind that split is in mdl-examples/bug-tests/955-*.mdl.
 func ValidateScriptDefinitionOrder(prog *ast.Program) []linter.Violation {
 	if prog == nil {
@@ -98,6 +121,12 @@ func ValidateScriptDefinitionOrder(prog *ast.Program) []linter.Violation {
 	var out []linter.Violation
 	for i, stmt := range prog.Statements {
 		for _, ref := range eagerDefRefs(stmt) {
+			// Whether a flow call may run ahead of its callee depends on how
+			// the script runs, which this tier cannot know: the project tier
+			// (validateForwardDefRefs) and exec decide (mendixlabs/mxcli#1405).
+			if ref.flowCall {
+				continue
+			}
 			kind, at, ok := laterPlainCreate(plain, created, ref)
 			// at == i is a document referring to itself (a recursive microflow
 			// call, an entity whose attribute names its own enumeration); the
@@ -269,10 +298,10 @@ func flowDefRefs(site string, params []ast.MicroflowParam, ret *ast.MicroflowRet
 	for _, stmt := range flattenFlowBody(body) {
 		switch c := stmt.(type) {
 		case *ast.CallMicroflowStmt:
-			out = append(out, oneDefRef(c.MicroflowName, defMicroflow, site)...)
+			out = append(out, flowCallRefs(oneDefRef(c.MicroflowName, defMicroflow, site))...)
 			out = append(out, queueDefRef(c.Queue, site)...)
 		case *ast.CallNanoflowStmt:
-			out = append(out, oneDefRef(c.NanoflowName, defNanoflow, site)...)
+			out = append(out, flowCallRefs(oneDefRef(c.NanoflowName, defNanoflow, site))...)
 		case *ast.CallJavaActionStmt:
 			// The action itself resolves lazily (measured, #955); its IN QUEUE
 			// does not — buildQueueSettings refuses a queue it cannot find.
@@ -466,7 +495,7 @@ func validateForwardDefRefs(ctx *ExecContext, prog *ast.Program) []error {
 					break
 				}
 			}
-			if resolved {
+			if resolved || (ref.flowCall && ctx.forwardFlowCalls) {
 				continue
 			}
 			for _, k := range ref.kinds {
@@ -474,6 +503,11 @@ func validateForwardDefRefs(ctx *ExecContext, prog *ast.Program) []error {
 				at, later := anyCreate[key]
 				if !later || at <= i {
 					continue
+				}
+				if ref.flowCall {
+					errs = append(errs, fmt.Errorf("statement %d: %s calls %s %s before it is created (statement %d): %s",
+						i+1, ref.site, k, ref.name, at+1, forwardFlowCallRefusal))
+					break
 				}
 				if _, isPlain := plain[key]; isPlain {
 					break // MDL-ORDER01 reports it, without a project
