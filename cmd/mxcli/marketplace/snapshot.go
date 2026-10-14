@@ -125,6 +125,18 @@ func emptyBody(mdl string) bool {
 type Snapshot struct {
 	Module   string
 	Elements map[ElementKey]Element
+	// Dependents are the cross-module associations OTHER modules own that reach
+	// into this one, keyed by qualified name (they are not this module's, so the
+	// unqualified-name convention of Elements does not apply).
+	//
+	// They are captured because replacing the module destroys them: DROP MODULE
+	// deletes this module's entities, and DeleteEntity cascades into every other
+	// domain model to remove the cross-module associations that reach a deleted
+	// entity by name. The association belongs to the user's module, so it is
+	// nobody's "edit" to this one — which is how --save-edits came to save every
+	// change the update would discard except the one it was certain to
+	// (mendixlabs/mxcli#1502).
+	Dependents []Element
 }
 
 // Keys returns the snapshot's element keys in a stable order.
@@ -193,6 +205,14 @@ func SnapshotModule(mprPath, moduleName string, newBackend func() backend.FullBa
 		}
 		snap.Elements[key] = describeElement(exec, &sink, row)
 	}
+
+	deps, err := queryDependentAssociations(exec, moduleName)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range deps {
+		snap.Dependents = append(snap.Dependents, describeElement(exec, &sink, row))
+	}
 	return snap, nil
 }
 
@@ -226,6 +246,39 @@ func queryModuleObjects(exec *executor.Executor, moduleName string) ([]moduleObj
 			name:          fmt.Sprintf("%v", row[1]),
 			qualifiedName: fmt.Sprintf("%v", row[2]),
 		})
+	}
+	return out, nil
+}
+
+// queryDependentAssociations finds the associations owned by other modules that
+// have an end in moduleName. In practice that is the TO end — a cross-module
+// association is stored with its FROM entity — but both ends are matched so a
+// shape the catalog reports differently is not silently missed.
+//
+// The prefix is compared with substr rather than LIKE: module names may contain
+// `_`, which LIKE reads as a wildcard.
+func queryDependentAssociations(exec *executor.Executor, moduleName string) ([]moduleObject, error) {
+	cat := exec.Catalog()
+	if cat == nil {
+		return nil, fmt.Errorf("no catalog available for %s", moduleName)
+	}
+	quoted := "'" + strings.ReplaceAll(moduleName, "'", "''") + ".'"
+	n := fmt.Sprint(len(moduleName) + 1)
+	q := "SELECT QualifiedName FROM associations WHERE ModuleName <> '" +
+		strings.ReplaceAll(moduleName, "'", "''") + "' AND (" +
+		"substr(ToEntity, 1, " + n + ") = " + quoted + " OR substr(FromEntity, 1, " + n + ") = " + quoted +
+		") ORDER BY QualifiedName"
+	res, err := cat.Query(q)
+	if err != nil {
+		return nil, fmt.Errorf("find associations into module %s: %w", moduleName, err)
+	}
+	out := make([]moduleObject, 0, len(res.Rows))
+	for _, row := range res.Rows {
+		if len(row) < 1 {
+			continue
+		}
+		qn := fmt.Sprintf("%v", row[0])
+		out = append(out, moduleObject{objectType: "ASSOCIATION", name: qn, qualifiedName: qn})
 	}
 	return out, nil
 }
