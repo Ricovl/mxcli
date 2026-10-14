@@ -671,6 +671,84 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	return dp, nil
 }
 
+// buildFileManagerV3 builds the classic file manager (mendixlabs/mxcli#151).
+// It binds no attribute — Mendix uploads into, and downloads from, the
+// enclosing data view's object — so only the label and its own four properties
+// are read. Absent ones take the Model SDK's defaults (mendixmodelsdk 4.116.0,
+// pages.FileManager): Type Both, MaxFileSize 5, no extension filter, and
+// ShowFileInBrowser false.
+func (pb *pageBuilder) buildFileManagerV3(w *ast.WidgetV3) (*pages.FileManager, error) {
+	fm := &pages.FileManager{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$FileManager",
+			},
+			Name: w.Name,
+		},
+		Label:             inputLabel(w),
+		Type:              pages.FileManagerTypeBoth,
+		MaxFileSize:       5,
+		AllowedExtensions: w.GetStringProp("AllowedExtensions"),
+	}
+
+	// mxbuild CE6810: a file manager uploads into the data view's object, so
+	// that object must be a file. Refused only where the entity's chain is
+	// loaded and provably ends elsewhere; `exec` used to report success and
+	// leave the error to the build.
+	if pb.provablyNotSpecializationOf(pb.entityContext, "System.FileDocument") {
+		return nil, mdlerrors.NewValidation(fmt.Sprintf(
+			"filemanager %s: its data view shows %s, which is not System.FileDocument or a specialization of it — "+
+				"a file manager must be placed in a data view or snippet connected to a file entity "+
+				"(mxbuild CE6810); give %s `extends System.FileDocument`, or move the widget into a data view on such an entity",
+			w.Name, pb.entityContext, pb.entityContext))
+	}
+
+	if raw := w.GetStringProp("Type"); raw != "" {
+		t, ok := pages.CanonicalFileManagerType(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"filemanager %s: Type %q is not a file manager type (expected Upload, Download, Both)", w.Name, raw))
+		}
+		fm.Type = t
+	}
+	if raw, ok := lookupPropCI(w, "MaxFileSize"); ok {
+		n, isInt := toIntProp(raw)
+		if !isInt || n < 0 {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"filemanager %s: MaxFileSize must be a whole number of megabytes, 0 or more (got %v)", w.Name, raw))
+		}
+		fm.MaxFileSize = n
+	}
+	if raw, ok := lookupPropCI(w, "ShowFileInBrowser"); ok {
+		show, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("filemanager %s: ShowFileInBrowser: %v", w.Name, err))
+		}
+		fm.ShowFileInBrowser = show
+	}
+
+	if err := pb.registerWidgetName(w.Name, fm.ID); err != nil {
+		return nil, err
+	}
+	return fm, nil
+}
+
+// toIntProp reads a whole number from a parsed property value.
+func toIntProp(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		if n == float64(int(n)) {
+			return int(n), true
+		}
+	}
+	return 0, false
+}
+
 func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error) {
 	dd := &pages.DropDown{
 		BaseWidget: pages.BaseWidget{

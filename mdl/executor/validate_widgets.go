@@ -146,6 +146,15 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 	if label, widgets, ok := documentWidgets(stmt); ok {
 		out := validateDocumentWidgetTree(widgets, registry, label, documentEntityParameters(stmt))
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
+		_, isSnippet := stmt.(*ast.CreateSnippetStmtV3)
+		for _, msg := range fileManagersWithoutContext(widgets, isSnippet) {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET45",
+				Severity:   linter.SeverityError,
+				Message:    label + ": " + msg,
+				Suggestion: "Put the file manager in a data view whose object extends System.FileDocument.",
+			})
+		}
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
@@ -804,6 +813,9 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
+		// a file manager's own four, read by buildFileManagerV3 and emitted by
+		// describe (mendixlabs/mxcli#151).
+		"Type", "MaxFileSize", "AllowedExtensions", "ShowFileInBrowser",
 		// fragment / building-block sentinel-internal keys (USE_FRAGMENT /
 		// USE_BUILDING_BLOCK), consumed by the expander, never serialized
 		"Args", "DataSourceOverride", "ActionOverride",

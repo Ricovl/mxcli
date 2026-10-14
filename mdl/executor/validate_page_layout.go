@@ -122,7 +122,8 @@ func astSubtreeHasInput(widgets []*ast.WidgetV3) bool {
 func isInputWidgetAST(w *ast.WidgetV3) bool {
 	switch strings.ToLower(w.Type) {
 	case "textbox", "textarea", "datepicker", "dropdown", "checkbox",
-		"radiobuttons", "combobox", "referenceselector", "inputreferencesetselector":
+		"radiobuttons", "combobox", "referenceselector", "inputreferencesetselector",
+		"filemanager":
 		return true
 	}
 	return false

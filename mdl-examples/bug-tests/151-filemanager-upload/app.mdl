@@ -1,0 +1,47 @@
+-- ============================================================================
+-- mendixlabs/mxcli#151 — app model for verify-filemanager-upload.test.sh
+-- ============================================================================
+--
+-- A file manager restricted to .csv files of at most 1 MB, on a page opened by
+-- a "New upload" button on the home page, with the saved uploads listed below
+-- it. Written for a project made by `mxcli new` (it replaces
+-- MyFirstModule.Home_Web, the navigation's home page) with security Off.
+-- Usage is in the header of verify-filemanager-upload.test.sh.
+-- ============================================================================
+mdl 1;
+
+create module Docs151;
+create entity Docs151.Upload extends System.FileDocument ();
+
+create page Docs151.UploadPage
+(
+  Params: ( $Upload: Docs151.Upload ),
+  Title: 'Upload a file',
+  Layout: Atlas_Core.Atlas_Default
+)
+{
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dv (DataSource: $Upload) {
+          filemanager fileManager1 (Label: 'CSV file', Type: Upload, MaxFileSize: 1, AllowedExtensions: '.csv')
+          actionbutton btnSave (Caption: 'Save upload', Action: save changes close page, ButtonStyle: Primary)
+        }
+      }
+    }
+  }
+};
+
+create or modify page MyFirstModule.Home_Web
+(
+  Title: 'Homepage',
+  Layout: Atlas_Core.Atlas_Default
+)
+{
+  container c1 {
+    actionbutton btnNew (Caption: 'New upload', Action: create object Docs151.Upload then show page Docs151.UploadPage)
+    listview lvUploads (DataSource: database Docs151.Upload) {
+      dynamictext dtName (Content: 'Uploaded: {1} ({2} bytes)', ContentParams: ({1} = Name, {2} = Size))
+    }
+  }
+};

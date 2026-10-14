@@ -3043,6 +3043,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetFormattingMut(widget, propName, value)
 	case "submitbehaviour", "submitoninputdelay":
 		return setWidgetSubmitMut(widget, propName, value)
+	case "type", "maxfilesize", "allowedextensions", "showfileinbrowser":
+		// A file manager's own four (mendixlabs/mxcli#151). On any other
+		// widget the keys keep their old route, the pluggable setter, where
+		// `Type` may be a pluggable widget's own property.
+		if pages.IsFileManager(bsonnav.DGetString(widget, "$Type")) {
+			return setWidgetFileManagerMut(widget, propName, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "width":
 		// A layout grid's Width is its ContainerWidth enum. On any other
 		// widget the key keeps its old route, the pluggable setter.
@@ -3166,6 +3174,45 @@ func setWidgetFormattingMut(widget bson.D, propName string, value any) error {
 			return fmt.Errorf("GroupDigits is true or false, not %v", value)
 		}
 		bsonnav.DSet(fi, "GroupDigits", b)
+	}
+	return nil
+}
+
+// setWidgetFileManagerMut sets one of a file manager's own properties with the
+// values CREATE PAGE accepts (buildFileManagerV3), so `set` cannot store what
+// `create` would refuse.
+func setWidgetFileManagerMut(widget bson.D, propName string, value any) error {
+	switch strings.ToLower(propName) {
+	case "type":
+		s, isString := value.(string)
+		t, ok := pages.CanonicalFileManagerType(s)
+		if !isString || !ok {
+			return fmt.Errorf("a file manager's Type is one of Upload, Download, Both, not %v", value)
+		}
+		bsonnav.DSet(widget, "Type", string(t))
+	case "maxfilesize":
+		n, ok := formattingInt(value)
+		if !ok || n < 0 {
+			return fmt.Errorf("MaxFileSize is a whole number of megabytes, 0 or more, not %v", value)
+		}
+		// Keep the stored width, as for DecimalPrecision.
+		if _, isInt64 := bsonnav.DGet(widget, "MaxFileSize").(int64); isInt64 {
+			bsonnav.DSet(widget, "MaxFileSize", int64(n))
+		} else {
+			bsonnav.DSet(widget, "MaxFileSize", int32(n))
+		}
+	case "allowedextensions":
+		s, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("AllowedExtensions is a quoted list such as '.xlsx;.csv', not %v", value)
+		}
+		bsonnav.DSet(widget, "AllowedExtensions", s)
+	case "showfileinbrowser":
+		b, ok := editableBool(value)
+		if !ok {
+			return fmt.Errorf("ShowFileInBrowser is true or false, not %v", value)
+		}
+		bsonnav.DSet(widget, "ShowFileInBrowser", b)
 	}
 	return nil
 }
