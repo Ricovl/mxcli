@@ -1,0 +1,40 @@
+mdl 1;
+-- mendixlabs/mxcli#1479 — "Domain model: entities with many attributes overlap
+-- the one below."
+--
+-- CREATE ENTITY without @Position took dmlayout.GridSlot(n): six columns, rows
+-- 280px apart. An entity with ~17+ attributes is taller than a row, so the
+-- seventh entity (row 2, same column as the first) was drawn over the first
+-- one's lower half. Entity positions are also the box's TOP-LEFT corner, not its
+-- centre as dmlayout assumed (Studio Pro 11.12.5).
+--
+-- Now each new entity takes the first grid slot whose estimated box clears every
+-- entity and annotation already in the module (dmlayout.Place). Run against a
+-- project and `describe` Bug1479.Small7: @Position(360, 380) — grid slot 7,
+-- beside Tall's lower half — where it used to get @Position(100, 380), slot 6,
+-- inside Tall's box.
+--
+--   mxcli exec mdl-examples/bug-tests/1479-tall-entity-overlaps-the-one-below.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe entity Bug1479.Small7"
+--
+-- An existing model with overlaps is repaired, without moving anything else:
+--
+--   mxcli layout -p app.mpr --module Bug1479 --only-overlapping --dry-run
+--
+-- Unit tests: mdl/dmlayout/place_test.go.
+
+create module Bug1479;
+
+create persistent entity Bug1479.Tall (
+  A01: String(100), A02: String(100), A03: String(100), A04: String(100),
+  A05: String(100), A06: String(100), A07: String(100), A08: String(100),
+  A09: String(100), A10: String(100), A11: String(100), A12: String(100),
+  A13: String(100), A14: String(100), A15: String(100), A16: String(100),
+  A17: String(100), A18: String(100), A19: String(100), A20: String(100)
+);
+create persistent entity Bug1479.Small2 (Name: String(100));
+create persistent entity Bug1479.Small3 (Name: String(100));
+create persistent entity Bug1479.Small4 (Name: String(100));
+create persistent entity Bug1479.Small5 (Name: String(100));
+create persistent entity Bug1479.Small6 (Name: String(100));
+create persistent entity Bug1479.Small7 (Name: String(100));
