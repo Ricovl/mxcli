@@ -709,6 +709,15 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		}
 		return []rawWidget{widget}
 
+	case "Forms$DataGrid":
+		// Unauthorable, but its parts are addressable by their stored names
+		// (mendixlabs/mxcli#1459); outputLegacyGridV3 prints them as comments.
+		if ds, ok := w["DataSource"].(map[string]any); ok {
+			widget.DataSource = parseDataSource(ds)
+		}
+		widget.LegacyGrid = parseLegacyGrid(ctx, w)
+		return []rawWidget{widget}
+
 	case "Forms$Label", "Pages$Label":
 		widget.Content = extractTextCaption(ctx, w)
 		return []rawWidget{widget}

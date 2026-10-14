@@ -1535,6 +1535,12 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 			return result
 		}
 	}
+	// Legacy DataGrid: Columns and the source's search bar (#1459).
+	for _, l := range legacyGridItemLists(wDoc) {
+		if result := findInWidgetArray(l.doc, l.key, widgetName); result != nil {
+			return result
+		}
+	}
 
 	// CustomWidget (pluggable): Object.Properties[].Value.Widgets[]
 	if strings.Contains(typeName, "CustomWidget") {
@@ -2452,6 +2458,9 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
+	}
+	for _, l := range legacyGridItemLists(wDoc) {
+		collectWidgetScope(l.doc, l.key, scope)
 	}
 	if strings.Contains(typeName, "CustomWidget") {
 		if obj := bsonnav.DGetDoc(wDoc, "Object"); obj != nil {

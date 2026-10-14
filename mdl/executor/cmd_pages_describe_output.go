@@ -1160,6 +1160,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
+	case "Forms$DataGrid":
+		outputLegacyGridV3(ctx, prefix, w)
+
 	default:
 		// A widget MDL cannot spell. Emitted as a comment naming it, and
 		// labelled with what that costs: describe output is re-executable, so a
