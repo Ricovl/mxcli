@@ -149,7 +149,7 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 		_, isSnippet := stmt.(*ast.CreateSnippetStmtV3)
 		for _, msg := range fileManagersWithoutContext(widgets, isSnippet) {
 			out = append(out, linter.Violation{
-				RuleID:     "MDL-WIDGET34",
+				RuleID:     "MDL-WIDGET44",
 				Severity:   linter.SeverityError,
 				Message:    label + ": " + msg,
 				Suggestion: "Put the file manager in a data view whose object extends System.FileDocument.",

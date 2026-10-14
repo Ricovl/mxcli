@@ -2,7 +2,7 @@
 -- mendixlabs/mxcli#151 — a file manager outside any data container
 -- ============================================================================
 --
--- NEGATIVE TEST: this script must FAIL `mxcli check` (MDL-WIDGET34).
+-- NEGATIVE TEST: this script must FAIL `mxcli check` (MDL-WIDGET44).
 --
 -- A file manager uploads into its data container's object, so with no data
 -- view around it there is nothing to store the file in. Before, `check` and
