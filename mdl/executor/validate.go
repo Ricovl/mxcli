@@ -971,6 +971,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+		// The entities the query reads from (mendixlabs/mxcli#1472): first,
+		// because every column of a missing source goes untyped below.
+		if srcErrors := viewSourceEntityErrors(ctx, s.Query.RawQuery, sc); len(srcErrors) > 0 {
+			return mdlerrors.NewValidationf("view entity '%s':\n  - %s",
+				s.Name.String(), strings.Join(srcErrors, "\n  - "))
+		}
 		// An `<alias>.ID` column names an association, and the name has to be
 		// free in the module — reported here because the fix is a rename, and a
 		// rename is cheapest before the name spreads (FINDINGS §1).
