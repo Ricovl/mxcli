@@ -125,6 +125,16 @@ type RawUnit struct {
 	Contents    []byte
 }
 
+// UnitStamp identifies an MPR v2 unit file's state: a unit whose stamp is
+// unchanged has unchanged contents. MtimeNs is -1 for a racily clean file.
+type UnitStamp struct {
+	ID          string
+	Type        string
+	ContainerID string
+	Size        int64
+	MtimeNs     int64
+}
+
 // RawUnitInfo holds a unit's raw contents with metadata.
 type RawUnitInfo struct {
 	ID            string

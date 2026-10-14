@@ -208,6 +208,13 @@ func (b *Backend) UnitStateFingerprint() (string, []string, bool, error) {
 	return b.reader.UnitStateFingerprint()
 }
 
+func (b *Backend) UnitStamps() ([]types.UnitStamp, error) {
+	if b.reader == nil {
+		return nil, nil
+	}
+	return b.reader.UnitStamps()
+}
+
 func (b *Backend) UnitContentDigest(ids []string) string {
 	if b.reader == nil {
 		return ""

@@ -169,6 +169,16 @@ func (c *Catalog) createTables() error {
 			Value TEXT
 		)`,
 
+		// Each MPR v2 unit file's stamp when the catalog was built: what an
+		// incremental refresh diffs against (Builder.BuildIncremental).
+		`CREATE TABLE IF NOT EXISTS unit_stamps (
+			UnitId TEXT PRIMARY KEY,
+			Type TEXT,
+			ContainerId TEXT,
+			Size INTEGER,
+			MtimeNs INTEGER
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS projects (
 			ProjectId TEXT PRIMARY KEY,
 			ProjectName TEXT,
@@ -1452,7 +1462,8 @@ func (c *Catalog) createTables() error {
 			StringContext,
 			Language,
 			ElementId,
-			ModuleName
+			ModuleName,
+			UnitId UNINDEXED
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS source USING fts5(

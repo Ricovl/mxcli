@@ -138,6 +138,12 @@ type Builder struct {
 	businessEventCache      []*model.BusinessEventService
 	databaseConnectionCache []*model.DatabaseConnection
 	moduleSettingsCache     []*types.ModuleSettings
+
+	// Incremental refresh (builder_incremental.go): only is nil for a full
+	// build. stamps are written with the build.
+	only       map[string]bool
+	onlyStamps []types.UnitStamp
+	stamps     []types.UnitStamp
 }
 
 // SetFullMode enables or disables full parsing mode.
@@ -380,6 +386,7 @@ func (b *Builder) Build(progress ProgressFunc) error {
 	// Create snapshot
 	b.snapshot = b.catalog.CreateSnapshot("", SnapshotSourceUnknown)
 	b.snapshot.Date = time.Now()
+	b.captureStamps()
 
 	// Build hierarchy for module/folder resolution
 	if err := b.buildHierarchy(); err != nil {
@@ -618,6 +625,9 @@ func (b *Builder) Build(progress ProgressFunc) error {
 	// Build snapshot record
 	if err := b.buildSnapshotRecord(); err != nil {
 		return fmt.Errorf("failed to build snapshot: %w", err)
+	}
+	if err := b.writeStamps(b.stamps); err != nil {
+		return fmt.Errorf("failed to write unit stamps: %w", err)
 	}
 
 	// Commit transaction

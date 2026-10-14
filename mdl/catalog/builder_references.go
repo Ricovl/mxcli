@@ -506,6 +506,16 @@ func (b *Builder) buildReferences() error {
 		}
 	}
 
+	// An incremental refresh rebuilds flows only: their member and XPath
+	// refs, and nothing below that comes from other documents.
+	if b.incremental() {
+		idx := b.loadMemberRefIndex()
+		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
+		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
+		b.report("References", refCount)
+		return nil
+	}
+
 	// Extract entity references (generalization) — using cached list
 	dms, err := b.cachedDomainModels()
 	if err == nil {

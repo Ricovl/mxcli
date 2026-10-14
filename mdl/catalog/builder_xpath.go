@@ -72,7 +72,7 @@ func (b *Builder) buildXPathExpressions() error {
 
 	// 2. Extract from entity access rules
 	dms, err := b.cachedDomainModels()
-	if err == nil {
+	if err == nil && !b.incremental() {
 		for _, dm := range dms {
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
@@ -104,6 +104,9 @@ func (b *Builder) buildXPathExpressions() error {
 	// The page parser only reads metadata, not the widget tree, so we scan the
 	// raw BSON documents for XPathConstraint fields at any nesting depth.
 	for _, typePrefix := range []string{"Forms$Page", "Pages$Page", "Forms$Snippet", "Pages$Snippet"} {
+		if b.incremental() {
+			break
+		}
 		rawPages, err := b.reader.ListRawUnitsByType(typePrefix)
 		if err != nil {
 			continue

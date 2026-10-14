@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
 // MPR v2 unit index: each unit's $Type, Name and Excluded, stamped with its
@@ -157,6 +159,28 @@ func hashLines(lines []string) string {
 		h.Write([]byte{'\n'})
 	}
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// UnitStamps re-stats every unit (dropping the reader's caches, which a
+// changed file makes stale anyway) and returns each one's stamp. nil on MPR v1.
+func (r *Reader) UnitStamps() ([]types.UnitStamp, error) {
+	if r.version != MPRVersionV2 {
+		return nil, nil
+	}
+	r.InvalidateCache()
+	if err := r.buildUnitCache(); err != nil {
+		return nil, err
+	}
+	out := make([]types.UnitStamp, 0, len(r.unitCache))
+	for _, cu := range r.unitCache {
+		e := r.unitIndex[cu.ID]
+		mtime := e.MtimeNs
+		if e.Racy {
+			mtime = -1
+		}
+		out = append(out, types.UnitStamp{ID: cu.ID, Type: cu.Type, ContainerID: cu.ContainerID, Size: e.Size, MtimeNs: mtime})
+	}
+	return out, nil
 }
 
 // UnitHeaderReads counts unit files read to build the header index (tests).

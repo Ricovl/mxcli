@@ -10,7 +10,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/translations"
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -22,8 +24,8 @@ func (b *Builder) buildStrings() error {
 	}
 
 	stmt, err := b.tx.Prepare(`
-		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -31,11 +33,13 @@ func (b *Builder) buildStrings() error {
 	defer stmt.Close()
 
 	count := 0
+	// unit is the document whose rows are being inserted; each loop sets it.
+	var unit string
 	insert := func(qn, objType, value, ctx, lang, elementID, module string) {
 		if value == "" {
 			return
 		}
-		stmt.Exec(qn, objType, value, ctx, lang, elementID, module)
+		stmt.Exec(qn, objType, value, ctx, lang, elementID, module, unit)
 		count++
 	}
 
@@ -46,12 +50,16 @@ func (b *Builder) buildStrings() error {
 	// which holds a plain Text and cannot carry a translation).
 
 	// Page URL (no language)
-	pageList, err := b.cachedPages()
+	var pageList []*pages.Page
+	if !b.incremental() {
+		pageList, err = b.cachedPages()
+	}
 	if err == nil {
 		for _, pg := range pageList {
 			if pg.URL == "" {
 				continue
 			}
+			unit = string(pg.ID)
 			moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			insert(moduleName+"."+pg.Name, "PAGE", pg.URL, "page_url", "", string(pg.ID), moduleName)
@@ -62,6 +70,10 @@ func (b *Builder) buildStrings() error {
 	mfList, err := b.cachedMicroflows()
 	if err == nil {
 		for _, mf := range mfList {
+			if !b.wants(string(mf.ID)) {
+				continue
+			}
+			unit = string(mf.ID)
 			moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + mf.Name
@@ -79,9 +91,13 @@ func (b *Builder) buildStrings() error {
 	}
 
 	// Extract from workflows — using cached list
-	wfList, err := b.cachedWorkflows()
+	var wfList []*workflows.Workflow
+	if !b.incremental() {
+		wfList, err = b.cachedWorkflows()
+	}
 	if err == nil {
 		for _, wf := range wfList {
+			unit = string(wf.ID)
 			moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + wf.Name
@@ -104,9 +120,13 @@ func (b *Builder) buildStrings() error {
 	}
 
 	// Extract from published REST services
-	prsServices, err := b.reader.ListPublishedRestServices()
+	var prsServices []*model.PublishedRestService
+	if !b.incremental() {
+		prsServices, err = b.reader.ListPublishedRestServices()
+	}
 	if err == nil {
 		for _, svc := range prsServices {
+			unit = string(svc.ID)
 			moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + svc.Name
@@ -130,7 +150,7 @@ func (b *Builder) buildStrings() error {
 		}
 	}
 
-	b.buildTranslatableStrings(insert)
+	b.buildTranslatableStrings(insert, func(id string) { unit = id })
 
 	docRows, err := b.buildDocumentationStrings()
 	if err != nil {
@@ -173,31 +193,37 @@ func (b *Builder) buildStrings() error {
 // another project's snapshot does not index that project's text under this one.
 func (b *Builder) buildDocumentationStrings() (int, error) {
 	_, snapshotID := b.snapshotMeta()
+	// Filled by BuildIncremental; empty (and unread) in a full build.
+	if _, err := b.tx.Exec(`CREATE TEMP TABLE IF NOT EXISTS incremental_units (UnitId TEXT PRIMARY KEY)`); err != nil {
+		return 0, err
+	}
 
 	res, err := b.tx.Exec(`
-		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName)
+		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName, UnitId)
 		SELECT QualifiedName, ObjectType, Description, 'documentation', '', Id,
-		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END
+		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END, Id
 		FROM objects
 		WHERE Description <> '' AND SnapshotId = ?1
 		  AND ObjectType NOT IN ('MICROFLOW', 'WORKFLOW', 'CONTRACT_ENTITY')
+		  AND (?2 = '' OR Id IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName
+		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName, Id
 		FROM attributes_data
-		WHERE Description <> '' AND SnapshotId = ?1
+		WHERE Description <> '' AND SnapshotId = ?1 AND ?2 = ''
 		UNION ALL
-		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName
+		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName, MicroflowId
 		FROM microflow_parameters_data
 		WHERE Description <> '' AND SnapshotId = ?1
+		  AND (?2 = '' OR MicroflowId IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName
+		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName, Id
 		FROM java_action_parameters_data
-		WHERE Description <> '' AND SnapshotId = ?1
+		WHERE Description <> '' AND SnapshotId = ?1 AND ?2 = ''
 		UNION ALL
-		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name
+		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name, Id
 		FROM modules_data
-		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1
-	`, snapshotID)
+		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1 AND ?2 = ''
+	`, snapshotID, b.incrementalFlag())
 	if err != nil {
 		return 0, err
 	}
@@ -226,8 +252,8 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 // changes them — the same split this is closing.
 // The caller's insert closure counts the rows it writes, so nothing is counted
 // here — doing both reported twice the rows the table actually holds.
-func (b *Builder) buildTranslatableStrings(insert func(string, string, string, string, string, string, string)) {
-	units, err := b.reader.ListRawUnitsByType("")
+func (b *Builder) buildTranslatableStrings(insert func(string, string, string, string, string, string, string), setUnit func(string)) {
+	units, err := b.rawUnits("")
 	if err != nil {
 		return
 	}
@@ -236,6 +262,7 @@ func (b *Builder) buildTranslatableStrings(insert func(string, string, string, s
 		if len(u.Contents) == 0 {
 			continue
 		}
+		setUnit(string(u.ID))
 		var named struct {
 			Name string `bson:"Name"`
 		}

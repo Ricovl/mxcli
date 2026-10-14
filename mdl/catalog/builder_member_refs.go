@@ -406,7 +406,7 @@ func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, project
 	count := 0
 	for _, unitType := range unitTypes {
 		sourceType := memberRefSourceTypes[unitType]
-		units, err := b.reader.ListRawUnitsByType(unitType)
+		units, err := b.rawUnits(unitType)
 		if err != nil {
 			continue
 		}
@@ -488,7 +488,7 @@ func (b *Builder) extractXPathRefs(stmt *sql.Stmt, idx *memberRefIndex, projectI
 	written := map[string]bool{}
 	for _, r := range all {
 		sourceType, ok := xpathSourceTypes[r.docType]
-		if !ok {
+		if !ok || !b.wants(r.docID) {
 			continue
 		}
 		sourceID := r.docID

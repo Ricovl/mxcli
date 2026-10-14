@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -93,15 +94,21 @@ func touchProject(t *testing.T, exec *Executor) {
 	if err := os.Chtimes(ctx.MprPath, future, future); err != nil {
 		t.Fatalf("touch project: %v", err)
 	}
+	// A domain model, not a flow: a changed flow is refreshed incrementally,
+	// and these tests are about the full rebuild.
 	units, _ := filepath.Glob(filepath.Join(filepath.Dir(ctx.MprPath), "mprcontents", "*", "*", "*.mxunit"))
-	if len(units) > 0 {
-		fi, err := os.Stat(units[0])
+	for _, u := range units {
+		if b, err := os.ReadFile(u); err != nil || !bytes.Contains(b, []byte("DomainModels$DomainModel")) {
+			continue
+		}
+		fi, err := os.Stat(u)
 		if err == nil {
-			err = os.Chtimes(units[0], fi.ModTime().Add(time.Second), fi.ModTime().Add(time.Second))
+			err = os.Chtimes(u, fi.ModTime().Add(time.Second), fi.ModTime().Add(time.Second))
 		}
 		if err != nil {
 			t.Fatalf("touch unit file: %v", err)
 		}
+		break
 	}
 }
 

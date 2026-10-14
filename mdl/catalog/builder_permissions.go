@@ -73,10 +73,14 @@ func (b *Builder) buildPermissions() error {
 	snapshotID := b.snapshot.ID
 	permCount := 0
 
-	permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
-	permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
-	permCount += b.buildPagePermissions(stmt, projectID, snapshotID)
-	permCount += b.buildODataServicePermissions(stmt, projectID, snapshotID)
+	if b.incremental() {
+		permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
+	} else {
+		permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
+		permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
+		permCount += b.buildPagePermissions(stmt, projectID, snapshotID)
+		permCount += b.buildODataServicePermissions(stmt, projectID, snapshotID)
+	}
 
 	b.report("Permissions", permCount)
 	return nil

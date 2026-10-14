@@ -327,6 +327,10 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 		return mdlerrors.NewNotConnected()
 	}
 
+	if cachePath != "" && refreshCatalogIncrementally(ctx, cachePath, requiredMode) {
+		return nil
+	}
+
 	// A rebuild that is going to pay the full-mode cost anyway rebuilds at the
 	// level the project is set up for, so the cache comes back current instead
 	// of being refused by buildCatalog's never-narrow guard on every call.
@@ -362,6 +366,55 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 
 	// Build fresh catalog
 	return buildCatalog(ctx, full, isSource, false, 0)
+}
+
+// refreshCatalogIncrementally updates a stale cached catalog in place when only
+// existing flows changed (catalog.Builder.PlanIncremental), and reports whether
+// it did. Anything else falls through to a full rebuild.
+func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode string) bool {
+	if v := strings.TrimSpace(os.Getenv("MXCLI_CATALOG_INCREMENTAL")); v == "0" || strings.EqualFold(v, "false") {
+		return false
+	}
+	if _, err := os.Stat(cachePath); err != nil {
+		return false
+	}
+	cat, err := catalog.NewFromFile(cachePath)
+	if err != nil {
+		return false
+	}
+	info, err := cat.GetCacheInfo()
+	if err != nil || info.MprPath != ctx.MprPath || info.UnitFingerprint == "" || info.GraphAnalysis ||
+		info.BuildMode == "source" || catalogModeRank(requiredMode) > catalogModeRank(info.BuildMode) {
+		cat.Close()
+		return false
+	}
+	fingerprint, _ := unitState(ctx)
+	builder := catalog.NewBuilder(cat, ctx.Backend)
+	builder.SetFullMode(info.BuildMode == "full")
+	changed, reason := builder.PlanIncremental()
+	if reason != "" {
+		if ctx.Logger != nil {
+			ctx.Logger.Info("catalog: full rebuild", "reason", reason)
+		}
+		cat.Close()
+		return false
+	}
+	if err := builder.BuildIncremental(changed, func(table string, count int) {
+		if !ctx.Quiet {
+			fmt.Fprintf(ctx.progress(), "✓ %s\n", table)
+		}
+	}); err != nil {
+		if ctx.Logger != nil {
+			ctx.Logger.Warn("catalog: incremental refresh failed", "error", err)
+		}
+		cat.Close()
+		return false
+	}
+	_ = cat.SetMeta(catalog.MetaUnitFingerprint, fingerprint)
+	_ = cat.SetMeta(catalog.MetaMprModTime, getMprModTime(ctx).Format(time.RFC3339))
+	cat.SetBuilt(true)
+	ctx.Catalog = cat
+	return true
 }
 
 // implicitCatalogBuildHook, when set, runs at the start of every implicit
