@@ -250,6 +250,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateLegacyExpressionText(w, locationPrefix)...)
 		// A column's Visible has no row object (MDL-WIDGET43, CE0117).
 		out = append(out, validateColumnVisibleScope(w, locationPrefix)...)
+		// …and a layout-grid column's Visible has nowhere to be stored (#1461).
+		out = append(out, validateLayoutGridColumnVisible(w, locationPrefix)...)
 		// #1062: an action slot holding something that is not an action, which
 		// used to check clean, exec clean, build clean and render dead. Runs for
 		// every widget kind and needs no definition, for the same reason as the
@@ -276,6 +278,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// as its text (ako/mxcli#969).
 		out = append(out, validateQuotedTemplateParams(w, locationPrefix)...)
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
+		out = append(out, validateDatasourceXPathVariableTraversal(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
 		out = append(out, validateListViewEditableInputs(w, registry, locationPrefix)...)
@@ -361,6 +364,38 @@ func validateDatasourceXPathAssociationEmpty(w *ast.WidgetV3, locationPrefix str
 				"%s: widget `%s` datasource constraint tests association `%s`, which Mendix XPath does not support (CE0161 \"Error(s) in XPath constraint\") — `empty` compares attributes, not associations",
 				locationPrefix, w.Name, h.test()),
 			Suggestion: h.fix(),
+		})
+	}
+	return out
+}
+
+// validateDatasourceXPathVariableTraversal flags a widget database datasource
+// whose `where` reaches two or more hops off a variable
+// (`[Name = $currentObject/Mod.Assoc/Name]`) — the page-datasource counterpart
+// of the microflow-retrieve MDL055 check (mendixlabs/mxcli#1466).
+//
+// Measured on fresh 11.13.0 and 11.14.0 projects: the two-hop form is CE0161 in
+// a combobox, list view, data grid 2 and gallery, while one hop
+// (`[Mod.A = $currentObject/Mod.B]`), the context object's own attribute and
+// the inverted form (`[Mod.A/Mod.E/Mod.B = $currentObject]`) all build at 0
+// errors — the same boundary as a retrieve, so the same regex.
+func validateDatasourceXPathVariableTraversal(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	ds := w.GetDataSource()
+	if ds == nil || ds.Where == "" {
+		return nil
+	}
+	var out []linter.Violation
+	for _, t := range xpathVariableTraversals(ds.Where) {
+		out = append(out, linter.Violation{
+			RuleID:   "MDL055",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf(
+				"%s: widget `%s` datasource constraint traverses an association from a variable (`%s`), which Mendix XPath does not support (CE0161 \"Error(s) in XPath constraint\") — a constraint reaches at most one hop off a variable",
+				locationPrefix, w.Name, t.path),
+			Suggestion: fmt.Sprintf(
+				"Invert the constraint so the traversal starts at the listed entity: `[<Mod.Assoc>/<Mod.Entity>/%s = $%s]`, "+
+					"or compare one hop: `[<Mod.Assoc> = $%s/%s]`. Both build clean.",
+				t.firstHop, t.root, t.root, t.firstHop),
 		})
 	}
 	return out
@@ -785,7 +820,7 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// keys the builders/visitor consume and the conditional-binding metadata
 		"CaptionAttribute", "Collapsible", "DatabaseHost", "DefaultLanguage", "Footer",
 		"FormOrientation", "HeaderMode", "LabelWidth", "Prefix", "ShowContentAs", "Title",
-		"Widget", "WidgetType", "ShowLabel", "VisibleIf", "VisibleWhen", "EditableIf", "DynamicClasses",
+		"Widget", "WidgetType", "ShowLabel", "VisibleIf", "VisibleWhen", "VisibleRoles", "EditableIf", "DynamicClasses",
 		// vocabulary describe page emits (native widgets + datagrid columns)
 		"Alignment", "AlternativeText", "ColumnClass", "ColumnWidth", "DesktopColumns",
 		"DisplayAs", "Draggable", "DynamicCellClass", "HeightUnit", "Hidable", "ImageType",
@@ -1577,7 +1612,10 @@ func lookupWidgetDef(w *ast.WidgetV3, registry *WidgetRegistry) *WidgetDefinitio
 			return def
 		}
 	}
-	if w.Type == "" {
+	// A keyword the page builder builds itself never reaches the registry
+	// there, so check must not resolve it through the registry either
+	// (mendixlabs/mxcli#1463: `radiobuttons`).
+	if w.Type == "" || isBuilderOwnedWidgetKeyword(w.Type) {
 		return nil
 	}
 	if def, ok := registry.Get(strings.ToUpper(w.Type)); ok {

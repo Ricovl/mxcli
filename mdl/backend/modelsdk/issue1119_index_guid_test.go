@@ -209,7 +209,15 @@ func patchIndexGUIDsWith(t *testing.T, proj string, dmID model.ID, entityName st
 	if patched == 0 {
 		t.Fatal("no DomainModels$EntityIndex GUID found to seed; the index was not written")
 	}
+	writeUnitDoc(t, proj, dmID, path, doc)
+	return patched
+}
 
+// writeUnitDoc writes a patched domain-model unit back to its file and updates
+// the .mpr's ContentsHash for it, so a test can seed stored state below the
+// writer (a shape only Studio Pro produces) without the project disowning it.
+func writeUnitDoc(t *testing.T, proj string, dmID model.ID, path string, doc bson.D) {
+	t.Helper()
 	out, err := bson.Marshal(doc)
 	if err != nil {
 		t.Fatalf("marshal patched unit: %v", err)
@@ -241,7 +249,6 @@ func patchIndexGUIDsWith(t *testing.T, proj string, dmID model.ID, entityName st
 	if n != 1 {
 		t.Fatalf("ContentsHash update matched %d rows, want 1", n)
 	}
-	return patched
 }
 
 // storedUnitIDHex renders a unit id the way the .mpr's Unit.UnitID blob holds

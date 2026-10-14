@@ -1009,6 +1009,9 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	// on 11.14.0 with two named items) — the CE7247 / CE0495 an older note
 	// blamed on its absence is not reproduced.
 	g.SetAppearance(newAppearance(item.Class, item.Style, item.DynamicClasses, nil))
+	if item.ConditionalVisibility != nil {
+		g.SetConditionalVisibilitySettings(conditionalVisibilityToGen(item.ConditionalVisibility))
+	}
 	act, err := clientActionToGen(item.Action)
 	if err != nil {
 		return nil, err
@@ -1049,6 +1052,12 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 	g.SetHorizontalAlignment(alignmentOrNone(row.HorizontalAlignment))
 	g.SetSpacingBetweenColumns(!row.NoSpacingBetweenColumns)
 	g.SetVerticalAlignment(alignmentOrNone(row.VerticalAlignment))
+	// The row's own visibility (mendixlabs/mxcli#1461). It was never set, so the
+	// registered null default replaced a Studio Pro row's condition on every
+	// rewrite of its page, the row then always visible.
+	if row.ConditionalVisibility != nil {
+		g.SetConditionalVisibilitySettings(conditionalVisibilityToGen(row.ConditionalVisibility))
+	}
 	for _, col := range row.Columns {
 		cg, err := layoutGridColumnToGen(col)
 		if err != nil {
@@ -1153,6 +1162,11 @@ func conditionalVisibilityToGen(cvs *pages.ConditionalVisibilitySettings) elemen
 	assignID(g)
 	g.SetExpression(cvs.Expression)
 	g.SetIgnoreSecurity(false)
+	// "Visible for module roles" (mendixlabs/mxcli#1460): by-name references,
+	// independent of the expression/attribute condition beside them.
+	if len(cvs.ModuleRoles) > 0 {
+		g.SetModuleRolesQualifiedNames(cvs.ModuleRoles)
+	}
 	// "Visible: based on attribute value": the attribute plus one condition per
 	// value it can hold (ako/mxcli attribute-condition visibility).
 	if cvs.Attribute != "" {

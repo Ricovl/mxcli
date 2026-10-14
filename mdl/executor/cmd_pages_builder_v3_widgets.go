@@ -1324,6 +1324,18 @@ func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.Naviga
 	item.Style = w.GetStyle()
 	item.DynamicClasses = w.GetDynamicClasses()
 
+	// The item's visibility, as a widget's: expression or attribute condition,
+	// and module roles beside either (#1460).
+	item.ConditionalVisibility = expressionVisibility(w)
+	if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
+		cvs, err := pb.visibleWhenSettings(w, vw)
+		if err != nil {
+			return nil, err
+		}
+		item.ConditionalVisibility = cvs
+	}
+	item.ConditionalVisibility = withVisibleRoles(item.ConditionalVisibility, w)
+
 	// Set caption from Caption property
 	if caption := w.GetCaption(); caption != "" {
 		item.Caption = &model.Text{

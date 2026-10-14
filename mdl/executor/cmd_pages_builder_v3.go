@@ -534,6 +534,9 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := pb.applyVisibleWhen(widget, w); err != nil {
 		return nil, err
 	}
+	if err := applyVisibleRoles(widget, w); err != nil {
+		return nil, err
+	}
 
 	return widget, nil
 }
@@ -561,6 +564,9 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 		return nil, err
 	}
 	if err := pb.applyVisibleWhen(widget, w); err != nil {
+		return nil, err
+	}
+	if err := applyVisibleRoles(widget, w); err != nil {
 		return nil, err
 	}
 	return widget, nil

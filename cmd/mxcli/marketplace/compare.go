@@ -39,6 +39,21 @@ type Finding struct {
 type Report struct {
 	Module   string
 	Findings []Finding
+	// Dependents are elements of OTHER modules that the update destroys: the
+	// cross-module associations that reach into this module by name. They are
+	// not edits to the module and are not counted by LocallyModified, but
+	// replacing the module deletes them all the same — see
+	// Snapshot.Dependents (mendixlabs/mxcli#1502).
+	Dependents []Element
+}
+
+// DependentNames lists the dependents' keys, for reporting.
+func (r *Report) DependentNames() []string {
+	out := make([]string, 0, len(r.Dependents))
+	for _, d := range r.Dependents {
+		out = append(out, d.Key.String())
+	}
+	return out
 }
 
 // Counts tallies the report by verdict.
@@ -82,7 +97,10 @@ func (r *Report) Clean() bool {
 // only in the project is something the user added, while one only in the package
 // is something they deleted (or the version differs).
 func Compare(installed, pkg *Snapshot) *Report {
-	rep := &Report{Module: installed.Module}
+	// Only the installed side has dependents worth keeping: they are the
+	// project's own work. A reference project built from the package has no
+	// other module that could reach into this one.
+	rep := &Report{Module: installed.Module, Dependents: installed.Dependents}
 
 	seen := make(map[ElementKey]bool, len(installed.Elements)+len(pkg.Elements))
 	keys := make([]ElementKey, 0, len(seen))

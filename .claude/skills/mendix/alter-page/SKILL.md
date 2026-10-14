@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-107 | Syntax |
-| 108-460 | Operations |
-| 461-539 | Examples |
-| 540-630 | DataGrid 2 columns: how to address them, and what you can set |
-| 631-642 | Common Mistakes |
-| 643-664 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 665-672 | Validation Checklist |
-| 673-682 | Related Commands |
-| 683-687 | Related Skills |
+| 108-472 | Operations |
+| 473-551 | Examples |
+| 552-642 | DataGrid 2 columns: how to address them, and what you can set |
+| 643-654 | Common Mistakes |
+| 655-676 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 677-684 | Validation Checklist |
+| 685-694 | Related Commands |
+| 695-699 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -400,6 +400,18 @@ drop dgProducts column(Name)@2
 ```
 
 The older dotted form `gridName.columnName` still works; it matches a name mxcli derives (the short attribute name, else the sanitized caption, else `colN`).
+
+A **legacy (Dojo) data grid** (`Forms$DataGrid`, from an upgraded app) cannot be created in MDL, so `describe page` prints it as comments — but it lists every column, search field and control-bar button by its *stored* name. Those are addressed by that bare name, like any widget:
+
+```sql
+mdl 1;
+alter page MyMod.Order_Overview {
+  drop column14, searchField3;                 -- one column and its search field
+  set (caption: 'Note') on column2
+};
+```
+
+Only that item is removed or changed; the rest of the grid is left as stored. To restructure the grid itself, replace it with a DataGrid 2.
 
 ### ADD Variables - Add a Page Variable
 

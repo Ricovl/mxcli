@@ -1,0 +1,34 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — widget datasource XPath traversing off $currentObject
+-- ============================================================================
+--
+-- NEGATIVE TEST (.fail.mdl): `mxcli check` MUST reject this file (MDL055). An
+-- unexpected pass means the page-datasource arm of MDL055 has regressed.
+--
+-- MDL055 (#831) only looked at microflow retrieves, so a widget's
+-- `database … where […]` reaching two hops off `$currentObject` passed check
+-- and exec, and the build failed:
+--
+--   [error] [CE0161] "Error(s) in XPath constraint." at List view 'lv'
+--
+-- Measured on fresh 11.13.0 and 11.14.0 projects: the two-hop form below is
+-- CE0161 in a combobox, list view, data grid 2 and gallery. The ONE-hop form
+-- the issue reported (`[Mod.A = $currentObject/Mod.B]`) builds at 0 errors in
+-- each of them — see 1466-datasource-xpath-variable-traversal-ok.mdl.
+-- ============================================================================
+
+CREATE MODULE Bug1466F;
+CREATE PERSISTENT ENTITY Bug1466F.Region (Name: String(100));
+CREATE PERSISTENT ENTITY Bug1466F.District (Name: String(100));
+CREATE PERSISTENT ENTITY Bug1466F.AreaPicker (Label: String(50));
+CREATE ASSOCIATION Bug1466F.AreaPicker_Region FROM Bug1466F.AreaPicker TO Bug1466F.Region TYPE Reference;
+
+CREATE PAGE Bug1466F.TwoHop (
+  Params: ($Picker: Bug1466F.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  dataview dvPicker (DataSource: $Picker) {
+    listview lv (DataSource: database from Bug1466F.District where [Name = $currentObject/Bug1466F.AreaPicker_Region/Name]) {
+      dynamictext t (Content: '{1}', ContentParams: ({1} = Name))
+    }
+  }
+};

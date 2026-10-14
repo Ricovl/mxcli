@@ -98,7 +98,7 @@ jobs:
 
       # The 9.x runtime and its Gradle build need JDK 17; pin it rather than
       # relying on the runner image's default JAVA_HOME.
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'

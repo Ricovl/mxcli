@@ -2390,7 +2390,7 @@ func isBuiltinPropName(name string) bool {
 		// The expression and attribute forms of the two above, as the visitor
 		// lowers them. Stored on the CustomWidget itself, never in its Object;
 		// MDL-WIDGET41 refuses them where the package declares no such setting.
-		"EditableIf", "VisibleIf", "VisibleWhen",
+		"EditableIf", "VisibleIf", "VisibleWhen", "VisibleRoles",
 		"WidgetType", "DesignProperties", "Association", "CaptionAttribute",
 		"Content", "RenderMode", "ContentParams", "CaptionParams",
 		"ButtonStyle", "DesktopWidth", "DesktopColumns", "TabletColumns",

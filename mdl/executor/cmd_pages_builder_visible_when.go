@@ -136,6 +136,56 @@ func (pb *pageBuilder) visibleWhenSettings(w *ast.WidgetV3, vw *ast.VisibleWhenV
 	}, nil
 }
 
+// applyVisibleRoles writes `Visible: roles (Mod.A, …)` — Studio Pro's "Visible
+// for module roles" — onto the widget's settings element, creating one when no
+// expression or attribute condition did. Studio Pro keeps the roles beside the
+// condition on the same element (TestApp WorkflowCommons), so they never
+// replace it. Runs after applyConditionalSettings and applyVisibleWhen.
+func applyVisibleRoles(widget pages.Widget, w *ast.WidgetV3) error {
+	if len(widgetVisibleRoles(w)) == 0 {
+		return nil
+	}
+	type baseWidgetGetter interface {
+		GetBaseWidget() *pages.BaseWidget
+	}
+	bwg, ok := widget.(baseWidgetGetter)
+	if !ok {
+		return mdlerrors.NewValidationf("%s %s: `Visible: roles (…)` is not supported on this widget", w.Type, w.Name)
+	}
+	bw := bwg.GetBaseWidget()
+	bw.ConditionalVisibility = withVisibleRoles(bw.ConditionalVisibility, w)
+	return nil
+}
+
+// withVisibleRoles returns cvs carrying the statement's `Visible: roles (…)`,
+// a fresh settings element when cvs is nil, and cvs unchanged when the
+// statement names no roles.
+func withVisibleRoles(cvs *pages.ConditionalVisibilitySettings, w *ast.WidgetV3) *pages.ConditionalVisibilitySettings {
+	roles := widgetVisibleRoles(w)
+	if len(roles) == 0 {
+		return cvs
+	}
+	if cvs == nil {
+		cvs = &pages.ConditionalVisibilitySettings{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$ConditionalVisibilitySettings",
+			},
+		}
+	}
+	cvs.ModuleRoles = roles
+	return cvs
+}
+
+// widgetVisibleRoles is the statement's `Visible: roles (…)` list, if any.
+func widgetVisibleRoles(w *ast.WidgetV3) []string {
+	if w == nil {
+		return nil
+	}
+	roles, _ := w.Properties["VisibleRoles"].([]string)
+	return roles
+}
+
 func indexFold(values []string, v string) int {
 	for i, x := range values {
 		if strings.EqualFold(x, v) {

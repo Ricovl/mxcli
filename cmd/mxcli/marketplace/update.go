@@ -56,7 +56,18 @@ func SaveEdits(dir string, rep *Report) (written []string, unsaved []string, err
 			unsaved = append(unsaved, fmt.Sprintf("%s (%s)", f.Key, f.Reason))
 		}
 	}
-	if len(wanted) == 0 {
+	// Associations other modules own that reach into this one. They are not
+	// edits to the module, but the update deletes them (Snapshot.Dependents),
+	// so they are saved by the same rules as an edit.
+	var dependents []Element
+	for _, d := range rep.Dependents {
+		if ok, why := d.Conclusive(); !ok {
+			unsaved = append(unsaved, fmt.Sprintf("%s (%s)", d.Key, why))
+			continue
+		}
+		dependents = append(dependents, d)
+	}
+	if len(wanted) == 0 && len(dependents) == 0 {
 		return nil, unsaved, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -74,6 +85,29 @@ func SaveEdits(dir string, rep *Report) (written []string, unsaved []string, err
 			"-- Replay with: mxcli exec %s -p <project.mpr>\n"+
 			"-- Note: this is the element's resulting state, not a diff — an edit that\n"+
 			"-- REMOVED something will not be restored by replaying it.\n\n", f.Key, name)
+		if err := os.WriteFile(name, []byte(header+body+"\n"), 0o644); err != nil {
+			return written, unsaved, fmt.Errorf("write %s: %w", name, err)
+		}
+		written = append(written, name)
+	}
+
+	for _, d := range dependents {
+		body := replayable(d.MDL)
+		if strings.TrimSpace(body) == "" {
+			unsaved = append(unsaved, d.Key.String()+" (no re-executable definition)")
+			continue
+		}
+		// The key is qualified (Module.Name); "association-Module_Name.mdl"
+		// keeps the owning module in the file name without a second dot.
+		name := filepath.Join(dir, safeFileName(ElementKey{
+			Type: d.Key.Type, Name: strings.ReplaceAll(d.Key.Name, ".", "_")})+".mdl")
+		header := fmt.Sprintf("-- %s, as it stands in your project before the update.\n"+
+			"-- It belongs to another module, but reaches into %s, and replacing %s\n"+
+			"-- removes it along with the entity it points at.\n"+
+			"-- Replay with: mxcli exec %s -p <project.mpr>\n"+
+			"-- Note: replaying creates it anew, with a new GUID. The runtime keys stored\n"+
+			"-- data on an element's GUID, so do not count on its existing links surviving.\n\n",
+			d.Key, rep.Module, rep.Module, name)
 		if err := os.WriteFile(name, []byte(header+body+"\n"), 0o644); err != nil {
 			return written, unsaved, fmt.Errorf("write %s: %w", name, err)
 		}
@@ -126,6 +160,11 @@ type UpdateResult struct {
 	// "the package wanted a different version" is the fact that was missing.
 	FilesSkipped    []SkippedFile
 	ForcedOverEdits []string
+	// DependentsRemoved names the associations other modules owned that reached
+	// into this one, which the update deleted along with the entities they
+	// pointed at (mendixlabs/mxcli#1502). Filled by the caller from the drift
+	// report; empty when no baseline was compared.
+	DependentsRemoved []string
 }
 
 // SkippedFile is one bundled file InstallPackageFiles chose not to write.

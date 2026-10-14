@@ -138,6 +138,10 @@ type NavigationListItem struct {
 	Class          string `json:"class,omitempty"`
 	Style          string `json:"style,omitempty"`
 	DynamicClasses string `json:"dynamicClasses,omitempty"`
+	// ConditionalVisibility is the item's own Forms$ConditionalVisibilitySettings
+	// — an expression, attribute condition and/or module roles, as a widget's.
+	// nil is the null Studio Pro stores on an unrestricted item (#1460).
+	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
 }
 
 // LinkButton represents a link-style button.

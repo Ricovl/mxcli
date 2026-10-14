@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — controls for the page-datasource arm of MDL055
+-- ============================================================================
+--
+-- Every page here MUST pass `mxcli check`. Each was exec'd into a fresh 11.13.0
+-- and a fresh 11.14.0 project and `mx check` reported 0 errors, so a rule that
+-- flags any of them refuses MDL that builds:
+--
+--   [Mod.A = $currentObject/Mod.B]        one hop — the form the issue reported
+--   [Mod.A/Mod.E/Mod.B = $currentObject]  the inverted form
+--   [Name = $currentObject/Label]         the context object's own attribute
+--
+-- The two-hop form (`$currentObject/Mod.B/Name`) is the CE0161 one, in
+-- 1466-datasource-xpath-variable-traversal.fail.mdl.
+-- ============================================================================
+
+create module Bug1466;
+create persistent entity Bug1466.Region (Name: String(100));
+create persistent entity Bug1466.District (Name: String(100));
+create persistent entity Bug1466.AreaPicker (Label: String(50));
+create association Bug1466.District_Region from Bug1466.District to Bug1466.Region type Reference;
+create association Bug1466.AreaPicker_Region from Bug1466.AreaPicker to Bug1466.Region type Reference;
+create association Bug1466.AreaPicker_District from Bug1466.AreaPicker to Bug1466.District type Reference;
+
+create page Bug1466.Controls (
+  Params: ($Picker: Bug1466.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvPicker (DataSource: $Picker) {
+          combobox cbOneHop (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_Region = $currentObject/Bug1466.AreaPicker_Region],
+            CaptionAttribute: Name)
+          combobox cbInverted (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_Region/Bug1466.Region/Bug1466.AreaPicker_Region = $currentObject],
+            CaptionAttribute: Name)
+          combobox cbOwnAttr (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Name = $currentObject/Label],
+            CaptionAttribute: Name)
+          listview lv (DataSource: database from Bug1466.District where [Bug1466.District_Region = $currentObject/Bug1466.AreaPicker_Region]) {
+            dynamictext t (Content: '{1}', ContentParams: ({1} = Name))
+          }
+        }
+      }
+    }
+  }
+};
