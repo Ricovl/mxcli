@@ -238,11 +238,41 @@ func GetUnitByID[T element.Element](r *mmpr.Reader, id model.ID) (*Unit[T], erro
 	return decodeUnit[T](r, h)
 }
 
+// ListUnitsTransformed decodes every unit of type T after transform has
+// rewritten its raw bytes: for a caller that needs part of each document and
+// can drop the rest before the decoder pays for it.
+func ListUnitsTransformed[T element.Element](r *mmpr.Reader, transform func([]byte) ([]byte, error)) ([]Unit[T], error) {
+	hs, err := r.UnitHeadersOfType(bsonTypeName[T]())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Unit[T], 0, len(hs))
+	for _, h := range hs {
+		contents, err := r.GetRawUnitBytes(h.ID)
+		if err != nil {
+			return nil, err
+		}
+		if contents, err = transform(contents); err != nil {
+			return nil, fmt.Errorf("transform unit %s: %w", h.ID, err)
+		}
+		u, err := decodeContents[T](h, contents)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *u)
+	}
+	return out, nil
+}
+
 func decodeUnit[T element.Element](r *mmpr.Reader, h mmpr.UnitHeaderInfo) (*Unit[T], error) {
 	contents, err := r.GetRawUnitBytes(h.ID)
 	if err != nil {
 		return nil, err
 	}
+	return decodeContents[T](h, contents)
+}
+
+func decodeContents[T element.Element](h mmpr.UnitHeaderInfo, contents []byte) (*Unit[T], error) {
 	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(contents))
 	if err != nil {
 		return nil, fmt.Errorf("decode unit %s: %w", h.ID, err)

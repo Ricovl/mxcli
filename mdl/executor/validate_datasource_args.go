@@ -570,7 +570,9 @@ func buildFlowSignatures(ctx *ExecContext) map[string]*flowSignature {
 	if err != nil || h == nil {
 		return result
 	}
-	if mfs, err := ctx.Backend.ListMicroflows(); err == nil {
+	// Signatures only: decoding every flow's body for its parameters was most
+	// of check's time on a large project.
+	if mfs, err := microflowSignatures(ctx.Backend); err == nil {
 		for _, mf := range mfs {
 			if mf == nil {
 				continue
@@ -579,7 +581,7 @@ func buildFlowSignatures(ctx *ExecContext) map[string]*flowSignature {
 				sdkFlowSignature(mf.Parameters, mf.ReturnType)
 		}
 	}
-	if nfs, err := ctx.Backend.ListNanoflows(); err == nil {
+	if nfs, err := nanoflowSignatures(ctx.Backend); err == nil {
 		for _, nf := range nfs {
 			if nf == nil {
 				continue
