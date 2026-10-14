@@ -19,6 +19,7 @@ type WidgetRegistry struct {
 	byMDLName       map[string]*WidgetDefinition // keyed by uppercase MDLName
 	byWidgetID      map[string]*WidgetDefinition // keyed by widgetId
 	knownOperations map[string]bool              // operations accepted during validation
+	embeddedIDs     map[string]string            // uppercase MDLName → widgetId of the embedded (built-in) definition
 	projectPath     string                       // set by LoadWidgetRegistry; lets validation resolve editorConfig visibility rules for built-in widgets whose .def.json carries none
 }
 
@@ -71,6 +72,7 @@ func NewWidgetRegistryWithOps(extraOps map[string]bool) (*WidgetRegistry, error)
 		byMDLName:       make(map[string]*WidgetDefinition),
 		byWidgetID:      make(map[string]*WidgetDefinition),
 		knownOperations: ops,
+		embeddedIDs:     make(map[string]string),
 	}
 
 	entries, err := definitions.EmbeddedFS.ReadDir(".")
@@ -103,6 +105,7 @@ func NewWidgetRegistryWithOps(extraOps map[string]bool) (*WidgetRegistry, error)
 		}
 		reg.byMDLName[strings.ToUpper(def.MDLName)] = &def
 		reg.byWidgetID[def.WidgetID] = &def
+		reg.embeddedIDs[strings.ToUpper(def.MDLName)] = def.WidgetID
 	}
 
 	return reg, nil
@@ -201,6 +204,23 @@ func (r *WidgetRegistry) loadDefinitionsFromDir(dir string) error {
 			def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
 		}
 		upperName := strings.ToUpper(def.MDLName)
+		// A definition for a DIFFERENT widget must never take a built-in
+		// keyword: `widget init` used to name the native Image `image` and the
+		// native RadioButtons `radiobuttons`, and those files are still on
+		// users' disks (mendixlabs/mxcli#1463). Keep the widget reachable by id
+		// and leave the keyword with the widget it documents.
+		builtinID, isEmbedded := r.embeddedIDs[upperName]
+		if isBuilderOwnedWidgetKeyword(def.MDLName) || (isEmbedded && builtinID != def.WidgetID) {
+			builtin := "a built-in Forms widget"
+			if isEmbedded {
+				builtin = builtinID
+			}
+			log.Printf("warning: widget definition %q (%s) is not registered as `%s` — that keyword is %s. "+
+				"Use `pluggablewidget '%s'`, or give the definition another mdlName (or delete the file and re-run `mxcli widget init`)",
+				filePath, def.WidgetID, def.MDLName, builtin, def.WidgetID)
+			r.byWidgetID[def.WidgetID] = &def
+			continue
+		}
 		if existing, ok := r.byMDLName[upperName]; ok {
 			// Skip user skeleton definitions (no mappings/modes) when built-in has mappings
 			if len(def.PropertyMappings) == 0 && len(def.Modes) == 0 &&

@@ -22,6 +22,11 @@ func TestDeriveMDLName(t *testing.T) {
 		{"com.mendix.widget.web.gallery.Gallery", "GALLERY"},
 		{"com.company.widget.MyCustomWidget", "MYCUSTOMWIDGET"},
 		{"SimpleWidget", "SIMPLEWIDGET"},
+		// mendixlabs/mxcli#1463: native widgets must not take the web
+		// keyword (`image`, `radiobuttons`, `badge`, …).
+		{"com.mendix.widget.native.image.Image", "NATIVEIMAGE"},
+		{"com.mendix.widget.native.radiobuttons.RadioButtons", "NATIVERADIOBUTTONS"},
+		{"com.mendix.widget.web.image.Image", "IMAGE"},
 	}
 
 	for _, tc := range tests {

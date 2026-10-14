@@ -146,6 +146,16 @@ If a widget you have installed is not found, extract its definition:
 mxcli widget init -p app.mpr
 ```
 
+The keyword is the last segment of the widget id, lowercased — except for a
+**native mobile** widget (`com.mendix.widget.native.*`), which is prefixed
+`native`: `nativeimage`, `nativeradiobuttons`, `nativebadge`. Native packages
+reuse the web names, and a bare `image`/`radiobuttons` used to take over the
+web keyword (mendixlabs/mxcli#1463). A project definition never takes a
+built-in keyword (`image`, `radiobuttons`, `textbox`, …) for a different
+widget id: it is reported with a `warning:` line and stays reachable only as
+`pluggablewidget '<widget id>'` — delete an old `image.def.json` /
+`radiobuttons.def.json` generated for a native widget and re-run `widget init`.
+
 ## Built-in Pluggable Widgets
 
 ### GALLERY
