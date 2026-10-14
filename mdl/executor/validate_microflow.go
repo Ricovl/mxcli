@@ -942,19 +942,38 @@ var xpathVarTraversalRe = regexp.MustCompile(`\$(\w+)((?:/[A-Za-z_][\w.]*){2,})`
 // rejection rather than a writer fix: the constraint has to be restructured, and
 // only the author knows which of the two shapes they meant.
 func (v *microflowValidator) checkXPathVariableTraversal(variable, xpath string) {
-	for _, m := range xpathVarTraversalRe.FindAllStringSubmatch(xpath, -1) {
-		root, path := m[1], "$"+m[1]+m[2]
-		segs := strings.Split(strings.TrimPrefix(m[2], "/"), "/")
-		firstHop, leaf := segs[0], segs[len(segs)-1]
+	for _, t := range xpathVariableTraversals(xpath) {
 		v.addViolation("MDL055", linter.SeverityError,
 			fmt.Sprintf("retrieve '$%s' constraint traverses an association from a variable (`%s`), which Mendix XPath "+
 				"does not support (CE0161 \"Error(s) in XPath constraint\") — a constraint reaches at most one hop off a variable",
-				variable, path),
+				variable, t.path),
 			fmt.Sprintf("Retrieve the associated object first, then constrain on its own attribute: "+
 				"`retrieve $Related from $%s/%s;` and use `[%s = $Related/%s]`. Or invert the constraint so the "+
 				"traversal starts at the entity being retrieved: `[%s/<Module.Entity> = $%s]`. Both forms build clean.",
-				root, firstHop, leaf, leaf, firstHop, root))
+				t.root, t.firstHop, t.leaf, t.leaf, t.firstHop, t.root))
 	}
+}
+
+// xpathVariableTraversal is one path of two or more hops off a $variable.
+type xpathVariableTraversal struct {
+	path     string // `$P/Mod.Assoc/Name`, as written
+	root     string // `P`
+	firstHop string // `Mod.Assoc`
+	leaf     string // `Name`
+}
+
+// xpathVariableTraversals returns every path in an XPath constraint that reaches
+// two or more hops off a $variable — the shape MDL055 refuses, in a microflow
+// retrieve and in a widget's database datasource alike.
+func xpathVariableTraversals(xpath string) []xpathVariableTraversal {
+	var out []xpathVariableTraversal
+	for _, m := range xpathVarTraversalRe.FindAllStringSubmatch(xpath, -1) {
+		segs := strings.Split(strings.TrimPrefix(m[2], "/"), "/")
+		out = append(out, xpathVariableTraversal{
+			path: "$" + m[1] + m[2], root: m[1], firstHop: segs[0], leaf: segs[len(segs)-1],
+		})
+	}
+	return out
 }
 
 // checkSynchronizeIsNanoflowOnly rejects SYNCHRONIZE in a microflow.
