@@ -109,7 +109,7 @@ LIST IMPACT OF Module.Customer;
 -- Get context for understanding code
 DESCRIBE CONTEXT OF Module.MyMicroflow DEPTH 2;
 
--- Full-text search across strings and source
+-- Full-text search across strings, element documentation and source
 SEARCH 'validation';
 SEARCH 'Customer';
 ```
@@ -128,6 +128,10 @@ mxcli search -p app.mpr "error" -q --format names | head -1 | awk '{print $2}' |
 
 # JSON format with jq
 mxcli search -p app.mpr "Customer" -q --format json | jq -r '.[].qualifiedName'
+
+# A hit's stringContext says which field matched ("documentation" for the
+# documentation of an entity, attribute, constant, page, ...)
+mxcli search -p app.mpr "legacy" -q --format json | jq -r '.[] | select(.stringContext == "documentation") | .qualifiedName'
 ```
 
 ## Available Catalog Tables

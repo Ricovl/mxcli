@@ -1164,7 +1164,7 @@ mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 
 	Register(SyntaxFeature{
 		Path:    "search",
-		Summary: "Full-text search across project strings and source definitions",
+		Summary: "Full-text search across project strings, element documentation and source definitions",
 		Keywords: []string{
 			"search", "full-text search", "find", "grep",
 			"fts", "catalog strings", "catalog source",
