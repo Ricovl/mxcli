@@ -1,0 +1,26 @@
+-- ============================================================================
+-- mendixlabs/mxcli#151 — a file manager outside any data container
+-- ============================================================================
+--
+-- NEGATIVE TEST: this script must FAIL `mxcli check` (MDL-WIDGET34).
+--
+-- A file manager uploads into its data container's object, so with no data
+-- view around it there is nothing to store the file in. Before, `check` and
+-- `exec` passed and mxbuild failed the page (measured on Mendix 11.14.0):
+--   CE6810 "A file manager must be placed in a data view or snippet that is
+--   connected to entity 'System.FileDocument' or a specialization."
+-- A data view on an entity that is not a FileDocument is the other half of
+-- CE6810; that needs the project, and `exec` refuses it before writing.
+-- ============================================================================
+mdl 1;
+
+create page Docs151.NoContainer
+(
+  Title: 'No container',
+  Layout: Atlas_Core.Atlas_Default
+)
+{
+  container c1 {
+    filemanager fileManager1 (Label: 'File', Type: Upload)
+  }
+};

@@ -17,6 +17,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
@@ -127,5 +128,64 @@ func TestFileManager_PropsAreKnownToCheck(t *testing.T) {
 	typo := &ast.WidgetV3{Type: "filemanager", Name: "f", Properties: map[string]any{"MaxFileSise": 10}}
 	if v := validateStaticWidgetUnknownProps(typo, "page P"); len(v) != 1 {
 		t.Errorf("a misspelt property should still warn, got %v", v)
+	}
+}
+
+// fileDocumentDMs: Upload extends System.FileDocument, SubUpload extends
+// Upload, Photo extends System.Image (a FileDocument specialization in the
+// System module, which is not among the loaded domain models), Plain extends
+// nothing and Child extends Plain.
+func fileDocumentDMs() *pageBuilder {
+	const modID = model.ID("mod-151")
+	return &pageBuilder{
+		widgetScope: map[string]model.ID{},
+		execCache: &executorCache{
+			hierarchy: &ContainerHierarchy{moduleNames: map[model.ID]string{modID: "D"}},
+			domainModels: []*domainmodel.DomainModel{{
+				ContainerID: modID,
+				Entities: []*domainmodel.Entity{
+					{BaseElement: model.BaseElement{ID: "e1"}, Name: "Upload", GeneralizationRef: "System.FileDocument"},
+					{BaseElement: model.BaseElement{ID: "e2"}, Name: "SubUpload", GeneralizationRef: "D.Upload"},
+					{BaseElement: model.BaseElement{ID: "e3"}, Name: "Photo", GeneralizationRef: "System.Image"},
+					{BaseElement: model.BaseElement{ID: "e4"}, Name: "Plain"},
+					{BaseElement: model.BaseElement{ID: "e5"}, Name: "Child", GeneralizationRef: "D.Plain"},
+				},
+			}},
+		},
+	}
+}
+
+// mx check reports CE6810 "A file manager must be placed in a data view or
+// snippet that is connected to entity 'System.FileDocument' or a
+// specialization." for a file manager in a data view on any other entity —
+// after `exec` had reported success. The builder refuses it where the entity's
+// whole generalization chain is loaded and provably ends elsewhere.
+func TestFileManager_RefusedOutsideAFileDocumentContext(t *testing.T) {
+	for _, ctx := range []string{"D.Plain", "D.Child"} {
+		pb := fileDocumentDMs()
+		pb.entityContext = ctx
+		_, err := pb.buildFileManagerV3(&ast.WidgetV3{Type: "filemanager", Name: "fm", Properties: map[string]any{}})
+		if err == nil {
+			t.Errorf("context %s: accepted; mxbuild reports CE6810", ctx)
+			continue
+		}
+		for _, want := range []string{"System.FileDocument", "CE6810", ctx} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("context %s: error %q should mention %q", ctx, err, want)
+			}
+		}
+	}
+}
+
+// Control: every context that is, or may be, a FileDocument is accepted —
+// System.FileDocument itself, direct and indirect specializations, and a chain
+// that leaves the loaded models (System.Image), where refusing would be a guess.
+func TestFileManager_AcceptedInAFileDocumentContext(t *testing.T) {
+	for _, ctx := range []string{"System.FileDocument", "D.Upload", "D.SubUpload", "D.Photo", "System.Image", "X.Unknown", ""} {
+		pb := fileDocumentDMs()
+		pb.entityContext = ctx
+		if _, err := pb.buildFileManagerV3(&ast.WidgetV3{Type: "filemanager", Name: "fm", Properties: map[string]any{}}); err != nil {
+			t.Errorf("context %q refused: %v", ctx, err)
+		}
 	}
 }

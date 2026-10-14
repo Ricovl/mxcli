@@ -483,7 +483,8 @@ radiobuttons rbStatus (label: 'Status', attribute: status)
 **FILEMANAGER** - Upload or download a file (the classic `Forms$FileManager`):
 ```sql
 -- The data view's object must be a System.FileDocument specialization — the
--- widget binds no attribute. Anywhere else mxbuild reports CE6810.
+-- widget binds no attribute. Outside a data container `check` refuses it
+-- (MDL-WIDGET34); on another entity `exec` does. Both are mxbuild's CE6810.
 dataview dvUpload (DataSource: $Upload) {
   filemanager fileManager1 (label: 'Excel file', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx')
 }

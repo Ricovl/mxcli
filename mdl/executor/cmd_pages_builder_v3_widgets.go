@@ -692,6 +692,18 @@ func (pb *pageBuilder) buildFileManagerV3(w *ast.WidgetV3) (*pages.FileManager, 
 		AllowedExtensions: w.GetStringProp("AllowedExtensions"),
 	}
 
+	// mxbuild CE6810: a file manager uploads into the data view's object, so
+	// that object must be a file. Refused only where the entity's chain is
+	// loaded and provably ends elsewhere; `exec` used to report success and
+	// leave the error to the build.
+	if pb.provablyNotSpecializationOf(pb.entityContext, "System.FileDocument") {
+		return nil, mdlerrors.NewValidation(fmt.Sprintf(
+			"filemanager %s: its data view shows %s, which is not System.FileDocument or a specialization of it — "+
+				"a file manager must be placed in a data view or snippet connected to a file entity "+
+				"(mxbuild CE6810); give %s `extends System.FileDocument`, or move the widget into a data view on such an entity",
+			w.Name, pb.entityContext, pb.entityContext))
+	}
+
 	if raw := w.GetStringProp("Type"); raw != "" {
 		t, ok := pages.CanonicalFileManagerType(raw)
 		if !ok {

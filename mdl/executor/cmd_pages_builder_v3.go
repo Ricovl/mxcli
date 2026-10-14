@@ -1334,13 +1334,21 @@ func (pb *pageBuilder) isSpecializationOf(entityQN, ancestorQN string) bool {
 // generalizationOf returns an entity's EXTENDS target, or "" when the entity is
 // not in the loaded domain models or has no generalization.
 func (pb *pageBuilder) generalizationOf(entityQN string) string {
+	gen, _ := pb.entityGeneralization(entityQN)
+	return gen
+}
+
+// entityGeneralization returns an entity's EXTENDS target, and whether the
+// entity is in the loaded domain models at all — which generalizationOf's ""
+// cannot tell apart from "extends nothing". The System module is not loaded.
+func (pb *pageBuilder) entityGeneralization(entityQN string) (string, bool) {
 	parts := strings.SplitN(entityQN, ".", 2)
 	if len(parts) != 2 {
-		return ""
+		return "", false
 	}
 	domainModels, err := pb.getDomainModels()
 	if err != nil {
-		return ""
+		return "", false
 	}
 	for _, dm := range domainModels {
 		if pb.moduleNameByID(dm.ContainerID) != parts[0] {
@@ -1348,11 +1356,37 @@ func (pb *pageBuilder) generalizationOf(entityQN string) string {
 		}
 		for _, e := range dm.Entities {
 			if e.Name == parts[1] {
-				return e.GeneralizationRef
+				return e.GeneralizationRef, true
 			}
 		}
 	}
-	return ""
+	return "", false
+}
+
+// provablyNotSpecializationOf reports whether entityQN is known NOT to be
+// ancestorQN or inherit from it: every entity on its generalization chain is
+// loaded and the chain ends without reaching ancestorQN. An entity, or an
+// ancestor, outside the loaded models (the System module's System.Image, say)
+// is not proof, so a refusal built on this never guesses.
+func (pb *pageBuilder) provablyNotSpecializationOf(entityQN, ancestorQN string) bool {
+	if entityQN == "" || ancestorQN == "" {
+		return false
+	}
+	seen := map[string]bool{}
+	for current := entityQN; ; {
+		if current == ancestorQN || seen[current] {
+			return false
+		}
+		seen[current] = true
+		gen, found := pb.entityGeneralization(current)
+		if !found {
+			return false
+		}
+		if gen == "" {
+			return true
+		}
+		current = gen
+	}
 }
 
 func (pb *pageBuilder) resolveAssociationDestination(assocQN, contextEntity string) string {

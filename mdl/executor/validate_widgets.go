@@ -146,6 +146,15 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 	if label, widgets, ok := documentWidgets(stmt); ok {
 		out := validateWidgetTree(widgets, registry, label)
 		out = append(out, validateNamedObjectBindings(widgets, documentEntityParameters(stmt), label)...)
+		_, isSnippet := stmt.(*ast.CreateSnippetStmtV3)
+		for _, msg := range fileManagersWithoutContext(widgets, isSnippet) {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET34",
+				Severity:   linter.SeverityError,
+				Message:    label + ": " + msg,
+				Suggestion: "Put the file manager in a data view whose object extends System.FileDocument.",
+			})
+		}
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
