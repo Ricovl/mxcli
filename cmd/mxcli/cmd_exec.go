@@ -192,16 +192,21 @@ func runScriptAtomically(exec *executor.Executor, prog *ast.Program) error {
 		return errors.Join(err, fmt.Errorf("could not roll back the statements that ran before it, "+
 			"so the project may be partly updated: %w", rerr))
 	}
-	ran := "the script's statements"
+	return fmt.Errorf("%w\nNothing was written: %s, and the project is as it was before exec", err, rolledBackSummary(stoppedAt))
+}
+
+// rolledBackSummary says what a rollback undid, given the 0-based index of the
+// failing statement (-1 when the run failed after its last statement).
+func rolledBackSummary(stoppedAt int) string {
 	switch {
 	case stoppedAt == 0:
-		ran = "the failing statement's partial writes"
+		return "the failing statement's partial writes were rolled back"
 	case stoppedAt == 1:
-		ran = "statement 1"
+		return "statement 1 was rolled back"
 	case stoppedAt > 1:
-		ran = fmt.Sprintf("statements 1-%d", stoppedAt)
+		return fmt.Sprintf("statements 1-%d were rolled back", stoppedAt)
 	}
-	return fmt.Errorf("%w\nNothing was written: %s were rolled back, and the project is as it was before exec", err, ran)
+	return "the script's statements were rolled back"
 }
 
 func init() {
