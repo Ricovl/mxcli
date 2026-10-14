@@ -29,6 +29,16 @@ type ModuleInfo struct {
 
 // ListModules returns all modules in the project.
 func (r *Reader) ListModules() ([]*ModuleInfo, error) {
+	if hs, ok, err := r.cachedUnitsOfType("Projects$ModuleImpl"); ok {
+		if err != nil {
+			return nil, err
+		}
+		modules := make([]*ModuleInfo, 0, len(hs)+1)
+		for _, h := range hs {
+			modules = append(modules, &ModuleInfo{ID: h.ID, Name: h.Name})
+		}
+		return append(modules, buildSystemModuleInfo()), nil
+	}
 	units, err := r.listUnitsByType("Projects$ModuleImpl")
 	if err != nil {
 		return nil, err
@@ -98,6 +108,16 @@ func (r *Reader) ListUnits() ([]*UnitInfo, error) {
 
 // ListFolders returns all project folders with their names.
 func (r *Reader) ListFolders() ([]*FolderInfo, error) {
+	if hs, ok, err := r.cachedUnitsOfType("Projects$Folder"); ok {
+		if err != nil {
+			return nil, err
+		}
+		result := make([]*FolderInfo, 0, len(hs))
+		for _, h := range hs {
+			result = append(result, &FolderInfo{ID: h.ID, ContainerID: h.ContainerID, Name: h.Name})
+		}
+		return result, nil
+	}
 	units, err := r.listUnitsByType("Projects$Folder")
 	if err != nil {
 		return nil, err

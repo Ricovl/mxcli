@@ -110,6 +110,26 @@ func (r *Reader) listUnitTypes() ([]rawUnit, error) {
 	return units, nil
 }
 
+// cachedUnitsOfType returns the MPR v2 unit cache's entries of one type, which
+// carry the name without reading any file; ok is false on MPR v1.
+func (r *Reader) cachedUnitsOfType(typeName string) (_ []cachedUnit, ok bool, err error) {
+	if r.version != MPRVersionV2 {
+		return nil, false, nil
+	}
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return nil, true, err
+		}
+	}
+	var out []cachedUnit
+	for _, cu := range r.unitCache {
+		if cu.Type == typeName {
+			out = append(out, cu)
+		}
+	}
+	return out, true, nil
+}
+
 // listUnitsByTypeV2 handles MPR v2 format (contents in mprcontents folder).
 // Uses caching to avoid reading every file for each query.
 func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
