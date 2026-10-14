@@ -693,7 +693,7 @@ func (pb *pageBuilder) buildFileManagerV3(w *ast.WidgetV3) (*pages.FileManager, 
 	}
 
 	if raw := w.GetStringProp("Type"); raw != "" {
-		t, ok := fileManagerTypeValue(raw)
+		t, ok := pages.CanonicalFileManagerType(raw)
 		if !ok {
 			return nil, mdlerrors.NewValidation(fmt.Sprintf(
 				"filemanager %s: Type %q is not a file manager type (expected Upload, Download, Both)", w.Name, raw))
@@ -720,17 +720,6 @@ func (pb *pageBuilder) buildFileManagerV3(w *ast.WidgetV3) (*pages.FileManager, 
 		return nil, err
 	}
 	return fm, nil
-}
-
-// fileManagerTypeValue canonicalises an authored file manager Type to Mendix's
-// member casing; an unknown member is a document Studio Pro cannot load.
-func fileManagerTypeValue(raw string) (pages.FileManagerType, bool) {
-	for _, t := range []pages.FileManagerType{pages.FileManagerTypeUpload, pages.FileManagerTypeDownload, pages.FileManagerTypeBoth} {
-		if strings.EqualFold(raw, string(t)) {
-			return t, true
-		}
-	}
-	return "", false
 }
 
 // toIntProp reads a whole number from a parsed property value.

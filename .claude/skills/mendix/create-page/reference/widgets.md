@@ -491,6 +491,7 @@ dataview dvUpload (DataSource: $Upload) {
 `Type` is `Upload`, `Download` or `Both` (default); `MaxFileSize` is in megabytes (default 5);
 `AllowedExtensions` is empty (any file) by default; `ShowFileInBrowser: true` opens a downloaded
 file in the browser rather than saving it. Omitted properties take Studio Pro's defaults.
+Change an existing one with `alter page … { set (MaxFileSize: 20, AllowedExtensions: '.xlsx') on fileManager1; }`.
 For the pluggable File Uploader (`fileuploader`, attachments to an association) see the
 custom-widgets skill.
 

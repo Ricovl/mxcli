@@ -3,6 +3,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -210,6 +212,23 @@ const (
 	FileManagerTypeDownload FileManagerType = "Download"
 	FileManagerTypeBoth     FileManagerType = "Both"
 )
+
+// CanonicalFileManagerType resolves an authored file manager Type, matched
+// case-insensitively, to Mendix's member casing. An unknown member is a
+// document Studio Pro cannot load, so it is reported rather than stored.
+func CanonicalFileManagerType(s string) (FileManagerType, bool) {
+	for _, t := range []FileManagerType{FileManagerTypeUpload, FileManagerTypeDownload, FileManagerTypeBoth} {
+		if strings.EqualFold(s, string(t)) {
+			return t, true
+		}
+	}
+	return "", false
+}
+
+// IsFileManager reports whether a stored $Type is the classic file manager.
+func IsFileManager(typeName string) bool {
+	return typeName == "Forms$FileManager" || typeName == "Pages$FileManager"
+}
 
 // ImageUploader represents an image uploader widget.
 type ImageUploader struct {
