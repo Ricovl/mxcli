@@ -6,14 +6,14 @@
 
 ## Description
 
-Performs a full-text search across all strings, messages, captions, and MDL source in the project. Uses FTS5 (SQLite full-text search) for fast matching. Returns results grouped by document type and location.
+Performs a full-text search across all strings, messages, captions, the documentation of project elements (entities, attributes, constants, pages and more), and MDL source in the project. Uses FTS5 (SQLite full-text search) for fast matching. Returns results grouped by document type and location.
 
 This command requires the catalog to be populated. If search returns no results, run `REFRESH CATALOG FULL` first. The search is also available as a CLI subcommand: `mxcli search -p app.mpr "keyword" --format names|json`.
 
 ## Parameters
 
 *keyword*
-: The search term to look for. Must be enclosed in single quotes. Matches against entity names, attribute names, microflow activity captions, page titles, widget labels, string constants, log messages, and MDL source text.
+: The search term to look for. Must be enclosed in single quotes. Matches against entity names, attribute names, microflow activity captions, page titles, widget labels, string constants, log messages, element documentation, and MDL source text.
 
 ## Examples
 

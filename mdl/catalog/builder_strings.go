@@ -68,8 +68,9 @@ func (b *Builder) buildStrings() error {
 
 			mfID := string(mf.ID)
 
-			// Documentation (no language). The activities' message templates
-			// are Texts$Text and come from the walk.
+			// Documentation (no language). A log message is a plain-text
+			// StringTemplate and is indexed with its node name below; the
+			// other message templates are Texts$Text and come from the walk.
 			if mf.Documentation != "" {
 				insert(qn, "MICROFLOW", mf.Documentation, "documentation", "", mfID, moduleName)
 			}
@@ -131,8 +132,80 @@ func (b *Builder) buildStrings() error {
 
 	b.buildTranslatableStrings(insert)
 
+	docRows, err := b.buildDocumentationStrings()
+	if err != nil {
+		return err
+	}
+	count += docRows
+
 	b.report("strings", count)
 	return nil
+}
+
+// buildDocumentationStrings indexes the documentation of every element whose
+// catalog table already holds it: entities, attributes, associations,
+// enumerations, constants, pages, snippets, layouts, nanoflows, Java actions,
+// REST services, mappings and the rest of the `objects` view, plus the
+// parameters of microflows and Java actions and a module's domain model
+// documentation.
+//
+// Documentation is a plain string, not a Texts$Text, so neither the translatable
+// walk nor the typed extractions above reach it. It is read back from the tables
+// the builders above just filled rather than walked from the model a second
+// time. Each row names its element (QualifiedName, ObjectType) and its field
+// (StringContext), the same labels the typed microflow and workflow
+// documentation rows use.
+//
+// Left out on purpose:
+//   - MICROFLOW and WORKFLOW — their documentation is indexed by the typed
+//     extractions in buildStrings, and a second row would make every hit appear
+//     twice.
+//   - CONTRACT_ENTITY — its Description is a remote service's $metadata summary,
+//     not text the project's author wrote.
+//   - enumeration values — the metamodel has no documentation property on them.
+//
+// A module is its own module: the MODULE row of the objects view carries an
+// empty ModuleName, so the module's documentation is stored under its Name.
+// Without that, a filter on ModuleName (module-scoped searches, excluding
+// Marketplace modules) never matches the module's own text.
+//
+// Rows are limited to the snapshot being built, so a catalog that also holds
+// another project's snapshot does not index that project's text under this one.
+func (b *Builder) buildDocumentationStrings() (int, error) {
+	_, snapshotID := b.snapshotMeta()
+
+	res, err := b.tx.Exec(`
+		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName)
+		SELECT QualifiedName, ObjectType, Description, 'documentation', '', Id,
+		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END
+		FROM objects
+		WHERE Description <> '' AND SnapshotId = ?1
+		  AND ObjectType NOT IN ('MICROFLOW', 'WORKFLOW', 'CONTRACT_ENTITY')
+		UNION ALL
+		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName
+		FROM attributes_data
+		WHERE Description <> '' AND SnapshotId = ?1
+		UNION ALL
+		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName
+		FROM microflow_parameters_data
+		WHERE Description <> '' AND SnapshotId = ?1
+		UNION ALL
+		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName
+		FROM java_action_parameters_data
+		WHERE Description <> '' AND SnapshotId = ?1
+		UNION ALL
+		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name
+		FROM modules_data
+		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1
+	`, snapshotID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(n), nil
 }
 
 // buildTranslatableStrings indexes every Texts$Text in the project.
@@ -306,10 +379,13 @@ func extractWorkflowFlowStrings(flow *workflows.Flow, qn, moduleName string, ins
 	}
 }
 
-// extractLogNodeNames indexes the one microflow-activity string that is NOT a
-// Texts$Text. The message templates that used to be extracted here — log, show
-// message, validation feedback — are Texts$Text and come from the walk in
-// buildTranslatableStrings, which also reaches the ones this never listed.
+// extractLogNodeNames indexes the two microflow-activity strings that are NOT a
+// Texts$Text: a log node's name and a log message's text. A log message is a
+// Microflows$StringTemplate, whose Text is a plain string, so the translatable
+// walk in buildTranslatableStrings never sees it (measured on a Mendix 11.12
+// project: a word present only in a log message was not found by SEARCH). The
+// other message templates — show message, validation feedback — are Texts$Text
+// and come from the walk, which also reaches the ones this never listed.
 func extractLogNodeNames(oc *microflows.MicroflowObjectCollection, qn, objType, moduleName string, insert func(string, string, string, string, string, string, string)) {
 	if oc == nil {
 		return
@@ -319,8 +395,15 @@ func extractLogNodeNames(oc *microflows.MicroflowObjectCollection, qn, objType, 
 		if !ok || act.Action == nil {
 			continue
 		}
-		if a, ok := act.Action.(*microflows.LogMessageAction); ok && a.LogNodeName != "" {
+		a, ok := act.Action.(*microflows.LogMessageAction)
+		if !ok {
+			continue
+		}
+		if a.LogNodeName != "" {
 			insert(qn, objType, a.LogNodeName, "log_node", "", string(act.ID), moduleName)
+		}
+		if msg := textValue(a.MessageTemplate); msg != "" {
+			insert(qn, objType, msg, "log_message", "", string(act.ID), moduleName)
 		}
 	}
 }
