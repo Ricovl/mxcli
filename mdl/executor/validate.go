@@ -857,6 +857,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
+		// A DataGrid 2 column or filter attribute the grid's entity lacks
+		// (mendixlabs/mxcli#1472) — CE1613, unless Mendix skips the document.
+		if colErrors := datagridColumnAttrErrors(pageWidgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if s.Excluded || carriedExclusion(ctx, "page", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("page", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
+		}
 	case *ast.CreateLayoutStmt:
 		// A layout's widgets name things too — a menu widget's menu document
 		// above all, since layouts are where menu widgets live. Before
@@ -910,6 +920,14 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if scopeErrors := validatePluggableAttributeScopes(ctx, "", s.Parameters, s.Widgets, sc); len(scopeErrors) > 0 {
 			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
+		}
+		if colErrors := datagridColumnAttrErrors(s.Widgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if carriedExclusion(ctx, "snippet", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("snippet", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
 		}
 	case *ast.CreateWorkflowStmt:
 		// Two reference passes. Missing targets first: a name that resolves to

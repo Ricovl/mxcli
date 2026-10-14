@@ -45,6 +45,7 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 	added := widgetsTheScriptAddsTo(prog)
 	grows := documentsTheScriptAddsWidgetsTo(prog)
 	opened := map[model.ID]backend.PageMutator{}
+	var judge columnAttrJudge
 
 	var errs []error
 	for _, stmt := range prog.Statements {
@@ -60,8 +61,9 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 		doc := s.PageName.String()
 		excluded := (kind == "page" || kind == "snippet") && carriedExclusion(ctx, kind, s.PageName, true)
 
-		// The stored document, for the targets. None for a document the
-		// script creates, or one that does not resolve (validateAlterTarget's
+		// The stored document, for the targets and for the entity of a grid
+		// the statement inserts columns into. None for a document the script
+		// creates, or one that does not resolve (validateAlterTarget's
 		// finding) or will not open.
 		var mutator backend.PageMutator
 		if h != nil && !alterTargetComesFromScript(sc, s) {
@@ -91,6 +93,31 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 			}
 		}
 
+		// DataGrid 2 column attributes: of a grid the statement
+		// carries, and of the columns it inserts into a stored grid.
+		var colErrors []string
+		if len(ws) > 0 {
+			if judge == nil {
+				judge = newColumnAttrJudge(ctx, sc)
+			}
+			colErrors = datagridColumnAttrErrors(ws, "", judge)
+			for _, op := range s.Operations {
+				target, cols := alterColumnInsertion(op)
+				if mutator == nil || len(cols) == 0 || added[doc][target.Widget] {
+					continue
+				}
+				colErrors = append(colErrors, datagridColumnAttrErrors(cols, alterColumnsEntity(mutator, target.Widget), judge)...)
+			}
+		}
+		if len(colErrors) > 0 {
+			if excluded {
+				sc.warnExcluded(kind, doc, colErrors)
+			} else {
+				errs = append(errs, mdlerrors.NewValidationf("%s has attribute binding errors:\n  - %s",
+					label, strings.Join(colErrors, "\n  - ")))
+			}
+		}
+
 		// The targets, against the stored document.
 		if mutator == nil {
 			continue
@@ -113,6 +140,22 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 		}
 	}
 	return errs
+}
+
+// alterColumnInsertion returns the grid target and the columns of an INSERT or
+// REPLACE that exec routes down its DataGrid 2 column path, or no columns.
+func alterColumnInsertion(op ast.AlterPageOperation) (ast.WidgetRef, []*ast.WidgetV3) {
+	switch o := op.(type) {
+	case *ast.InsertWidgetOp:
+		if o.Target.IsColumn() && allColumns(o.Widgets) {
+			return o.Target, o.Widgets
+		}
+	case *ast.ReplaceWidgetOp:
+		if o.Target.IsColumn() && allColumns(o.NewWidgets) {
+			return o.Target, o.NewWidgets
+		}
+	}
+	return ast.WidgetRef{}, nil
 }
 
 // alterOpWidgets returns the widgets the INSERT and REPLACE operations of one
