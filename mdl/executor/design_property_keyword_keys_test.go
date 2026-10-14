@@ -247,6 +247,7 @@ func TestKeywordStorageTypesMatchBuilder(t *testing.T) {
   datepicker k_datepicker (Attribute: D)
   checkbox k_checkbox (Attribute: B)
   radiobuttons k_radiobuttons (Attribute: B)
+  filemanager k_filemanager
   dropdown k_dropdown (Attribute: E)
   dataview k_dataview
   listview k_listview

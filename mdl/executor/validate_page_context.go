@@ -232,7 +232,7 @@ func walkWidgetsWithContext(widgets []*ast.WidgetV3, paramNames map[string]bool,
 // the parent's widget definition is known.
 var alwaysNamedKinds = map[string]bool{
 	"textbox": true, "textarea": true, "datepicker": true, "dropdown": true, "combobox": true,
-	"checkbox": true, "radiobuttons": true, "referenceselector": true, "actionbutton": true,
+	"checkbox": true, "radiobuttons": true, "referenceselector": true, "filemanager": true, "actionbutton": true,
 	"linkbutton": true, "title": true, "label": true, "dynamictext": true, "statictext": true,
 	"snippetcall": true, "dataview": true, "listview": true, "datagrid": true, "gallery": true,
 	"container": true, "customcontainer": true, "groupbox": true, "tabcontainer": true,
@@ -286,4 +286,32 @@ func widgetLabel(name, kind string) string {
 		return "a " + strings.ToLower(kind)
 	}
 	return fmt.Sprintf("widget `%s` (%s)", name, kind)
+}
+
+// fileManagersWithoutContext refuses a file manager that sits in no data
+// container (mendixlabs/mxcli#151). It uploads into the container's object, so
+// with none there is nothing to store the file in: mxbuild CE6810 "A file
+// manager must be placed in a data view or snippet that is connected to entity
+// 'System.FileDocument' or a specialization", measured on 11.14.0. Whether the
+// container's entity IS a file needs the project — buildFileManagerV3 checks
+// that. topLevelHasContext is true for a snippet, whose object is decided where
+// it is used.
+func fileManagersWithoutContext(widgets []*ast.WidgetV3, topLevelHasContext bool) []string {
+	var errs []string
+	var walk func(ws []*ast.WidgetV3, hasContext bool)
+	walk = func(ws []*ast.WidgetV3, hasContext bool) {
+		for _, w := range ws {
+			if w == nil {
+				continue
+			}
+			if strings.EqualFold(w.Type, "filemanager") && !hasContext {
+				errs = append(errs, fmt.Sprintf(
+					"widget '%s': a file manager must be inside a data view (or snippet) whose object is a "+
+						"System.FileDocument specialization — here it has no data container (mxbuild CE6810)", w.Name))
+			}
+			walk(w.Children, hasContext || w.GetDataSource() != nil)
+		}
+	}
+	walk(widgets, topLevelHasContext)
+	return errs
 }

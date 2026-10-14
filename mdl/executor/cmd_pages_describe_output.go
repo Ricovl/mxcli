@@ -641,6 +641,16 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
+	case "Forms$FileManager", "Pages$FileManager":
+		header := fmt.Sprintf("filemanager %s", mdlIdent(w.Name))
+		props := []string{}
+		if w.Caption != "" {
+			props = append(props, fmt.Sprintf("Label: %s", mdlQuote(ctx, w.Caption)))
+		}
+		props = append(props, w.FileManagerProps...)
+		props = appendAppearanceProps(ctx, props, w)
+		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+
 	case "Forms$DatePicker", "Pages$DatePicker":
 		header := fmt.Sprintf("datepicker %s", mdlIdent(w.Name))
 		props := []string{}

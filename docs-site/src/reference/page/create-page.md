@@ -71,6 +71,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
 | `DATEPICKER` | Date/time selector | `Label`, `Attribute` |
 | `COMBOBOX` | Dropdown selector | `Label`, `Attribute` |
+| `FILEMANAGER` | File upload/download, inside a data view on a `System.FileDocument` specialization | `Label`, `Type` (`Upload`, `Download`, `Both` default), `MaxFileSize` (MB, default 5), `AllowedExtensions`, `ShowFileInBrowser` |
 
 **Display Widgets**
 

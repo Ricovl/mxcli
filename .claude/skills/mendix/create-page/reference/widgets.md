@@ -484,6 +484,22 @@ checkbox cbActive (label: 'Active', attribute: IsActive)
 radiobuttons rbStatus (label: 'Status', attribute: status)
 ```
 
+**FILEMANAGER** - Upload or download a file (the classic `Forms$FileManager`):
+```sql
+-- The data view's object must be a System.FileDocument specialization — the
+-- widget binds no attribute. Outside a data container `check` refuses it
+-- (MDL-WIDGET45); on another entity `exec` does. Both are mxbuild's CE6810.
+dataview dvUpload (DataSource: $Upload) {
+  filemanager fileManager1 (label: 'Excel file', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx')
+}
+```
+`Type` is `Upload`, `Download` or `Both` (default); `MaxFileSize` is in megabytes (default 5);
+`AllowedExtensions` is empty (any file) by default; `ShowFileInBrowser: true` opens a downloaded
+file in the browser rather than saving it. Omitted properties take Studio Pro's defaults.
+Change an existing one with `alter page … { set (MaxFileSize: 20, AllowedExtensions: '.xlsx') on fileManager1; }`.
+For the pluggable File Uploader (`fileuploader`, attachments to an association) see the
+custom-widgets skill.
+
 **DATEPICKER** - Date/time selection:
 ```sql
 datepicker dpCreated (label: 'Created Date', attribute: CreatedDate)
