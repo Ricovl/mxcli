@@ -1,0 +1,64 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1481 — quoted attribute segment with whitespace before , ) ;
+-- ============================================================================
+--
+-- Reported: a quoted attribute segment ($Other/"C") followed by whitespace
+-- before its `,`, `)` or `;` was stored with its quotes, and mx check failed
+-- with "CE0117 Error(s) in expression." while mxcli check passed. The commonest
+-- trigger is a multi-line change/create with `)` on its own line — only the
+-- last member failed, the others having no whitespace before their comma.
+--
+-- Every slot below must be stored unquoted ($Other/C). The unit test that reads
+-- the stored values back is mdl/visitor/visitor_expr_quoting_trailing_ws_test.go.
+-- ============================================================================
+
+CREATE MODULE Bug1481;
+
+CREATE OR MODIFY PERSISTENT ENTITY Bug1481."Item" (
+  "A": String(100),
+  "B": String(100),
+  "C": String(100)
+);
+
+CREATE OR MODIFY MICROFLOW Bug1481."Sub" ($Value: String)
+BEGIN
+  return;
+END;
+
+-- `)` on its own line: the reported form.
+CREATE OR MODIFY MICROFLOW Bug1481."ParenOwnLine" (
+  $Item: Bug1481."Item",
+  $Other: Bug1481."Item"
+)
+BEGIN
+  change $Item (
+    "A" = $Other/"A",
+    "B" = $Other/"B",
+    "C" = $Other/"C"
+  );
+  $New = create Bug1481."Item" (
+    "A" = $Other/"A",
+    "C" = if $Other/"B" = empty then $Other/"A" else $Other/"C"
+  );
+  change $Item ("A" = $Other/"A" , "C" = $Other/"C" );
+  declare $V String = $Other/"C"
+  ;
+  call microflow Bug1481."Sub" (
+    Value = $Other/"C"
+  );
+  return;
+END;
+
+-- Control: `)` on the last member's line — always stored unquoted.
+CREATE OR MODIFY MICROFLOW Bug1481."ParenOnLastLine" (
+  $Item: Bug1481."Item",
+  $Other: Bug1481."Item"
+)
+BEGIN
+  change $Item (
+    "A" = $Other/"A",
+    "B" = $Other/"B",
+    "C" = $Other/"C");
+  return;
+END;
