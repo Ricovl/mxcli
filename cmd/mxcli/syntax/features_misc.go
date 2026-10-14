@@ -1172,7 +1172,7 @@ mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 		Syntax: `SEARCH '<query>';
 
 -- CLI
-mxcli search -p app.mpr "<query>" [--format table|names|json] [-q]
+mxcli search -p app.mpr "<query>" [--format table|names|json] [-q] [--fail-on-match]
 
 -- Raw FTS queries
 SELECT * FROM CATALOG.STRINGS WHERE strings MATCH '<query>';
@@ -1182,6 +1182,9 @@ SEARCH 'Customer';
 
 -- CLI with piping
 mxcli search -p app.mpr "validation" -q --format names
+
+-- Gate: exit 1 on a hit, 0 on none (2 when the search cannot run)
+mxcli search -p app.mpr "TODO" --fail-on-match
 
 -- FTS5 operators
 SEARCH 'word1 OR word2';

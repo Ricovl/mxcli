@@ -390,6 +390,7 @@ func init() {
 	// Search command flags
 	searchCmd.Flags().StringP("format", "f", "table", "Output format: table, names (for JSON use --json; \"json\" is accepted as a deprecated alias)")
 	searchCmd.Flags().BoolP("quiet", "q", false, "Suppress connection and status messages (for piping)")
+	searchCmd.Flags().Bool("fail-on-match", false, "Exit 1 when there is at least one hit, 0 when there is none (an error exits 2)")
 
 	// Callers/callees command flags
 	callersCmd.Flags().BoolP("transitive", "t", false, "Find transitive (indirect) callers")
