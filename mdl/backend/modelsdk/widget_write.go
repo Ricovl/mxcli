@@ -1049,6 +1049,12 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 	g.SetHorizontalAlignment(alignmentOrNone(row.HorizontalAlignment))
 	g.SetSpacingBetweenColumns(!row.NoSpacingBetweenColumns)
 	g.SetVerticalAlignment(alignmentOrNone(row.VerticalAlignment))
+	// The row's own visibility (mendixlabs/mxcli#1461). It was never set, so the
+	// registered null default replaced a Studio Pro row's condition on every
+	// rewrite of its page, the row then always visible.
+	if row.ConditionalVisibility != nil {
+		g.SetConditionalVisibilitySettings(conditionalVisibilityToGen(row.ConditionalVisibility))
+	}
 	for _, col := range row.Columns {
 		cg, err := layoutGridColumnToGen(col)
 		if err != nil {

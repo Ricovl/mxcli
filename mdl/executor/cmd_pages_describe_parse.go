@@ -795,6 +795,9 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 		// describe → exec reset every one of them (the Atlas "Flex container" /
 		// "Column gap" / "Cards style" a Studio Pro page sets on its grid).
 		extractAppearance(&row.Appearance, rMap)
+		// A row's own visibility (mendixlabs/mxcli#1461); a row has no
+		// editability, and a column no visibility, in the metamodel.
+		extractConditionalSettings(ctx, &row.Appearance, rMap)
 		row.VerticalAlignment, _ = rMap["VerticalAlignment"].(string)
 		row.HorizontalAlignment, _ = rMap["HorizontalAlignment"].(string)
 		if v, ok := rMap["SpacingBetweenColumns"].(bool); ok {

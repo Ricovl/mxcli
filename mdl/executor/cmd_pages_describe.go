@@ -953,7 +953,8 @@ type rawDesignProp struct {
 type rawWidgetRow struct {
 	Columns []rawWidgetColumn
 	// Appearance holds only Class, Style, DynamicClasses and DesignProperties —
-	// a row is not a widget, but its Forms$Appearance is a widget's.
+	// a row is not a widget, but its Forms$Appearance is a widget's — and the
+	// row's visibility (VisibleIf / VisibleAttr / VisibleValues, #1461).
 	Appearance            rawWidget
 	VerticalAlignment     string // "" or "None" is the default
 	HorizontalAlignment   string

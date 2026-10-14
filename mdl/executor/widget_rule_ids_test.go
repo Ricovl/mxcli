@@ -38,8 +38,9 @@ var widgetRuleIDsRaisedFromSeveralFiles = map[string][]string{
 	// One rule about a property the builder silently drops on write — a key no
 	// builder reads, or DesignProperties on a slot of the parent (a layoutgrid
 	// row, a row's column, a dataview footer) that never reaches
-	// applyWidgetAppearance.
-	"MDL-WIDGET07": {"validate_design_properties.go", "validate_widgets.go"},
+	// applyWidgetAppearance, or Visible: on a row's column, which has no
+	// visibility slot (mendixlabs/mxcli#1461).
+	"MDL-WIDGET07": {"validate_design_properties.go", "validate_layoutgrid_column_visible.go", "validate_widgets.go"},
 }
 
 // Matched as a QUOTED literal rather than after `RuleID:`, because an id is
