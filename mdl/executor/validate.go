@@ -650,6 +650,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				}
 			}
 		}
+		// The microflows its event handlers call (mendixlabs/mxcli#1472).
+		if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), s.EventHandlers); err != nil {
+			return err
+		}
 		// Validate index columns
 		for _, idx := range s.Indexes {
 			for _, col := range idx.Columns {
@@ -988,6 +992,11 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
+			}
+		}
+		if s.Operation == ast.AlterEntityAddEventHandler && s.EventHandler != nil {
+			if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), []ast.EventHandlerDef{*s.EventHandler}); err != nil {
+				return err
 			}
 		}
 		// ADD/DROP ATTRIBUTE on a view entity is refused by exec; say so here
