@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`filemanager` — the classic file manager (`Forms$FileManager`) in MDL** (mendixlabs/mxcli#151) — `filemanager fileManager1 (Label: 'File', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx', ShowFileInBrowser: false)` inside a data view on a `System.FileDocument` specialization. Before, there was no way to author one: `pluggablewidget 'Forms$FileManager'` had no definition, the bare keyword was refused as MDL-WIDGET25, and `describe page` printed a stored one as a NOT re-executable comment, so describe → exec dropped it. Omitted properties take Studio Pro's defaults (`Both`, 5 MB, any file, false); the written BSON has the property set of a Studio Pro-authored file manager. `alter page … set` changes all four properties. A file manager in no data container is MDL-WIDGET34 at `check`, and one in a data view on an entity that is not a FileDocument is refused by `exec` — both were mxbuild's CE6810 after a clean `exec`.
+
 ### Changed
 
 - **mxcli no longer creates a module role on its own** (mendixlabs/mxcli#1474) — a new page, microflow or nanoflow in a module with no module roles used to create `<Module>.User` ("Auto-created default role for mxcli document access") and grant the document to it, so a security role appeared that nobody chose, open to every user role later mapped to it. A new document now starts with no allowed roles in every module, and `move` maps a document's roles to same-named roles of the target module without creating any. **Breaking for scripts that granted to `<Module>.User` without creating it**: add `create module role <Module>.User;` — `check --references` and `exec` both report "module role … does not exist", and MDL-SEC21 names the fix for a flow a page uses. Roles and grants an earlier mxcli created are left as they are; `create module role M.User` still adopts such a role.
