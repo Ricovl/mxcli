@@ -482,6 +482,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// no data container at all) a bare binding is written bare and the project
 	// no longer loads — CREATE PAGE already refused this at check time.
 	errors = append(errors, validateAlterUnscopedBindings(ctx, prog, sc)...)
+	// An ALTER PAGE's INSERT / REPLACE / DROP targets and the references its
+	// inserted widgets carry: only the document was resolved, so a typo in
+	// either passed check and stopped exec (mendixlabs/mxcli#1472).
+	errors = append(errors, validateAlterPageReferences(ctx, prog, sc)...)
 	return errors, sc.warnings
 }
 
