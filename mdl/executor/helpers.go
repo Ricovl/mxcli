@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/folderpath"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -532,10 +533,19 @@ type microflowLookup interface {
 // flow of every microflow in the project — for a lookup check makes several
 // times per statement (mendixlabs/mxcli#1272).
 func microflowsNamed(ctx *ExecContext, name string) ([]*microflows.Microflow, error) {
-	if l, ok := ctx.Backend.(microflowLookup); ok {
+	return microflowsNamedIn(ctx.Backend, name)
+}
+
+// microflowsNamedIn is microflowsNamed for a caller that holds a backend rather
+// than an ExecContext (the flow builder). It asks only for ListMicroflowsNamed,
+// so a wrapper such as describe's layoutCheckBackend can forward that alone.
+func microflowsNamedIn(b backend.FullBackend, name string) ([]*microflows.Microflow, error) {
+	if l, ok := b.(interface {
+		ListMicroflowsNamed(name string) ([]*microflows.Microflow, error)
+	}); ok {
 		return l.ListMicroflowsNamed(name)
 	}
-	all, err := ctx.Backend.ListMicroflows()
+	all, err := b.ListMicroflows()
 	if err != nil {
 		return nil, err
 	}

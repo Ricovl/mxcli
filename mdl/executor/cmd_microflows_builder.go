@@ -119,12 +119,10 @@ type flowBuilder struct {
 	// be overridden by the user. Cleared after each flow is created.
 	previousStmtAnchor *ast.FlowAnchors
 	// Cached flow lists to avoid repeated backend calls during lookups.
-	microflowsCache       []*microflows.Microflow
-	microflowsCacheLoaded bool
-	nanoflowsCache        []*microflows.Nanoflow
-	nanoflowsCacheLoaded  bool
-	manualLoopBackTarget  model.ID
-	isNanoflow            bool // true when building a nanoflow — default error handling is "" not "Rollback"
+	nanoflowsCache       []*microflows.Nanoflow
+	nanoflowsCacheLoaded bool
+	manualLoopBackTarget model.ID
+	isNanoflow           bool // true when building a nanoflow — default error handling is "" not "Rollback"
 	// self is the flow the statement creates. A call to it resolves to the
 	// statement itself, not the project: on a first create the document does
 	// not exist yet, so a recursive flow was refused "not found" (#843).
@@ -379,16 +377,12 @@ func (fb *flowBuilder) lookupMicroflowReturnType(qualifiedName string) microflow
 	if err != nil || module == nil {
 		return nil
 	}
-	if !fb.microflowsCacheLoaded {
-		microflowList, err := fb.backend.ListMicroflows()
-		if err != nil {
-			return nil
-		}
-		fb.microflowsCache = microflowList
-		fb.microflowsCacheLoaded = true
+	candidates, err := microflowsNamedIn(fb.backend, microflowName)
+	if err != nil {
+		return nil
 	}
 
-	for _, mf := range fb.microflowsCache {
+	for _, mf := range candidates {
 		if mf == nil {
 			continue
 		}
@@ -475,15 +469,13 @@ func (fb *flowBuilder) microflowExists(qualifiedName string) bool {
 	if err != nil || module == nil {
 		return true // module not found — let other validation surface that
 	}
-	if !fb.microflowsCacheLoaded {
-		list, err := fb.backend.ListMicroflows()
-		if err != nil {
-			return true // backend error — don't block
-		}
-		fb.microflowsCache = list
-		fb.microflowsCacheLoaded = true
+	// Only the microflows of this name are decoded: a call to one that does
+	// not exist reaches here on every describe of its caller.
+	candidates, err := microflowsNamedIn(fb.backend, mfName)
+	if err != nil {
+		return true // backend error — don't block
 	}
-	for _, mf := range fb.microflowsCache {
+	for _, mf := range candidates {
 		if mf == nil {
 			continue
 		}

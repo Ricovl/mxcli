@@ -25,6 +25,7 @@ type layoutCheckBackend struct {
 
 	modules      *memoResult[[]*model.Module]
 	microflows   *memoResult[[]*microflows.Microflow]
+	mfNamed      map[string]memoResult[[]*microflows.Microflow]
 	nanoflows    *memoResult[[]*microflows.Nanoflow]
 	domainModels *memoResult[[]*domainmodel.DomainModel]
 
@@ -50,6 +51,7 @@ func newLayoutCheckBackend(b backend.FullBackend) *layoutCheckBackend {
 		javaAction:   map[string]memoResult[*javaactions.JavaAction]{},
 		jsAction:     map[string]memoResult[*types.JavaScriptAction]{},
 		isRule:       map[string]memoResult[bool]{},
+		mfNamed:      map[string]memoResult[[]*microflows.Microflow]{},
 	}
 }
 
@@ -76,6 +78,16 @@ func (b *layoutCheckBackend) ListModules() ([]*model.Module, error) {
 
 func (b *layoutCheckBackend) ListMicroflows() ([]*microflows.Microflow, error) {
 	return memoOnce(&b.microflows, b.FullBackend.ListMicroflows)
+}
+
+// ListMicroflowsNamed forwards the by-name lookup, so the builder's
+// existence and return-type checks decode only microflows of that name rather
+// than every microflow in the project — which a call to a microflow that no
+// longer exists used to cost on every describe that reached it.
+func (b *layoutCheckBackend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, error) {
+	return memoKeyed(b.mfNamed, name, func() ([]*microflows.Microflow, error) {
+		return microflowsNamedIn(b.FullBackend, name)
+	})
 }
 
 func (b *layoutCheckBackend) ListNanoflows() ([]*microflows.Nanoflow, error) {
