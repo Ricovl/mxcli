@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -285,6 +288,7 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 		return err
 	}
 	g.SetID(element.ID(layout.ID))
+	b.carryStoredLayoutCanvas(layout.ID, g)
 	contents, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
 		return fmt.Errorf("UpdateLayout: encode: %w", err)
@@ -298,6 +302,37 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 		return fmt.Errorf("UpdateLayout: update: %w", err)
 	}
 	return nil
+}
+
+// carryStoredLayoutCanvas copies the stored canvas size onto a rebuilt layout.
+//
+// layoutToGen writes the canvas as the constant 1280 × 800, the value Studio
+// Pro gives a new layout — but not every stored one has it, so describe → exec
+// rewrote the unit where ADR-0008 would elide the write, and reported
+// "Replaced" for a statement that changed nothing. The canvas has no MDL
+// spelling and is nothing a script asks for, so a rewrite carries it: the page
+// (#541, carryStoredPageHeader) and snippet (#705) twins of this fix.
+//
+// Read width-agnostically (bsonInt): Studio Pro stores the canvas as int64. A
+// missing or unreadable stored unit, or a zero, leaves the default in place.
+func (b *Backend) carryStoredLayoutCanvas(id model.ID, g *genPg.Layout) {
+	if b.reader == nil || id == "" {
+		return
+	}
+	raw, err := b.reader.GetRawUnitBytes(string(id))
+	if err != nil {
+		return
+	}
+	var stored bson.D
+	if err := bson.Unmarshal(raw, &stored); err != nil {
+		return
+	}
+	if v := bsonInt(bsonnav.DGet(stored, "CanvasWidth")); v > 0 {
+		g.SetCanvasWidth(int32(v))
+	}
+	if v := bsonInt(bsonnav.DGet(stored, "CanvasHeight")); v > 0 {
+		g.SetCanvasHeight(int32(v))
+	}
 }
 
 // DeleteLayout removes a Forms$Layout unit. Still on the write path rather than
