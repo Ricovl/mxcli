@@ -315,29 +315,8 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 
 	// Build entity resolver function for parameter/return types
 	entityResolver := func(qn ast.QualifiedName) model.ID {
-		// Get all domain models and build module name map
-		dms, err := ctx.Backend.ListDomainModels()
-		if err != nil {
-			return ""
-		}
-		modules, _ := ctx.Backend.ListModules()
-		moduleNames := make(map[model.ID]string)
-		for _, m := range modules {
-			moduleNames[m.ID] = m.Name
-		}
-		// Search for entity in all domain models
-		for _, dm := range dms {
-			modName := moduleNames[dm.ContainerID]
-			if modName != qn.Module {
-				continue
-			}
-			for _, ent := range dm.Entities {
-				if ent.Name == qn.Name {
-					return ent.ID
-				}
-			}
-		}
-		return ""
+		id, _ := entityIDIn(ctx, qn)
+		return id
 	}
 
 	// Validate and add parameters
@@ -545,7 +524,7 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	// "Mark as used" has no MDL spelling; the rebuild hardcoded false, so a
 	// rewrite cleared it. A new nanoflow still starts unmarked.
 	existingMarkAsUsed := false
-	existingNanoflows, err := ctx.Backend.ListNanoflows()
+	existingNanoflows, err := nanoflowsNamedIn(ctx.Backend, s.Name.Name)
 	if err != nil {
 		return nil, mdlerrors.NewBackend("check existing nanoflows", err)
 	}
@@ -610,42 +589,24 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		nf.AllowedModuleRoles = existingAllowedRoles
 	}
 
-	// Load metadata needed by the entity resolver up front so backend read
-	// failures are returned as actionable errors instead of being treated as
+	// A backend read failure is kept and returned instead of being reported as
 	// "entity not found".
-	dms, err := ctx.Backend.ListDomainModels()
-	if err != nil {
-		return nil, mdlerrors.NewBackend("list domain models", err)
-	}
-	modules, err := ctx.Backend.ListModules()
-	if err != nil {
-		return nil, mdlerrors.NewBackend("list modules", err)
-	}
-	moduleNames := make(map[model.ID]string)
-	for _, m := range modules {
-		moduleNames[m.ID] = m.Name
-	}
-
-	// Build entity resolver function for parameter/return types
+	var resolveErr error
 	entityResolver := func(qn ast.QualifiedName) model.ID {
-		for _, dm := range dms {
-			modName := moduleNames[dm.ContainerID]
-			if modName != qn.Module {
-				continue
-			}
-			for _, ent := range dm.Entities {
-				if ent.Name == qn.Name {
-					return ent.ID
-				}
-			}
+		id, err := entityIDIn(ctx, qn)
+		if err != nil && resolveErr == nil {
+			resolveErr = err
 		}
-		return ""
+		return id
 	}
 
 	// Validate and add parameters
 	for i, p := range s.Parameters {
 		if p.Type.EntityRef != nil && !isBuiltinModuleEntity(p.Type.EntityRef.Module) {
 			entityID := entityResolver(*p.Type.EntityRef)
+			if entityID == "" && resolveErr != nil {
+				return nil, mdlerrors.NewBackend("resolve entity", resolveErr)
+			}
 			if entityID == "" {
 				// Bare qualified name in microflow context is treated as TypeEntity by the
 				// visitor, but it may actually be an enumeration. Try enum lookup before failing.
@@ -680,6 +641,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	if s.ReturnType != nil {
 		if s.ReturnType.Type.EntityRef != nil && !isBuiltinModuleEntity(s.ReturnType.Type.EntityRef.Module) {
 			entityID := entityResolver(*s.ReturnType.Type.EntityRef)
+			if entityID == "" && resolveErr != nil {
+				return nil, mdlerrors.NewBackend("resolve entity", resolveErr)
+			}
 			if entityID == "" {
 				return nil, mdlerrors.NewNotFoundMsg("entity", s.ReturnType.Type.EntityRef.Module+"."+s.ReturnType.Type.EntityRef.Name,
 					fmt.Sprintf("entity '%s.%s' not found for return type", s.ReturnType.Type.EntityRef.Module, s.ReturnType.Type.EntityRef.Name))
@@ -809,4 +773,24 @@ func carriedStartPosition(ctx *ExecContext, existingID model.ID, opts buildFlowO
 		return nil
 	}
 	return storedStartPosition(ctx, existingID)
+}
+
+// entityIDIn resolves Module.Entity from that module's domain model alone.
+// Describe rebuilds every flow it renders, and resolving parameters by listing
+// every domain model made each describe convert the whole project's.
+func entityIDIn(ctx *ExecContext, qn ast.QualifiedName) (model.ID, error) {
+	mod, err := ctx.Backend.GetModuleByName(qn.Module)
+	if err != nil || mod == nil {
+		return "", err
+	}
+	dm, err := ctx.Backend.GetDomainModel(mod.ID)
+	if err != nil || dm == nil {
+		return "", err
+	}
+	for _, ent := range dm.Entities {
+		if ent.Name == qn.Name {
+			return ent.ID, nil
+		}
+	}
+	return "", nil
 }
