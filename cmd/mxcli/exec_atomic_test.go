@@ -175,3 +175,18 @@ func diffTrees(before, after map[string]string) string {
 	}
 	return b.String()
 }
+
+// The rollback summary agrees in number: a single statement "was" rolled back.
+// It read "statement 1 were rolled back" (found while exercising #1408).
+func TestRolledBackSummary(t *testing.T) {
+	for stoppedAt, want := range map[int]string{
+		-1: "the script's statements were rolled back",
+		0:  "the failing statement's partial writes were rolled back",
+		1:  "statement 1 was rolled back",
+		3:  "statements 1-3 were rolled back",
+	} {
+		if got := rolledBackSummary(stoppedAt); got != want {
+			t.Errorf("rolledBackSummary(%d) = %q, want %q", stoppedAt, got, want)
+		}
+	}
+}
