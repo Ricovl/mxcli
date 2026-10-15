@@ -263,6 +263,10 @@ type PluggableWidgetEngine struct {
 	// an association the widget binds — must be qualified against this, not
 	// against the widget's own datasource entity. (issuetracker #19)
 	outerEntityContext string
+	// inBuild says outerEntityContext was set by Build, so "" in it means the
+	// widget sits where no entity is in scope rather than "not recorded" (a
+	// mapping resolved on its own, as the engine tests do).
+	inBuild bool
 
 	// currentDef is the widget definition of the build in progress. resolveMapping
 	// consults it to tell the widget's PRIMARY attribute property from its others
@@ -319,8 +323,10 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	// Remember the containing context for properties that name members of it
 	// rather than of this widget's own data. Saved/restored for nested widgets.
 	oldOuterEntityContext := e.outerEntityContext
+	oldInBuild := e.inBuild
 	e.outerEntityContext = oldEntityContext
-	defer func() { e.outerEntityContext = oldOuterEntityContext }()
+	e.inBuild = true
+	defer func() { e.outerEntityContext, e.inBuild = oldOuterEntityContext, oldInBuild }()
 
 	// The definition being built, for mapping decisions that need to see the
 	// widget's OTHER mappings (which attribute property a bare `Attribute:`
@@ -1532,6 +1538,15 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			ctx.AssocPath = e.pageBuilder.resolveAssociationPathIn(rest, entity)
 			ctx.SourceVariable = &wv
 		} else if attr != "" {
+			// With no enclosing object the association has nowhere to start:
+			// written anyway it has no SourceVariable and mxbuild reports
+			// CE7007 (mendixlabs/mxcli#1420). Check refuses the same widgets
+			// (combobox_association_object.go).
+			if e.inBuild && e.outerEntityContext == "" {
+				if key, binding, ok := comboBoxAssociationNeedingObject(w); ok {
+					return nil, mdlerrors.NewValidation(comboBoxAssociationObjectProblem(w, key, binding))
+				}
+			}
 			// The association belongs to the CONTAINING entity, not to this
 			// widget's option list. A `DataSource:` mapping listed before this
 			// one has already moved entityContext to the option entity, so
