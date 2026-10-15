@@ -40,10 +40,7 @@ func alterSettingsWorkflowGroup(ctx *ExecContext, ps *model.ProjectSettings, stm
 	if ps.Workflows == nil {
 		return mdlerrors.NewNotFound("settings section", "workflows")
 	}
-	if err := checkFeature(ctx, "workflows", "groups",
-		"alter settings workflows add group '<name>'",
-		"Workflow groups (Settings$WorkflowGroup) were introduced in the 11.2 metamodel. "+
-			"On an earlier version, model the buckets as your own entity and target user tasks with a microflow."); err != nil {
+	if err := checkVersionGates(ctx, stmt); err != nil {
 		return err
 	}
 	if strings.TrimSpace(stmt.GroupName) == "" {

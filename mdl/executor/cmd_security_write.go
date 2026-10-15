@@ -1762,9 +1762,7 @@ func execGrantPublishedRestServiceAccess(ctx *ExecContext, s *ast.GrantPublished
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "published_rest_grant_revoke",
-		"grant access on published rest service",
-		"upgrade your project to 10.0+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

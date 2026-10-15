@@ -358,9 +358,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	}
 
 	// Version pre-check: REST clients require 10.1+
-	if err := checkFeature(ctx, "integration", "rest_client_basic",
-		"create rest client",
-		"upgrade your project to 10.1+"); err != nil {
+	if err := checkVersionGates(ctx, stmt); err != nil {
 		return err
 	}
 
@@ -807,9 +805,7 @@ func createRestClientFromSpec(ctx *ExecContext, stmt *ast.CreateRestClientStmt) 
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "rest_client_basic",
-		"create rest client",
-		"upgrade your project to 10.1+"); err != nil {
+	if err := checkVersionGates(ctx, stmt); err != nil {
 		return err
 	}
 

@@ -27,12 +27,8 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 	// which locked every 10.x project out of parameterised pages entirely
 	// (mendixlabs/mxcli#1121). The gate stays because 9.0–9.3 genuinely has no
 	// Pages$PageParameter; only the floor and the hint were wrong.
-	if len(s.Parameters) > 0 {
-		if err := checkFeature(ctx, "pages", "page_parameters",
-			"create page with parameters",
-			"pass data via a non-persistent entity or microflow parameter instead"); err != nil {
-			return err
-		}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
 	}
 
 	// Find or auto-create module
