@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-107 | Syntax |
-| 108-472 | Operations |
-| 473-551 | Examples |
-| 552-642 | DataGrid 2 columns: how to address them, and what you can set |
-| 643-654 | Common Mistakes |
-| 655-676 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 677-684 | Validation Checklist |
-| 685-694 | Related Commands |
-| 695-699 | Related Skills |
+| 108-473 | Operations |
+| 474-552 | Examples |
+| 553-643 | DataGrid 2 columns: how to address them, and what you can set |
+| 644-655 | Common Mistakes |
+| 656-677 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 678-685 | Validation Checklist |
+| 686-695 | Related Commands |
+| 696-700 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -208,6 +208,7 @@ so a silent write would build cleanly and then fail to open.
 | `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
 | `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |
+| `RenderMode` | DYNAMICTEXT | Text, Paragraph, H1–H6 (any case; another value is refused, naming the set) | `set (RenderMode: H2) on txtTitle` |
 | `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set (label: 'full Name') on txtName` |
 | `buttonstyle` | ACTIONBUTTON, LINKBUTTON | Primary, Default, Success, Danger, Warning, Info | `set (buttonstyle: danger) on btnDelete` |
 | `class` | Any widget | CSS class string | `set (class: 'card mx-2') on container1` |
