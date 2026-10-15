@@ -14,6 +14,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
+	"github.com/mendixlabs/mxcli/mdl/backend/widgetobj"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -3481,8 +3482,13 @@ func setWidgetContentMut(widget bson.D, value any) error {
 // Forms$ClientTemplate under LabelTemplate and writes no `Label` key at all;
 // the legacy shape is a Label document whose Caption is a Texts$Text. Looking
 // only for `Label` made `set Label = …` report success and store nothing on
-// every current input widget. A widget with neither (no label shown, or a type
-// that has none) still returns nil, as it always did.
+// every current input widget.
+//
+// The two remaining shapes answered with a bare nil too, which kept
+// mendixlabs/mxcli#292 open: an input whose label is not shown stores
+// `LabelTemplate: null`, so the label is created — the same ClientTemplate
+// create page writes; and a widget with no label slot at all (a button) is
+// refused by name, as Caption is, instead of reporting "Altered page".
 func setWidgetLabelMut(widget bson.D, value any) error {
 	if tmpl := bsonnav.DGetDoc(widget, "LabelTemplate"); tmpl != nil {
 		return setTranslatableText(tmpl, "LabelTemplate", value)
@@ -3492,7 +3498,24 @@ func setWidgetLabelMut(widget bson.D, value any) error {
 			return setTranslatableText(caption, "Label caption", value)
 		}
 	}
-	return nil
+	// A pluggable widget writes `LabelTemplate: null` whether or not its
+	// definition declares a Label system property (an Accordion has none), so a
+	// null there is no evidence a label may be added — refuse rather than guess.
+	if hasKey(widget, "LabelTemplate") && bsonnav.DGetString(widget, "$Type") != "CustomWidgets$CustomWidget" {
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("Label value must be a string")
+		}
+		if text == "" {
+			return nil // no label shown, and none asked for
+		}
+		bsonnav.DSet(widget, "LabelTemplate", widgetobj.BuildClientTemplateWithTextAndParams(text, nil))
+		return nil
+	}
+	if bsonnav.DGetString(widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return fmt.Errorf("widget has no Label property to set: this pluggable widget shows no label")
+	}
+	return fmt.Errorf("widget has no Label property")
 }
 
 func setWidgetAttributeRefMut(widget bson.D, value any) error {
