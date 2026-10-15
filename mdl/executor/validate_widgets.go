@@ -280,6 +280,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
 		out = append(out, validateDatasourceXPathVariableTraversal(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
+		// #1420: an association-mode combo box with no object to start from.
+		out = append(out, validateComboBoxAssociationObject(w, argCtx, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
 		out = append(out, validateListViewEditableInputs(w, registry, locationPrefix)...)
 		// A show_page argument naming anything but the context object is dropped.

@@ -91,7 +91,7 @@ func validateAlterUnscopedBindings(ctx *ExecContext, prog *ast.Program, sc *scri
 			if !mutator.FindWidget(target.Widget) {
 				continue
 			}
-			if msg := unscopedInsertion(ctx, sc, mutator, target.Widget, into, modName, containerID, widgets); msg != "" {
+			for _, msg := range unscopedInsertion(ctx, sc, mutator, target.Widget, into, modName, containerID, widgets) {
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s", label, msg)))
 			}
 		}
@@ -99,35 +99,39 @@ func validateAlterUnscopedBindings(ctx *ExecContext, prog *ast.Program, sc *scri
 	return errs
 }
 
-// unscopedInsertion returns the finding for one INSERT/REPLACE, or "".
+// unscopedInsertion returns the findings for one INSERT/REPLACE: the bare
+// bindings, and the association-mode combo boxes that would start at the
+// insertion point's object (mendixlabs/mxcli#1420; exec refuses them in the
+// widget engine, from the same entity this asks alterEntityContext for).
 func unscopedInsertion(ctx *ExecContext, sc *scriptContext, mutator backend.PageMutator, target string, into bool,
-	modName string, modID model.ID, widgets []*ast.WidgetV3) string {
+	modName string, modID model.ID, widgets []*ast.WidgetV3) []string {
 	entity, flow := alterEntityContext(ctx, mutator, target, into, modName, modID)
 	if entity != "" {
-		return ""
+		return nil
 	}
 	if flow != "" && sc != nil {
 		// A flow the script creates is not in the project yet; its declared
 		// return type is what exec will resolve against.
 		if sig, ok := sc.flowParams[strings.ToLower(flow)]; ok {
 			if sig.Returns != "" {
-				return ""
+				return nil
 			}
 		}
 	}
+	out := unanchoredComboBoxes(widgets)
 	bare := bindingsWithoutScope(widgets)
 	if len(bare) == 0 {
-		return ""
+		return out
 	}
 	where := fmt.Sprintf("the insertion point (`%s`) is in no data container", target)
 	if flow != "" {
 		where = fmt.Sprintf("the data container around `%s` is sourced by %s, which does not exist or returns no entity", target, flow)
 	}
-	return fmt.Sprintf("%s, so no entity is in scope and these bindings cannot be qualified: %s. "+
+	return append(out, fmt.Sprintf("%s, so no entity is in scope and these bindings cannot be qualified: %s. "+
 		"Written without an entity, a template parameter is stored bare (Mendix can no longer load the "+
 		"project) and an attribute binding is dropped (CE7005). Qualify them (Module.Entity.Attribute), "+
 		"or insert into a data container whose entity is known.",
-		where, strings.Join(bare, ", "))
+		where, strings.Join(bare, ", ")))
 }
 
 // hasWidgetBuildingOp reports whether a statement carries an INSERT or REPLACE,
