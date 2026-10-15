@@ -142,14 +142,44 @@ func (b *Backend) RevokeEntityMemberAccess(unitID model.ID, entityName string, r
 		return 0, fmt.Errorf("RevokeEntityMemberAccess: entity not found: %s", entityName)
 	}
 
+	// The rules to narrow are those every role of which the statement names —
+	// per role, as RemoveEntityAccessRule has always matched. Requiring the
+	// rule's role set to EQUAL the statement's matched nothing when the rules
+	// were granted one role each and revoked in one statement, and 0 modified
+	// read as "nothing to revoke" while each rule kept the right
+	// (mendixlabs/mxcli#1501). A rule shared with a role the statement does not
+	// name cannot be narrowed without narrowing that role too, so it is refused
+	// before anything is written.
+	named := toStringSet(roleNames)
+	var targets []*genDm.AccessRule
+	for _, el := range ent.AccessRulesItems() {
+		rule, ok := el.(*genDm.AccessRule)
+		if !ok {
+			continue
+		}
+		var in, out []string
+		for _, r := range rule.ModuleRolesQualifiedNames() {
+			if named[r] {
+				in = append(in, r)
+			} else {
+				out = append(out, r)
+			}
+		}
+		switch {
+		case len(in) == 0:
+			continue
+		case len(out) > 0:
+			return 0, fmt.Errorf("the access rule on %s for %s also grants %s, which this revoke does not name; "+
+				"revoke from all of the rule's roles, or grant the roles in separate rules first",
+				entityName, strings.Join(rule.ModuleRolesQualifiedNames(), ", "), strings.Join(out, ", "))
+		}
+		targets = append(targets, rule)
+	}
+
 	readSet := toStringSet(rev.RevokeReadMembers)
 	writeSet := toStringSet(rev.RevokeWriteMembers)
 	modified := 0
-	for _, el := range ent.AccessRulesItems() {
-		rule, ok := el.(*genDm.AccessRule)
-		if !ok || !sameStringSet(rule.ModuleRolesQualifiedNames(), roleNames) {
-			continue
-		}
+	for _, rule := range targets {
 		ruleMod := false
 		if rev.RevokeCreate && rule.AllowCreate() {
 			rule.SetAllowCreate(false)
