@@ -91,6 +91,12 @@ func (r *Reader) VerifyContentsHashes() (*ContentsHashReport, error) {
 		return nil, fmt.Errorf("query unit hashes: %w", err)
 	}
 
+	// The unit index hashes each file when it reads it and re-reads only the
+	// files that changed, so a unit it holds needs no read here. Without one,
+	// every file is read.
+	if _, err := r.UnitStamps(); err != nil {
+		r.unitIndex = nil
+	}
 	rep := &ContentsHashReport{Units: len(units)}
 	indexed := make(map[string]bool, len(units))
 	for _, u := range units {
@@ -100,6 +106,13 @@ func (r *Reader) VerifyContentsHashes() (*ContentsHashReport, error) {
 		path := unitFilePath(r.contentsDir, u.blob)
 		indexed[filepath.Clean(path)] = true
 		issue := ContentsHashIssue{UnitID: blobToUUID(u.blob), Path: path, Stored: u.hash, blob: u.blob}
+		if e, ok := r.unitIndex[issue.UnitID]; ok && e.Hash != "" {
+			issue.Actual = e.Hash
+			if issue.Actual != u.hash {
+				rep.Mismatches = append(rep.Mismatches, issue)
+			}
+			continue
+		}
 		contents, err := os.ReadFile(path)
 		if err != nil {
 			if os.IsNotExist(err) {

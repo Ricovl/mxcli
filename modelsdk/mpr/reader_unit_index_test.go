@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -160,5 +161,75 @@ func TestUnitStamps_OneStatPassPerScope(t *testing.T) {
 	release()
 	if after, _ := r.UnitStamps(); fmt.Sprint(after) == fmt.Sprint(first) {
 		t.Error("UnitStamps missed a change once the scope closed")
+	}
+}
+
+// hashMismatchesByReading is VerifyContentsHashes the way it worked before
+// the unit index carried hashes: every file read.
+func hashMismatchesByReading(t *testing.T, r *Reader) []string {
+	t.Helper()
+	rows, err := r.db.Query(`SELECT UnitID, COALESCE(ContentsHash, '') FROM Unit`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var blob []byte
+		var hash string
+		_ = rows.Scan(&blob, &hash)
+		b, err := os.ReadFile(unitFilePath(r.contentsDir, blob))
+		if err == nil && contentsHashOf(b) != hash {
+			out = append(out, blobToUUID(blob))
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func reportedMismatches(t *testing.T, r *Reader) []string {
+	t.Helper()
+	rep, err := r.VerifyContentsHashes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, m := range rep.Mismatches {
+		out = append(out, m.UnitID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestVerifyContentsHashes_FromTheUnitIndex: the hashes the unit index keeps
+// give the report reading every file gives — on a first open, and on a reopen
+// after a unit file changed behind the index's back.
+func TestVerifyContentsHashes_FromTheUnitIndex(t *testing.T) {
+	path, units := copyV2Fixture(t)
+	r, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := reportedMismatches(t, r), hashMismatchesByReading(t, r); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("first open: reported %d mismatches, reading says %d", len(got), len(want))
+	}
+	r.Close()
+
+	b, _ := os.ReadFile(units[0])
+	_ = os.WriteFile(units[0], append(b[:len(b):len(b)], 0), 0o644) // a restore git made
+	newer := time.Now().Add(-30 * time.Minute)
+	_ = os.Chtimes(units[0], newer, newer)
+
+	r, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	got, want := reportedMismatches(t, r), hashMismatchesByReading(t, r)
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("after a file changed: reported %d mismatches, reading says %d", len(got), len(want))
+	}
+	if !strings.Contains(fmt.Sprint(got), strings.TrimSuffix(filepath.Base(units[0]), ".mxunit")) {
+		t.Error("the changed file is not reported")
 	}
 }

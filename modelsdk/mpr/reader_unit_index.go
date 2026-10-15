@@ -24,7 +24,7 @@ import (
 // again without a visible size or mtime change (git's "racily clean").
 const racyMargin = 2 * time.Second
 
-const unitIndexFormat = 1
+const unitIndexFormat = 2
 
 type unitIndexEntry struct {
 	Type     string
@@ -33,6 +33,7 @@ type unitIndexEntry struct {
 	Size     int64
 	MtimeNs  int64
 	Racy     bool
+	Hash     string // contentsHashOf the file, for VerifyContentsHashes
 }
 
 type persistedUnitIndex struct {
@@ -250,6 +251,7 @@ func (r *Reader) InvalidateUnit(unitID string) {
 			Size:     fi.Size(),
 			MtimeNs:  fi.ModTime().UnixNano(),
 			Racy:     fi.ModTime().After(time.Now().Add(-racyMargin)),
+			Hash:     contentsHashOf(contents),
 		}
 		if r.unitIndex == nil {
 			r.unitIndex = map[string]unitIndexEntry{}

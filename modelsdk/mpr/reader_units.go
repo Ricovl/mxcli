@@ -205,6 +205,7 @@ func (r *Reader) buildUnitCache() error {
 				Excluded: isExcludedUnit(contents),
 				Size:     size,
 				MtimeNs:  mtime,
+				Hash:     contentsHashOf(contents),
 			}
 			changed = true
 		}
