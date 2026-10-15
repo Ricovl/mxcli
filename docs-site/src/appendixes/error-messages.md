@@ -175,6 +175,21 @@ level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
 
 It is an **error at security level Prototype or Production** (the stored level, or the one the script sets) and a warning at Off, where MxBuild does not check it. Only what the script changes is reported: a flow that already had the problem before the script, and that the script does not touch, is left to `mxcli docker check`.
 
+### MDL-SEC22: A call across entity access (CE0114)
+
+```
+✗ microflow MyModule.DS_Tile_Count does not apply entity access (@applyentityaccess(false)
+in this script) but calls microflow MyModule.SUB_Scoped_List, which does
+(@applyentityaccess(true) as stored) — MxBuild reports CE0114 "A microflow that does not
+apply entity access can only call microflows that also do not apply entity access." [MDL-SEC22]
+```
+
+**Cause:** With a project (`check -p`), a microflow without "Apply entity access" calls a microflow — or decides on a rule (`if Mod.Rule(…)`) — that has it. Measured on Mendix 11.13 and 11.14, MxBuild refuses only that direction, at every security level; on -> off, on -> on, off -> off, a nanoflow caller and an excluded caller all build. Both settings are read from the project and simulated through the script (`@applyentityaccess`, `@applyentityaccess(false)`, and an absent annotation on `create or modify` keeping what is stored).
+
+**Solution:** Put `@applyentityaccess` on the caller, or call a flow that does not apply entity access. Turning it off on the callee also builds, but widens what that flow may read and write for every caller.
+
+Only what the script changes is reported, and a callee neither the project nor the script holds is not judged.
+
 ### MDL-I18N01: A tab page caption without the default language (CE4899)
 
 ```

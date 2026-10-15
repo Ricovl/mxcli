@@ -18,10 +18,10 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 | 381-402 | Catalog Queries |
 | 403-452 | Common Patterns |
 | 453-504 | Menu Documents (standalone, reusable) |
-| 505-555 | Offline Profiles |
-| 556-569 | Checklist |
-| 570-573 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
-| 574-576 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
+| 505-575 | Offline Profiles |
+| 576-590 | Checklist |
+| 591-594 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
+| 595-597 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
 
 <!-- /skill-index -->
 # Navigation Management Skill
