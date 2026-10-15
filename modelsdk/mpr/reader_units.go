@@ -264,6 +264,7 @@ func (r *Reader) InvalidateCache() {
 	if r.contentCache != nil {
 		clear(r.contentCache)
 	}
+	r.stampsMemo = nil
 	r.contentMu.Unlock()
 }
 
@@ -309,6 +310,7 @@ func (r *Reader) CacheUnitReads() (release func()) {
 			}
 			if r.cacheScopes--; r.cacheScopes == 0 {
 				r.contentCache = nil
+				r.stampsMemo = nil
 			}
 		})
 	}

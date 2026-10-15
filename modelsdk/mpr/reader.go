@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/modelsdk/mpr/version"
 
 	_ "modernc.org/sqlite"
@@ -83,6 +84,10 @@ type Reader struct {
 	// when the last one closes. -1 means EnableContentCache turned it on for
 	// the reader's lifetime, which no scope ends.
 	cacheScopes int
+	// stampsMemo is UnitStamps' answer while a CacheUnitReads scope is open,
+	// so the passes in one scope stat the unit files once. Cleared by any
+	// write and when the outermost scope closes.
+	stampsMemo []types.UnitStamp
 
 	// fileReads counts unit files read from mprcontents/ — what the content
 	// cache saves. Read by tests (mendixlabs/mxcli#1272).

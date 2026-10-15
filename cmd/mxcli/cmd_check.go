@@ -318,6 +318,9 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 			}
 		}
 		exec = e
+		// One pass over a project that check does not write: the passes below
+		// share unit reads and the unit stamps.
+		defer exec.CacheUnitReads()()
 		if b := exec.Backend(); b != nil {
 			violations = executor.DropSettledCommitNotes(violations, prog, executor.NewStoredCommitEvents(b))
 			// MDL004 on a void microflow's end-event value is a warning for a flow

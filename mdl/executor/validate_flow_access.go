@@ -210,6 +210,16 @@ func (s *flowAccessSim) loadStoredFlows(h *ContainerHierarchy) {
 		}
 		s.flows[key] = st
 	}
+	if flows, ok := storedFlowIndex(s.ctx); ok {
+		for _, f := range flows {
+			roles := make([]model.ID, len(f.Roles))
+			for i, r := range f.Roles {
+				roles[i] = model.ID(r)
+			}
+			put(f.Kind, h.GetQualifiedName(f.containerID, f.Name), f.Excluded, roles)
+		}
+		return
+	}
 	// Name, flags and roles are all this reads, so no flow body is decoded.
 	if mfs, err := microflowSignatures(s.ctx.Backend); err == nil {
 		for _, mf := range mfs {

@@ -129,6 +129,12 @@ func (r *Reader) UnitStamps() ([]types.UnitStamp, error) {
 	if r.version != MPRVersionV2 {
 		return nil, nil
 	}
+	r.contentMu.Lock()
+	scoped, memo := r.cacheScopes > 0, r.stampsMemo
+	r.contentMu.Unlock()
+	if scoped && memo != nil {
+		return memo, nil
+	}
 	if r.unitCacheValid {
 		stale, err := r.unitCacheStale()
 		if err != nil {
@@ -152,6 +158,13 @@ func (r *Reader) UnitStamps() ([]types.UnitStamp, error) {
 			mtime = -1
 		}
 		out = append(out, types.UnitStamp{ID: cu.ID, Type: cu.Type, ContainerID: cu.ContainerID, Size: e.Size, MtimeNs: mtime})
+	}
+	if scoped {
+		r.contentMu.Lock()
+		if r.cacheScopes > 0 {
+			r.stampsMemo = out
+		}
+		r.contentMu.Unlock()
 	}
 	return out, nil
 }
@@ -269,6 +282,7 @@ func (r *Reader) InvalidateUnit(unitID string) {
 	r.decodedMu.Unlock()
 	r.contentMu.Lock()
 	delete(r.contentCache, id)
+	r.stampsMemo = nil
 	r.contentMu.Unlock()
 }
 

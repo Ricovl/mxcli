@@ -139,3 +139,26 @@ func TestUnitStamps_RevalidatesALongLivedReader(t *testing.T) {
 		t.Error("UnitStamps did not see a unit file changed outside the reader")
 	}
 }
+
+// TestUnitStamps_OneStatPassPerScope: inside a CacheUnitReads scope (one check
+// or exec pass) UnitStamps stats the unit files once; after it, a change made
+// in the meantime is seen.
+func TestUnitStamps_OneStatPassPerScope(t *testing.T) {
+	path, units := copyV2Fixture(t)
+	r, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	release := r.CacheUnitReads()
+	first, _ := r.UnitStamps()
+	newer := time.Now().Add(-30 * time.Minute)
+	_ = os.Chtimes(units[0], newer, newer)
+	if again, _ := r.UnitStamps(); fmt.Sprint(again) != fmt.Sprint(first) {
+		t.Error("UnitStamps re-stat'ed inside one scope")
+	}
+	release()
+	if after, _ := r.UnitStamps(); fmt.Sprint(after) == fmt.Sprint(first) {
+		t.Error("UnitStamps missed a change once the scope closed")
+	}
+}

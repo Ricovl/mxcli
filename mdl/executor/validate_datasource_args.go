@@ -570,6 +570,14 @@ func buildFlowSignatures(ctx *ExecContext) map[string]*flowSignature {
 	if err != nil || h == nil {
 		return result
 	}
+	if flows, ok := storedFlowIndex(ctx); ok {
+		for i := range flows {
+			f := &flows[i]
+			sig := f.Sig
+			result[strings.ToLower(h.GetQualifiedName(f.containerID, f.Name))] = &sig
+		}
+		return result
+	}
 	// Signatures only: decoding every flow's body for its parameters was most
 	// of check's time on a large project.
 	if mfs, err := microflowSignatures(ctx.Backend); err == nil {

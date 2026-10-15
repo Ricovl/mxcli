@@ -70,6 +70,10 @@ type executorCache struct {
 	entityEnumAttrs map[string]map[string]string // entity name -> attribute -> enum name
 	pageNames       map[model.ID]string          // page ID -> "Module.PageName"
 	layoutNames     map[model.ID]string          // layout ID -> "Module.LayoutName"
+
+	// flowIndex holds the flow signature index between calls in a run; each
+	// call still checks every entry against its unit's stamp.
+	flowIndex map[string]indexedFlow
 }
 
 // createdMicroflowInfo tracks a microflow created during this session.
