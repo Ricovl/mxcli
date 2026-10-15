@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -102,45 +101,6 @@ func (r *Reader) saveUnitIndex() {
 	}
 }
 
-// UnitStateFingerprint hashes every unit's ID, container and file size/mtime,
-// fresh from disk (stat only). racy lists the units whose mtime is too recent
-// to trust; UnitContentDigest covers those. supported is false on MPR v1, where
-// the .mpr mtime covers every change.
-func (r *Reader) UnitStateFingerprint() (fp string, racy []string, supported bool, err error) {
-	if r.version != MPRVersionV2 {
-		return "", nil, false, nil
-	}
-	rows, err := r.db.Query(`SELECT UnitID, ContainerID, ContainmentName FROM Unit`)
-	if err != nil {
-		return "", nil, true, fmt.Errorf("query units: %w", err)
-	}
-	defer rows.Close()
-	racyAfter := time.Now().Add(-racyMargin).UnixNano()
-	var lines []string
-	for rows.Next() {
-		var unitID, containerID []byte
-		var containment string
-		if err := rows.Scan(&unitID, &containerID, &containment); err != nil {
-			return "", nil, true, fmt.Errorf("scan unit row: %w", err)
-		}
-		id := blobToUUID(unitID)
-		var size, mtime int64 = -1, -1
-		if fi, err := os.Stat(r.unitFilePath(id)); err == nil {
-			size, mtime = fi.Size(), fi.ModTime().UnixNano()
-			if mtime > racyAfter {
-				racy = append(racy, id)
-			}
-		}
-		lines = append(lines, fmt.Sprintf("%s %s %s %d %d", id, blobToUUID(containerID), containment, size, mtime))
-	}
-	if err := rows.Err(); err != nil {
-		return "", nil, true, err
-	}
-	sort.Strings(lines)
-	sort.Strings(racy)
-	return hashLines(lines), racy, true, nil
-}
-
 // UnitContentDigest hashes the contents of the given units' files.
 func (r *Reader) UnitContentDigest(ids []string) string {
 	lines := make([]string, 0, len(ids))
@@ -161,26 +121,76 @@ func hashLines(lines []string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// UnitStamps re-stats every unit (dropping the reader's caches, which a
-// changed file makes stale anyway) and returns each one's stamp. nil on MPR v1.
+// UnitStamps returns every unit's stamp, from one stat of each unit file.
+// The reader's caches are kept when the files match them; only a change made
+// outside this process (a long REPL or LSP session across a git pull) drops
+// them. A racily clean file's MtimeNs is -1. nil on MPR v1.
 func (r *Reader) UnitStamps() ([]types.UnitStamp, error) {
 	if r.version != MPRVersionV2 {
 		return nil, nil
 	}
-	r.InvalidateCache()
-	if err := r.buildUnitCache(); err != nil {
-		return nil, err
+	if r.unitCacheValid {
+		stale, err := r.unitCacheStale()
+		if err != nil {
+			return nil, err
+		}
+		if stale {
+			r.InvalidateCache()
+		}
 	}
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return nil, err
+		}
+	}
+	racyAfter := time.Now().Add(-racyMargin).UnixNano()
 	out := make([]types.UnitStamp, 0, len(r.unitCache))
 	for _, cu := range r.unitCache {
 		e := r.unitIndex[cu.ID]
 		mtime := e.MtimeNs
-		if e.Racy {
+		if mtime > racyAfter {
 			mtime = -1
 		}
 		out = append(out, types.UnitStamp{ID: cu.ID, Type: cu.Type, ContainerID: cu.ContainerID, Size: e.Size, MtimeNs: mtime})
 	}
 	return out, nil
+}
+
+// unitCacheStale reports whether the Unit table or any unit file differs from
+// the unit cache: a unit added, removed, moved, or its file's size or mtime.
+func (r *Reader) unitCacheStale() (bool, error) {
+	rows, err := r.db.Query(`SELECT UnitID, ContainerID, ContainmentName FROM Unit`)
+	if err != nil {
+		return false, fmt.Errorf("query units: %w", err)
+	}
+	defer rows.Close()
+	cached := make(map[string]cachedUnit, len(r.unitCache))
+	for _, cu := range r.unitCache {
+		cached[cu.ID] = cu
+	}
+	n := 0
+	for rows.Next() {
+		var unitID, containerID []byte
+		var containment string
+		if err := rows.Scan(&unitID, &containerID, &containment); err != nil {
+			return false, fmt.Errorf("scan unit row: %w", err)
+		}
+		id := blobToUUID(unitID)
+		cu, ok := cached[id]
+		fi, err := os.Stat(r.unitFilePath(id))
+		if !ok && err != nil {
+			continue // a row without a file, which the build skips too
+		}
+		e, indexed := r.unitIndex[id]
+		if !ok || !indexed || cu.ContainerID != blobToUUID(containerID) || cu.ContainmentName != containment {
+			return true, nil
+		}
+		if err != nil || fi.Size() != e.Size || fi.ModTime().UnixNano() != e.MtimeNs {
+			return true, nil
+		}
+		n++
+	}
+	return n != len(r.unitCache), rows.Err()
 }
 
 // InvalidateUnit is InvalidateCache for a write to one unit: on MPR v2 it

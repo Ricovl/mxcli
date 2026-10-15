@@ -387,7 +387,6 @@ func (b *Builder) Build(progress ProgressFunc) error {
 	// Create snapshot
 	b.snapshot = b.catalog.CreateSnapshot("", SnapshotSourceUnknown)
 	b.snapshot.Date = time.Now()
-	b.captureStamps()
 
 	// Build hierarchy for module/folder resolution
 	if err := b.buildHierarchy(); err != nil {

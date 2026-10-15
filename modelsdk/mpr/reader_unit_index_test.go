@@ -3,6 +3,7 @@
 package mpr
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func copyV2Fixture(t *testing.T) (mprPath string, units []string) {
 	return filepath.Join(dir, "minimal.mpr"), units
 }
 
-func openAndList(t *testing.T, path string) (headerReads int64, fp string) {
+func openAndList(t *testing.T, path string) (headerReads int64, stamps string) {
 	t.Helper()
 	r, err := Open(path)
 	if err != nil {
@@ -44,11 +45,11 @@ func openAndList(t *testing.T, path string) (headerReads int64, fp string) {
 	if _, err := r.ListModules(); err != nil {
 		t.Fatalf("list modules: %v", err)
 	}
-	fp, _, _, err = r.UnitStateFingerprint()
+	st, err := r.UnitStamps()
 	if err != nil {
-		t.Fatalf("fingerprint: %v", err)
+		t.Fatalf("stamps: %v", err)
 	}
-	return r.UnitHeaderReads(), fp
+	return r.UnitHeaderReads(), fmt.Sprint(st)
 }
 
 func TestUnitIndex_PersistsAndRereadsOnlyChangedUnits(t *testing.T) {
@@ -59,7 +60,7 @@ func TestUnitIndex_PersistsAndRereadsOnlyChangedUnits(t *testing.T) {
 		t.Fatalf("first open read %d unit files, want all %d", first, len(units))
 	}
 	if again, fp2 := openAndList(t, path); again != 0 || fp2 != fp1 {
-		t.Errorf("unchanged reopen read %d unit files (want 0), fingerprint changed: %v", again, fp2 != fp1)
+		t.Errorf("unchanged reopen read %d unit files (want 0), stamps changed: %v", again, fp2 != fp1)
 	}
 
 	// Rewrite one unit: same bytes, new (old enough) mtime.
@@ -67,8 +68,8 @@ func TestUnitIndex_PersistsAndRereadsOnlyChangedUnits(t *testing.T) {
 	_ = os.WriteFile(units[0], b, 0o644)
 	newer := time.Now().Add(-30 * time.Minute)
 	_ = os.Chtimes(units[0], newer, newer)
-	if reads, fp3 := openAndList(t, path); reads != 1 || fp3 == fp1 || fp3 == "" {
-		t.Errorf("after one edit: read %d unit files (want 1), fingerprint changed %v, empty %v", reads, fp3 != fp1, fp3 == "")
+	if reads, fp3 := openAndList(t, path); reads != 1 || fp3 == fp1 {
+		t.Errorf("after one edit: read %d unit files (want 1), stamps changed %v", reads, fp3 != fp1)
 	}
 
 	// Control: without the persisted index every open reads every unit.
@@ -78,7 +79,7 @@ func TestUnitIndex_PersistsAndRereadsOnlyChangedUnits(t *testing.T) {
 	}
 }
 
-func TestUnitStateFingerprint_ListsRacilyCleanUnits(t *testing.T) {
+func TestUnitStamps_MarksRacilyCleanUnits(t *testing.T) {
 	path, units := copyV2Fixture(t)
 	now := time.Now()
 	_ = os.Chtimes(units[0], now, now)
@@ -87,15 +88,54 @@ func TestUnitStateFingerprint_ListsRacilyCleanUnits(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Close()
-	_, racy, _, err := r.UnitStateFingerprint()
+	stamps, err := r.UnitStamps()
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := strings.TrimSuffix(filepath.Base(units[0]), ".mxunit")
-	if err != nil || len(racy) != 1 || racy[0] != want {
-		t.Fatalf("racy = %v, %v; want [%s]", racy, err, want)
+	var racy []string
+	for _, s := range stamps {
+		if s.MtimeNs == -1 {
+			racy = append(racy, s.ID)
+		}
+	}
+	if len(racy) != 1 || racy[0] != want {
+		t.Fatalf("racily clean stamps = %v; want [%s]", racy, want)
 	}
 	d1 := r.UnitContentDigest(racy)
 	b, _ := os.ReadFile(units[0])
 	_ = os.WriteFile(units[0], append(b[:len(b):len(b)], 0), 0o644)
 	if r.UnitContentDigest(racy) == d1 {
 		t.Error("content digest unchanged after the unit's contents changed")
+	}
+}
+
+// TestUnitStamps_RevalidatesALongLivedReader: a reader that outlives a change
+// made by someone else (a git pull during a REPL session) sees it on the next
+// UnitStamps, and keeps its caches while nothing changed.
+func TestUnitStamps_RevalidatesALongLivedReader(t *testing.T) {
+	path, units := copyV2Fixture(t)
+	r, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	first, err := r.UnitStamps()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := r.UnitHeaderReads()
+	if again, _ := r.UnitStamps(); fmt.Sprint(again) != fmt.Sprint(first) || r.UnitHeaderReads() != reads {
+		t.Fatal("an unchanged project changed the stamps or re-read units")
+	}
+
+	newer := time.Now().Add(-30 * time.Minute)
+	_ = os.Chtimes(units[0], newer, newer)
+	after, err := r.UnitStamps()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(after) == fmt.Sprint(first) {
+		t.Error("UnitStamps did not see a unit file changed outside the reader")
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -315,8 +316,9 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 
 	// Try to load from cache first
 	cachePath := getCachePath(ctx)
+	stamps := currentStamps(ctx) // one stat pass for the check and the refresh
 	if cachePath != "" {
-		valid, _ := isCacheValid(ctx, cachePath, requiredMode)
+		valid, _ := cacheValidity(ctx, cachePath, requiredMode, stamps)
 		if valid {
 			return loadCachedCatalog(ctx, cachePath)
 		}
@@ -327,7 +329,7 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 		return mdlerrors.NewNotConnected()
 	}
 
-	if cachePath != "" && refreshCatalogIncrementally(ctx, cachePath, requiredMode) {
+	if cachePath != "" && refreshCatalogIncrementally(ctx, cachePath, requiredMode, stamps) {
 		return nil
 	}
 
@@ -371,7 +373,7 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 // refreshCatalogIncrementally updates a stale cached catalog in place when only
 // existing flows changed (catalog.Builder.PlanIncremental), and reports whether
 // it did. Anything else falls through to a full rebuild.
-func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode string) bool {
+func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode string, stamps []types.UnitStamp) bool {
 	if v := strings.TrimSpace(os.Getenv("MXCLI_CATALOG_INCREMENTAL")); v == "0" || strings.EqualFold(v, "false") {
 		return false
 	}
@@ -383,15 +385,14 @@ func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode strin
 		return false
 	}
 	info, err := cat.GetCacheInfo()
-	if err != nil || info.MprPath != ctx.MprPath || info.UnitFingerprint == "" || info.GraphAnalysis ||
+	if err != nil || len(stamps) == 0 || info.MprPath != ctx.MprPath || info.GraphAnalysis ||
 		info.BuildMode == "source" || catalogModeRank(requiredMode) > catalogModeRank(info.BuildMode) {
 		cat.Close()
 		return false
 	}
-	fingerprint, _ := unitState(ctx)
 	builder := catalog.NewBuilder(cat, ctx.Backend)
 	builder.SetFullMode(info.BuildMode == "full")
-	changed, _, reason := builder.PlanIncremental()
+	changed, _, reason := builder.PlanIncremental(stamps)
 	if reason != "" {
 		if ctx.Logger != nil {
 			ctx.Logger.Info("catalog: full rebuild", "reason", reason)
@@ -410,7 +411,6 @@ func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode strin
 		cat.Close()
 		return false
 	}
-	_ = cat.SetMeta(catalog.MetaUnitFingerprint, fingerprint)
 	_ = cat.SetMeta(catalog.MetaMprModTime, getMprModTime(ctx).Format(time.RFC3339))
 	cat.SetBuilt(true)
 	ctx.Catalog = cat
@@ -444,49 +444,43 @@ func getMprModTime(ctx *ExecContext) time.Time {
 	return info.ModTime()
 }
 
-// unitStateBackend is a backend that can fingerprint MPR v2 unit files.
-type unitStateBackend interface {
-	UnitStateFingerprint() (string, []string, bool, error)
+// unitStampBackend is a backend that can stamp MPR v2 unit files.
+type unitStampBackend interface {
+	UnitStamps() ([]types.UnitStamp, error)
 	UnitContentDigest(ids []string) string
 }
 
-// unitState is the project's MPR v2 unit-file state as stored with a catalog:
-// the stat fingerprint, the racily-clean unit IDs and their content digest.
-// supported is false for MPR v1 or a backend without one.
-func unitState(ctx *ExecContext) (state string, supported bool) {
-	b, ok := ctx.Backend.(unitStateBackend)
+// currentStamps is every MPR v2 unit's stamp now; nil for MPR v1 or a backend
+// without them, which then fall back to the .mpr mtime.
+func currentStamps(ctx *ExecContext) []types.UnitStamp {
+	b, ok := ctx.Backend.(unitStampBackend)
 	if !ok {
-		return "", false
+		return nil
 	}
-	fp, racy, supported, err := b.UnitStateFingerprint()
-	if !supported || err != nil {
-		return "", supported
+	stamps, err := b.UnitStamps()
+	if err != nil {
+		return nil
 	}
-	return fp + ";" + strings.Join(racy, ",") + ";" + b.UnitContentDigest(racy), true
+	return stamps
 }
 
-// unitStateCurrent reports whether stored still describes the unit files: the
-// same stat fingerprint, and unchanged contents for the units that were racily
-// clean when it was taken.
-func unitStateCurrent(ctx *ExecContext, stored string) bool {
-	b, ok := ctx.Backend.(unitStateBackend)
-	parts := strings.Split(stored, ";")
-	if !ok || len(parts) != 3 {
-		return false
+// unitDigest hashes one unit's contents, for racily clean stamps.
+func unitDigest(ctx *ExecContext) func(string) string {
+	return func(id string) string {
+		if b, ok := ctx.Backend.(unitStampBackend); ok {
+			return b.UnitContentDigest([]string{id})
+		}
+		return ""
 	}
-	fp, _, _, err := b.UnitStateFingerprint()
-	if err != nil || fp != parts[0] {
-		return false
-	}
-	var racy []string
-	if parts[1] != "" {
-		racy = strings.Split(parts[1], ",")
-	}
-	return b.UnitContentDigest(racy) == parts[2]
 }
 
 // isCacheValid checks if the cached catalog is still valid.
 func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool, string) {
+	return cacheValidity(ctx, cachePath, requiredMode, currentStamps(ctx))
+}
+
+// cacheValidity is isCacheValid with the unit stamps already taken.
+func cacheValidity(ctx *ExecContext, cachePath, requiredMode string, stamps []types.UnitStamp) (bool, string) {
 	// Check if cache file exists
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		return false, "cache file does not exist"
@@ -510,11 +504,10 @@ func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool
 	}
 
 	// On MPR v2 a document can change without the .mpr changing (git pull,
-	// branch switch), so the unit files decide; v1 keeps the .mpr mtime.
-	// A catalog from before unit-file tracking falls back to the mtime until
-	// its next rebuild stores a fingerprint.
-	if _, ok := ctx.Backend.(unitStateBackend); ok && info.UnitFingerprint != "" {
-		if !unitStateCurrent(ctx, info.UnitFingerprint) {
+	// branch switch), so the unit stamps decide. MPR v1, and a catalog built
+	// before stamps existed, fall back to the .mpr mtime.
+	if d, ok := cat.DiffStamps(stamps, unitDigest(ctx)); ok {
+		if !d.Identical {
 			return false, "project files modified"
 		}
 	} else if info.MprModTime.Unix() != getMprModTime(ctx).Unix() {
@@ -612,8 +605,8 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		}
 	}
 	start := time.Now()
-	// Taken before building, so a change during the build invalidates it.
-	fingerprint, _ := unitState(ctx)
+	// Taken before building, so a change during the build shows up next time.
+	stamps := currentStamps(ctx)
 
 	// Create new catalog
 	cat, err := catalog.New()
@@ -628,6 +621,7 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Build catalog
 	builder := catalog.NewBuilder(cat, ctx.Backend)
 	builder.SetFullMode(full)
+	builder.SetStamps(stamps)
 	if communities {
 		builder.SetCommunitiesMode(true, resolution)
 	}
@@ -670,7 +664,6 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		buildMode = "full"
 	}
 	cat.SetCacheInfo(ctx.MprPath, getMprModTime(ctx), version, buildMode, elapsed)
-	_ = cat.SetMeta(catalog.MetaUnitFingerprint, fingerprint)
 
 	cat.SetBuilt(true)
 	ctx.Catalog = cat

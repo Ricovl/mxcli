@@ -57,7 +57,7 @@ func TestIncrementalCatalogMatchesFullRebuild(t *testing.T) {
 	newer := time.Now().Add(-30 * time.Minute)
 	_ = os.Chtimes(unit, newer, newer)
 
-	if !refreshCatalogIncrementally(ctx, cachePath, "full") {
+	if !refreshCatalogIncrementally(ctx, cachePath, "full", currentStamps(ctx)) {
 		t.Fatal("refresh after a microflow-only change was not incremental")
 	}
 	ctx.Catalog.Close()
@@ -144,7 +144,7 @@ func TestIncrementalCatalog_AddedAndRemovedFlows(t *testing.T) {
 	run(t, exec, `create microflow Administration.IncAdded () folder 'IncFolder/Sub' begin log info node 'Inc' 'added'; end;`)
 	run(t, exec, `drop microflow Administration.IncDoomed;`)
 
-	if !refreshCatalogIncrementally(ctx, cachePath, "full") {
+	if !refreshCatalogIncrementally(ctx, cachePath, "full", currentStamps(ctx)) {
 		t.Fatal("refresh after adding and dropping a microflow was not incremental")
 	}
 	ctx.Catalog.Close()
@@ -186,7 +186,7 @@ create persistent entity Administration.IncSettings (
   return $S;
 end;`)
 
-	if !refreshCatalogIncrementally(ctx, cachePath, "full") {
+	if !refreshCatalogIncrementally(ctx, cachePath, "full", currentStamps(ctx)) {
 		t.Fatal("refresh after changing a domain model was not incremental")
 	}
 	ctx.Catalog.Close()

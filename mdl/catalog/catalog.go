@@ -286,9 +286,6 @@ const (
 	MetaBuildMode     = "build_mode"
 	MetaBuildTime     = "build_time"
 	MetaBuildDuration = "build_duration"
-	// MetaUnitFingerprint is the MPR v2 unit-file state the catalog was built
-	// from (executor unitState).
-	MetaUnitFingerprint = "unit_fingerprint"
 
 	// MetaGraphAnalysis records that AddGraphAnalysis has run against this
 	// catalog, and MetaGraphResolution the Leiden resolution it used.
@@ -314,10 +311,8 @@ type CacheInfo struct {
 	BuildMode     string // "fast" or "full"
 	BuildTime     time.Time
 	BuildDuration time.Duration
-	// UnitFingerprint is the MPR v2 unit-file state; "" for MPR v1.
-	UnitFingerprint string
-	IsValid         bool
-	InvalidReason   string
+	IsValid       bool
+	InvalidReason string
 
 	// GraphAnalysis reports whether the communities/cycles/layers/centrality
 	// pass has run against this catalog, and at which resolution.
@@ -448,7 +443,7 @@ func (c *Catalog) migrateIfSchemaMismatch() error {
 	for _, key := range []string{
 		MetaMprPath, MetaMprModTime, MetaMendixVersion,
 		MetaBuildMode, MetaBuildTime, MetaBuildDuration,
-		MetaGraphAnalysis, MetaGraphResolution, MetaUnitFingerprint,
+		MetaGraphAnalysis, MetaGraphResolution,
 	} {
 		if _, err := c.db.Exec(`DELETE FROM catalog_meta WHERE Key = ?`, key); err != nil {
 			return fmt.Errorf("clearing cache-info key %s: %w", key, err)
@@ -668,7 +663,6 @@ func (c *Catalog) GetCacheInfo() (*CacheInfo, error) {
 	if durationStr, _ := c.GetMeta(MetaBuildDuration); durationStr != "" {
 		info.BuildDuration, _ = time.ParseDuration(durationStr)
 	}
-	info.UnitFingerprint, _ = c.GetMeta(MetaUnitFingerprint)
 	if v, _ := c.GetMeta(MetaGraphAnalysis); v != "" {
 		info.GraphAnalysis = true
 	}

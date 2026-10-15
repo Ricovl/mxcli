@@ -200,14 +200,7 @@ func (b *Backend) CacheUnitReads() (release func()) {
 	return b.reader.CacheUnitReads()
 }
 
-// UnitStateFingerprint and UnitContentDigest forward to the reader.
-func (b *Backend) UnitStateFingerprint() (string, []string, bool, error) {
-	if b.reader == nil {
-		return "", nil, false, nil
-	}
-	return b.reader.UnitStateFingerprint()
-}
-
+// UnitStamps and UnitContentDigest forward to the reader.
 func (b *Backend) UnitStamps() ([]types.UnitStamp, error) {
 	if b.reader == nil {
 		return nil, nil

@@ -3,8 +3,8 @@
 package executor
 
 import (
-	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,10 +83,10 @@ func cachedRowCount(t *testing.T, cachePath, table string) int {
 	return n
 }
 
-// touchProject moves the project file's mtime forward, and on MPR v2 one unit
-// file's, which is what makes the cache invalid — the everyday trigger being a
-// save in Studio Pro, an `mxcli exec`, or a branch switch between two mxcli
-// commands.
+// touchProject makes the cached catalog stale, as a save in Studio Pro, an
+// `mxcli exec` or a branch switch does: the project file's mtime moves (what a
+// catalog without unit stamps checks), and the stamps record the domain models
+// as changed, so the refresh is a full rebuild rather than an incremental one.
 func touchProject(t *testing.T, exec *Executor) {
 	t.Helper()
 	ctx := exec.newExecContext(context.Background())
@@ -94,21 +94,17 @@ func touchProject(t *testing.T, exec *Executor) {
 	if err := os.Chtimes(ctx.MprPath, future, future); err != nil {
 		t.Fatalf("touch project: %v", err)
 	}
-	// A domain model, not a flow: a changed flow is refreshed incrementally,
-	// and these tests are about the full rebuild.
-	units, _ := filepath.Glob(filepath.Join(filepath.Dir(ctx.MprPath), "mprcontents", "*", "*", "*.mxunit"))
-	for _, u := range units {
-		if b, err := os.ReadFile(u); err != nil || !bytes.Contains(b, []byte("DomainModels$DomainModel")) {
-			continue
-		}
-		fi, err := os.Stat(u)
-		if err == nil {
-			err = os.Chtimes(u, fi.ModTime().Add(time.Second), fi.ModTime().Add(time.Second))
-		}
-		if err != nil {
-			t.Fatalf("touch unit file: %v", err)
-		}
-		break
+	cachePath := getCachePath(ctx)
+	if _, err := os.Stat(cachePath); err != nil {
+		return
+	}
+	db, err := sql.Open("sqlite", cachePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`UPDATE unit_stamps SET Size = -1 WHERE Type = 'DomainModels$DomainModel'`); err != nil {
+		t.Fatalf("mark stamps stale: %v", err)
 	}
 }
 

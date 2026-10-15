@@ -16,11 +16,6 @@ import (
 // built, their rows are deleted and rebuilt instead of the whole catalog.
 // See docs/11-proposals/PROPOSAL_incremental_project_index.md, step 5.
 
-// unitStamper is a reader that can stamp MPR v2 unit files.
-type unitStamper interface {
-	UnitStamps() ([]types.UnitStamp, error)
-}
-
 // incrementalTypes are the unit types an incremental refresh rebuilds; any
 // other change needs a full build, except an added or removed folder, which
 // holds no rows.
@@ -107,13 +102,9 @@ func changedFlows[T any](b *Builder, typeName string, get func(model.ID) (T, err
 	return out, nil
 }
 
-// captureStamps records the unit stamps a full build is made from; taken before
+// SetStamps gives a full build the unit stamps it is made from, taken before
 // any unit is read, so a change during the build shows up next time.
-func (b *Builder) captureStamps() {
-	if s, ok := b.reader.(unitStamper); ok {
-		b.stamps, _ = s.UnitStamps()
-	}
-}
+func (b *Builder) SetStamps(stamps []types.UnitStamp) { b.stamps = stamps }
 
 func (b *Builder) writeStamps(stamps []types.UnitStamp) error {
 	stmt, err := b.tx.Prepare(`INSERT OR REPLACE INTO unit_stamps (UnitId, Type, ContainerId, Size, MtimeNs, Digest) VALUES (?, ?, ?, ?, ?, ?)`)
@@ -141,26 +132,26 @@ func (b *Builder) unitDigest(id string) string {
 	return ""
 }
 
-// PlanIncremental compares the reader's unit stamps with the catalog's and
-// returns the flows to rebuild and the units whose rows to delete, or the
-// reason only a full build will do.
-func (b *Builder) PlanIncremental() (changed []types.UnitStamp, removed []string, reason string) {
-	s, ok := b.reader.(unitStamper)
-	if !ok {
-		return nil, nil, "reader has no unit stamps"
-	}
-	now, err := s.UnitStamps()
-	if err != nil || len(now) == 0 {
-		return nil, nil, "no unit stamps"
-	}
+// StampDiff is how a catalog's unit stamps differ from the current ones.
+type StampDiff struct {
+	Identical bool              // the catalog is current
+	Changed   []types.UnitStamp // flows and domain models to rebuild
+	Removed   []string          // flows whose rows to delete
+	Reason    string            // set when only a full build will do
+}
+
+// DiffStamps compares the catalog's stored unit stamps with now. A racily
+// clean stored stamp is compared by content, through digest. ok is false when
+// the catalog has no stamps (MPR v1, or built before they existed).
+func (c *Catalog) DiffStamps(now []types.UnitStamp, digest func(id string) string) (d StampDiff, ok bool) {
 	type stored struct {
 		types.UnitStamp
 		digest string
 	}
 	old := map[string]stored{}
-	rows, err := b.catalog.db.Query(`SELECT UnitId, Type, ContainerId, Size, MtimeNs, COALESCE(Digest, '') FROM unit_stamps`)
+	rows, err := c.db.Query(`SELECT UnitId, Type, ContainerId, Size, MtimeNs, COALESCE(Digest, '') FROM unit_stamps`)
 	if err != nil {
-		return nil, nil, "catalog has no unit stamps"
+		return d, false
 	}
 	for rows.Next() {
 		var st stored
@@ -169,45 +160,62 @@ func (b *Builder) PlanIncremental() (changed []types.UnitStamp, removed []string
 		}
 	}
 	rows.Close()
-	if len(old) == 0 {
-		return nil, nil, "catalog has no unit stamps"
+	if len(old) == 0 || len(now) == 0 {
+		return d, false
 	}
 
+	identical := len(old) == len(now)
 	seen := make(map[string]bool, len(now))
 	for _, n := range now {
 		seen[n.ID] = true
 		o, ok := old[n.ID]
+		same := ok && o.Type == n.Type && o.ContainerID == n.ContainerID && o.Size == n.Size &&
+			(o.MtimeNs != -1 && o.MtimeNs == n.MtimeNs || o.MtimeNs == -1 && o.digest != "" && o.digest == digest(n.ID))
+		if same {
+			continue
+		}
+		identical = false
 		switch {
 		case !ok && incrementalTypes[n.Type]:
-			changed = append(changed, n)
+			d.Changed = append(d.Changed, n)
 		case !ok && n.Type == "Projects$Folder":
 		case !ok:
-			return nil, nil, "a non-flow unit was added"
-		case o.Type == n.Type && o.ContainerID == n.ContainerID && o.Size == n.Size &&
-			(o.MtimeNs != -1 && o.MtimeNs == n.MtimeNs || o.MtimeNs == -1 && o.digest != "" && o.digest == b.unitDigest(n.ID)):
-			// unchanged
+			d.Reason = "a non-flow unit was added"
 		case incrementalTypes[n.Type] && o.Type == n.Type:
-			changed = append(changed, n)
+			d.Changed = append(d.Changed, n)
 		case n.Type == domainModelType && o.Type == n.Type && o.ContainerID == n.ContainerID:
-			changed = append(changed, n) // rebuilt per module
-
+			d.Changed = append(d.Changed, n) // rebuilt per module
 		default:
-			return nil, nil, "a non-flow unit changed or moved"
+			d.Reason = "a non-flow unit changed or moved"
 		}
 	}
 	for id, o := range old {
 		if seen[id] {
 			continue
 		}
+		identical = false
 		switch {
 		case incrementalTypes[o.Type]:
-			removed = append(removed, id)
+			d.Removed = append(d.Removed, id)
 		case o.Type == "Projects$Folder":
 		default:
-			return nil, nil, "a non-flow unit was removed"
+			d.Reason = "a non-flow unit was removed"
 		}
 	}
-	if len(changed)+len(removed) > maxIncrementalUnits {
+	d.Identical = identical
+	return d, true
+}
+
+// PlanIncremental diffs the catalog's stamps against now and returns the
+// units to rebuild and to delete, or the reason only a full build will do.
+func (b *Builder) PlanIncremental(now []types.UnitStamp) (changed []types.UnitStamp, removed []string, reason string) {
+	d, ok := b.catalog.DiffStamps(now, b.unitDigest)
+	switch {
+	case !ok:
+		return nil, nil, "catalog has no unit stamps"
+	case d.Reason != "":
+		return nil, nil, d.Reason
+	case len(d.Changed)+len(d.Removed) > maxIncrementalUnits:
 		return nil, nil, "too many units changed"
 	}
 	var n int
@@ -215,8 +223,8 @@ func (b *Builder) PlanIncremental() (changed []types.UnitStamp, removed []string
 		return nil, nil, "project calls external actions (aggregated across flows)"
 	}
 	b.stamps = now
-	b.removed = removed
-	return changed, removed, ""
+	b.removed = d.Removed
+	return d.Changed, d.Removed, ""
 }
 
 // BuildIncremental rebuilds the rows of the changed flows in the catalog's own
