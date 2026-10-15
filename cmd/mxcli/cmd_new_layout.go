@@ -45,6 +45,12 @@ const scaffoldLayoutName = "App_Default"
 // design property rather than in the class. Without them the menu bar and the
 // language selector stack on top of each other in the corner — measured in a
 // browser, which is the only place that shows up. mx check is silent about it.
+// They are Atlas 4's, though, and Atlas is versioned with the project: Mendix
+// 10.24's template ships Atlas Core 3.17, which declares none of them, and
+// mxbuild refuses each one with CE6083 (mendixlabs/mxcli#1433). So only the
+// ones the project's theme declares are written — on Atlas 3 that is none, and
+// none are needed, because its `.topbar-content` rule is already
+// `display: flex; align-items: center`.
 //
 // It is MDL rather than Go so the project contains something the user could have
 // written — `describe layout` gives this back, and `create or replace layout`
@@ -56,13 +62,10 @@ const scaffoldLayoutMDL = `create or replace layout {{.Module}}.{{.Layout}} (
   scrollcontainer layoutContainer {
     region top (class: 'region-topbar') {
       container topbarContent (
-        class: 'topbar-content',
-        designproperties: (
-          'Flex container': 'Horizontal (row)',
-          'Align items Y': 'Center',
-          'Disable row wrap': on,
-          'Grow / shrink (self)': 'Fill container (only grow)'
-        )
+        class: 'topbar-content'{{if .DesignProperties}},
+        designproperties: ({{range $i, $p := .DesignProperties}}{{if $i}},{{end}}
+          '{{$p.Key}}': {{if $p.Toggle}}on{{else}}'{{$p.Value}}'{{end}}{{end}}
+        ){{end}}
       ) {
         menubar mainMenu (profile: '{{.Profile}}')
         snippetcall languageSelector (snippet: Atlas_Core.LanguageSelectorWidget)
@@ -79,10 +82,41 @@ alter pages in {{$.Module}} set layout = {{$.Module}}.{{$.Layout}}
 {{end}}`
 
 type scaffoldLayoutData struct {
-	Module      string
-	Layout      string
-	Profile     string
-	RepointFrom []string
+	Module           string
+	Layout           string
+	Profile          string
+	RepointFrom      []string
+	DesignProperties []scaffoldDesignProp
+}
+
+// scaffoldDesignProp is one design property on the topbar container. Toggle
+// properties are written as a bare `on`, the rest as a quoted option name.
+type scaffoldDesignProp struct {
+	Key    string
+	Value  string
+	Toggle bool
+}
+
+// topbarDesignProps is what the topbar container asks for on Atlas 4. Each is
+// written only where the project's theme declares it (scaffoldDesignProps).
+var topbarDesignProps = []scaffoldDesignProp{
+	{Key: "Flex container", Value: "Horizontal (row)"},
+	{Key: "Align items Y", Value: "Center"},
+	{Key: "Disable row wrap", Value: "on", Toggle: true},
+	{Key: "Grow / shrink (self)", Value: "Fill container (only grow)"},
+}
+
+// scaffoldDesignProps keeps the topbar properties reg declares for a container.
+// A nil registry (no readable themesource) keeps none: mxbuild checks every
+// design property against the theme, so there is nothing safe to write.
+func scaffoldDesignProps(reg *executor.ThemeRegistry) []scaffoldDesignProp {
+	var out []scaffoldDesignProp
+	for _, p := range topbarDesignProps {
+		if executor.ThemeDeclaresDesignProperty(reg, "DivContainer", p.Key, p.Value) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // scaffoldProjectLayout creates the project-owned layout and moves the project's
@@ -98,20 +132,31 @@ func scaffoldProjectLayout(projectPath string, out io.Writer) (string, error) {
 		return "", err
 	}
 
-	var script strings.Builder
-	tmpl := template.Must(template.New("layout").Parse(scaffoldLayoutMDL))
-	if err := tmpl.Execute(&script, scaffoldLayoutData{
-		Module:      target.Module,
-		Layout:      scaffoldLayoutName,
-		Profile:     target.Profile,
-		RepointFrom: target.RepointFrom,
-	}); err != nil {
+	script, err := renderScaffoldScript(target, executor.LoadThemeRegistryForProject(projectPath))
+	if err != nil {
 		return "", err
 	}
-	if err := runMDL(projectPath, script.String(), out); err != nil {
+	if err := runMDL(projectPath, script, out); err != nil {
 		return "", err
 	}
 	return target.Module, nil
+}
+
+// renderScaffoldScript writes the scaffold MDL for target, with only the design
+// properties the project's theme (reg) declares.
+func renderScaffoldScript(target scaffoldTargetInfo, reg *executor.ThemeRegistry) (string, error) {
+	var script strings.Builder
+	tmpl := template.Must(template.New("layout").Parse(scaffoldLayoutMDL))
+	if err := tmpl.Execute(&script, scaffoldLayoutData{
+		Module:           target.Module,
+		Layout:           scaffoldLayoutName,
+		Profile:          target.Profile,
+		RepointFrom:      target.RepointFrom,
+		DesignProperties: scaffoldDesignProps(reg),
+	}); err != nil {
+		return "", err
+	}
+	return script.String(), nil
 }
 
 // scaffoldTargetInfo is what the project has to be read for before the script

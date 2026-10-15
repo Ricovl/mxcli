@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
 )
 
 // TestDownloadMxcliBinary_HTTP404ReturnsError verifies that a 404 from the
@@ -132,5 +135,31 @@ func TestDevcontainerReleaseTag(t *testing.T) {
 		if got := devcontainerReleaseTag(c.ldflagsVersion); got != c.want {
 			t.Errorf("devcontainerReleaseTag(%q) = %q, want %q", c.ldflagsVersion, got, c.want)
 		}
+	}
+}
+
+// mendixlabs/mxcli#1433: the first build failing because the model has errors
+// means `mxcli new` handed back a project that does not build. That used to be
+// printed as a warning followed by "Project created" and exit 0, so a script
+// could not tell. It is fatal now; any other first-build failure (no JDK, a
+// killed build) still only warns, because the project itself may be fine.
+func TestReportFirstBuildFailure(t *testing.T) {
+	modelErr := fmt.Errorf("wrapped: %w", &docker.ModelErrorsError{
+		Errors: []string{"ERROR at MyFirstModule, Layout 'App_Default': Design property Flex container is not supported by your theme."},
+	})
+	var buf bytes.Buffer
+	if !reportFirstBuildFailure(modelErr, &buf) {
+		t.Errorf("a build refused for model errors must be fatal")
+	}
+	if !strings.Contains(buf.String(), "Flex container") || !strings.Contains(buf.String(), "does not build") {
+		t.Errorf("the message must say the project does not build and why, got:\n%s", buf.String())
+	}
+
+	buf.Reset()
+	if reportFirstBuildFailure(errors.New("no JDK 21 available"), &buf) {
+		t.Errorf("an environment failure must stay a warning")
+	}
+	if !strings.Contains(buf.String(), "Warning") {
+		t.Errorf("an environment failure must still be reported, got:\n%s", buf.String())
 	}
 }
