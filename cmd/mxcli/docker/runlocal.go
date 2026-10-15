@@ -65,10 +65,9 @@ type LocalRunOptions struct {
 	// ListenAddr is the address the app binds to. Empty means 127.0.0.1, which
 	// is loopback-only on purpose. Set it to 0.0.0.0 to let the app be reached
 	// from other machines on the network; pair that with a reachable
-	// ApplicationRootUrl (--runtime-setting), because the runtime otherwise
-	// derives its root URL from this address and 0.0.0.0 is not a host a
-	// browser can ask for. The M2EE admin API is unaffected and stays on
-	// loopback.
+	// ApplicationRootUrl (--runtime-setting) if the app builds absolute URLs,
+	// because the runtime does not derive one (see warnWildcardWithoutRootURL).
+	// The M2EE admin API is unaffected and stays on loopback.
 	ListenAddr string
 	// AdminPass is the M2EE admin password (default is a fixed local-dev value).
 	AdminPass string
@@ -352,12 +351,14 @@ func applicationRootURLFrom(settings *model.ProjectSettings) (rootURL, configNam
 }
 
 // warnWildcardWithoutRootURL warns when the app binds every interface but
-// nothing gives the runtime the URL it is reached at. With no
-// ApplicationRootUrl the runtime derives one from the listen address, so the
-// absolute URLs it generates (OIDC/SAML redirect URIs, deep links, links in
-// emails) name 0.0.0.0 or ::, which no browser can open — while the app itself
-// answers fine, since the client uses relative URLs. A warning rather than a
-// refusal: plenty of apps generate no absolute URL at all.
+// nothing gives the runtime the URL it is reached at. The runtime does NOT
+// derive one from the bind address: measured on 11.12.1,
+// Core.getConfiguration().getApplicationRootUrl() is null after a boot with no
+// ApplicationRootUrl, under 127.0.0.1 and 0.0.0.0 alike, and is the passed value
+// under --runtime-setting. So anything that builds an absolute URL from it
+// (OIDC/SAML redirect URIs, links in emails) has no host another machine can
+// use, while the app itself answers fine — the client uses relative URLs. A
+// warning rather than a refusal: plenty of apps build no absolute URL at all.
 func warnWildcardWithoutRootURL(stderr io.Writer, listen string, port int, appRootURL string, settings map[string]any) {
 	if !isWildcardListenAddr(listen) || appRootURL != "" {
 		return
@@ -365,8 +366,8 @@ func warnWildcardWithoutRootURL(stderr io.Writer, listen string, port int, appRo
 	if _, ok := settings["ApplicationRootUrl"]; ok {
 		return
 	}
-	fmt.Fprintf(stderr, "Warning: --listen-addr %s with no application root URL — the runtime derives one from the bind address, "+
-		"so absolute URLs it generates (SSO redirects, deep links) will not open from another machine. "+
+	fmt.Fprintf(stderr, "Warning: --listen-addr %s with no application root URL — the runtime does not derive one, "+
+		"so absolute URLs the app builds from it (SSO redirects, links in emails) have no host another machine can open. "+
 		"Pass --runtime-setting ApplicationRootUrl=http://<this-host>:%d/ or set one naming a real host in the configuration.\n",
 		listen, port)
 }
@@ -378,8 +379,7 @@ func warnWildcardWithoutRootURL(stderr io.Writer, listen string, port int, appRo
 // mean "chosen". Passing that back would be a behaviour change for every
 // existing project — and an actively wrong one under --app-port, where the
 // stock value names a port the app is not serving on. A loopback host also adds
-// nothing: with no ApplicationRootUrl the runtime derives one from the listen
-// address, which is the same thing. So only a real host name — the case this
+// nothing another machine could use. So only a real host name — the case this
 // exists for, giving each app in a solution its own name — is honoured.
 func customHostRootURL(rootURL string) bool {
 	if rootURL == "" {

@@ -387,7 +387,8 @@ func runtimeConfigParams(o LocalRuntimeOptions, constants map[string]string) map
 		"MicroflowConstants": constants,
 	}
 	// Only set ApplicationRootUrl when the app is served behind an external URL;
-	// on a plain local run the runtime defaults it from the listen address.
+	// on a plain local run it stays unset (the runtime does not derive one from
+	// the listen address; see warnWildcardWithoutRootURL).
 	if o.ApplicationRootUrl != "" {
 		params["ApplicationRootUrl"] = o.ApplicationRootUrl
 	}
