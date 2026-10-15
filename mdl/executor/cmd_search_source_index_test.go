@@ -20,6 +20,13 @@ import (
 // one caption containing "Invoice".
 func searchCacheFixture(t *testing.T, mode string, sourceRows [][2]string) (*ExecContext, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
+	return searchCacheFixtureSeeded(t, mode, sourceRows, nil)
+}
+
+// searchCacheFixtureSeeded is searchCacheFixture plus a hook that writes more
+// rows into the catalog before it is saved.
+func searchCacheFixtureSeeded(t *testing.T, mode string, sourceRows [][2]string, seed func(catalog.CatalogDB)) (*ExecContext, *bytes.Buffer, *bytes.Buffer) {
+	t.Helper()
 	dir := t.TempDir()
 	mprPath := filepath.Join(dir, "app.mpr")
 	if err := os.WriteFile(mprPath, []byte("stand-in"), 0o644); err != nil {
@@ -38,6 +45,9 @@ func searchCacheFixture(t *testing.T, mode string, sourceRows [][2]string) (*Exe
 	if _, err := db.Exec(`INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, ModuleName)
 		VALUES ('Sales.Invoice_Overview', 'PAGE', 'Invoice overview', 'caption', 'Sales')`); err != nil {
 		t.Fatalf("seed strings: %v", err)
+	}
+	if seed != nil {
+		seed(db)
 	}
 	for _, r := range sourceRows {
 		if _, err := db.Exec(`INSERT INTO source (QualifiedName, ObjectType, SourceText, ModuleName, ElementId)

@@ -1091,50 +1091,93 @@ func preWarmCache(ctx *ExecContext) {
 	describeDefaultLanguage(ctx)
 }
 
+// SearchOptions harden a search. The zero value is what the SEARCH statement
+// uses.
+type SearchOptions struct {
+	// Strict returns the index's error for a query it cannot run (an FTS5 syntax
+	// error, say) instead of reporting "no matches". A caller that gates on the
+	// absence of hits needs the difference: "nothing found" and "could not look"
+	// are not the same answer.
+	Strict bool
+}
+
+// searchSQL returns the strings-index and source-index queries for a search.
+func searchSQL(query string) (stringsSQL, sourceSQL string) {
+	q := escapeFTSQuery(query)
+	stringsSQL = fmt.Sprintf(
+		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s' limit 50",
+		q)
+	sourceSQL = fmt.Sprintf(
+		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s' limit 50",
+		q)
+	return stringsSQL, sourceSQL
+}
+
+// runSearchQuery runs one of the two search queries. An error is swallowed and
+// reported as no rows unless opts.Strict is set — the long-standing behaviour
+// of SEARCH, kept for it.
+func runSearchQuery(ctx *ExecContext, sql string, opts SearchOptions) (*catalog.QueryResult, error) {
+	res, err := ctx.Catalog.Query(sql)
+	if err != nil {
+		if opts.Strict {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return res, nil
+}
+
 // execSearch handles SEARCH 'query' command.
 func execSearch(ctx *ExecContext, stmt *ast.SearchStmt) error {
+	_, err := searchTable(ctx, stmt.Query, SearchOptions{})
+	return err
+}
+
+// searchTable prints the human-readable result of a search and returns how many
+// hits it printed.
+func searchTable(ctx *ExecContext, query string, opts SearchOptions) (int, error) {
 	if !ctx.Connected() {
-		return mdlerrors.NewNotConnected()
+		return 0, mdlerrors.NewNotConnected()
 	}
 
 	// Ensure catalog is built (at least full mode for strings table)
 	if err := ensureCatalog(ctx, true); err != nil {
-		return err
+		return 0, err
 	}
 
-	query := stmt.Query
-	found := false
+	stringsSQL, sourceSQL := searchSQL(query)
+	hits := 0
 
 	// Search strings table
-	stringsQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s' limit 50",
-		escapeFTSQuery(query))
-	strResult, err := ctx.Catalog.Query(stringsQuery)
-	if err == nil && strResult.Count > 0 {
-		found = true
+	strResult, err := runSearchQuery(ctx, stringsSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if strResult != nil && strResult.Count > 0 {
+		hits += strResult.Count
 		fmt.Fprintf(ctx.Output, "\nString Matches (%d)\n", strResult.Count)
 		fmt.Fprintln(ctx.Output, strings.Repeat("─", 40))
 		outputCatalogResults(ctx, strResult)
 	}
 
 	// Search source table (if available)
-	sourceQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s' limit 50",
-		escapeFTSQuery(query))
-	srcResult, err := ctx.Catalog.Query(sourceQuery)
-	if err == nil && srcResult.Count > 0 {
-		found = true
+	srcResult, err := runSearchQuery(ctx, sourceSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if srcResult != nil && srcResult.Count > 0 {
+		hits += srcResult.Count
 		fmt.Fprintf(ctx.Output, "\nSource Matches (%d)\n", srcResult.Count)
 		fmt.Fprintln(ctx.Output, strings.Repeat("─", 40))
 		outputCatalogResults(ctx, srcResult)
 	}
 
-	if !found {
+	if hits == 0 {
 		fmt.Fprintln(ctx.Output, "No matches found.")
 	}
 	warnIfSourceIndexMissing(ctx)
 
-	return nil
+	return hits, nil
 }
 
 // warnIfSourceIndexMissing says, on the diagnostics channel, that a search did
@@ -1186,17 +1229,24 @@ func escapeFTSQuery(q string) string {
 // search performs a full-text search with the specified output format.
 // Format can be: "table" (default), "names" (just qualified names), "json"
 func search(ctx *ExecContext, query, format string) error {
+	_, err := searchWith(ctx, query, format, SearchOptions{})
+	return err
+}
+
+// searchWith is search with options. It returns how many hits it found, which
+// is the number a caller gating on "no match" needs.
+func searchWith(ctx *ExecContext, query, format string, opts SearchOptions) (int, error) {
 	if !ctx.Connected() {
-		return mdlerrors.NewNotConnected()
+		return 0, mdlerrors.NewNotConnected()
 	}
 
 	if format != "names" && format != "json" { // "table" (default)
-		return execSearch(ctx, &ast.SearchStmt{Query: query})
+		return searchTable(ctx, query, opts)
 	}
 
 	// Ensure catalog is built (at least full mode for strings table)
 	if err := ensureCatalog(ctx, true); err != nil {
-		return err
+		return 0, err
 	}
 
 	type searchResult struct {
@@ -1211,12 +1261,14 @@ func search(ctx *ExecContext, query, format string) error {
 	var allResults []searchResult
 	seen := make(map[string]bool) // For deduplicating names format
 
+	stringsSQL, sourceSQL := searchSQL(query)
+
 	// Search strings table
-	stringsQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s' limit 50",
-		escapeFTSQuery(query))
-	strResult, err := ctx.Catalog.Query(stringsQuery)
-	if err == nil && strResult.Count > 0 {
+	strResult, err := runSearchQuery(ctx, stringsSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if strResult != nil && strResult.Count > 0 {
 		for _, row := range strResult.Rows {
 			r := searchResult{
 				QualifiedName: fmt.Sprintf("%v", row[0]),
@@ -1231,11 +1283,11 @@ func search(ctx *ExecContext, query, format string) error {
 	}
 
 	// Search source table (if available)
-	sourceQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s' limit 50",
-		escapeFTSQuery(query))
-	srcResult, err := ctx.Catalog.Query(sourceQuery)
-	if err == nil && srcResult.Count > 0 {
+	srcResult, err := runSearchQuery(ctx, sourceSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if srcResult != nil && srcResult.Count > 0 {
 		for _, row := range srcResult.Rows {
 			r := searchResult{
 				QualifiedName: fmt.Sprintf("%v", row[0]),
@@ -1255,7 +1307,7 @@ func search(ctx *ExecContext, query, format string) error {
 			fmt.Fprintln(ctx.Output, "[]")
 		}
 		warnIfSourceIndexMissing(ctx)
-		return nil
+		return 0, nil
 	}
 
 	switch format {
@@ -1271,18 +1323,26 @@ func search(ctx *ExecContext, query, format string) error {
 	case "json":
 		jsonBytes, err := json.MarshalIndent(allResults, "", "  ")
 		if err != nil {
-			return err
+			return 0, err
 		}
 		fmt.Fprintln(ctx.Output, string(jsonBytes))
 	}
 
 	warnIfSourceIndexMissing(ctx)
-	return nil
+	return len(allResults), nil
 }
 
 // Search performs a full-text search with the specified output format.
 func (e *Executor) Search(query, format string) error {
-	return search(e.newExecContext(context.Background()), query, format)
+	_, err := e.SearchWith(query, format, SearchOptions{})
+	return err
+}
+
+// SearchWith performs a full-text search and returns the number of hits it
+// found (at most 50 per index), so a caller can act on "found something" without
+// parsing the output it just printed.
+func (e *Executor) SearchWith(query, format string, opts SearchOptions) (int, error) {
+	return searchWith(e.newExecContext(context.Background()), query, format, opts)
 }
 
 // builtinWidgetMetas adapts the built-in WidgetRegistry's definitions into

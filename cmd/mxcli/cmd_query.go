@@ -257,21 +257,36 @@ Output Formats:
             query command takes). "--format json" is still accepted as a
             deprecated spelling of it.
 
+Gating on a word:
+  --fail-on-match   exit 1 when there is at least one hit, 0 when there is none
+                    (results are printed as usual, JSON included). A query the
+                    index cannot run, or any other error, exits 2 so that 1
+                    always means "something matched".
+
 Examples:
   mxcli search -p app.mpr "validation"
   mxcli search -p app.mpr "Customer" --json | jq '.[].qualifiedName'
   mxcli search -p app.mpr "Customer" --format names
   mxcli search -p app.mpr "error" -q --format names | xargs -I {} mxcli describe -p app.mpr microflow {}
+  mxcli search -p app.mpr "TODO" --fail-on-match
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		projectPath, _ := cmd.Flags().GetString("project")
 		format := resolveFormat(cmd, "table")
 		quiet, _ := cmd.Flags().GetBool("quiet")
+		failOnMatch, _ := cmd.Flags().GetBool("fail-on-match")
+
+		// Under --fail-on-match, exit status 1 means "something matched", so a
+		// search that could not run says so with 2 rather than with 1.
+		errorExit := 1
+		if failOnMatch {
+			errorExit = 2
+		}
 
 		if projectPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required")
-			os.Exit(1)
+			os.Exit(errorExit)
 		}
 
 		// A JSON-format executor sends "Connected to:" and catalog progress to
@@ -293,14 +308,24 @@ Examples:
 		for _, stmt := range connectProg.Statements {
 			if err := exec.Execute(stmt); err != nil {
 				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
-				os.Exit(1)
+				os.Exit(errorExit)
 			}
 		}
 
 		// Execute search with format option
 		query := strings.ReplaceAll(args[0], "'", "''")
-		if err := exec.Search(query, format); err != nil {
+		hits, err := exec.SearchWith(query, format, executor.SearchOptions{
+			// A gate must not read "the index refused the query" as "no match".
+			Strict: failOnMatch,
+		})
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(errorExit)
+		}
+		if failOnMatch && hits > 0 {
+			// os.Exit skips the deferred closes, and the log file would stay open.
+			exec.Close()
+			logger.Close()
 			os.Exit(1)
 		}
 	},
