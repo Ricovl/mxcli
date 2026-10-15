@@ -1,0 +1,40 @@
+mdl 1;
+-- #414: `ALTER PAGE … SET` worked for a few properties only. `set Placeholder`
+-- on a text box was refused with "property \"Placeholder\" is not a property of
+-- this built-in widget", though CREATE writes `Placeholder:` and DESCRIBE prints
+-- it. The same held for the text box's other own properties CREATE writes —
+-- Password, Validation, ValidationMessage: setRawWidgetPropertyMut had no case
+-- for them, so they fell through to the pluggable setter's refusal.
+--
+-- Expected: the describe below shows the text box with Placeholder: 'Enter your
+-- name', Password: true, Validation: '$value != empty' and ValidationMessage:
+-- 'Name is required', and the label 'Full name'.
+
+create module Bug414;
+
+create persistent entity Bug414.Person (Name: string(200));
+
+create page Bug414.PersonEdit (
+  title: 'Person',
+  layout: Atlas_Core.Atlas_Default,
+  params: ( $Person: Bug414.Person )
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dv (DataSource: $Person) {
+          textbox txtName (Label: 'Name', Attribute: Name)
+          actionbutton btnSave (Caption: 'Save', Action: save changes)
+        }
+      }
+    }
+  }
+};
+
+alter page Bug414.PersonEdit {
+  set (Placeholder: 'Enter your name', Password: true) on txtName;
+  set (Validation: '$value != empty', ValidationMessage: 'Name is required') on txtName;
+  set (Label: 'Full name') on txtName
+};
+
+describe page Bug414.PersonEdit;

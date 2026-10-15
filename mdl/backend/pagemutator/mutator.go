@@ -2997,6 +2997,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetLabelMut(widget, value)
 	case "tooltip":
 		return setWidgetTooltipMut(widget, value)
+	case "placeholder", "password", "validation", "validationmessage":
+		// A built-in input widget's own properties, which CREATE writes and
+		// DESCRIBE prints (mendixlabs/mxcli#414). A widget that does not store
+		// the key — a pluggable one above all — keeps its old route.
+		if handled, err := setInputWidgetPropertyMut(widget, propName, value); handled {
+			return err
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "buttonstyle":
 		if s, ok := value.(string); ok {
 			bsonnav.DSet(widget, "ButtonStyle", s)
@@ -3467,6 +3475,63 @@ func setWidgetTooltipMut(widget bson.D, value any) error {
 	}
 	bsonnav.DSet(widget, "Tooltip", tip)
 	return nil
+}
+
+// setInputWidgetPropertyMut sets one of the built-in input properties CREATE
+// writes on a text box (and, for Placeholder, a text area or date picker):
+//
+//   - Placeholder → PlaceholderTemplate, a Forms$ClientTemplate like LabelTemplate
+//   - Password → IsPasswordBox, a boolean
+//   - Validation / ValidationMessage → the Forms$WidgetValidation's Expression
+//     and its Message Texts$Text
+//
+// They all fell through to the pluggable setter, which refused them as "not a
+// property of this built-in widget" (mendixlabs/mxcli#414). It reports
+// handled=false when the widget does not store the key, so a pluggable
+// widget's own `placeholder` or `validation` still reaches its setter and a
+// built-in widget without one keeps that refusal.
+func setInputWidgetPropertyMut(widget bson.D, propName string, value any) (bool, error) {
+	typ := widgetTypeLabel(bsonnav.DGetString(widget, "$Type"))
+	switch strings.ToLower(propName) {
+	case "placeholder":
+		tmpl := bsonnav.DGetDoc(widget, "PlaceholderTemplate")
+		if tmpl == nil {
+			return false, nil
+		}
+		return true, setTranslatableText(tmpl, "Placeholder", value)
+	case "password":
+		if _, ok := bsonnav.DGet(widget, "IsPasswordBox").(bool); !ok {
+			return false, nil
+		}
+		b, ok := editableBool(value)
+		if !ok {
+			return true, fmt.Errorf("Password on a %s is true or false, not %v", typ, value)
+		}
+		bsonnav.DSet(widget, "IsPasswordBox", b)
+		return true, nil
+	case "validation":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		s, ok := value.(string)
+		if !ok {
+			return true, fmt.Errorf("Validation on a %s is an expression string, not %v", typ, value)
+		}
+		bsonnav.DSet(v, "Expression", s)
+		return true, nil
+	case "validationmessage":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		msg := bsonnav.DGetDoc(v, "Message")
+		if msg == nil {
+			return true, fmt.Errorf("the validation of this %s has no Message text to set", typ)
+		}
+		return true, setTranslatableText(msg, "ValidationMessage", value)
+	}
+	return false, nil
 }
 
 func setWidgetContentMut(widget bson.D, value any) error {
