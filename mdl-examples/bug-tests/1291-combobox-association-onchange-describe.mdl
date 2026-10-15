@@ -45,7 +45,7 @@ create or modify page MyFirstModule.CustomerOrder_Edit
       DataSource: database from MyFirstModule.Customer where [Active = true] sort by Name asc,
       CaptionAttribute: Name,
       OnChange: call microflow MyFirstModule.ACT_CustomerOrder_CustomerChanged(CustomerOrder = $currentObject),
-      DesignProperties: ['Align self': 'Right']
+      DesignProperties: ('Align self': 'Right')
     )
   }
 };
