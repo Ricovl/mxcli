@@ -14,6 +14,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
+	"github.com/mendixlabs/mxcli/mdl/backend/widgetobj"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -1557,8 +1558,31 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 					}
 				}
 			}
-			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			propKeyMap := buildPropKeyMap(wDoc)
+			// Object-list items other than DataGrid2 columns — an Accordion
+			// group, a Pop-up menu item — keep their widgets one level deeper,
+			// at Value.Objects[].Properties[].Value.Widgets. Without this a grid
+			// inside an Accordion group could not be addressed at all, neither
+			// by its name nor by its columns', while the not-found message (a
+			// generic walk) listed those columns as available (#891). Columns
+			// are left to the loop below, which matches a column's derived name
+			// before descending into its content.
+			for _, prop := range props {
+				propDoc, ok := prop.(bson.D)
+				if !ok {
+					continue
+				}
+				typePointerID := bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(propDoc, "TypePointer"))
+				if propKeyMap[typePointerID] == "columns" {
+					continue
+				}
+				for _, itemVal := range objectListItemValues(bsonnav.DGetDoc(propDoc, "Value")) {
+					if result := findInWidgetArray(itemVal, "Widgets", widgetName); result != nil {
+						return result
+					}
+				}
+			}
+			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			for _, prop := range props {
 				propDoc, ok := prop.(bson.D)
 				if !ok {
@@ -1617,6 +1641,33 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 	}
 
 	return nil
+}
+
+// objectListItemValues returns the property Values of every item in a pluggable
+// property's object list (Value.Objects[].Properties[].Value) — the documents
+// that hold an item's widget slots. nil-safe: a property with no Value, or one
+// that is not an object list, yields nothing.
+func objectListItemValues(valDoc bson.D) []bson.D {
+	if valDoc == nil {
+		return nil
+	}
+	var out []bson.D
+	for _, item := range bsonnav.DGetArrayElements(bsonnav.DGet(valDoc, "Objects")) {
+		itemDoc, ok := item.(bson.D)
+		if !ok {
+			continue
+		}
+		for _, itemProp := range bsonnav.DGetArrayElements(bsonnav.DGet(itemDoc, "Properties")) {
+			itemPropDoc, ok := itemProp.(bson.D)
+			if !ok {
+				continue
+			}
+			if v := bsonnav.DGetDoc(itemPropDoc, "Value"); v != nil {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -2472,6 +2523,12 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 				}
 				if valDoc := bsonnav.DGetDoc(propDoc, "Value"); valDoc != nil {
 					collectWidgetScope(valDoc, "Widgets", scope)
+					// Widgets inside object-list items: Accordion groups, Pop-up
+					// menu items, customContent columns — all resolvable by the
+					// finder, so they are in scope too (#891).
+					for _, itemVal := range objectListItemValues(valDoc) {
+						collectWidgetScope(itemVal, "Widgets", scope)
+					}
 				}
 			}
 			// DataGrid2: add column derived names to scope for duplicate-name detection
@@ -2997,6 +3054,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetLabelMut(widget, value)
 	case "tooltip":
 		return setWidgetTooltipMut(widget, value)
+	case "placeholder", "password", "validation", "validationmessage":
+		// A built-in input widget's own properties, which CREATE writes and
+		// DESCRIBE prints (mendixlabs/mxcli#414). A widget that does not store
+		// the key — a pluggable one above all — keeps its old route.
+		if handled, err := setInputWidgetPropertyMut(widget, propName, value); handled {
+			return err
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "buttonstyle":
 		if s, ok := value.(string); ok {
 			bsonnav.DSet(widget, "ButtonStyle", s)
@@ -3469,6 +3534,63 @@ func setWidgetTooltipMut(widget bson.D, value any) error {
 	return nil
 }
 
+// setInputWidgetPropertyMut sets one of the built-in input properties CREATE
+// writes on a text box (and, for Placeholder, a text area or date picker):
+//
+//   - Placeholder → PlaceholderTemplate, a Forms$ClientTemplate like LabelTemplate
+//   - Password → IsPasswordBox, a boolean
+//   - Validation / ValidationMessage → the Forms$WidgetValidation's Expression
+//     and its Message Texts$Text
+//
+// They all fell through to the pluggable setter, which refused them as "not a
+// property of this built-in widget" (mendixlabs/mxcli#414). It reports
+// handled=false when the widget does not store the key, so a pluggable
+// widget's own `placeholder` or `validation` still reaches its setter and a
+// built-in widget without one keeps that refusal.
+func setInputWidgetPropertyMut(widget bson.D, propName string, value any) (bool, error) {
+	typ := widgetTypeLabel(bsonnav.DGetString(widget, "$Type"))
+	switch strings.ToLower(propName) {
+	case "placeholder":
+		tmpl := bsonnav.DGetDoc(widget, "PlaceholderTemplate")
+		if tmpl == nil {
+			return false, nil
+		}
+		return true, setTranslatableText(tmpl, "Placeholder", value)
+	case "password":
+		if _, ok := bsonnav.DGet(widget, "IsPasswordBox").(bool); !ok {
+			return false, nil
+		}
+		b, ok := editableBool(value)
+		if !ok {
+			return true, fmt.Errorf("Password on a %s is true or false, not %v", typ, value)
+		}
+		bsonnav.DSet(widget, "IsPasswordBox", b)
+		return true, nil
+	case "validation":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		s, ok := value.(string)
+		if !ok {
+			return true, fmt.Errorf("Validation on a %s is an expression string, not %v", typ, value)
+		}
+		bsonnav.DSet(v, "Expression", s)
+		return true, nil
+	case "validationmessage":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		msg := bsonnav.DGetDoc(v, "Message")
+		if msg == nil {
+			return true, fmt.Errorf("the validation of this %s has no Message text to set", typ)
+		}
+		return true, setTranslatableText(msg, "ValidationMessage", value)
+	}
+	return false, nil
+}
+
 func setWidgetContentMut(widget bson.D, value any) error {
 	content := bsonnav.DGetDoc(widget, "Content")
 	if content == nil {
@@ -3481,8 +3603,13 @@ func setWidgetContentMut(widget bson.D, value any) error {
 // Forms$ClientTemplate under LabelTemplate and writes no `Label` key at all;
 // the legacy shape is a Label document whose Caption is a Texts$Text. Looking
 // only for `Label` made `set Label = …` report success and store nothing on
-// every current input widget. A widget with neither (no label shown, or a type
-// that has none) still returns nil, as it always did.
+// every current input widget.
+//
+// The two remaining shapes answered with a bare nil too, which kept
+// mendixlabs/mxcli#292 open: an input whose label is not shown stores
+// `LabelTemplate: null`, so the label is created — the same ClientTemplate
+// create page writes; and a widget with no label slot at all (a button) is
+// refused by name, as Caption is, instead of reporting "Altered page".
 func setWidgetLabelMut(widget bson.D, value any) error {
 	if tmpl := bsonnav.DGetDoc(widget, "LabelTemplate"); tmpl != nil {
 		return setTranslatableText(tmpl, "LabelTemplate", value)
@@ -3492,7 +3619,24 @@ func setWidgetLabelMut(widget bson.D, value any) error {
 			return setTranslatableText(caption, "Label caption", value)
 		}
 	}
-	return nil
+	// A pluggable widget writes `LabelTemplate: null` whether or not its
+	// definition declares a Label system property (an Accordion has none), so a
+	// null there is no evidence a label may be added — refuse rather than guess.
+	if hasKey(widget, "LabelTemplate") && bsonnav.DGetString(widget, "$Type") != "CustomWidgets$CustomWidget" {
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("Label value must be a string")
+		}
+		if text == "" {
+			return nil // no label shown, and none asked for
+		}
+		bsonnav.DSet(widget, "LabelTemplate", widgetobj.BuildClientTemplateWithTextAndParams(text, nil))
+		return nil
+	}
+	if bsonnav.DGetString(widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return fmt.Errorf("widget has no Label property to set: this pluggable widget shows no label")
+	}
+	return fmt.Errorf("widget has no Label property")
 }
 
 func setWidgetAttributeRefMut(widget bson.D, value any) error {

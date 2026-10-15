@@ -77,7 +77,10 @@ sync-skill-packs:
 sync-mods:
 	@mkdir -p cmd/mxcli/mods
 	@rsync -a --delete --exclude='.DS_Store' --exclude='tests/' --exclude='*.test.ts' --exclude='*.test.tsx' \
-		--exclude='.claude-plugin/types/' --exclude='tsconfig.json' mods/ cmd/mxcli/mods/
+		--exclude='.claude-plugin/types/' --exclude='tsconfig.json' mods/ cmd/mxcli/mods/ 2>/dev/null \
+		|| { rm -rf cmd/mxcli/mods && mkdir -p cmd/mxcli/mods && cp -R mods/. cmd/mxcli/mods/ \
+		  && find cmd/mxcli/mods \( -type d -name tests -o -path '*/.claude-plugin/types' \) -prune -exec rm -rf {} + \
+		  && find cmd/mxcli/mods \( -name '*.test.ts' -o -name '*.test.tsx' -o -name tsconfig.json -o -name .DS_Store \) -delete; }
 
 # Sync commands from .claude/commands/mendix to cmd/mxcli/commands for embedding
 sync-commands:
