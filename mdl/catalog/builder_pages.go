@@ -138,8 +138,8 @@ func (b *Builder) buildPages() error {
 }
 
 func (b *Builder) buildSnippets() error {
-	// Get all snippets
-	snippetList, err := b.reader.ListSnippets()
+	// Get all snippets (only the changed ones in an incremental refresh)
+	snippetList, err := b.cachedSnippets()
 	if err != nil {
 		return err
 	}

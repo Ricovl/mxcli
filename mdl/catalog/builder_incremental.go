@@ -9,19 +9,22 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // Incremental refresh: when only existing flows changed since the catalog was
 // built, their rows are deleted and rebuilt instead of the whole catalog.
 // See docs/11-proposals/PROPOSAL_incremental_project_index.md, step 5.
 
-// incrementalTypes are the unit types an incremental refresh rebuilds; any
-// other change needs a full build, except an added or removed folder, which
-// holds no rows.
+// incrementalTypes are the unit types an incremental refresh adds, rebuilds
+// and removes per unit; a domain model is rebuilt per module, and an added or
+// removed folder holds no rows. Any other change needs a full build.
 var incrementalTypes = map[string]bool{
 	"Microflows$Microflow": true,
 	"Microflows$Nanoflow":  true,
 	"Microflows$Rule":      true,
+	"Forms$Page":           true,
+	"Forms$Snippet":        true,
 }
 
 // domainModelType is rebuilt per module: an edit, not an add or remove (which
@@ -93,7 +96,7 @@ func (b *Builder) rawUnits(typeName string) ([]*types.RawUnit, error) {
 	return out, nil
 }
 
-// changedFlows decodes only the changed flows of one kind. Never nil: a nil
+// changedFlows decodes only the changed documents of one kind. Never nil: a nil
 // cache means "not loaded" and would load every flow.
 func changedFlows[T any](b *Builder, typeName string, get func(model.ID) (T, error)) ([]T, error) {
 	out := []T{}
@@ -274,6 +277,20 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 	} else {
 		return fmt.Errorf("reader cannot read flows by ID")
 	}
+	if r, ok := b.reader.(interface {
+		GetPage(model.ID) (*pages.Page, error)
+		GetSnippet(model.ID) (*pages.Snippet, error)
+	}); ok {
+		var err error
+		if b.pageCache, err = changedFlows(b, "Forms$Page", r.GetPage); err != nil {
+			return err
+		}
+		if b.snippetCache, err = changedFlows(b, "Forms$Snippet", r.GetSnippet); err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("reader cannot read pages by ID")
+	}
 
 	tx, err := b.catalog.db.Begin()
 	if err != nil {
@@ -318,6 +335,8 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		run  func() error
 	}{
 		{"microflows", b.buildMicroflows},
+		{"pages", b.buildPages},
+		{"snippets", b.buildSnippets},
 		{"xpath expressions", b.buildXPathExpressions},
 		{"permissions", b.buildPermissions},
 		{"references", b.buildReferences},

@@ -63,17 +63,13 @@ func pageTemplateFromGen(pt *genPg.PageTemplate, containerID model.ID) *pages.Pa
 	return out
 }
 
+// GetPage reads and decodes only the unit with that ID.
 func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.Page](b.reader)
-	if err != nil {
+	unit, err := mprread.GetUnitByID[*genPg.Page](b.reader, id)
+	if err != nil || unit == nil {
 		return nil, err
 	}
-	for _, u := range units {
-		if model.ID(u.Element.ID()) == id {
-			return pageFromGen(u.Element, u.ContainerID), nil
-		}
-	}
-	return nil, nil
+	return pageFromGen(unit.Element, unit.ContainerID), nil
 }
 
 // ListSnippets reads snippet units (count + identity is what SHOW MODULES needs;
@@ -85,39 +81,52 @@ func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
 	}
 	out := make([]*pages.Snippet, 0, len(units))
 	for _, u := range units {
-		s := &pages.Snippet{
-			ContainerID:   u.ContainerID,
-			Name:          u.Element.Name(),
-			Documentation: u.Element.Documentation(),
-			Excluded:      u.Element.Excluded(),
-		}
-		s.ID = model.ID(u.Element.ID())
-		// Populate declared parameters — the page builder reads these to validate
-		// and wire SNIPPETCALL argument mappings (without them every parameterised
-		// snippet call writes an empty argument → CE1571 in Studio Pro).
-		for _, el := range u.Element.ParametersItems() {
-			sp, ok := el.(*genPg.SnippetParameter)
-			if !ok {
-				continue
-			}
-			p := &pages.SnippetParameter{Name: sp.Name()}
-			p.ID = model.ID(sp.ID())
-			// Entity or primitive — a snippet parameter's ParameterType is the
-			// polymorphic DataTypes$DataType, the same as a page parameter's.
-			// Reading only the ObjectType arm made every primitive parameter
-			// read back as an untyped one (mendixlabs/mxcli#1028).
-			if pt := sp.ParameterType(); pt != nil {
-				if ot, ok := pt.(*genDT.ObjectType); ok {
-					p.EntityName = ot.EntityQualifiedName()
-				} else {
-					p.Type = pt.TypeName()
-				}
-			}
-			s.Parameters = append(s.Parameters, p)
-		}
-		out = append(out, s)
+		out = append(out, snippetFromGen(u.Element, u.ContainerID))
 	}
 	return out, nil
+}
+
+// GetSnippet reads and decodes only the unit with that ID.
+func (b *Backend) GetSnippet(id model.ID) (*pages.Snippet, error) {
+	unit, err := mprread.GetUnitByID[*genPg.Snippet](b.reader, id)
+	if err != nil || unit == nil {
+		return nil, err
+	}
+	return snippetFromGen(unit.Element, unit.ContainerID), nil
+}
+
+func snippetFromGen(sn *genPg.Snippet, containerID model.ID) *pages.Snippet {
+	s := &pages.Snippet{
+		ContainerID:   containerID,
+		Name:          sn.Name(),
+		Documentation: sn.Documentation(),
+		Excluded:      sn.Excluded(),
+	}
+	s.ID = model.ID(sn.ID())
+	// Populate declared parameters — the page builder reads these to validate
+	// and wire SNIPPETCALL argument mappings (without them every parameterised
+	// snippet call writes an empty argument → CE1571 in Studio Pro).
+	for _, el := range sn.ParametersItems() {
+		sp, ok := el.(*genPg.SnippetParameter)
+		if !ok {
+			continue
+		}
+		p := &pages.SnippetParameter{Name: sp.Name()}
+		p.ID = model.ID(sp.ID())
+		// Entity or primitive — a snippet parameter's ParameterType is the
+		// polymorphic DataTypes$DataType, the same as a page parameter's.
+		// Reading only the ObjectType arm made every primitive parameter
+		// read back as an untyped one (mendixlabs/mxcli#1028).
+		if pt := sp.ParameterType(); pt != nil {
+			if ot, ok := pt.(*genDT.ObjectType); ok {
+				p.EntityName = ot.EntityQualifiedName()
+			} else {
+				p.Type = pt.TypeName()
+			}
+		}
+		s.Parameters = append(s.Parameters, p)
+	}
+	return s
 }
 
 // ListBuildingBlocks reads Pages$BuildingBlock units. Read-only: the codec engine

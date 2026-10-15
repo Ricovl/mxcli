@@ -5,6 +5,7 @@ package catalog
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -109,10 +110,7 @@ func (b *Builder) buildXPathExpressions() error {
 	// The page parser only reads metadata, not the widget tree, so we scan the
 	// raw BSON documents for XPathConstraint fields at any nesting depth.
 	for _, typePrefix := range []string{"Forms$Page", "Pages$Page", "Forms$Snippet", "Pages$Snippet"} {
-		if b.incremental() {
-			break
-		}
-		rawPages, err := b.reader.ListRawUnitsByType(typePrefix)
+		rawPages, err := b.rawPageUnits(typePrefix)
 		if err != nil {
 			continue
 		}
@@ -406,4 +404,14 @@ func boolToInt(v bool) int {
 		return 1
 	}
 	return 0
+}
+
+// rawPageUnits is ListRawUnitsByType, limited to the changed units when
+// incremental, which match their exact type. Only for speed: a re-scanned
+// unchanged page would insert rows whose Id already exists, and be refused.
+func (b *Builder) rawPageUnits(typePrefix string) ([]*types.RawUnit, error) {
+	if b.incremental() {
+		return b.rawUnits(typePrefix)
+	}
+	return b.reader.ListRawUnitsByType(typePrefix)
 }

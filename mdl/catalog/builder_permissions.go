@@ -74,6 +74,7 @@ func (b *Builder) buildPermissions() error {
 	if b.incremental() {
 		permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
 		permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
+		permCount += b.buildPagePermissions(stmt, projectID, snapshotID)
 	} else {
 		permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
 		permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
@@ -260,7 +261,7 @@ func (b *Builder) buildMicroflowPermissions(stmt rowStmt, projectID, snapshotID 
 func (b *Builder) buildPagePermissions(stmt rowStmt, projectID, snapshotID string) int {
 	count := 0
 
-	pages, err := b.reader.ListPages()
+	pages, err := b.cachedPages()
 	if err != nil {
 		return 0
 	}

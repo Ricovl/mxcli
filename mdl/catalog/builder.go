@@ -133,6 +133,7 @@ type Builder struct {
 	nanoflowCache           []*microflows.Nanoflow
 	ruleCache               []*microflows.Rule
 	pageCache               []*pages.Page
+	snippetCache            []*pages.Snippet
 	domainModelCache        []*domainmodel.DomainModel
 	enumerationCache        []*model.Enumeration
 	workflowCache           []*workflows.Workflow
@@ -308,6 +309,17 @@ func (b *Builder) cachedRules() ([]*microflows.Rule, error) {
 		}
 	}
 	return b.ruleCache, nil
+}
+
+func (b *Builder) cachedSnippets() ([]*pages.Snippet, error) {
+	if b.snippetCache == nil {
+		var err error
+		b.snippetCache, err = b.reader.ListSnippets()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return b.snippetCache, nil
 }
 
 func (b *Builder) cachedPages() ([]*pages.Page, error) {

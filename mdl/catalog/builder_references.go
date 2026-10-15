@@ -412,6 +412,10 @@ func (b *Builder) buildReferences() error {
 	if !b.fullMode {
 		return nil
 	}
+	// The widget projections below filter on it; empty in a full build.
+	if err := createIncrementalTables(b.tx); err != nil {
+		return err
+	}
 
 	stmt, err := b.prepareUnit(`
 		INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
@@ -578,20 +582,6 @@ func (b *Builder) buildReferences() error {
 		}
 	}
 
-	// An incremental refresh rebuilds flows and domain models only: the rows
-	// above, the edges collected from the changed domain models, and their
-	// member and XPath refs. Nothing below comes from those documents.
-	if b.incremental() {
-		refCount += b.extractRegexRuleRefs(stmt, projectID, snapshotID)
-		refCount += b.extractEventHandlerRefs(stmt, projectID, snapshotID)
-		refCount += b.extractEnumerationTypeRefs(projectID, snapshotID)
-		idx := b.loadMemberRefIndex()
-		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
-		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
-		b.report("References", refCount)
-		return nil
-	}
-
 	// Extract page references (layout, datasources, parameters) — using cached list
 	pageList, err := b.cachedPages()
 	if err == nil {
@@ -647,8 +637,9 @@ func (b *Builder) buildReferences() error {
 			res, perr := b.tx.Exec(
 				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
 				 SELECT DISTINCT ContainerType, '', ContainerQualifiedName, ?, '', `+p.col+`, ?, ModuleName, ?, ?, UnitId
-				 FROM widgets_data WHERE `+p.col+` != ''`,
-				p.targetType, p.refKind, projectID, snapshotID)
+				 FROM widgets_data WHERE `+p.col+` != ''
+				   AND (? = '' OR UnitId IN (SELECT UnitId FROM incremental_units))`,
+				p.targetType, p.refKind, projectID, snapshotID, b.incrementalFlag())
 			if perr == nil {
 				if n, e := res.RowsAffected(); e == nil {
 					refCount += int(n)
@@ -658,9 +649,23 @@ func (b *Builder) buildReferences() error {
 
 		// Page/snippet -> widget definition. buildWidgetDefinitions runs before
 		// this pass, so the join target is populated.
-		if n, werr := insertWidgetRefs(b.tx, projectID, snapshotID); werr == nil {
+		if n, werr := insertWidgetRefs(b.tx, projectID, snapshotID, b.incrementalFlag()); werr == nil {
 			refCount += n
 		}
+	}
+
+	// An incremental refresh rebuilds flows, domain models, pages and snippets
+	// only: the rows above, the edges collected from the changed domain models,
+	// and their member and XPath refs. Nothing below comes from those documents.
+	if b.incremental() {
+		refCount += b.extractRegexRuleRefs(stmt, projectID, snapshotID)
+		refCount += b.extractEventHandlerRefs(stmt, projectID, snapshotID)
+		refCount += b.extractEnumerationTypeRefs(projectID, snapshotID)
+		idx := b.loadMemberRefIndex()
+		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
+		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
+		b.report("References", refCount)
+		return nil
 	}
 
 	// Extract navigation references (home pages, menu items, login pages)

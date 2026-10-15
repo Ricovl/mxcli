@@ -12,7 +12,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/translations"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"github.com/mendixlabs/mxcli/sdk/pages"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -50,10 +49,8 @@ func (b *Builder) buildStrings() error {
 	// which holds a plain Text and cannot carry a translation).
 
 	// Page URL (no language)
-	var pageList []*pages.Page
-	if !b.incremental() {
-		pageList, err = b.cachedPages()
-	}
+	// Only the changed pages in an incremental refresh.
+	pageList, err := b.cachedPages()
 	if err == nil {
 		for _, pg := range pageList {
 			if pg.URL == "" {

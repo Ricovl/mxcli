@@ -14,7 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
+	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // TestIncrementalCatalogMatchesFullRebuild renames a microflow in its unit file
@@ -228,6 +231,55 @@ func TestCatalogRowsCarryTheirUnit(t *testing.T) {
 		}
 		if bad > 0 {
 			t.Errorf("%s: %d of %d rows name no unit of the project", table, bad, total)
+		}
+	}
+}
+
+// TestIncrementalCatalog_Pages modifies a page (title), adds one and drops
+// another — each a copy of a page with a data grid, so widgets, refs and XPath
+// rows are at stake — and requires the incremental refresh to equal a full
+// rebuild.
+func TestIncrementalCatalog_Pages(t *testing.T) {
+	var out bytes.Buffer
+	exec := New(&out)
+	exec.SetQuiet(true)
+	exec.SetBackendFactory(func() backend.FullBackend { return modelsdkbackend.New() })
+	t.Cleanup(func() { exec.Close() })
+	dst := t.TempDir()
+	if err := os.CopyFS(dst, os.DirFS("../../testdata/expr-checker")); err != nil {
+		t.Fatal(err)
+	}
+	run(t, exec, "CONNECT LOCAL '"+visitor.QuoteString(filepath.Join(dst, "minimal.mpr"))+"'")
+	ctx := exec.newExecContext(context.Background())
+
+	template := describeText(t, exec, &out, "describe page Administration.Account_Overview")
+	page := func(name, title string) string {
+		s := strings.Replace(template, "page Administration.Account_Overview", "page Administration."+name, 1)
+		return strings.Replace(s, "Title: 'Accounts'", "Title: '"+title+"'", 1)
+	}
+	run(t, exec, page("IncPage", "Before"))
+	run(t, exec, page("IncDoomed", "Doomed"))
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	cachePath := getCachePath(ctx)
+
+	run(t, exec, page("IncPage", "After"))
+	run(t, exec, page("IncAdded", "Added"))
+	run(t, exec, "drop page Administration.IncDoomed;")
+
+	if !refreshCatalogIncrementally(ctx, cachePath, "full", currentStamps(ctx)) {
+		t.Fatal("refresh after changing pages was not incremental")
+	}
+	ctx.Catalog.Close()
+	incremental := dumpCatalog(t, cachePath)
+	if got := strings.Join(incremental["pages_data"], "\n"); !strings.Contains(got, "IncAdded") || !strings.Contains(got, "After") {
+		t.Fatal("the changed and added pages are not in the refreshed catalog")
+	}
+
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	full := dumpCatalog(t, cachePath)
+	for table, rows := range full {
+		if got := incremental[table]; strings.Join(got, "\n") != strings.Join(rows, "\n") {
+			t.Errorf("table %s: incremental has %d rows, full rebuild %d", table, len(got), len(rows))
 		}
 	}
 }
