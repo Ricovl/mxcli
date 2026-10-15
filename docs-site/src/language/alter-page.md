@@ -41,6 +41,7 @@ ALTER PAGE Module.EditPage {
 |----------|-------------|---------|
 | `Caption` | Button/link caption | `SET (Caption: 'Submit') ON btnSave` |
 | `Label` | Input field label | `SET (Label: 'Full Name') ON txtName` |
+| `RenderMode` | Dynamic text rendering: `Text`, `Paragraph`, `H1`–`H6` | `SET (RenderMode: H2) ON txtTitle` |
 | `Placeholder` | Input hint text (text box, text area, date picker) | `SET (Placeholder: 'Enter your name') ON txtName` |
 | `Password` | Mask a text box's input | `SET (Password: true) ON txtPin` |
 | `Validation` | A text box's validation expression | `SET (Validation: '$value != empty') ON txtName` |
