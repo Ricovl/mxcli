@@ -244,6 +244,9 @@ type persistabilityResolver struct {
 	script  map[string]entityFacts
 	project map[string]entityFacts
 	reader  backend.FullBackend
+	// views are the view entities the script creates. They are kept out of
+	// script so the persistability walk treats them as before (unresolved).
+	views []string
 }
 
 // entityFacts is what deciding persistability needs: the entity's own flag and
@@ -251,16 +254,32 @@ type persistabilityResolver struct {
 type entityFacts struct {
 	persistable    bool
 	generalization string
+	// view and uniqueAttrs serve the published-OData key rule (MDL-ODATA09):
+	// uniqueAttrs maps each of the entity's OWN attributes to whether it
+	// carries a unique validation rule, so an absent name is not an attribute
+	// of this entity.
+	view        bool
+	uniqueAttrs map[string]bool
 }
 
 func newPersistabilityResolver(prog *ast.Program, projectPath string) *persistabilityResolver {
 	r := &persistabilityResolver{script: map[string]entityFacts{}}
 	for _, stmt := range prog.Statements {
+		if v, ok := stmt.(*ast.CreateViewEntityStmt); ok {
+			// Known to be a view, and nothing else: persistability stays
+			// unresolved, as it was before views were recorded here.
+			r.views = append(r.views, v.Name.String())
+			continue
+		}
 		s, ok := stmt.(*ast.CreateEntityStmt)
 		if !ok {
 			continue
 		}
-		facts := entityFacts{persistable: s.Kind == ast.EntityPersistent}
+		facts := entityFacts{
+			persistable: s.Kind == ast.EntityPersistent,
+			view:        s.Kind == ast.EntityView,
+			uniqueAttrs: scriptUniqueAttrs(s),
+		}
 		if s.Generalization != nil {
 			facts.generalization = s.Generalization.String()
 		}
@@ -307,6 +326,11 @@ func (r *persistabilityResolver) persistable(entity string) (bool, bool) {
 }
 
 func (r *persistabilityResolver) lookup(entity string) (entityFacts, bool) {
+	for _, v := range r.views {
+		if v == entity {
+			return entityFacts{view: true}, true
+		}
+	}
 	if facts, ok := r.script[entity]; ok {
 		return facts, true
 	}
@@ -357,8 +381,32 @@ func projectEntityFacts(projectPath string) (map[string]entityFacts, backend.Ful
 }
 
 func entityFactsOf(e *domainmodel.Entity) entityFacts {
+	unique := make(map[string]bool, len(e.Attributes))
+	byID := make(map[string]string, len(e.Attributes))
+	for _, a := range e.Attributes {
+		if a == nil {
+			continue
+		}
+		unique[a.Name] = false
+		byID[string(a.ID)] = a.Name
+	}
+	for _, vr := range e.ValidationRules {
+		if vr == nil || vr.Type != "Unique" {
+			continue
+		}
+		// AttributeID is the attribute's $ID or, as stored, its qualified name.
+		name, ok := byID[string(vr.AttributeID)]
+		if !ok {
+			name = extractAttrNameFromQualified(string(vr.AttributeID))
+		}
+		if _, own := unique[name]; own {
+			unique[name] = true
+		}
+	}
 	return entityFacts{
 		persistable:    e.Persistable,
 		generalization: e.GeneralizationRef,
+		view:           isViewSource(e.Source),
+		uniqueAttrs:    unique,
 	}
 }
