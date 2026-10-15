@@ -13,12 +13,12 @@ description: "XPath constraint syntax for MDL — retrieve WHERE clauses, page d
 | 28-34 | When to Use This Skill |
 | 35-75 | XPath vs Mendix Expressions |
 | 76-119 | Syntax Reference |
-| 120-278 | How a Constraint Is Laid Out on Disk |
-| 279-329 | Usage Contexts |
-| 330-369 | Enumeration Attributes |
-| 370-411 | Common Patterns |
-| 412-423 | Validation |
-| 424-433 | Troubleshooting |
+| 120-292 | How a Constraint Is Laid Out on Disk |
+| 293-343 | Usage Contexts |
+| 344-383 | Enumeration Attributes |
+| 384-425 | Common Patterns |
+| 426-437 | Validation |
+| 438-447 | Troubleshooting |
 
 <!-- /skill-index -->
 # XPath Constraints in MDL
