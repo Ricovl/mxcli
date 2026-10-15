@@ -41,6 +41,10 @@ ALTER PAGE Module.EditPage {
 |----------|-------------|---------|
 | `Caption` | Button/link caption | `SET (Caption: 'Submit') ON btnSave` |
 | `Label` | Input field label | `SET (Label: 'Full Name') ON txtName` |
+| `Placeholder` | Input hint text (text box, text area, date picker) | `SET (Placeholder: 'Enter your name') ON txtName` |
+| `Password` | Mask a text box's input | `SET (Password: true) ON txtPin` |
+| `Validation` | A text box's validation expression | `SET (Validation: '$value != empty') ON txtName` |
+| `ValidationMessage` | Message shown when the validation fails | `SET (ValidationMessage: 'Name is required') ON txtName` |
 | `ButtonStyle` | Button visual style | `SET (ButtonStyle: Danger) ON btnDelete` |
 | `Class` | CSS class names | `SET (Class: 'card p-3') ON cMain` |
 | `Style` | Inline CSS | `SET (Style: 'margin: 8px;') ON cBox` |
