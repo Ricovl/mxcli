@@ -290,7 +290,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateInputBindingContext(w, argCtx, locationPrefix)...)
 		// Unknown-property warning applies only to built-in widgets; pluggable
 		// widgets get the stricter def.json check (MDL-WIDGET01) above, and
-		// object-list items are validated by the object-list engine.
+		// object-list items get its item-level twin below
+		// (validateObjectListItemUnknownProps).
 		def := lookupWidgetDef(w, registry)
 		// #2 from the view-entity-examples findings: a child the parent has
 		// nowhere to put. MDL-WIDGET26 above covers a container KEYWORD in that
@@ -332,6 +333,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validatePluggableSystemProps(w, def, registry, locationPrefix)...)
 		}
 		if mapping != nil {
+			// A key the item's schema does not have is never visited by the
+			// item builder, so it is dropped on write (#891 follow-up).
+			out = append(out, validateObjectListItemUnknownProps(w, mapping, locationPrefix)...)
 			out = append(out, validateObjectListItemEnums(w, mapping, locationPrefix)...)
 			// #931: a sub-property the widget's editorConfig hides must hold its
 			// default; a non-default value there is CE0463.
@@ -756,6 +760,101 @@ func validateObjectListItemEnums(w *ast.WidgetV3, mapping *ObjectListMapping, lo
 				locationPrefix, widgetLabel(w.Name, w.Type), ip.PropertyKey, val, strings.Join(ip.EnumValues, ", "),
 			),
 		})
+	}
+	return out
+}
+
+// validateObjectListItemUnknownProps refuses a property an object-list item
+// (an Accordion GROUP, a DataGrid COLUMN, a chart SERIES) has no route for.
+// The item builder walks the item's schema and looks each key up in the MDL
+// property bag, so a key that matches none is never visited and never written:
+// `group g1 (Caption: 'Group one')` passed check, exec reported success, and the
+// group kept the widget's default header text (#891 follow-up). MDL-WIDGET01,
+// the top-level rule's item-level twin.
+//
+// The vocabulary is exactly what buildObjectListItem reads: each schema key and
+// its MDL aliases, the `<name>Params` companion of a text-template property under
+// either spelling, and a chart series' friendly `DataSource:`. Unlike the
+// top-level check this does NOT accept the universal builtin names (Caption,
+// Class, Visible, …): the item builder routes none of them on its own, and
+// accepting them is what let `Caption` through.
+func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapping, locationPrefix string) []linter.Violation {
+	known := map[string]bool{}
+	var names []string
+	add := func(n string) {
+		if n == "" || known[strings.ToLower(n)] {
+			return
+		}
+		known[strings.ToLower(n)] = true
+		names = append(names, n)
+	}
+	for _, ip := range mapping.ItemProperties {
+		spellings := append([]string{ip.PropertyKey}, ip.MdlAliases...)
+		for _, n := range spellings {
+			add(n)
+		}
+		if ip.Operation == "texttemplate" {
+			for _, n := range spellings {
+				add(n + "Params")
+			}
+		}
+	}
+	if isChartSeriesContainer(mapping.MDLContainer) {
+		add("DataSource")
+	}
+
+	var out []linter.Violation
+	for _, key := range sortedPropertyKeys(w) {
+		if known[strings.ToLower(key)] {
+			continue
+		}
+		hint := ""
+		if ext := extensionsOf(key, names); len(ext) > 0 {
+			// `attributeValue` on an HTMLElement attribute: the value lives under
+			// attributeValueTemplate / attributeValueExpression, and edit
+			// distance picks attributeName, the one key that is certainly wrong.
+			hint = fmt.Sprintf(" — did you mean `%s`?", strings.Join(ext, "` or `"))
+		} else if s := nearestKey(key, names); s != "" {
+			hint = fmt.Sprintf(" — did you mean `%s`?", s)
+		} else if len(names) > 0 {
+			hint = fmt.Sprintf(" — its properties are %s", strings.Join(itemPropertyNames(mapping), ", "))
+		}
+		out = append(out, linter.Violation{
+			RuleID:   "MDL-WIDGET01",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf(
+				"%s: %s has no property `%s`, so the value would be dropped on write%s",
+				locationPrefix, widgetLabel(w.Name, strings.ToLower(mapping.MDLContainer)), key, hint,
+			),
+		})
+	}
+	return out
+}
+
+// extensionsOf returns the candidates that extend key (case-insensitively),
+// excluding `…Params` companions — the names a truncated key most likely meant.
+func extensionsOf(key string, candidates []string) []string {
+	lower := strings.ToLower(key)
+	var out []string
+	for _, c := range candidates {
+		lc := strings.ToLower(c)
+		if lc != lower && strings.HasPrefix(lc, lower) && !strings.HasSuffix(lc, "params") {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// itemPropertyNames lists an item's schema keys, each with its first MDL alias
+// when it has one — the spelling an author is most likely to want.
+func itemPropertyNames(mapping *ObjectListMapping) []string {
+	out := make([]string, 0, len(mapping.ItemProperties))
+	for _, ip := range mapping.ItemProperties {
+		n := ip.PropertyKey
+		if len(ip.MdlAliases) > 0 {
+			n += " (" + ip.MdlAliases[0] + ")"
+		}
+		out = append(out, n)
 	}
 	return out
 }

@@ -26,7 +26,7 @@ create entity A1274.Item ( Name: String(100), Qty: Integer );
 create page A1274.AccPage ( Title: 'Acc', Layout: Atlas_Core.Atlas_Default )
 {
   PLUGGABLEWIDGET 'com.mendix.widget.web.accordion.Accordion' acc1 {
-    GROUP g1 (Caption: 'Group one') {
+    GROUP g1 (HeaderText: 'Group one') {
       DATAGRID grid1 (DataSource: DATABASE A1274.Item) {
         COLUMN (Attribute: Name, Caption: 'Name')
         COLUMN (Attribute: Qty, Caption: 'Qty')
