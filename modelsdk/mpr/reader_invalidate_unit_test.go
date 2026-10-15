@@ -25,6 +25,34 @@ func unitCacheSnapshot(t *testing.T, r *Reader) []string {
 	return out
 }
 
+// nameIndexSnapshot is the name index and its derived maps as text; the
+// headers by type keep their order, which listings follow.
+func nameIndexSnapshot(t *testing.T, r *Reader) string {
+	t.Helper()
+	if err := r.buildUnitNameIndex(); err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for k, es := range r.nameIndex {
+		var ids []string
+		for _, e := range es {
+			ids = append(ids, e.ID+"@"+e.ContainerID)
+		}
+		lines = append(lines, fmt.Sprintf("name %q %v", k, ids))
+	}
+	for typ, hs := range r.headersByType {
+		lines = append(lines, fmt.Sprintf("type %s %v", typ, hs))
+	}
+	for id, h := range r.headerByID {
+		lines = append(lines, fmt.Sprintf("id %s %v", id, h))
+	}
+	for id, c := range r.containerParent {
+		lines = append(lines, "parent "+id+" "+c)
+	}
+	sort.Strings(lines)
+	return fmt.Sprint(lines)
+}
+
 // TestInvalidateUnit_MatchesFreshBuild writes through the writer — rename,
 // move, insert, delete — and after each write requires the patched unit cache
 // to equal the one a freshly opened reader builds.
@@ -37,6 +65,9 @@ func TestInvalidateUnit_MatchesFreshBuild(t *testing.T) {
 	defer w.Close()
 	r := w.reader
 	if _, err := r.ListModules(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.buildUnitNameIndex(); err != nil { // so writes patch it
 		t.Fatal(err)
 	}
 
@@ -64,6 +95,9 @@ func TestInvalidateUnit_MatchesFreshBuild(t *testing.T) {
 		if fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("%s: patched unit cache (%d units) differs from a fresh build (%d units)", step, len(got), len(want))
 		}
+		if nameIndexSnapshot(t, r) != nameIndexSnapshot(t, fresh) {
+			t.Errorf("%s: patched name index differs from a fresh build", step)
+		}
 	}
 
 	// Rename the folder: same-length name, last letter swapped.
@@ -81,6 +115,29 @@ func TestInvalidateUnit_MatchesFreshBuild(t *testing.T) {
 		t.Fatalf("move: %v", err)
 	}
 	check("move")
+
+	// Rename the microflow: an update that moves its name-index key.
+	mb, err := r.GetRawUnitBytes(doc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.UpdateRawUnit(doc.ID, bytes.Replace(mb, []byte(doc.Name+"\x00"), []byte(doc.Name[:len(doc.Name)-1]+"Q\x00"), 1)); err != nil {
+		t.Fatalf("rename microflow: %v", err)
+	}
+	check("rename microflow")
+
+	// Insert and delete a clone of the microflow under a new ID.
+	const mfCloneID = "0c0c0c0c-1111-2222-3333-444444444444"
+	mb, _ = r.GetRawUnitBytes(doc.ID)
+	mfClone := bytes.Replace(mb, uuidToBlob(doc.ID), uuidToBlob(mfCloneID), 1)
+	if err := w.InsertUnit(mfCloneID, folder.ID, "Documents", "Microflows$Microflow", mfClone); err != nil {
+		t.Fatalf("insert microflow: %v", err)
+	}
+	check("insert microflow")
+	if err := w.DeleteUnit(mfCloneID); err != nil {
+		t.Fatalf("delete microflow: %v", err)
+	}
+	check("delete microflow")
 
 	// Insert a clone of the folder under a new ID.
 	const cloneID = "0b0b0b0b-1111-2222-3333-444444444444"
