@@ -73,6 +73,11 @@ return in an inserted fragment, ...) is refused by exec under "mdl 1;", and
 check reports it as an MDL-V1-REBUILD error with exec's message. Under mdl 0
 exec rebuilds the whole flow instead, and check reports the MDL-V1-REBUILD
 warning exec prints. An "alter microflow|nanoflow" exec would refuse is MDL090.
+
+Given a project it also applies exec's version gates: a statement the project's
+Mendix version cannot store (create view entity below 10.18, send email below
+11.13, ...) is MDL-VERSION01, with the message exec refuses it with. See
+"show features" for the floors.
 This is the verdict "mxcli diff" reports as "Refused:", computed by the same
 code. A statement on a flow an earlier statement of the script changes, or
 whose flow does not build until an earlier statement has run, is not predicted.
@@ -324,6 +329,11 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 			// already stored that way: re-applying it changes nothing.
 			violations = executor.SettleStoredVoidReturnValues(violations, prog, executor.NewStoredVoidReturns(b))
 			violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
+			// MDL-VERSION01: a statement the project's Mendix version cannot
+			// store. The gates are the ones exec's handlers refuse with, from
+			// one table (executor.statementVersionGates), so check -p no
+			// longer passes a script exec refuses for the version (#1434).
+			violations = append(violations, exec.CheckVersionGates(prog)...)
 		}
 	}
 	violations = executor.ApplyDeprecationPolicy(violations, depPolicy)

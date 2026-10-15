@@ -1488,13 +1488,8 @@ func createODataService(ctx *ExecContext, stmt *ast.CreateODataServiceStmt) erro
 				"the default (Yes), or drop SupportsGraphQL.")
 	}
 
-	if stmt.SupportsGraphQL {
-		if err := checkFeature(ctx, "integration", "odata_graphql",
-			"SupportsGraphQL on a published OData service",
-			"Publishing a service as GraphQL as well arrived in Studio Pro 10.14. "+
-				"Remove SupportsGraphQL to publish OData only."); err != nil {
-			return err
-		}
+	if err := checkVersionGates(ctx, stmt); err != nil {
+		return err
 	}
 
 	module, err := findModule(ctx, stmt.Name.Module)

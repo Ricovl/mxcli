@@ -542,9 +542,7 @@ func execCreatePublishedRestService(ctx *ExecContext, s *ast.CreatePublishedRest
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "published_rest_service",
-		"create published rest service",
-		"upgrade your project to 10.0+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -881,9 +879,7 @@ func execAlterPublishedRestService(ctx *ExecContext, s *ast.AlterPublishedRestSe
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "published_rest_alter",
-		"alter published rest service",
-		"upgrade your project to 10.0+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

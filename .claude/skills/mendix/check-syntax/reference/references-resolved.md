@@ -12,6 +12,22 @@ Beyond the page, microflow, entity and icon names a statement names directly,
 - `Module.Enum.Key` in an expression;
 - a view entity's FROM / JOIN entities.
 
+## The project's Mendix version
+
+`check -p` applies the version gates `exec` refuses with — the same
+statement-to-feature table, the floors in `sdk/versions/*.yaml` (`show features`)
+— as **MDL-VERSION01** (mendixlabs/mxcli#1434):
+
+```
+statement 5: create view entity requires Mendix 10.18.0+ (project is 9.24.30.51827) [MDL-VERSION01]
+```
+
+`exec` reports the same line in its pre-flight and writes nothing. Without a
+project there is no version, so nothing is reported. Still exec-only: a gate that
+depends on what the project stores (a `drop`/`alter message definition` of a
+document that is not there), and the write-time property floor (`this Mendix X
+project cannot store …`), which needs the encoded document.
+
 ## Not yet resolved
 
 A passing check does not prove these; `mxcli docker check` is still the gate:
