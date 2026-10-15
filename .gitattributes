@@ -79,3 +79,6 @@ docs-wiki/SYNC_LOG.md merge=union
 # syncs collide on one line. The prose that used to surround it stays in
 # maintain-wiki.md, where union would be a hazard rather than a help.
 .claude/skills/maintain-wiki/pages.md merge=union
+
+# Holds raw CR bytes on purpose: the case is a CRLF note vs an LF one (#1505).
+mdl-examples/bug-tests/1505-free-annotation-crlf-splice.mdl -text

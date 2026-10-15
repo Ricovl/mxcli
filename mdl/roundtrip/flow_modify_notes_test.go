@@ -256,3 +256,42 @@ func TestSpliceRerun_PedAppNanoflowsUnderTheHeader(t *testing.T) {
 		t.Fatal("PedApp has no nanoflow — the enumeration is broken")
 	}
 }
+
+// mendixlabs/mxcli#1505: a multi-line free annotation holds CRLF, as Studio
+// Pro stores it and describe prints it. The same flow with LF line breaks —
+// what an editor saves — was refused under mdl 1 ("the free annotations
+// change; the splice edits activities only"), on every run. Line breaks are
+// not a change: the run writes nothing, and the note keeps its CRLF bytes.
+func TestSpliceRerun_FreeNoteLineEndings(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	flow := func(eol string) string {
+		return "mdl 1;\ncreate or modify microflow MyFirstModule.Rerun_FreeNoteEol ()\nbegin\n" +
+			"  @annotation 'First line." + eol + "Second line.'\n" +
+			"  @position(200, 200)\n" +
+			"  @annotation 'On the log." + eol + "Two lines.'\n" +
+			"  log info node 'Notes' 'hello';\nend;\n"
+	}
+	if err := h.exec(flow("\r\n")); err != nil {
+		t.Fatalf("create: %v\n%s", err, h.out.String())
+	}
+	got := h.describeUnder("mdl 1;", "microflow MyFirstModule.Rerun_FreeNoteEol")
+	if !strings.Contains(got, "First line.\r\nSecond line.") {
+		t.Fatalf("the free note was not stored with CRLF; the case is gone:\n%q", got)
+	}
+	for _, eol := range []string{"\r\n", "\n"} {
+		before := h.snapshot()
+		if err := h.exec(flow(eol)); err != nil {
+			t.Fatalf("re-run with %q line breaks: %v\n%s", eol, err, h.out.String())
+		}
+		if changed := before.diff(h.snapshot()); len(changed) != 0 {
+			t.Errorf("re-run with %q line breaks wrote %d unit(s)", eol, len(changed))
+		}
+	}
+	// Control: a real change to the free note is still refused, and the
+	// refusal names the note.
+	err := h.exec(strings.Replace(flow("\n"), "Second line.", "Second line, reworded.", 1))
+	if err == nil || !strings.Contains(err.Error(), `note "First line.\r\nSecond line." is now "First line.\nSecond line, reworded."`) {
+		t.Fatalf("a reworded free note: err = %v\n%s", err, h.out.String())
+	}
+}
