@@ -30,6 +30,24 @@ var incrementalTypes = map[string]bool{
 	"Microflows$Rule":      true,
 }
 
+// domainModelType is rebuilt per module: an edit, not an add or remove (which
+// comes with a module added or removed).
+const domainModelType = "DomainModels$DomainModel"
+
+// createIncrementalTables makes the temp tables the builders' SQL filters on;
+// empty in a full build.
+func createIncrementalTables(tx CatalogTx) error {
+	for _, q := range []string{
+		`CREATE TEMP TABLE IF NOT EXISTS incremental_units (UnitId TEXT PRIMARY KEY)`,
+		`CREATE TEMP TABLE IF NOT EXISTS incremental_modules (Name TEXT, Id TEXT)`,
+	} {
+		if _, err := tx.Exec(q); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // maxIncrementalUnits bounds an incremental refresh; past it a full build is
 // as cheap and simpler.
 const maxIncrementalUnits = 200
@@ -170,6 +188,9 @@ func (b *Builder) PlanIncremental() (changed []types.UnitStamp, removed []string
 			// unchanged
 		case incrementalTypes[n.Type] && o.Type == n.Type:
 			changed = append(changed, n)
+		case n.Type == domainModelType && o.Type == n.Type && o.ContainerID == n.ContainerID:
+			changed = append(changed, n) // rebuilt per module
+
 		default:
 			return nil, nil, "a non-flow unit changed or moved"
 		}
@@ -253,16 +274,22 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		return b.commitStamps(tx)
 	}
 	in := "(" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")"
-	if _, err := tx.Exec(`CREATE TEMP TABLE IF NOT EXISTS incremental_units (UnitId TEXT PRIMARY KEY)`); err != nil {
+	if err := createIncrementalTables(tx); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM incremental_units`); err != nil {
-		return err
+	for _, q := range []string{`DELETE FROM incremental_units`, `DELETE FROM incremental_modules`} {
+		if _, err := tx.Exec(q); err != nil {
+			return err
+		}
 	}
 	for _, id := range ids {
 		if _, err := tx.Exec(`INSERT INTO incremental_units (UnitId) VALUES (?)`, id); err != nil {
 			return err
 		}
+	}
+	dmSteps, err := b.prepareDomainModels(tx, changed)
+	if err != nil {
+		return err
 	}
 	// Permissions are keyed by name, so by the stored (pre-rename) name.
 	if _, err := tx.Exec(`DELETE FROM permissions WHERE ElementType = ? AND ElementName IN
@@ -283,7 +310,7 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		}
 	}
 
-	for _, step := range []struct {
+	for _, step := range append(dmSteps, []struct {
 		name string
 		run  func() error
 	}{
@@ -292,7 +319,7 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		{"permissions", b.buildPermissions},
 		{"references", b.buildReferences},
 		{"strings", b.buildStrings},
-	} {
+	}...) {
 		if err := step.run(); err != nil {
 			return fmt.Errorf("failed to build %s: %w", step.name, err)
 		}
@@ -318,6 +345,85 @@ func (b *Builder) commitStamps(tx CatalogTx) error {
 	}
 	b.tx = nil
 	return b.catalog.SetMeta(MetaBuildTime, time.Now().Format(time.RFC3339))
+}
+
+type incrementalStep = struct {
+	name string
+	run  func() error
+}
+
+// prepareDomainModels records the modules of the changed domain models,
+// deletes their rows, and returns the builder steps that rebuild them, which
+// run before the flow steps (the member-ref index reads their entities).
+func (b *Builder) prepareDomainModels(tx CatalogTx, changed []types.UnitStamp) ([]incrementalStep, error) {
+	var modules [][2]string
+	for _, s := range changed {
+		if s.Type == domainModelType {
+			id := b.hierarchy.findModuleID(model.ID(s.ContainerID))
+			modules = append(modules, [2]string{b.hierarchy.getModuleName(id), string(id)})
+		}
+	}
+	if len(modules) == 0 {
+		return nil, nil
+	}
+	for _, m := range modules {
+		if _, err := tx.Exec(`INSERT INTO incremental_modules (Name, Id) VALUES (?, ?)`, m[0], m[1]); err != nil {
+			return nil, err
+		}
+	}
+	const inMods = `(SELECT Name FROM incremental_modules)`
+	external := `SELECT COUNT(*) FROM entities_data WHERE IsExternal = 1 AND ModuleName IN ` + inMods
+	var n int
+	if err := tx.QueryRow(external).Scan(&n); err != nil || n > 0 {
+		return nil, fmt.Errorf("a changed domain model has external entities")
+	}
+	for _, del := range []string{
+		`DELETE FROM entities_data WHERE ModuleName IN ` + inMods,
+		`DELETE FROM attributes_data WHERE ModuleName IN ` + inMods,
+		`DELETE FROM associations_data WHERE ModuleName IN ` + inMods,
+		`DELETE FROM entity_event_handlers_data WHERE ModuleName IN ` + inMods,
+		`DELETE FROM permissions WHERE ElementType = 'ENTITY' AND ModuleName IN ` + inMods,
+		`DELETE FROM xpath_expressions_data WHERE DocumentType = 'DOMAIN_MODEL' AND ModuleName IN ` + inMods,
+		`DELETE FROM refs WHERE SourceType IN ('ENTITY', 'ASSOCIATION') AND ModuleName IN ` + inMods,
+		`DELETE FROM strings WHERE ObjectType IN ('ENTITY', 'ATTRIBUTE', 'ASSOCIATION') AND ModuleName IN ` + inMods +
+			` OR StringContext = 'domain_model_documentation' AND UnitId IN (SELECT Id FROM incremental_modules)`,
+	} {
+		if _, err := tx.Exec(del); err != nil {
+			return nil, fmt.Errorf("%s: %w", del, err)
+		}
+	}
+	return []incrementalStep{
+		{"entities", b.buildEntities},
+		{"external entities check", func() error {
+			if err := tx.QueryRow(external).Scan(&n); err != nil || n > 0 {
+				return fmt.Errorf("a changed domain model has external entities")
+			}
+			return nil
+		}},
+		{"associations", b.buildAssociations},
+		{"entity event handlers", b.buildEntityEventHandlers},
+		{"regular expression rules", b.collectRegexRuleRefs},
+		{"module documentation", b.updateModuleDocumentation},
+	}, nil
+}
+
+// updateModuleDocumentation sets modules_data's domain-model documentation for
+// the changed domain models' modules.
+func (b *Builder) updateModuleDocumentation() error {
+	dms, err := b.cachedDomainModels()
+	if err != nil {
+		return err
+	}
+	for _, dm := range dms {
+		if !b.wants(string(dm.ID)) {
+			continue
+		}
+		if _, err := b.tx.Exec(`UPDATE modules_data SET DomainModelDocumentation = ? WHERE Id = ?`,
+			dm.Documentation, string(b.hierarchy.findModuleID(dm.ContainerID))); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // loadActiveSnapshot points the builder at the catalog's existing snapshot,

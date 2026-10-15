@@ -51,6 +51,9 @@ func (b *Builder) buildAssociations() error {
 
 	count := 0
 	for _, dm := range domainModels {
+		if !b.wants(string(dm.ID)) {
+			continue
+		}
 		modName := moduleNames[dm.ContainerID]
 
 		for _, assoc := range dm.Associations {

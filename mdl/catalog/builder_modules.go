@@ -109,6 +109,9 @@ func (b *Builder) buildEntities() error {
 	entityCount := 0
 	attrCount := 0
 	for _, dm := range domainModels {
+		if !b.wants(string(dm.ID)) {
+			continue
+		}
 		// Get module name using hierarchy
 		moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)

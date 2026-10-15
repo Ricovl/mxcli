@@ -77,7 +77,7 @@ type regexRuleRef struct{ entityQualifiedName, moduleName, regexQualifiedName st
 // restricted to ENTITY/MICROFLOW/NANOFLOW/PAGE/SNIPPET, so a regex was never
 // reported dead in the first place.
 func (b *Builder) collectRegexRuleRefs() error {
-	units, err := b.reader.ListRawUnitsByType("DomainModels$DomainModel")
+	units, err := b.rawUnits("DomainModels$DomainModel")
 	if err != nil {
 		return nil // domain models are catalogued elsewhere; a read failure is reported there
 	}

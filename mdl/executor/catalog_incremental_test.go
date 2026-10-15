@@ -96,7 +96,7 @@ func dumpCatalog(t *testing.T, path string) map[string][]string {
 		tables = append(tables, n)
 	}
 	rows.Close()
-	skip := map[string]bool{"SnapshotId": true, "ProjectId": true, "SnapshotDate": true, "MtimeNs": true}
+	skip := map[string]bool{"SnapshotId": true, "ProjectId": true, "SnapshotDate": true, "MtimeNs": true, "Digest": true}
 	out := map[string][]string{}
 	for _, table := range tables {
 		cols, _ := db.Query(fmt.Sprintf(`PRAGMA table_info(%q)`, table))
@@ -151,6 +151,48 @@ func TestIncrementalCatalog_AddedAndRemovedFlows(t *testing.T) {
 	incremental := dumpCatalog(t, cachePath)
 	if !strings.Contains(strings.Join(incremental["microflows_data"], "\n"), "IncAdded") {
 		t.Fatal("the added microflow is not in the refreshed catalog")
+	}
+
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	full := dumpCatalog(t, cachePath)
+	for table, rows := range full {
+		if got := incremental[table]; strings.Join(got, "\n") != strings.Join(rows, "\n") {
+			t.Errorf("table %s: incremental has %d rows, full rebuild %d", table, len(got), len(rows))
+		}
+	}
+}
+
+// TestIncrementalCatalog_ChangedDomainModel adds an entity with documentation,
+// an association and an access rule, and a flow that uses it, and requires
+// the incremental refresh to equal a full rebuild.
+func TestIncrementalCatalog_ChangedDomainModel(t *testing.T) {
+	exec := typeCheckFixture(t)
+	ctx := exec.newExecContext(context.Background())
+	// A documented entity already in the module, so its rows exist to go stale.
+	run(t, exec, `/** Base entity. */
+create persistent entity Administration.IncBase (Name: String(50));`)
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	cachePath := getCachePath(ctx)
+
+	run(t, exec, `/** Connection settings. */
+create persistent entity Administration.IncSettings (
+  EndpointUrl: String(200),
+  ApiKey: String(unlimited)
+);`)
+	run(t, exec, `create association Administration.IncSettings_Account from Administration.IncSettings to Administration.Account;`)
+	run(t, exec, `grant read (EndpointUrl, ApiKey), write (EndpointUrl, ApiKey) on entity Administration.IncSettings to Administration.Administrator;`)
+	run(t, exec, `create microflow Administration.IncSettings_Get () returns Administration.IncSettings folder 'IncSettings' begin
+  retrieve $S from Administration.IncSettings first;
+  return $S;
+end;`)
+
+	if !refreshCatalogIncrementally(ctx, cachePath, "full") {
+		t.Fatal("refresh after changing a domain model was not incremental")
+	}
+	ctx.Catalog.Close()
+	incremental := dumpCatalog(t, cachePath)
+	if !strings.Contains(strings.Join(incremental["entities_data"], "\n"), "IncSettings") {
+		t.Fatal("the added entity is not in the refreshed catalog")
 	}
 
 	run(t, exec, "REFRESH CATALOG FULL FORCE")

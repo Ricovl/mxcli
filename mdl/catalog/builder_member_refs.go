@@ -440,12 +440,16 @@ func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, project
 // enumeration one of its attributes is typed as. Without it an enumeration had
 // no inbound edge at all, and `impact` on it answered "not referenced".
 func (b *Builder) extractEnumerationTypeRefs(projectID, snapshotID string) int {
+	if createIncrementalTables(b.tx) != nil {
+		return 0
+	}
 	res, err := b.tx.Exec(
 		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 		 SELECT DISTINCT ?, COALESCE(EntityId, ''), EntityQualifiedName, ?, '', EnumerationQualifiedName, ?, ModuleName, ?, ?
 		 FROM attributes_data
-		 WHERE EnumerationQualifiedName IS NOT NULL AND EnumerationQualifiedName != ''`,
-		RefObjectEntity, RefObjectEnumeration, RefKindType, projectID, snapshotID)
+		 WHERE EnumerationQualifiedName IS NOT NULL AND EnumerationQualifiedName != ''
+		   AND (?6 = '' OR ModuleName IN (SELECT Name FROM incremental_modules))`,
+		RefObjectEntity, RefObjectEnumeration, RefKindType, projectID, snapshotID, b.incrementalFlag())
 	if err != nil {
 		return 0
 	}

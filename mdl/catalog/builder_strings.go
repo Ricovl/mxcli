@@ -194,7 +194,7 @@ func (b *Builder) buildStrings() error {
 func (b *Builder) buildDocumentationStrings() (int, error) {
 	_, snapshotID := b.snapshotMeta()
 	// Filled by BuildIncremental; empty (and unread) in a full build.
-	if _, err := b.tx.Exec(`CREATE TEMP TABLE IF NOT EXISTS incremental_units (UnitId TEXT PRIMARY KEY)`); err != nil {
+	if err := createIncrementalTables(b.tx); err != nil {
 		return 0, err
 	}
 
@@ -205,11 +205,13 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 		FROM objects
 		WHERE Description <> '' AND SnapshotId = ?1
 		  AND ObjectType NOT IN ('MICROFLOW', 'WORKFLOW', 'CONTRACT_ENTITY')
-		  AND (?2 = '' OR Id IN (SELECT UnitId FROM incremental_units))
+		  AND (?2 = '' OR Id IN (SELECT UnitId FROM incremental_units)
+		       OR ObjectType IN ('ENTITY', 'ASSOCIATION') AND ModuleName IN (SELECT Name FROM incremental_modules))
 		UNION ALL
 		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName, Id
 		FROM attributes_data
-		WHERE Description <> '' AND SnapshotId = ?1 AND ?2 = ''
+		WHERE Description <> '' AND SnapshotId = ?1
+		  AND (?2 = '' OR ModuleName IN (SELECT Name FROM incremental_modules))
 		UNION ALL
 		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName, MicroflowId
 		FROM microflow_parameters_data
@@ -222,7 +224,8 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 		UNION ALL
 		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name, Id
 		FROM modules_data
-		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1 AND ?2 = ''
+		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1
+		  AND (?2 = '' OR Id IN (SELECT Id FROM incremental_modules))
 	`, snapshotID, b.incrementalFlag())
 	if err != nil {
 		return 0, err

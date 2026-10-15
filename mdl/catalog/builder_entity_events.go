@@ -88,6 +88,9 @@ func (b *Builder) buildEntityEventHandlers() error {
 
 	count := 0
 	for _, dm := range domainModels {
+		if !b.wants(string(dm.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 

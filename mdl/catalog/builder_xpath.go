@@ -72,8 +72,11 @@ func (b *Builder) buildXPathExpressions() error {
 
 	// 2. Extract from entity access rules
 	dms, err := b.cachedDomainModels()
-	if err == nil && !b.incremental() {
+	if err == nil {
 		for _, dm := range dms {
+			if !b.wants(string(dm.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 

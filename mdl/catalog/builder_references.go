@@ -506,20 +506,13 @@ func (b *Builder) buildReferences() error {
 		}
 	}
 
-	// An incremental refresh rebuilds flows only: their member and XPath
-	// refs, and nothing below that comes from other documents.
-	if b.incremental() {
-		idx := b.loadMemberRefIndex()
-		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
-		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
-		b.report("References", refCount)
-		return nil
-	}
-
 	// Extract entity references (generalization) — using cached list
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
+			if !b.wants(string(dm.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -580,6 +573,20 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+	}
+
+	// An incremental refresh rebuilds flows and domain models only: the rows
+	// above, the edges collected from the changed domain models, and their
+	// member and XPath refs. Nothing below comes from those documents.
+	if b.incremental() {
+		refCount += b.extractRegexRuleRefs(stmt, projectID, snapshotID)
+		refCount += b.extractEventHandlerRefs(stmt, projectID, snapshotID)
+		refCount += b.extractEnumerationTypeRefs(projectID, snapshotID)
+		idx := b.loadMemberRefIndex()
+		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
+		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
+		b.report("References", refCount)
+		return nil
 	}
 
 	// Extract page references (layout, datasources, parameters) — using cached list

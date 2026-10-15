@@ -74,6 +74,7 @@ func (b *Builder) buildPermissions() error {
 	permCount := 0
 
 	if b.incremental() {
+		permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
 		permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
 	} else {
 		permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
@@ -90,12 +91,16 @@ func (b *Builder) buildPermissions() error {
 func (b *Builder) buildEntityPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	dms, err := b.reader.ListDomainModels()
+	dms, err := b.cachedDomainModels()
 	if err != nil {
 		return 0
 	}
 
 	for _, dm := range dms {
+		if !b.wants(string(dm.ID)) {
+			continue
+		}
+
 		moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 
