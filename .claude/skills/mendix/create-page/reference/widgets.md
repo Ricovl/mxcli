@@ -551,6 +551,12 @@ combobox cbCountry (label: 'Country', attribute: Country)
 combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer, CaptionAttribute: Name)
 -- WRONG: `combobox (Association: X)` with no datasource — mxcli check errors
 -- MDL-WIDGET16 (Mendix would otherwise drop the binding → CE0642).
+-- WRONG: a datasource with no caption — also MDL-WIDGET16, CE0642
+-- "Property 'Caption' is required." An expression caption works instead of
+-- CaptionAttribute, but needs BOTH keys:
+--   optionsSourceAssociationCaptionType: expression,
+--   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
+-- Enumeration mode (no datasource) has no caption and needs none.
 ```
 
 ### DataView with Form Layout

@@ -1,0 +1,45 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — association-mode combo box with no caption
+-- ============================================================================
+--
+-- NEGATIVE TEST (.fail.mdl): `mxcli check` MUST reject this file
+-- (MDL-WIDGET16). An unexpected pass means the caption half of the rule has
+-- regressed.
+--
+-- The issue's own script had no `CaptionAttribute:` on either combo box. check
+-- and exec passed; on fresh 11.13.0 and 11.14.0 projects mxbuild reported, once
+-- per combo box:
+--
+--   [error] [CE0642] "Property 'Caption' is required." at Combo box 'cbDistrict'
+--
+-- A data source is what puts a combo box in association mode, and that mode
+-- needs a caption: `CaptionAttribute: <Attr>`, or
+-- `optionsSourceAssociationCaptionType: expression` WITH
+-- `optionsSourceAssociationCaptionExpression: '…'`. Enumeration mode
+-- (`Attribute: <enum attr>`, no data source) has no caption and needs none —
+-- see 1466-datasource-xpath-variable-traversal-ok.mdl.
+-- ============================================================================
+
+create module Bug1466C;
+create persistent entity Bug1466C.Region (Name: String(100));
+create persistent entity Bug1466C.District (Name: String(100));
+create persistent entity Bug1466C.AreaPicker (Label: String(50));
+create association Bug1466C.District_Region from Bug1466C.District to Bug1466C.Region type Reference;
+create association Bug1466C.AreaPicker_Region from Bug1466C.AreaPicker to Bug1466C.Region type Reference;
+create association Bug1466C.AreaPicker_District from Bug1466C.AreaPicker to Bug1466C.District type Reference;
+
+create page Bug1466C.NoCaption (
+  Params: ($Picker: Bug1466C.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvPicker (DataSource: $Picker) {
+          combobox cbDistrict (Association: Bug1466C.AreaPicker_District,
+            DataSource: database Bug1466C.District where [Bug1466C.District_Region = $currentObject/Bug1466C.AreaPicker_Region])
+        }
+      }
+    }
+  }
+};
