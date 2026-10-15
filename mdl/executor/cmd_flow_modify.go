@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -747,7 +748,7 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	declared, declaredFree := withoutFreeNotes(declared)
 	stored, storedFree := withoutFreeNotes(stored)
 	if !declaredMatches(declaredFree, storedFree) {
-		return nil, nil, nil, cannotSplice("the free annotations change; the splice edits activities only")
+		return nil, nil, nil, cannotSplice("the free annotations change (%s); the splice edits activities only", freeNoteChange(declaredFree, storedFree))
 	}
 
 	// @start is where the start event is drawn, which describe prints on the
@@ -1340,6 +1341,33 @@ func keepStoredNotes(stored ast.MicroflowStatement, declared []ast.MicroflowStat
 	out = append([]ast.MicroflowStatement(nil), declared...)
 	out[0] = withAnnotations(declared[0], func(a *ast.ActivityAnnotations) { a.Notes = nil })
 	return out, false, nil
+}
+
+// freeNoteChange names the first free annotation that differs between the
+// declared and the stored flow, so a refusal says which note to look at
+// (mendixlabs/mxcli#1505). The text is quoted with escapes, which shows
+// a difference in invisible characters for what it is.
+func freeNoteChange(declared, stored []ast.MicroflowAnnotation) string {
+	quote := func(text string) string {
+		if r := []rune(text); len(r) > 40 {
+			text = string(r[:40]) + "…"
+		}
+		return strconv.Quote(text)
+	}
+	for i := 0; i < len(declared) || i < len(stored); i++ {
+		switch {
+		case i >= len(stored):
+			return "note " + quote(declared[i].Text) + " is not in the stored flow"
+		case i >= len(declared):
+			return "note " + quote(stored[i].Text) + " is not in the script"
+		case !declaredMatches(declared[i], stored[i]):
+			if declared[i].Text != stored[i].Text {
+				return "note " + quote(stored[i].Text) + " is now " + quote(declared[i].Text)
+			}
+			return "note " + quote(stored[i].Text) + " is drawn elsewhere"
+		}
+	}
+	return "their order differs"
 }
 
 // withoutFreeNotes returns the statements with their free annotations taken

@@ -5,6 +5,7 @@ package executor
 import (
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -156,31 +157,8 @@ func (pb *pageBuilder) entityAttributeOwners() (owners map[string]map[string]boo
 //
 // where names the binding for the message (e.g. "column `colCustomer`").
 func (pb *pageBuilder) rejectAssociationAsAttribute(name, entityContext, where string) error {
-	// A path (`Assoc/Attr`) is the SUPPORTED form; a `$var` reference and an
-	// empty binding are not ours to judge here.
-	if name == "" || strings.ContainsAny(name, "/$") || entityContext == "" {
-		return nil
-	}
-	// Deciding attribute-vs-association needs the model; without one (no backend
-	// and nothing cached — a unit test building widgets in isolation) let the
-	// binding through rather than guessing, exactly as declaringEntityFor does.
-	if pb.backend == nil && (pb.execCache == nil || pb.execCache.domainModels == nil) {
-		return nil
-	}
-	name = storedSystemMemberName(name)
-	// A three-part name is already an explicit Module.Entity.Attribute.
-	if strings.Count(name, ".") >= 2 {
-		return nil
-	}
-	// An attribute wins: entity members share one namespace, so a name that
-	// resolves as an attribute anywhere in the generalization chain is not an
-	// association.
-	if _, ok := pb.declaringEntityFor(entityContext, name); ok {
-		return nil
-	}
-	assocQN := pb.resolveAssociationPathIn(name, entityContext)
-	fromEntity, toEntity, ok := pb.associationEndpoints(assocQN)
-	if !ok || !pb.entityInChain(entityContext, fromEntity) {
+	assocQN, fromEntity, toEntity, ok := pb.associationNamedAsAttribute(name, entityContext)
+	if !ok {
 		return nil
 	}
 	leaf := toEntity
@@ -196,6 +174,75 @@ func (pb *pageBuilder) rejectAssociationAsAttribute(name, entityContext, where s
 			"`dropdownfilter f (Association: %s, datasource: database %s, CaptionAttribute: <Attr>)`",
 		where, name, fromEntity, toEntity, entityContext, name,
 		name, name, assocQN, toEntity)
+}
+
+// associationNamedAsAttribute reports whether name, bound where an attribute
+// belongs against entityContext, is in fact an association reachable from that
+// entity — and if so which one, and the entities at its two ends. It is the
+// decision behind rejectAssociationAsAttribute, shared with the combo box's own
+// wording of the refusal so the two cannot disagree on what they refuse.
+func (pb *pageBuilder) associationNamedAsAttribute(name, entityContext string) (assocQN, fromEntity, toEntity string, ok bool) {
+	// A path (`Assoc/Attr`) is the SUPPORTED form; a `$var` reference and an
+	// empty binding are not ours to judge here.
+	if name == "" || strings.ContainsAny(name, "/$") || entityContext == "" {
+		return "", "", "", false
+	}
+	// Deciding attribute-vs-association needs the model; without one (no backend
+	// and nothing cached — a unit test building widgets in isolation) let the
+	// binding through rather than guessing, exactly as declaringEntityFor does.
+	if pb.backend == nil && (pb.execCache == nil || pb.execCache.domainModels == nil) {
+		return "", "", "", false
+	}
+	name = storedSystemMemberName(name)
+	// A three-part name is already an explicit Module.Entity.Attribute.
+	if strings.Count(name, ".") >= 2 {
+		return "", "", "", false
+	}
+	// An attribute wins: entity members share one namespace, so a name that
+	// resolves as an attribute anywhere in the generalization chain is not an
+	// association.
+	if _, found := pb.declaringEntityFor(entityContext, name); found {
+		return "", "", "", false
+	}
+	assocQN = pb.resolveAssociationPathIn(name, entityContext)
+	fromEntity, toEntity, found := pb.associationEndpoints(assocQN)
+	if !found || !pb.entityInChain(entityContext, fromEntity) {
+		return "", "", "", false
+	}
+	return assocQN, fromEntity, toEntity, true
+}
+
+// rejectAssociationAsAttributeOn is rejectAssociationAsAttribute for widget w,
+// whose `Attribute:` was written `$param.name` when param is not "".
+//
+// A combo box gets its own remedy (mendixlabs/mxcli#1440). `combobox x
+// (Attribute: $Asset.Asset_Customer, CaptionAttribute: …)` has no `DataSource:`,
+// so it is the ENUMERATION mode and the association lands in
+// `attributeEnumeration`; the generic advice — traverse the reference, or use a
+// drop-down filter — is advice for a grid column. What the author wants is the
+// association mode, which a `DataSource:` selects, and which binds a reference
+// from a parameter as `Attribute: $Param.Module.Assoc` (what describe prints for
+// Studio Pro's snippets; 0 errors on mx 11.6.6).
+func (pb *pageBuilder) rejectAssociationAsAttributeOn(w *ast.WidgetV3, param, name, entityContext, where string) error {
+	if w == nil || !strings.EqualFold(w.Type, "combobox") {
+		return pb.rejectAssociationAsAttribute(name, entityContext, where)
+	}
+	assocQN, fromEntity, toEntity, ok := pb.associationNamedAsAttribute(name, entityContext)
+	if !ok {
+		return nil
+	}
+	binding := assocQN
+	if param != "" {
+		binding = "$" + param + "." + assocQN
+	}
+	return mdlerrors.NewValidationf(
+		"%s binds `%s`, which is an association (%s → %s), not an attribute — a combo box with "+
+			"`Attribute:` and no `DataSource:` is in enumeration mode, whose attribute property cannot hold a "+
+			"reference, and the build fails CE1613 \"The selected attribute '%s.%s' no longer exists\". "+
+			"To pick the associated object, use the combo box's association mode, which a `DataSource:` "+
+			"selects: `combobox %s (Attribute: %s, DataSource: database %s, CaptionAttribute: <attribute of %s>)`",
+		where, name, fromEntity, toEntity, entityContext, name,
+		w.Name, binding, toEntity, toEntity)
 }
 
 // entityInChain reports whether want is entityQN or one of its ancestors, so a

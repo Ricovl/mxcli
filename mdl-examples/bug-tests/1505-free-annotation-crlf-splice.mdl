@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1505 - a free annotation's line endings are
+-- not a change to the flow
+-- ============================================================================
+--
+-- Symptom:
+--   describe prints a multi-line note with CRLF line breaks, as Studio Pro
+--   stores it. Saved by an editor with LF, the same flow under mdl 1 was
+--   refused: "the free annotations change; the splice edits activities only".
+--
+-- After fix:
+--   Note text is compared with every line break spelled LF. The second
+--   create or modify below (LF) writes nothing, and the stored note keeps
+--   its CRLF bytes. A real change to a free note is still refused, and the
+--   refusal now names the note.
+--
+-- This file holds raw CR bytes in the first statement's notes on purpose; an
+-- editor that normalises line endings to LF will erase the case.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1505-free-annotation-crlf-splice.mdl -p app.mpr
+--   Expect the second statement to report no change, not a refusal.
+-- ============================================================================
+
+create module Bug1505;
+
+-- As Studio Pro stores it (CRLF).
+create or modify microflow Bug1505.MF_NoteLineEndings ()
+begin
+  @annotation 'First line.
+Second line.'
+  @position(200, 200)
+  @annotation 'On the log.
+Two lines.'
+  log info node 'Bug1505' 'hello';
+end;
+
+-- As an editor saves it (LF): no change.
+create or modify microflow Bug1505.MF_NoteLineEndings ()
+begin
+  @annotation 'First line.
+Second line.'
+  @position(200, 200)
+  @annotation 'On the log.
+Two lines.'
+  log info node 'Bug1505' 'hello';
+end;

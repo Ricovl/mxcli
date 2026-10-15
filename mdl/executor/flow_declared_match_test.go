@@ -168,3 +168,68 @@ func TestLCSStatements_ExactMatchWinsOverAMove(t *testing.T) {
 		t.Fatalf("pairs %v, want the declared statement paired with the stored one it matches exactly", pairs)
 	}
 }
+
+// mendixlabs/mxcli#1505: Studio Pro stores a multi-line note with CRLF line
+// breaks and describe prints those bytes as they are. An editor that turns
+// them into LF changed nothing anyone can see on the canvas, yet the free
+// annotations no longer matched and `create or modify` under mdl 1 refused
+// the splice ("the free annotations change; the splice edits activities
+// only"). A note on an activity re-spliced that activity for the same reason.
+func TestDeclaredMatches_NoteLineEndingsAreNotADifference(t *testing.T) {
+	body := func(eol string) string {
+		return "  @annotation 'First line." + eol + "Second line.'\n" +
+			"  @position(200, 200)\n" +
+			"  @annotation 'On the log." + eol + "Two lines.'\n" +
+			"  log info node 'N' 'hello';"
+	}
+	stored := parseFlowBody(t, body("\r\n"))
+	storedStmts, storedFree := withoutFreeNotes(stored.Body)
+	if len(storedFree) != 1 || storedFree[0].Text != "First line.\r\nSecond line." {
+		t.Fatalf("the stored free note is not the CRLF one: %#v", storedFree)
+	}
+	cases := []struct {
+		name, eol string
+		want      bool
+	}{
+		{"CRLF as described", "\r\n", true},
+		{"LF from an editor", "\n", true},
+		{"a bare CR", "\r", true},
+		// Control: a real change to the text is still a change.
+		{"the break taken out", " ", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			declared := parseFlowBody(t, body(c.eol))
+			declaredStmts, declaredFree := withoutFreeNotes(declared.Body)
+			if got := declaredMatches(declaredFree, storedFree); got != c.want {
+				t.Errorf("free notes: declaredMatches = %v, want %v", got, c.want)
+			}
+			if got := declaredMatches(declaredStmts[0], storedStmts[0]); got != c.want {
+				t.Errorf("activity note: declaredMatches = %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// The refusal names the note, so a real change is found without diffing the
+// whole flow by hand (mendixlabs/mxcli#1505).
+func TestFreeNoteChange_NamesTheNote(t *testing.T) {
+	note := func(text string) ast.MicroflowAnnotation { return ast.MicroflowAnnotation{Text: text} }
+	cases := []struct {
+		name             string
+		declared, stored []ast.MicroflowAnnotation
+		want             string
+	}{
+		{"reworded", []ast.MicroflowAnnotation{note("a"), note("b2")}, []ast.MicroflowAnnotation{note("a"), note("b")},
+			`note "b" is now "b2"`},
+		{"added", []ast.MicroflowAnnotation{note("a")}, nil, `note "a" is not in the stored flow`},
+		{"removed", nil, []ast.MicroflowAnnotation{note("a")}, `note "a" is not in the script`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := freeNoteChange(c.declared, c.stored); got != c.want {
+				t.Errorf("got %s, want %s", got, c.want)
+			}
+		})
+	}
+}

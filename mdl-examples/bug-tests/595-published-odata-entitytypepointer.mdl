@@ -18,7 +18,7 @@ create module bug595;
 
 create persistent entity bug595.Customer (
   Name: string(200),
-  Email: string(200)
+  Email: string(200) unique
 );
 
 create published odata service bug595.CustomerAPI (
@@ -35,5 +35,8 @@ create published odata service bug595.CustomerAPI (
     UpdateMode: source,
     DeleteMode: not_supported
   )
-  expose (*);
+  -- Not `expose (*)`: that publishes no KEY, which is CE6585 and refused by
+  -- check as MDL-ODATA08 (mendixlabs/mxcli#1426). A single key needs a unique
+  -- rule on its attribute (CE6624).
+  expose (Name, Email (KEY));
 };
