@@ -104,6 +104,14 @@ type TestSuite struct {
 	// made `mxcli test <dir>` say "0 test(s) in 1 file(s)" for a directory nothing
 	// had been read from (ako/mxcli-maintenance §5).
 	FilesRead int
+	// SkippedDirs lists the folders discovery left out because their name starts
+	// with "_" (sorted, without duplicates, as the path was reached from the
+	// command line). A suite that is kept out of the default run on purpose, such
+	// as a positive control, must not vanish from the output: "Found 0 test(s)"
+	// over a tree whose tests all sit in tests/unit/_control read as a green run
+	// (mendixlabs/mxcli#1363). Hidden folders are not listed; they are .git and
+	// .mxcli noise.
+	SkippedDirs []string
 }
 
 // FileError is a test file that could not be parsed, and why.
@@ -154,13 +162,15 @@ func ParseTestFile(path string) (*TestSuite, error) {
 // ParseTestDir parses all test files under a directory, at any depth, in
 // lexical path order. A suite per module (tests/Sales/*.test.mdl) is the usual
 // layout, so `mxcli test tests` must find what `mxcli test tests/Sales` finds
-// (mendixlabs/mxcli#1363). Hidden folders (.git, .mxcli, ...) are not entered.
+// (mendixlabs/mxcli#1363). Hidden folders (.git, .mxcli, ...) and folders
+// starting with "_" are not entered below the root; the latter are reported in
+// SkippedDirs.
 func ParseTestDir(dir string) (*TestSuite, error) {
 	suite := &TestSuite{
 		Name: filepath.Base(dir),
 	}
 
-	err := walkTestTree(dir, func(path string, d fs.DirEntry) {
+	skipped, err := walkTestTree(dir, func(path string, d fs.DirEntry) {
 		if !isTestFile(d.Name()) {
 			return
 		}
@@ -175,37 +185,58 @@ func ParseTestDir(dir string) (*TestSuite, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading test directory: %w", err)
 	}
+	suite.SkippedDirs = skipped
 
 	return suite, nil
 }
 
 // walkTestTree calls fn for every non-directory entry under root, in lexical
-// order, without entering hidden (dot-prefixed) folders below root. The root
-// itself is always walked, whatever it is called: `mxcli test .` has a root
-// named ".". A root that is a symlink is followed (as os.ReadDir did);
-// symlinked folders below it are not, which keeps a link cycle from looping.
-func walkTestTree(root string, fn func(path string, d fs.DirEntry)) error {
+// order. Below root it does not enter hidden (dot-prefixed) folders, and does
+// not enter folders whose name starts with "_" either, which it returns (as
+// reached from root, in walk order). That is the Go toolchain's rule for "./..."
+// and it gives a suite a way to stay out of the default run: a deliberate
+// positive control lives in tests/unit/_control and is run by naming it.
+//
+// The root itself is always walked, whatever it is called: `mxcli test .` has a
+// root named ".", and `mxcli test tests/_control` is how that control is run. A
+// root that is a symlink is followed (as os.ReadDir did); symlinked folders below
+// it are not, which keeps a link cycle from looping.
+func walkTestTree(root string, fn func(path string, d fs.DirEntry)) ([]string, error) {
+	walkRoot := root
 	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		if resolved, err := filepath.EvalSymlinks(root); err == nil {
-			root = resolved
+			walkRoot = resolved
 		}
 	}
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	var skipped []string
+	err := filepath.WalkDir(walkRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
-			if path != root && strings.HasPrefix(d.Name(), ".") {
+			if path == walkRoot {
+				return nil
+			}
+			if strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			if strings.HasPrefix(d.Name(), "_") {
+				// Reported under the name the user typed, not the resolved one.
+				if rel, relErr := filepath.Rel(walkRoot, path); relErr == nil {
+					path = filepath.Join(root, rel)
+				}
+				skipped = append(skipped, path)
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if path == root {
+		if path == walkRoot {
 			return fmt.Errorf("%s is not a directory", root)
 		}
 		fn(path, d)
 		return nil
 	})
+	return skipped, err
 }
 
 // isTestFile returns true if the filename matches a test file pattern.

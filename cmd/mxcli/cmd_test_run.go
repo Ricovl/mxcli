@@ -106,6 +106,10 @@ Examples:
   # Run all tests in a directory, subfolders included (tests/Sales/*.test.mdl)
   mxcli test tests/ -p app.mpr
 
+  # Folders starting with _ below the one you name are skipped (and listed);
+  # name one to run it, e.g. a positive-control suite
+  mxcli test tests/unit/_control -p app.mpr
+
   # Output JUnit XML for CI
   mxcli test tests/ -p app.mpr --junit results.xml
 
@@ -169,7 +173,7 @@ Examples:
 			// resolveTestPaths here too: listing that cannot find a path execution
 			// finds is a confusing split, and `mxcli test tests/ -p app/App.mpr
 			// --list` hit exactly that (mxcli-formula1 findings #15).
-			if err := testrunner.ListTests(resolveTestPaths(args, projectPath), os.Stdout); err != nil {
+			if err := testrunner.ListTests(resolveTestPaths(args, projectPath), os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
