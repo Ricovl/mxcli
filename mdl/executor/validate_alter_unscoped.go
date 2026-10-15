@@ -94,6 +94,11 @@ func validateAlterUnscopedBindings(ctx *ExecContext, prog *ast.Program, sc *scri
 			if msg := unscopedInsertion(ctx, sc, mutator, target.Widget, into, modName, containerID, widgets); msg != "" {
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s", label, msg)))
 			}
+			// The same insertion point, asked exec's association-as-attribute
+			// question (mendixlabs/mxcli#1440, validate_assoc_as_attribute.go).
+			for _, msg := range alterAssociationAsAttribute(ctx, mutator, target.Widget, into, modName, containerID, widgets) {
+				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s", label, msg)))
+			}
 		}
 	}
 	return errs

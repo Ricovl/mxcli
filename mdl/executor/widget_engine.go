@@ -1416,8 +1416,8 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			if err != nil {
 				return nil, err
 			}
-			if err := e.pageBuilder.rejectAssociationAsAttribute(
-				rest, entity,
+			if err := e.pageBuilder.rejectAssociationAsAttributeOn(
+				w, name, rest, entity,
 				fmt.Sprintf("widget `%s` property `%s`", w.Name, mapping.PropertyKey),
 			); err != nil {
 				return nil, err
@@ -1432,8 +1432,8 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			entity := scope.Entity
 			// An association named where an attribute belongs cannot be stored;
 			// refuse it here rather than writing a dangling AttributeRef (#830).
-			if err := e.pageBuilder.rejectAssociationAsAttribute(
-				attr, entity,
+			if err := e.pageBuilder.rejectAssociationAsAttributeOn(
+				w, "", attr, entity,
 				fmt.Sprintf("widget `%s` property `%s`", w.Name, mapping.PropertyKey),
 			); err != nil {
 				return nil, err
