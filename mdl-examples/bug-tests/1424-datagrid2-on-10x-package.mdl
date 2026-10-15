@@ -1,0 +1,48 @@
+mdl 1;
+-- mendixlabs/mxcli#1424 — a Data grid 2 written by mxcli to a blank Mendix
+-- 10.24.0 project failed `mx check` with CE0463 "The definition of this widget
+-- has changed" until `mxcli fix widgets` ran. A blank 11.13.0 project was clean.
+--
+-- 10.24.0 ships Data Widgets 2.30.3; the embedded template is 3.4-shaped, so
+-- augmentation rebuilds the definition from the installed .mpk. Diffing mxcli's
+-- widget Type against `mx update-widgets` output (the Object was identical)
+-- showed three augmentation defects, each fixed in modelsdk/widgets:
+--
+--   * a column's `filter` (widgets) took the `filterList` item's `filter`
+--     (attribute) definition — PropertyDefs were indexed by bare key across
+--     nesting levels;
+--   * the new `filterList` object list had no ObjectType — exemplar indices
+--     were taken before stale properties were removed, so it was cloned from an
+--     Integer property;
+--   * association definition fields (<associationTypes>, selectableObjects)
+--     were never parsed or reconciled.
+--
+-- Plus the template's translations on properties the package ships none for
+-- (the drop-down filter's emptyOptionCaption), which `update-widgets` drops.
+--
+-- Verify on a blank 10.24.0 project (`mxcli new B --version 10.24.0`):
+--   mxcli -p B.mpr exec 1424-datagrid2-on-10x-package.mdl
+--   mxcli docker check -p B.mpr --no-update-widgets   -> no CE0463
+-- Measured: before 1 CE0463 (gridA), after 0; doctype-tests/31 on 10.24.0
+-- 7 -> 0, on 10.24.24 2 -> 0, on 11.6.6 0 -> 0.
+
+create module BT1424;
+create persistent entity BT1424.Customer (Name: string(200), Active: boolean default false);
+
+create page BT1424.P_Grid (Title: 'Grid', Layout: Atlas_Core.Atlas_Default)
+{
+  DATAGRID gridA (DataSource: DATABASE BT1424.Customer) {
+    COLUMN (Attribute: Name, Caption: 'Name')
+  }
+};
+
+-- A drop-down filter in a column: the emptyOptionCaption translation case.
+create page BT1424.P_GridFilter (Title: 'Grid with filter', Layout: Atlas_Core.Atlas_Default)
+{
+  DATAGRID gridB (DataSource: DATABASE BT1424.Customer) {
+    COLUMN (Attribute: Name, Caption: 'Name')
+    COLUMN (Attribute: Active, Caption: 'Active') {
+      dropdownfilter ddfActive
+    }
+  }
+};
