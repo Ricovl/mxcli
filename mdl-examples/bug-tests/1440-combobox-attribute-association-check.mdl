@@ -1,0 +1,45 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1440 — a combo box bound to an association through the
+-- `Attribute:` key passed check, and exec refused it
+-- ============================================================================
+--
+-- Symptom (mxcli v0.26.0):
+--   alter snippet M.S { replace <widget> with {
+--     combobox x (Attribute: $Asset.Asset_Customer, CaptionAttribute: …)
+--   } };
+--   check: "Check passed!"
+--   exec:  "property attributeEnumeration binds Asset_Customer, which is an
+--           association … not an attribute"
+--
+-- exec is right: with no `DataSource:` the combo box is in ENUMERATION mode,
+-- and its attribute property cannot hold a reference (#830). check now asks
+-- exec's question with exec's function (rejectAssociationAsAttributeOn), for
+-- CREATE and for an ALTER's INSERT / REPLACE, and needs `-p` to answer it:
+--   mxcli check <the alter above> -p app.mpr
+--   → "widget `x` property `attributeEnumeration` binds `Asset_Customer`, which
+--      is an association (Bug1440.Asset → Bug1440.Customer) … To pick the
+--      associated object, use the combo box's association mode …"
+--
+-- The association mode below is the remedy the message names. Verify: exec,
+-- then `mx check` (11.6.6) reports 0 errors, and describe → exec reports
+-- "Unchanged snippet".
+-- ============================================================================
+
+create module Bug1440;
+
+create persistent entity Bug1440.Customer ( CustomerName: String(200) );
+create persistent entity Bug1440.Asset ( Code: String(100) );
+create association Bug1440.Asset_Customer from Bug1440.Asset to Bug1440.Customer;
+
+create or modify snippet Bug1440.SN_Asset
+( Params: ( $Asset: Bug1440.Asset ) )
+{
+  combobox x (
+    Attribute: $Asset.Bug1440.Asset_Customer,
+    DataSource: database from Bug1440.Customer,
+    CaptionAttribute: CustomerName
+  )
+};
+
+describe snippet Bug1440.SN_Asset;

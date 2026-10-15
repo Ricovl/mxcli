@@ -72,7 +72,9 @@ type LocalRuntimeOptions struct {
 	AppPort int
 	// AdminPass is the M2EE admin password (required).
 	AdminPass string
-	// ListenAddr binds both the admin API and the app (default 127.0.0.1).
+	// ListenAddr is the address the app binds to (default 127.0.0.1). It does
+	// NOT affect the M2EE admin API, which is always loopback (see
+	// m2eeAdminListenAddr).
 	ListenAddr string
 	// DTAPMode is D/A/T/P (default "D").
 	DTAPMode string
@@ -260,6 +262,15 @@ func (o *LocalRuntimeOptions) jvmArgs() []string {
 	}
 }
 
+// m2eeAdminListenAddr is the address the M2EE admin API binds to, and the
+// address mxcli talks to it on. Always loopback, deliberately independent of
+// LocalRuntimeOptions.ListenAddr: the admin API is a privileged surface (it
+// boots the app, rewrites configuration, runs actions) and widening the app
+// bind must not widen it onto the network as a side effect. A wildcard would
+// not be a valid client destination anyway — 0.0.0.0 is a bind address, not a
+// host, so a client dialling it is not portable.
+const m2eeAdminListenAddr = "127.0.0.1"
+
 // localRuntimeEnv builds the environment for the runtime JVM, layered on the
 // current process environment. PrepareMxCommand later adds the FreeType fix.
 // o.Env is appended last so a caller-supplied value wins over both the inherited
@@ -268,7 +279,7 @@ func localRuntimeEnv(o LocalRuntimeOptions) []string {
 	env := append(os.Environ(),
 		"M2EE_ADMIN_PASS="+o.AdminPass,
 		fmt.Sprintf("M2EE_ADMIN_PORT=%d", o.AdminPort),
-		"M2EE_ADMIN_LISTEN_ADDRESSES="+o.ListenAddr,
+		"M2EE_ADMIN_LISTEN_ADDRESSES="+m2eeAdminListenAddr,
 		"MX_INSTALL_PATH="+o.InstallPath,
 		"MX_LOG_LEVEL=i",
 	)
@@ -376,7 +387,8 @@ func runtimeConfigParams(o LocalRuntimeOptions, constants map[string]string) map
 		"MicroflowConstants": constants,
 	}
 	// Only set ApplicationRootUrl when the app is served behind an external URL;
-	// on a plain local run the runtime defaults it from the listen address.
+	// on a plain local run it stays unset (the runtime does not derive one from
+	// the listen address; see warnWildcardWithoutRootURL).
 	if o.ApplicationRootUrl != "" {
 		params["ApplicationRootUrl"] = o.ApplicationRootUrl
 	}
@@ -512,7 +524,9 @@ func StartLocalRuntime(opts LocalRuntimeOptions) (*LocalRuntime, error) {
 	rt := &LocalRuntime{
 		opts: opts,
 		m2ee: M2EEOptions{
-			Host:    opts.ListenAddr,
+			// The admin API is always loopback, independent of the app bind:
+			// see m2eeAdminListenAddr.
+			Host:    m2eeAdminListenAddr,
 			Port:    opts.AdminPort,
 			Token:   opts.AdminPass,
 			Direct:  true,
@@ -699,9 +713,11 @@ func (rt *LocalRuntime) Restart() error {
 	return rt.spawnAndConfigure()
 }
 
-// AppURL is the base URL the app serves on.
+// AppURL is the base URL mxcli reaches the app on — health checks, screenshots,
+// the "app is running" line. It is a destination, not the bind: under a
+// wildcard --listen-addr it names loopback (see appDialHost).
 func (rt *LocalRuntime) AppURL() string {
-	return fmt.Sprintf("http://%s:%d/", rt.opts.ListenAddr, rt.opts.AppPort)
+	return appURLFor(rt.opts.ListenAddr, rt.opts.AppPort)
 }
 
 // HealthOK reports whether the app answers an HTTP request (any status < 500).

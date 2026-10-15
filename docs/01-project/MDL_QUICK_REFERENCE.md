@@ -1714,6 +1714,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Documentation | `set (Documentation: 'What this page is for.')` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
 | Pop-up dimensions | `set (PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` | Page-level; apply when the page opens in a pop-up |
 | Page CSS class / style | `set (Class: 'css-class')` / `set (Style: 'css: rule')` | Page-level (no ON clause); sets the page's Appearance |
+| Dynamic text heading level | `set (RenderMode: H2) on txtTitle` | Dynamic text: Text, Paragraph, H1–H6 (any casing); another value is refused with the accepted list. On other widgets the key is not a dynamic text's RenderMode and keeps the generic route |
 | Widget dynamic classes | `set (DynamicClasses: 'expr') on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
 | Insert after | `insert after widgetName { widgets }` | Add widgets after target |
 | Insert before | `insert before widgetName { widgets }` | Add widgets before target |

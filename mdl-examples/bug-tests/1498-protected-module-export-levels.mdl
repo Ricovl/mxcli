@@ -1,0 +1,53 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1498 — references into a Protected (add-on) module
+-- ============================================================================
+--
+-- Reported: "Each time `check` passed, exec wrote, mxbuild refused, and the
+-- gate rolled back." A module whose Projects$ModuleSettings says ExportLevel
+-- 'Protected' hides each element not marked Usable (stored "API"):
+--
+--   CE1406  "… is not allowed to use microflow 'MyAddOn.X' because app modules
+--           cannot reference hidden elements in add-on modules." (navigation
+--           says "project level documents")
+--   CE5400  "The export level of entity 'MyAddOn.Request' should be 'Usable'
+--           because parameter 'body' exposes it and has export level 'Usable'."
+--
+-- This file is the shape that must PASS: the module it creates is an ordinary
+-- (Source) module, which hides nothing, so every reference below is legal. MDL
+-- cannot make a module Protected and `make check-mdl` runs without a project,
+-- so the refused cases are Go tests against a Protected module:
+-- mdl/executor/validate_protected_module_refs_test.go.
+--
+-- Measured on blank Mendix 11.14.0 and 11.13.0 apps with the module set to
+-- Protected: each refused case below fails with the CE code above; set back to
+-- Source, the same model has 0 errors. A page in a Protected module is refused
+-- even with export level API stored on it; an API microflow in the module that
+-- shows the page is accepted.
+-- ============================================================================
+
+CREATE MODULE BugAddOn1498;
+
+CREATE OR MODIFY NON-PERSISTENT ENTITY BugAddOn1498.Request ( Payload: String(200) );
+
+-- Usable microflow exposing an entity: CE5400 in a Protected module while the
+-- entity is Hidden, legal here.
+CREATE OR MODIFY MICROFLOW BugAddOn1498.API_Request_Post ($body: BugAddOn1498.Request)
+RETURNS Boolean
+EXPORT LEVEL api
+BEGIN
+  RETURN true;
+END;
+
+CREATE OR MODIFY MICROFLOW BugAddOn1498.Hidden_MF ()
+RETURNS Boolean
+BEGIN
+  RETURN true;
+END;
+
+-- A call from another module into a Hidden microflow: CE1406 in a Protected
+-- module, legal here.
+CREATE OR MODIFY MICROFLOW MyFirstModule.BugCaller1498 ()
+BEGIN
+  $r = CALL MICROFLOW BugAddOn1498.Hidden_MF();
+END;

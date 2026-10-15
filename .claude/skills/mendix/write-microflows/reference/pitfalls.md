@@ -613,6 +613,11 @@ It is a **security** setting and it only ever narrows, so the rules mirror
   perfectly happy. Measured across 342 microflows in 4 projects: every microflow
   storing the flag came back without it, and nothing anywhere reported it.
 - **Turning it off is explicit**: `@applyentityaccess(false)`.
+- **A flow without it cannot call a flow with it.** A microflow that does not apply
+  entity access may only call microflows — and decide on rules — that do not apply
+  it either: mxbuild CE0114, `check -p` MDL-SEC22. The reverse (on calling off) is
+  fine. Fix the caller, not the callee: turning it off on a shared sub-flow widens
+  it for everyone.
 - **Not available on a nanoflow.** A nanoflow runs in the client and Mendix stores
   no such property. Writing it there is **MDL059**, not a silent no-op —
   the same rule that catches `@applyentityacces` and any other annotation the
@@ -637,7 +642,16 @@ end;
   parameters (...)` names the parameters passed as query arguments; `drop url`
   removes both.
 - **`export level api | hidden`** decides whether the microflow is part of the
-  module's public surface when the module is exported.
+  module's public surface when the module is exported. It bites in a
+  **Protected (add-on) module** — `describe module` prints
+  `-- export level: Protected …` and `show modules` says `Protected AddOn`:
+  another module or the navigation referencing a Hidden microflow, entity or
+  any page there is **CE1406**, and an `api` microflow whose parameter or return
+  type is a Hidden entity of that module is **CE5400**. `check -p --references`
+  reports both (mendixlabs/mxcli#1498). A page there cannot be made usable
+  (mxbuild refuses it even when stored as API) — reach it through an `api`
+  microflow in the module that shows it. An entity's export level has no MDL
+  syntax (`describe entity` prints it as a comment); set it in Studio Pro.
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

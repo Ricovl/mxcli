@@ -140,9 +140,7 @@ func execCreateAgentEditorModel(ctx *ExecContext, s *ast.CreateModelStmt) error 
 	// module. Nothing downstream catches an older project: the documents are
 	// custom blobs, so mxbuild does not validate them and the build stays green
 	// while Studio Pro cannot open the result.
-	if err := checkFeature(ctx, "agent_documents", "agent_model",
-		"create model",
-		"upgrade your project to Mendix 11.9+ and install the AgentEditorCommons module"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

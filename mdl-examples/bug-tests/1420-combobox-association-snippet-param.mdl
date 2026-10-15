@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1420 — a combo box in association mode, bound to a snippet
+-- parameter's reference, passed check and exec, then failed CE7007
+-- ============================================================================
+--
+-- Symptom (mxcli v0.26.0; reproduced on mx 11.6.6):
+--   -- a snippet with $Asset: M.Asset, outside every data container:
+--   combobox x (Association: M.Asset_Customer, DataSource: database M.Customer,
+--               CaptionAttribute: CustomerName)
+--   check: "Check passed!"   exec: "Altered snippet M.S"
+--   mx check: [CE7007] "Selected value is not valid for entity
+--             'Asset_Customer/Customer'. Please select the value again."
+--
+-- The writer stored the association with no SourceVariable ("the enclosing
+-- object"), and there is none. That spelling is now refused by check (no
+-- project needed at a document root; with -p for ALTER) and by exec — see
+-- 1420-combobox-association-snippet-param.fail.mdl.
+--
+-- The two forms below are what builds. The first is what Studio Pro stores
+-- for a parameter's reference: SourceVariable = the snippet parameter.
+-- Verify: exec, then `mx check` (11.6.6) reports 0 errors, and
+-- describe → exec reports "Unchanged snippet".
+-- ============================================================================
+
+create module Bug1420;
+
+create persistent entity Bug1420.Customer ( CustomerName: String(200) );
+create persistent entity Bug1420.Asset ( Code: String(100) );
+create association Bug1420.Asset_Customer from Bug1420.Asset to Bug1420.Customer;
+
+create or modify snippet Bug1420.SN_Asset
+( Params: ( $Asset: Bug1420.Asset ) )
+{
+  combobox cbParam (
+    Attribute: $Asset.Bug1420.Asset_Customer,
+    DataSource: database from Bug1420.Customer,
+    CaptionAttribute: CustomerName
+  )
+  dataview dvAsset (DataSource: $Asset) {
+    combobox cbInDataView (
+      Association: Bug1420.Asset_Customer,
+      DataSource: database from Bug1420.Customer,
+      CaptionAttribute: CustomerName
+    )
+  }
+};
+
+describe snippet Bug1420.SN_Asset;

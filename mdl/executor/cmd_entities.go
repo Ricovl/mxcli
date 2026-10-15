@@ -942,9 +942,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 	}
 
 	// Version pre-check
-	if err := checkFeature(ctx, "domain_model", "view_entities",
-		"create view entity",
-		"upgrade your project to 10.18+ or use a regular entity with a microflow data source"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

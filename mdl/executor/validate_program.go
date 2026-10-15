@@ -246,6 +246,13 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// no error code, so there is nothing to look up.
 	violations = append(violations, ValidateODataServiceShape(prog)...)
 
+	// Flag a published entity with no KEY (CE6585), or with a single KEY
+	// attribute that has no unique validation rule on a persistent entity
+	// (CE6624). Both were written and only failed the build
+	// (mendixlabs/mxcli#1426). The second resolves the entity from the script,
+	// then the project, and says nothing when it cannot.
+	violations = append(violations, ValidateODataKeys(prog, projectPath)...)
+
 	// Flag a page whose widgets point at a page created further down the same
 	// script. `exec` resolves page references in statement order and is not
 	// transactional, so this fails after earlier statements are already

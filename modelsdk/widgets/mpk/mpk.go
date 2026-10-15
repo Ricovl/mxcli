@@ -46,9 +46,17 @@ type PropertyDef struct {
 	// "../staticAttribute"), when the expression's return type is derived from another
 	// property rather than a concrete type. mxbuild emits Type "None" with this set.
 	ReturnTypeAssignableTo string
-	AllowedTypes           []string      // for attribute properties: Mendix type names ("String", "Decimal", etc.)
-	EnumValues             []EnumValue   // for enumeration properties: the declared options (key + caption)
-	Translations           []Translation // widget-shipped caption/template translations (<translations>)
+	AllowedTypes           []string // for attribute properties: Mendix type names ("String", "Decimal", etc.)
+	// AssociationTypes are an association/attribute property's
+	// <associationTypes><associationType name="Reference"/>…; SelectableObjects is
+	// an association property's selectableObjects attribute. Both are part of the
+	// widget DEFINITION (ValueType.AssociationTypes / SelectableObjectsProperty),
+	// so leaving a template's or a cloned exemplar's values in place is CE0463
+	// (mendixlabs/mxcli#1424, Data Widgets 2.30.3 column filterAssociation).
+	AssociationTypes  []string
+	SelectableObjects string
+	EnumValues        []EnumValue   // for enumeration properties: the declared options (key + caption)
+	Translations      []Translation // widget-shipped caption/template translations (<translations>)
 	// ActionVariables are the variables an action property passes to the flow
 	// it calls (`<actionVariables>`). Part of the widget DEFINITION — Studio Pro
 	// stores them on the ValueType whether or not an action is configured — so
@@ -222,22 +230,24 @@ type xmlAttributeType struct {
 
 // xmlProperty represents <property key="..." type="..." ...> element.
 type xmlProperty struct {
-	Key            string             `xml:"key,attr"`
-	Type           string             `xml:"type,attr"`
-	DefaultValue   string             `xml:"defaultValue,attr"`
-	DefaultType    string             `xml:"defaultType,attr"`
-	Required       string             `xml:"required,attr"`
-	OnChange       string             `xml:"onChange,attr"`
-	IsList         string             `xml:"isList,attr"`
-	Multiline      string             `xml:"multiline,attr"`
-	DataSource     string             `xml:"dataSource,attr"`
-	Caption        string             `xml:"caption"`
-	Description    string             `xml:"description"`
-	AttributeTypes []xmlAttributeType `xml:"attributeTypes>attributeType"`
-	EnumValues     []xmlEnumValue     `xml:"enumerationValues>enumerationValue"`
-	SelectionTypes []xmlSelectionType `xml:"selectionTypes>selectionType"`
-	ReturnType     xmlReturnType      `xml:"returnType"`
-	Translations   []xmlTranslation   `xml:"translations>translation"`
+	Key               string             `xml:"key,attr"`
+	Type              string             `xml:"type,attr"`
+	DefaultValue      string             `xml:"defaultValue,attr"`
+	DefaultType       string             `xml:"defaultType,attr"`
+	Required          string             `xml:"required,attr"`
+	OnChange          string             `xml:"onChange,attr"`
+	IsList            string             `xml:"isList,attr"`
+	Multiline         string             `xml:"multiline,attr"`
+	DataSource        string             `xml:"dataSource,attr"`
+	SelectableObjects string             `xml:"selectableObjects,attr"`
+	Caption           string             `xml:"caption"`
+	Description       string             `xml:"description"`
+	AttributeTypes    []xmlAttributeType `xml:"attributeTypes>attributeType"`
+	AssociationTypes  []xmlAttributeType `xml:"associationTypes>associationType"`
+	EnumValues        []xmlEnumValue     `xml:"enumerationValues>enumerationValue"`
+	SelectionTypes    []xmlSelectionType `xml:"selectionTypes>selectionType"`
+	ReturnType        xmlReturnType      `xml:"returnType"`
+	Translations      []xmlTranslation   `xml:"translations>translation"`
 	// ActionVariables of an action property (<actionVariables><actionVariable …/>).
 	ActionVariables []xmlActionVariable `xml:"actionVariables>actionVariable"`
 	// Nested properties for object type
@@ -437,6 +447,8 @@ func walkPropertyGroup(pg xmlPropGroup, parentCategory string, def *WidgetDefini
 			ReturnType:             p.ReturnType.Type,
 			ReturnTypeAssignableTo: p.ReturnType.AssignableTo,
 			AllowedTypes:           allowedTypes,
+			AssociationTypes:       associationTypeNames(p.AssociationTypes),
+			SelectableObjects:      p.SelectableObjects,
 			EnumValues:             enumValues,
 			Translations:           toTranslations(p.Translations),
 			ActionVariables:        toActionVariables(p.ActionVariables),
@@ -465,6 +477,17 @@ func walkPropertyGroup(pg xmlPropGroup, parentCategory string, def *WidgetDefini
 	for _, sub := range pg.SubGroups {
 		walkPropertyGroup(sub, category, def)
 	}
+}
+
+// associationTypeNames returns the names of a property's <associationType> entries.
+func associationTypeNames(ats []xmlAttributeType) []string {
+	var out []string
+	for _, at := range ats {
+		if at.Name != "" {
+			out = append(out, at.Name)
+		}
+	}
+	return out
 }
 
 // collectNestedProperties extracts child properties from nested propertyGroups
@@ -512,6 +535,8 @@ func collectNestedProperties(pg xmlPropGroup, parent *PropertyDef, parentCategor
 			ReturnType:             p.ReturnType.Type,
 			ReturnTypeAssignableTo: p.ReturnType.AssignableTo,
 			AllowedTypes:           allowedTypes,
+			AssociationTypes:       associationTypeNames(p.AssociationTypes),
+			SelectableObjects:      p.SelectableObjects,
 			EnumValues:             enumValues,
 			Translations:           toTranslations(p.Translations),
 			ActionVariables:        toActionVariables(p.ActionVariables),
