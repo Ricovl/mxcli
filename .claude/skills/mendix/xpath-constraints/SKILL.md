@@ -200,7 +200,21 @@ where [Module.Assoc/Module.Entity/Name = $Variable/Name]
 
 -- Variable on right side
 where [Name = $currentObject/SearchString]
+
+-- An association compared with ONE hop off a variable — the hop must land on
+-- the same entity as the left side (or a generalization/specialization of it)
+where [Module.District_Region = $currentObject/Module.AreaPicker_Region]
 ```
+
+> **What a variable comparand may be (CE0161, measured on 11.13.0 and 11.14.0).**
+> At most one hop off the variable (`$currentObject/Mod.Assoc/Name` is **MDL055**).
+> That one hop compares like with like: an association path with an association
+> landing on the **same entity** — `[Mod.District_Region = $currentObject/Mod.AreaPicker_City]`
+> (Region vs City) is CE0161 and **MDL-XPATH02**, as is comparing an association
+> with an attribute (`[Mod.District_Region = $currentObject/Label]`). The hop is
+> written **qualified**: `$currentObject/AreaPicker_Region` reads as an attribute
+> and is CE0161 / **MDL-XPATH01**. In a widget data source `$currentObject` is the
+> enclosing data container's object; a page parameter (`$Picker/…`) works the same.
 
 ### Nested Predicates
 
