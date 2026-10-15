@@ -460,6 +460,9 @@ mxcli marketplace install --file ./dist/MyModule.mpk -p other.mpr   # and back i
   `themesource/` and prints the `--exclude` pattern
   that drops it, e.g. `--exclude '^resources.EventLog.'`. `--exclude` takes **one** regex (join
   with `|`) and the separator must be written `.`: `[/\\]` makes `mx` write nothing.
+- The `mx` used must be the project's Mendix version (read from the `mx` itself): a mismatch, or an
+  `mx` of unknown version, is refused with both versions named. Fix: `mxcli setup mxbuild --version X`
+  (an `mx` on PATH is used first). `--mxbuild-path` is the override: a mismatch then only warns on stderr.
 - `mx` writes into the project it is given, so mxcli runs it on a temporary copy; the project on
   disk is unchanged. A Studio Pro lock file beside the project does not stop the export.
 

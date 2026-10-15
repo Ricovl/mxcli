@@ -42,9 +42,17 @@ read it back.
     '.' ('^resources.EventLog.'): a character class or a backslash makes mx print
     its usage and write nothing.
 
+The mx must be the Mendix version of the project: a package made by another
+version than the app it comes from is refused, naming both versions. mx is taken
+from, in order, an mx on PATH, a Studio Pro install and the mxbuild cache, so a
+different version can be found first; 'mxcli setup mxbuild --version <version>'
+installs the right one. --mxbuild-path is the override: with it a mismatch is
+allowed, with a warning on stderr.
+
 mx writes into the project it is given (theme-cache/, deployment/sass/, the
 module's themesource/ folder), so it runs on a temporary copy; the project on
-disk is not changed. A Studio Pro lock file beside the project does not stop the
+disk is not changed. An output directory inside the project is left out of that
+copy. A Studio Pro lock file beside the project does not stop the
 export, which reads what is saved on disk.
 
 The package is named <Module>.mpk and is written to --output-dir (default: the
@@ -71,7 +79,7 @@ func init() {
 	marketplacePackageCmd.Flags().Bool("exclude-managed-dependencies", false,
 		"leave out the module's managed dependencies (mx -m)")
 	marketplacePackageCmd.Flags().String("mxbuild-path", "",
-		"path to the Mendix installation to take mx from, overriding resolution by the project's version")
+		"path to the Mendix installation to take mx from; it overrides the version check (a mismatch only warns)")
 	marketplacePackageCmd.Flags().Bool("json", false, "emit {path, sizeBytes, files, foreignEntries} as JSON")
 	_ = marketplacePackageCmd.MarkFlagRequired("project")
 
@@ -112,8 +120,8 @@ type packageResult struct {
 	ForeignEntries []string `json:"foreignEntries"`
 }
 
-// The three variables below are seams: tests replace them, because they cannot
-// run Studio Pro's mx.
+// The variables below are seams: tests replace them, because they cannot run
+// Studio Pro's mx.
 
 // packageProjectInfo reports the project's Mendix version and its module names.
 var packageProjectInfo = func(mprPath string) (version string, modules []string, err error) {
@@ -135,15 +143,22 @@ var packageProjectInfo = func(mprPath string) (version string, modules []string,
 
 var resolveMxForPackage = docker.ResolveMxForVersion
 
+// mxBinaryVersion reports the Mendix version of an mx binary, "" when unknown.
+var mxBinaryVersion = docker.MxBinaryVersion
+
 // mxCreateModulePackageCmd runs mx with args and writes what it prints (stdout
 // and stderr together; mx reports errors on stdout) to out. It returns mx's exit
-// code; err is set only when mx could not be started.
-var mxCreateModulePackageCmd = func(mxPath string, args []string, out io.Writer) (exitCode int, err error) {
-	c := exec.Command(mxPath, args...)
+// code; err is set when mx could not be started or ctx ended before it did (mx
+// is then killed).
+var mxCreateModulePackageCmd = func(ctx context.Context, mxPath string, args []string, out io.Writer) (exitCode int, err error) {
+	c := exec.CommandContext(ctx, mxPath, args...)
 	c.Stdout = out
 	c.Stderr = out
 	docker.PrepareMxCommand(c)
 	runErr := c.Run()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return -1, ctxErr
+	}
 	var exitErr *exec.ExitError
 	switch {
 	case runErr == nil:
@@ -186,9 +201,20 @@ func runPackage(ctx context.Context, opts packageOptions, stdout, stderr io.Writ
 			opts.Module, filepath.Base(opts.ProjectPath), strings.Join(sorted, ", "))
 	}
 
+	if opts.MxBuildPath != "" {
+		// ResolveMxForVersion quietly falls back to an mx on PATH when this path is
+		// bad, which would turn a typo into an unchecked export.
+		if _, err := os.Stat(opts.MxBuildPath); err != nil {
+			return nil, fmt.Errorf("--mxbuild-path %s: %w", opts.MxBuildPath, err)
+		}
+	}
 	mxPath, err := resolveMxForPackage(opts.MxBuildPath, version)
 	if err != nil {
 		return nil, fmt.Errorf("locate mx for Mendix %s: %w\nhint: run 'mxcli setup mxbuild -p %s'", version, err, opts.ProjectPath)
+	}
+	mxVersion, err := checkMxVersion(mxPath, version, opts.MxBuildPath != "", stderr)
+	if err != nil {
+		return nil, err
 	}
 
 	outDir, err := filepath.Abs(opts.OutputDir)
@@ -203,8 +229,9 @@ func runPackage(ctx context.Context, opts packageOptions, stdout, stderr io.Writ
 	}
 
 	// mx writes into the project it is given, so it runs on a copy; see the
-	// command's Long text. The staging directory is made after the copy, so an
-	// output directory inside the project is not copied into the copy.
+	// command's Long text. The staging directory is made after the copy, and an
+	// output directory inside the project is left out of it, so neither the staging
+	// directory nor earlier packages are copied.
 	var finalMpk, mxOutput string
 	var exitCode int
 	err = docker.WithProjectCopy(projectAbs, func(workMpr string) error {
@@ -215,9 +242,9 @@ func runPackage(ctx context.Context, opts packageOptions, stdout, stderr io.Writ
 		defer os.RemoveAll(staging)
 
 		fmt.Fprintf(progress, "Exporting module %s from %s (Mendix %s) with %s...\n",
-			module, filepath.Base(projectAbs), version, mxPath)
+			module, filepath.Base(projectAbs), version, mxDescription(mxPath, mxVersion))
 		var out bytes.Buffer
-		exitCode, err = mxCreateModulePackageCmd(mxPath, mxArgs(opts, staging, workMpr, module), &out)
+		exitCode, err = mxCreateModulePackageCmd(ctx, mxPath, mxArgs(opts, staging, workMpr, module), &out)
 		if err != nil {
 			return fmt.Errorf("run %s: %w", mxPath, err)
 		}
@@ -234,8 +261,12 @@ func runPackage(ctx context.Context, opts packageOptions, stdout, stderr io.Writ
 			return fmt.Errorf("move the package to %s: %w", dest, err)
 		}
 		finalMpk = dest
+		if mxOutput != "" {
+			// mx's warnings on a successful export; stderr, so --json stays clean.
+			fmt.Fprintln(stderr, mxOutput)
+		}
 		return nil
-	})
+	}, outDir)
 	if err != nil {
 		return nil, err
 	}
@@ -281,6 +312,44 @@ func mxArgs(opts packageOptions, packageDir, targetMpr, module string) []string 
 		args = append(args, "-m")
 	}
 	return append(args, "-d", packageDir, targetMpr, module)
+}
+
+// checkMxVersion compares the Mendix version of the mx that was found with the
+// project's and returns the mx's version ("" when unknown). A mismatch, or an mx
+// whose version cannot be told, is refused: the package would be made by another
+// Mendix version than the app it comes from. override is true when the user named
+// the mx with --mxbuild-path; then the same findings are only warned about on
+// stderr (which --json leaves alone).
+func checkMxVersion(mxPath, projectVersion string, override bool, stderr io.Writer) (string, error) {
+	got := mxBinaryVersion(mxPath)
+	if projectVersion == "" {
+		fmt.Fprintf(stderr, "warning: the project's Mendix version is unknown, so the version of %s was not checked\n", mxPath)
+		return got, nil
+	}
+	if docker.SameMendixRelease(got, projectVersion) {
+		return got, nil
+	}
+	var problem string
+	if got == "" {
+		problem = fmt.Sprintf("cannot tell which Mendix version %s is, and the project is Mendix %s", mxPath, projectVersion)
+	} else {
+		problem = fmt.Sprintf("the mx found, %s, is Mendix %s, but the project is Mendix %s", mxPath, got, projectVersion)
+	}
+	if override {
+		fmt.Fprintf(stderr, "warning: %s; going on because --mxbuild-path was given\n", problem)
+		return got, nil
+	}
+	return "", fmt.Errorf("%s.\nA package made by another Mendix version than the app it comes from is refused.\n"+
+		"hint: run 'mxcli setup mxbuild --version %s' to install the matching toolchain (an mx on PATH is used before it,\n"+
+		"so take that one off PATH); to use this mx on purpose, pass --mxbuild-path", problem, projectVersion)
+}
+
+// mxDescription names the mx for the progress line: its path, and its version when known.
+func mxDescription(mxPath, mxVersion string) string {
+	if mxVersion == "" {
+		return mxPath
+	}
+	return fmt.Sprintf("%s (Mendix %s)", mxPath, mxVersion)
 }
 
 // findModuleName matches a module name exactly, then case-insensitively, and
@@ -336,17 +405,6 @@ func mxExitError(code int, module, output string) error {
 // package (11.12.5); javasource/ and themesource/ are checked as well, in case an
 // mx version exports them. Mendix writes those two folder names in lower case.
 var packageModuleRoots = map[string]bool{"resources": true, "javasource": true, "themesource": true}
-
-// inspectPackage reads a .mpk (a zip) and reports how many files it holds and
-// which of them belong to a module other than module.
-func inspectPackage(mpkPath, module string) (files int, foreign []string, err error) {
-	names, err := readPackageEntries(mpkPath)
-	if err != nil {
-		return 0, nil, err
-	}
-	foreign, _ = classifyPackageEntries(names, module)
-	return len(names), foreign, nil
-}
 
 // readPackageEntries lists the files in the package, folder entries left out,
 // with '/' as the separator.
@@ -427,6 +485,12 @@ func excludePatternFor(foreign, own []string) (pattern string, ambiguous []strin
 	return strings.Join(patterns, "|"), ambiguous
 }
 
+// shellQuote quotes s as one word for a POSIX shell: in single quotes, with each
+// single quote inside closing the quote, adding an escaped quote, and reopening it.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // warnForeignEntries tells the user the package holds files of other modules and
 // how to leave them out. It is a warning, not an error: the package is valid,
 // just larger than the module.
@@ -448,7 +512,7 @@ func warnForeignEntries(w io.Writer, module string, foreign, own []string, exist
 		} else {
 			fmt.Fprintln(w, "To leave them out, export again with:")
 		}
-		fmt.Fprintf(w, "  --exclude '%s'\n", pattern)
+		fmt.Fprintf(w, "  --exclude %s\n", shellQuote(pattern))
 	}
 	if len(ambiguous) > 0 {
 		fmt.Fprintf(w, "%d of them (e.g. %s) cannot be left out by a pattern that is safe for %s:\n"+

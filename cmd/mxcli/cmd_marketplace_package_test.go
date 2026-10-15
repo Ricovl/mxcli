@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // packageFake replaces the three seams `marketplace package` calls out through —
@@ -28,24 +30,42 @@ type packageFake struct {
 	entries []string
 	calls   [][]string
 	mx      string
+
+	mxVersion        string // version of the mx that resolution finds; defaults to version
+	mxVersionUnknown bool   // the version of that mx cannot be told
+	gotMxbuildPath   string // the --mxbuild-path resolution was given
+	inspectCopy      func(workDir string)
 }
 
 func installPackageFake(t *testing.T, f *packageFake) {
 	t.Helper()
-	origInfo, origResolve, origMx := packageProjectInfo, resolveMxForPackage, mxCreateModulePackageCmd
+	origInfo, origResolve, origMx, origVer := packageProjectInfo, resolveMxForPackage, mxCreateModulePackageCmd, mxBinaryVersion
 	t.Cleanup(func() {
-		packageProjectInfo, resolveMxForPackage, mxCreateModulePackageCmd = origInfo, origResolve, origMx
+		packageProjectInfo, resolveMxForPackage, mxCreateModulePackageCmd, mxBinaryVersion = origInfo, origResolve, origMx, origVer
 	})
 	if f.version == "" {
 		f.version = "11.12.5"
 	}
+	if f.mxVersion == "" {
+		f.mxVersion = f.version
+	}
 	packageProjectInfo = func(string) (string, []string, error) { return f.version, f.modules, nil }
-	resolveMxForPackage = func(_, version string) (string, error) {
+	resolveMxForPackage = func(mxbuildPath, version string) (string, error) {
+		f.gotMxbuildPath = mxbuildPath
 		f.mx = "mx-stub@" + version
 		return f.mx, nil
 	}
-	mxCreateModulePackageCmd = func(_ string, args []string, out io.Writer) (int, error) {
+	mxBinaryVersion = func(string) string {
+		if f.mxVersionUnknown {
+			return ""
+		}
+		return f.mxVersion
+	}
+	mxCreateModulePackageCmd = func(_ context.Context, _ string, args []string, out io.Writer) (int, error) {
 		f.calls = append(f.calls, args)
+		if f.inspectCopy != nil {
+			f.inspectCopy(filepath.Dir(args[len(args)-2])) // args end with <work.mpr> <module>
+		}
 		io.WriteString(out, f.output)
 		if f.exit != 0 {
 			return f.exit, nil
@@ -329,7 +349,7 @@ func TestPackage_StaleFileIsNotReportedWhenMxWritesNothing(t *testing.T) {
 	}
 }
 
-func TestInspectPackage_ForeignEntries(t *testing.T) {
+func TestClassifyPackageEntries_ForeignEntries(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "m.mpk")
 	pkgWriteZip(t, p, []string{
 		"project.mpr", "package.xml",
@@ -340,13 +360,14 @@ func TestInspectPackage_ForeignEntries(t *testing.T) {
 		"themesource/pbxexport/web/main.scss", "themesource/atlas_core/web/x.scss",
 		"userlib/foo.jar", // not attributable to a module: never flagged
 	})
-	files, foreign, err := inspectPackage(p, "PbxExport")
+	names, err := readPackageEntries(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if files != 12 { // 13 entries minus the directory entry
-		t.Errorf("files = %d, want 12", files)
+	if len(names) != 12 { // 13 entries minus the directory entry
+		t.Errorf("files = %d, want 12", len(names))
 	}
+	foreign, _ := classifyPackageEntries(names, "PbxExport")
 	want := []string{"javasource/other/Foo.java", "resources/EventLog/a.txt", "resources/Win/b.txt", "themesource/atlas_core/web/x.scss"}
 	if !reflect.DeepEqual(foreign, want) {
 		t.Errorf("foreign = %v\nwant     %v", foreign, want)
@@ -373,5 +394,231 @@ func TestExcludePattern_NeverDropsTheModulesOwnFiles(t *testing.T) {
 		[]string{"resources/EventLog/own.txt"})
 	if pat != "" || !reflect.DeepEqual(ambiguous, []string{"resources/Event/a.txt"}) {
 		t.Errorf("pattern = %q ambiguous = %v, want the clash reported and no pattern", pat, ambiguous)
+	}
+}
+
+func TestPackage_RefusesAnMxOfAnotherVersion(t *testing.T) {
+	// docker.ResolveMxForVersion prefers an mx on PATH and falls back to any cached
+	// one, so the mx it returns may belong to another Mendix version than the app.
+	f := &packageFake{modules: []string{"PbxExport"}, version: "11.12.5", mxVersion: "11.12.1", entries: pkgOwnEntries}
+	installPackageFake(t, f)
+	out := t.TempDir()
+	_, _, _, err := runPackageForTest(t, packageOptions{ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: out})
+	if err == nil {
+		t.Fatal("an mx of Mendix 11.12.1 made a package for a 11.12.5 app without complaint")
+	}
+	for _, want := range []string{"11.12.1", "11.12.5", "mxcli setup mxbuild --version 11.12.5", "--mxbuild-path"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error should contain %q:\n%v", want, err)
+		}
+	}
+	if len(f.calls) != 0 {
+		t.Errorf("mx ran %d time(s) although it is the wrong version", len(f.calls))
+	}
+	if left, _ := filepath.Glob(filepath.Join(out, "*")); len(left) != 0 {
+		t.Errorf("a refused export left %v behind", left)
+	}
+}
+
+func TestPackage_AcceptsAnMxOfTheProjectsVersion(t *testing.T) {
+	cases := []struct{ project, mx string }{
+		{"11.12.5", "11.12.5"},
+		{"10.24.9", "10.24.9.81004"},    // Studio Pro folders carry the build number
+		{"10.24.9.81004", "10.24.9"},    // and so may the project's stamp
+		{"11.12.5.1234", "11.12.5.999"}, // same release, other build
+	}
+	for _, tc := range cases {
+		f := &packageFake{modules: []string{"PbxExport"}, version: tc.project, mxVersion: tc.mx, entries: pkgOwnEntries}
+		installPackageFake(t, f)
+		_, stderr, _, err := runPackageForTest(t, packageOptions{ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir()})
+		if err != nil {
+			t.Errorf("project %s, mx %s: %v", tc.project, tc.mx, err)
+		}
+		if strings.Contains(stderr, "warning") {
+			t.Errorf("project %s, mx %s: unexpected warning:\n%s", tc.project, tc.mx, stderr)
+		}
+	}
+}
+
+func TestPackage_RefusesAnMxWhoseVersionIsUnknown(t *testing.T) {
+	f := &packageFake{modules: []string{"PbxExport"}, mxVersionUnknown: true, entries: pkgOwnEntries}
+	installPackageFake(t, f)
+	_, _, _, err := runPackageForTest(t, packageOptions{ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir()})
+	if err == nil || !strings.Contains(err.Error(), "--mxbuild-path") || !strings.Contains(err.Error(), "11.12.5") {
+		t.Fatalf("want a refusal naming the project's version and the override, got %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Error("mx ran although its version could not be told")
+	}
+}
+
+func TestPackage_ExplicitMxbuildPathOverridesButWarns(t *testing.T) {
+	mxbuildDir := t.TempDir()
+	for _, tc := range []struct {
+		name    string
+		unknown bool
+		mx      string
+		want    []string
+	}{
+		{"mismatch", false, "11.12.1", []string{"warning", "11.12.1", "11.12.5"}},
+		{"unknown", true, "", []string{"warning", "cannot tell", "11.12.5"}},
+	} {
+		f := &packageFake{modules: []string{"PbxExport"}, mxVersion: tc.mx, mxVersionUnknown: tc.unknown, entries: pkgOwnEntries}
+		installPackageFake(t, f)
+		stdout, stderr, res, err := runPackageForTest(t, packageOptions{
+			ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir(), MxBuildPath: mxbuildDir, JSON: true})
+		if err != nil || res == nil {
+			t.Errorf("%s: an explicit --mxbuild-path is the override, got %v", tc.name, err)
+			continue
+		}
+		if f.gotMxbuildPath != mxbuildDir {
+			t.Errorf("%s: resolution got --mxbuild-path %q, want %q", tc.name, f.gotMxbuildPath, mxbuildDir)
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(stderr, w) {
+				t.Errorf("%s: stderr should contain %q:\n%s", tc.name, w, stderr)
+			}
+		}
+		if strings.Contains(stdout, "warning") || !json.Valid([]byte(stdout)) {
+			t.Errorf("%s: the warning must stay off stdout, which carries the JSON:\n%s", tc.name, stdout)
+		}
+		if len(f.calls) != 1 {
+			t.Errorf("%s: mx should have run once, ran %d times", tc.name, len(f.calls))
+		}
+	}
+}
+
+func TestPackage_ExplicitMxbuildPathThatDoesNotExistIsAnError(t *testing.T) {
+	// ResolveMxForVersion silently falls back to PATH when the explicit path is
+	// bad; the override must not turn a typo into "any mx on PATH, warned about".
+	f := &packageFake{modules: []string{"PbxExport"}, entries: pkgOwnEntries}
+	installPackageFake(t, f)
+	_, _, _, err := runPackageForTest(t, packageOptions{
+		ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir(),
+		MxBuildPath: filepath.Join(t.TempDir(), "no-such-mendix")})
+	if err == nil || !strings.Contains(err.Error(), "--mxbuild-path") {
+		t.Fatalf("want an error naming --mxbuild-path, got %v", err)
+	}
+	if len(f.calls) != 0 {
+		t.Error("mx ran")
+	}
+}
+
+func TestPackage_MxOutputOnSuccessGoesToStderr(t *testing.T) {
+	f := &packageFake{modules: []string{"PbxExport"}, output: "MX WARNING: something to read\n", entries: pkgOwnEntries}
+	installPackageFake(t, f)
+	stdout, stderr, _, err := runPackageForTest(t, packageOptions{ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir(), JSON: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "MX WARNING: something to read") {
+		t.Errorf("mx's output never reached the user:\nstderr: %q", stderr)
+	}
+	if strings.Contains(stdout, "MX WARNING") || !json.Valid([]byte(stdout)) {
+		t.Errorf("mx's output must not go to stdout, which carries the JSON:\n%s", stdout)
+	}
+}
+
+func TestPackage_NoMxOutputMeansNothingOnStderr(t *testing.T) {
+	f := &packageFake{modules: []string{"PbxExport"}, entries: pkgOwnEntries}
+	installPackageFake(t, f)
+	_, stderr, _, err := runPackageForTest(t, packageOptions{ProjectPath: pkgPlaceholderProject(t), Module: "PbxExport", OutputDir: t.TempDir()})
+	if err != nil || stderr != "" {
+		t.Errorf("err = %v, stderr = %q", err, stderr)
+	}
+}
+
+// TestMxCreateModulePackageCmd_StopsWhenContextIsCancelled runs the real process
+// runner (not the seam) on this test binary acting as a child that sleeps.
+func TestMxCreateModulePackageCmd_StopsWhenContextIsCancelled(t *testing.T) {
+	if os.Getenv("MXCLI_TEST_SLEEP_CHILD") == "1" {
+		time.Sleep(time.Minute)
+		return
+	}
+	t.Setenv("MXCLI_TEST_SLEEP_CHILD", "1")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	var out bytes.Buffer
+	code, err := mxCreateModulePackageCmd(ctx, os.Args[0], []string{"-test.run=^TestMxCreateModulePackageCmd_StopsWhenContextIsCancelled$"}, &out)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("code = %d, err = %v, want the context's error", code, err)
+	}
+	if time.Since(start) > 20*time.Second {
+		t.Errorf("mx was not stopped by the context (took %s)", time.Since(start))
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	cases := map[string]string{
+		`^resources.EventLog.`: `'^resources.EventLog.'`,
+		``:                     `''`,
+		`it's`:                 `'it'\''s'`,
+		`'a'|'b'`:              `''\''a'\''|'\''b'\'''`,
+	}
+	for in, want := range cases {
+		if got := shellQuote(in); got != want {
+			t.Errorf("shellQuote(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
+
+func TestWarnForeignEntries_QuotesAUsersQuoteSafelyForPasting(t *testing.T) {
+	var w bytes.Buffer
+	warnForeignEntries(&w, "PbxExport", []string{"resources/EventLog/a.txt"}, pkgOwnEntries, `^resources.it's`)
+	want := `--exclude '^resources.it'\''s|^resources.EventLog.'`
+	if !strings.Contains(w.String(), want) {
+		t.Errorf("want %s in:\n%s", want, w.String())
+	}
+}
+
+func TestPackage_OutputFolderInsideTheProjectIsNotCopied(t *testing.T) {
+	dir := t.TempDir()
+	mpr := filepath.Join(dir, "App.mpr")
+	os.WriteFile(mpr, []byte("not a real mpr"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "dist"), 0o755)
+	os.WriteFile(filepath.Join(dir, "dist", "Old.mpk"), []byte("earlier package"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "widgets"), 0o755)
+	os.WriteFile(filepath.Join(dir, "widgets", "w.mpk"), []byte("a widget, mx needs it"), 0o644)
+
+	var distCopied, widgetCopied bool
+	f := &packageFake{modules: []string{"PbxExport"}, entries: pkgOwnEntries, inspectCopy: func(work string) {
+		_, e1 := os.Stat(filepath.Join(work, "dist", "Old.mpk"))
+		_, e2 := os.Stat(filepath.Join(work, "widgets", "w.mpk"))
+		distCopied, widgetCopied = e1 == nil, e2 == nil
+	}}
+	installPackageFake(t, f)
+	res, err := runPackage(context.Background(), packageOptions{ProjectPath: mpr, Module: "PbxExport", OutputDir: filepath.Join(dir, "dist")}, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if distCopied {
+		t.Error("the output folder's earlier packages were copied along with the project")
+	}
+	if !widgetCopied {
+		t.Error("the rest of the project must still be copied")
+	}
+	if _, err := os.Stat(res.Path); err != nil {
+		t.Errorf("package missing: %v", err)
+	}
+}
+
+func TestPackage_OutputFolderIsTheProjectFolderStillCopiesTheProject(t *testing.T) {
+	// "-o ." run from inside the project: skipping the output folder must never
+	// skip the project itself.
+	dir := t.TempDir()
+	mpr := filepath.Join(dir, "App.mpr")
+	os.WriteFile(mpr, []byte("not a real mpr"), 0o644)
+	var mprCopied bool
+	f := &packageFake{modules: []string{"PbxExport"}, entries: pkgOwnEntries, inspectCopy: func(work string) {
+		_, err := os.Stat(filepath.Join(work, "App.mpr"))
+		mprCopied = err == nil
+	}}
+	installPackageFake(t, f)
+	if _, err := runPackage(context.Background(), packageOptions{ProjectPath: mpr, Module: "PbxExport", OutputDir: dir}, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !mprCopied {
+		t.Error("the project was not copied when the output folder is the project folder")
 	}
 }

@@ -117,7 +117,17 @@ mxcli marketplace package MyModule -p app.mpr -o ./dist --json
 It wraps Mendix's own `mx create-module-package` at the project's Mendix version, so the package is
 the one Studio Pro's *Export module package* makes. The module name is checked against the project
 first (a typo lists the modules instead of failing with `mx` exit code 3), and `mx`'s exit codes 1–4
-are reported with what they mean and what `mx` printed.
+are reported with what they mean and what `mx` printed. Whatever `mx` prints on a successful export
+goes to stderr, so `--json` output stays clean.
+
+**The `mx` must be the project's Mendix version.** `mx` is found from an `mx` on PATH first, then a
+Studio Pro install, then the `mxbuild` cache, falling back to any cached one when the project's version
+is missing, so the first match can belong to another Mendix version than the app. mxcli reads the
+version of the `mx` it found (from the `mx.deps.json` beside it, else its version-named folder),
+compares major.minor.patch with the project's, and **refuses** a mismatch — or an `mx` whose version
+cannot be told — naming both versions. The fix is `mxcli setup mxbuild --version <version>` (take an
+older `mx` off PATH, which is used before it). `--mxbuild-path` is the deliberate override: with it
+a mismatch only warns on stderr and the export goes on. A path that does not exist is an error.
 
 | Flag | Purpose |
 |---|---|
@@ -126,6 +136,7 @@ are reported with what they mean and what `mx` printed.
 | `--all-libs` | Bundle every `userlib/` JAR. By default only the module's own required libs go in (`mx -l`): 12 KB against 24 MB on an app with Business Events installed. |
 | `--exclude <regex>` | Leave out files whose path inside the package matches. `mx` takes **one** expression, so join alternatives with `\|`; write the folder separator as `.`. |
 | `--exclude-managed-dependencies` | Leave out managed dependencies (`mx -m`). |
+| `--mxbuild-path` | Take `mx` from this Mendix installation (or `mxbuild`) instead of resolving it by the project's version. Overrides the version check: a mismatch warns instead of refusing. |
 | `--json` | Print `{path, sizeBytes, files, foreignEntries}`. |
 
 **Files of other modules.** `-l` filters only `userlib/` JARs. The app's whole `resources/` folder is
@@ -141,6 +152,9 @@ To leave them out, export again with:
   --exclude '^resources.EventLog.'
 ```
 
+The pattern is quoted for a POSIX shell (a `'` in your own `--exclude` is written `'''`), so it can be
+pasted as it stands; in PowerShell or `cmd` quote it for that shell.
+
 The pattern uses `.` for the separator because a character class or a backslash (`[/\]`) makes `mx`
 print its usage and write nothing. `.` matches any character, so a pattern that would also match a file
 of the module itself is not suggested.
@@ -149,7 +163,8 @@ of the module itself is not suggested.
 measured on a blank 11.12.5 app, one run rewrote `theme-cache/web/theme.compiled.css` and its map,
 added `deployment/sass/main.scss`, and created the module's `themesource/<module>/` folder; the model
 files were untouched. mxcli therefore runs it on a temporary copy, as `docker check` does, and a
-before/after listing of the project (sizes and modification times) was identical.
+before/after listing of the project (sizes and modification times) was identical. An output directory
+inside the project (`-o ./dist`) is left out of that copy, so earlier packages are not copied along.
 
 The package installs back with `marketplace install --file`; the round trip into a fresh 11.12.5 app
 checks with 0 errors.

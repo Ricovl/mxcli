@@ -303,3 +303,52 @@ func TestWithProjectCopy_WritesStayOnTheCopy(t *testing.T) {
 		t.Error("want an error for a project file that does not exist")
 	}
 }
+
+// TestWithProjectCopy_SkipsNamedFoldersButNeverTheProject: a folder inside the
+// project that the caller names is left out of the copy; naming the project's own
+// folder (an output directory of ".") skips nothing.
+func TestWithProjectCopy_SkipsNamedFoldersButNeverTheProject(t *testing.T) {
+	proj := t.TempDir()
+	mpr := filepath.Join(proj, "App.mpr")
+	for p, content := range map[string]string{
+		"App.mpr":             "model",
+		"dist/Old.mpk":        "earlier package",
+		"widgets/w.mpk":       "a widget",
+		"userlib/dist/ok.jar": "a deeper folder of the same name",
+	} {
+		full := filepath.Join(proj, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exists := func(work, rel string) bool {
+		_, err := os.Stat(filepath.Join(filepath.Dir(work), filepath.FromSlash(rel)))
+		return err == nil
+	}
+
+	err := WithProjectCopy(mpr, func(work string) error {
+		if exists(work, "dist/Old.mpk") {
+			t.Error("the skipped folder was copied")
+		}
+		if !exists(work, "widgets/w.mpk") || !exists(work, "userlib/dist/ok.jar") || !exists(work, "App.mpr") {
+			t.Error("something outside the skipped folder was not copied")
+		}
+		return nil
+	}, filepath.Join(proj, "dist"), filepath.Join(t.TempDir(), "elsewhere"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = WithProjectCopy(mpr, func(work string) error {
+		if !exists(work, "App.mpr") || !exists(work, "dist/Old.mpk") {
+			t.Error("naming the project folder itself must skip nothing")
+		}
+		return nil
+	}, proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
