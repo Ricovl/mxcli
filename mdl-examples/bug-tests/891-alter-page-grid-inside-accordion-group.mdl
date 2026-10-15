@@ -1,0 +1,43 @@
+mdl 1;
+-- upstream #891 (2) / ako/mxcli#1274 — ALTER PAGE could not address a DataGrid 2
+-- (or any widget) inside an Accordion group.
+--
+-- The resolver descended into a pluggable widget's own widget properties and
+-- into DataGrid 2 columns, but not into other object-list items — an Accordion
+-- group, a Pop-up menu item — which keep their widgets one level deeper, at
+-- Objects[].Properties[content].Value.Widgets. The not-found message is built
+-- from a generic walk that does descend, so it advertised the very columns it
+-- had just refused:
+--
+--   set (Caption: 'Quantity') on Qty
+--     -> widget "Qty" not found ... available columns: Name, Qty
+--   set (Caption: 'Quantity') on grid1.Qty
+--     -> widget "grid1" not found
+--
+-- Verify:
+--   mxcli exec 891-alter-page-grid-inside-accordion-group.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page A1274.AccPage"
+--     -- columns now captioned 'Item name' and 'Quantity', the grid's page
+--     -- size 5, all still inside the Accordion's group
+--   mxcli docker check -p app.mpr
+
+create module A1274;
+create entity A1274.Item ( Name: String(100), Qty: Integer );
+create page A1274.AccPage ( Title: 'Acc', Layout: Atlas_Core.Atlas_Default )
+{
+  PLUGGABLEWIDGET 'com.mendix.widget.web.accordion.Accordion' acc1 {
+    GROUP g1 (Caption: 'Group one') {
+      DATAGRID grid1 (DataSource: DATABASE A1274.Item) {
+        COLUMN (Attribute: Name, Caption: 'Name')
+        COLUMN (Attribute: Qty, Caption: 'Qty')
+      }
+    }
+  }
+};
+
+-- Qualified column, bare column, and the grid itself — each was "not found".
+alter page A1274.AccPage {
+  set (Caption: 'Item name') on grid1.Name;
+  set (Caption: 'Quantity') on Qty;
+  set (PageSize: 5) on grid1;
+};
