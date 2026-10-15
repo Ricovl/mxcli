@@ -1,0 +1,38 @@
+mdl 1;
+-- mendixlabs/mxcli#1434 — `mxcli check -p` passed a script that `mxcli exec`
+-- then refused for the project's Mendix version, after the statements before
+-- the refused one had run. check -p now applies exec's version gates (the same
+-- statement-to-feature table, executor.statementVersionGates) as MDL-VERSION01,
+-- and exec's pre-flight refuses the script before anything is written.
+--
+-- Verify (on a copy of a Mendix 9.x project, e.g. modelsdk/mpr/testdata/v1-project):
+--   mxcli check 1434-check-version-gates.mdl -p app.mpr
+--     -> statement 5: create view entity requires Mendix 10.18.0+ ... [MDL-VERSION01]
+--   mxcli exec 1434-check-version-gates.mdl -p app.mpr
+--     -> the same line, "Refusing to execute ... Nothing was written."
+-- On a 10.18+ project both pass. Without the view entity, both pass on 9.24:
+-- the flows are what the reported StableId / CaseValues refusal came from (#1410).
+
+create module R1434;
+
+create entity R1434.Item (
+  "Count": integer
+);
+
+create microflow R1434.MF_Empty ()
+begin
+  return;
+end;
+
+create microflow R1434.MF_Decide ($Item: R1434.Item) returns boolean
+begin
+  declare $Result boolean = false;
+  if $Item/"Count" > 10 then
+    set $Result = true;
+  end if;
+  return $Result;
+end;
+
+create view entity R1434.ItemView (
+  Name: String(200)
+) as select cast('a' as String) as Name;

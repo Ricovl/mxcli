@@ -108,9 +108,7 @@ func execCreateDataTransformer(ctx *ExecContext, s *ast.CreateDataTransformerStm
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "data_transformer",
-		"create data transformer",
-		"upgrade your project to 11.9+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

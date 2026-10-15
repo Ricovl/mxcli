@@ -74,19 +74,7 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	if vs := ValidateWorkflowEventTypes(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
-	if len(s.EventHandlers) > 0 {
-		if err := checkFeature(ctx, "workflows", "event_handlers", "on workflow events",
-			"remove the `on … workflow event` clauses, or upgrade the project"); err != nil {
-			return err
-		}
-	}
-	if workflowUsesAgentTask(workflowStatementActivities(s)) {
-		if err := checkFeature(ctx, "workflows", "ai_agent_task", "call agent microflow",
-			"AI agent tasks need Mendix 11.9 or later — use `call microflow` on older projects"); err != nil {
-			return err
-		}
-	}
-	if err := checkEventSubProcessFeatures(ctx, s); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

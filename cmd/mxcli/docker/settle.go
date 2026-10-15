@@ -60,10 +60,42 @@ func SettleGeneratedSources(projectPath, mxPath, version string, w io.Writer) er
 		if errors.As(err, &werr) {
 			return err // already carries the tail and the java home
 		}
-		return fmt.Errorf("mxbuild failed: %w\n%s", err, lastLines(out.String(), 20))
+		return classifySettleFailure(err, out.String())
 	}
 	fmt.Fprintln(w, "  Generated sources are in their post-build form.")
 	return nil
+}
+
+// ModelErrorsError is a build mxbuild refused because the MODEL has errors —
+// as opposed to one that could not run (no JDK, a killed JVM). The difference
+// matters to `mxcli new`: the first means the project it just created does not
+// build, which is a failed scaffold, not a warning (mendixlabs/mxcli#1433).
+type ModelErrorsError struct {
+	// Errors are mxbuild's "ERROR at <location>: <message>" lines.
+	Errors []string
+}
+
+func (e *ModelErrorsError) Error() string {
+	return fmt.Sprintf("mxbuild refused the project: %d model error(s):\n  %s",
+		len(e.Errors), strings.Join(e.Errors, "\n  "))
+}
+
+// classifySettleFailure turns a failed settle build into an error, typed as a
+// *ModelErrorsError when mxbuild's output lists model errors. mxbuild prints
+// each as "ERROR at <location>: <message>" after "The project cannot be
+// deployed, because it contains errors." (measured on 10.24.0).
+func classifySettleFailure(runErr error, output string) error {
+	var modelErrs []string
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "ERROR at ") {
+			modelErrs = append(modelErrs, line)
+		}
+	}
+	if len(modelErrs) > 0 {
+		return &ModelErrorsError{Errors: modelErrs}
+	}
+	return fmt.Errorf("mxbuild failed: %w\n%s", runErr, lastLines(output, 20))
 }
 
 // resolveMxBuildForSettle finds mxbuild beside the resolved mx binary (the

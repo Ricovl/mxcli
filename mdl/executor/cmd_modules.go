@@ -575,6 +575,7 @@ func listModules(ctx *ExecContext) error {
 		extDb       int
 	}
 	var rows []row
+	protections := moduleProtections(ctx)
 
 	for _, m := range modules {
 		// Determine source (AppStore with version or local)
@@ -585,6 +586,14 @@ func listModules(ctx *ExecContext) error {
 			} else {
 				source = "Marketplace"
 			}
+		}
+		if kind := protections[string(m.ID)]; kind != "" {
+			// mendixlabs/mxcli#1498: its Hidden elements cannot be referenced
+			// from other modules, which nothing else printed showed.
+			if source != "" {
+				source += ", "
+			}
+			source += "Protected " + kind
 		}
 
 		r := row{
@@ -649,6 +658,12 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(dm.Documentation, "\n", "\n * "))
 	}
 	fmt.Fprintf(ctx.Output, "create or modify module %s;\n", targetModule.Name)
+	// A Protected (add-on / solution) module hides every element not marked
+	// Usable from the rest of the app (CE1406). MDL has no syntax for the
+	// module's export level, so it prints as a comment (mendixlabs/mxcli#1498).
+	if kind := moduleProtection(ctx, string(targetModule.ID)); kind != "" {
+		fmt.Fprintf(ctx.Output, "-- export level: Protected (%s module) — set in Studio Pro; elements not marked Usable cannot be referenced from other modules\n", kind)
+	}
 
 	// Module roles live in the module's own Security$ModuleSecurity unit rather
 	// than in any document, so a sweep that describes every document in a module

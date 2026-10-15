@@ -373,5 +373,6 @@
 # Blog
 
 - [Blog](blog/index.md)
+  - [Release: mxcli v0.27.0](blog/v0.27.0-release.md)
   - [Release: mxcli v0.26.0](blog/v0.26.0-release.md)
   - [Introducing mxcli](blog/introduction.md)

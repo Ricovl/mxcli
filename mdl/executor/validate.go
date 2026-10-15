@@ -489,6 +489,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// `Module.Enum.Key` in any expression: the key must be one of the
 	// enumeration's values (mendixlabs/mxcli#1472).
 	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
+	// A reference into a Protected (add-on) module's Hidden element, and a
+	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
+	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
+	errors = append(errors, validateProtectedModuleRefs(ctx, prog)...)
 	return errors, sc.warnings
 }
 

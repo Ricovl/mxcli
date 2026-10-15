@@ -18,10 +18,10 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 | 381-402 | Catalog Queries |
 | 403-452 | Common Patterns |
 | 453-504 | Menu Documents (standalone, reusable) |
-| 505-555 | Offline Profiles |
-| 556-569 | Checklist |
-| 570-573 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
-| 574-576 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
+| 505-575 | Offline Profiles |
+| 576-590 | Checklist |
+| 591-594 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
+| 595-597 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
 
 <!-- /skill-index -->
 # Navigation Management Skill
@@ -548,6 +548,26 @@ the profile takes the whole page graph, which mxcli does not walk. The fix is
 either to keep the page off the offline profile, or to bring the value one hop
 closer — add an attribute to the intermediate entity and keep it in step.
 
+**It needs Progressive web app settings, or nothing works offline.** A profile
+stores none until "Progressive web app" is ticked, and then Mendix registers no
+service worker for it: the built `index.js` carries `"registerServiceWorker": false`
+and the first page opened without a network fails to load, while `check`, `exec`
+and `mx check` all pass (mendixlabs/mxcli#1377). Set them in the statement:
+
+```sql
+mdl 1;
+create or modify navigation PhoneOffline
+  home page Field.WorkOrder_List
+  progressive web app ( Precaching: true )
+  sync ( sync Field.WorkOrder all; );
+```
+
+`Precaching` pre-loads the app's pages and resources (default `false`),
+`InstallPrompt` allows "Add to home screen" (default `true`). A key the clause
+leaves out takes its default, so a bare `progressive web app` writes both, `progressive web app off` stores none
+again, and leaving the clause out keeps what is stored. Exec warns about an
+offline profile left without them.
+
 **The synchronization config is derived, not authored.** `offlineEntityConfigs`
 starts empty and Studio Pro fills it from the entities the reachable pages use;
 only rows that differ from the defaults (`syncMode: Online`, no constraint) are
@@ -557,6 +577,7 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 
 - [ ] Profile name is one of Mendix's web kinds (`Responsive`/`Phone`/`Tablet`, or their `*Offline` twins) — an invented name is an error, not a new profile
 - [ ] For an **offline** profile, no page it can reach binds an attribute across more than one association (CE6206)
+- [ ] For an **offline** profile, `progressive web app ( Precaching: true )` is set — without it no page opens offline
 - [ ] All PAGE/MICROFLOW targets are fully qualified (`Module.Name`)
 - [ ] Role references in `for` clauses are fully qualified (`Module.Role`)
 - [ ] Menu items are in `{ }` with no `;` between them; sub-menu items in `menu 'caption' { ... }`

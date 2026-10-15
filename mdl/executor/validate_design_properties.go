@@ -277,6 +277,29 @@ func validateDesignPropsAs(w *ast.WidgetV3, key string, reg *ThemeRegistry, loca
 	return out
 }
 
+// ThemeDeclaresDesignProperty reports whether reg declares design property key
+// for the design-properties.json group widgetKey (e.g. "DivContainer", with
+// the inherited "Widget" group) and accepts value for it: "on" for a Toggle,
+// one of the declared option names otherwise. A multi-select property is never
+// accepted, since a single value is the wrong stored shape for it (CE6084).
+//
+// For generated MDL that must not name a property the project's theme lacks:
+// mxbuild refuses every such one with CE6083, and the theme is versioned with
+// Atlas, not with mxcli (mendixlabs/mxcli#1433).
+func ThemeDeclaresDesignProperty(reg *ThemeRegistry, widgetKey, key, value string) bool {
+	if reg == nil {
+		return false
+	}
+	tp := findThemeProp(reg.GetPropertiesForWidget(widgetKey), key)
+	if tp == nil || tp.MultiSelect {
+		return false
+	}
+	if tp.Type == "Toggle" {
+		return strings.EqualFold(value, "on")
+	}
+	return themeOptionAllowed(tp.Options, value)
+}
+
 // findThemeProp returns the property whose Name matches key exactly.
 func findThemeProp(props []ThemeProperty, key string) *ThemeProperty {
 	for i := range props {

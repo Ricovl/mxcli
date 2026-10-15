@@ -96,13 +96,9 @@ func buildMicroflowFromStmt(ctx *ExecContext, s *ast.CreateMicroflowStmt, opts b
 		}
 	}
 
-	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and bodies);
-	// an older project stores a different EmailMessage, or no such activity.
-	if bodyContains(s.Body, func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.SendEmailStmt); return ok }) {
-		if err := checkFeature(ctx, "microflows", "send_email", "send email",
-			"use the Email Connector module, or upgrade the project to 11.13+"); err != nil {
-			return nil, err
-		}
+	// SEND EMAIL (11.13+) and a deep link URL (10.6+): statementVersionGates.
+	if err := checkVersionGates(ctx, s); err != nil {
+		return nil, err
 	}
 
 	// Find the module, and the folder, WITHOUT creating either on a dry run:
@@ -684,16 +680,9 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside Mendix 9:
-	// SynchronizationType.Unsynchronized was introduced in 9.4.0, while the
-	// activity and its other two modes go back further. Gate the mode, not the
-	// statement, so a 9.0-9.3 project keeps `synchronize all`.
-	if bodyUsesUnsynchronized(s.Body) {
-		if err := checkFeature(ctx, "microflows", "synchronize_unsynchronized",
-			"synchronize unsynchronized",
-			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"); err != nil {
-			return nil, err
-		}
+	// SYNCHRONIZE UNSYNCHRONIZED (9.4+): statementVersionGates.
+	if err := checkVersionGates(ctx, s); err != nil {
+		return nil, err
 	}
 
 	// Build flow graph from body statements

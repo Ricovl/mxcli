@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +28,8 @@ This command performs the following steps:
   3. Applies mxcli's default styling (--theme, see 'mxcli theme list')
   4. Creates a layout the project owns and moves its pages onto it (--layout none)
   5. Initializes AI tooling and devcontainer configuration (mxcli init)
-  6. Runs one build so generated sources are settled (--skip-build to skip)
+  6. Runs one build so generated sources are settled (--skip-build to skip);
+     if mxbuild reports model errors, the command exits non-zero
   7. Links this mxcli into the project (or downloads a Linux build on macOS/Windows)
 
 Step 4 exists because Atlas's layouts live in a Marketplace module, and Mendix's
@@ -284,15 +286,17 @@ Examples:
 		// changes nobody wrote (mxcli-todo #7). Doing it here puts the settled form
 		// in the first commit. Best-effort: this is a nicety, not a precondition
 		// for a usable project, so a missing JDK or a build failure is a warning.
+		//
+		// The one exception is a build mxbuild refused for MODEL errors: that
+		// project does not build, so the command finishes its steps (the project
+		// stays on disk to inspect) and then exits non-zero (mendixlabs/mxcli#1433).
+		buildFailed := false
 		if skipBuild {
 			fmt.Printf("\nStep 6/7: Skipped first build (--skip-build)\n")
 		} else {
 			fmt.Printf("\nStep 6/7: Running the first build (settles generated sources)...\n")
 			if err := docker.SettleGeneratedSources(mprPath, mxPath, mendixVersion, os.Stdout); err != nil {
-				fmt.Fprintf(os.Stderr, "  Warning: could not run the first build: %v\n", err)
-				fmt.Fprintln(os.Stderr, "  The project is usable. Note that the first build will rewrite the")
-				fmt.Fprintln(os.Stderr, "  generated action stubs under javascriptsource/ and javasource/ —")
-				fmt.Fprintln(os.Stderr, "  that diff is build output, so commit it and move on.")
+				buildFailed = reportFirstBuildFailure(err, os.Stderr)
 			}
 		}
 
@@ -305,12 +309,40 @@ Examples:
 				return downloadMxcliBinary("mendixlabs/mxcli", tag, "linux", "amd64", outPath, w)
 			}, os.Stdout, os.Stderr)
 
+		if buildFailed {
+			fmt.Fprintf(os.Stderr, "\n✗ Project '%s' was created at %s, but it does not build (see the errors above).\n",
+				appName, absDir)
+			fmt.Fprintf(os.Stderr, "  Re-check it with: mxcli docker check -p %s\n", mprPath)
+			os.Exit(1)
+		}
+
 		fmt.Printf("\n✓ Project '%s' created at %s\n", appName, absDir)
 		fmt.Println("\nNext steps:")
 		fmt.Println("  1. Open the project folder in VS Code")
 		fmt.Println("  2. Reopen in Dev Container when prompted")
 		fmt.Printf("  3. Run './mxcli -p %s' to start working\n", filepath.Base(mprPath))
 	},
+}
+
+// reportFirstBuildFailure reports a failed first build and says whether it is
+// fatal to `mxcli new`.
+//
+// It is fatal when mxbuild ran and refused the model: the project does not
+// build, and printing "Project created" with exit 0 over that is how a broken
+// scaffold reached a user unnoticed (mendixlabs/mxcli#1433). Any other failure
+// — no JDK, no mxbuild, a killed build — says nothing about the project, so it
+// stays a warning.
+func reportFirstBuildFailure(err error, errOut io.Writer) bool {
+	var merr *docker.ModelErrorsError
+	if errors.As(err, &merr) {
+		fmt.Fprintf(errOut, "  Error: the project does not build — %v\n", merr)
+		return true
+	}
+	fmt.Fprintf(errOut, "  Warning: could not run the first build: %v\n", err)
+	fmt.Fprintln(errOut, "  The project is usable. Note that the first build will rewrite the")
+	fmt.Fprintln(errOut, "  generated action stubs under javascriptsource/ and javasource/ —")
+	fmt.Fprintln(errOut, "  that diff is build output, so commit it and move on.")
+	return false
 }
 
 // devcontainerReleaseTag is the release whose Linux binary matches this mxcli,
