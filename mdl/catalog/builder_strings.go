@@ -201,24 +201,26 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 	res, err := b.tx.Exec(`
 		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName, UnitId)
 		SELECT QualifiedName, ObjectType, Description, 'documentation', '', Id,
-		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END, Id
+		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END,
+		       COALESCE((SELECT UnitId FROM entities_data e WHERE e.Id = objects.Id),
+		                (SELECT UnitId FROM associations_data a WHERE a.Id = objects.Id), Id)
 		FROM objects
 		WHERE Description <> '' AND SnapshotId = ?1
 		  AND ObjectType NOT IN ('MICROFLOW', 'WORKFLOW', 'CONTRACT_ENTITY')
 		  AND (?2 = '' OR Id IN (SELECT UnitId FROM incremental_units)
 		       OR ObjectType IN ('ENTITY', 'ASSOCIATION') AND ModuleName IN (SELECT Name FROM incremental_modules))
 		UNION ALL
-		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName, Id
+		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName, UnitId
 		FROM attributes_data
 		WHERE Description <> '' AND SnapshotId = ?1
-		  AND (?2 = '' OR ModuleName IN (SELECT Name FROM incremental_modules))
+		  AND (?2 = '' OR UnitId IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName, MicroflowId
+		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName, UnitId
 		FROM microflow_parameters_data
 		WHERE Description <> '' AND SnapshotId = ?1
 		  AND (?2 = '' OR MicroflowId IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName, Id
+		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName, JavaActionId
 		FROM java_action_parameters_data
 		WHERE Description <> '' AND SnapshotId = ?1 AND ?2 = ''
 		UNION ALL

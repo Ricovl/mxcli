@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mendixlabs/mxcli/mdl/catalog"
 )
 
 // TestIncrementalCatalogMatchesFullRebuild renames a microflow in its unit file
@@ -200,6 +202,32 @@ end;`)
 	for table, rows := range full {
 		if got := incremental[table]; strings.Join(got, "\n") != strings.Join(rows, "\n") {
 			t.Errorf("table %s: incremental has %d rows, full rebuild %d", table, len(got), len(rows))
+		}
+	}
+}
+
+// TestCatalogRowsCarryTheirUnit: every row of a table an incremental refresh
+// deletes by UnitId names a unit of the project — not an element's own ID, and
+// not a unit left over from the previous document. The System module is
+// virtual and exempt.
+func TestCatalogRowsCarryTheirUnit(t *testing.T) {
+	exec := typeCheckFixture(t)
+	ctx := exec.newExecContext(context.Background())
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	db, err := sql.Open("sqlite", getCachePath(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	for _, table := range catalog.UnitTables {
+		var total, bad int
+		q := `SELECT COUNT(*), COALESCE(SUM(COALESCE(UnitId, '') NOT IN (SELECT UnitId FROM unit_stamps)), 0)
+		      FROM ` + table + ` WHERE COALESCE(ModuleName, '') <> 'System'`
+		if err := db.QueryRow(q).Scan(&total, &bad); err != nil {
+			t.Fatalf("%s: %v", table, err)
+		}
+		if bad > 0 {
+			t.Errorf("%s: %d of %d rows name no unit of the project", table, bad, total)
 		}
 	}
 }

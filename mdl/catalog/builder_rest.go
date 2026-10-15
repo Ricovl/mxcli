@@ -108,7 +108,7 @@ func (b *Builder) buildRestClients() error {
 // publishedRestRef is one published REST operation → microflow edge. sourceID is
 // the operation's synthetic catalog id, so the emitted edge joins back to
 // published_rest_operations_data rather than only naming the operation in prose.
-type publishedRestRef struct{ sourceID, qualifiedName, moduleName, microflow string }
+type publishedRestRef struct{ sourceID, qualifiedName, moduleName, microflow, unit string }
 
 // publishedRestOpName renders the name a published operation is known by in the
 // reference graph. The empty parts are dropped rather than left as runs of
@@ -218,6 +218,7 @@ func (b *Builder) buildPublishedRestServices() error {
 				// name would collide with every other unnamed target in refs.
 				if op.Microflow != "" {
 					b.publishedRestRefs = append(b.publishedRestRefs, publishedRestRef{
+						unit:     string(svc.ID),
 						sourceID: opID,
 						// The resource is part of what makes an operation unique:
 						// two resources of one service can both expose GET on the

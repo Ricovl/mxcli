@@ -27,6 +27,7 @@ func (b *Builder) buildAssociations() error {
 	moduleNames := make(map[model.ID]string)
 	entityNames := make(map[model.ID]string)
 	for _, dm := range domainModels {
+		b.unit = string(dm.ID)
 		modID := b.hierarchy.findModuleID(dm.ContainerID)
 		modName := b.hierarchy.getModuleName(modID)
 		moduleNames[dm.ContainerID] = modName
@@ -35,12 +36,12 @@ func (b *Builder) buildAssociations() error {
 		}
 	}
 
-	stmt, err := b.tx.Prepare(`
+	stmt, err := b.prepareUnit(`
 		INSERT INTO associations_data (Id, Name, QualifiedName, ModuleName,
 			FromEntity, ToEntity, AssociationType, Owner, StorageFormat, Description,
 			ToDeleteBehavior, ToDeleteErrorMessage, FromDeleteBehavior, FromDeleteErrorMessage,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -51,6 +52,7 @@ func (b *Builder) buildAssociations() error {
 
 	count := 0
 	for _, dm := range domainModels {
+		b.unit = string(dm.ID)
 		if !b.wants(string(dm.ID)) {
 			continue
 		}

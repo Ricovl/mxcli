@@ -79,25 +79,25 @@ func (b *Builder) buildEntities() error {
 		return err
 	}
 
-	entityStmt, err := b.tx.Prepare(`
+	entityStmt, err := b.prepareUnit(`
 		INSERT INTO entities_data (Id, Name, QualifiedName, ModuleName, Folder, EntityType,
 			Description, Generalization, AttributeCount, AssociationCount,
 			AccessRuleCount, ValidationRuleCount, HasEventHandlers,
 			HasCreatedDate, HasChangedDate, HasOwner, HasChangedBy,
 			IsExternal, ExternalService,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer entityStmt.Close()
 
-	attrStmt, err := b.tx.Prepare(`
+	attrStmt, err := b.prepareUnit(`
 		INSERT INTO attributes_data (Id, Name, EntityId, EntityQualifiedName, ModuleName,
 			DataType, EnumerationQualifiedName, Length, IsUnique, IsRequired, DefaultValue,
-			IsCalculated, Description, ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			IsCalculated, Description, ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -109,6 +109,7 @@ func (b *Builder) buildEntities() error {
 	entityCount := 0
 	attrCount := 0
 	for _, dm := range domainModels {
+		b.unit = string(dm.ID)
 		if !b.wants(string(dm.ID)) {
 			continue
 		}

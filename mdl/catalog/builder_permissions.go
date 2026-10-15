@@ -3,8 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
-
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
@@ -60,9 +58,9 @@ func (b *Builder) buildPermissions() error {
 		return nil
 	}
 
-	stmt, err := b.tx.Prepare(`
-		INSERT INTO permissions (ModuleRoleName, ElementType, ElementName, MemberName, AccessType, XPathConstraint, DefaultMemberAccessRights, ModuleName, ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	stmt, err := b.prepareUnit(`
+		INSERT INTO permissions (ModuleRoleName, ElementType, ElementName, MemberName, AccessType, XPathConstraint, DefaultMemberAccessRights, ModuleName, ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -88,7 +86,7 @@ func (b *Builder) buildPermissions() error {
 }
 
 // buildEntityPermissions extracts entity-level and member-level access permissions.
-func (b *Builder) buildEntityPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildEntityPermissions(stmt rowStmt, projectID, snapshotID string) int {
 	count := 0
 
 	dms, err := b.cachedDomainModels()
@@ -97,6 +95,7 @@ func (b *Builder) buildEntityPermissions(stmt *sql.Stmt, projectID, snapshotID s
 	}
 
 	for _, dm := range dms {
+		b.unit = string(dm.ID)
 		if !b.wants(string(dm.ID)) {
 			continue
 		}
@@ -186,7 +185,7 @@ func entityAccessFromMemberRights(rule *domainmodel.AccessRule) (hasRead, hasWri
 // emitMemberPermissions emits MEMBER_READ/MEMBER_WRITE rows for entity attributes and associations.
 // When MemberAccesses is non-empty, use explicit per-member rights.
 // When MemberAccesses is empty, expand DefaultMemberAccessRights to all attributes.
-func (b *Builder) emitMemberPermissions(stmt *sql.Stmt, rule *domainmodel.AccessRule, ent *domainmodel.Entity,
+func (b *Builder) emitMemberPermissions(stmt rowStmt, rule *domainmodel.AccessRule, ent *domainmodel.Entity,
 	roleName, entityQN, xpath, defaultRights, moduleName, projectID, snapshotID string) int {
 	count := 0
 
@@ -228,7 +227,7 @@ func (b *Builder) emitMemberPermissions(stmt *sql.Stmt, rule *domainmodel.Access
 }
 
 // buildMicroflowPermissions extracts microflow execution permissions.
-func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildMicroflowPermissions(stmt rowStmt, projectID, snapshotID string) int {
 	count := 0
 
 	mfs, err := b.cachedMicroflows()
@@ -237,6 +236,7 @@ func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotI
 	}
 
 	for _, mf := range mfs {
+		b.unit = string(mf.ID)
 		if len(mf.AllowedModuleRoles) == 0 {
 			continue
 		}
@@ -257,7 +257,7 @@ func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotI
 }
 
 // buildPagePermissions extracts page view permissions.
-func (b *Builder) buildPagePermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildPagePermissions(stmt rowStmt, projectID, snapshotID string) int {
 	count := 0
 
 	pages, err := b.reader.ListPages()
@@ -266,6 +266,7 @@ func (b *Builder) buildPagePermissions(stmt *sql.Stmt, projectID, snapshotID str
 	}
 
 	for _, pg := range pages {
+		b.unit = string(pg.ID)
 		if len(pg.AllowedRoles) == 0 {
 			continue
 		}
@@ -286,7 +287,7 @@ func (b *Builder) buildPagePermissions(stmt *sql.Stmt, projectID, snapshotID str
 }
 
 // buildODataServicePermissions extracts published OData service access permissions.
-func (b *Builder) buildODataServicePermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildODataServicePermissions(stmt rowStmt, projectID, snapshotID string) int {
 	count := 0
 
 	services, err := b.reader.ListPublishedODataServices()
@@ -295,6 +296,7 @@ func (b *Builder) buildODataServicePermissions(stmt *sql.Stmt, projectID, snapsh
 	}
 
 	for _, svc := range services {
+		b.unit = string(svc.ID)
 		if len(svc.AllowedModuleRoles) == 0 {
 			continue
 		}

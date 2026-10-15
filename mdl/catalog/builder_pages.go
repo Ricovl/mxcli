@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -19,11 +18,11 @@ func (b *Builder) buildPages() error {
 		return err
 	}
 
-	pageStmt, err := b.tx.Prepare(`
+	pageStmt, err := b.prepareUnit(`
 		INSERT INTO pages_data (Id, Name, QualifiedName, ModuleName, Folder, Title, URL, LayoutRef,
 			Description, ParameterCount, WidgetCount, Excluded,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -31,19 +30,20 @@ func (b *Builder) buildPages() error {
 	defer pageStmt.Close()
 
 	// Prepare widget statement only in full mode
-	var widgetStmt *sql.Stmt
+	var widgetStmt rowStmt
 	if b.fullMode {
-		widgetStmt, err = b.tx.Prepare(`
+		prepared, err := b.prepareUnit(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
 				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
-				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ProjectId, SnapshotId, UnitId)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer widgetStmt.Close()
+		defer prepared.Close()
+		widgetStmt = prepared
 	}
 
 	projectID, snapshotID := b.snapshotMeta()
@@ -52,6 +52,7 @@ func (b *Builder) buildPages() error {
 	widgetCount := 0
 
 	for _, pg := range pageList {
+		b.unit = string(pg.ID)
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -143,11 +144,11 @@ func (b *Builder) buildSnippets() error {
 		return err
 	}
 
-	snippetStmt, err := b.tx.Prepare(`
+	snippetStmt, err := b.prepareUnit(`
 		INSERT INTO snippets_data (Id, Name, QualifiedName, ModuleName, Folder, Description,
 			ParameterCount, WidgetCount,
-			ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -157,19 +158,20 @@ func (b *Builder) buildSnippets() error {
 	// Snippet widgets feed the same widgets_data table as page widgets (full mode
 	// only), with ContainerType=SNIPPET, so the refs projection in buildReferences
 	// emits snippet → entity/microflow/nanoflow edges automatically.
-	var widgetStmt *sql.Stmt
+	var widgetStmt rowStmt
 	if b.fullMode {
-		widgetStmt, err = b.tx.Prepare(`
+		prepared, err := b.prepareUnit(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
 				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
-				ProjectId, SnapshotId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ProjectId, SnapshotId, UnitId)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer widgetStmt.Close()
+		defer prepared.Close()
+		widgetStmt = prepared
 	}
 
 	projectID, snapshotID := b.snapshotMeta()
@@ -177,6 +179,7 @@ func (b *Builder) buildSnippets() error {
 	count := 0
 	widgetCount := 0
 	for _, sn := range snippetList {
+		b.unit = string(sn.ID)
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(sn.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)

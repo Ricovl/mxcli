@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -138,6 +139,12 @@ type Builder struct {
 	businessEventCache      []*model.BusinessEventService
 	databaseConnectionCache []*model.DatabaseConnection
 	moduleSettingsCache     []*types.ModuleSettings
+
+	// unit is the document whose rows are being inserted; a unitStmt appends
+	// it to every insert into a table with a UnitId column. Each document loop
+	// sets it, and each section clears it, so a loop that forgets leaves ""
+	// rather than the previous document's ID.
+	unit string
 
 	// Incremental refresh (builder_incremental.go): only is nil for a full
 	// build. stamps are written with the build.
@@ -720,4 +727,30 @@ func (b *Builder) updateSnapshotCount() {
 // views (see tables.go and issue #576).
 func (b *Builder) snapshotMeta() (projectID, snapshotID string) {
 	return b.catalog.projectID, b.snapshot.ID
+}
+
+// rowStmt is a prepared insert, plain or a unitStmt.
+type rowStmt interface {
+	Exec(args ...any) (sql.Result, error)
+}
+
+// unitStmt is a prepared insert whose last column is UnitId, filled from the
+// builder's current unit.
+type unitStmt struct {
+	s *sql.Stmt
+	b *Builder
+}
+
+func (u unitStmt) Exec(args ...any) (sql.Result, error) {
+	return u.s.Exec(append(args[:len(args):len(args)], u.b.unit)...)
+}
+
+func (u unitStmt) Close() error { return u.s.Close() }
+
+// prepareUnit prepares an insert whose column list ends with UnitId, and
+// clears the current unit for the section that uses it.
+func (b *Builder) prepareUnit(query string) (unitStmt, error) {
+	b.unit = ""
+	s, err := b.tx.Prepare(query)
+	return unitStmt{s, b}, err
 }

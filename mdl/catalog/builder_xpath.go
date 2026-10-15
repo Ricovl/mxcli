@@ -4,7 +4,6 @@ package catalog
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -28,14 +27,14 @@ func (b *Builder) buildXPathExpressions() error {
 		return nil
 	}
 
-	stmt, err := b.tx.Prepare(`
+	stmt, err := b.prepareUnit(`
 		INSERT INTO xpath_expressions_data (
 			Id, DocumentType, DocumentId, DocumentQualifiedName,
 			ComponentType, ComponentId, ComponentName,
 			XPathExpression, TargetEntity, ReferencedEntities,
 			IsParameterized, UsageType, ModuleName,
 			ProjectId, SnapshotId
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		, UnitId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -49,6 +48,7 @@ func (b *Builder) buildXPathExpressions() error {
 	mfs, err := b.cachedMicroflows()
 	if err == nil {
 		for _, mf := range mfs {
+			b.unit = string(mf.ID)
 			moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + mf.Name
@@ -61,6 +61,7 @@ func (b *Builder) buildXPathExpressions() error {
 	nfs, err := b.cachedNanoflows()
 	if err == nil {
 		for _, nf := range nfs {
+			b.unit = string(nf.ID)
 			moduleID := b.hierarchy.findModuleID(nf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + nf.Name
@@ -74,6 +75,7 @@ func (b *Builder) buildXPathExpressions() error {
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
+			b.unit = string(dm.ID)
 			if !b.wants(string(dm.ID)) {
 				continue
 			}
@@ -115,6 +117,7 @@ func (b *Builder) buildXPathExpressions() error {
 			continue
 		}
 		for _, ru := range rawPages {
+			b.unit = string(ru.ID)
 			moduleID := b.hierarchy.findModuleID(ru.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -142,7 +145,7 @@ func (b *Builder) buildXPathExpressions() error {
 }
 
 // extractMicroflowXPath extracts XPath constraints from microflow/nanoflow actions.
-func (b *Builder) extractMicroflowXPath(stmt *sql.Stmt,
+func (b *Builder) extractMicroflowXPath(stmt rowStmt,
 	oc *microflows.MicroflowObjectCollection, docType, docID, docQN, moduleName,
 	projectID, snapshotID string) int {
 
@@ -194,7 +197,7 @@ func (b *Builder) extractMicroflowXPath(stmt *sql.Stmt,
 // scanBSONForXPath recursively scans a BSON map for XPathConstraint fields
 // and inserts records into the xpath_expressions table.
 // This works on raw BSON data, avoiding the need for a full widget tree parser.
-func scanBSONForXPath(stmt *sql.Stmt, raw map[string]any,
+func scanBSONForXPath(stmt rowStmt, raw map[string]any,
 	docType, docID, docQN, moduleName,
 	projectID, snapshotID string) int {
 

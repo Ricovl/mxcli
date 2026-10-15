@@ -7,6 +7,12 @@ package catalog
 //
 // History:
 //
+//	26 (incremental refresh): unit_stamps records each MPR v2 unit's stamp,
+//	    and the per-document tables an incremental refresh rebuilds (flows,
+//	    domain models, pages, snippets, widgets, refs, permissions, xpath,
+//	    strings) gain UnitId, the unit each row was built from. A cached
+//	    catalog has neither, so it could never refresh incrementally and
+//	    would keep checking freshness by the .mpr mtime alone.
 //	25 (documentation in the strings index): strings gains a row for the
 //	    documentation of every element the catalog reads a Description for
 //	    (entities, attributes, constants, pages, ...), so SEARCH finds words
@@ -136,7 +142,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "25"
+const CatalogSchemaVersion = "26"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -257,6 +263,7 @@ func (c *Catalog) createTables() error {
 			HasChangedBy INTEGER DEFAULT 0,
 			IsExternal INTEGER DEFAULT 0,
 			ExternalService TEXT,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -293,6 +300,7 @@ func (c *Catalog) createTables() error {
 			FromDeleteBehavior TEXT DEFAULT '',
 			ToDeleteErrorMessage TEXT DEFAULT '',
 			FromDeleteErrorMessage TEXT DEFAULT '',
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -317,6 +325,7 @@ func (c *Catalog) createTables() error {
 			DefaultValue TEXT,
 			IsCalculated INTEGER DEFAULT 0,
 			Description TEXT,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -337,6 +346,7 @@ func (c *Catalog) createTables() error {
 			TotalActivityCount INTEGER DEFAULT 0,
 			Complexity INTEGER DEFAULT 1,
 			Excluded BOOLEAN DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -368,6 +378,7 @@ func (c *Catalog) createTables() error {
 			ParameterType TEXT,
 			Description TEXT,
 			Ordinal INTEGER DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -387,6 +398,7 @@ func (c *Catalog) createTables() error {
 			ParameterCount INTEGER DEFAULT 0,
 			WidgetCount INTEGER DEFAULT 0,
 			Excluded BOOLEAN DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -402,6 +414,7 @@ func (c *Catalog) createTables() error {
 			Description TEXT,
 			ParameterCount INTEGER DEFAULT 0,
 			WidgetCount INTEGER DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -701,6 +714,7 @@ func (c *Catalog) createTables() error {
 			WithEvents INTEGER DEFAULT 0,
 			RetrieveSource TEXT DEFAULT '',
 			QueueRef TEXT DEFAULT '',
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -775,6 +789,7 @@ func (c *Catalog) createTables() error {
 			-- only microflow, nanoflow and workflow calls can.
 			ActionType TEXT,
 			HasConfirmation INTEGER DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -798,6 +813,7 @@ func (c *Catalog) createTables() error {
 			ModuleName TEXT,
 			Folder TEXT,
 			Description TEXT,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -937,6 +953,7 @@ func (c *Catalog) createTables() error {
 			Microflow TEXT,
 			RaiseErrorOnFalse INTEGER DEFAULT 0,
 			PassEventObject INTEGER DEFAULT 0,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1189,6 +1206,7 @@ func (c *Catalog) createTables() error {
 			TargetName TEXT NOT NULL,
 			RefKind TEXT NOT NULL,
 			ModuleName TEXT,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1203,6 +1221,7 @@ func (c *Catalog) createTables() error {
 			XPathConstraint TEXT,
 			DefaultMemberAccessRights TEXT,
 			ModuleName TEXT,
+			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,

@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,21 +48,21 @@ func (b *Builder) buildMicroflows() error {
 		return err
 	}
 
-	mfStmt, err := b.tx.Prepare(`
+	mfStmt, err := b.prepareUnit(`
 		INSERT INTO microflows_data (Id, Name, QualifiedName, ModuleName, Folder, MicroflowType,
 			Description, ReturnType, ParameterCount, ActivityCount, TotalActivityCount,
-			Complexity, Excluded, ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			Complexity, Excluded, ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer mfStmt.Close()
 
-	paramStmt, err := b.tx.Prepare(`
+	paramStmt, err := b.prepareUnit(`
 		INSERT INTO microflow_parameters_data (Id, MicroflowId, MicroflowQualifiedName,
-			ModuleName, Name, ParameterType, Description, Ordinal, ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ModuleName, Name, ParameterType, Description, Ordinal, ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -71,23 +70,24 @@ func (b *Builder) buildMicroflows() error {
 	defer paramStmt.Close()
 
 	// Prepare activity statement only in full mode
-	var actStmt *sql.Stmt
+	var actStmt rowStmt
 	if b.fullMode {
-		actStmt, err = b.tx.Prepare(`
+		prepared, err := b.prepareUnit(`
 			INSERT INTO activities_data (Id, Name, Caption, ActivityType, Sequence, MicroflowId, MicroflowQualifiedName,
 				ModuleName, Folder, EntityRef, ActionType, ServiceRef, ActionRef,
 				UseRequestTimeout, TimeoutExpression, Description,
 				ParentLoopId, LoopDepth,
 				AutoGenerateCaption, ConditionExpression, ConditionRule, ErrorHandlingType,
 				LogLevel, LogNodeExpression, LogMessage, CommitType, WithEvents, RetrieveSource,
-				QueueRef, ProjectId, SnapshotId)
+				QueueRef, ProjectId, SnapshotId, UnitId)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer actStmt.Close()
+		defer prepared.Close()
+		actStmt = prepared
 	}
 
 	// A delete names a variable, not an entity; its EntityRef is resolved the
@@ -137,6 +137,7 @@ func (b *Builder) buildMicroflows() error {
 
 	// Process microflows
 	for _, mf := range mfs {
+		b.unit = string(mf.ID)
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -191,6 +192,7 @@ func (b *Builder) buildMicroflows() error {
 
 	// Process nanoflows
 	for _, nf := range nfs {
+		b.unit = string(nf.ID)
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(nf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -248,6 +250,7 @@ func (b *Builder) buildMicroflows() error {
 	// object but whose body is not walked reports every document it calls as
 	// dead, which is worse than not knowing about rules at all.
 	for _, rule := range rules {
+		b.unit = string(rule.ID)
 		moduleID := b.hierarchy.findModuleID(rule.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + rule.Name
@@ -528,7 +531,7 @@ func calculateRuleComplexity(rule *microflows.Rule) int {
 //
 // varEntity is the flow's variable→entity map (buildVarEntityMap), which a
 // delete's EntityRef is resolved through.
-func insertFlowActivities(stmt *sql.Stmt, flowID, qualifiedName, moduleName string,
+func insertFlowActivities(stmt rowStmt, flowID, qualifiedName, moduleName string,
 	oc *microflows.MicroflowObjectCollection, varEntity map[string]string, projectID, snapshotID string) (int, error) {
 	if stmt == nil || oc == nil {
 		return 0, nil

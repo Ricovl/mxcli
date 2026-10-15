@@ -4,7 +4,6 @@ package catalog
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -41,6 +40,15 @@ func createIncrementalTables(tx CatalogTx) error {
 		}
 	}
 	return nil
+}
+
+// UnitTables are the tables whose rows carry UnitId, the unit they were built
+// from; an incremental refresh deletes a changed unit's rows from each.
+var UnitTables = []string{
+	"microflows_data", "microflow_parameters_data", "activities_data",
+	"entities_data", "attributes_data", "associations_data", "entity_event_handlers_data",
+	"pages_data", "snippets_data", "widgets_data",
+	"xpath_expressions_data", "permissions", "refs", "strings",
 }
 
 // maxIncrementalUnits bounds an incremental refresh; past it a full build is
@@ -281,7 +289,6 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 	if len(ids) == 0 {
 		return b.commitStamps(tx)
 	}
-	in := "(" + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + ")"
 	if err := createIncrementalTables(tx); err != nil {
 		return err
 	}
@@ -299,21 +306,9 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 	if err != nil {
 		return err
 	}
-	// Permissions are keyed by name, so by the stored (pre-rename) name.
-	if _, err := tx.Exec(`DELETE FROM permissions WHERE ElementType = ? AND ElementName IN
-		(SELECT QualifiedName FROM microflows_data WHERE Id IN `+in+`)`,
-		append([]any{PermissionElementMicroflow}, ids...)...); err != nil {
-		return err
-	}
-	for _, del := range []string{
-		`DELETE FROM microflows_data WHERE Id IN ` + in,
-		`DELETE FROM microflow_parameters_data WHERE MicroflowId IN ` + in,
-		`DELETE FROM activities_data WHERE MicroflowId IN ` + in,
-		`DELETE FROM refs WHERE SourceId IN ` + in,
-		`DELETE FROM xpath_expressions_data WHERE DocumentId IN ` + in,
-		`DELETE FROM strings WHERE UnitId IN ` + in,
-	} {
-		if _, err := tx.Exec(del, ids...); err != nil {
+	for _, table := range UnitTables {
+		del := `DELETE FROM ` + table + ` WHERE UnitId IN (SELECT UnitId FROM incremental_units)`
+		if _, err := tx.Exec(del); err != nil {
 			return fmt.Errorf("%s: %w", del, err)
 		}
 	}
@@ -336,7 +331,7 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		return err
 	}
 	tx = nil
-	b.report(fmt.Sprintf("Incremental refresh of %d flow(s) (%.1fs)", len(ids), time.Since(start).Seconds()), len(ids))
+	b.report(fmt.Sprintf("Incremental refresh of %d unit(s) (%.1fs)", len(ids), time.Since(start).Seconds()), len(ids))
 	return nil
 }
 
@@ -360,9 +355,9 @@ type incrementalStep = struct {
 	run  func() error
 }
 
-// prepareDomainModels records the modules of the changed domain models,
-// deletes their rows, and returns the builder steps that rebuild them, which
-// run before the flow steps (the member-ref index reads their entities).
+// prepareDomainModels records the modules of the changed domain models and
+// returns the builder steps that rebuild their rows, which run before the flow
+// steps (the member-ref index reads their entities).
 func (b *Builder) prepareDomainModels(tx CatalogTx, changed []types.UnitStamp) ([]incrementalStep, error) {
 	var modules [][2]string
 	for _, s := range changed {
@@ -385,20 +380,11 @@ func (b *Builder) prepareDomainModels(tx CatalogTx, changed []types.UnitStamp) (
 	if err := tx.QueryRow(external).Scan(&n); err != nil || n > 0 {
 		return nil, fmt.Errorf("a changed domain model has external entities")
 	}
-	for _, del := range []string{
-		`DELETE FROM entities_data WHERE ModuleName IN ` + inMods,
-		`DELETE FROM attributes_data WHERE ModuleName IN ` + inMods,
-		`DELETE FROM associations_data WHERE ModuleName IN ` + inMods,
-		`DELETE FROM entity_event_handlers_data WHERE ModuleName IN ` + inMods,
-		`DELETE FROM permissions WHERE ElementType = 'ENTITY' AND ModuleName IN ` + inMods,
-		`DELETE FROM xpath_expressions_data WHERE DocumentType = 'DOMAIN_MODEL' AND ModuleName IN ` + inMods,
-		`DELETE FROM refs WHERE SourceType IN ('ENTITY', 'ASSOCIATION') AND ModuleName IN ` + inMods,
-		`DELETE FROM strings WHERE ObjectType IN ('ENTITY', 'ATTRIBUTE', 'ASSOCIATION') AND ModuleName IN ` + inMods +
-			` OR StringContext = 'domain_model_documentation' AND UnitId IN (SELECT Id FROM incremental_modules)`,
-	} {
-		if _, err := tx.Exec(del); err != nil {
-			return nil, fmt.Errorf("%s: %w", del, err)
-		}
+	// The module's domain-model documentation row belongs to the module unit;
+	// every other row of the domain model goes with its UnitId.
+	del := `DELETE FROM strings WHERE StringContext = 'domain_model_documentation' AND UnitId IN (SELECT Id FROM incremental_modules)`
+	if _, err := tx.Exec(del); err != nil {
+		return nil, fmt.Errorf("%s: %w", del, err)
 	}
 	return []incrementalStep{
 		{"entities", b.buildEntities},

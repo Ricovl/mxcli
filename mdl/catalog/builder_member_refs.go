@@ -396,7 +396,7 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 
 // extractMemberRefs walks every document of the types in memberRefSourceTypes
 // and emits its member, enumeration and mapping-entity edges.
-func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractMemberRefs(stmt rowStmt, idx *memberRefIndex, projectID, snapshotID string) int {
 	unitTypes := make([]string, 0, len(memberRefSourceTypes))
 	for t := range memberRefSourceTypes {
 		unitTypes = append(unitTypes, t)
@@ -411,6 +411,7 @@ func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, project
 			continue
 		}
 		for _, u := range units {
+			b.unit = string(u.ID)
 			// ListRawUnitsByType matches a PREFIX: Forms$Page also returns
 			// Forms$PageTemplate units, which are not pages.
 			if u.Type != unitType || len(u.Contents) == 0 {
@@ -444,11 +445,11 @@ func (b *Builder) extractEnumerationTypeRefs(projectID, snapshotID string) int {
 		return 0
 	}
 	res, err := b.tx.Exec(
-		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
-		 SELECT DISTINCT ?, COALESCE(EntityId, ''), EntityQualifiedName, ?, '', EnumerationQualifiedName, ?, ModuleName, ?, ?
+		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
+		 SELECT DISTINCT ?, COALESCE(EntityId, ''), EntityQualifiedName, ?, '', EnumerationQualifiedName, ?, ModuleName, ?, ?, UnitId
 		 FROM attributes_data
 		 WHERE EnumerationQualifiedName IS NOT NULL AND EnumerationQualifiedName != ''
-		   AND (?6 = '' OR ModuleName IN (SELECT Name FROM incremental_modules))`,
+		   AND (?6 = '' OR UnitId IN (SELECT UnitId FROM incremental_units))`,
 		RefObjectEntity, RefObjectEnumeration, RefKindType, projectID, snapshotID, b.incrementalFlag())
 	if err != nil {
 		return 0
@@ -472,17 +473,17 @@ var xpathSourceTypes = map[string]string{
 // enumeration values each recorded XPath constraint names, resolved against the
 // constraint's target entity. buildXPathExpressions runs before buildReferences
 // so the table is populated.
-func (b *Builder) extractXPathRefs(stmt *sql.Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractXPathRefs(stmt rowStmt, idx *memberRefIndex, projectID, snapshotID string) int {
 	rows, err := b.tx.Query(`SELECT DocumentType, DocumentId, DocumentQualifiedName, COALESCE(TargetEntity, ''),
-		XPathExpression, COALESCE(ModuleName, '') FROM xpath_expressions_data ORDER BY Id`)
+		XPathExpression, COALESCE(ModuleName, ''), COALESCE(UnitId, '') FROM xpath_expressions_data ORDER BY Id`)
 	if err != nil {
 		return 0
 	}
-	type xp struct{ docType, docID, docQN, target, xpath, module string }
+	type xp struct{ docType, docID, docQN, target, xpath, module, unit string }
 	var all []xp
 	for rows.Next() {
 		var r xp
-		if rows.Scan(&r.docType, &r.docID, &r.docQN, &r.target, &r.xpath, &r.module) == nil {
+		if rows.Scan(&r.docType, &r.docID, &r.docQN, &r.target, &r.xpath, &r.module, &r.unit) == nil {
 			all = append(all, r)
 		}
 	}
@@ -492,9 +493,10 @@ func (b *Builder) extractXPathRefs(stmt *sql.Stmt, idx *memberRefIndex, projectI
 	written := map[string]bool{}
 	for _, r := range all {
 		sourceType, ok := xpathSourceTypes[r.docType]
-		if !ok || !b.wants(r.docID) {
+		if !ok || !b.wants(r.unit) {
 			continue
 		}
+		b.unit = r.unit
 		sourceID := r.docID
 		if r.docType == "DOMAIN_MODEL" {
 			sourceID = ""

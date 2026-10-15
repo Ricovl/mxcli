@@ -18,7 +18,7 @@ import (
 
 // eventHandlerRef is one entity → microflow edge for an event handler, held
 // until buildReferences (a later pass) emits it.
-type eventHandlerRef struct{ entityQualifiedName, moduleName, microflow string }
+type eventHandlerRef struct{ entityQualifiedName, moduleName, microflow, unit string }
 
 // entityEventHandlerRow is one row of entity_event_handlers_data, plus the
 // fields the edge needs. Built by a pure function so the mapping — and the
@@ -73,11 +73,11 @@ func (b *Builder) buildEntityEventHandlers() error {
 		return err
 	}
 
-	stmt, err := b.tx.Prepare(`
+	stmt, err := b.prepareUnit(`
 		INSERT INTO entity_event_handlers_data
 			(Id, EntityId, EntityQualifiedName, ModuleName, Moment, Event,
-			 Microflow, RaiseErrorOnFalse, PassEventObject, ProjectId, SnapshotId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			 Microflow, RaiseErrorOnFalse, PassEventObject, ProjectId, SnapshotId, UnitId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -88,6 +88,7 @@ func (b *Builder) buildEntityEventHandlers() error {
 
 	count := 0
 	for _, dm := range domainModels {
+		b.unit = string(dm.ID)
 		if !b.wants(string(dm.ID)) {
 			continue
 		}
@@ -108,6 +109,7 @@ func (b *Builder) buildEntityEventHandlers() error {
 					entityQualifiedName: row.entityQualifiedName,
 					moduleName:          row.moduleName,
 					microflow:           row.microflow,
+					unit:                b.unit,
 				})
 				count++
 			}

@@ -62,7 +62,7 @@ func (b *Builder) buildRegularExpressions() error {
 
 // regexRuleRef is one entity → regular-expression edge, held until
 // buildReferences.
-type regexRuleRef struct{ entityQualifiedName, moduleName, regexQualifiedName string }
+type regexRuleRef struct{ entityQualifiedName, moduleName, regexQualifiedName, unit string }
 
 // collectRegexRuleRefs walks stored domain models for attribute validation
 // rules of type DomainModels$RegExRuleInfo and records the regex each one uses.
@@ -102,6 +102,7 @@ func (b *Builder) collectRegexRuleRefs() error {
 					entityQualifiedName: moduleName + "." + entityName,
 					moduleName:          moduleName,
 					regexQualifiedName:  target,
+					unit:                string(u.ID),
 				})
 			}
 		}

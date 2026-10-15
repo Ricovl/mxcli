@@ -21,7 +21,7 @@ import (
 // enabled — are the whole reason to query them.
 
 // scheduledEventRef is one event → microflow edge, held until buildReferences.
-type scheduledEventRef struct{ qualifiedName, moduleName, microflow string }
+type scheduledEventRef struct{ qualifiedName, moduleName, microflow, unit string }
 
 // buildScheduledEvents catalogs ScheduledEvents$ScheduledEvent units.
 func (b *Builder) buildScheduledEvents() error {
@@ -76,6 +76,7 @@ func (b *Builder) buildScheduledEvents() error {
 				qualifiedName: moduleName + "." + ev.Name,
 				moduleName:    moduleName,
 				microflow:     string(ev.MicroflowID),
+				unit:          string(u.ID),
 			})
 		}
 		count++
