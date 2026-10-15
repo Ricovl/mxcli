@@ -13,11 +13,11 @@ description: "Configure Mendix security in MDL — module and user roles, access
 | 27-35 | When to Use This Skill |
 | 36-43 | Security Concepts |
 | 44-120 | The System-module ceiling — decide the role model around this FIRST |
-| 121-546 | Syntax Reference |
-| 547-561 | Starlark Lint Rule APIs |
-| 562-614 | Common Workflow: Setting Up Module Security |
-| 615-624 | Common Mistakes |
-| 625-634 | Validation |
+| 121-552 | Syntax Reference |
+| 553-567 | Starlark Lint Rule APIs |
+| 568-620 | Common Workflow: Setting Up Module Security |
+| 621-630 | Common Mistakes |
+| 631-640 | Validation |
 
 <!-- /skill-index -->
 # Security Management Skill
@@ -330,6 +330,12 @@ revoke write (Email) on entity MyModule.Customer from MyModule.User;
 -- Partial revoke: remove structural permission
 revoke delete on entity MyModule.Customer from MyModule.User;
 ```
+
+A partial revoke naming several roles narrows **every rule all of whose roles it
+names** — one rule per role granted separately, or one rule granted to them
+together. A rule that also grants a role the revoke does **not** name is refused
+(narrowing it would revoke that role's right too): revoke from all of its roles, or
+grant the roles in separate rules first.
 
 #### Members added later
 
