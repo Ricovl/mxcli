@@ -2003,6 +2003,11 @@ func mendixAttrTypeToEdm(t domainmodel.AttributeType) string {
 type publishedAttrType struct {
 	Edm      string
 	AsString bool
+	// DeclaredOn is the qualified name of the generalization that declares an
+	// inherited attribute, "" for one the published entity declares itself.
+	// Mendix resolves a published attribute by its declaring entity, so an
+	// inherited one written under the published entity is CE1613.
+	DeclaredOn string
 }
 
 // enumPublishedAsString reports whether a published attribute needs the
@@ -2044,6 +2049,7 @@ func lookupEntityMembers(ctx *ExecContext, entityQN ast.QualifiedName) (map[stri
 			}
 		}
 	}
+	addInheritedAttributes(ctx, entityQN, attrs)
 	for _, a := range dm.Associations {
 		parentQN := entityIDToQN[a.ParentID]
 		childQN := entityIDToQN[a.ChildID]
@@ -2068,7 +2074,96 @@ func lookupEntityMembers(ctx *ExecContext, entityQN ast.QualifiedName) (map[stri
 	// Published from the TO side, the association lives in another module's
 	// domain model, so the published entity's own one cannot find it.
 	addCrossAssociationsTo(ctx, entityQN, assocs)
+	addInheritedAssociations(ctx, entityQN, assocs)
 	return attrs, assocs
+}
+
+// addInheritedAttributes adds the attributes entityQN inherits, nearest
+// generalization first, each recorded with the entity that declares it. A name
+// already present — the entity's own, or a nearer ancestor's — wins.
+// Best-effort like lookupEntityMembers: an unreadable link stops the walk with
+// what was found, and an attribute it misses falls back to the bare name.
+func addInheritedAttributes(ctx *ExecContext, entityQN ast.QualifiedName, attrs map[string]publishedAttrType) {
+	b, ok := ctx.Backend.(entityLookupBackend)
+	if !ok {
+		return
+	}
+	chain, _ := generalizationChain(ctx, entityQN.String())
+	for _, ancestorQN := range chain[min(1, len(chain)):] {
+		ancestor, ok := findEntityByQN(b, ancestorQN)
+		if !ok {
+			return
+		}
+		for _, a := range ancestor.Attributes {
+			if _, taken := attrs[a.Name]; taken {
+				continue
+			}
+			attrs[a.Name] = publishedAttrType{
+				Edm:        mendixAttrTypeToEdm(a.Type),
+				AsString:   enumPublishedAsString(a.Type),
+				DeclaredOn: ancestorQN,
+			}
+		}
+	}
+}
+
+// addInheritedAssociations adds the associations a generalization of entityQN
+// takes part in — same-module ones from either side, cross-module ones from
+// their FROM side — nearest generalization first. The published entity stands
+// in for the ancestor on its side, so the caller's direction and multiplicity
+// logic (which compares against the published entity) reads them as its own;
+// QN stays the association's own name, which is what Mendix resolves. Without
+// this an inherited association fell to the attribute fallback: CE1613 on a
+// PublishedAttribute named after it. A name already present wins.
+//
+// Not covered: a cross-module association whose TO side is a generalization.
+func addInheritedAssociations(ctx *ExecContext, entityQN ast.QualifiedName, assocs map[string]*assocMembership) {
+	b, ok := ctx.Backend.(entityLookupBackend)
+	if !ok {
+		return
+	}
+	self := entityQN.String()
+	chain, _ := generalizationChain(ctx, self)
+	for _, ancestorQN := range chain[min(1, len(chain)):] {
+		modName, _, _ := strings.Cut(ancestorQN, ".")
+		mod, err := b.GetModuleByName(modName)
+		if err != nil || mod == nil {
+			return
+		}
+		dm, err := b.GetDomainModel(mod.ID)
+		if err != nil || dm == nil {
+			return
+		}
+		qnByID := make(map[model.ID]string, len(dm.Entities))
+		for _, e := range dm.Entities {
+			qnByID[e.ID] = modName + "." + e.Name
+		}
+		side := func(qn string) string {
+			if qn == ancestorQN {
+				return self
+			}
+			return qn
+		}
+		for _, a := range dm.Associations {
+			parentQN, childQN := qnByID[a.ParentID], qnByID[a.ChildID]
+			if parentQN != ancestorQN && childQN != ancestorQN {
+				continue
+			}
+			if _, taken := assocs[a.Name]; taken || parentQN == "" || childQN == "" {
+				continue
+			}
+			assocs[a.Name] = &assocMembership{QN: modName + "." + a.Name, ParentQN: side(parentQN), ChildQN: side(childQN), Type: a.Type}
+		}
+		for _, ca := range dm.CrossAssociations {
+			if qnByID[ca.ParentID] != ancestorQN {
+				continue
+			}
+			if _, taken := assocs[ca.Name]; taken {
+				continue
+			}
+			assocs[ca.Name] = &assocMembership{QN: modName + "." + ca.Name, ParentQN: self, ChildQN: ca.ChildRef, Type: ca.Type}
+		}
+	}
 }
 
 // addCrossAssociationsTo adds the cross-module associations whose TO entity is
@@ -2165,6 +2260,12 @@ func astEntityDefToModel(ctx *ExecContext, def *ast.PublishedEntityDef) (*model.
 			member.Kind = "attribute"
 			member.EdmType = pub.Edm
 			member.EnumerationAsString = pub.AsString
+			// Qualified here, not by the writer: it can only prefix the
+			// published entity, and an inherited attribute is resolved by the
+			// entity that declares it (CE1613 otherwise).
+			if pub.DeclaredOn != "" {
+				member.Name = pub.DeclaredOn + "." + m.Name
+			}
 		} else if assoc := moduleAssocs[m.Name]; assoc != nil {
 			member.Kind = "association"
 			// Qualified here, not by the writer: it can only prefix the published
