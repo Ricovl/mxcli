@@ -3,6 +3,9 @@
 package docker
 
 import (
+	"bytes"
+	"net"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -77,6 +80,98 @@ func TestAppContainerParamsKeepsWildcard(t *testing.T) {
 		}
 		if got := p["runtime_port"]; got != 8095 {
 			t.Errorf("runtime_port = %v, want 8095", got)
+		}
+	}
+}
+
+// AppURL is what mxcli dials (health check, screenshots, "App is running at"),
+// so it must be a destination: a wildcard bind maps to loopback, and an IPv6
+// host is bracketed — `http://:::8080/` does not parse.
+func TestAppURLIsDialable(t *testing.T) {
+	cases := map[string]string{
+		"":             "http://127.0.0.1:8080/",
+		"127.0.0.1":    "http://127.0.0.1:8080/",
+		"0.0.0.0":      "http://127.0.0.1:8080/",
+		"::":           "http://[::1]:8080/",
+		"::1":          "http://[::1]:8080/",
+		"192.168.2.35": "http://192.168.2.35:8080/",
+		"fe80::1":      "http://[fe80::1]:8080/",
+	}
+	for listen, want := range cases {
+		o := LocalRuntimeOptions{ListenAddr: listen}
+		o.applyDefaults()
+		rt := &LocalRuntime{opts: o}
+		got := rt.AppURL()
+		if got != want {
+			t.Errorf("ListenAddr %q: AppURL = %q, want %q", listen, got, want)
+		}
+		u, err := url.Parse(got)
+		if err != nil || u.Port() != "8080" {
+			t.Errorf("ListenAddr %q: AppURL %q does not parse to port 8080 (err %v)", listen, got, err)
+		}
+	}
+}
+
+func TestValidateListenAddr(t *testing.T) {
+	for _, ok := range []string{"", "127.0.0.1", "0.0.0.0", "::", "::1", "192.168.2.35"} {
+		if err := ValidateListenAddr(ok); err != nil {
+			t.Errorf("ValidateListenAddr(%q) = %v, want nil", ok, err)
+		}
+	}
+	for _, bad := range []string{"localhost", "0.0.0.0:8080", "[::]", "*", "192.168.2", " 0.0.0.0"} {
+		if err := ValidateListenAddr(bad); err == nil {
+			t.Errorf("ValidateListenAddr(%q) = nil, want an error", bad)
+		}
+	}
+}
+
+func TestNetworkAppURLs(t *testing.T) {
+	cidr := func(s string) net.Addr {
+		ip, n, err := net.ParseCIDR(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n.IP = ip
+		return n
+	}
+	addrs := []net.Addr{
+		cidr("127.0.0.1/8"), cidr("::1/128"), cidr("fe80::1/64"),
+		cidr("192.168.2.35/24"), cidr("2001:db8::5/64"),
+	}
+	check := func(listen string, want []string) {
+		t.Helper()
+		got := networkAppURLs(listen, 8080, addrs)
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Errorf("networkAppURLs(%q) = %v, want %v", listen, got, want)
+		}
+	}
+	check("0.0.0.0", []string{"http://192.168.2.35:8080/"})
+	check("::", []string{"http://192.168.2.35:8080/", "http://[2001:db8::5]:8080/"})
+	check("127.0.0.1", nil)
+	check("192.168.2.35", nil)
+}
+
+// The root-URL warning fires only for a wildcard bind that nothing gives a
+// reachable root URL: not for loopback, not when the model or hub supplied
+// one, not when --runtime-setting did.
+func TestWarnWildcardWithoutRootURL(t *testing.T) {
+	cases := []struct {
+		listen, root string
+		settings     map[string]any
+		warn         bool
+	}{
+		{"0.0.0.0", "", nil, true},
+		{"::", "", nil, true},
+		{"127.0.0.1", "", nil, false},
+		{"192.168.2.35", "", nil, false},
+		{"0.0.0.0", "http://dev.box:8080/", nil, false},
+		{"0.0.0.0", "", map[string]any{"ApplicationRootUrl": "http://dev.box:8080/"}, false},
+	}
+	for _, c := range cases {
+		var b bytes.Buffer
+		warnWildcardWithoutRootURL(&b, c.listen, 8080, c.root, c.settings)
+		if got := b.Len() > 0; got != c.warn {
+			t.Errorf("listen %q root %q settings %v: warned=%v, want %v (%q)", c.listen, c.root, c.settings, got, c.warn, b.String())
 		}
 	}
 }

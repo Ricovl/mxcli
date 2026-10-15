@@ -19,20 +19,20 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 214-238 | Editing themes (SCSS) — rebuild, never clear caches |
 | 239-265 | `--watch` waits for a write to finish before it builds |
 | 266-294 | "My edit didn't show up" — stale process, not stale cache |
-| 295-322 | Flags |
-| 323-376 | Metrics and OpenTelemetry |
-| 377-434 | Pages render in the browser |
-| 435-452 | Pixel-perfect page loop |
-| 453-473 | Debugging a server-side error |
-| 474-494 | "Sign in failed" that is not about the password |
-| 495-527 | The same licence also stops the app after a few hours |
-| 528-607 | External browser preview (`--hub`) |
-| 608-616 | Validation checklist |
-| 617-656 | Constant values come from a configuration |
-| 657-660 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 661-664 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 665-668 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 669-671 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 295-323 | Flags |
+| 324-377 | Metrics and OpenTelemetry |
+| 378-435 | Pages render in the browser |
+| 436-453 | Pixel-perfect page loop |
+| 454-474 | Debugging a server-side error |
+| 475-495 | "Sign in failed" that is not about the password |
+| 496-528 | The same licence also stops the app after a few hours |
+| 529-608 | External browser preview (`--hub`) |
+| 609-617 | Validation checklist |
+| 618-657 | Constant values come from a configuration |
+| 658-661 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 662-665 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 666-669 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 670-672 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -304,6 +304,7 @@ run's process session), and `run status` reports them. Do **not**
 | `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build; on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + app database if missing |
 | `--app-port` / `--admin-port` / `--serve-port` | 8080 / 8090 / 6543 | Ports |
+| `--listen-addr` | `127.0.0.1` | IP the app binds to. `0.0.0.0` (or `::`) makes it reachable from other machines; the network URLs are printed once it runs. Pair it with `--runtime-setting ApplicationRootUrl=http://<host>:<port>/` (or a real host in the configuration) or generated absolute URLs name the wildcard — a warning says so. The M2EE admin API always stays on loopback |
 | `--db-host` / `--db-name` / `--db-user` / `--db-password` | 127.0.0.1:5432 / derived / mendix / mendix | Database; bracket IPv6 endpoints (`[::1]:5432`) |
 | `--db-type` | `postgresql` | `hsqldb` runs on the runtime's built-in file database: no database server, no `--ensure-db`, works offline. Data lives in `<project>/deployment/data/database/hsqldb/`. Refused together with `--db-host`/`--db-user`/`--db-password`/`--ensure-db`. Local development only |
 | `--setup` | off | Cache MxBuild+runtime + ensure DB, then exit (SessionStart bring-up) |

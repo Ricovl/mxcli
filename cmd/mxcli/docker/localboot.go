@@ -712,9 +712,11 @@ func (rt *LocalRuntime) Restart() error {
 	return rt.spawnAndConfigure()
 }
 
-// AppURL is the base URL the app serves on.
+// AppURL is the base URL mxcli reaches the app on — health checks, screenshots,
+// the "app is running" line. It is a destination, not the bind: under a
+// wildcard --listen-addr it names loopback (see appDialHost).
 func (rt *LocalRuntime) AppURL() string {
-	return fmt.Sprintf("http://%s:%d/", rt.opts.ListenAddr, rt.opts.AppPort)
+	return appURLFor(rt.opts.ListenAddr, rt.opts.AppPort)
 }
 
 // HealthOK reports whether the app answers an HTTP request (any status < 500).
