@@ -593,10 +593,10 @@ create page DgTest.DG14b_Styling_DesignProps folder 'DataGrid' (
     PagingPosition: both,
     designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column (
-      attribute: Name, caption: 'Name',
-      designproperties: ('Compact': on)
-    )
+    -- Design properties belong to the grid: a DataGrid 2 column has none, and
+    -- `designproperties:` on a column is refused (MDL-WIDGET01) rather than
+    -- dropped on write.
+    column (attribute: Name, caption: 'Name')
     column (attribute: Price, caption: 'Price', Alignment: right)
     column (attribute: Stock, caption: 'Stock', Alignment: right)
   }

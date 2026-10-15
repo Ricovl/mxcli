@@ -563,7 +563,7 @@ create page PgTest.P010_Product_Sorted_filtered_styled_2 folder 'DataGrid' (
     PagingPosition: both, 
     designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
+    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false)
     column (attribute: Code, caption: 'SKU')
     column (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)
@@ -596,7 +596,7 @@ create page PgTest.P010_Product_Microflow_DataSource folder 'DataGrid' (
     PagingPosition: both, 
     designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
+    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false)
     column (attribute: Code, caption: 'SKU')
     column (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)

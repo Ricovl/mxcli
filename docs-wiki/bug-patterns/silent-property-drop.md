@@ -54,6 +54,21 @@ outcome into a three-way answer — an unrecognised key gets a "did you mean"
 warning, a recognised-but-unmapped key gets "this will be dropped, set it in
 Studio Pro", and a mapped key stays quiet.
 
+**An exemption for "validated elsewhere" needs the elsewhere to exist.**
+Object-list items — an Accordion `group`, a DataGrid `column`, a chart
+`series` — were skipped by both unknown-property checks on the grounds that
+"the object-list engine validates them". It did not: the item builder walks the
+item's *schema* and looks each key up in the MDL bag, so a key matching no
+schema property is simply never visited. `group g1 (Caption: …)`,
+`designproperties:` on a column and `attributeValue:` on an HTMLElement
+attribute all checked clean and vanished. The item's vocabulary is fully
+derivable — its schema keys, their aliases, and each text template's
+`<name>Params` — and the top-level rule's universal builtin allowance must
+**not** carry over, since `Caption` and `Class` being accepted everywhere is
+exactly what let them through. Sweep the example corpus with `check -p` against
+a project that has the packages before and after: every new report there was a
+real drop already in the examples.
+
 **Where it cannot, enumerate generously and guard the list.** Built-in widgets
 have no `.mpk` to subtract from, so their vocabulary is a hand-maintained union —
 grammar keyword properties, every key the builders consume, and every property

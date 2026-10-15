@@ -1557,8 +1557,31 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 					}
 				}
 			}
-			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			propKeyMap := buildPropKeyMap(wDoc)
+			// Object-list items other than DataGrid2 columns — an Accordion
+			// group, a Pop-up menu item — keep their widgets one level deeper,
+			// at Value.Objects[].Properties[].Value.Widgets. Without this a grid
+			// inside an Accordion group could not be addressed at all, neither
+			// by its name nor by its columns', while the not-found message (a
+			// generic walk) listed those columns as available (#891). Columns
+			// are left to the loop below, which matches a column's derived name
+			// before descending into its content.
+			for _, prop := range props {
+				propDoc, ok := prop.(bson.D)
+				if !ok {
+					continue
+				}
+				typePointerID := bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(propDoc, "TypePointer"))
+				if propKeyMap[typePointerID] == "columns" {
+					continue
+				}
+				for _, itemVal := range objectListItemValues(bsonnav.DGetDoc(propDoc, "Value")) {
+					if result := findInWidgetArray(itemVal, "Widgets", widgetName); result != nil {
+						return result
+					}
+				}
+			}
+			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			for _, prop := range props {
 				propDoc, ok := prop.(bson.D)
 				if !ok {
@@ -1617,6 +1640,33 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 	}
 
 	return nil
+}
+
+// objectListItemValues returns the property Values of every item in a pluggable
+// property's object list (Value.Objects[].Properties[].Value) — the documents
+// that hold an item's widget slots. nil-safe: a property with no Value, or one
+// that is not an object list, yields nothing.
+func objectListItemValues(valDoc bson.D) []bson.D {
+	if valDoc == nil {
+		return nil
+	}
+	var out []bson.D
+	for _, item := range bsonnav.DGetArrayElements(bsonnav.DGet(valDoc, "Objects")) {
+		itemDoc, ok := item.(bson.D)
+		if !ok {
+			continue
+		}
+		for _, itemProp := range bsonnav.DGetArrayElements(bsonnav.DGet(itemDoc, "Properties")) {
+			itemPropDoc, ok := itemProp.(bson.D)
+			if !ok {
+				continue
+			}
+			if v := bsonnav.DGetDoc(itemPropDoc, "Value"); v != nil {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -2472,6 +2522,12 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 				}
 				if valDoc := bsonnav.DGetDoc(propDoc, "Value"); valDoc != nil {
 					collectWidgetScope(valDoc, "Widgets", scope)
+					// Widgets inside object-list items: Accordion groups, Pop-up
+					// menu items, customContent columns — all resolvable by the
+					// finder, so they are in scope too (#891).
+					for _, itemVal := range objectListItemValues(valDoc) {
+						collectWidgetScope(itemVal, "Widgets", scope)
+					}
 				}
 			}
 			// DataGrid2: add column derived names to scope for duplicate-name detection
