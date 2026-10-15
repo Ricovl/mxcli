@@ -11,7 +11,7 @@ mdl 1;
 --   * an input widget that shows no label (`LabelTemplate: null`) — the label
 --     is now created, the same ClientTemplate `create page` writes;
 --   * a widget with no label slot at all (a button) — now refused:
---       set Label = 'X' on btnSave;
+--       set (Label: 'X') on btnSave;
 --       -> failed to set Label on btnSave: widget has no Label property
 --
 -- Expected: `mxcli check` passes; after exec, DESCRIBE shows Title 'New title',
@@ -20,17 +20,17 @@ mdl 1;
 create module M292;
 create persistent entity M292.Thing ( Name: string(200), Code: string(50) );
 
-create or modify page M292.P_Edit (Title: 'Old title', Layout: Atlas_Core.Atlas_Default, Params: { $Thing: M292.Thing })
+create or modify page M292.P_Edit (Title: 'Old title', Layout: Atlas_Core.Atlas_Default, Params: ( $Thing: M292.Thing ))
 {
   dataview dv (DataSource: $Thing) {
     textbox textBox1 (Label: 'Old label', Attribute: Name)
     textbox tbNoLabel (Attribute: Code)
-    actionbutton btnSave (Caption: 'Save', Action: SAVE_CHANGES)
+    actionbutton btnSave (Caption: 'Save', Action: SAVE CHANGES)
   }
 };
 
 alter page M292.P_Edit {
-  set Title = 'New title';
-  set Label = 'New label' on textBox1;
-  set Label = 'Added' on tbNoLabel
+  set (Title: 'New title');
+  set (Label: 'New label') on textBox1;
+  set (Label: 'Added') on tbNoLabel
 };
