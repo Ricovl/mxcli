@@ -1,0 +1,66 @@
+mdl 1;
+
+/**
+ * mendixlabs/mxcli#1426: a published OData entity with no KEY, or with a KEY on
+ * an attribute without a unique rule, passed check and exec. mx check said
+ *   [CE6585] "Published entity 'ModA.EntA' must have a key defined."
+ *   [CE6624] "Add a unique validation rule to attribute 'Name' of entity
+ *            'ModA.EntA' to be able to use it as the key."
+ *
+ * This file is expected to FAIL `mxcli check` (.fail.mdl): MDL-ODATA08 on
+ * PubNoKey, MDL-ODATA09 on PubKeyNotUnique. exec refuses it too.
+ *
+ * Measured on mx 11.6.6 (OData3 and OData4 alike): only a unique VALIDATION RULE
+ * satisfies CE6624 — `not null` or an index does not. A composite key needs no
+ * rule (OData4 only, CE7238), and a non-persistent or view entity is exempt.
+ * The control is PubControl below, and 1423-odata-expose-quoted-member-name.mdl,
+ * whose key attribute is `unique` for this reason.
+ */
+
+create module Bug1426;
+
+create persistent entity Bug1426.EntA (
+  Name: string(200),
+  Code: string(50)
+);
+
+create persistent entity Bug1426.EntB (
+  Name: string(200) unique error message 'Name must be unique',
+  Code: string(50)
+);
+
+-- CE6585: no member is KEY.
+create published odata service Bug1426.PubNoKey (
+  path: 'odata/bug1426nokey/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Bug1426.NoKey'
+)
+{
+  publish entity Bug1426.EntB as 'EntBs' (ReadMode: source)
+  expose (Name, Code);
+};
+
+-- CE6624: a single KEY on an attribute with no unique rule.
+create published odata service Bug1426.PubKeyNotUnique (
+  path: 'odata/bug1426notunique/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Bug1426.NotUnique'
+)
+{
+  publish entity Bug1426.EntA as 'EntAs' (ReadMode: source)
+  expose (Name (KEY), Code);
+};
+
+-- Control: the same key on a unique attribute builds clean.
+create published odata service Bug1426.PubControl (
+  path: 'odata/bug1426ok/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Bug1426.Ok'
+)
+{
+  publish entity Bug1426.EntB as 'EntBs' (ReadMode: source)
+  expose (Name (KEY), Code);
+};
