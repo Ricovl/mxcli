@@ -176,7 +176,10 @@ func (c *Catalog) createTables() error {
 			Type TEXT,
 			ContainerId TEXT,
 			Size INTEGER,
-			MtimeNs INTEGER
+			MtimeNs INTEGER,
+			-- Content digest of a racily clean unit (MtimeNs -1), whose mtime
+			-- cannot be trusted.
+			Digest TEXT
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS projects (

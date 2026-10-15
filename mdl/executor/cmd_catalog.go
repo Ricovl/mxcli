@@ -391,7 +391,7 @@ func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode strin
 	fingerprint, _ := unitState(ctx)
 	builder := catalog.NewBuilder(cat, ctx.Backend)
 	builder.SetFullMode(info.BuildMode == "full")
-	changed, reason := builder.PlanIncremental()
+	changed, _, reason := builder.PlanIncremental()
 	if reason != "" {
 		if ctx.Logger != nil {
 			ctx.Logger.Info("catalog: full rebuild", "reason", reason)

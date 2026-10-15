@@ -143,6 +143,7 @@ type Builder struct {
 	// build. stamps are written with the build.
 	only       map[string]bool
 	onlyStamps []types.UnitStamp
+	removed    []string
 	stamps     []types.UnitStamp
 }
 

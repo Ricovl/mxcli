@@ -22,7 +22,8 @@ type unitStamper interface {
 }
 
 // incrementalTypes are the unit types an incremental refresh rebuilds; any
-// other change needs a full build.
+// other change needs a full build, except an added or removed folder, which
+// holds no rows.
 var incrementalTypes = map[string]bool{
 	"Microflows$Microflow": true,
 	"Microflows$Nanoflow":  true,
@@ -97,68 +98,104 @@ func (b *Builder) captureStamps() {
 }
 
 func (b *Builder) writeStamps(stamps []types.UnitStamp) error {
-	stmt, err := b.tx.Prepare(`INSERT OR REPLACE INTO unit_stamps (UnitId, Type, ContainerId, Size, MtimeNs) VALUES (?, ?, ?, ?, ?)`)
+	stmt, err := b.tx.Prepare(`INSERT OR REPLACE INTO unit_stamps (UnitId, Type, ContainerId, Size, MtimeNs, Digest) VALUES (?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 	for _, s := range stamps {
-		if _, err := stmt.Exec(s.ID, s.Type, s.ContainerID, s.Size, s.MtimeNs); err != nil {
+		digest := ""
+		if s.MtimeNs == -1 {
+			digest = b.unitDigest(s.ID)
+		}
+		if _, err := stmt.Exec(s.ID, s.Type, s.ContainerID, s.Size, s.MtimeNs, digest); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// unitDigest hashes a unit's file contents; "" when the reader cannot.
+func (b *Builder) unitDigest(id string) string {
+	if d, ok := b.reader.(interface{ UnitContentDigest([]string) string }); ok {
+		return d.UnitContentDigest([]string{id})
+	}
+	return ""
+}
+
 // PlanIncremental compares the reader's unit stamps with the catalog's and
-// returns the changed units when an incremental refresh can rebuild them, or
-// the reason it cannot.
-func (b *Builder) PlanIncremental() (changed []types.UnitStamp, reason string) {
+// returns the flows to rebuild and the units whose rows to delete, or the
+// reason only a full build will do.
+func (b *Builder) PlanIncremental() (changed []types.UnitStamp, removed []string, reason string) {
 	s, ok := b.reader.(unitStamper)
 	if !ok {
-		return nil, "reader has no unit stamps"
+		return nil, nil, "reader has no unit stamps"
 	}
 	now, err := s.UnitStamps()
 	if err != nil || len(now) == 0 {
-		return nil, "no unit stamps"
+		return nil, nil, "no unit stamps"
 	}
-	stored := map[string]types.UnitStamp{}
-	rows, err := b.catalog.db.Query(`SELECT UnitId, Type, ContainerId, Size, MtimeNs FROM unit_stamps`)
+	type stored struct {
+		types.UnitStamp
+		digest string
+	}
+	old := map[string]stored{}
+	rows, err := b.catalog.db.Query(`SELECT UnitId, Type, ContainerId, Size, MtimeNs, COALESCE(Digest, '') FROM unit_stamps`)
 	if err != nil {
-		return nil, "catalog has no unit stamps"
+		return nil, nil, "catalog has no unit stamps"
 	}
 	for rows.Next() {
-		var st types.UnitStamp
-		if rows.Scan(&st.ID, &st.Type, &st.ContainerID, &st.Size, &st.MtimeNs) == nil {
-			stored[st.ID] = st
+		var st stored
+		if rows.Scan(&st.ID, &st.Type, &st.ContainerID, &st.Size, &st.MtimeNs, &st.digest) == nil {
+			old[st.ID] = st
 		}
 	}
 	rows.Close()
-	if len(stored) != len(now) {
-		return nil, "units added or removed"
+	if len(old) == 0 {
+		return nil, nil, "catalog has no unit stamps"
 	}
+
+	seen := make(map[string]bool, len(now))
 	for _, n := range now {
-		o, ok := stored[n.ID]
-		if !ok {
-			return nil, "units added or removed"
+		seen[n.ID] = true
+		o, ok := old[n.ID]
+		switch {
+		case !ok && incrementalTypes[n.Type]:
+			changed = append(changed, n)
+		case !ok && n.Type == "Projects$Folder":
+		case !ok:
+			return nil, nil, "a non-flow unit was added"
+		case o.Type == n.Type && o.ContainerID == n.ContainerID && o.Size == n.Size &&
+			(o.MtimeNs != -1 && o.MtimeNs == n.MtimeNs || o.MtimeNs == -1 && o.digest != "" && o.digest == b.unitDigest(n.ID)):
+			// unchanged
+		case incrementalTypes[n.Type] && o.Type == n.Type:
+			changed = append(changed, n)
+		default:
+			return nil, nil, "a non-flow unit changed or moved"
 		}
-		if o.Size == n.Size && o.MtimeNs == n.MtimeNs && o.MtimeNs != -1 && o.ContainerID == n.ContainerID && o.Type == n.Type {
+	}
+	for id, o := range old {
+		if seen[id] {
 			continue
 		}
-		if !incrementalTypes[n.Type] || o.Type != n.Type || o.ContainerID != n.ContainerID {
-			return nil, "a non-flow unit changed or moved"
+		switch {
+		case incrementalTypes[o.Type]:
+			removed = append(removed, id)
+		case o.Type == "Projects$Folder":
+		default:
+			return nil, nil, "a non-flow unit was removed"
 		}
-		changed = append(changed, n)
-		if len(changed) > maxIncrementalUnits {
-			return nil, "too many units changed"
-		}
+	}
+	if len(changed)+len(removed) > maxIncrementalUnits {
+		return nil, nil, "too many units changed"
 	}
 	var n int
 	if b.catalog.db.QueryRow(`SELECT COUNT(*) FROM external_actions_data`).Scan(&n) == nil && n > 0 {
-		return nil, "project calls external actions (aggregated across flows)"
+		return nil, nil, "project calls external actions (aggregated across flows)"
 	}
 	b.stamps = now
-	return changed, ""
+	b.removed = removed
+	return changed, removed, ""
 }
 
 // BuildIncremental rebuilds the rows of the changed flows in the catalog's own
@@ -168,10 +205,13 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 	b.progress = progress
 	b.only = map[string]bool{}
 	b.onlyStamps = changed
-	ids := make([]any, len(changed))
-	for i, s := range changed {
+	ids := make([]any, 0, len(changed)+len(b.removed))
+	for _, s := range changed {
 		b.only[s.ID] = true
-		ids[i] = s.ID
+		ids = append(ids, s.ID)
+	}
+	for _, id := range b.removed {
+		ids = append(ids, id)
 	}
 	if err := b.loadActiveSnapshot(); err != nil {
 		return err
@@ -261,12 +301,15 @@ func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressF
 		return err
 	}
 	tx = nil
-	b.report(fmt.Sprintf("Incremental refresh of %d flow(s) (%.1fs)", len(changed), time.Since(start).Seconds()), len(changed))
+	b.report(fmt.Sprintf("Incremental refresh of %d flow(s) (%.1fs)", len(ids), time.Since(start).Seconds()), len(ids))
 	return nil
 }
 
 // commitStamps writes the current stamps and commits.
 func (b *Builder) commitStamps(tx CatalogTx) error {
+	if _, err := tx.Exec(`DELETE FROM unit_stamps`); err != nil {
+		return err
+	}
 	if err := b.writeStamps(b.stamps); err != nil {
 		return err
 	}

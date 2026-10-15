@@ -130,3 +130,34 @@ func dumpCatalog(t *testing.T, path string) map[string][]string {
 	}
 	return out
 }
+
+// TestIncrementalCatalog_AddedAndRemovedFlows adds a microflow in a new folder
+// and drops another, straight after a full build (so the build's stamps are
+// racily clean), and requires the incremental refresh to equal a full rebuild.
+func TestIncrementalCatalog_AddedAndRemovedFlows(t *testing.T) {
+	exec := typeCheckFixture(t)
+	ctx := exec.newExecContext(context.Background())
+	run(t, exec, `create microflow Administration.IncDoomed () folder 'IncOld' begin log info node 'Inc' 'doomed'; end;`)
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	cachePath := getCachePath(ctx)
+
+	run(t, exec, `create microflow Administration.IncAdded () folder 'IncFolder/Sub' begin log info node 'Inc' 'added'; end;`)
+	run(t, exec, `drop microflow Administration.IncDoomed;`)
+
+	if !refreshCatalogIncrementally(ctx, cachePath, "full") {
+		t.Fatal("refresh after adding and dropping a microflow was not incremental")
+	}
+	ctx.Catalog.Close()
+	incremental := dumpCatalog(t, cachePath)
+	if !strings.Contains(strings.Join(incremental["microflows_data"], "\n"), "IncAdded") {
+		t.Fatal("the added microflow is not in the refreshed catalog")
+	}
+
+	run(t, exec, "REFRESH CATALOG FULL FORCE")
+	full := dumpCatalog(t, cachePath)
+	for table, rows := range full {
+		if got := incremental[table]; strings.Join(got, "\n") != strings.Join(rows, "\n") {
+			t.Errorf("table %s: incremental has %d rows, full rebuild %d", table, len(got), len(rows))
+		}
+	}
+}
