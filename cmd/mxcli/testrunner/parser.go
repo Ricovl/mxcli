@@ -90,7 +90,8 @@ func (tc TestCase) AssertionCount() int {
 type TestSuite struct {
 	Name  string     // Suite name (derived from file name)
 	Tests []TestCase // Test cases
-	// FileErrors holds one entry per test file that could not be parsed.
+	// FileErrors holds one entry per test file that could not be parsed, and per
+	// folder below the root that could not be read (Dir set).
 	//
 	// A malformed file used to abort the whole run, so an unrelated bad file
 	// stopped every other test in the directory from being listed or executed
@@ -114,10 +115,14 @@ type TestSuite struct {
 	SkippedDirs []string
 }
 
-// FileError is a test file that could not be parsed, and why.
+// FileError is a test file that could not be parsed, or a folder that could not
+// be read, and why.
 type FileError struct {
 	Path string
 	Err  error
+	// Dir is true when Path is a folder that could not be read, rather than a
+	// test file that could not be parsed.
+	Dir bool
 }
 
 // ParseTestFile parses a test file (.test.mdl or .test.md) and extracts test cases.
@@ -165,6 +170,10 @@ func ParseTestFile(path string) (*TestSuite, error) {
 // (mendixlabs/mxcli#1363). Hidden folders (.git, .mxcli, ...) and folders
 // starting with "_" are not entered below the root; the latter are reported in
 // SkippedDirs.
+//
+// A folder below the root that cannot be read is reported in FileErrors (Dir
+// set) and the walk carries on, so the tests in the other folders still run. An
+// error on the root itself is returned: there is nothing to run.
 func ParseTestDir(dir string) (*TestSuite, error) {
 	suite := &TestSuite{
 		Name: filepath.Base(dir),
@@ -181,6 +190,8 @@ func ParseTestDir(dir string) (*TestSuite, error) {
 			return
 		}
 		suite.Tests = append(suite.Tests, sub.Tests...)
+	}, func(path string, err error) {
+		suite.FileErrors = append(suite.FileErrors, FileError{Path: path, Err: err, Dir: true})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("reading test directory: %w", err)
@@ -201,7 +212,23 @@ func ParseTestDir(dir string) (*TestSuite, error) {
 // root named ".", and `mxcli test tests/_control` is how that control is run. A
 // root that is a symlink is followed (as os.ReadDir did); symlinked folders below
 // it are not, which keeps a link cycle from looping.
-func walkTestTree(root string, fn func(path string, d fs.DirEntry)) ([]string, error) {
+//
+// An error reading the root fails the walk: there is nothing to run. An error
+// below it belongs to that entry alone: it goes to onErr (nil to ignore it) and
+// the walk carries on, because one folder that cannot be read (a locked folder, a
+// root-owned one in a mounted volume) must not cost the tests in the others.
+//
+// Every path handed to fn, onErr and the returned list, and the text of the
+// errors, is under root as the caller wrote it, not under the symlink's target.
+func walkTestTree(root string, fn func(path string, d fs.DirEntry), onErr func(path string, err error)) ([]string, error) {
+	return walkTestTreeWith(filepath.WalkDir, root, fn, onErr)
+}
+
+// walkFunc is the shape of filepath.WalkDir, so a test can inject a walk error:
+// chmod 000 cannot make a folder unreadable on Windows, or for root.
+type walkFunc func(root string, fn fs.WalkDirFunc) error
+
+func walkTestTreeWith(walk walkFunc, root string, fn func(path string, d fs.DirEntry), onErr func(path string, err error)) ([]string, error) {
 	walkRoot := root
 	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
 		if resolved, err := filepath.EvalSymlinks(root); err == nil {
@@ -209,9 +236,17 @@ func walkTestTree(root string, fn func(path string, d fs.DirEntry)) ([]string, e
 		}
 	}
 	var skipped []string
-	err := filepath.WalkDir(walkRoot, func(path string, d fs.DirEntry, err error) error {
+	err := walk(walkRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			err = underTyped(root, walkRoot, err)
+			if path == walkRoot {
+				return err
+			}
+			if onErr != nil {
+				onErr(underTypedPath(root, walkRoot, path), err)
+			}
+			// WalkDir does not descend into a folder it could not read.
+			return nil
 		}
 		if d.IsDir() {
 			if path == walkRoot {
@@ -221,11 +256,7 @@ func walkTestTree(root string, fn func(path string, d fs.DirEntry)) ([]string, e
 				return filepath.SkipDir
 			}
 			if strings.HasPrefix(d.Name(), "_") {
-				// Reported under the name the user typed, not the resolved one.
-				if rel, relErr := filepath.Rel(walkRoot, path); relErr == nil {
-					path = filepath.Join(root, rel)
-				}
-				skipped = append(skipped, path)
+				skipped = append(skipped, underTypedPath(root, walkRoot, path))
 				return filepath.SkipDir
 			}
 			return nil
@@ -233,10 +264,35 @@ func walkTestTree(root string, fn func(path string, d fs.DirEntry)) ([]string, e
 		if path == walkRoot {
 			return fmt.Errorf("%s is not a directory", root)
 		}
-		fn(path, d)
+		fn(underTypedPath(root, walkRoot, path), d)
 		return nil
 	})
 	return skipped, err
+}
+
+// underTypedPath returns path, which the walk reached under walkRoot (root with
+// its symlink resolved), as the same path under root.
+func underTypedPath(root, walkRoot, path string) string {
+	if walkRoot == root {
+		return path
+	}
+	if rel, err := filepath.Rel(walkRoot, path); err == nil {
+		return filepath.Join(root, rel)
+	}
+	return path
+}
+
+// underTyped does the same for the path an I/O error names, so that the message
+// shows the folder the user typed and not where a symlink leads.
+func underTyped(root, walkRoot string, err error) error {
+	if walkRoot == root {
+		return err
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return &fs.PathError{Op: pe.Op, Path: underTypedPath(root, walkRoot, pe.Path), Err: pe.Err}
+	}
+	return err
 }
 
 // isTestFile returns true if the filename matches a test file pattern.

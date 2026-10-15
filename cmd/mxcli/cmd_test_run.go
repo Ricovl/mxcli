@@ -106,6 +106,11 @@ Examples:
   # Run all tests in a directory, subfolders included (tests/Sales/*.test.mdl)
   mxcli test tests/ -p app.mpr
 
+  # Discovery is fully recursive: point at the tests folder, not the project
+  # root (mxcli test . would search deployment/, node_modules/, javasource/ ...).
+  # A symlinked subfolder is not followed; an unreadable one is reported and
+  # the tests in the other folders still run.
+
   # Folders starting with _ below the one you name are skipped (and listed);
   # name one to run it, e.g. a positive-control suite
   mxcli test tests/unit/_control -p app.mpr

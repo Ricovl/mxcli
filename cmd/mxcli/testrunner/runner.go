@@ -194,7 +194,7 @@ func Run(opts RunOptions) (*SuiteResult, error) {
 		// A directory whose every file is malformed is not an empty directory,
 		// and must not be reported as one (#903).
 		if len(suite.FileErrors) > 0 {
-			return nil, noTestsParsedError(len(suite.FileErrors))
+			return nil, noTestsParsedError(suite.FileErrors)
 		}
 		return nil, emptySuiteError(opts.TestFiles)
 	}
@@ -468,7 +468,7 @@ func ListTests(files []string, w, hints io.Writer) error {
 		// Same decision as Run: a directory whose every file is malformed is not
 		// an empty one.
 		if len(suite.FileErrors) > 0 {
-			fmt.Fprintf(hints, "%v\n", noTestsParsedError(len(suite.FileErrors)))
+			fmt.Fprintf(hints, "%v\n", noTestsParsedError(suite.FileErrors))
 		} else {
 			fmt.Fprintf(hints, "%v\n", emptySuiteError(files))
 		}
@@ -505,18 +505,48 @@ func ListTests(files []string, w, hints io.Writer) error {
 	return reportFileErrors(suite.FileErrors, w)
 }
 
-// reportFileErrors prints the files that could not be parsed and returns an
-// error when there were any, so listing a partly-readable directory exits
-// non-zero instead of looking like a clean listing.
+// reportFileErrors prints the files that could not be parsed and the folders
+// that could not be read, and returns an error when there were any, so listing a
+// partly-readable directory exits non-zero instead of looking like a clean
+// listing.
 func reportFileErrors(errs []FileError, w io.Writer) error {
 	if len(errs) == 0 {
 		return nil
 	}
-	fmt.Fprintf(w, "\n%d file(s) could not be parsed:\n", len(errs))
+	summary := failureSummary(errs)
+	fmt.Fprintf(w, "\n%s:\n", summary)
 	for _, fe := range errs {
 		fmt.Fprintf(w, "  ERROR %s: %v\n", fe.Path, fe.Err)
 	}
-	return fmt.Errorf("%d test file(s) could not be parsed", len(errs))
+	return errors.New(summary)
+}
+
+// failureSummary counts what discovery could not use, in words that fit each
+// kind: a test file fails to parse, a folder fails to be read. Calling an
+// unreadable folder a parse failure sends the reader looking for a syntax error
+// that is not there.
+func failureSummary(errs []FileError) string {
+	files, dirs := countFailures(errs)
+	var parts []string
+	if files > 0 {
+		parts = append(parts, fmt.Sprintf("%d test file(s) could not be parsed", files))
+	}
+	if dirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d folder(s) could not be read", dirs))
+	}
+	return strings.Join(parts, " and ")
+}
+
+// countFailures splits errs into unparseable test files and unreadable folders.
+func countFailures(errs []FileError) (files, dirs int) {
+	for _, fe := range errs {
+		if fe.Dir {
+			dirs++
+		} else {
+			files++
+		}
+	}
+	return files, dirs
 }
 
 // suiteFileErrorResults turns unparseable files into ERROR results so they are
@@ -526,8 +556,12 @@ func reportFileErrors(errs []FileError, w io.Writer) error {
 func suiteFileErrorResults(errs []FileError) []TestResult {
 	out := make([]TestResult, 0, len(errs))
 	for _, fe := range errs {
+		what := "file could not be parsed"
+		if fe.Dir {
+			what = "folder could not be read"
+		}
 		out = append(out, TestResult{
-			Name:       fmt.Sprintf("%s (file could not be parsed)", filepath.Base(fe.Path)),
+			Name:       fmt.Sprintf("%s (%s)", filepath.Base(fe.Path), what),
 			Status:     StatusError,
 			Message:    fe.Err.Error(),
 			SourceFile: fe.Path,
@@ -1056,7 +1090,7 @@ func emptySuiteError(paths []string) error {
 			if l := strings.ToLower(d.Name()); strings.HasSuffix(l, ".mdl") || strings.HasSuffix(l, ".md") {
 				skipped = append(skipped, file)
 			}
-		})
+		}, nil)
 		skippedDirs = append(skippedDirs, dirs...)
 	}
 	sort.Strings(skipped)
@@ -1082,10 +1116,21 @@ func emptySuiteError(paths []string) error {
 	return errors.New(msg)
 }
 
-// noTestsParsedError is the run's answer when files were found and none could be
-// read: not an empty directory, so not emptySuiteError.
-func noTestsParsedError(failed int) error {
-	return fmt.Errorf("no tests could be parsed: %d file(s) failed to parse", failed)
+// noTestsParsedError is the run's answer when files or folders were found and
+// none yielded a test: not an empty directory, so not emptySuiteError.
+func noTestsParsedError(errs []FileError) error {
+	files, dirs := countFailures(errs)
+	var parts []string
+	if files > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) failed to parse", files))
+	}
+	if dirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d folder(s) could not be read", dirs))
+	}
+	if files == 0 {
+		return fmt.Errorf("no tests could be read: %s", strings.Join(parts, " and "))
+	}
+	return fmt.Errorf("no tests could be parsed: %s", strings.Join(parts, " and "))
 }
 
 // maxNamed is how many paths a report names before "and N more".

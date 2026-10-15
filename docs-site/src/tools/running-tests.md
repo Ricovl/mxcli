@@ -112,6 +112,22 @@ a run, at the end of a `--list`), so they do not disappear silently. A run that
 finds no tests exits 1. `--list` exits 0 even when it finds none, and then prints
 the reason, including any `_` folders it skipped, on stderr.
 
+Discovery is fully recursive and has no other skip list, so point `mxcli test` at
+the folder that holds your tests (`tests/`), not at the project root. From the
+project root, `mxcli test .` searches `deployment/`, `node_modules/`, `javasource/`, `vendorlib/`
+and every other folder, which is slow, and runs any stray `*.test.mdl` it finds
+there.
+
+Two more rules follow from the walk:
+
+- A symlinked folder **below** the folder you name is not followed (the walk
+  reports it as a file, so it is ignored without a message). A symlinked folder
+  you name yourself is followed, and errors and listings show the path you typed.
+- A folder that cannot be read (a locked folder, a root-owned folder in a mounted
+  volume) is reported by name as "could not be read", the run exits non-zero, and
+  the tests in the other folders still run. Only a root that cannot be read stops
+  the run.
+
 ## Choosing a mode
 
 |  | Boot cost per run | Database | Needs Docker |
