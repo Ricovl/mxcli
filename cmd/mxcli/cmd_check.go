@@ -468,6 +468,11 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 		// reported shape was drop + create in separate runs, which loses the
 		// roles that `create or modify` keeps.
 		projectViolations = append(projectViolations, exec.CheckFlowAccess(prog)...)
+		// MDL-SEC22 (MxBuild CE0114): a microflow that does not apply entity
+		// access calling a microflow or rule that does (mendixlabs/mxcli#1500).
+		// A consistency rule between two documents, not a reference, so the
+		// reference check above cannot see it.
+		projectViolations = append(projectViolations, exec.CheckEntityAccessCalls(prog)...)
 		// MDL-I18N01 (MxBuild CE4899): a script that changes the default
 		// language leaves every required caption written in the old one empty
 		// in the new one (ako/mxcli#944).
@@ -491,7 +496,7 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 			if len(flowReport.Unpredicted) > 0 {
 				flows = "no predicted flow change exec would refuse"
 			}
-			fmt.Printf("✓ Expression types OK, no unstated member drops, %s, no used flow left without access\n", flows)
+			fmt.Printf("✓ Expression types OK, no unstated member drops, %s, no used flow left without access, no entity-access call mismatch\n", flows)
 		}
 		// A flow change whose verdict depends on what earlier statements
 		// create is not predicted; say so rather than let the line above

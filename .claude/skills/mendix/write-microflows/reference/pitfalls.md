@@ -613,6 +613,11 @@ It is a **security** setting and it only ever narrows, so the rules mirror
   perfectly happy. Measured across 342 microflows in 4 projects: every microflow
   storing the flag came back without it, and nothing anywhere reported it.
 - **Turning it off is explicit**: `@applyentityaccess(false)`.
+- **A flow without it cannot call a flow with it.** A microflow that does not apply
+  entity access may only call microflows — and decide on rules — that do not apply
+  it either: mxbuild CE0114, `check -p` MDL-SEC22. The reverse (on calling off) is
+  fine. Fix the caller, not the callee: turning it off on a shared sub-flow widens
+  it for everyone.
 - **Not available on a nanoflow.** A nanoflow runs in the client and Mendix stores
   no such property. Writing it there is **MDL059**, not a silent no-op —
   the same rule that catches `@applyentityacces` and any other annotation the
