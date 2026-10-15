@@ -62,6 +62,14 @@ type LocalRunOptions struct {
 	AppPort   int
 	AdminPort int
 	ServePort int
+	// ListenAddr is the address the app binds to. Empty means 127.0.0.1, which
+	// is loopback-only on purpose. Set it to 0.0.0.0 to let the app be reached
+	// from other machines on the network; pair that with a reachable
+	// ApplicationRootUrl (--runtime-setting), because the runtime otherwise
+	// derives its root URL from this address and 0.0.0.0 is not a host a
+	// browser can ask for. The M2EE admin API is unaffected and stays on
+	// loopback.
+	ListenAddr string
 	// AdminPass is the M2EE admin password (default is a fixed local-dev value).
 	AdminPass string
 	// DB is the Postgres the runtime connects to (devcontainer defaults applied).
@@ -341,6 +349,26 @@ func applicationRootURLFrom(settings *model.ProjectSettings) (rootURL, configNam
 		}
 	}
 	return first, firstName
+}
+
+// warnWildcardWithoutRootURL warns when the app binds every interface but
+// nothing gives the runtime the URL it is reached at. With no
+// ApplicationRootUrl the runtime derives one from the listen address, so the
+// absolute URLs it generates (OIDC/SAML redirect URIs, deep links, links in
+// emails) name 0.0.0.0 or ::, which no browser can open — while the app itself
+// answers fine, since the client uses relative URLs. A warning rather than a
+// refusal: plenty of apps generate no absolute URL at all.
+func warnWildcardWithoutRootURL(stderr io.Writer, listen string, port int, appRootURL string, settings map[string]any) {
+	if !isWildcardListenAddr(listen) || appRootURL != "" {
+		return
+	}
+	if _, ok := settings["ApplicationRootUrl"]; ok {
+		return
+	}
+	fmt.Fprintf(stderr, "Warning: --listen-addr %s with no application root URL — the runtime derives one from the bind address, "+
+		"so absolute URLs it generates (SSO redirects, deep links) will not open from another machine. "+
+		"Pass --runtime-setting ApplicationRootUrl=http://<this-host>:%d/ or set one naming a real host in the configuration.\n",
+		listen, port)
 }
 
 // customHostRootURL reports whether an ApplicationRootUrl names a host worth
@@ -788,6 +816,7 @@ func RunLocal(opts LocalRunOptions) error {
 	if err != nil {
 		return err
 	}
+	warnWildcardWithoutRootURL(stderr, opts.ListenAddr, opts.AppPort, appRootURL, runtimeSettings)
 	traceService := opts.TraceService
 	if opts.Trace && traceService == "" {
 		traceService = strings.TrimSuffix(filepath.Base(opts.ProjectPath), filepath.Ext(opts.ProjectPath))
@@ -800,6 +829,7 @@ func RunLocal(opts LocalRunOptions) error {
 		JavaMajor:          javaMajor,
 		AppPort:            opts.AppPort,
 		AdminPort:          opts.AdminPort,
+		ListenAddr:         opts.ListenAddr,
 		AdminPass:          opts.AdminPass,
 		ApplicationRootUrl: appRootURL,
 		DB:                 opts.DB,
@@ -845,6 +875,11 @@ func RunLocal(opts LocalRunOptions) error {
 	})
 
 	fmt.Fprintf(w, "\nApp is running at %s\n", rt.AppURL())
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, u := range networkAppURLs(opts.ListenAddr, opts.AppPort, addrs) {
+			fmt.Fprintf(w, "  from the network: %s\n", u)
+		}
+	}
 	// The local runtime boots with the live-preview dev flags (see
 	// LocalRuntimeOptions.jvmArgs), so `mxcli oql` can query it directly — and it
 	// now defaults to the local admin password, so no M2EE_ADMIN_PASS is needed

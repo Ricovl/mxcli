@@ -1,0 +1,40 @@
+mdl 1;
+
+/**
+ * Publishing a specialization and exposing a member its generalization
+ * declares wrote the member under the specialization's name. check and exec
+ * were clean; mx check (11.6.6) reported
+ *   [CE1613] "The selected attribute 'OdInh.Sub.Code' no longer exists."
+ *   [CE1613] "The selected attribute 'OdInh.Sub.Base_Tag' no longer exists."
+ * Mendix resolves an inherited attribute by the entity that declares it
+ * (OdInh.Base.Code), and an inherited association is an association end.
+ * After the fix: mx check 0 errors; describe prints the bare names below.
+ */
+
+create module OdInh;
+
+create persistent entity OdInh.Base (
+  Code: string(50) unique error message 'Code must be unique',
+  Label: string(100)
+);
+
+create persistent entity OdInh.Sub extends OdInh.Base (
+  Extra: string(100)
+);
+
+create persistent entity OdInh.Tag (
+  TagCode: string(50) unique error message 'TagCode must be unique'
+);
+
+create association OdInh.Base_Tag from OdInh.Base to OdInh.Tag;
+
+create published odata service OdInh.Svc (
+  path: 'odata/inh/', version: '1.0.0', ODataVersion: OData4,
+  namespace: 'OdInh'
+)
+{
+  publish entity OdInh.Sub as 'Subs' (ReadMode: source)
+  expose (Code (KEY), Label, Extra, Base_Tag);
+  publish entity OdInh.Tag as 'Tags' (ReadMode: source)
+  expose (TagCode (KEY));
+};

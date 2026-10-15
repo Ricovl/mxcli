@@ -1,0 +1,55 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1501 — `revoke write (NewAttr) … from RoleA, RoleB, RoleC` said
+-- "nothing to revoke", exited 0, and left NewAttr ReadWrite for all three roles.
+--
+-- The rules were granted one role each, so each stores a single-role list. A
+-- partial revoke only matched a rule whose role set EQUALLED the statement's,
+-- {RoleA, RoleB, RoleC}, which no rule had. The member entries were there all
+-- along — the same revoke from one role worked — so it was not the rule's
+-- default member access. A partial revoke now narrows every rule all of whose
+-- roles it names, as a full revoke always has, and refuses a rule shared with a
+-- role it does not name rather than narrowing that role too.
+--
+--   mxcli exec this-file -p app.mpr
+--     before: "Unchanged entity access: Issue1501.Ticket (Issue1501.RoleA,
+--             Issue1501.RoleB, Issue1501.RoleC) — nothing to revoke";
+--             `describe entity Issue1501.Ticket` still grants write (NewAttr) x3
+--     after:  "Revoked partial access on Issue1501.Ticket from Issue1501.RoleA,
+--             Issue1501.RoleB, Issue1501.RoleC"; NewAttr read-only in each rule
+-- ============================================================================
+
+create module Issue1501;
+create module role Issue1501.RoleA;
+create module role Issue1501.RoleB;
+create module role Issue1501.RoleC;
+
+create enumeration Issue1501.Channel (
+  Email 'Email',
+  Phone 'Phone'
+);
+
+@position(100, 100)
+create persistent entity Issue1501.Ticket (
+  Title: string(200)
+);
+
+create association Issue1501.Ticket_Owner
+  from Issue1501.Ticket
+  to System.User
+  type Reference;
+
+-- One rule per role, each `write *` and row-constrained — the reported shape.
+grant create, delete, read *, write * on entity Issue1501.Ticket to Issue1501.RoleA
+  where [Issue1501.Ticket_Owner = '[%CurrentUser%]'];
+grant create, delete, read *, write * on entity Issue1501.Ticket to Issue1501.RoleB
+  where [Issue1501.Ticket_Owner = '[%CurrentUser%]'];
+grant create, delete, read *, write * on entity Issue1501.Ticket to Issue1501.RoleC
+  where [Issue1501.Ticket_Owner = '[%CurrentUser%]'];
+
+alter entity Issue1501.Ticket add attribute if not exists "NewAttr": enumeration(Issue1501.Channel);
+
+-- One statement for all three roles: the bug.
+revoke write (NewAttr) on entity Issue1501.Ticket from Issue1501.RoleA, Issue1501.RoleB, Issue1501.RoleC;
+
+describe entity Issue1501.Ticket;

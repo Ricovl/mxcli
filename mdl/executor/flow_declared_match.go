@@ -170,6 +170,16 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 				}
 				continue
 			}
+			if d.Type() == noteStructType && name == "Text" {
+				// A note's line breaks are CRLF as Studio Pro stores them and
+				// describe prints them; an editor that saves the script with
+				// LF changed nothing the canvas shows (mendixlabs/mxcli#1505).
+				// A matched note is left as stored, so its bytes stay CRLF.
+				if lfLineBreaks(df.String()) != lfLineBreaks(s.Field(i).String()) {
+					return false
+				}
+				continue
+			}
 			if d.Type() == retrieveStructType && name == "Where" {
 				if !sameStoredConstraint(df, s.Field(i), retrieveEntity(d), retrieveEntity(s)) {
 					return false
@@ -208,6 +218,11 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	default:
 		return d.Equal(s)
 	}
+}
+
+// lfLineBreaks returns text with every line break spelled LF.
+func lfLineBreaks(text string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 }
 
 var errorHandlingPtrType = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))

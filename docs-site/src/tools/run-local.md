@@ -131,6 +131,7 @@ would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 | `--app-port` | 8080 | App HTTP port |
 | `--admin-port` | 8090 | M2EE admin API port |
 | `--serve-port` | 6543 | `mxbuild --serve` port |
+| `--listen-addr` | `127.0.0.1` | IP address the app binds to (not a host name). `0.0.0.0` binds all IPv4 interfaces, `::` all interfaces, so other machines on the network can open the app; the URLs it is reachable at are printed after boot. Without an application root URL the runtime derives one from this address, so absolute URLs it generates (SSO redirects, deep links) name the wildcard: pass `--runtime-setting ApplicationRootUrl=http://<host>:<port>/` or set a real host in the configuration (a warning says so). The M2EE admin API is unaffected and always binds `127.0.0.1` |
 | `--mxbuild-path` | resolved for this host | The mxbuild to build with, overriding resolution (Studio Pro on macOS/Windows, the cached CDN download on Linux). `MXCLI_MXBUILD_PATH` sets the same override from the environment; the flag wins |
 | `--db-host` | 127.0.0.1:5432 | Database `host:port`; bracket IPv6 endpoints (`[::1]:5432`) |
 | `--db-name` | derived from project | Database name |
