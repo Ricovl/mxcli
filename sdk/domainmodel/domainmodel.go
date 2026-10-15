@@ -61,6 +61,12 @@ type Entity struct {
 	Generalization   Generalization `json:"generalization,omitempty"`
 	GeneralizationID model.ID       `json:"generalizationId,omitempty"`
 
+	// ExportLevel is "Hidden" or "API" (Studio Pro's "Usable"). It only means
+	// something in a Protected (add-on) module, where a Hidden entity may not be
+	// referenced from outside it (CE1406) nor exposed by a Usable microflow
+	// (CE5400). Read-only here: the writer carries the stored value.
+	ExportLevel string `json:"exportLevel,omitempty"`
+
 	// Persistability
 	Persistable bool `json:"persistable"`
 

@@ -642,7 +642,16 @@ end;
   parameters (...)` names the parameters passed as query arguments; `drop url`
   removes both.
 - **`export level api | hidden`** decides whether the microflow is part of the
-  module's public surface when the module is exported.
+  module's public surface when the module is exported. It bites in a
+  **Protected (add-on) module** — `describe module` prints
+  `-- export level: Protected …` and `show modules` says `Protected AddOn`:
+  another module or the navigation referencing a Hidden microflow, entity or
+  any page there is **CE1406**, and an `api` microflow whose parameter or return
+  type is a Hidden entity of that module is **CE5400**. `check -p --references`
+  reports both (mendixlabs/mxcli#1498). A page there cannot be made usable
+  (mxbuild refuses it even when stored as API) — reach it through an `api`
+  microflow in the module that shows it. An entity's export level has no MDL
+  syntax (`describe entity` prints it as a comment); set it in Studio Pro.
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

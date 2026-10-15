@@ -226,9 +226,21 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	lang := describeDefaultLanguage(ctx)
+	protection := moduleProtection(ctx, string(module.ID))
 
 	for _, entity := range dm.Entities {
 		if entity.Name == name.Name {
+			// In a Protected module an entity's export level decides whether
+			// other modules may use it (CE1406) and whether a Usable microflow
+			// may expose it (CE5400). MDL has no syntax for it, so it prints as
+			// a comment and a rewrite keeps the stored value (mendixlabs/mxcli#1498).
+			if protection != "" {
+				lvl := "Hidden"
+				if entity.ExportLevel == "API" {
+					lvl = "Usable"
+				}
+				fmt.Fprintf(ctx.Output, "-- export level: %s (%s is a protected module; set in Studio Pro)\n", lvl, module.Name)
+			}
 			// Output JavaDoc documentation if present
 			if entity.Documentation != "" {
 				outputJavadocIndented(ctx.Output, entity.Documentation, "")

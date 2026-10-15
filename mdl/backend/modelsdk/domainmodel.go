@@ -182,6 +182,7 @@ func entityFromGen(e *genDm.Entity) *domainmodel.Entity {
 	out := &domainmodel.Entity{
 		Name:          e.Name(),
 		Documentation: e.Documentation(),
+		ExportLevel:   e.ExportLevel(),
 		Persistable:   true, // default; NoGeneralization overrides below
 	}
 	out.ID = model.ID(e.ID())
