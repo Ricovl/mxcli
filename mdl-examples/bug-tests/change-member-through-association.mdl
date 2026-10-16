@@ -26,12 +26,14 @@ create or modify association "Hop"."A_B"
 from "Hop"."A" to "Hop"."B"
 type reference;
 
--- Working idiom: retrieve through the association, change the retrieved object.
+-- Working idiom: retrieve the associated object, change the retrieved object.
+-- (database retrieve + `first`; an association retrieve binds a single object
+-- for a reference, which mxcli currently mis-types as a list — see HANDOFF)
 create or modify microflow "Hop"."ACT_Good" ($a: Hop.A) returns string as $r
 begin
   declare $r string = '';
-  retrieve $b from $a/A_B;
-  change $b (Title = 'via retrieve');
+  retrieve $b from Hop.B where Hop.A_B = $a first;
+  change $b (Hop.B.Title = 'via retrieve');
   commit $b;
   set $r = 'ok';
   return $r;
