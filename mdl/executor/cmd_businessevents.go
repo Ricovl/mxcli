@@ -281,6 +281,7 @@ func createBusinessEventService(ctx *ExecContext, stmt *ast.CreateBusinessEventS
 	// about folders (#932).
 	var existingContainerID model.ID
 	var existingDocumentation string
+	var existingSvc *model.BusinessEventService
 	haveExistingSvc := false
 	if existing, ok := pickLive(existingServices,
 		func(svc *model.BusinessEventService) bool {
@@ -296,6 +297,7 @@ func createBusinessEventService(ctx *ExecContext, stmt *ast.CreateBusinessEventS
 		existingExcluded = existing.Excluded
 		existingContainerID = existing.ContainerID
 		existingDocumentation = existing.Documentation
+		existingSvc = existing
 		haveExistingSvc = true
 	}
 
@@ -325,24 +327,28 @@ func createBusinessEventService(ctx *ExecContext, stmt *ast.CreateBusinessEventS
 		svc.ID = existingID
 	}
 
-	// Build definition
+	// Build definition. On a rewrite every identity the stored service holds is
+	// carried by name (mendixlabs/mxcli#1525): the ChannelName is the topic
+	// subscribers listen on, so minting a new one per run moved every topic of a
+	// deployed app and made an unchanged re-run a write.
+	carry := newBusinessEventIdentityCarry(existingSvc)
 	def := &model.BusinessEventDefinition{
 		ServiceName:     stmt.ServiceName,
 		EventNamePrefix: stmt.EventNamePrefix,
 	}
+	def.ID = carry.definitionID()
 	def.TypeName = "BusinessEvents$BusinessEventDefinition"
 
 	// Create channels (one per message in our simplified model)
 	for _, msgDef := range stmt.Messages {
-		ch := &model.BusinessEventChannel{
-			ChannelName: generateChannelName(),
-		}
+		ch := &model.BusinessEventChannel{}
 		ch.TypeName = "BusinessEvents$Channel"
 
 		msg := &model.BusinessEventMessage{
 			MessageName: msgDef.MessageName,
 		}
 		msg.TypeName = "BusinessEvents$Message"
+		storedMsg := carry.channelFor(msgDef.MessageName, ch, msg)
 
 		// Set publish/subscribe based on operation
 		switch strings.ToLower(msgDef.Operation) {
@@ -358,6 +364,7 @@ func createBusinessEventService(ctx *ExecContext, stmt *ast.CreateBusinessEventS
 				AttributeName: attrDef.Name,
 				AttributeType: attrDef.TypeName,
 			}
+			attr.ID = storedAttributeID(storedMsg, attrDef.Name)
 			attr.TypeName = "BusinessEvents$MessageAttribute"
 			msg.Attributes = append(msg.Attributes, attr)
 		}
@@ -372,6 +379,7 @@ func createBusinessEventService(ctx *ExecContext, stmt *ast.CreateBusinessEventS
 			Entity:      msgDef.Entity,
 			Microflow:   msgDef.Microflow,
 		}
+		op.ID = carry.operationID(msgDef.MessageName)
 		op.TypeName = "BusinessEvents$ServiceOperation"
 		svc.OperationImplementations = append(svc.OperationImplementations, op)
 	}
@@ -428,6 +436,113 @@ func dropBusinessEventService(ctx *ExecContext, stmt *ast.DropBusinessEventServi
 	}
 
 	return mdlerrors.NewNotFound("business event service", stmt.Name.String())
+}
+
+// businessEventIdentityCarry hands the identities of a stored business event
+// service to the rewrite that replaces it, keyed by message name (and attribute
+// name), never by position: a reordered script must not swap two topics.
+//
+// The ChannelName is what makes this more than $ID hygiene. It is the channel's
+// identity outside the model — the topic name publishers and subscribers in
+// other apps agree on — so a rewrite that re-mints it silently disconnects every
+// subscriber on the next deploy, with a perfectly valid model. Element $IDs are
+// carried alongside so an unchanged rewrite equals the stored unit and is elided
+// (ADR-0008).
+type businessEventIdentityCarry struct {
+	stored   *model.BusinessEventService
+	messages map[string]storedBusinessEventMessage
+	claimed  map[*model.BusinessEventChannel]bool
+	ops      map[string]*model.ServiceOperation
+}
+
+type storedBusinessEventMessage struct {
+	channel *model.BusinessEventChannel
+	message *model.BusinessEventMessage
+}
+
+func newBusinessEventIdentityCarry(stored *model.BusinessEventService) *businessEventIdentityCarry {
+	c := &businessEventIdentityCarry{
+		stored:   stored,
+		messages: map[string]storedBusinessEventMessage{},
+		claimed:  map[*model.BusinessEventChannel]bool{},
+		ops:      map[string]*model.ServiceOperation{},
+	}
+	if stored == nil {
+		return c
+	}
+	if stored.Definition != nil {
+		for _, ch := range stored.Definition.Channels {
+			for _, m := range ch.Messages {
+				key := strings.ToLower(m.MessageName)
+				if _, dup := c.messages[key]; !dup {
+					c.messages[key] = storedBusinessEventMessage{channel: ch, message: m}
+				}
+			}
+		}
+	}
+	for _, op := range stored.OperationImplementations {
+		key := strings.ToLower(op.MessageName)
+		if _, dup := c.ops[key]; !dup {
+			c.ops[key] = op
+		}
+	}
+	return c
+}
+
+func (c *businessEventIdentityCarry) definitionID() model.ID {
+	if c.stored == nil || c.stored.Definition == nil {
+		return ""
+	}
+	return c.stored.Definition.ID
+}
+
+// channelFor fills ch and msg with the stored identities of the message named
+// name and returns the stored message (nil for a new one). A new message gets a
+// freshly generated ChannelName. A stored channel is handed out once: Studio Pro
+// can put several messages in one channel, MDL writes one channel per message,
+// and two channels sharing a ChannelName is a duplicate topic (PR #533).
+func (c *businessEventIdentityCarry) channelFor(name string, ch *model.BusinessEventChannel, msg *model.BusinessEventMessage) *model.BusinessEventMessage {
+	key := strings.ToLower(name)
+	s, ok := c.messages[key]
+	if !ok {
+		ch.ChannelName = generateChannelName()
+		return nil
+	}
+	delete(c.messages, key)
+	msg.ID = s.message.ID
+	if c.claimed[s.channel] || s.channel.ChannelName == "" {
+		ch.ChannelName = generateChannelName()
+	} else {
+		c.claimed[s.channel] = true
+		ch.ID = s.channel.ID
+		ch.ChannelName = s.channel.ChannelName
+	}
+	return s.message
+}
+
+// operationID is the $ID of the stored operation implementation for the named
+// message, handed out once, or "".
+func (c *businessEventIdentityCarry) operationID(messageName string) model.ID {
+	key := strings.ToLower(messageName)
+	op, ok := c.ops[key]
+	if !ok {
+		return ""
+	}
+	delete(c.ops, key)
+	return op.ID
+}
+
+// storedAttributeID is the $ID of the stored attribute named name, or "".
+func storedAttributeID(stored *model.BusinessEventMessage, name string) model.ID {
+	if stored == nil {
+		return ""
+	}
+	for _, a := range stored.Attributes {
+		if strings.EqualFold(a.AttributeName, name) {
+			return a.ID
+		}
+	}
+	return ""
 }
 
 // generateChannelName generates a hex channel name (similar to Mendix Studio Pro).
