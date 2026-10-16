@@ -13,7 +13,7 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 | 31-40 | When to Use This Skill |
 | 41-59 | Navigation Concepts |
 | 60-77 | Show Commands (Read-Only) |
-| 78-358 | CREATE OR MODIFY NAVIGATION (Full Replacement) |
+| 78-358 | CREATE OR MODIFY NAVIGATION |
 | 359-380 | Round-Trip Workflow |
 | 381-402 | Catalog Queries |
 | 403-452 | Common Patterns |
@@ -75,9 +75,9 @@ list navigation menu;             -- all profiles
 list navigation homes;
 ```
 
-## CREATE OR MODIFY NAVIGATION (Full Replacement)
+## CREATE OR MODIFY NAVIGATION
 
-This command fully replaces a navigation profile's configuration. All clauses are optional — omitted clauses clear that section. The output from `describe navigation` can be pasted back directly.
+All clauses are optional, and **an omitted clause keeps the stored value** — a statement with only a `{ … }` menu keeps the home page, role home pages, login page and not-found page (mendixlabs/mxcli#1522; before that fix they were cleared, and the missing home page failed the build with CE0527). A stated clause replaces what it names: `{ … }` the whole menu, `sync ( … )` the whole list, `home page X for R` role R's home page only. There is no clause that clears a home, login or not-found page. The output from `describe navigation` can be pasted back directly.
 
 ### Basic: Set Home and Login Page
 

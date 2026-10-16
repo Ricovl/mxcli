@@ -283,7 +283,7 @@ END WORKFLOW;
 | List menu tree | `LIST NAVIGATION MENU [Profile];` | Menu tree for profile or all |
 | List home pages | `LIST NAVIGATION HOMES;` | Home page assignments across profiles |
 | Describe navigation | `DESCRIBE NAVIGATION [Profile];` | Full MDL output (round-trippable) |
-| Create/replace navigation | `CREATE OR REPLACE NAVIGATION Profile ...;` | Full replacement of profile |
+| Create/replace navigation | `CREATE OR REPLACE NAVIGATION Profile ...;` | Sets the stated clauses; an omitted clause keeps its stored value, a `{ }` menu replaces the whole menu |
 
 **Navigation Example:**
 ```sql

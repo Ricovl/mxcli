@@ -374,6 +374,13 @@ DISCONNECT;`,
     MENU 'Group' [( Icon: Module.IconCollection.Name )] { ... }
   }];
 
+-- Every clause is optional, and an OMITTED clause leaves the stored value
+-- alone: a statement that states only a { } menu keeps the home page, the
+-- role home pages, the login page and the not-found page (mendixlabs/mxcli#1522).
+-- A stated clause replaces what it names: { } the whole menu, SYNC ( ) the
+-- whole list, HOME ... FOR R the home page of role R only (other roles keep
+-- theirs). There is no clause that clears a home, login or not-found page.
+--
 -- The menu items are the profile's CHILDREN, in { } after its clauses, like a
 -- page's widgets: no ; between them, since a child ends in ) or }. An item's
 -- action is OnClick: in the words a page action uses. The old spelling,

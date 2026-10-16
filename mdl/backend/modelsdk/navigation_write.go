@@ -141,6 +141,9 @@ func navID() any { return bsonutil.NewIDBsonBinary() }
 // --- profile patchers ---
 
 func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) (bson.D, error) {
+	// Patch a copy: navSetField writes in place, and a caller's stored profile
+	// must not change under it when no field is appended.
+	doc = append(bson.D(nil), doc...)
 	var defaultHome *types.NavHomePageSpec
 	var roleHomes []types.NavHomePageSpec
 	for _, hp := range spec.HomePages {
@@ -152,19 +155,28 @@ func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) (bson.D, e
 		}
 	}
 
+	// An omitted clause keeps what is stored (mendixlabs/mxcli#1522), as the
+	// menu block, the sync block, ON SYNC ERROR and PROGRESSIVE WEB APP already
+	// did. These four were written unconditionally, so a statement that stated
+	// only a menu cleared the home page -- CE0527 at the next build -- along
+	// with the role-based home pages, the login page and the fallback page.
+	// MDL has no clause that clears one of them; describe states every one the
+	// profile has, so describe -> exec is unaffected.
 	if defaultHome != nil {
 		doc = navSetField(doc, "HomePage", navHomePageBson(defaultHome.IsPage, defaultHome.Target, ""))
-	} else {
-		doc = navSetField(doc, "HomePage", navHomePageBson(false, "", ""))
 	}
 
-	homeItems := bson.A{navMarkerHomeItems}
-	for _, rh := range roleHomes {
-		homeItems = append(homeItems, navHomePageBson(rh.IsPage, rh.Target, rh.ForRole))
+	if len(roleHomes) > 0 {
+		var built []bson.D
+		for _, rh := range roleHomes {
+			built = append(built, navHomePageBson(rh.IsPage, rh.Target, rh.ForRole))
+		}
+		doc = navSetField(doc, "HomeItems", navMergeRoleHomes(navGetArray(doc, "HomeItems"), built))
 	}
-	doc = navSetField(doc, "HomeItems", homeItems)
 
-	doc = navSetField(doc, "LoginPageSettings", navFormSettingsBson(spec.LoginPage))
+	if spec.LoginPage != "" {
+		doc = navSetField(doc, "LoginPageSettings", navFormSettingsBson(spec.LoginPage))
+	}
 
 	if spec.NotFoundPage != "" {
 		doc = navSetField(doc, "NotFoundHomepage", bson.D{
@@ -186,8 +198,6 @@ func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) (bson.D, e
 			{Key: "Microflow", Value: ""},
 			{Key: "Page", Value: spec.NotFoundPage},
 		})
-	} else {
-		doc = navSetField(doc, "NotFoundHomepage", nil)
 	}
 
 	if spec.HasMenu {
@@ -271,6 +281,9 @@ func navGetDoc(doc bson.D, key string) bson.D {
 }
 
 func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D {
+	// Patch a copy: navSetField writes in place, and a caller's stored profile
+	// must not change under it when no field is appended.
+	doc = append(bson.D(nil), doc...)
 	var defaultHome *types.NavHomePageSpec
 	var roleHomes []types.NavHomePageSpec
 	for _, hp := range spec.HomePages {
@@ -292,18 +305,23 @@ func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D 
 		})
 	}
 
-	roleItems := bson.A{navMarkerHomeItems}
-	for _, rh := range roleHomes {
-		page, nf := navSplitTarget(rh.IsPage, rh.Target)
-		roleItems = append(roleItems, bson.D{
-			{Key: "$ID", Value: navID()},
-			{Key: "$Type", Value: "Navigation$RoleBasedNativeHomePage"},
-			{Key: "UserRole", Value: rh.ForRole},
-			{Key: "HomePagePage", Value: page},
-			{Key: "HomePageNanoflow", Value: nf},
-		})
+	// Same rule as the web writer: a role the statement does not mention keeps
+	// its home page (mendixlabs/mxcli#1522).
+	if len(roleHomes) > 0 {
+		var built []bson.D
+		for _, rh := range roleHomes {
+			page, nf := navSplitTarget(rh.IsPage, rh.Target)
+			built = append(built, bson.D{
+				{Key: "$ID", Value: navID()},
+				{Key: "$Type", Value: "Navigation$RoleBasedNativeHomePage"},
+				{Key: "UserRole", Value: rh.ForRole},
+				{Key: "HomePagePage", Value: page},
+				{Key: "HomePageNanoflow", Value: nf},
+			})
+		}
+		doc = navSetField(doc, "RoleBasedNativeHomePages",
+			navMergeRoleHomes(navGetArray(doc, "RoleBasedNativeHomePages"), built))
 	}
-	doc = navSetField(doc, "RoleBasedNativeHomePages", roleItems)
 
 	// A native profile stores its offline configs as a web profile does. The
 	// executor refuses the clauses this writer cannot apply to a native
@@ -314,6 +332,42 @@ func navPatchNativeProfile(doc bson.D, spec types.NavigationProfileSpec) bson.D 
 			navOfflineConfigs(navGetArray(doc, "OfflineEntityConfigs"), spec.OfflineEntities))
 	}
 	return doc
+}
+
+// navMergeRoleHomes is a profile's role-based home pages after a statement that
+// states some of them: a stated role's element replaces the stored one in its
+// position, a role the statement does not mention is kept verbatim, and a new
+// role is appended. Roles match case-insensitively, as profile names do.
+//
+// So MDL can add or change a role's home page but not remove one; describe ->
+// exec, which states every stored role, is unaffected (mendixlabs/mxcli#1522).
+func navMergeRoleHomes(stored bson.A, built []bson.D) bson.A {
+	out := bson.A{navMarkerHomeItems}
+	used := make([]bool, len(built))
+	for _, item := range stored {
+		d, ok := item.(bson.D)
+		if !ok {
+			continue // the leading marker
+		}
+		role := navGetString(d, "UserRole")
+		replaced := false
+		for i, b := range built {
+			if !used[i] && strings.EqualFold(navGetString(b, "UserRole"), role) {
+				out = append(out, b)
+				used[i], replaced = true, true
+				break
+			}
+		}
+		if !replaced {
+			out = append(out, d)
+		}
+	}
+	for i, b := range built {
+		if !used[i] {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 func navSplitTarget(isPage bool, target string) (page, nanoflow string) {
