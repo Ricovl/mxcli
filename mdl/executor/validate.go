@@ -493,6 +493,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
 	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
 	errors = append(errors, validateProtectedModuleRefs(ctx, prog)...)
+	// A business event message attribute named like a member its entity
+	// inherits (BusinessEvents.PublishedBusinessEvent's, read from the project):
+	// mxbuild reports the duplicate after exec wrote it (mendixlabs/mxcli#1525).
+	errors = append(errors, validateBusinessEventInheritedMembers(ctx, prog, sc)...)
 	return errors, sc.warnings
 }
 

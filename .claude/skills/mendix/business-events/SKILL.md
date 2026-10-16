@@ -16,7 +16,7 @@ description: "Define event-driven APIs over Kafka with Mendix business event ser
 | 118-125 | Service Properties |
 | 126-132 | Operations |
 | 133-169 | Publishing Events from Microflows |
-| 170-181 | Checklist |
+| 170-182 | Checklist |
 
 <!-- /skill-index -->
 # Business Events
@@ -172,6 +172,7 @@ end;
 - [ ] Linked entities must exist before creating the service
 - [ ] **Entities must extend `BusinessEvents.PublishedBusinessEvent`** (for published events)
 - [ ] **Entity attributes must exactly match the message attributes** (no extra/missing attributes)
+- [ ] **No message attribute may reuse a name the entity inherits** from `BusinessEvents.PublishedBusinessEvent` (e.g. `EventId`) — an inherited attribute does not count, so mxbuild reports it "not present on the entity". `check -p … --references` reports it
 - [ ] Entity names use qualified format: `Module.EntityName`
 - [ ] Entities for published events are conventionally prefixed with `PBE_`
 - [ ] Attribute types must be valid (String, Integer, Long, Decimal, Boolean, DateTime)
