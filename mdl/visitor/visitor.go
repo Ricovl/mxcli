@@ -47,7 +47,8 @@ func (l *errorListener) SyntaxError(rec antlr.Recognizer, sym any, line, column 
 	if word, ok := unknownStatementWord(rec, sym, msg); ok {
 		msg = unknownStatementMessage(word)
 	}
-	enhancedMsg := l.deduplicateHint(enhanceErrorMessage(msg, offending), line)
+	site := errorSite{routineHeader: inRoutineHeader(rec)}
+	enhancedMsg := l.deduplicateHint(enhanceErrorMessageAt(msg, offending, site), line)
 	l.errors = append(l.errors, fmt.Errorf("line %d:%d %s", line, column, enhancedMsg))
 	l.lines[line] = true
 }
@@ -117,6 +118,51 @@ func simplifyExpecting(msg string) string {
 // to `mxcli syntax`. offendingLine is the source line the error occurred on (""
 // when unavailable), used for source-aware hints.
 func enhanceErrorMessage(msg, offendingLine string) string {
+	return enhanceErrorMessageAt(msg, offendingLine, errorSite{})
+}
+
+// errorSite is what the parser knew about where an error happened, beyond the
+// message and the source line. The zero value is "nothing known".
+type errorSite struct {
+	// routineHeader: the error is in a create microflow / nanoflow / rule
+	// statement, before its BEGIN (not inside the body).
+	routineHeader bool
+}
+
+// inRoutineHeader reports whether the parser was inside the header of a create
+// microflow, nanoflow or rule statement — between the name and BEGIN — when it
+// reported an error. The body, and the END after it, are excluded: a statement
+// in the body has clauses of its own (a REST call's `returns`) that are not
+// header-order mistakes.
+func inRoutineHeader(rec antlr.Recognizer) bool {
+	p, ok := rec.(antlr.Parser)
+	if !ok {
+		return false
+	}
+	for ctx := antlr.Tree(p.GetParserRuleContext()); ctx != nil; ctx = ctx.GetParent() {
+		switch ctx.(type) {
+		case *parser.MicroflowBodyContext:
+			return false
+		case *parser.CreateMicroflowStatementContext, *parser.CreateNanoflowStatementContext, *parser.CreateRuleStatementContext:
+			// Past the body (the parser wants END) is not the header either.
+			for _, c := range ctx.GetChildren() {
+				if _, isBody := c.(*parser.MicroflowBodyContext); isBody {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// enhanceErrorMessageAt is enhanceErrorMessage with what the parser knew about
+// the error's site.
+func enhanceErrorMessageAt(msg, offendingLine string, site errorSite) string {
+	// Read before simplifyExpecting, which may truncate IDENTIFIER out of the
+	// expecting set.
+	keywordAsName := keywordInNameSlot(msg)
+
 	// Collapse ANTLR's oversized `expecting {…}` token dumps first, so every
 	// branch below (and the fall-through) shows the tamer form.
 	msg = simplifyExpecting(msg)
@@ -302,6 +348,22 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 	// attribute list — `create entity Mod.Child extends Mod.Parent ( ... )` — but
 	// users often append it after the closing parenthesis, where ANTLR reports a
 	// generic "extraneous/mismatched input 'extends'".
+	// `returns` after an option clause (exposed / folder / url / export level /
+	// concurrency) of a microflow, nanoflow or rule header (mendixlabs/mxcli#1533).
+	// The raw "mismatched input 'returns' expecting BEGIN" reads as if an exposed
+	// microflow could not return a value; it can, the order is fixed.
+	if site.routineHeader && looksLikeMisplacedReturns(msg) {
+		return fmt.Sprintf("%s\n\n  `returns` must come right after the parameter list, before any exposed /\n"+
+			"  folder / url / export level / concurrency clause:\n"+
+			"    create microflow Mod.ACT_A ($Ctx: Mod.Item)\n"+
+			"      returns Boolean as $Ok\n"+
+			"      exposed as workflow action 'Approve' in 'Cat'\n"+
+			"    begin … end;                                       (correct)\n"+
+			"    create microflow Mod.ACT_A ($Ctx: Mod.Item)\n"+
+			"      exposed as workflow action 'Approve' in 'Cat'\n"+
+			"      returns Boolean as $Ok                           (wrong — causes parse error)", msg)
+	}
+
 	if looksLikeMisplacedExtends(msg) {
 		return fmt.Sprintf("%s\n\n  An EXTENDS (or GENERALIZATION) clause must come BEFORE the attribute\n"+
 			"  parentheses, not after them:\n"+
@@ -331,6 +393,15 @@ func enhanceErrorMessage(msg, offendingLine string) string {
 			"  In MDL strings, use '' (two single quotes) to escape apostrophes:\n"+
 			"    'it''s here'  (correct)\n"+
 			"    'it's here'   (wrong — causes parse error)", msg)
+	}
+
+	// Any lexer keyword written where a name goes (mendixlabs/mxcli#1533). The
+	// expecting set names IDENTIFIER, so the token was identifier-shaped and still
+	// not an identifier — it is a keyword, and quoting it is what the grammar asks
+	// for. This returns before the fixed-list loop below, so a word on that list
+	// gets one hint, not two.
+	if keywordAsName != "" {
+		return fmt.Sprintf("%s\n\n%s", msg, reservedKeywordHint(keywordAsName))
 	}
 
 	// Check for pattern: mismatched input 'Word' or extraneous input 'Word'
@@ -445,6 +516,13 @@ func looksLikeXPathArithmetic(msg string) bool {
 func looksLikeMisplacedExtends(msg string) bool {
 	lower := strings.ToLower(msg)
 	return strings.Contains(lower, "input 'extends'") || strings.Contains(lower, "input 'generalization'")
+}
+
+// looksLikeMisplacedReturns detects `returns` reported as the offending token —
+// in a routine header that means it follows an option clause.
+func looksLikeMisplacedReturns(msg string) bool {
+	lower := strings.ToLower(msg)
+	return strings.Contains(lower, "mismatched input 'returns'") || strings.Contains(lower, "extraneous input 'returns'")
 }
 
 // looksLikeEnumEquals detects `Value = 'Caption'` inside an enumeration value
@@ -788,6 +866,30 @@ func reservedKeywordHint(keyword string) string {
 			"    \"%s\"\n\n"+
 			"  Run 'mxcli syntax keywords' to see all reserved keywords.",
 		keyword, keyword)
+}
+
+// keywordInNameRe matches an ANTLR error whose offending token is a bare word.
+var keywordInNameRe = regexp.MustCompile(`^(?:mismatched|extraneous) input '([A-Za-z_][A-Za-z0-9_]*)' expecting (.*)$`)
+
+// keywordInNameSlot returns the offending word when a raw ANTLR message reports
+// an identifier-shaped token where the grammar expected a name. Such a token can
+// only be a lexer keyword: a plain identifier would have matched.
+//
+// The slot is recognised by QUOTED_IDENTIFIER in the expecting set, not by
+// IDENTIFIER alone: the statement-start set also lists IDENTIFIER (for the
+// unknown-statement error), and "quote it" is only honest advice where a quoted
+// name is accepted. It returns "" otherwise.
+func keywordInNameSlot(msg string) string {
+	m := keywordInNameRe.FindStringSubmatch(msg)
+	if m == nil {
+		return ""
+	}
+	for _, tok := range strings.FieldsFunc(m[2], func(r rune) bool { return r == '{' || r == '}' || r == ',' || r == ' ' }) {
+		if tok == "QUOTED_IDENTIFIER" {
+			return m[1]
+		}
+	}
+	return ""
 }
 
 // hintedKeywordSet holds MDL parser keywords people reach for as identifiers. Being on this list says
