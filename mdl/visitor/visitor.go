@@ -27,6 +27,9 @@ type errorListener struct {
 	// lines holds every line a syntax error was reported on, so a builder
 	// check does not add a second, recovery-made error on the same line.
 	lines map[int]bool
+	// backslashEscapes: the script is read under mdl 0, where a backslash in a
+	// string literal escapes the next character (no StrictEscapeStream).
+	backslashEscapes bool
 }
 
 func newErrorListener() *errorListener {
@@ -47,7 +50,7 @@ func (l *errorListener) SyntaxError(rec antlr.Recognizer, sym any, line, column 
 	if word, ok := unknownStatementWord(rec, sym, msg); ok {
 		msg = unknownStatementMessage(word)
 	}
-	site := errorSite{routineHeader: inRoutineHeader(rec)}
+	site := errorSite{routineHeader: inRoutineHeader(rec), backslashEscapes: l.backslashEscapes}
 	enhancedMsg := l.deduplicateHint(enhanceErrorMessageAt(msg, offending, site), line)
 	l.errors = append(l.errors, fmt.Errorf("line %d:%d %s", line, column, enhancedMsg))
 	l.lines[line] = true
@@ -127,6 +130,9 @@ type errorSite struct {
 	// routineHeader: the error is in a create microflow / nanoflow / rule
 	// statement, before its BEGIN (not inside the body).
 	routineHeader bool
+	// backslashEscapes: the script is mdl 0, where `\'` escapes an apostrophe.
+	// The zero value is mdl 1's rule, where a backslash is an ordinary character.
+	backslashEscapes bool
 }
 
 // inRoutineHeader reports whether the parser was inside the header of a create
@@ -245,10 +251,21 @@ func enhanceErrorMessageAt(msg, offendingLine string, site errorSite) string {
 			"      when (empty) then …\n"+
 			"    end case;", msg)
 	}
-	// A `\'` in a string literal under mdl 1, where a backslash no longer
-	// escapes: the literal ends at the quote, and the rest of the line is read
-	// as MDL. Under mdl 0 the same text parses, so the hint only fires on an
-	// error. (#732)
+	// A `\'` in a string literal. Under mdl 1 a backslash no longer escapes:
+	// the literal ends at the quote, and the rest of the line is read as MDL.
+	// Under mdl 0 it escapes, so the literal does NOT end there — and the advice
+	// has to say that instead, or it points the wrong way. Either way the
+	// doubled apostrophe is the spelling that means the same under every
+	// version. (#732)
+	if strings.Contains(offendingLine, `\'`) && site.backslashEscapes {
+		return fmt.Sprintf("%s\n\n  This script has no `mdl 1;` header, so it is read as mdl 0, where a backslash\n"+
+			"  escapes the next character: `\\'` is an apostrophe inside the literal and\n"+
+			"  does not end it. A literal meant to end in a backslash ('C:\\') therefore\n"+
+			"  runs on — write the backslash doubled ('C:\\\\'). For an apostrophe, double\n"+
+			"  it instead, which means the same under every language version:\n"+
+			"    default 'it''s'    (correct)\n"+
+			"    default 'it\\'s'    (mdl 0 only — under mdl 1 the `\\'` ends the literal)", msg)
+	}
 	if strings.Contains(offendingLine, `\'`) {
 		return fmt.Sprintf("%s\n\n  Under mdl 1 a backslash is an ordinary character, so `\\'` ends the string\n"+
 			"  literal. Double the apostrophe instead, as in a Mendix expression:\n"+
@@ -800,7 +817,9 @@ func build(input string, opts buildOptions, listen func(*Builder) antlr.ParseTre
 	errListener.source = strings.Split(input, "\n")
 
 	// Create lexer with custom error listener
-	lexer := parser.NewMDLLexer(newScriptStream(input, opts.implicit))
+	chars := newScriptStream(input, opts.implicit)
+	errListener.backslashEscapes = !parser.HasStrictEscapes(chars)
+	lexer := parser.NewMDLLexer(chars)
 	lexer.RemoveErrorListeners()
 	lexer.AddErrorListener(errListener)
 
