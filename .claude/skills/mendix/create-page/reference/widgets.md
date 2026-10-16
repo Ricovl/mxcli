@@ -329,7 +329,7 @@ datagrid gridName (
 | `Draggable` | `true`, `false` | `true` | Can reorder column |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | Can hide column |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | Column width mode |
-| `Size` | integer (px) | `1` | Width in pixels (when `ColumnWidth: manual`) |
+| `Size` | integer (px) | `1` | Width in pixels — only under `ColumnWidth: manual`. Any other width hides it, so it must stay `1` (CE0463 otherwise): an `ALTER PAGE … SET (ColumnWidth: autoFill)` puts it back at `1` itself, and `SET (ColumnWidth: autoFill, Size: 220)` is refused |
 | `visible` | expression string | `true` | Column-level visibility — hides/shows the whole column, so use page variables, NOT `$currentObject` (per-object widget visibility is different — see "Conditional Visibility and Editability") |
 | `DynamicCellClass` | expression string | (empty) | Dynamic CSS class per cell |
 | `tooltip` | text string | (empty) | Cell tooltip text |

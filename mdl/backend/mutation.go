@@ -459,6 +459,18 @@ type WidgetPropertyDeclarer interface {
 	DeclaresProperty(propertyKey string) bool
 }
 
+// ColumnHiddenPropertyResetter is implemented by a PageMutator that can bring a
+// Data grid 2 column back in line with its widget's visibility rules after a
+// SET: every primitive property a rule now hides goes back to the default the
+// stored Type declares (`size` once `width` leaves "manual" — CE0463 otherwise,
+// mendixlabs/mxcli#1519). setProps are the MDL names the statement set; a
+// hidden one holding a non-default value is refused rather than reset. Returns
+// the schema keys reset. Optional: the Studio Pro MCP backend hands property
+// sets to Studio Pro, which applies the widget's rules itself.
+type ColumnHiddenPropertyResetter interface {
+	ResetHiddenColumnProperties(gridRef, columnRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
+}
+
 // ObjectListItemSpec describes one item of an object-list property (e.g. one
 // Accordion group, one PopupMenu basicItem, one Maps marker). The backend
 // applies these specs to the template's nested PropertyTypeIDs to produce
