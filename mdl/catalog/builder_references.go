@@ -635,6 +635,26 @@ func (b *Builder) buildReferences() error {
 			}
 		}
 
+		// The names a widget makes beyond its single column — the second
+		// microflow of a data grid 2 with a datasource and an on-click. Without
+		// them the datasource microflow had no inbound reference and QUAL004
+		// said "not called from anywhere" (mendixlabs/mxcli#1513). NOT EXISTS
+		// keeps the projection's one-edge-per-page shape when another widget's
+		// column already made the edge.
+		for _, r := range b.widgetExtraRefs {
+			res, xerr := b.tx.Exec(
+				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
+				 SELECT ?, '', ?, ?, '', ?, ?, ?, ?, ?
+				 WHERE NOT EXISTS (SELECT 1 FROM refs WHERE SourceType = ? AND SourceName = ? AND TargetType = ? AND TargetName = ? AND RefKind = ? AND SnapshotId = ?)`,
+				r.containerType, r.containerQN, r.targetType, r.targetName, r.refKind, r.moduleName, projectID, snapshotID,
+				r.containerType, r.containerQN, r.targetType, r.targetName, r.refKind, snapshotID)
+			if xerr == nil {
+				if n, e := res.RowsAffected(); e == nil {
+					refCount += int(n)
+				}
+			}
+		}
+
 		// Page/snippet -> widget definition. buildWidgetDefinitions runs before
 		// this pass, so the join target is populated.
 		if n, werr := insertWidgetRefs(b.tx, projectID, snapshotID); werr == nil {
