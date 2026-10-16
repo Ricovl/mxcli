@@ -350,13 +350,29 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 				case stmt.Type.EnumRef != nil:
 					typeName = stmt.Type.EnumRef.String()
 				}
-				v.addViolation("MDL043", linter.SeverityError,
-					fmt.Sprintf("declare '$%s' creates an object variable of type %s, but Mendix does not allow the "+
-						"Create Variable activity to hold an object (CE0053). "+
-						"Get the object from a microflow parameter, a retrieve, or a create object instead — do not declare an object variable. "+
-						"(If %s is an enumeration, write it as Enumeration(%s).)",
-						stmt.Variable, typeName, typeName, typeName),
-					"Accept the object as a parameter, use retrieve, or use create object — do not declare an object variable")
+				// With a project (or a script that creates it), the bare name may be
+				// known to be an ENUMERATION: then this is no object declare, exec
+				// writes it as the enumeration variable and it builds (measured
+				// 11.15.0, mendixlabs/mxcli#1516). Say so, as a warning naming
+				// describe's spelling, instead of refusing it as an object.
+				if stmt.Type.Kind == ast.TypeEnumeration &&
+					v.voids.declaredTypeKindOf(typeName) == declKindEnumeration {
+					v.addViolation("MDL043", linter.SeverityWarning,
+						fmt.Sprintf("declare '$%s' names the enumeration %s bare, which reads as an object type "+
+							"wherever the project is not at hand — without -p, check refuses it as an object "+
+							"declare (CE0053). Write `declare $%s enum %s = empty`, the spelling describe prints "+
+							"(Enumeration(%s) is accepted too).",
+							stmt.Variable, typeName, stmt.Variable, typeName, typeName),
+						fmt.Sprintf("Write `declare $%s enum %s = empty;`", stmt.Variable, typeName))
+				} else {
+					v.addViolation("MDL043", linter.SeverityError,
+						fmt.Sprintf("declare '$%s' creates an object variable of type %s, but Mendix does not allow the "+
+							"Create Variable activity to hold an object (CE0053). "+
+							"Get the object from a microflow parameter, a retrieve, or a create object instead — do not declare an object variable. "+
+							"(If %s is an enumeration, write it as `enum %s`.)",
+							stmt.Variable, typeName, typeName, typeName),
+						"Accept the object as a parameter, use retrieve, or use create object — do not declare an object variable")
+				}
 			}
 			// Register the declared variable's kind for later assignment checks,
 			// and flag a Decimal initial value assigned to an Integer/Long declare.

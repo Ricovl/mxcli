@@ -373,6 +373,20 @@ retrieve $E from Mod.Ent first;
 change $E (Attr = 'x');
 ```
 
+**Over an association** (`check --references`, mendixlabs/mxcli#1516). Whether
+`retrieve $L from $h/Mod.Assoc` binds a list depends on the association: from the FROM
+entity of a Reference it is one object; from its TO entity (the "one" side) it is a
+**list**, unless the owner is Both; a ReferenceSet is a list from either end. The project
+knows which, so with `-p` / `--references` a member path over that list (CE0117), a
+`change` of it (CE7247 "Variable 'L' is of type List of …, but should be of type
+Object."), and passing it to a parameter that takes one object (CE0117) are reported too
+— measured identically on 11.6.6 and 11.15.0. The bare list retrieve, `count`, a `loop`
+and a list parameter build. For one object, retrieve it from the database:
+
+```mdl
+retrieve $L from Mod.Line where [Mod.Line_Header = $h] first;
+```
+
 A flow already stored with such a member describes with a `-- WARNING` on the change
 line. `create or modify` will not splice over it: without the header it rebuilds the flow
 (which repairs it), and under `mdl 1;` it refuses with the drop-and-create advice.
