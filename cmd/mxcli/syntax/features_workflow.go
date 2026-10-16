@@ -313,8 +313,16 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax:  "CALL WORKFLOW Module.WF[(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>'];\n\n-- This is the workflow ACTIVITY. To start a workflow from a microflow\n-- ($Wf = CALL WORKFLOW Module.WF ($Obj);) see microflow.workflow-actions.",
-		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\nCALL WORKFLOW HR.SubApproval(Request = $WorkflowContext) AS callWf1;",
+		Syntax: "CALL WORKFLOW Module.WF[(WorkflowContext = <expression>)] [AS <name>] [CAPTION '<text>'];\n\n" +
+			"-- A workflow has exactly one parameter and Mendix stores it as WorkflowContext,\n" +
+			"-- whatever name the called workflow's `PARAMETER $Name: ...` header declares — so\n" +
+			"-- the mapping key is always WorkflowContext. Any other key is CE1613 (MDL-WF18).\n" +
+			"-- Omitted, the call passes the caller's own $WorkflowContext.\n\n" +
+			"-- This is the workflow ACTIVITY. To start a workflow from a microflow\n-- ($Wf = CALL WORKFLOW Module.WF ($Obj);) see microflow.workflow-actions.",
+		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\n" +
+			"CALL WORKFLOW HR.SubApproval(WorkflowContext = $WorkflowContext) AS callWf1;\n\n" +
+			"-- pass an associated object: the path names the association AND its target entity\n" +
+			"CALL WORKFLOW HR.ReviewLine(WorkflowContext = $WorkflowContext/HR.Request_Line/HR.Line) AS callWf2;",
 		SeeAlso: []string{"workflow.create", "workflow.call-microflow", "microflow.workflow-actions"},
 	})
 
