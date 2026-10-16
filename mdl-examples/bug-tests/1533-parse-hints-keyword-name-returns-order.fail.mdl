@@ -1,0 +1,42 @@
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1533 - two bare parse errors in workflow MDL
+-- ============================================================================
+--
+-- Symptom:
+--   1. An activity named with an MDL keyword (`... as close`) gave only
+--      "mismatched input 'close' expecting {IDENTIFIER, QUOTED_IDENTIFIER}".
+--      The keyword hint fired for a fixed list of 41 words, not for `close`.
+--   2. `returns` written after `exposed as workflow action …` gave
+--      "mismatched input 'returns' expecting BEGIN", which reads as if an
+--      exposed microflow could not return a value.
+--
+-- After fix (both are still parse errors; the grammar is unchanged):
+--   1. The error carries "'close' is a keyword in MDL. Quote it …  \"close\"".
+--   2. The error carries "`returns` must come right after the parameter list,
+--      before any exposed / folder / url / export level / concurrency clause".
+--
+-- Usage (every statement below must be refused, with the hint):
+--   mxcli check mdl-examples/bug-tests/1533-parse-hints-keyword-name-returns-order.fail.mdl
+-- ============================================================================
+
+create module M1533;
+create persistent entity M1533.Item (Name: string(100));
+
+create microflow M1533.ACT_Close ($Ctx: M1533.Item)
+begin
+end;
+
+-- 1. A keyword as an activity name. `as "close"` is the fix.
+create workflow M1533.WF
+  parameter $WorkflowContext: M1533.Item
+begin
+  call microflow M1533.ACT_Close as close;
+end workflow;
+
+-- 2. `returns` after the exposed clause. Swap the two clauses to fix.
+create microflow M1533.ACT_Approve ($Ctx: M1533.Item)
+exposed as workflow action 'Approve' in 'Cat'
+returns Boolean as $Ok
+begin
+  return true;
+end;
