@@ -139,8 +139,30 @@ func init() {
 			"-- An OBJECT variable cannot be reassigned (CE7247, MDL-SET01): return the\n" +
 			"-- new object from a sub-microflow, or `change $Obj (…)` its members.\n" +
 			"-- A parameter cannot be reassigned either (CE7247, MDL-SET01) unless it is\n" +
-			"-- a list: copy it first, `DECLARE $Value Integer = $N;`.",
-		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';",
+			"-- a list: copy it first, `DECLARE $Value Integer = $N;`.\n" +
+			"-- An enumeration variable: `DECLARE $S enum Module.Enum = empty;` (what\n" +
+			"-- DESCRIBE prints). A bare `Module.Enum` reads as an object type (MDL043).\n" +
+			"\n" +
+			"-- Conditional create: an object variable cannot be DECLAREd (CE0053, MDL043)\n" +
+			"-- and then created in a branch (CE0111, MDL063), and creating the same\n" +
+			"-- name in both branches is CE0111 too — variable names are unique\n" +
+			"-- flow-wide. Either create once with conditional member values, or let a\n" +
+			"-- sub-microflow create and return the object on each branch (see example).",
+		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';\n\n" +
+			"-- Conditional create, one activity: the condition goes into the values\n" +
+			"$Line = CREATE MyModule.Line (Qty = if $Big then 10 else 1);\n\n" +
+			"-- Conditional create, different shapes: a sub-microflow returns per branch\n" +
+			"CREATE MICROFLOW MyModule.SUB_MakeLine ($Big: Boolean) RETURNS MyModule.Line AS $Line\n" +
+			"BEGIN\n" +
+			"  IF $Big THEN\n" +
+			"    $BigLine = CREATE MyModule.Line (Qty = 10);\n" +
+			"    RETURN $BigLine;\n" +
+			"  ELSE\n" +
+			"    $SmallLine = CREATE MyModule.Line (Qty = 1);\n" +
+			"    RETURN $SmallLine;\n" +
+			"  END IF;\n" +
+			"END;\n" +
+			"-- caller: $Line = CALL MICROFLOW MyModule.SUB_MakeLine(Big = $Big);",
 		SeeAlso: []string{"microflow.object-operations"},
 	})
 
@@ -168,6 +190,13 @@ func init() {
 			"--     HEAD() or COUNT() over it is CE0097 at build time and a LOOP CE0100;\n" +
 			"--     mxcli reports both as MDL-RETRIEVE01 at check time. The reverse,\n" +
 			"--     CHANGE over a list retrieve, is CE1613 and MDL-RETRIEVE03.\n" +
+			"--   * Over an association, the result follows the association: from the\n" +
+			"--     FROM entity of a Reference ($Order above) one object; from its TO\n" +
+			"--     entity ($Customer) a LIST, unless the owner is Both; a ReferenceSet a\n" +
+			"--     list either way. Using such a list as an object ($Orders/Attr,\n" +
+			"--     CHANGE, an object parameter) is CE0117 / CE7247 — check --references\n" +
+			"--     reports it as MDL-RETRIEVE03. For one object, retrieve it instead:\n" +
+			"--     RETRIEVE $O FROM MyModule.Order WHERE [MyModule.Order_Customer = $Customer] FIRST;\n" +
 			"--   * $Obj/System.owner and $Obj/System.changedBy are not associations a\n" +
 			"--     retrieve can follow (CE0136, MDL-RETRIEVE02). Use\n" +
 			"--     RETRIEVE $U FROM System.User WHERE [id = $Obj/System.owner] FIRST;\n" +
