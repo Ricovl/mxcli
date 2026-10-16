@@ -300,6 +300,10 @@ mxcli fix widgets -p app.mpr             # CE0463
 mxcli fix design-properties -p app.mpr   # CE6087
 ```
 
+`marketplace install` runs both itself after a module install (a widget install runs
+the widget resync only) when `mx` for the project's version is available, and falls
+back to printing these two commands with a warning when it is not.
+
 ```text
 Updated design properties: 42 unit(s) changed.
   Storage: 1868 .mxunit file(s), unchanged from 1868 before (MPR v2 preserved).
