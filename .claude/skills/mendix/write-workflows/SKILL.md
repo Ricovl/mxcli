@@ -11,18 +11,18 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 | lines | section |
 |---|---|
 | 35-46 | When to Use This Skill |
-| 47-110 | Syntax — CREATE WORKFLOW |
-| 111-286 | Activities |
-| 287-293 | DROP WORKFLOW |
-| 294-359 | ALTER WORKFLOW |
-| 360-380 | DESCRIBE round-trip |
-| 381-401 | Activity names, and why `jump to` depends on them |
-| 402-422 | Rewriting an existing workflow |
-| 423-510 | Microflow statements for workflow tasks |
-| 511-531 | System-module enumerations are synthesized, not stored |
-| 532-648 | Platform rules |
-| 649-679 | Observing a running workflow |
-| 680-689 | Validate before presenting |
+| 47-117 | Syntax — CREATE WORKFLOW |
+| 118-293 | Activities |
+| 294-300 | DROP WORKFLOW |
+| 301-366 | ALTER WORKFLOW |
+| 367-387 | DESCRIBE round-trip |
+| 388-408 | Activity names, and why `jump to` depends on them |
+| 409-429 | Rewriting an existing workflow |
+| 430-517 | Microflow statements for workflow tasks |
+| 518-538 | System-module enumerations are synthesized, not stored |
+| 539-656 | Platform rules |
+| 657-687 | Observing a running workflow |
+| 688-697 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -101,10 +101,17 @@ written **last** silently winning.
 variable in the header, mxcli writes the parameter as `WorkflowContext`, so
 `$WorkflowContext/Attribute` is the canonical way to reach it in an expression.
 The name you declared (`$Context` above) and any casing of the canonical name
-(`$workflowContext`) are rewritten to it on write — in decision conditions, user
-task due dates and XPath targeting, wait-for-timer delays, and `with (…)`
-parameter mappings. Anything else is an undefined variable and Mendix fails the
-build with `CE0117 "Error(s) in expression."`.
+(`$workflowContext`) are rewritten to it on write, in every workflow expression.
+
+**The only other variable is `$WorkflowInstance`** — the running workflow
+(`System.Workflow`), what a microflow's `Workflow: System.Workflow` parameter
+takes: `call microflow M.ACT_Log(Workflow = $WorkflowInstance, Item =
+$WorkflowContext)`. **Not `$Workflow`** (the microflow's parameter name), and
+not `$currentUser`, `$currentSession` or `$WorkflowUserTask` — each is `CE0117
+"Error(s) in expression."`, and `check` refuses them as `MDL-WF19`. One place
+sees only the context: the workflow's own header `due date`. Measured on 11.6.6
+and 11.15.0. A call with no argument list binds a `System.Workflow` parameter to
+`$WorkflowInstance` and every other one to the context.
 
 `create or modify workflow …` is supported (`create or replace` is its deprecated spelling, MDL-DEPR001).
 
@@ -642,9 +649,10 @@ values. The full list and the System **entities** are in `system-module`.
   string, still parses with the same meaning but is deprecated (MDL-DEPR008);
   `mxcli fmt --upgrade` rewrites it.
 - The context **Parameter entity must be persistent**.
-- Write the context variable as **`$WorkflowContext`**, matching the parameter
-  name exactly. Mendix expressions are case-sensitive on 11.9+, so a lowercase
-  `$workflowContext` is an undefined variable and yields `CE0117`.
+- Write the context variable as **`$WorkflowContext`** and the workflow as
+  **`$WorkflowInstance`**, spelled exactly. Mendix expressions are
+  case-sensitive, so a lowercase `$workflowInstance` is `CE0117` as stored;
+  mxcli rewrites the casing of both on write.
 
 ## Observing a running workflow
 

@@ -1,0 +1,18 @@
+-- NEGATIVE TEST (.fail.mdl) — EXPECTED to fail `mxcli check` with MDL-WF19.
+--
+-- mendixlabs/mxcli#1529 / #1523. A microflow names its System.Workflow parameter
+-- `$Workflow`, so that is what authors (and agents) write in a workflow. In a
+-- workflow expression it is an undefined variable: `check --references` and
+-- `exec` passed it, and the build then failed CE0117 "Error(s) in expression."
+-- (measured with mx check on 11.6.6 and 11.15.0). The running workflow is
+-- `$WorkflowInstance`; see 1529-workflow-instance-variable.mdl for the form that
+-- builds.
+
+create module WFS;
+create persistent entity WFS.Item ( Title: string(100) );
+create microflow WFS.ACT_Bind ($Workflow: System.Workflow, $Item: WFS.Item) begin return; end;
+
+create workflow WFS.OutOfScope parameter $WorkflowContext: WFS.Item
+begin
+  call microflow WFS.ACT_Bind(Workflow = $Workflow, Item = $WorkflowContext);
+end workflow;

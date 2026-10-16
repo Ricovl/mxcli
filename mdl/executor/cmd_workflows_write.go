@@ -79,6 +79,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	if vs := callWorkflowParameterViolations(workflowStatementActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
+	// MDL-WF19: a variable no workflow expression can see is CE0117 at build
+	// time (mendixlabs/mxcli#1529).
+	if vs := ValidateWorkflowExpressionScope(s); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
+	}
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
@@ -178,8 +183,9 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 		wf.ExportLevel = s.ExportLevel
 	}
 
-	// Due date
-	wf.DueDate = s.DueDate
+	// Due date — an expression over the context, so its declared name and
+	// casing are rewritten like every activity expression's (mendixlabs/mxcli#1529).
+	wf.DueDate = newContextExprNormalizer(s.ParameterVar).rewrite(s.DueDate)
 
 	handlers, err := buildWorkflowEventHandlers(ctx, s.EventHandlers, existingHandlers)
 	if err != nil {
@@ -1096,7 +1102,12 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 		case *workflows.CallMicroflowTask:
 			autoBindCallMicroflow(ctx, a, norm)
 		case *workflows.CallWorkflowActivity:
+			for _, pm := range a.ParameterMappings {
+				pm.Expression = norm.rewrite(pm.Expression)
+			}
 			autoBindCallWorkflow(ctx, a)
+		case *workflows.EventSubProcessStartActivity:
+			a.FirstExecutionTime = norm.rewrite(a.FirstExecutionTime)
 		case *workflows.UserTask:
 			// Sanitize name
 			a.Name = sanitizeActivityName(a.Name)
@@ -1109,8 +1120,8 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			a.Name = sanitizeActivityName(a.Name)
 		case *workflows.ExclusiveSplitActivity:
 			a.Name = sanitizeActivityName(a.Name)
-			// A decision's condition is an expression over the workflow context,
-			// and the only in-scope variable is that context. It was left verbatim
+			// A decision's condition is an expression over the workflow context
+			// (and $WorkflowInstance — the two variables in scope). It was left verbatim
 			// while call-microflow parameter mappings were normalized, so the
 			// documented `$workflowContext` (and the user's own declared parameter
 			// name) reached Mendix as undefined variables → CE0117 (issuetracker
@@ -1123,6 +1134,15 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			a.DelayExpression = norm.rewrite(a.DelayExpression)
 		case *workflows.JumpToActivity:
 			a.Name = sanitizeActivityName(a.Name)
+		}
+
+		// A boundary timer, an event sub-process timer start and a call-workflow
+		// argument are expressions in the same scope as a decision, but were
+		// written verbatim, so the header's declared name reached Mendix as an
+		// undefined variable (CE0117) where a decision's was rewritten
+		// (mendixlabs/mxcli#1529).
+		for _, be := range activityBoundaryEvents(act) {
+			be.TimerDelay = norm.rewrite(be.TimerDelay)
 		}
 
 		// Every nested flow, whatever the activity — enumerating them here rather
@@ -1171,17 +1191,36 @@ func autoBindCallMicroflow(ctx *ExecContext, task *workflows.CallMicroflowTask, 
 		task.Outcomes = defaultCallMicroflowOutcomes(targetMF)
 	}
 
-	// Auto-bind parameters (context) if no explicit mappings were given.
+	// Auto-bind parameters if no explicit mappings were given: a System.Workflow
+	// parameter takes the running workflow, $WorkflowInstance; every other one
+	// the context. Binding the context to a System.Workflow parameter passed the
+	// wrong object (mendixlabs/mxcli#1523).
 	if len(task.ParameterMappings) == 0 && targetMF != nil {
 		for _, param := range targetMF.Parameters {
 			mapping := &workflows.ParameterMapping{
 				Parameter:  task.Microflow + "." + param.Name,
-				Expression: "$WorkflowContext",
+				Expression: workflowParameterDefault(param.Type),
 			}
 			mapping.BaseElement.ID = model.ID(types.GenerateID())
 			task.ParameterMappings = append(task.ParameterMappings, mapping)
 		}
 	}
+}
+
+// workflowParameterDefault is the expression a workflow call-microflow binds to
+// a target parameter of type t when the script gives no argument list.
+func workflowParameterDefault(t microflows.DataType) string {
+	if isSystemWorkflowType(t) {
+		return "$" + workflowInstanceVar
+	}
+	return "$" + workflowContextVar
+}
+
+// isSystemWorkflowType reports whether t is an object of System.Workflow — the
+// type of $WorkflowInstance.
+func isSystemWorkflowType(t microflows.DataType) bool {
+	o, ok := t.(*microflows.ObjectType)
+	return ok && strings.EqualFold(o.EntityQualifiedName, "System.Workflow")
 }
 
 // defaultCallMicroflowOutcomes builds the default outcome set for a call-microflow
@@ -1212,14 +1251,20 @@ func defaultCallMicroflowOutcomes(mf *microflows.Microflow) []workflows.Conditio
 // context has to match it exactly or the build fails CE0117.
 const workflowContextVar = "WorkflowContext"
 
-// normalizeWorkflowContextExpr rewrites a case-insensitive `$workflowContext`
-// reference to the exact context parameter name `$WorkflowContext`. In a workflow
-// the only in-scope variable is the context, so this is unambiguous.
+// normalizeWorkflowContextExpr rewrites a case-insensitive reference to either
+// variable a workflow expression can see — `$WorkflowContext` and
+// `$WorkflowInstance` (MDL-WF19, validate_workflow_scope.go) — to its exact
+// spelling. Both are fixed names, so this is unambiguous; a lower-case
+// `$workflowInstance` is CE0117 as written (measured on 11.6.6).
 func normalizeWorkflowContextExpr(expr string) string {
-	return workflowContextRe.ReplaceAllString(expr, "$$"+workflowContextVar)
+	expr = workflowContextRe.ReplaceAllString(expr, "$$"+workflowContextVar)
+	return workflowInstanceRe.ReplaceAllString(expr, "$$"+workflowInstanceVar)
 }
 
-var workflowContextRe = regexp.MustCompile(`(?i)\$workflowcontext`)
+var (
+	workflowContextRe  = regexp.MustCompile(`(?i)\$workflowcontext`)
+	workflowInstanceRe = regexp.MustCompile(`(?i)\$workflowinstance\b`)
+)
 
 // contextExprNormalizer makes every way an author can name the workflow context
 // resolve to the one name it is actually stored under.
