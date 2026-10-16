@@ -99,7 +99,9 @@ console exporter omits timestamps and parent span IDs, so for flame charts pass
 instead. Use --runtime-setting Key=Value (repeatable) to merge any other runtime setting into
 the boot config (the admin config action replaces rather than merges, so mxcli
 folds these into its single boot call), e.g. a different Metrics.Registries type or
-custom OpenTelemetry span filters.
+custom OpenTelemetry span filters. Scheduled events run (ScheduledEventExecution=ALL,
+where the runtime's own default is NONE); --runtime-setting ScheduledEventExecution=NONE
+turns them off.
 
 Examples:
   mxcli run --local -p app.mpr
