@@ -32,6 +32,9 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	if vs := completionRuleViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
+	if vs := callWorkflowParameterViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 
 	// Same exec-side guard as CREATE WORKFLOW: ALTER had no reference validation
 	// at all, so an inserted activity could name a microflow that exists nowhere

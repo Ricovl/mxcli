@@ -245,6 +245,7 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$CallWorkflowActivity")
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
+		t.ParameterMappings = workflowParamMappingsFromGen(a.ParameterMappingsItems())
 		return t
 	case *genWf.ExclusiveSplitActivity:
 		t := &workflows.ExclusiveSplitActivity{Expression: a.Expression()}
@@ -391,6 +392,28 @@ func microflowParamMappingsFromGen(items []element.Element) []*workflows.Paramet
 	var out []*workflows.ParameterMapping
 	for _, el := range items {
 		pm, ok := el.(*genWf.MicroflowCallParameterMapping)
+		if !ok {
+			continue
+		}
+		m := &workflows.ParameterMapping{
+			Parameter:  pm.ParameterQualifiedName(),
+			Expression: pm.Expression(),
+		}
+		m.ID = model.ID(pm.ID())
+		out = append(out, m)
+	}
+	return out
+}
+
+// workflowParamMappingsFromGen is the call-workflow twin of
+// microflowParamMappingsFromGen. Without it DESCRIBE printed a bare
+// `call workflow M.WF_Child;` for a call that maps an association path, and
+// re-executing that output let autoBindCallWorkflow write the default
+// `$WorkflowContext` mapping in its place (mendixlabs/mxcli#1531).
+func workflowParamMappingsFromGen(items []element.Element) []*workflows.ParameterMapping {
+	var out []*workflows.ParameterMapping
+	for _, el := range items {
+		pm, ok := el.(*genWf.WorkflowCallParameterMapping)
 		if !ok {
 			continue
 		}

@@ -12,17 +12,17 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 |---|---|
 | 35-46 | When to Use This Skill |
 | 47-117 | Syntax — CREATE WORKFLOW |
-| 118-289 | Activities |
-| 290-296 | DROP WORKFLOW |
-| 297-362 | ALTER WORKFLOW |
-| 363-383 | DESCRIBE round-trip |
-| 384-404 | Activity names, and why `jump to` depends on them |
-| 405-425 | Rewriting an existing workflow |
-| 426-513 | Microflow statements for workflow tasks |
-| 514-534 | System-module enumerations are synthesized, not stored |
-| 535-652 | Platform rules |
-| 653-683 | Observing a running workflow |
-| 684-693 | Validate before presenting |
+| 118-293 | Activities |
+| 294-300 | DROP WORKFLOW |
+| 301-366 | ALTER WORKFLOW |
+| 367-387 | DESCRIBE round-trip |
+| 388-408 | Activity names, and why `jump to` depends on them |
+| 409-429 | Rewriting an existing workflow |
+| 430-517 | Microflow statements for workflow tasks |
+| 518-538 | System-module enumerations are synthesized, not stored |
+| 539-656 | Platform rules |
+| 657-687 | Observing a running workflow |
+| 688-697 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -191,6 +191,10 @@ begin
   call workflow Module.SubProcess as callWorkflow1 caption 'delegate';
 end workflow;
 ```
+
+A `call workflow` mapping is always keyed `WorkflowContext` — the one parameter a
+workflow has, whatever its header calls it: `(WorkflowContext = $WorkflowContext/M.A_B/M.B)`.
+Any other key is CE1613 (`MDL-WF18`); a path must name the target entity (else CE0117).
 
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
 as in a microflow; the workflow's own note is the header clause

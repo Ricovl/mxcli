@@ -753,7 +753,7 @@ mandatory and a misplaced clause failed with a token error
   - `check --references` reports these before anything is written; `exec` refuses the workflow statement itself (Mendix 11+).
 - `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'] [outcomes '<out>' -> { } ...];`
 - `call agent microflow Mod.MF [as <name>] [caption '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
-- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'];`
+- `call workflow Mod.WF[(WorkflowContext = <expr>)] [as <name>] [caption '<text>'];` — the key is always `WorkflowContext`, the one parameter a workflow has, whatever its header names it; any other key is CE1613 (MDL-WF18). Omitted, the caller's `$WorkflowContext` is passed.
 - `decision [<name>] [<expression>] [caption '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
