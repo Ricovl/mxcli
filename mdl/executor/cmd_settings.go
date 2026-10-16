@@ -30,6 +30,10 @@ func listSettings(ctx *ExecContext) error {
 		Columns: []string{"Section", "Key Values"},
 	}
 
+	if id := projectID(ctx); id != "" {
+		tr.Rows = append(tr.Rows, []any{"Project", "ID: " + id + " (read-only; Business Events app id)"})
+	}
+
 	if ps.Model != nil {
 		ms := ps.Model
 		values := []string{}
@@ -102,6 +106,18 @@ func listSettings(ctx *ExecContext) error {
 	return writeResult(ctx, tr)
 }
 
+// projectID is the $ID of the Projects$Project root unit: the container every
+// module points to, and the app id Business Events registers under — so two
+// apps made from one model (a copied .mpr, a template) share it
+// (mendixlabs/mxcli#1526). Read-only; empty when the backend cannot say.
+func projectID(ctx *ExecContext) string {
+	id, err := ctx.Backend.GetProjectRootID()
+	if err != nil {
+		return ""
+	}
+	return id
+}
+
 // describeSettings outputs the full MDL description of all settings.
 // describeSettings prints the project settings as re-executable `alter settings`
 // statements. With configName set (DESCRIBE SETTINGS CONFIGURATION 'X') it
@@ -119,6 +135,12 @@ func describeSettings(ctx *ExecContext, configName string) error {
 
 	if configName != "" {
 		return describeSettingsConfiguration(ctx, ps, configName)
+	}
+
+	// The project id has no `alter settings` spelling — it is the identity of
+	// the model — so it is printed as a comment and the output still executes.
+	if id := projectID(ctx); id != "" {
+		fmt.Fprintf(ctx.Output, "-- Project ID: %s (read-only; Business Events uses it as the app id, and a copy of the model shares it)\n\n", id)
 	}
 
 	// Model settings
