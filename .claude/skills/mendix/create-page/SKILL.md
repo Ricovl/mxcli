@@ -16,11 +16,11 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 | 197-267 | Basic Examples |
 | 268-289 | Modifying Existing Pages |
 | 290-393 | Conditional Visibility and Editability |
-| 394-557 | Known Limitations |
-| 558-566 | Tips |
-| 567-593 | Related Commands |
-| 594-618 | PLUGGABLEWIDGET Escape Hatch |
-| 619-622 | See Also |
+| 394-558 | Known Limitations |
+| 559-567 | Tips |
+| 568-594 | Related Commands |
+| 595-619 | PLUGGABLEWIDGET Escape Hatch |
+| 620-623 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -489,7 +489,8 @@ lists them and `describe icon collection Atlas_Core.Atlas_Filled` lists the name
 A glyph has a code and no name. The codes are **sparse**, and an undefined one
 fails only at `mxbuild --target=deploy` — with *"An exception occurred while
 exporting page '<name>'"*, naming the page and never the icon — so `mxcli check`
-reports it as **MDL078** first. Browse them with `list glyphs`.
+refuses it as **MDL078**, an error (`exec` writes nothing), naming the defined
+glyphs either side of the code. Browse them with `list glyphs`.
 
 `describe page` emits all three forms, so describe → exec round-trips a button's
 icon whichever kind it is.
