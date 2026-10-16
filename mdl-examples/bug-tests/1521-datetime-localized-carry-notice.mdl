@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1521: an unstated `localized` keeps a stored `not localized`
+-- ============================================================================
+--
+-- A rewrite that says nothing about localization keeps what is stored (#743,
+-- #1373), so the two middle statements leave Due not localized. That is the
+-- rule, kept; what changed is that each now prints
+--
+--   Note: F1521.Item.Due keeps its stored `not localized` (the statement does
+--   not say); write `Due: DateTime localized` to change it.
+--
+-- The last statement states it and flips the attribute, with no note.
+--
+-- Verify: `describe entity F1521.Item` prints `Due: DateTime` (no
+-- ` not localized`) at the end; in Studio Pro, Due has "Localize" ticked.
+-- ============================================================================
+
+create module F1521;
+
+create persistent entity F1521.Item (Due: DateTime not localized);
+
+-- Note printed; Due stays not localized.
+create or modify persistent entity F1521.Item (Due: DateTime);
+
+-- Note printed; Due stays not localized.
+alter entity F1521.Item modify attribute Due: DateTime;
+
+-- Stated: Due becomes localized, no note.
+create or modify persistent entity F1521.Item (Due: DateTime localized);
+
+describe entity F1521.Item;
