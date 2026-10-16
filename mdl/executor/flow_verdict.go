@@ -64,20 +64,26 @@ func flowRefusal(d *flowDecl, why error) error {
 		// alter cannot splice inside a loop either, so "change activities
 		// with alter" would only lead to alter's own refusal: name the one
 		// alter that makes the change.
+		// The deliberate rebuild is a route here too (mendixlabs/mxcli#1517).
 		return mdlerrors.NewValidation(fmt.Sprintf(
 			"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
 				"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
-				"(curves, merges, element IDs). %s",
-			d.kind(), d.name, why, replaceLoopAdvice(d.kind(), d.name.String(), ns.loopHandle)))
+				"(curves, merges, element IDs). %s. Or, %s",
+			d.kind(), d.name, why, strings.TrimSuffix(replaceLoopAdvice(d.kind(), d.name.String(), ns.loopHandle), "."),
+			deliberateRebuildAdvice(d.kind())))
 	}
 	return mdlerrors.NewValidation(fmt.Sprintf(
 		"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
 			"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
-			"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; "+
-			"to rebuild the flow deliberately, drop the %s and create it in the same script "+
-			"(the drop's module-role grants carry to a create in the same script or session, not to one in a later run)",
-		d.kind(), d.name, why, d.kind(), d.name, d.kind()))
+			"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; %s",
+		d.kind(), d.name, why, d.kind(), d.name, deliberateRebuildAdvice(d.kind())))
+}
 
+// deliberateRebuildAdvice is the route every splice refusal names for a
+// rebuild the author means: drop the flow and create it in the same script.
+func deliberateRebuildAdvice(kind string) string {
+	return fmt.Sprintf("to rebuild the flow deliberately, drop the %s and create it in the same script "+
+		"(the drop's module-role grants carry to a create in the same script or session, not to one in a later run)", kind)
 }
 
 // replaceLoopAdvice is what `create or modify` and `alter` both say about a

@@ -99,6 +99,11 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 		if !strings.Contains(msg, "alter microflow MyFirstModule.LoopAdvice {") {
 			t.Errorf("the refusal does not spell out the alter to run: %s", msg)
 		}
+		// mendixlabs/mxcli#1517: the deliberate rebuild is named too, as
+		// every other splice refusal names it.
+		if !strings.Contains(msg, "drop the microflow and create it in the same script") {
+			t.Errorf("the refusal does not name the drop-and-recreate route: %s", msg)
+		}
 		// The generic advice is what sent the reader into alter's own
 		// in-loop refusal.
 		if strings.Contains(msg, "Change activities with") {
