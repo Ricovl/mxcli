@@ -59,6 +59,7 @@ var (
 //   - MDL-WF04: standalone `annotation` in a workflow body (unloadable model)
 //   - MDL-WF05: `jump to` a target that names no activity (see validate_workflow_jump.go)
 //   - MDL-WF08..11: where `end workflow` may go, and `return` (see validate_workflow_end.go)
+//   - MDL-WF19: a variable no workflow expression can see (see validate_workflow_scope.go)
 func ValidateWorkflow(stmt *ast.CreateWorkflowStmt) []linter.Violation {
 	var out []linter.Violation
 	loc := linter.Location{
@@ -125,6 +126,7 @@ func ValidateWorkflow(stmt *ast.CreateWorkflowStmt) []linter.Violation {
 	out = append(out, ValidateWorkflowEventTypes(stmt)...)
 	out = append(out, ValidateWorkflowCompletionRules(stmt)...)
 	out = append(out, ValidateWorkflowEventSubProcesses(stmt)...)
+	out = append(out, ValidateWorkflowExpressionScope(stmt)...)
 	return out
 }
 
@@ -415,5 +417,8 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 			out = append(out, *v)
 		}
 	}
+	// MDL-WF19 over every expression the statement writes. ALTER cannot see the
+	// header's declared context name, so only $WorkflowContext is accepted for it.
+	out = append(out, checkWorkflowExprScope(alterWorkflowExprSites(stmt), "", loc)...)
 	return append(out, ValidateAlterWorkflowEnds(stmt)...)
 }

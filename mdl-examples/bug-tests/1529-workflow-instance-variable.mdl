@@ -1,0 +1,33 @@
+mdl 1;
+-- mendixlabs/mxcli#1529 / #1523: the two variables a workflow expression can see.
+--
+-- `$WorkflowContext` is the context object; `$WorkflowInstance` is the running
+-- workflow (System.Workflow) — what a microflow's `Workflow: System.Workflow`
+-- parameter takes. Anything else (`$Workflow`, `$currentUser`,
+-- `$currentSession`, `$WorkflowUserTask`) is CE0117 and refused by `check` as
+-- MDL-WF19. The one exception: the workflow's OWN due date sees only the
+-- context, so `$WorkflowInstance` there is CE0117 too.
+--
+-- Measured with mx check on 11.6.6 and 11.15.0: this script builds with 0
+-- errors. With no argument list, `call microflow WFI.ACT_Bind;` now binds the
+-- System.Workflow parameter to $WorkflowInstance rather than to the context.
+
+create module WFI;
+create persistent entity WFI.Item ( Title: string(100) );
+create microflow WFI.ACT_Bind ($Workflow: System.Workflow, $Item: WFI.Item) begin return; end;
+create page WFI.TaskPage ( title: 'T', layout: Atlas_Core.Atlas_Default, params: ( $WorkflowUserTask: System.WorkflowUserTask ) ) { };
+
+create workflow WFI.InstanceInScope parameter $WorkflowContext: WFI.Item
+  due date addDays([%CurrentDateTime%], 7)
+begin
+  call microflow WFI.ACT_Bind(Workflow = $WorkflowInstance, Item = $WorkflowContext);
+  decision d1 $WorkflowInstance/Name != empty
+    outcomes true -> { } false -> { };
+  wait for timer t1 addDays($WorkflowInstance/StartTime, 1);
+  user task u1 'Review' page WFI.TaskPage
+    due date addDays($WorkflowInstance/StartTime, 3)
+    outcomes 'Done' { }
+    boundary event interrupting timer addDays($WorkflowInstance/StartTime, 5) {
+      call microflow WFI.ACT_Bind(Workflow = $WorkflowInstance, Item = $WorkflowContext);
+    };
+end workflow;

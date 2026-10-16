@@ -276,8 +276,13 @@ func init() {
 			"-- WITH (<Param> = '<expression>'), the expression in a string, is the\n" +
 			"-- deprecated spelling of the argument list (MDL-DEPR008).\n" +
 			"-- CAPTION sets the caption the activity shows; COMMENT '<text>', its old\n" +
-			"-- spelling on every workflow activity, is a deprecated alias (MDL-DEPR104).",
-		Example: "CALL MICROFLOW HR.SendNotification\n  CAPTION 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;",
+			"-- spelling on every workflow activity, is a deprecated alias (MDL-DEPR104).\n\n" +
+			"-- An argument can name only $WorkflowContext and $WorkflowInstance (the\n" +
+			"-- running workflow, System.Workflow). $Workflow, $currentUser and the like\n" +
+			"-- are CE0117 at build (MDL-WF19). With no argument list, a System.Workflow\n" +
+			"-- parameter is bound to $WorkflowInstance and every other to the context.",
+		Example: "CALL MICROFLOW HR.SendNotification\n  CAPTION 'Notify manager';\n\n-- Arguments are named by their BARE parameter name:\nCALL MICROFLOW HR.Escalate(Request = $WorkflowContext) AS callMicroflow1;\n\n" +
+			"-- A System.Workflow parameter takes the running workflow:\nCALL MICROFLOW HR.ACT_Audit(Workflow = $WorkflowInstance, Request = $WorkflowContext);",
 		SeeAlso: []string{"workflow.create", "workflow.call-workflow", "workflow.ai-agent-task"},
 	})
 
