@@ -349,7 +349,7 @@ func TestFuncChecker_FormatDecimal_WrongArity_E006(t *testing.T) {
 	p := NewParser()
 	_, hs := p.Parse("formatDecimal()", Context{Microflow: "M.F"})
 	if !hasCode(hs, "E006") {
-		t.Error("formatDecimal() with 0 args must fire E006 (requires at least 1)")
+		t.Error("formatDecimal() with 0 args must fire E006 (requires at least 2)")
 	}
 }
 

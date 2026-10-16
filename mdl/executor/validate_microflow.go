@@ -592,6 +592,16 @@ func (v *microflowValidator) checkExprFunctions(label string, expr ast.Expressio
 				"the build fails CE0117 \"Error(s) in expression\"", label, u.Name),
 			suggestion)
 	}
+	// E006/E005: a built-in called with the wrong number of arguments, or with
+	// an argument of the wrong kind. Both ran only on the `-p --references`
+	// tier, so `formatDecimal($d, 2)` passed a plain check and failed the build
+	// with CE0117 (mendixlabs/mxcli#1515). The kinds a script states — literals,
+	// parameters, declared variables — need no project. The codes are
+	// exprcheck's own, as on the catalog tier; that tier only runs on a script
+	// this one passed, so the two never report the same call.
+	for _, h := range exprcheck.BuiltinCallHints(src, v.varKinds) {
+		v.addViolation(h.Code, linter.SeverityError, label+": "+h.Problem, h.Fix)
+	}
 }
 
 // checkDivisionSlash flags `/` used as an arithmetic division operator, which

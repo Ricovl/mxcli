@@ -1,0 +1,44 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1515 - controls for the built-in argument check
+-- ============================================================================
+--
+-- The negative cases are in 1515-builtin-argument-types.fail.mdl. Each call
+-- below builds at 0 errors on mx check 11.6.6 and 11.15.0, so `mxcli check`
+-- must pass this file: the argument check may not refuse any of them.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/1515-builtin-argument-types.mdl
+--   Expect: Check passed.
+-- ============================================================================
+
+create module Tmp1515;
+
+-- Controls: Integer/Long widen to Decimal, Long passes for Integer, max/min
+-- take more than two operands and DateTimes, find takes a start index,
+-- dateTime takes from 1 to 6 parts, and parseDecimal's second argument is a
+-- format or a default.
+create microflow Tmp1515.Ok_Pattern ($i: Integer) returns String
+begin
+  return formatDecimal($i, '#,##0.00');
+end;
+
+create microflow Tmp1515.Ok_Days ($dt: DateTime, $l: Long) returns DateTime
+begin
+  return addDays($dt, $l);
+end;
+
+create microflow Tmp1515.Ok_Max ($dt: DateTime) returns DateTime
+begin
+  return max($dt, [%CurrentDateTime%], dateTime(2020));
+end;
+
+create microflow Tmp1515.Ok_Find ($s: String) returns Integer
+begin
+  return find($s, 'a', 2);
+end;
+
+create microflow Tmp1515.Ok_ParseDecimal ($s: String) returns Decimal
+begin
+  return parseDecimal($s, 2);
+end;
