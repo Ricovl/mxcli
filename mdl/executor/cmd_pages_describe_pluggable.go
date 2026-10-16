@@ -215,12 +215,18 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 
 	// Build column property key map from Type.ObjectType.PropertyTypes -> columns -> ValueType.ObjectType.PropertyTypes
 	colPropKeyMap := buildColumnPropertyKeyMap(ctx, w)
+	// The widget's own property keys, to find the `columns` list by name.
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
 
 	// Search through properties for columns
 	props := getBsonArrayElements(obj["Properties"])
 	for _, prop := range props {
 		propMap, ok := prop.(map[string]any)
 		if !ok {
+			continue
+		}
+		propKey := propTypeKeyMap[extractBinaryID(propMap["TypePointer"])]
+		if propKey != "" && propKey != "columns" {
 			continue
 		}
 		value, ok := propMap["Value"].(map[string]any)
@@ -244,7 +250,15 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 				continue
 			}
 			col := extractDataGrid2Column(ctx, colMap, colPropKeyMap, entCtx)
-			if col.Attribute != "" || col.Caption != "" {
+			// Every object of the resolved `columns` list is a column. The
+			// actions column has no attribute and an empty header, and keeping
+			// only columns with one of those dropped it with all its widgets,
+			// so the next describe -> edit -> exec deleted it
+			// (mendixlabs/mxcli#1520). Only when the key did not resolve does
+			// the heuristic separate columns from another object list, widened
+			// to a column that carries content or a content mode.
+			if propKey == "columns" || col.Attribute != "" || col.Caption != "" ||
+				col.ShowContentAs != "" || len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0 {
 				columns = append(columns, col)
 			}
 		}
