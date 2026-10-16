@@ -701,6 +701,12 @@ datefilter datefilter (attributes: [Module.Entity.CreateDate])
 dropdownfilter statusFilter (attributes: [Module.Entity.Status])
 ```
 
+It filters on **one** attribute (an enumeration or a Boolean), stored as the widget's
+custom attribute (Studio Pro's "Attribute config: Custom"); listing two is refused
+(MDL-WIDGET47) — use a `textfilter` for several. A bare `dropdownfilter f` takes the
+attribute of the Data grid 2 column it sits in ("Auto"), so in a **gallery's**
+`filter { … }` bar, which has no column, the attribute must be named.
+
 Filter by an **association** instead of an attribute — the options are the
 associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:

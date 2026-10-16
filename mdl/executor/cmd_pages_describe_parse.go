@@ -541,6 +541,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {
 			widget.FilterAttributes = extractFilterAttributes(ctx, w)
 			widget.FilterExpression = extractFilterExpression(ctx, w)
+			// The drop-down filter keeps its ONE custom attribute on `attr`
+			// (attrChoice "linked"), not in an `attributes` list. Read it back
+			// as the `attributes: [A]` it is written with, or a describe→exec
+			// cycle loses it (#1519). Under "auto" the column supplies it.
+			if widget.RenderMode == "dropdownfilter" && len(widget.FilterAttributes) == 0 &&
+				extractCustomWidgetPropertyString(ctx, w, "attrChoice") == "linked" {
+				if attr := extractCustomWidgetPropertyAttributeRef(ctx, w, "attr"); attr != "" {
+					widget.FilterAttributes = []string{attr}
+				}
+			}
 		}
 		// For pluggable Image widget, extract image-specific properties
 		if widget.RenderMode == "image" {
