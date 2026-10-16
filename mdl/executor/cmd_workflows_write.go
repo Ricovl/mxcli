@@ -74,6 +74,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	if vs := ValidateWorkflowEventTypes(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
+	// A mapping key other than WorkflowContext is CE1613 at build time
+	// (mendixlabs/mxcli#1530); refused here for the #833 reason too.
+	if vs := callWorkflowParameterViolations(workflowStatementActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
@@ -620,11 +625,18 @@ func buildCallWorkflowActivity(n *ast.WorkflowCallWorkflowNode) *workflows.CallW
 	act.ParameterExpression = "$WorkflowContext"
 
 	// Explicit parameter mappings from MDL WITH clause
-	// BSON requires fully qualified: Module.Workflow.ParamName
+	// BSON requires fully qualified: Module.Workflow.ParamName. The only
+	// parameter a workflow has is stored as WorkflowContext; any other key is
+	// refused before this (MDL-WF18), and a casing variant is written in the
+	// stored spelling, as the context variable is in expressions.
 	wfQN := n.Workflow.Module + "." + n.Workflow.Name
 	for _, pm := range n.ParameterMappings {
+		param := pm.Parameter
+		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(param), "$"), workflowContextVar) {
+			param = workflowContextVar
+		}
 		mapping := &workflows.ParameterMapping{
-			Parameter:  wfQN + "." + pm.Parameter,
+			Parameter:  wfQN + "." + param,
 			Expression: pm.Expression,
 		}
 		mapping.BaseElement.ID = model.ID(types.GenerateID())
