@@ -240,7 +240,7 @@ begin
     TaskTitle = $TaskTitle,
     status = 'Open',
     Priority = $TaskPriority,
-    DueDate = addDays('[%CurrentDateTime%]', 7)
+    DueDate = addDays([%CurrentDateTime%], 7)
   );
   change $NewTask (Task_TaskProject = $TaskProject);
   commit $NewTask;
