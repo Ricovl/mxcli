@@ -470,6 +470,14 @@ func (b *Builder) Build(progress ProgressFunc) error {
 		return fmt.Errorf("failed to build data transformers: %w", err)
 	}
 
+	if err := b.buildSimpleNamedDocs("MessageDefinitions$MessageDefinitionCollection", "message_definition_collections", "Message Definition Collections"); err != nil {
+		return fmt.Errorf("failed to build message definition collections: %w", err)
+	}
+
+	if err := b.buildSimpleNamedDocs("MessageDefinitions$MessageDefinition2", "message_definitions", "Message Definitions"); err != nil {
+		return fmt.Errorf("failed to build message definitions: %w", err)
+	}
+
 	if err := b.buildScheduledEvents(); err != nil {
 		return fmt.Errorf("failed to build scheduled events: %w", err)
 	}
