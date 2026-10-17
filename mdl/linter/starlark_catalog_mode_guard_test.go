@@ -93,6 +93,7 @@ var builtinModes = map[string]builtinProbe{
 	"is_pascal_case": {CatalogFast, ""},
 	"is_camel_case":  {CatalogFast, ""},
 	"matches":        {CatalogFast, ""},
+	"find_all":       {CatalogFast, ""},
 	"struct":         {CatalogFast, ""},
 	"get_option":     {CatalogFast, ""},
 }

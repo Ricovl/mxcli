@@ -22,6 +22,13 @@ type Context struct {
 	Catalog  CatalogReader // nil → semantic checks disabled
 	Slots    SlotResolver  // nil → slot-kind checks disabled
 	Entities EntityScope   // nil → attribute paths stay KindUnknown
+
+	// XPath parses the source as an XPath constraint body rather than a
+	// microflow expression: a path may start at the queried entity
+	// (`Mod.Assoc/Mod.Entity/Attr`, no variable) and any segment may carry a
+	// `[...]` predicate. Neither is valid in an expression, so it is off
+	// everywhere but parse_xpath (ako/mxcli#1439).
+	XPath bool
 }
 
 // IsSemanticEnabled reports whether Catalog and Slots are both wired so that
