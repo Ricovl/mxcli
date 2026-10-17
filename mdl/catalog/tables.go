@@ -7,6 +7,13 @@ package catalog
 //
 // History:
 //
+//	28 (message definitions): message_definition_collections and
+//	    message_definitions, unioned into objects as
+//	    MESSAGE_DEFINITION_COLLECTION / MESSAGE_DEFINITION, so documents()
+//	    lists them (ako/mxcli#1433). Without the bump a cached catalog has
+//	    neither view and an objects view that omits them.
+//	    28, not 26: it was written as 26 beside the user-roles change, which
+//	    merged first as 27, so a cache built at 27 lacks these tables.
 //	27 (user roles): a user_roles table with each project user role's
 //	    Description (ako/mxcli#1442). Its own number, not 26: the message
 //	    definitions change took 26 in parallel, and a cache built at 26 by
@@ -141,7 +148,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "27"
+const CatalogSchemaVersion = "28"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -638,6 +645,32 @@ func (c *Catalog) createTables() error {
 			SnapshotId TEXT
 		)`,
 		viewWithFullSnapshot("data_transformers"),
+
+		// message definitions, in both storage shapes: the collection that
+		// holds several definitions (Mendix < 11.15) and the one-definition
+		// MessageDefinition2 document that replaced it (ako/mxcli#1433).
+		`CREATE TABLE IF NOT EXISTS message_definition_collections_data (
+			Id TEXT PRIMARY KEY,
+			Name TEXT,
+			QualifiedName TEXT,
+			ModuleName TEXT,
+			Folder TEXT,
+			Description TEXT,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
+		viewWithFullSnapshot("message_definition_collections"),
+		`CREATE TABLE IF NOT EXISTS message_definitions_data (
+			Id TEXT PRIMARY KEY,
+			Name TEXT,
+			QualifiedName TEXT,
+			ModuleName TEXT,
+			Folder TEXT,
+			Description TEXT,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
+		viewWithFullSnapshot("message_definitions"),
 
 		// agent-editor documents (CustomBlobDocuments, discriminated by
 		// CustomDocumentType into agent / model / knowledge base / MCP service).
@@ -1376,6 +1409,14 @@ func (c *Catalog) createTables() error {
 			SELECT Id, 'DATA_TRANSFORMER' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
 			FROM data_transformers
+			UNION ALL
+			SELECT Id, 'MESSAGE_DEFINITION_COLLECTION' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
+				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
+			FROM message_definition_collections
+			UNION ALL
+			SELECT Id, 'MESSAGE_DEFINITION' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
+				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
+			FROM message_definitions
 			UNION ALL
 			SELECT Id, 'AGENT' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
