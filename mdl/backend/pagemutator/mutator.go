@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -3811,11 +3812,11 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		case string:
 			bsonnav.DSet(valDoc, "PrimitiveValue", v)
 		case bool:
-			if v {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "yes")
-			} else {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "no")
+			spelled, err := pluggableBooleanSpelling(widget, typePointerID, kind, propName, v)
+			if err != nil {
+				return err
 			}
+			bsonnav.DSet(valDoc, "PrimitiveValue", spelled)
 		case int:
 			bsonnav.DSet(valDoc, "PrimitiveValue", fmt.Sprintf("%d", v))
 		case float64:
@@ -3826,6 +3827,58 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		return nil
 	}
 	return fmt.Errorf("pluggable property %q not found", propName)
+}
+
+// pluggableBooleanSpelling is how a bare `true`/`false` is stored in a pluggable
+// property, which the property's declared kind decides — not the MDL literal.
+// It was always "yes"/"no" (mendixlabs/mxcli#1454), the spelling of neither
+// Studio Pro nor the widget template for a Boolean: those store "true"/"false",
+// and the client reads anything but "true" as false, so `set (showFooter: true)`
+// passed mx check and switched the footer off. A production scan of 13k Boolean
+// values found no "yes"/"no" at all; those strings occur only as the keys of an
+// Enumeration that literally declares them, which keeps taking a boolean. Any
+// other enumeration has no key a boolean can mean, so it is refused rather
+// than written with a key the widget does not declare.
+func pluggableBooleanSpelling(widget bson.D, typePointerID, kind, propName string, v bool) (string, error) {
+	if kind != "Enumeration" {
+		return strconv.FormatBool(v), nil
+	}
+	keys := pluggableEnumerationKeys(widget, typePointerID)
+	want := "no"
+	if v {
+		want = "yes"
+	}
+	for _, k := range keys {
+		if k == want {
+			return k, nil
+		}
+	}
+	return "", fmt.Errorf("pluggable property %q is an enumeration (%s), not a Boolean — "+
+		"write one of its keys as a quoted string instead of %v",
+		propName, strings.Join(keys, ", "), v)
+}
+
+// pluggableEnumerationKeys lists the keys the widget's schema declares for the
+// enumeration property typePointerID, in declaration order.
+func pluggableEnumerationKeys(widget bson.D, typePointerID string) []string {
+	objType := bsonnav.DGetDoc(bsonnav.DGetDoc(widget, "Type"), "ObjectType")
+	for _, pt := range bsonnav.DGetArrayElements(bsonnav.DGet(objType, "PropertyTypes")) {
+		ptDoc, ok := pt.(bson.D)
+		if !ok || bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(ptDoc, "$ID")) != typePointerID {
+			continue
+		}
+		var keys []string
+		valueType := bsonnav.DGetDoc(ptDoc, "ValueType")
+		for _, ev := range bsonnav.DGetArrayElements(bsonnav.DGet(valueType, "EnumerationValues")) {
+			if evDoc, ok := ev.(bson.D); ok {
+				if k := bsonnav.DGetString(evDoc, "_Key"); k != "" {
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys
+	}
+	return nil
 }
 
 // noPluggableObjectError explains a SET that reached the pluggable fallback on a
