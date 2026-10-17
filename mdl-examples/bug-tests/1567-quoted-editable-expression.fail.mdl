@@ -1,8 +1,8 @@
 mdl 1;
--- Negative companion of quoted-editable-expression.mdl: `check` must refuse every
+-- Negative companion of 1567-quoted-editable-expression.mdl: `check` must refuse every
 -- Editable value that cannot be stored, naming the accepted spellings, instead of
 -- letting the widget stay editable. Each statement below is refused on its own.
--- The issue number is to be added.
+-- mendixlabs/mxcli#1567.
 
 create entity if not exists QEdit.Item (Code: String(50), Locked: Boolean default false);
 

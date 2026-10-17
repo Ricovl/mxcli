@@ -1,5 +1,5 @@
 mdl 1;
--- A quoted `Editable: '<expression>'` was dropped on write (issue number: to be added).
+-- A quoted `Editable: '<expression>'` was dropped on write (mendixlabs/mxcli#1567).
 --
 -- `Visible: '$currentObject/Locked = false'` was stored as a conditional
 -- visibility, because pages.StaticVisibleExpression returns any string that is not
@@ -19,7 +19,7 @@ mdl 1;
 -- inputs print their condition bare (`Editable: $currentObject/Locked = false`,
 -- the `!= 'x'` form, ...), txtNever and txtFalse print `Editable: Never`, and the
 -- stored page passes `mx check`. Values that cannot be stored are refused by
--- `check` instead: see quoted-editable-expression.fail.mdl.
+-- `check` instead: see 1567-quoted-editable-expression.fail.mdl.
 
 create entity if not exists QEdit.Item (
   Code: String(50),

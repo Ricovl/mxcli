@@ -358,3 +358,44 @@ func TestApplyPluggableSystemSettings_QuotedExpression(t *testing.T) {
 		})
 	}
 }
+
+// A pluggable widget that declares Editability takes the same values, and is
+// refused the same way for the ones that cannot be stored.
+func TestMDLWIDGET19_PluggableWidgetEditableValues(t *testing.T) {
+	cases := []struct {
+		prop   string
+		refuse bool
+	}{
+		{`Editable: '` + lockedExpr + `'`, false},
+		{`Editable: Never`, false},
+		{`Editable: false`, false},
+		{`Editable: 'Neever'`, true},
+		{`Editable: '$currentObject/Locked = = false'`, true},
+		{`Editable: Conditional`, true},
+	}
+	for _, c := range cases {
+		t.Run(c.prop, func(t *testing.T) {
+			got := checkMessages(t, `combobox c (Attribute: Status, `+c.prop+`)`, "MDL-WIDGET19")
+			if c.refuse != (len(got) == 1) || len(got) > 1 {
+				t.Errorf("%s: want refused=%v, got %v", c.prop, c.refuse, got)
+			}
+		})
+	}
+}
+
+// A data view stores its static editability from its own ReadOnly flag, not from
+// BaseWidget.Editable, so only the condition is carried: the quoted spelling must
+// store the same ConditionalEditabilitySettings the bare one does.
+func TestQuotedEditableExpression_DataViewMatchesBare(t *testing.T) {
+	build := func(props map[string]any) *pages.DataView {
+		dv := &pages.DataView{}
+		applyConditionalSettings(dv, &ast.WidgetV3{Type: "dataview", Name: "dv", Properties: props})
+		return dv
+	}
+	bare := build(map[string]any{"EditableIf": lockedExpr})
+	quoted := build(map[string]any{"Editable": lockedExpr})
+	if bare.ConditionalEditability == nil || quoted.ConditionalEditability == nil ||
+		bare.ConditionalEditability.Expression != quoted.ConditionalEditability.Expression {
+		t.Errorf("bare stored %v, quoted stored %v", bare.ConditionalEditability, quoted.ConditionalEditability)
+	}
+}
