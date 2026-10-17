@@ -481,7 +481,7 @@ func TestSetWidgetProperty_PluggableWidget(t *testing.T) {
 				bson.D{
 					{Key: "TypePointer", Value: propTypeID},
 					{Key: "Value", Value: bson.D{
-						{Key: "PrimitiveValue", Value: "yes"},
+						{Key: "PrimitiveValue", Value: "true"},
 					}},
 				},
 			}},
@@ -502,8 +502,10 @@ func TestSetWidgetProperty_PluggableWidget(t *testing.T) {
 	props := bsonnav.DGetArrayElements(bsonnav.DGet(obj, "Properties"))
 	propDoc := props[0].(bson.D)
 	valDoc := bsonnav.DGetDoc(propDoc, "Value")
-	if bsonnav.DGetString(valDoc, "PrimitiveValue") != "no" {
-		t.Errorf("Expected PrimitiveValue='no', got %v", bsonnav.DGet(valDoc, "PrimitiveValue"))
+	// "false", not "no": this assertion used to pin the yes/no spelling that
+	// mendixlabs/mxcli#1454 showed the client reads as false either way.
+	if bsonnav.DGetString(valDoc, "PrimitiveValue") != "false" {
+		t.Errorf("Expected PrimitiveValue='false', got %v", bsonnav.DGet(valDoc, "PrimitiveValue"))
 	}
 }
 
