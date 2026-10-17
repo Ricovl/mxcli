@@ -718,6 +718,9 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 			if dh.Expose == nil {
 				dh.Expose = sh.Expose
 			}
+			if dh.ExportLevel == nil {
+				dh.ExportLevel = sh.ExportLevel
+			}
 			return &dh, &sh
 		},
 	}
