@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`describe page` names the entity an association data source reaches, not the association** (mendixlabs/mxcli#1571) — under a data view, list view, grid or gallery bound over an association, the context comment read `-- Context: $currentObject (Shop.Order_Customer)`: the association, where `(Shop.Customer)` belongs. The page was right (`mx check` clean); the comment misled anyone reading `describe` to learn what a nested widget binds, and the same context decides how an association name inside the container is spelled. The entity is the destination stored on the source's last hop, so it is correct from either end of the association, for a reference set, and for a specialization of the association's end. The `DataSource:` text is unchanged. A source with no stored destination prints what it did before.
+
 ## [0.27.0] - 2026-10-15
 
 Headline: **`exec` is all or nothing: when a statement fails at write time, the whole run is rolled back, so a script never leaves a project half-changed.** Alongside it: a wave of `describe` → `check` → `exec` fixes from round-trip runs over real apps (the Siemens FSM template, the GenAI showcase, Marketplace modules), Mendix 9 projects can take microflows, nanoflows and pluggable widgets again, `check -p` resolves many more of the references `exec` and the build would refuse, the classic `filemanager` widget and role-based `Visible: roles (…)` are in MDL, and the companion draws a module's domain model. The MongoDB driver is upgraded for the October 2026 BSON advisories.
