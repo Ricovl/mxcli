@@ -491,6 +491,17 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			}
 			widget.DataGridColumns = extractDataGrid2Columns(ctx, w, widget.EntityContext)
 			widget.ControlBar = extractDataGrid2ControlBar(ctx, w)
+			// Every other grid setting that differs from its default, by the
+			// widget's own key, and the widget slots other than the control bar
+			// (the empty-state placeholder). Without them a describe -> exec
+			// cycle reset the personalization, selection, paging and label
+			// settings to the widget's defaults.
+			widget.ExplicitProperties, widget.OmittedProps = extractDataGrid2ByKeyProps(ctx, w, inheritedCtx, widget.EntityContext)
+			for _, slot := range extractChildSlots(ctx, w, widget.EntityContext) {
+				if slot.PropertyKey != "filtersPlaceholder" {
+					widget.ChildSlots = append(widget.ChildSlots, slot)
+				}
+			}
 			// onClick action (ledger #67): read the client action back with full
 			// parameter mappings so a describe round-trip re-emits the onClick.
 			// By SOURCE, not by the literal key — the widget may store it as
@@ -517,6 +528,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 				return extractGalleryContent(ctx, w, widget.EntityContext)
 			})
 			widget.FilterWidgets = extractGalleryFilters(ctx, w)
+			// Pagination, page size, state storage and the rest of the gallery's
+			// settings that differ from their defaults, by the widget's own key,
+			// and the slots other than `template` and `filter` (the empty-state
+			// placeholder).
+			widget.ExplicitProperties, widget.OmittedProps = extractGalleryByKeyProps(ctx, w, inheritedCtx, widget.EntityContext)
+			for _, slot := range extractChildSlots(ctx, w, widget.EntityContext) {
+				if slot.PropertyKey != "content" && slot.PropertyKey != "filtersPlaceholder" {
+					widget.ChildSlots = append(widget.ChildSlots, slot)
+				}
+			}
 			// The row click and the other two action slots, read the way the
 			// data grid's are: the click by SOURCE, the rest by the widget's own
 			// key. Without them the write fix for #842 was one-way — describe →

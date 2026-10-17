@@ -138,3 +138,16 @@ func writeOmittedContainerNote(out io.Writer, prefix string, omitted []string) {
 	fmt.Fprintf(out, "%s-- reproduce. Re-running this script would DROP it. Inspect the widget with\n", prefix)
 	fmt.Fprintf(out, "%s-- `mxcli widget describe <name>` and re-add the block by hand.\n", prefix)
 }
+
+// writeOmittedPropsNote emits, as a comment, the properties whose stored value
+// differs from the default and that DESCRIBE has no spelling for — the property
+// counterpart of writeOmittedContainerNote. The output still parses and
+// re-executes; it simply does not carry them, and says so.
+func writeOmittedPropsNote(out io.Writer, prefix string, omitted []string) {
+	if len(omitted) == 0 {
+		return
+	}
+	fmt.Fprintf(out, "%s-- NOT re-executable: %s — stored with a non-default value that DESCRIBE has\n",
+		prefix, strings.Join(omitted, ", "))
+	fmt.Fprintf(out, "%s-- no spelling for. Re-running this script would reset it to the widget's default.\n", prefix)
+}
