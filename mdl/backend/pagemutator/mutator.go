@@ -460,6 +460,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if handled, err := m.insertIntoDataViewFooter(widgetRef, columnRef, position, widgets); handled {
 			return err
 		}
+		if handled, err := m.insertIntoPluggableSlot(widgetRef, columnRef, position, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -498,6 +501,10 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if strings.EqualFold(string(position), "into") {
 		newContainer, err := appendChildrenToContainer(result.widget, widgetRef, newBsonWidgets)
 		if err != nil {
+			if hint := pluggableSlotHint(result, widgetRef); hint != "" {
+				return fmt.Errorf("cannot INSERT INTO %q: a pluggable widget keeps its child widgets in named slots, "+
+					"not in a list of its own — use %s", widgetRef, hint)
+			}
 			return err
 		}
 		// Write the (possibly reallocated — an empty container gains a new Widgets
@@ -603,6 +610,14 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			continue
 		}
 		if ref.IsColumn() {
+			if handled, err := m.dropPluggableSlot(ref.Widget, ref.Column); handled {
+				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		if ref.IsColumn() {
 			r, err := findBsonColumn(m.rawData, ref.Widget, ref.Column, m.widgetFinder)
 			if err != nil {
 				return err
@@ -631,6 +646,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pages.Widget) error {
 	if columnRef != "" {
 		if handled, err := m.replaceDataViewFooter(widgetRef, columnRef, widgets); handled {
+			return err
+		}
+		if handled, err := m.replacePluggableSlot(widgetRef, columnRef, widgets); handled {
 			return err
 		}
 		// Resolve first, so a mistyped column still reports "not found" (with the

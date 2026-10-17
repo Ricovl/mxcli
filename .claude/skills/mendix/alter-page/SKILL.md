@@ -17,10 +17,10 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 474-552 | Examples |
 | 553-643 | DataGrid 2 columns: how to address them, and what you can set |
 | 644-655 | Common Mistakes |
-| 656-677 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 678-685 | Validation Checklist |
-| 686-695 | Related Commands |
-| 696-700 | Related Skills |
+| 656-684 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 685-692 | Validation Checklist |
+| 693-702 | Related Commands |
+| 703-707 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -669,6 +669,13 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
+
+**A pluggable widget's slot has no name either.** A Data grid 2's control bar
+   (`controlbar { … }` in describe) is a property of the grid, so address it by
+   the grid: `insert into dataGrid1.controlbar { actionbutton … }`, `replace
+   dataGrid1.controlbar with { … }`, `drop dataGrid1.controlbar`. This is the
+   way back in after the bar's last button was dropped — describe then prints
+   no `controlbar` block, but the slot is still there.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
 page definition, and bind the popup/footer buttons to them at creation. The
