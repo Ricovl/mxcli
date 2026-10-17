@@ -22,7 +22,9 @@ CREATE OR REPLACE NAVIGATION profile
 
 Creates or replaces a navigation profile. Each profile defines the home page, optional role-specific home pages, optional login page, optional 404 page, and a hierarchical menu structure.
 
-The statement fully replaces the existing profile configuration. To modify only part of a profile's navigation, use DESCRIBE NAVIGATION to export the current configuration, edit the MDL, and re-execute.
+Every clause is optional, and a clause the statement omits leaves the stored value alone. A statement that states only a menu keeps the profile's home page, role-based home pages, login page and not-found page. A clause that is stated replaces what it names: the `{ }` block replaces the whole menu, the `SYNC ( )` block the whole sync list, and `HOME … FOR Role` the home page of that role only, so other roles keep theirs. MDL has no clause that clears a home page, a login page or a not-found page.
+
+The output of DESCRIBE NAVIGATION states every clause the profile has, so it can be edited and re-executed as it is.
 
 ### Profile Types
 
@@ -59,7 +61,7 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
     `PhoneOffline` or `NativePhone`.
 
 `HOME PAGE module.PageName`
-:   The default home page for the profile. Required. The page must already exist.
+:   The default home page for the profile. The page must already exist. Omitting the clause keeps the stored home page. A web profile without a home page fails the build with CE0527.
 
 `HOME MICROFLOW module.Flow` / `HOME NANOFLOW module.Flow`
 :   A flow run as the home instead of a page: a microflow on a web profile, a
@@ -68,15 +70,15 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
     nanoflow home, still runs with a warning).
 
 `HOME PAGE module.PageName FOR UserRole`
-:   Optional role-specific home page. Users with this role see a different home page than the default. Multiple role-specific home pages can be specified.
+:   Optional role-specific home page. Users with this role see a different home page than the default. Multiple role-specific home pages can be specified. Each one replaces the stored home page of its role only, and a role the statement does not mention keeps its home page.
 
     The role is a **user role**, written as a bare name (`FOR Administrator`). User roles are project-level and have no module part. A module-qualified name here — a module role, which often shares the name — produces a project Mendix cannot load: `StorageLoadException: … is not a valid UserRoleIdentifier`, raised before checking runs. `mxcli check --references` refuses it.
 
 `LOGIN PAGE module.PageName`
-:   Optional custom login page. If omitted, the default system login page is used.
+:   Optional custom login page. A profile with no login page uses the default system login page. Omitting the clause keeps the stored login page.
 
 `NOT FOUND PAGE module.PageName`
-:   Optional custom 404 page shown when a requested page is not found.
+:   Optional custom 404 page shown when a requested page is not found. Omitting the clause keeps the stored page.
 
 `{ menu_items }`
 :   Optional menu structure. Contains `MENU ITEM` and nested `MENU` entries. An empty `{ }` clears the menu; omitting the block leaves it alone.

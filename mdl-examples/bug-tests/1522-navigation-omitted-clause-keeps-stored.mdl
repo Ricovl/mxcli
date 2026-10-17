@@ -1,0 +1,47 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1522 (part b) — a `create or modify navigation` that states only a menu
+-- cleared the profile's home page, role home pages, login page and not-found
+-- page, so the next build failed with CE0527 "Select a default home page for
+-- this profile".
+--
+-- The menu block, the sync block, `on sync error` and `progressive web app`
+-- already kept their stored value when omitted; the writer wrote the other four
+-- unconditionally. An omitted clause now keeps the stored value for all of
+-- them, and `home page … for <role>` replaces that role's home page only.
+--
+--   mxcli exec this-file -p app.mpr ; mx check app.mpr
+--     before: the second statement leaves `describe navigation Responsive`
+--             without `home page`; mx check: CE0527 (1 error)
+--     after:  `home page Issue1522.Home` is still described; mx check: 0 errors
+-- ============================================================================
+
+create module Issue1522;
+
+create page Issue1522.Home (
+  Title: 'Home',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create page Issue1522.Orders (
+  Title: 'Orders',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtOrders (Content: 'Orders')
+};
+
+create or modify navigation Responsive
+  home page Issue1522.Home
+{
+  menu item 'Home' ( OnClick: show page Issue1522.Home, Icon: Atlas_Core.Atlas.home )
+};
+
+-- States only the menu: the home page above must survive it.
+create or modify navigation Responsive
+{
+  menu item 'Orders' ( OnClick: show page Issue1522.Orders, Icon: Atlas_Core.Atlas."list-bullets" )
+};
+
+describe navigation Responsive;
