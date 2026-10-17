@@ -52,10 +52,9 @@ tree *is* a page's plus four element types.
 This is the tool for changing a layout you did not write. `CREATE OR REPLACE
 LAYOUT` rebuilds the document from your MDL, which means it can only reproduce
 what MDL can express; `ALTER LAYOUT` edits what is stored and leaves everything
-it was not asked about untouched — including widgets MDL has no syntax for.
-Measured on `Atlas_Core.Atlas_SideBar`, a describe → rename → run copy loses
-both of its `Forms$SidebarToggleButton` widgets. An `ALTER LAYOUT` against it
-does not.
+it was not asked about untouched — including widgets MDL has no syntax for,
+which a describe → rename → run copy drops (`describe` names each one in a
+`-- NOT re-executable` comment). An `ALTER LAYOUT` against it does not.
 
 Like `CREATE LAYOUT`, it refuses a Marketplace target and names the
 copy-then-repoint route in the error.

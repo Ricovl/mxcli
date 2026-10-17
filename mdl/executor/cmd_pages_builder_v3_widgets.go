@@ -1190,9 +1190,48 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 		btn.RenderMode = pages.ButtonRenderModeLink
 	}
 
+	face, err := pb.buildButtonFaceV3(w)
+	if err != nil {
+		return nil, err
+	}
+	btn.CaptionTemplate, btn.Tooltip = face.caption, face.tooltip
+	if face.style != "" {
+		btn.ButtonStyle = face.style
+	}
+	btn.Icon = face.icon
+
+	// Handle Action
+	if action := w.GetAction(); action != nil {
+		act, err := pb.buildClientActionV3(action)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("build action", err)
+		}
+		btn.Action = act
+	}
+
+	if err := pb.registerWidgetName(w.Name, btn.ID); err != nil {
+		return nil, err
+	}
+
+	return btn, nil
+}
+
+// buttonFace is what a button shows: its caption, tooltip, style and icon.
+// An action button and a sidebar toggle button share it.
+type buttonFace struct {
+	caption *pages.ClientTemplate
+	tooltip *model.Text
+	style   pages.ButtonStyle // "" when the author did not say
+	icon    *pages.Icon
+}
+
+// buildButtonFaceV3 reads a button's Caption (with CaptionParams), Tooltip,
+// ButtonStyle and Icon.
+func (pb *pageBuilder) buildButtonFaceV3(w *ast.WidgetV3) (buttonFace, error) {
+	var face buttonFace
 	// Handle Caption
 	if caption := w.GetCaption(); caption != "" {
-		btn.CaptionTemplate = &pages.ClientTemplate{
+		face.caption = &pages.ClientTemplate{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Forms$ClientTemplate",
@@ -1216,14 +1255,14 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 		if params == nil {
 			params = w.GetContentParams()
 		}
-		btn.CaptionTemplate.Parameters = pb.buildClientTemplateParams(params)
+		face.caption.Parameters = pb.buildClientTemplateParams(params)
 	}
 
 	// Tooltip is a plain Texts$Text in the authoring language. The grammar and
 	// MDL-WIDGET07 both accepted it while nothing here read it, so it was
 	// dropped without a word (mendixlabs/mxcli#1307).
 	if tooltip := w.GetStringProp("Tooltip"); tooltip != "" {
-		btn.Tooltip = &model.Text{
+		face.tooltip = &model.Text{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Texts$Text",
@@ -1238,35 +1277,57 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 	if style := w.GetButtonStyle(); style != "" {
 		canonical, ok := pages.CanonicalButtonStyle(style)
 		if !ok {
-			return nil, mdlerrors.NewValidationf(
+			return face, mdlerrors.NewValidationf(
 				"button %q: unknown button style %q — valid styles are %s",
 				w.Name, style, strings.Join(pages.ValidButtonStyleList(), ", "),
 			)
 		}
-		btn.ButtonStyle = canonical
-	}
-
-	// Handle Action
-	if action := w.GetAction(); action != nil {
-		act, err := pb.buildClientActionV3(action)
-		if err != nil {
-			return nil, mdlerrors.NewBackend("build action", err)
-		}
-		btn.Action = act
+		face.style = canonical
 	}
 
 	// Handle Icon (#602, #1059): one of Mendix's three icon elements.
 	icon, err := buildWidgetIcon(w)
 	if err != nil {
+		return face, err
+	}
+	face.icon = icon
+	return face, nil
+}
+
+// buildSidebarToggleV3 builds the button that opens and closes a responsive
+// layout's sidebar (mendixlabs/mxcli#1220). Its face is an action button's,
+// with the same defaults; it has no action.
+func (pb *pageBuilder) buildSidebarToggleV3(w *ast.WidgetV3) (*pages.SidebarToggleButton, error) {
+	tb := &pages.SidebarToggleButton{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$SidebarToggleButton",
+			},
+			Name: w.Name,
+		},
+		ButtonStyle: pages.ButtonStyleDefault,
+		RenderMode:  pages.ButtonRenderModeButton,
+	}
+	face, err := pb.buildButtonFaceV3(w)
+	if err != nil {
 		return nil, err
 	}
-	btn.Icon = icon
-
-	if err := pb.registerWidgetName(w.Name, btn.ID); err != nil {
+	tb.CaptionTemplate, tb.Tooltip, tb.Icon = face.caption, face.tooltip, face.icon
+	if face.style != "" {
+		tb.ButtonStyle = face.style
+	}
+	switch mode := w.GetStringProp("RenderMode"); {
+	case mode == "", strings.EqualFold(mode, "Button"):
+	case strings.EqualFold(mode, "Link"):
+		tb.RenderMode = pages.ButtonRenderModeLink
+	default:
+		return nil, mdlerrors.NewValidationf("sidebartoggle %q: unknown RenderMode %q — valid modes are Button, Link", w.Name, mode)
+	}
+	if err := pb.registerWidgetName(w.Name, tb.ID); err != nil {
 		return nil, err
 	}
-
-	return btn, nil
+	return tb, nil
 }
 
 // buildNavigationListV3 creates a NavigationList widget from V3 syntax.

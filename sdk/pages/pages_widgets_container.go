@@ -130,8 +130,13 @@ type ScrollContainerRegion struct {
 	Slot     ScrollContainerSlot `json:"slot"`
 	Size     int                 `json:"size,omitempty"`
 	SizeMode string              `json:"sizeMode,omitempty"`
-	Class    string              `json:"class,omitempty"`
-	Widgets  []Widget            `json:"widgets,omitempty"`
+	// ToggleMode is how a sidebar toggle button opens and closes the region:
+	// None, PushContentAside, SlideOverContent, ShrinkContentInitiallyOpen or
+	// ShrinkContentInitiallyClosed. Empty writes None. A layout with a toggle
+	// and no toggleable region is CE0628 (mendixlabs/mxcli#1220).
+	ToggleMode string   `json:"toggleMode,omitempty"`
+	Class      string   `json:"class,omitempty"`
+	Widgets    []Widget `json:"widgets,omitempty"`
 }
 
 // ScrollContainerSlot names one of the five regions.

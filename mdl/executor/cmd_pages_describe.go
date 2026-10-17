@@ -826,6 +826,9 @@ type rawWidget struct {
 	// TabCaption: a nameless container whose identity DESCRIBE has to put back.
 	RegionSize     int
 	RegionSizeMode string
+	// RegionToggleMode is a scroll container region's ToggleMode — how a
+	// sidebar toggle opens it. None (the default) is not printed.
+	RegionToggleMode string
 	// NavigationProfile is a Forms$NavigationTree's profile, which the document
 	// keeps one level down in MenuSource rather than on the tree.
 	NavigationProfile string

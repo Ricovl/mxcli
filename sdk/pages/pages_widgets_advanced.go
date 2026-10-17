@@ -89,6 +89,23 @@ type SimpleMenuBar struct {
 	MenuSource MenuSource `json:"menuSource,omitempty"`
 }
 
+// SidebarToggleButton is the button that opens and closes a responsive
+// layout's sidebar — Atlas's slide-in navigation on phones and tablets
+// (mendixlabs/mxcli#1220).
+//
+// Measured on Atlas_Core.Atlas_Default (11.13.0): Appearance, ButtonStyle,
+// CaptionTemplate, ConditionalVisibilitySettings, Icon, Name, RenderType,
+// TabIndex, Tooltip — an action button's keys without the action, which is
+// fixed: the button toggles the sidebar.
+type SidebarToggleButton struct {
+	BaseWidget
+	CaptionTemplate *ClientTemplate  `json:"captionTemplate,omitempty"`
+	Tooltip         *model.Text      `json:"tooltip,omitempty"`
+	Icon            *Icon            `json:"icon,omitempty"`
+	ButtonStyle     ButtonStyle      `json:"buttonStyle,omitempty"`
+	RenderMode      ButtonRenderMode `json:"renderMode,omitempty"`
+}
+
 // MenuOrientation represents menu orientation.
 type MenuOrientation string
 

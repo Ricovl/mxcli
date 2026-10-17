@@ -1048,6 +1048,9 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// menu source and orientation of navigationtree / menubar /
 		// simplemenubar, and a scroll-container region's size mode.
 		"ShowFooter", "Menu", "Profile", "Orientation", "SizeMode",
+		// a scroll-container region's toggle mode, which a sidebartoggle opens
+		// (mendixlabs/mxcli#1220).
+		"ToggleMode",
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
@@ -1085,7 +1088,7 @@ var staticWidgetKnownPropList = func() []string {
 		"Editable", "Tooltip", "DynamicClasses", "WidthUnit", "HeightUnit",
 		"DesktopColumns", "TabletColumns", "PhoneColumns", "PageSize", "Pagination",
 		"Image", "DefaultImage", "DisplayAs", "OnClickType", "ShowFooter", "Menu",
-		"Profile", "Orientation", "SizeMode")
+		"Profile", "Orientation", "SizeMode", "ToggleMode")
 	return list
 }()
 

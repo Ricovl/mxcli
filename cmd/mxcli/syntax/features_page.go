@@ -478,6 +478,7 @@ LIST IMPACT OF htmlelement;
 			"layout", "layouts", "create layout", "scrollcontainer", "region",
 			"placeholder", "navigationtree", "topbar", "sidebar", "frame",
 			"menubar", "simplemenubar", "bottom bar", "phone layout", "menu document",
+			"sidebartoggle", "sidebar toggle", "toggle button",
 		},
 		Syntax: "CREATE [OR MODIFY] LAYOUT Module.Name (\n" +
 			"  layouttype: 'Responsive' | 'Phone' | 'Tablet' | 'ModalPopup'   -- web\n" +
@@ -494,6 +495,9 @@ LIST IMPACT OF htmlelement;
 			"      MENUBAR name (Profile: 'Responsive')          -- horizontal, for a topbar\n" +
 			"      SIMPLEMENUBAR name (Menu: Module.Menu        -- a phone layout's bottom bar\n" +
 			"                    [, Orientation: Horizontal | Vertical])\n" +
+			"      SIDEBARTOGGLE name ([Caption: '…', Tooltip: '…', ButtonStyle: Primary,\n" +
+			"                    Icon: 'Mod.Collection.icon', RenderMode: Button | Link])\n" +
+			"      -- the button that opens and closes the sidebar on phones and tablets\n" +
 			"      -- Every menu widget renders EITHER a navigation profile (Profile: '…')\n" +
 			"      -- OR a menu document (Menu: Module.Menu, see CREATE MENU) — not both.\n" +
 			"      PLACEHOLDER Main\n" +

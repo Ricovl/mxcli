@@ -333,6 +333,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.RegionSizeMode != "" && w.RegionSizeMode != "Auto" {
 			props = append(props, fmt.Sprintf("SizeMode: %s", mdlQuote(ctx, w.RegionSizeMode)))
 		}
+		if w.RegionToggleMode != "" && w.RegionToggleMode != "None" {
+			props = append(props, fmt.Sprintf("ToggleMode: %s", mdlQuote(ctx, w.RegionToggleMode)))
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
@@ -524,14 +527,22 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
-	case "Forms$ActionButton", "Pages$ActionButton":
-		// RenderType "Link" round-trips as the `linkbutton` keyword.
+	case "Forms$ActionButton", "Pages$ActionButton", "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
+		// RenderType "Link" round-trips as the `linkbutton` keyword. A sidebar
+		// toggle has no keyword of its own for it, so says it as a property.
+		toggle := strings.HasSuffix(w.Type, "$SidebarToggleButton")
 		keyword := "actionbutton"
-		if w.RenderMode == "Link" {
+		switch {
+		case toggle:
+			keyword = "sidebartoggle"
+		case w.RenderMode == "Link":
 			keyword = "linkbutton"
 		}
 		header := fmt.Sprintf("%s %s", keyword, mdlIdent(w.Name))
 		props := []string{}
+		if toggle && w.RenderMode == "Link" {
+			props = append(props, "RenderMode: Link")
+		}
 		if w.Caption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.Caption)))
 		}

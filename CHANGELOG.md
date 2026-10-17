@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`sidebartoggle` — Atlas's responsive sidebar toggle (`Forms$SidebarToggleButton`) in MDL** (mendixlabs/mxcli#1220) — copying `Atlas_Core.Atlas_Default` with `describe layout` → `create layout` dropped the button that opens the sidebar on phones and tablets: `describe` printed it as a NOT re-executable comment, and `exec` gave no warning. `sidebartoggle sidebarToggle3 (Tooltip: 'Toggle Menu', ButtonStyle: Primary, Icon: 'Atlas_Core.Atlas_Filled.navigation-menu', Class: 'toggle-btn')` takes an action button's caption, tooltip, style and icon, and `RenderMode: Link`; it has no action. The written widget has the keys of Atlas's own, including its caption under `CaptionTemplate` rather than the `Caption` key the vendored metamodel bound.
+
 ### Fixed
 
 - **`describe module` prints an entity's grants after the associations they name** (mendixlabs/mxcli#1409) — an entity's grant naming one of its associations was printed with the entity, ahead of the association, so replaying the output stopped with "entity ModA.EntA has no member(s) EntA_EntB", leaving the entity without its association or access. `check` passed the same script; it now reports a grant naming an association created further down the script, with the reorder.

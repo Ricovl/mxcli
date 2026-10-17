@@ -59,8 +59,20 @@ mxcli exec mine.mdl -p app.mpr
 
 Read the describe output before running it. A widget MDL cannot express is
 emitted as a comment ending `-- NOT re-executable`, naming exactly what a
-re-run would drop (`Atlas_Core.Atlas_SideBar`, for instance, loses both of its
-`Forms$SidebarToggleButton` widgets).
+re-run would drop.
+
+Atlas's responsive sidebar toggle is the `sidebartoggle` widget, so a copied
+layout keeps its slide-in navigation on phones and tablets:
+
+```sql
+sidebartoggle sidebarToggle3 (
+  Tooltip: 'Toggle Menu', ButtonStyle: Primary,
+  Icon: 'Atlas_Core.Atlas_Filled.navigation-menu', Class: 'toggle-btn'
+)
+```
+
+It takes an action button's `Caption`, `Tooltip`, `ButtonStyle` and `Icon`,
+and `RenderMode: Link` to render as a link; it has no `Action`.
 
 ## Parameters
 

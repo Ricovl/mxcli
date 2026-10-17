@@ -157,6 +157,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			if sm, ok := region["SizeMode"].(string); ok {
 				child.RegionSizeMode = sm
 			}
+			if tm, ok := region["ToggleMode"].(string); ok {
+				child.RegionToggleMode = tm
+			}
 			child.RegionSize = bsonInt(region["Size"])
 			for _, c := range getBsonArrayElements(region["Widgets"]) {
 				if cMap, ok := c.(map[string]any); ok {
@@ -333,6 +336,18 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Action = extractButtonAction(ctx, w)
 		// RenderType "Link" is a linkbutton; the emitter uses this to choose the
 		// `linkbutton` keyword over `actionbutton` for a clean DESCRIBE roundtrip.
+		if rt, ok := w["RenderType"].(string); ok {
+			widget.RenderMode = rt
+		}
+		widget.Icon, widget.IconType, widget.IconCode = extractButtonIcon(w)
+		return []rawWidget{widget}
+
+	case "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
+		// An action button's face without the action (mendixlabs/mxcli#1220).
+		widget.Caption = extractButtonCaption(ctx, w)
+		widget.Parameters = extractButtonCaptionParameters(ctx, w)
+		widget.Tooltip = extractTextsText(ctx, w, "Tooltip")
+		widget.ButtonStyle = extractButtonStyle(ctx, w)
 		if rt, ok := w["RenderType"].(string); ok {
 			widget.RenderMode = rt
 		}
