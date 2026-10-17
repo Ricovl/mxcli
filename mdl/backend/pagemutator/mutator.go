@@ -1522,6 +1522,15 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// Legacy table: Cells[].Widgets[] (mendixlabs/mxcli#1453). A cell has no
+	// Name, so findInWidgetArray descends straight into its Widgets. Keyed on
+	// the list, not the $Type: Mendix 11 stores a cell as Forms$DbTableCell,
+	// which gen does not model, and Forms$Table is the only page type with a
+	// Cells list.
+	if result := findInWidgetArray(wDoc, "Cells", widgetName); result != nil {
+		return result
+	}
+
 	// NavigationList: Items[] hold no Name, but the widgets inside each one do
 	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
 	if isNavigationList(wDoc) {
@@ -2302,6 +2311,9 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
 	}
+	if ds, found := findNearestDSInWidgets(wDoc, "Cells", widgetName, curDS); found {
+		return ds, true
+	}
 	if isNavigationList(wDoc) {
 		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
 			return ds, true
@@ -2504,6 +2516,7 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	collectWidgetScope(wDoc, "Cells", scope) // legacy table cells (#1453)
 	if isNavigationList(wDoc) {
 		collectWidgetScope(wDoc, "Items", scope)
 	}
