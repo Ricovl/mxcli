@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`check` without a project no longer reports a Data grid 2's own settings as dropped, or refuses an expression on one** (mendixlabs/mxcli#1573) — `exec -p` stores `configurationStorageType`, `configurationAttribute`, `storeFiltersInPersonalization`, `refreshInterval`, `columnsHidable`, `rowClass`, a column's `minWidth` and the rest of the widget's own keys, and `check -p` accepts them, but `check` alone warned MDL-WIDGET07 "not recognized and will be silently dropped on write" for each, and refused an Expression-typed one (`rowClass`, a column's `columnClass`) as an MDL-WIDGET42 error, so a script `exec` takes failed `make check-mdl`. Data grid 2 has no embedded definition (it is generated from the project's package, and an embedded one would take precedence over that package on every write), so the check judged its keys against the built-in widgets' vocabulary. It now reads the property list of the Data grid 2 template mxcli embeds: a key the template declares is accepted and its declared type decides MDL-WIDGET42. A key it does not declare still warns — a misspelled `configurationStorageTyp` too, with the spelling it probably meant — but says what is true without a project: that the key cannot be verified, and is dropped on write unless the installed widget declares it. With `-p`, and for every other widget, nothing changes.
+
 ## [0.27.0] - 2026-10-15
 
 Headline: **`exec` is all or nothing: when a statement fails at write time, the whole run is rolled back, so a script never leaves a project half-changed.** Alongside it: a wave of `describe` → `check` → `exec` fixes from round-trip runs over real apps (the Siemens FSM template, the GenAI showcase, Marketplace modules), Mendix 9 projects can take microflows, nanoflows and pluggable widgets again, `check -p` resolves many more of the references `exec` and the build would refuse, the classic `filemanager` widget and role-based `Visible: roles (…)` are in MDL, and the companion draws a module's domain model. The MongoDB driver is upgraded for the October 2026 BSON advisories.
