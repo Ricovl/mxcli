@@ -16,6 +16,7 @@ import (
 const (
 	PermissionElementEntity       = "ENTITY"
 	PermissionElementMicroflow    = "MICROFLOW"
+	PermissionElementNanoflow     = "NANOFLOW"
 	PermissionElementPage         = "PAGE"
 	PermissionElementODataService = "ODATA_SERVICE"
 
@@ -23,7 +24,7 @@ const (
 	AccessTypeRead        = "READ"
 	AccessTypeWrite       = "WRITE"
 	AccessTypeDelete      = "DELETE"
-	AccessTypeExecute     = "EXECUTE" // microflow
+	AccessTypeExecute     = "EXECUTE" // microflow, nanoflow
 	AccessTypeView        = "VIEW"    // page
 	AccessTypeAccess      = "ACCESS"  // published OData service
 	AccessTypeMemberRead  = "MEMBER_READ"
@@ -36,6 +37,7 @@ var (
 	PermissionElementTypes = []string{
 		PermissionElementEntity,
 		PermissionElementMicroflow,
+		PermissionElementNanoflow,
 		PermissionElementPage,
 		PermissionElementODataService,
 	}
@@ -75,6 +77,7 @@ func (b *Builder) buildPermissions() error {
 
 	permCount += b.buildEntityPermissions(stmt, projectID, snapshotID)
 	permCount += b.buildMicroflowPermissions(stmt, projectID, snapshotID)
+	permCount += b.buildNanoflowPermissions(stmt, projectID, snapshotID)
 	permCount += b.buildPagePermissions(stmt, projectID, snapshotID)
 	permCount += b.buildODataServicePermissions(stmt, projectID, snapshotID)
 
@@ -240,6 +243,37 @@ func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotI
 			// AllowedModuleRoles are BY_NAME strings stored as model.ID
 			roleName := string(roleID)
 			stmt.Exec(roleName, PermissionElementMicroflow, mfQN, nil, AccessTypeExecute, nil, nil, moduleName, projectID, snapshotID)
+			count++
+		}
+	}
+
+	return count
+}
+
+// buildNanoflowPermissions extracts nanoflow execute permissions. A nanoflow
+// carries AllowedModuleRoles exactly like a microflow, and a rule checking
+// exposed flows misses every one of them without these rows (ako/mxcli#1434).
+func (b *Builder) buildNanoflowPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+	count := 0
+
+	nfs, err := b.cachedNanoflows()
+	if err != nil {
+		return 0
+	}
+
+	for _, nf := range nfs {
+		if len(nf.AllowedModuleRoles) == 0 {
+			continue
+		}
+
+		moduleID := b.hierarchy.findModuleID(nf.ContainerID)
+		moduleName := b.hierarchy.getModuleName(moduleID)
+		nfQN := moduleName + "." + nf.Name
+
+		for _, roleID := range nf.AllowedModuleRoles {
+			// AllowedModuleRoles are BY_NAME strings stored as model.ID
+			roleName := string(roleID)
+			stmt.Exec(roleName, PermissionElementNanoflow, nfQN, nil, AccessTypeExecute, nil, nil, moduleName, projectID, snapshotID)
 			count++
 		}
 	}

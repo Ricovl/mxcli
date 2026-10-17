@@ -521,11 +521,11 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | Property | Type | Example |
 |----------|------|---------|
 | `module_role_name` | string | `"Admin"` |
-| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
+| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"NANOFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
 | `element_name` | string | `"Sales.Customer"` |
 | `module_name` | string | `"Sales"` |
 | `entity_name` | string | `"Sales.Customer"` (from `permissions_for()` only) |
-| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
+| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow, nanoflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
 | `member_name` | string | Attribute name (for MEMBER_READ/MEMBER_WRITE) |
 | `xpath_constraint` | string | XPath constraint or empty |
 | `is_constrained` | bool | True if XPath constraint is set |
