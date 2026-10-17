@@ -1,0 +1,37 @@
+mdl 1;
+-- mendixlabs/mxcli#1454: `alter … set (showFooter: true, clearable: false) on
+-- <combobox>` stored the pluggable properties' PrimitiveValue as "yes" / "no".
+-- Studio Pro and the widget template store a Boolean as "true" / "false", and
+-- the compiled client reads anything but "true" as false — so a bare `true`
+-- passed mx check and switched the property OFF.
+--
+-- The spelling now comes from the property's declared kind: a Boolean writes
+-- "true" / "false"; an Enumeration that declares yes/no keys keeps taking a
+-- boolean as those keys; any other enumeration refuses a boolean.
+--
+-- Verify after exec:
+--   mxcli bson dump -p app.mpr --type page --object Bug1454.Item_Edit --format ndsl \
+--     | grep -A3 -E 'PropertyKey: "(showFooter|clearable)"'
+-- and the combo box's stored values are "true" / "false", never "yes" / "no".
+
+create module Bug1454;
+
+create enumeration Bug1454.Color (Red 'Red', Blue 'Blue');
+
+create persistent entity Bug1454.Item (Color: enumeration(Bug1454.Color));
+
+create page Bug1454.Item_Edit (
+  title: 'Item',
+  layout: Atlas_Core.Atlas_Default,
+  params: ( $Item: Bug1454.Item )
+) {
+  dataview dvItem (DataSource: $Item) {
+    combobox cbColor (Label: 'Color', Attribute: Color)
+  }
+};
+
+alter page Bug1454.Item_Edit {
+  set (showFooter: true, clearable: false) on cbColor
+};
+
+describe page Bug1454.Item_Edit;
