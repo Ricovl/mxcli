@@ -91,6 +91,12 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 			if exposed := optCtx.MicroflowExposedClause(); exposed != nil {
 				stmt.Expose = append(stmt.Expose, buildExposeActionClause(exposed))
 			}
+			// A nanoflow stores an export level like a microflow. The clause
+			// parsed here and was dropped, so `export level api` wrote Hidden
+			// (mendixlabs/mxcli#1498).
+			if el := optCtx.MicroflowExportLevelClause(); el != nil {
+				stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 	}
 
@@ -453,6 +459,17 @@ func applyEntityAccessAnnotation(createStmt parser.ICreateStatementContext) *boo
 	return nil
 }
 
+// exportLevelOf maps an EXPORT LEVEL clause's keyword to the member's stored
+// spelling — never the user's casing, which is not what MicroflowsExportLevel
+// declares.
+func exportLevelOf(elCtx *parser.MicroflowExportLevelClauseContext) *string {
+	level := types.ExportLevelHidden
+	if elCtx.API() != nil {
+		level = types.ExportLevelAPI
+	}
+	return &level
+}
+
 // applyMicroflowDocumentProperty reads the URL / EXPORT LEVEL / concurrency
 // header clauses onto the statement.
 //
@@ -486,14 +503,7 @@ func applyMicroflowDocumentProperty(stmt *ast.CreateMicroflowStmt, optCtx *parse
 	}
 
 	if el := optCtx.MicroflowExportLevelClause(); el != nil {
-		elCtx := el.(*parser.MicroflowExportLevelClauseContext)
-		// The keyword, mapped to the member's stored spelling — never the user's
-		// casing, which is not what MicroflowsExportLevel declares.
-		level := types.ExportLevelHidden
-		if elCtx.API() != nil {
-			level = types.ExportLevelAPI
-		}
-		stmt.ExportLevel = &level
+		stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
 	}
 
 	if c := optCtx.MicroflowConcurrencyClause(); c != nil {
