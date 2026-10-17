@@ -92,6 +92,8 @@ Appends new widgets as the **last children** of a named container. This is the o
 
 Supported on simple containers (container/DivContainer, data view, group box, tab page, scroll-container region). A layout grid (rows/columns) has no single child list — insert relative to a widget inside the target column instead. A tab container's children are tab pages; see below.
 
+A pluggable widget's child-widget slots have no name of their own, so they are addressed by the widget and the slot keyword `describe` prints: `insert into dataGrid1.controlbar { actionbutton … }` adds to a Data grid 2's control bar (even after its last button was dropped), `replace dataGrid1.controlbar with { … }` swaps its content, and `drop dataGrid1.controlbar` empties it. The widget's own property key (`dataGrid1.filtersPlaceholder`) works too. `insert into dataGrid1` on the widget itself is refused with the slot addresses it has.
+
 ### Adding Tab Pages
 
 A tab container holds tab pages, and only tab pages. `INSERT INTO` the tab
