@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1442 (mendixlabs/mxcli#1544) — a user role's documentation was not
+-- exposed to lint rules or the catalog
+-- ============================================================================
+--
+-- Reported: "A user role has a Documentation/Description in Project Security,
+-- but mxcli does not expose it: DESCRIBE USER ROLE leaves it out, the catalog
+-- has no user roles table with it, and user_roles() in Starlark has no
+-- description (module roles do)."
+--
+-- DESCRIBE / CREATE USER ROLE already carry Description on main (ako/mxcli#707,
+-- after the reporter's v0.26.0); describing Planner below prints it back.
+-- What remained: user_roles() now has `description`, and CATALOG.USER_ROLES
+-- has a Description column.
+--
+-- The assertions are Go tests (mdl/linter/starlark_catalog_tables_test.go,
+-- mdl/catalog/builder_user_roles_test.go): the symptom is in the lint API and
+-- the catalog, which `make check-mdl` does not exercise. To reproduce by hand,
+-- run this script, then
+--   select Name, Description from CATALOG.USER_ROLES
+-- and lint a rule returning
+--   [violation(message = r.name) for r in user_roles() if not r.description]
+-- Planner must carry its text and not be reported.
+-- ============================================================================
+
+create or modify user role Planner (
+  Description: 'Plans the routes; maps to the dispatcher desk',
+  CheckSecurity: true
+);
+
+describe user role Planner;

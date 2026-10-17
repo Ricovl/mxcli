@@ -1177,6 +1177,7 @@ func userRoleToStarlark(ur UserRoleInfo) starlark.Value {
 	}
 	return starlarkstruct.FromStringDict(starlark.String("user_role"), starlark.StringDict{
 		"name":         starlark.String(ur.Name),
+		"description":  starlark.String(ur.Description),
 		"is_anonymous": starlark.Bool(ur.IsAnonymous),
 		"module_roles": starlark.NewList(moduleRoles),
 	})

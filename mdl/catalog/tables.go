@@ -7,6 +7,11 @@ package catalog
 //
 // History:
 //
+//	27 (user roles): a user_roles table with each project user role's
+//	    Description (ako/mxcli#1442). Its own number, not 26: the message
+//	    definitions change took 26 in parallel, and a cache built at 26 by
+//	    either alone would never rebuild for the other. Without the bump a
+//	    cached catalog has no user_roles table at all.
 //	25 (documentation in the strings index): strings gains a row for the
 //	    documentation of every element the catalog reads a Description for
 //	    (entities, attributes, constants, pages, ...), so SEARCH finds words
@@ -136,7 +141,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "25"
+const CatalogSchemaVersion = "27"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -158,7 +163,7 @@ const MetaSchemaVersion = "schema_version"
 //
 // Tables that were already clean (only `ProjectId` + `SnapshotId`, no
 // denormalized columns) keep their original shape:
-// navigation_menu_items, navigation_role_homes, role_mappings, refs,
+// navigation_menu_items, navigation_role_homes, user_roles, role_mappings, refs,
 // permissions, constant_values.
 func (c *Catalog) createTables() error {
 	schemas := []string{
@@ -1155,6 +1160,18 @@ func (c *Catalog) createTables() error {
 			SnapshotId TEXT
 		)`,
 		viewWithFullSnapshot("jar_dependencies"),
+
+		// user_roles — one row per project user role, carrying the
+		// documentation Studio Pro shows in Project Security (ako/mxcli#1442).
+		`CREATE TABLE IF NOT EXISTS user_roles (
+			Id INTEGER PRIMARY KEY AUTOINCREMENT,
+			Name TEXT NOT NULL,
+			Description TEXT,
+			IsAnonymous INTEGER,
+			ModuleRoleCount INTEGER,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
 
 		// role_mappings, refs, permissions, constant_values — already clean
 		`CREATE TABLE IF NOT EXISTS role_mappings (

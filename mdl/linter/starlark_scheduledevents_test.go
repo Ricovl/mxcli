@@ -21,6 +21,7 @@ import (
 // everything except ListScheduledEvents, which is configurable via a func field.
 type minimalReader struct {
 	listScheduledEvents func() ([]*model.ScheduledEvent, error)
+	folders             []*types.FolderInfo
 }
 
 func (m *minimalReader) GetMicroflow(_ model.ID) (*microflows.Microflow, error) {
@@ -32,7 +33,7 @@ func (m *minimalReader) GetProjectSettings() (*model.ProjectSettings, error)    
 func (m *minimalReader) GetNavigation() (*types.NavigationDocument, error)      { return nil, nil }
 func (m *minimalReader) ListPages() ([]*pages.Page, error)                      { return nil, nil }
 func (m *minimalReader) ListModules() ([]*model.Module, error)                  { return nil, nil }
-func (m *minimalReader) ListFolders() ([]*types.FolderInfo, error)              { return nil, nil }
+func (m *minimalReader) ListFolders() ([]*types.FolderInfo, error)              { return m.folders, nil }
 func (m *minimalReader) GetRawUnit(_ model.ID) (map[string]any, error)          { return nil, nil }
 func (m *minimalReader) ListScheduledEvents() ([]*model.ScheduledEvent, error) {
 	if m.listScheduledEvents != nil {
@@ -160,7 +161,9 @@ func newSingleModuleCatalog(t *testing.T, containerID model.ID) *catalog.Catalog
 	); err != nil {
 		t.Fatalf("insert module: %v", err)
 	}
-	cat.Close()
+	// Closed on cleanup, not here: a closed catalog makes the module lookup
+	// fail silently, so module_name was never actually exercised.
+	t.Cleanup(func() { cat.Close() })
 	return cat
 }
 
@@ -418,5 +421,40 @@ func TestStarlarkScheduledEventsBuiltin(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("missing %q in violations:\n%s", want, joined)
 		}
+	}
+}
+
+// TestScheduledEvents_InFolderResolveModule is ako/mxcli#1452: "scheduled_events()
+// returns events of modules listed in excludeModules ..., and each event has an
+// empty module_name; qualified_name becomes .Name". A Marketplace module keeps
+// its events in folders, so the event's container is a folder, not the module.
+func TestScheduledEvents_InFolderResolveModule(t *testing.T) {
+	reader := &minimalReader{
+		listScheduledEvents: func() ([]*model.ScheduledEvent, error) {
+			return []*model.ScheduledEvent{{ContainerID: model.ID("fld-inner"), Name: "SE_Sync", Enabled: true}}, nil
+		},
+		folders: []*types.FolderInfo{
+			{ID: model.ID("fld-outer"), ContainerID: model.ID("mod-1"), Name: "Private"},
+			{ID: model.ID("fld-inner"), ContainerID: model.ID("fld-outer"), Name: "Events"},
+		},
+	}
+	cat := newSingleModuleCatalog(t, model.ID("mod-1"))
+
+	ctx := linter.NewLintContext(cat, reader)
+	var got []linter.ScheduledEvent
+	for se := range ctx.ScheduledEvents() {
+		got = append(got, se)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d events, want 1", len(got))
+	}
+	if got[0].ModuleName != "MyModule" || got[0].QualifiedName != "MyModule.SE_Sync" {
+		t.Errorf("module_name = %q, qualified_name = %q; want MyModule, MyModule.SE_Sync",
+			got[0].ModuleName, got[0].QualifiedName)
+	}
+
+	ctx.SetExcludedModules([]string{"MyModule"})
+	for se := range ctx.ScheduledEvents() {
+		t.Errorf("event %q of an excluded module was yielded", se.QualifiedName)
 	}
 }
