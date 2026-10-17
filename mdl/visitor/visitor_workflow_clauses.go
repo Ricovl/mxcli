@@ -122,6 +122,8 @@ func workflowUserTaskClauseKind(c *parser.WorkflowUserTaskClauseContext) string 
 		return "DESCRIPTION"
 	case c.OUTCOMES() != nil:
 		return "OUTCOMES"
+	case c.AUTO() != nil:
+		return "AUTO ASSIGN SINGLE USER"
 	}
 	// Boundary events accumulate.
 	return ""

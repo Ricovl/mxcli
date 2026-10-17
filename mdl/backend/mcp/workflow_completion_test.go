@@ -121,3 +121,26 @@ func TestApplyMoreThanHalfFallbacks(t *testing.T) {
 		}
 	}
 }
+
+// Issue #1445: the single-user constructor sent autoAssignSingleTargetUser =
+// false whatever the task said.
+func TestMapUserTaskAutoAssign(t *testing.T) {
+	for _, multi := range []bool{false, true} {
+		for _, on := range []bool{false, true} {
+			task := &workflows.UserTask{
+				BaseWorkflowActivity:       workflows.BaseWorkflowActivity{Name: "T", Caption: "c"},
+				IsMulti:                    multi,
+				Outcomes:                   []*workflows.UserTaskOutcome{{Value: "A"}},
+				AutoAssignSingleTargetUser: on,
+			}
+			m, err := mapWorkflowActivity(task)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, _ := m["autoAssignSingleTargetUser"].(bool)
+			if got != on {
+				t.Errorf("multi=%v: autoAssignSingleTargetUser = %v, want %v", multi, m["autoAssignSingleTargetUser"], on)
+			}
+		}
+	}
+}

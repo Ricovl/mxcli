@@ -10,6 +10,7 @@ A user task pauses the workflow until a user completes it. Each outcome resumes 
 USER TASK <name> '<caption>'
   [PAGE <Module>.<Page>]
   [TARGETING MICROFLOW <Module>.<Microflow>]
+  [AUTO ASSIGN SINGLE USER]
   [ON CREATED MICROFLOW <Module>.<Microflow>]
   OUTCOMES '<outcome>' { <activities> } ['<outcome>' { <activities> }] ...;
 ```
@@ -20,6 +21,7 @@ USER TASK <name> '<caption>'
 | `<caption>` | Display label shown to users |
 | `PAGE` | The page opened when the user acts on the task |
 | `TARGETING MICROFLOW` | Microflow that determines which users see the task |
+| `AUTO ASSIGN SINGLE USER` | Studio Pro's "Auto-assign when targeting results in one user": when the targeting yields exactly one user, the task is assigned to them. Off when omitted, as Studio Pro creates a task. Without it, that user cannot complete the task from a microflow until it is assigned to them. Valid on multi-user tasks too |
 | `ON CREATED MICROFLOW` | Microflow run when the task is created — for example to assign it. It takes exactly `System.WorkflowUserTask` and the workflow's context entity, in either order (else CE6683), and returns nothing (else CE5012) |
 | `OUTCOMES` | Named outcomes, each with a block of follow-up activities |
 
