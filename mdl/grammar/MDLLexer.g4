@@ -915,6 +915,9 @@ VETO: V E T O;
 FALLBACK: F A L L B A C K;
 PARTICIPANTS: P A R T I C I P A N T S;
 AWAIT: A W A I T;
+// `auto assign single user` on a user task (AutoAssignSingleTargetUser).
+AUTO: A U T O;
+ASSIGN: A S S I G N;
 
 // Data transformer tokens
 DATA: D A T A;

@@ -182,6 +182,7 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 			OnCreated:       microflowEventName(a.OnCreatedEvent()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$UserTask")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		if t.Page == "" {
 			t.Page = taskPageName(a.TaskPage())
 		}
@@ -197,6 +198,7 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 			Page:            taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$SingleUserTaskActivity")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
 		t.Outcomes = userTaskOutcomesFromGen(a.OutcomesItems())
 		return t
@@ -211,6 +213,7 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 			Page:            taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$MultiUserTaskActivity")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
 		t.Outcomes = userTaskOutcomesFromGen(a.OutcomesItems())
 		t.AwaitAllUsers = a.AwaitAllUsers()

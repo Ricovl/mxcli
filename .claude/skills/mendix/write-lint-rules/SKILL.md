@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-600 | Object Properties |
-| 601-613 | Helper Functions |
-| 614-700 | Common Patterns |
-| 701-710 | Validation |
+| 162-601 | Object Properties |
+| 602-614 | Helper Functions |
+| 615-701 | Common Patterns |
+| 702-711 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
@@ -521,11 +521,11 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | Property | Type | Example |
 |----------|------|---------|
 | `module_role_name` | string | `"Admin"` |
-| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
+| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"NANOFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
 | `element_name` | string | `"Sales.Customer"` |
 | `module_name` | string | `"Sales"` |
 | `entity_name` | string | `"Sales.Customer"` (from `permissions_for()` only) |
-| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
+| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow, nanoflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
 | `member_name` | string | Attribute name (for MEMBER_READ/MEMBER_WRITE) |
 | `xpath_constraint` | string | XPath constraint or empty |
 | `is_constrained` | bool | True if XPath constraint is set |
@@ -535,6 +535,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | Property | Type | Example |
 |----------|------|---------|
 | `name` | string | `"Administrator"` |
+| `description` | string | The role's documentation in Project Security; `""` when none |
 | `is_anonymous` | bool | True if this is the anonymous/guest role |
 | `module_roles` | list of string | `["Sales.Admin", "HR.Viewer"]` |
 

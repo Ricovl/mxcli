@@ -279,3 +279,30 @@ def check():
 		t.Errorf("project_security() exposes the admin password:\n%s", msg)
 	}
 }
+
+// ako/mxcli#1442: "A user role has a Documentation/Description in Project
+// Security, but ... user_roles() in Starlark has no description (module roles
+// do)." The undocumented role is the control: it reads back as "".
+func TestUserRolesExposeDescription(t *testing.T) {
+	cat, err := catalog.NewFromFile(filepath.Join(t.TempDir(), "cat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cat.Close()
+	reader := &securityReader{ps: &security.ProjectSecurity{UserRoles: []*security.UserRole{
+		{Name: "Planner", Description: "Plans the routes; maps to the dispatcher desk"},
+		{Name: "User"},
+	}}}
+	vs, _ := runSrc(t, linter.NewLintContext(cat, reader), `
+def check():
+    return [violation(message=r.name + "=" + r.description) for r in user_roles()]
+`)
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.Message)
+	}
+	want := []string{"Planner=Plans the routes; maps to the dispatcher desk", "User="}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("user_roles() descriptions:\n%v\nwant:\n%v", got, want)
+	}
+}
