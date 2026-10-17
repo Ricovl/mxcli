@@ -484,6 +484,7 @@ func (ctx *LintContext) Permissions() iter.Seq[AllPermission] {
 // UserRoleInfo represents a user role from project security.
 type UserRoleInfo struct {
 	Name        string
+	Description string
 	IsAnonymous bool
 	ModuleRoles []string
 }
@@ -503,6 +504,7 @@ func (ctx *LintContext) UserRoles() []UserRoleInfo {
 	for _, ur := range ps.UserRoles {
 		roles = append(roles, UserRoleInfo{
 			Name:        ur.Name,
+			Description: ur.Description,
 			IsAnonymous: ur.Name == ps.GuestUserRole,
 			ModuleRoles: ur.ModuleRoles,
 		})
