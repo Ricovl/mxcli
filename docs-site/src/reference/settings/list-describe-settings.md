@@ -12,6 +12,8 @@ Displays project settings. `LIST SETTINGS` provides a compact overview of all se
 
 When `DESCRIBE SETTINGS` is called without a category, it outputs all settings. When a category is specified, only that category is shown.
 
+Both also show the **project ID** — the `$ID` of the `Projects$Project` root unit that every module belongs to. `LIST SETTINGS` prints it as a `Project` row; `DESCRIBE SETTINGS` prints it as a `-- Project ID: …` comment, so the output still executes. It is read-only: there is no statement that changes it. Business Events uses it as the app id, so two apps made from one model (a copied `.mpr`, a shared template) report the same project ID.
+
 The available settings categories are:
 
 | Category | Contents |

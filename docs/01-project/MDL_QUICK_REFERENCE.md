@@ -753,7 +753,7 @@ mandatory and a misplaced clause failed with a token error
   - `check --references` reports these before anything is written; `exec` refuses the workflow statement itself (Mendix 11+).
 - `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'] [outcomes '<out>' -> { } ...];`
 - `call agent microflow Mod.MF [as <name>] [caption '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
-- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'];`
+- `call workflow Mod.WF[(WorkflowContext = <expr>)] [as <name>] [caption '<text>'];` — the key is always `WorkflowContext`, the one parameter a workflow has, whatever its header names it; any other key is CE1613 (MDL-WF18). Omitted, the caller's `$WorkflowContext` is passed.
 - `decision [<name>] [<expression>] [caption '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
@@ -763,6 +763,7 @@ mandatory and a misplaced clause failed with a token error
 - `end workflow [caption '<caption>'];` — only inside a `{ }` block; ends the whole workflow
 - `caption '…'` sets the caption Studio Pro shows on an activity; `comment '…'`, the old spelling, is a deprecated alias (`MDL-DEPR104`)
 - Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
+- **Variables in a workflow expression**: `$WorkflowContext` (or the header's declared name) and `$WorkflowInstance`, the running `System.Workflow` — `call microflow M.ACT(Workflow = $WorkflowInstance)`. Anything else (`$Workflow`, `$currentUser`, `$WorkflowUserTask`, …) is CE0117 (MDL-WF19); the workflow's own `due date` sees only the context.
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
 
@@ -980,13 +981,15 @@ describe glyph 57350;         -- by code
 describe glyph 'star';        -- or by name
 ```
 
-**A glyph code the font does not define is reported (MDL078, a warning).** A
-glyph code is a bare integer, so nothing resolves it: `mxcli check` and `mx check`
-both pass at 0 errors and the failure lands at `mxbuild --target=deploy`, as
+**A glyph code the font does not define is refused (MDL078, an error).** A
+glyph code is a bare integer that `mx check` does not resolve: it passes at 0
+errors and `mxbuild --target=deploy` crashes with exit 1, no error file, and
 *"An exception occurred while exporting layout '<some layout>'"* — naming a
-document that is not the cause. Measured on 11.14.0: mxbuild resolves the code
-through a LINQ `.First(...)` in `GlyphFont.GetClass`, which throws on an absent
-one. The rule checks the 247 codes the shipped font actually defines. Prefer an
+document that is not the cause. mxbuild resolves the code through a LINQ
+`.First(...)` in `GlyphFont.GetClass`, which throws on an absent one (measured on
+11.6.6, 11.14.0 and 11.15.0). The rule checks the 247 codes of mxbuild's own
+glyph font, which is byte-identical from 9.24 to 11.15, so `check` fails and
+`exec` writes nothing (mendixlabs/mxcli#1522). Prefer an
 icon collection reference, which `check --references` resolves before anything is
 written.
 

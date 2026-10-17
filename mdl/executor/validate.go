@@ -467,6 +467,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	for _, msg := range validateMemberReferences(ctx, prog, sc) {
 		errors = append(errors, mdlerrors.NewValidation(msg))
 	}
+	// MDL-RETRIEVE03 over an association: whether `retrieve $L from $h/M.A`
+	// binds a list depends on the association and on which end $h is, so the
+	// no-project rule cannot judge it. Using that list as an object built as
+	// CE0117 / CE7247 (mendixlabs/mxcli#1516).
+	errors = append(errors, validateAssociationRetrieveListUse(ctx, prog, sc)...)
 	// Resolve the MEMBERS inside a widget's XPath constraint. The entity in
 	// `database from Mod.Entity` was resolved and the `where […]` was not, so a
 	// member that does not exist reached mxbuild as CE1613
@@ -493,6 +498,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
 	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
 	errors = append(errors, validateProtectedModuleRefs(ctx, prog)...)
+	// A business event message attribute named like a member its entity
+	// inherits (BusinessEvents.PublishedBusinessEvent's, read from the project):
+	// mxbuild reports the duplicate after exec wrote it (mendixlabs/mxcli#1525).
+	errors = append(errors, validateBusinessEventInheritedMembers(ctx, prog, sc)...)
 	return errors, sc.warnings
 }
 

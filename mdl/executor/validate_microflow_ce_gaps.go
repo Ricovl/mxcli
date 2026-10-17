@@ -251,15 +251,25 @@ func (v *microflowValidator) checkDuplicateVariableNames(params []ast.MicroflowP
 		if prev.loop && p.loop {
 			return // MDL052
 		}
+		suggestion := fmt.Sprintf("Rename one of them, or — if you meant to reuse the first — drop the "+
+			"redundant definition: %s already creates '$%s', and an activity always creates "+
+			"its own output variable rather than writing into an existing one",
+			prev.label, p.name)
+		if p.label == "create" {
+			// The conditional-create idiom: `declare $X M.E = empty` then a create
+			// per branch, or the same create name in both branches. Both are CE0111
+			// (measured 11.15.0, mendixlabs/mxcli#1516); these two forms build.
+			suggestion += fmt.Sprintf(". For an object created conditionally, create it once with "+
+				"conditional values (`$%s = create M.E (Attr = if $c then 1 else 2);`), or let a "+
+				"sub-microflow create and return it on each branch — see `mxcli syntax microflow.variables`",
+				p.name)
+		}
 		v.addViolation("MDL063", linter.SeverityError,
 			fmt.Sprintf("'$%s' is created twice in this %s — first by %s, then by %s. "+
 				"A %s's variable names are unique flow-wide (branches and loop bodies do "+
 				"not open a scope), so mxbuild rejects this with CE0111 \"Duplicate variable name\".",
 				p.name, v.docType, prev.label, p.label, v.docType),
-			fmt.Sprintf("Rename one of them, or — if you meant to reuse the first — drop the "+
-				"redundant definition: %s already creates '$%s', and an activity always creates "+
-				"its own output variable rather than writing into an existing one",
-				prev.label, p.name))
+			suggestion)
 	}
 
 	for _, p := range params {

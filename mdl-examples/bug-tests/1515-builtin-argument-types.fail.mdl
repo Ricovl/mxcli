@@ -1,0 +1,41 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1515 - check passes built-in calls whose
+-- argument types are wrong
+-- ============================================================================
+--
+-- Symptom:
+--   `formatDecimal($d, 2)` hands a number to the String pattern. `mxcli check`
+--   printed "Check passed!" with and without -p; mxbuild refuses it with
+--   CE0117 "Error(s) in expression" (11.6.6 and 11.15.0). The built-in
+--   signature check compared argument COUNTS only, and only on the
+--   `-p --references` tier, so a plain check missed even
+--   `formatDecimal($d, '#', 'en', 4)`.
+--
+-- After fix:
+--   `mxcli check` (no project needed) reports E005 on Tmp1515.Bad_Pattern and
+--   Tmp1515.Bad_Days, and E006 on Tmp1515.Bad_Arity. Each is CE0117 on mx
+--   check 11.6.6 and 11.15.0.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/1515-builtin-argument-types.fail.mdl
+--   Expect exactly three errors: E005 x2, E006 x1. The controls, which must
+--   stay clean, are in 1515-builtin-argument-types.mdl.
+-- ============================================================================
+
+create module Tmp1515;
+
+create microflow Tmp1515.Bad_Pattern ($d: Decimal) returns String
+begin
+  return formatDecimal($d, 2);
+end;
+
+create microflow Tmp1515.Bad_Days ($dt: DateTime) returns DateTime
+begin
+  return addDays($dt, 1.5);
+end;
+
+create microflow Tmp1515.Bad_Arity ($d: Decimal) returns String
+begin
+  return formatDecimal($d, '#', 'en', 4);
+end;

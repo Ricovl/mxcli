@@ -1,0 +1,31 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1519 (item 3b) — switching a column's width back
+-- ============================================================================
+--
+-- `set (ColumnWidth: manual, Size: 220)` then `set (ColumnWidth: autoFill)`
+-- stored width=autoFill with size=220. Data grid 2 hides `size` unless the
+-- width is manual, and a hidden property holding anything but its default is
+-- CE0463 (measured on 11.6.6 and 11.15.0: 1 error before, 0 after).
+--
+-- Expected now: after the second SET the column stores size=1 (the declared
+-- default) and `mx check` reports 0 errors. Run against a project (-p): the
+-- rules are lifted from the installed Data grid 2 package.
+--
+-- Setting a hidden size in the same statement is refused instead, by check and
+-- exec:  set (ColumnWidth: autoFill, Size: 220) on dg column(Name);
+
+create module Bug1519b;
+create persistent entity Bug1519b.Item ( Name: String(100), Code: String(20) );
+
+create page Bug1519b.Item_Overview ( Title: 'Items', Layout: Atlas_Core.Atlas_Default ) {
+  datagrid dg ( DataSource: database from Bug1519b.Item ) {
+    column (Attribute: Name, Caption: 'Name')
+    column (Attribute: Code, Caption: 'Code')
+  }
+};
+
+alter page Bug1519b.Item_Overview { set (ColumnWidth: manual, Size: 220) on dg column(Name); };
+alter page Bug1519b.Item_Overview { set (ColumnWidth: autoFill) on dg column(Name); };
+
+describe page Bug1519b.Item_Overview;

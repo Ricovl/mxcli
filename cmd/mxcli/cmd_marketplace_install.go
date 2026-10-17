@@ -50,6 +50,12 @@ installed alongside the model.
 
 --allow-format-change selects the legacy module-import path instead.
 
+After a module or widget install, the repairs a headless install leaves for
+Mendix's own tools run automatically — the widget resync (CE0463) and, for a
+module, the design-property rename (CE6087), the same steps as 'mxcli fix
+widgets' / 'mxcli fix design-properties', which keep MPR v2. When mx for the
+project's version cannot be resolved, those commands are printed instead.
+
 --file <package.mpk> installs a package from disk through the same writer, with
 no marketplace lookup and no PAT: the kind (module or widget) is read from the
 package's own package.xml. That is the route for a module distributed as a file
@@ -137,7 +143,7 @@ func runMarketplaceInstall(cmd *cobra.Command, args []string) error {
 
 	switch strings.ToLower(content.Type) {
 	case "widget":
-		return installWidget(cmd.Context(), client, version, projDir, out)
+		return installWidget(cmd.Context(), client, version, mprPath, out)
 	case "module":
 		// Refuse a version the project's Mendix cannot import, before spending a
 		// download and a reference build on it. Only modules go through
@@ -178,7 +184,7 @@ func installFromFile(ctx context.Context, mpkPath, mprPath string, allowFormatCh
 		return installModuleFromFile(ctx, mpkPath, mprPath, allowFormatChange, 0, "", "",
 			"from "+filepath.Base(mpkPath), out)
 	case pkg.ClientModule.Name != "":
-		return placeWidgetFile(mpkPath, filepath.Dir(mprPath), out)
+		return placeWidgetFile(mpkPath, mprPath, out)
 	}
 	return fmt.Errorf("%s is neither a module nor a widget package: its package.xml names no module and no clientModule",
 		filepath.Base(mpkPath))
@@ -186,8 +192,8 @@ func installFromFile(ctx context.Context, mpkPath, mprPath string, allowFormatCh
 
 // installWidget copies the widget .mpk into the project's widgets/ folder.
 // An existing file with the same name is overwritten (the update path).
-func installWidget(ctx context.Context, client *marketplace.Client, v *marketplace.Version, projDir string, out io.Writer) error {
-	widgetsDir := filepath.Join(projDir, "widgets")
+func installWidget(ctx context.Context, client *marketplace.Client, v *marketplace.Version, mprPath string, out io.Writer) error {
+	widgetsDir := filepath.Join(filepath.Dir(mprPath), "widgets")
 	if err := os.MkdirAll(widgetsDir, 0o755); err != nil {
 		return fmt.Errorf("create widgets dir: %w", err)
 	}
@@ -196,14 +202,14 @@ func installWidget(ctx context.Context, client *marketplace.Client, v *marketpla
 		return err
 	}
 	fmt.Fprintf(out, "Installed widget %s into %s\n", v.VersionNumber, dest)
-	printWidgetNext(out)
+	resyncInstalledWidget(out, mprPath)
 	return nil
 }
 
 // placeWidgetFile is installWidget for a package already on disk: the same
 // destination and the same overwrite-on-update rule, without the download.
-func placeWidgetFile(mpkPath, projDir string, out io.Writer) error {
-	widgetsDir := filepath.Join(projDir, "widgets")
+func placeWidgetFile(mpkPath, mprPath string, out io.Writer) error {
+	widgetsDir := filepath.Join(filepath.Dir(mprPath), "widgets")
 	if err := os.MkdirAll(widgetsDir, 0o755); err != nil {
 		return fmt.Errorf("create widgets dir: %w", err)
 	}
@@ -216,12 +222,15 @@ func placeWidgetFile(mpkPath, projDir string, out io.Writer) error {
 		return fmt.Errorf("write %s: %w", dest, err)
 	}
 	fmt.Fprintf(out, "Installed widget %s into %s\n", filepath.Base(mpkPath), dest)
-	printWidgetNext(out)
+	resyncInstalledWidget(out, mprPath)
 	return nil
 }
 
-func printWidgetNext(out io.Writer) {
-	fmt.Fprintln(out, "Run 'mxcli fix widgets -p <project.mpr>' (or reload in Studio Pro) to pick it up.")
+// resyncInstalledWidget runs the widget resync a new or updated widget package
+// needs before the project's stored instances match it (CE0463) — what
+// 'mxcli fix widgets' does. Without mx it prints that command instead.
+func resyncInstalledWidget(out io.Writer, mprPath string) {
+	runPostInstallRepairs(out, out, mprPath, postInstallMendixVersion(mprPath), widgetRepairs)
 }
 
 // installModule imports a module .mpk into the project, but only when the module
@@ -278,19 +287,7 @@ func installModuleFromFile(ctx context.Context, mpkPath, mprPath string, allowFo
 		if ierr != nil {
 			return ierr
 		}
-		fmt.Fprintf(out, "Installed module %q %s into %s\n",
-			moduleName, label, filepath.Base(mprPath))
-		fmt.Fprintf(out, "  %d units copied, %d bundled file(s) installed.\n",
-			res.UnitsCopied, len(res.FilesInstalled))
-		reportSkippedFiles(out, res.FilesSkipped)
-		reportSecurityReconcile(out, res)
-		// A headless install leaves the model needing two repairs only Mendix's own
-		// tools can make (CE0463, CE6087). 'mxcli fix' runs them without the v2 ->
-		// v1 conversion the bare mx commands perform.
-		fmt.Fprintln(out, "\n  Next, repair what a headless install leaves for Studio Pro to finish:")
-		fmt.Fprintln(out, "      mxcli fix widgets -p <project.mpr>             # CE0463")
-		fmt.Fprintln(out, "      mxcli fix design-properties -p <project.mpr>   # CE6087")
-		fmt.Fprintln(out, "      mxcli docker check -p <project.mpr>")
+		reportTransplantInstall(out, mprPath, mendixVer, moduleName, label, res)
 		return nil
 	}
 
@@ -308,6 +305,20 @@ func installModuleFromFile(ctx context.Context, mpkPath, mprPath string, allowFo
 	fmt.Fprintf(out, "Imported module %q %s into %s\n", moduleName, label, filepath.Base(mprPath))
 	reportFormatChange(mprPath, out)
 	return nil
+}
+
+// reportTransplantInstall reports a module copied in by the transplant writer,
+// then runs the repairs a headless install leaves (CE0463, CE6087) — the same
+// calls 'mxcli fix widgets' / 'mxcli fix design-properties' make, which keep the
+// MPR v2 storage format (mendixlabs/mxcli#1527). Without mx it prints them.
+func reportTransplantInstall(out io.Writer, mprPath, mendixVer, moduleName, label string, res *mp.UpdateResult) {
+	fmt.Fprintf(out, "Installed module %q %s into %s\n",
+		moduleName, label, filepath.Base(mprPath))
+	fmt.Fprintf(out, "  %d units copied, %d bundled file(s) installed.\n",
+		res.UnitsCopied, len(res.FilesInstalled))
+	reportSkippedFiles(out, res.FilesSkipped)
+	reportSecurityReconcile(out, res)
+	runPostInstallRepairs(out, out, mprPath, mendixVer, moduleRepairs)
 }
 
 // installByTransplant builds a reference project from the package and copies the

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -125,6 +126,7 @@ func (b *Builder) buildPages() error {
 					return fmt.Errorf("insert widget %s for page %s: %w", w.Name, qualifiedName, err)
 				}
 				widgetCount++
+				b.collectWidgetExtraRefs("PAGE", qualifiedName, moduleName, w)
 			}
 		}
 	}
@@ -219,6 +221,7 @@ func (b *Builder) buildSnippets() error {
 					return fmt.Errorf("insert widget %s for snippet %s: %w", w.Name, qualifiedName, err)
 				}
 				widgetCount++
+				b.collectWidgetExtraRefs("SNIPPET", qualifiedName, moduleName, w)
 			}
 		}
 	}
@@ -301,6 +304,13 @@ type rawWidgetInfo struct {
 	MicroflowRef string // action/datasource microflow (Forms$MicroflowSettings.Microflow, …)
 	NanoflowRef  string // action/datasource nanoflow
 	PageRef      string // action page (Forms$PageSettings.Form) — see scanWidgetOwnRefs
+
+	// AllRefs is every document the widget names in its own BSON. The four
+	// single columns above hold one of each kind (the smallest, see
+	// scanWidgetOwnRefs) for `show widgets` and Starlark; a widget can name
+	// more — a data grid 2 with a microflow datasource AND an on-click
+	// microflow — and the refs table needs all of them (mendixlabs/mxcli#1513).
+	AllRefs widgetOwnRefs
 
 	// Tree position (mendixlabs/mxcli#1268). ParentID is the nearest INDEXED
 	// ancestor, so a wrapper the walk skips (the synthetic
@@ -385,12 +395,37 @@ var widgetChildKeys = map[string]bool{
 	"Templates": true,
 }
 
-// scanWidgetOwnRefs collects the entity/microflow/nanoflow a widget references in
-// its own (non-child-widget) BSON — datasource entity, on-click microflow, etc.
-// Returns the lexicographically smallest match of each kind so the result is
-// deterministic regardless of BSON map iteration order; page-level dedup in the
-// refs projection makes the per-widget choice immaterial to the final graph.
+// widgetOwnRefs is every entity, microflow, nanoflow and page a widget names in
+// its own (non-child-widget) BSON, each list sorted and without duplicates.
+type widgetOwnRefs struct {
+	Entities, Microflows, Nanoflows, Pages []string
+}
+
+// scanWidgetOwnRefs returns ONE entity/microflow/nanoflow/page per kind from a
+// widget's own BSON: the lexicographically smallest, so the result is
+// deterministic regardless of BSON map iteration order. This is what the single
+// widgets_data columns (EntityRef, MicroflowRef, NanoflowRef, PageRef) show —
+// `show widgets` and Starlark's microflow_ref. It is NOT complete: a widget can
+// name two microflows (a datasource and an on-click), and the one not picked
+// here would have no reference at all if the refs table were built from these
+// columns alone — QUAL004 then called a live datasource microflow unused
+// (mendixlabs/mxcli#1513). The refs table takes every name, from
+// scanWidgetAllRefs.
 func scanWidgetOwnRefs(w map[string]any) (entity, microflow, nanoflow, page string) {
+	all := scanWidgetAllRefs(w)
+	first := func(xs []string) string {
+		if len(xs) == 0 {
+			return ""
+		}
+		return xs[0]
+	}
+	return first(all.Entities), first(all.Microflows), first(all.Nanoflows), first(all.Pages)
+}
+
+// scanWidgetAllRefs collects every entity/microflow/nanoflow/page a widget
+// references in its own (non-child-widget) BSON — datasource entity, datasource
+// microflow, on-click microflow, etc.
+func scanWidgetAllRefs(w map[string]any) widgetOwnRefs {
 	var ents, mfs, nfs, forms []string
 	var walk func(v any)
 	walk = func(v any) {
@@ -426,19 +461,27 @@ func scanWidgetOwnRefs(w map[string]any) (entity, microflow, nanoflow, page stri
 		}
 	}
 	walk(w)
-	min := func(xs []string) string {
-		if len(xs) == 0 {
-			return ""
-		}
-		m := xs[0]
-		for _, s := range xs[1:] {
-			if s < m {
-				m = s
-			}
-		}
-		return m
+	return widgetOwnRefs{
+		Entities:   sortedUnique(ents),
+		Microflows: sortedUnique(mfs),
+		Nanoflows:  sortedUnique(nfs),
+		Pages:      sortedUnique(forms),
 	}
-	return min(ents), min(mfs), min(nfs), min(forms)
+}
+
+// sortedUnique sorts xs and drops repeats; nil stays nil.
+func sortedUnique(xs []string) []string {
+	if len(xs) == 0 {
+		return nil
+	}
+	sort.Strings(xs)
+	out := xs[:1]
+	for _, s := range xs[1:] {
+		if s != out[len(out)-1] {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // extractLayoutRef extracts the layout reference from raw page BSON. Regular
@@ -563,6 +606,7 @@ func walkWidget(w map[string]any, parentID string, depth int) []rawWidgetInfo {
 	// Extract datasource entity + action microflow/nanoflow references from this
 	// widget's own content (not its child widgets).
 	widget.EntityRef, widget.MicroflowRef, widget.NanoflowRef, widget.PageRef = scanWidgetOwnRefs(w)
+	widget.AllRefs = scanWidgetAllRefs(w)
 	widget.Class, widget.Style, widget.DynamicClasses = widgetAppearance(w)
 	widget.ActionType, widget.HasConfirmation = widgetPrimaryAction(w)
 	widget.ParentID, widget.Depth = parentID, depth
@@ -918,4 +962,31 @@ func (b *Builder) buildLayouts() error {
 
 	b.report("Layouts", count)
 	return nil
+}
+
+// widgetExtraRef is a page/snippet → document edge a widget makes that its
+// single widgets_data column does not carry (see rawWidgetInfo.AllRefs).
+type widgetExtraRef struct {
+	containerType, containerQN, moduleName string
+	targetType, targetName, refKind        string
+}
+
+// collectWidgetExtraRefs records, for buildReferences, every name in w.AllRefs
+// that is not already the widget's single column for that kind — those are
+// projected from widgets_data directly.
+func (b *Builder) collectWidgetExtraRefs(containerType, containerQN, moduleName string, w rawWidgetInfo) {
+	add := func(names []string, primary, targetType, refKind string) {
+		for _, n := range names {
+			if n == primary {
+				continue
+			}
+			b.widgetExtraRefs = append(b.widgetExtraRefs, widgetExtraRef{
+				containerType, containerQN, moduleName, targetType, n, refKind,
+			})
+		}
+	}
+	add(w.AllRefs.Entities, w.EntityRef, RefObjectEntity, RefKindDatasource)
+	add(w.AllRefs.Microflows, w.MicroflowRef, RefObjectMicroflow, RefKindAction)
+	add(w.AllRefs.Nanoflows, w.NanoflowRef, RefObjectNanoflow, RefKindAction)
+	add(w.AllRefs.Pages, w.PageRef, RefObjectPage, RefKindShowPage)
 }

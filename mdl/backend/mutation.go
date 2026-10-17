@@ -446,6 +446,31 @@ type WidgetObjectBuilder interface {
 	Finalize(id model.ID, name string, label string, editable string) *pages.CustomWidget
 }
 
+// WidgetPropertyDeclarer is implemented by a WidgetObjectBuilder that holds the
+// widget's full property set, and so can say authoritatively whether a key
+// exists. Every Set* operation on a key the widget does not declare is a no-op,
+// so a definition mapping an authored value to such a key drops the value with
+// no error (mendixlabs/mxcli#1519: a drop-down filter's attribute, routed to the
+// text filter's `attributes`). The engine asks this before applying an authored
+// value and refuses the statement instead. Optional: a builder that only
+// records property sets (the Studio Pro MCP backend) cannot answer and does not
+// implement it.
+type WidgetPropertyDeclarer interface {
+	DeclaresProperty(propertyKey string) bool
+}
+
+// ColumnHiddenPropertyResetter is implemented by a PageMutator that can bring a
+// Data grid 2 column back in line with its widget's visibility rules after a
+// SET: every primitive property a rule now hides goes back to the default the
+// stored Type declares (`size` once `width` leaves "manual" — CE0463 otherwise,
+// mendixlabs/mxcli#1519). setProps are the MDL names the statement set; a
+// hidden one holding a non-default value is refused rather than reset. Returns
+// the schema keys reset. Optional: the Studio Pro MCP backend hands property
+// sets to Studio Pro, which applies the widget's rules itself.
+type ColumnHiddenPropertyResetter interface {
+	ResetHiddenColumnProperties(gridRef, columnRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
+}
+
 // ObjectListItemSpec describes one item of an object-list property (e.g. one
 // Accordion group, one PopupMenu basicItem, one Maps marker). The backend
 // applies these specs to the template's nested PropertyTypeIDs to produce

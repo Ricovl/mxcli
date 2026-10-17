@@ -329,6 +329,30 @@ body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
 `replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
 nested in another loop, replace the outer one.
 
+The replaced loop's body is scope-checked like any fragment: a variable it reads must
+be the iterator, declared in the body, or declared before the loop.
+
+### 12. One Alter Block Is One Change
+
+Every operation of an `alter microflow` block is aimed at the flow **as stored**, but
+the scope checks judge the flow the **whole block** writes:
+
+- a fragment may read a variable an earlier operation of the block declares, when that
+  declaration lands upstream of it (an `insert after`/`replace` of a node before it, or
+  an `insert before` the node it replaces or inserts after);
+- an activity whose output is taken away is still "used" only by readers the block
+  leaves in place — so a rename (the producer, every reader and the `return`) goes in
+  **one** block:
+
+```mdl
+mdl 1;
+alter microflow MyModule.GetCode {
+  replace $Code = call microflow MyModule.Lookup() with begin $Code2 = call microflow MyModule.Lookup(); end;
+  replace log node 'App' * with begin log info node 'App' $Code2; end;
+  replace return $Code with begin return $Code2; end;
+};
+```
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:

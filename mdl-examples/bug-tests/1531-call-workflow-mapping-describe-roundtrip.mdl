@@ -1,0 +1,39 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1531 - describe workflow drops the call
+-- workflow parameter mapping
+-- ============================================================================
+--
+-- Symptom:
+--   `describe workflow M.WF_Parent` printed `call workflow M.WF_Child;` with no
+--   mapping. Re-executing that output let the executor bind the default
+--   `$WorkflowContext` (an M.Parent) to a child that takes an M.Item, so the
+--   association path was silently replaced and mx check reported CE0117.
+--
+-- After fix:
+--   describe prints `call workflow M.WF_Child(WorkflowContext =
+--   $WorkflowContext/M.Parent_Current/M.Item)`; re-executing it reports
+--   "Unchanged workflow: M.WF_Parent" and mx check stays at 0 errors.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1531-call-workflow-mapping-describe-roundtrip.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe workflow M.WF_Parent"    -- shows the mapping
+-- ============================================================================
+
+create module M;
+create persistent entity M.Item (Name: string(100));
+create persistent entity M.Parent (Name: string(100));
+create association M.Parent_Current from M.Parent to M.Item;
+
+create workflow M.WF_Child
+  parameter $WorkflowContext: M.Item
+begin
+end workflow;
+
+-- The path names the target entity; `$WorkflowContext/M.Parent_Current`
+-- without it is CE0117 (measured on 11.6.6 and 11.15.0).
+create workflow M.WF_Parent
+  parameter $WorkflowContext: M.Parent
+begin
+  call workflow M.WF_Child(WorkflowContext = $WorkflowContext/M.Parent_Current/M.Item);
+end workflow;

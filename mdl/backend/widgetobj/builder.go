@@ -53,7 +53,17 @@ type Builder struct {
 	objectTypeID    string
 }
 
-var _ backend.WidgetObjectBuilder = (*Builder)(nil)
+var (
+	_ backend.WidgetObjectBuilder    = (*Builder)(nil)
+	_ backend.WidgetPropertyDeclarer = (*Builder)(nil)
+)
+
+// DeclaresProperty reports whether the loaded template declares propertyKey —
+// the set every Set* operation silently skips a missing key against.
+func (ob *Builder) DeclaresProperty(propertyKey string) bool {
+	_, ok := ob.propertyTypeIDs[propertyKey]
+	return ok
+}
 
 // New constructs a Builder for a loaded template and registers the engine's child
 // serializer for this build.

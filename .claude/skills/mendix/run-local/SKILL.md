@@ -19,20 +19,20 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 214-238 | Editing themes (SCSS) — rebuild, never clear caches |
 | 239-265 | `--watch` waits for a write to finish before it builds |
 | 266-294 | "My edit didn't show up" — stale process, not stale cache |
-| 295-323 | Flags |
-| 324-377 | Metrics and OpenTelemetry |
-| 378-435 | Pages render in the browser |
-| 436-453 | Pixel-perfect page loop |
-| 454-474 | Debugging a server-side error |
-| 475-495 | "Sign in failed" that is not about the password |
-| 496-528 | The same licence also stops the app after a few hours |
-| 529-608 | External browser preview (`--hub`) |
-| 609-617 | Validation checklist |
-| 618-657 | Constant values come from a configuration |
-| 658-661 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 662-665 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 666-669 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 670-672 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 295-324 | Flags |
+| 325-378 | Metrics and OpenTelemetry |
+| 379-436 | Pages render in the browser |
+| 437-454 | Pixel-perfect page loop |
+| 455-475 | Debugging a server-side error |
+| 476-496 | "Sign in failed" that is not about the password |
+| 497-529 | The same licence also stops the app after a few hours |
+| 530-609 | External browser preview (`--hub`) |
+| 610-618 | Validation checklist |
+| 619-658 | Constant values come from a configuration |
+| 659-662 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 663-666 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 667-670 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 671-673 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -320,6 +320,7 @@ run's process session), and `run status` reports them. Do **not**
 | `--trace-service` | `.mpr` name | `OTEL_SERVICE_NAME` under `--trace` |
 | `--trace-otlp` | off (console) | Export traces to this OTLP collector endpoint (e.g. `http://127.0.0.1:4318`) instead of the console. Implies `--trace`. Needed for flame charts |
 | `--runtime-setting Key=Value` | — | Merge an extra runtime setting into the boot config (Value parsed as JSON when possible). Repeatable. |
+| (scheduled events) | `ALL` | `run --local` boots with `ScheduledEventExecution=ALL` (the runtime's own default is NONE, which silently never fires an event) and prints `Scheduled events: ALL (N defined)` at boot. `--runtime-setting ScheduledEventExecution=NONE` (or `SPECIFIED` plus `MyScheduledEvents`) wins. The test runner keeps NONE |
 
 ## Metrics and OpenTelemetry
 

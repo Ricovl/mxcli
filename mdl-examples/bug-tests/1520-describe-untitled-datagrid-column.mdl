@@ -1,0 +1,50 @@
+-- ============================================================================
+-- Bug test: mendixlabs/mxcli#1520 — DESCRIBE PAGE drops an untitled Data grid 2
+-- actions column
+-- ============================================================================
+--
+-- A Data grid 2 column with no attribute and an empty header — the usual
+-- actions column, `column (Caption: '', ShowContentAs: customContent)` — was
+-- left out of DESCRIBE PAGE together with every widget inside it. Re-running
+-- the unchanged output was reported "Unchanged page", but any real edit to it
+-- replaced the page and deleted the column and its buttons from the model.
+--
+-- To verify:
+--   1. mxcli exec this script, then: describe page Bug1520.ItemList
+--      -> the grid lists THREE columns, the last one
+--         `column (Caption: '', ShowContentAs: customContent) { actionbutton btnEdit … }`
+--   2. Change the 'Name' caption in that output to 'Item name' and exec it.
+--      describe again -> still three columns, btnEdit still present.
+--   3. mx check: 0 errors.
+-- ============================================================================
+
+mdl 1;
+
+create module Bug1520;
+
+create persistent entity Bug1520.Item (
+  Name: String(200),
+  Code: String(50)
+);
+
+create microflow Bug1520.ACT_Item_Edit (
+  $Item: Bug1520.Item
+)
+begin
+  return;
+end;
+
+create page Bug1520.ItemList (
+  Title: 'Items',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  datagrid dgItems (DataSource: database from Bug1520.Item) {
+    column (Attribute: Name, Caption: 'Name')
+    column (Attribute: Code, Caption: 'Code')
+    column (Caption: '', ShowContentAs: customContent) {
+      actionbutton btnEdit (Caption: 'Edit', Action: call microflow Bug1520.ACT_Item_Edit(Item = $currentObject))
+    }
+  }
+};
+
+describe page Bug1520.ItemList;

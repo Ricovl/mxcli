@@ -1,0 +1,55 @@
+mdl 1;
+-- mendixlabs/mxcli#1516: `retrieve $L from $h/Assoc` from the TO entity of a
+-- Reference (the "one" side) binds a LIST. Using it as an object — `$L/Qty`,
+-- `change $L`, passing it to an object parameter — passed check --references and
+-- failed mx check with CE0117 / CE7247 (11.6.6 and 11.15.0 alike). check -p now
+-- reports those as MDL-RETRIEVE03. This script is the working spelling: the list
+-- used as a list, one object from the FROM side, and one object retrieved from the
+-- database with the association as the constraint.
+-- Also: a bare enumeration declare type, under -p, warns MDL043 with the `enum`
+-- spelling instead of refusing it as an object declare.
+-- Expected: check -p passes, exec creates everything, mx check reports 0 errors.
+create persistent entity MyFirstModule.Bug1516Header ( Name: String(100) );
+create persistent entity MyFirstModule.Bug1516Line ( Qty: Integer );
+create association MyFirstModule.Bug1516Line_Header
+  from MyFirstModule.Bug1516Line to MyFirstModule.Bug1516Header;
+create enumeration MyFirstModule.Bug1516Enum ( A 'A', B 'B' );
+
+-- From the Header: a list. Count it, loop it.
+create or modify microflow MyFirstModule.MF_Bug1516_ListFromOneSide ($h: MyFirstModule.Bug1516Header)
+returns Integer as $n
+begin
+  retrieve $Lines from $h/MyFirstModule.Bug1516Line_Header;
+  loop $Line in $Lines begin
+    change $Line ( Qty = 1 );
+  end loop;
+  $n = count $Lines;
+  return $n;
+end;
+
+-- One Line for the Header: retrieve it from the database.
+create or modify microflow MyFirstModule.MF_Bug1516_OneLine ($h: MyFirstModule.Bug1516Header)
+returns Integer as $n
+begin
+  retrieve $Line from MyFirstModule.Bug1516Line where [MyFirstModule.Bug1516Line_Header = $h] first;
+  declare $n Integer = $Line/Qty;
+  return $n;
+end;
+
+-- From the Line: one Header.
+create or modify microflow MyFirstModule.MF_Bug1516_ObjectFromManySide ($l: MyFirstModule.Bug1516Line)
+returns Boolean as $b
+begin
+  retrieve $Header from $l/MyFirstModule.Bug1516Line_Header;
+  declare $b Boolean = $Header/Name != empty;
+  return $b;
+end;
+
+-- An enumeration variable, spelled as describe prints it.
+create or modify microflow MyFirstModule.MF_Bug1516_EnumDeclare ()
+returns Boolean as $b
+begin
+  declare $S enum MyFirstModule.Bug1516Enum = empty;
+  declare $b Boolean = $S = empty;
+  return $b;
+end;

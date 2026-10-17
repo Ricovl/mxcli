@@ -121,6 +121,12 @@ type Builder struct {
 	// cataloguing the handlers and emitted by buildReferences.
 	eventHandlerRefs []eventHandlerRef
 
+	// Page/snippet → document edges a widget makes beyond its single
+	// widgets_data columns (a data grid 2's datasource AND on-click
+	// microflow), collected by buildPages/buildSnippets and emitted by
+	// buildReferences (mendixlabs/mxcli#1513).
+	widgetExtraRefs []widgetExtraRef
+
 	// Built-in widget definitions supplied by the caller — used to populate
 	// the widget_definitions catalog table alongside project widgets/.
 	builtinWidgetMetas []WidgetDefinitionMeta

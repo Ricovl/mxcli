@@ -59,6 +59,8 @@ var (
 //   - MDL-WF04: standalone `annotation` in a workflow body (unloadable model)
 //   - MDL-WF05: `jump to` a target that names no activity (see validate_workflow_jump.go)
 //   - MDL-WF08..11: where `end workflow` may go, and `return` (see validate_workflow_end.go)
+//   - MDL-WF18: a `call workflow` mapping keyed on anything but WorkflowContext (CE1613)
+//   - MDL-WF19: a variable no workflow expression can see (see validate_workflow_scope.go)
 func ValidateWorkflow(stmt *ast.CreateWorkflowStmt) []linter.Violation {
 	var out []linter.Violation
 	loc := linter.Location{
@@ -120,11 +122,13 @@ func ValidateWorkflow(stmt *ast.CreateWorkflowStmt) []linter.Violation {
 			})
 		}
 	})
+	out = append(out, callWorkflowParameterViolations(workflowStatementActivities(stmt), loc)...)
 	out = append(out, ValidateWorkflowJumpTargets(stmt)...)
 	out = append(out, ValidateWorkflowEnds(stmt)...)
 	out = append(out, ValidateWorkflowEventTypes(stmt)...)
 	out = append(out, ValidateWorkflowCompletionRules(stmt)...)
 	out = append(out, ValidateWorkflowEventSubProcesses(stmt)...)
+	out = append(out, ValidateWorkflowExpressionScope(stmt)...)
 	return out
 }
 
@@ -366,7 +370,7 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 		DocumentName: stmt.Name.Name,
 	}
 
-	// MDL-WF06 over the activities the statement adds.
+	// MDL-WF06 and MDL-WF18 over the activities the statement adds.
 	var added []ast.WorkflowActivityNode
 	for _, op := range stmt.Operations {
 		switch o := op.(type) {
@@ -386,6 +390,7 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 			added = append(added, o.Activities...)
 		}
 	}
+	out = append(out, callWorkflowParameterViolations(added, loc)...)
 	walkWorkflowActivities(added, func(a ast.WorkflowActivityNode) {
 		switch n := a.(type) {
 		case *ast.WorkflowDecisionNode:
@@ -415,5 +420,8 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 			out = append(out, *v)
 		}
 	}
+	// MDL-WF19 over every expression the statement writes. ALTER cannot see the
+	// header's declared context name, so only $WorkflowContext is accepted for it.
+	out = append(out, checkWorkflowExprScope(alterWorkflowExprSites(stmt), "", loc)...)
 	return append(out, ValidateAlterWorkflowEnds(stmt)...)
 }

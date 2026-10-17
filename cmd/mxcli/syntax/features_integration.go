@@ -766,7 +766,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"\n" +
 			"-- Prefer an icon COLLECTION reference where the icon exists there: it is a\n" +
 			"-- model reference that `check --references` resolves, while a glyph code is\n" +
-			"-- an unchecked integer until MDL078 sees it.",
+			"-- an integer that MDL078 checks against the font and refuses if undefined.",
 		SeeAlso: []string{"icon-collection", "navigation.create"},
 	})
 

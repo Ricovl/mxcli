@@ -235,6 +235,16 @@ func (b *Backend) ProjectVersion() *types.ProjectVersion {
 	}
 }
 
+// GetProjectRootID returns the $ID of the Projects$Project root unit — the
+// container every module points to, and the value Business Events uses as the
+// app id (mendixlabs/mxcli#1526). A copy of the model shares it.
+func (b *Backend) GetProjectRootID() (string, error) {
+	if b.reader == nil {
+		return "", fmt.Errorf("GetProjectRootID: not connected")
+	}
+	return b.reader.GetProjectRootID()
+}
+
 func (b *Backend) GetMendixVersion() (string, error) {
 	if b.reader == nil {
 		return "", nil

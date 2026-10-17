@@ -748,7 +748,7 @@ func (p *expectParser) parseCall() (expectNode, error) {
 	if minArgs == 0 {
 		minArgs = len(sig.Args)
 	}
-	if len(args) < minArgs || len(args) > len(sig.Args) {
+	if len(args) < minArgs || (!sig.Variadic && len(args) > len(sig.Args)) {
 		return nil, p.errorAt(nameTok, "%s() takes %s, got %d",
 			name, arityText(minArgs, len(sig.Args)), len(args))
 	}

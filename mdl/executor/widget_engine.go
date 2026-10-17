@@ -421,6 +421,9 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		if err != nil {
 			return nil, mdlerrors.NewBackend("resolve mapping for "+mapping.PropertyKey, err)
 		}
+		if err := refuseUndeclaredMappedKey(builder, def, mapping, ctx, w); err != nil {
+			return nil, err
+		}
 
 		if err := e.applyOperation(builder, mapping.Operation, mapping.PropertyKey, ctx); err != nil {
 			return nil, err
@@ -977,12 +980,82 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 	return nil
 }
 
+// singleAttributeOverflow finds the mapping, in the mode the widget builds in,
+// that feeds the `attributes:` list into ONE attribute property — and reports
+// whether the script listed more than one. Shared by exec and check (#1519).
+func singleAttributeOverflow(def *WidgetDefinition, w *ast.WidgetV3) (PropertyMapping, []string, bool) {
+	attrs := w.GetAttributes()
+	if def == nil || len(attrs) < 2 {
+		return PropertyMapping{}, nil, false
+	}
+	mappings, _, err := (&PluggableWidgetEngine{}).selectMappings(def, w)
+	if err != nil {
+		return PropertyMapping{}, nil, false
+	}
+	for _, m := range mappings {
+		if m.Source == "Attributes" && m.Operation == "attribute" {
+			return m, attrs, true
+		}
+	}
+	return PropertyMapping{}, nil, false
+}
+
+func singleAttributeOverflowMessage(w *ast.WidgetV3, m PropertyMapping, attrs []string) string {
+	return fmt.Sprintf("widget `%s` (%s) filters on one attribute, stored on `%s`, but `attributes:` lists %d (%s) — "+
+		"name one, or use a textfilter, which takes several",
+		w.Name, w.Type, m.PropertyKey, len(attrs), strings.Join(attrs, ", "))
+}
+
+// refuseUndeclaredMappedKey fails the build when a mapping carries a value the
+// SCRIPT authored to a key the loaded widget does not declare. Every builder
+// operation skips an unknown key without a word, so the value was dropped while
+// check, exec and mx check all stayed clean — #1519's drop-down filter, whose
+// attribute went to the text filter's `attributes` key. A mapping's own constant
+// (`value` in the .def.json) is not checked: it is the definition's default, not
+// the user's data, and an older widget version lacking the key is not the
+// script's fault.
+func refuseUndeclaredMappedKey(builder backend.WidgetObjectBuilder, def *WidgetDefinition, mapping PropertyMapping, ctx *BuildContext, w *ast.WidgetV3) error {
+	if mapping.Value != "" || !ctx.carriesValue() {
+		return nil
+	}
+	declarer, ok := builder.(backend.WidgetPropertyDeclarer)
+	if !ok || declarer.DeclaresProperty(mapping.PropertyKey) {
+		return nil
+	}
+	return mdlerrors.NewValidationf(
+		"widget `%s` (%s): its definition maps `%s` to property `%s`, which the installed widget %s does not declare — "+
+			"the value would be dropped. The definition does not match this widget version",
+		w.Name, def.MDLName, mappingSourceLabel(mapping), mapping.PropertyKey, def.WidgetID)
+}
+
+func mappingSourceLabel(m PropertyMapping) string {
+	if m.Source != "" {
+		return m.Source
+	}
+	return m.PropertyKey
+}
+
+// carriesValue reports whether resolving a mapping produced anything to write.
+func (c *BuildContext) carriesValue() bool {
+	return c.AttributePath != "" || len(c.AttributePaths) > 0 || c.AssocPath != "" ||
+		c.PrimitiveVal != "" || c.DataSource != nil || c.Action != nil || c.ImageEntity != ""
+}
+
 // selectMappings selects the active PropertyMappings and ChildSlotMappings based on mode.
 func (e *PluggableWidgetEngine) selectMappings(def *WidgetDefinition, w *ast.WidgetV3) ([]PropertyMapping, []ChildSlotMapping, error) {
 	if len(def.Modes) == 0 {
 		return def.PropertyMappings, def.ChildSlots, nil
 	}
+	mode, err := e.selectMode(def, w)
+	if err != nil {
+		return nil, nil, err
+	}
+	return mode.PropertyMappings, mode.ChildSlots, nil
+}
 
+// selectMode returns the mode a widget builds in: the first whose condition
+// holds, else the single unconditioned one. A definition without modes has none.
+func (e *PluggableWidgetEngine) selectMode(def *WidgetDefinition, w *ast.WidgetV3) (*WidgetMode, error) {
 	var fallback *WidgetMode
 	var fallbackCount int
 	for i := range def.Modes {
@@ -995,18 +1068,18 @@ func (e *PluggableWidgetEngine) selectMappings(def *WidgetDefinition, w *ast.Wid
 			continue
 		}
 		if e.evaluateCondition(mode.Condition, w, mode.PropertyMappings) {
-			return mode.PropertyMappings, mode.ChildSlots, nil
+			return mode, nil
 		}
 	}
 
 	if fallback != nil {
 		if fallbackCount > 1 {
-			return nil, nil, mdlerrors.NewValidationf("widget %s has %d modes without conditions; only one default mode is allowed", def.MDLName, fallbackCount)
+			return nil, mdlerrors.NewValidationf("widget %s has %d modes without conditions; only one default mode is allowed", def.MDLName, fallbackCount)
 		}
-		return fallback.PropertyMappings, fallback.ChildSlots, nil
+		return fallback, nil
 	}
 
-	return nil, nil, mdlerrors.NewValidationf("no matching mode for widget %s", def.MDLName)
+	return nil, mdlerrors.NewValidationf("no matching mode for widget %s", def.MDLName)
 }
 
 // evaluateCondition checks a built-in condition string against the AST widget.
@@ -1039,6 +1112,10 @@ func (e *PluggableWidgetEngine) evaluateCondition(condition string, w *ast.Widge
 		return false
 	case condition == "hasAttribute":
 		return w.GetAttribute() != ""
+	case condition == "hasAttributes":
+		// `attributes: [A, …]` — a drop-down filter's custom attribute, which
+		// selects attrChoice "linked" rather than the column's own (#1519).
+		return len(w.GetAttributes()) > 0
 	case strings.HasPrefix(condition, "hasProp:"):
 		propName := strings.TrimPrefix(condition, "hasProp:")
 		return w.GetStringProp(propName) != ""
@@ -1464,6 +1541,16 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 	case "Attributes":
 		if attrs := w.GetAttributes(); len(attrs) > 0 {
 			entity := e.entityContextFor(mapping.PropertyKey)
+			if mapping.Operation == "attribute" {
+				// The list keyword feeding a SINGLE attribute property — a
+				// drop-down filter's `attr` (#1519). Keeping the first and
+				// discarding the rest would be the same silent drop as before.
+				if len(attrs) > 1 {
+					return nil, mdlerrors.NewValidation(singleAttributeOverflowMessage(w, mapping, attrs))
+				}
+				ctx.AttributePath = e.pageBuilder.resolveAttributePathForEntity(attrs[0], entity)
+				break
+			}
 			ctx.AttributePaths = make([]string, 0, len(attrs))
 			for _, attr := range attrs {
 				ctx.AttributePaths = append(ctx.AttributePaths,

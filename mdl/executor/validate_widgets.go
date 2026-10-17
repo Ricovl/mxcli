@@ -266,6 +266,16 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validatePluggableTemplateParams(w, locationPrefix)...)
 		}
 		out = append(out, validateWidgetVisibility(w, registry, locationPrefix)...)
+		// #1519: several attributes for a widget with one attribute slot — the
+		// drop-down filter. exec refuses it; so does check.
+		if m, attrs, over := singleAttributeOverflow(lookupWidgetDef(w, registry), w); over {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET47",
+				Severity:   linter.SeverityError,
+				Message:    locationPrefix + ": " + singleAttributeOverflowMessage(w, m, attrs),
+				Suggestion: "A drop-down filter compares one attribute; list several only on a textfilter.",
+			})
+		}
 		// An IMAGE with nothing to show — the default source needs an image
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
@@ -641,8 +651,22 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 	explicit = map[string]bool{}
 
 	mappings := append([]PropertyMapping(nil), def.PropertyMappings...)
-	for _, m := range def.Modes {
-		mappings = append(mappings, m.PropertyMappings...)
+	// A mode the widget is NOT built in writes none of its constants, so they
+	// are not the widget's configuration. Reading them anyway let whichever mode
+	// came last decide: a drop-down filter given `attributes:` builds with
+	// attrChoice "linked" and baseType at its default, but the union read the
+	// default mode's "auto" and the association mode's "ref", and reported its
+	// `attr` as hidden twice over (#1519). What the script wrote still counts.
+	inactive := map[int]bool{}
+	active, _ := (&PluggableWidgetEngine{}).selectMode(def, w)
+	for i := range def.Modes {
+		mode := &def.Modes[i]
+		for _, m := range mode.PropertyMappings {
+			if active != nil && mode != active {
+				inactive[len(mappings)] = true
+			}
+			mappings = append(mappings, m)
+		}
 	}
 	// An MDL source keyword shared by SEVERAL properties does not name any one of
 	// them. File Uploader 2.5.0 routes both `associatedFiles` and
@@ -656,7 +680,7 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			sharedSource[m.Source]++
 		}
 	}
-	for _, m := range mappings {
+	for i, m := range mappings {
 		key := strings.ToLower(m.PropertyKey)
 		val, set := "", false
 		viaSharedSource := false
@@ -683,6 +707,8 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			if !viaSharedSource {
 				explicit[key] = true
 			}
+		} else if inactive[i] {
+			continue // a constant of a mode the widget is not built in
 		} else if m.Default != "" {
 			val = m.Default
 		} else if m.Operation == "primitive" && m.Value != "" {
