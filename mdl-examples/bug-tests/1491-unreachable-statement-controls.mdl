@@ -1,0 +1,58 @@
+mdl 1;
+-- Controls for mendixlabs/mxcli#1491 (MDL-FLOW05): each shape is close to one
+-- the rule refuses, and each builds with 0 errors on mxbuild 11.13.0. `check`
+-- must pass all of them, or the rule refuses a script that builds.
+create module if not exists Bug1491;
+
+create or modify microflow Bug1491.Sub ($In: Integer) returns Boolean
+begin
+  return true;
+end;
+
+-- Nothing after a `while true` left only by return.
+create or modify microflow Bug1491.NothingAfterWhileTrue ($N: Integer)
+begin
+  declare $I Integer = 0;
+  while true
+  begin
+    set $I = $I + 1;
+    if $I >= $N then
+      return;
+    end if;
+  end while;
+end;
+
+-- The loop is left by `break`, so the return after it runs.
+create or modify microflow Bug1491.BreakThenReturn ($N: Integer)
+begin
+  declare $I Integer = 0;
+  while true
+  begin
+    set $I = $I + 1;
+    if $I >= $N then
+      break;
+    end if;
+  end while;
+  return;
+end;
+
+-- An `if` without `else` that returns: the code after it runs on the other path.
+create or modify microflow Bug1491.IfWithoutElse ($V: Integer)
+begin
+  if $V < 0 then
+    return;
+  end if;
+  log info node 'Bug1491' 'reachable';
+end;
+
+-- A `merge` after a `return` is reached by the `join`, so the path is live again.
+create or modify microflow Bug1491.MergeAfterReturn () returns Boolean
+begin
+  $X = call microflow Bug1491.Sub(In = 1) on error without rollback begin
+    join on_failure;
+  end error;
+  return true;
+  merge on_failure;
+  log error node 'Bug1491' 'the call failed';
+  return false;
+end;
