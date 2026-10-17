@@ -434,7 +434,7 @@ func (ctx *LintContext) PermissionsFor(entityQualifiedName string) iter.Seq[Perm
 // AllPermission represents a permission from the catalog covering all element types.
 type AllPermission struct {
 	ModuleRoleName  string
-	ElementType     string // ENTITY, MICROFLOW, PAGE, ODATA_SERVICE
+	ElementType     string // ENTITY, MICROFLOW, NANOFLOW, PAGE, ODATA_SERVICE
 	ElementName     string // qualified name of the element
 	MemberName      string // populated for MEMBER_READ/MEMBER_WRITE
 	AccessType      string // CREATE, READ, WRITE, DELETE, EXECUTE, VIEW, ACCESS, MEMBER_READ, MEMBER_WRITE
