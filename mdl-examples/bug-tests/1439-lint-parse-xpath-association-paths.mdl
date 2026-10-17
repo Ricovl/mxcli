@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1439 (mendixlabs/mxcli#1541) — parse_xpath stopped at association
+-- paths, and lint rules could not recurse
+-- ============================================================================
+--
+-- Reported:
+--   - parse_xpath("[Mod.A/Mod.E/Name = 'x' and Mod.A/Mod.E/Code = 'y']")
+--     returns only qname Mod.A; the comparison and the rest are lost.
+--   - A rule that walks the tree with a recursive function fails with
+--     "function called recursively"; the walking example in the
+--     write-lint-rules skill (count_not) is recursive and cannot run.
+--   - matches() returns only true/false, without captures.
+--
+-- parse_xpath now parses in XPath mode: a path from the queried entity is an
+-- attr_path with variable "" and a predicates list. Recursion is enabled for
+-- rules, the skill example is fixed (it also matched `not` as a call and used
+-- `sum`, which Starlark lacks) and runs as a test, and find_all(s, pattern)
+-- returns the capture groups.
+--
+-- The assertions are Go tests (mdl/linter/starlark_xpath_paths_test.go,
+-- mdl/exprcheck/xpath_mode_test.go). To reproduce by hand, run this script and
+-- lint a rule that renders parse_xpath(x.xpath_expression) for every
+-- xpath_expressions() row of module X1439 with a recursive function: both
+-- comparisons and both paths must come back.
+-- ============================================================================
+
+create module X1439;
+
+create persistent entity X1439.Customer (
+  Name: string(100),
+  Code: string(20)
+);
+
+create persistent entity X1439.Order (
+  Number: string(20)
+);
+
+create association X1439.Order_Customer from X1439.Order to X1439.Customer;
+
+create microflow X1439.GetOrders ()
+returns list of X1439.Order as $orders
+begin
+  retrieve $orders from X1439.Order
+    where X1439.Order_Customer/X1439.Customer/Name = 'x'
+      and X1439.Order_Customer/X1439.Customer/Code = 'y';
+  return $orders;
+end;

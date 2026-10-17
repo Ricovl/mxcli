@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-600 | Object Properties |
-| 601-613 | Helper Functions |
-| 614-700 | Common Patterns |
-| 701-710 | Validation |
+| 162-601 | Object Properties |
+| 602-615 | Helper Functions |
+| 616-702 | Common Patterns |
+| 703-712 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
@@ -395,15 +395,15 @@ Returned by `parse_xpath(s)`. Every node has a `kind` field; additional fields d
 
 | `kind` | Additional fields | Description |
 |--------|-------------------|-------------|
-| `"bin"` | `op` (string), `left` (expr), `right` (expr) | Binary operator: `=`, `!=`, `<`, `>`, `<=`, `>=`, `and`, `or` |
-| `"unary"` | `op` (string), `operand` (expr) | Unary operator: `not`, `-` |
+| `"bin"` | `op` (string), `left` (expr), `right` (expr) | Binary operator: `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR` — the logical ones upper-case |
+| `"unary"` | `op` (string), `operand` (expr) | Unary operator: `NOT`, `-`. XPath `not(…)` is a unary `NOT` whose operand is a `paren`, not a `call` |
 | `"call"` | `name` (string), `args` (list of expr) | Function call, e.g. `contains(…)`, `length(…)` |
 | `"string"` | `value` (string) | String literal |
 | `"number"` | `value` (string) | Numeric literal (kept as string to preserve precision) |
 | `"bool"` | `value` (bool) | `true` or `false` |
 | `"empty"` | — | Mendix `empty` keyword |
 | `"variable"` | `name` (string) | `$ParameterName` |
-| `"attr_path"` | `variable` (string), `path` (list of string) | `$Obj/Association/Attribute` |
+| `"attr_path"` | `variable` (string), `path` (list of string), `predicates` (list of expr) | `$Obj/Association/Attribute`, or an XPath path from the queried entity, `Mod.Assoc/Mod.Entity/Attr`, whose `variable` is `""`. `predicates[i]` is the `[…]` on `path[i]` (`Mod.Assoc/Mod.Entity[Code = 'x']/Name`), kind `"null"` where there is none |
 | `"qname"` | `module` (string), `name` (string), `sub` (string) | Qualified name, e.g. `MyApp.Status.Active` |
 | `"paren"` | `inner` (expr) | Parenthesised expression |
 | `"if"` | `cond` (expr), `then` (expr), `else_` (expr) | If-then-else expression |
@@ -413,31 +413,32 @@ Returned by `parse_xpath(s)`. Every node has a `kind` field; additional fields d
 | `"null"` | — | Nil / missing node |
 | `"unknown"` | — | Unrecognised AST node type |
 
-**Walking an expr tree:** check `node.kind` and recurse into child fields. Leaf kinds (no child nodes) are: `string`, `number`, `bool`, `empty`, `variable`, `qname`, `constant`, `token`, `recovered`, `null`, `unknown`.
+**Walking an expr tree:** check `node.kind` and recurse into child fields — recursion is allowed in lint rules. Leaf kinds (no child nodes) are: `string`, `number`, `bool`, `empty`, `variable`, `qname`, `constant`, `token`, `recovered`, `null`, `unknown`. An `attr_path` has children only in its `predicates`.
 
 Example — count `not(…)` calls in an XPath (using `parse_xpath`):
 
 ```python
 def count_not(node):
-    if node.kind in ("null", "unknown", "recovered", "string", "number",
-                     "bool", "empty", "variable", "qname", "constant", "token"):
-        return 0
-    if node.kind == "call" and node.name == "not":
-        return 1 + sum([count_not(a) for a in node.args])
-    if node.kind == "call":
-        return sum([count_not(a) for a in node.args])
+    if node.kind == "unary":
+        return (1 if node.op == "NOT" else 0) + count_not(node.operand)
     if node.kind == "bin":
         return count_not(node.left) + count_not(node.right)
-    if node.kind == "unary":
-        return count_not(node.operand)
     if node.kind == "paren":
         return count_not(node.inner)
     if node.kind == "if":
         return count_not(node.cond) + count_not(node.then) + count_not(node.else_)
+    children = []
+    if node.kind == "call":
+        children = node.args
     if node.kind == "attr_path":
-        return 0
-    return 0
+        children = node.predicates
+    n = 0
+    for c in children:
+        n += count_not(c)
+    return n
 ```
+
+(Starlark has no `sum`; add in a loop.)
 
 ### attribute
 | Property | Type | Example |
@@ -608,6 +609,7 @@ Returned by `languages()`, one per language enabled in the project settings. A p
 | `is_pascal_case(s)` | Returns True if string is PascalCase |
 | `is_camel_case(s)` | Returns True if string is camelCase |
 | `matches(s, pattern)` | Returns True if string matches regex |
+| `find_all(s, pattern)` | Every match of the regex in `s`: a tuple of the capture groups per match, or the matched string when the pattern has no groups |
 | `get_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset |
 | `struct(**kwargs)` | Build an ad-hoc struct, e.g. `struct(name="x", count=1)`, to group values inside a rule |
 
