@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Workflow user tasks keep "Auto-assign when targeting results in one user"** (mendixlabs/mxcli#1547) — every single- and multi-user task was written with `AutoAssignSingleTargetUser = false`, MDL had no spelling for it and `describe workflow` did not print it, so `create or modify workflow` turned off a box ticked in Studio Pro. When the targeting then yielded one user, the task was not assigned to them and completing it from a microflow failed at runtime with "You can't complete this user task, it is not assigned to you"; `check` and `mx check` were silent. The new clause `auto assign single user` (on `user task` and `multi user task`) writes it, `describe` prints it when set, and a `create or modify` or `replace activity` that does not restate a stored one is refused, like `await all users`. Omitted, it is off, which is what Studio Pro 11.14 stores for a new task. The MCP backend sent `false` too and now sends the task's value.
+
 ## [0.27.0] - 2026-10-15
 
 Headline: **`exec` is all or nothing: when a statement fails at write time, the whole run is rolled back, so a script never leaves a project half-changed.** Alongside it: a wave of `describe` → `check` → `exec` fixes from round-trip runs over real apps (the Siemens FSM template, the GenAI showcase, Marketplace modules), Mendix 9 projects can take microflows, nanoflows and pluggable widgets again, `check -p` resolves many more of the references `exec` and the build would refuse, the classic `filemanager` widget and role-based `Visible: roles (…)` are in MDL, and the companion draws a module's domain model. The MongoDB driver is upgraded for the October 2026 BSON advisories.
