@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-600 | Object Properties |
-| 601-613 | Helper Functions |
-| 614-700 | Common Patterns |
-| 701-710 | Validation |
+| 162-601 | Object Properties |
+| 602-614 | Helper Functions |
+| 615-701 | Common Patterns |
+| 702-711 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
@@ -535,6 +535,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | Property | Type | Example |
 |----------|------|---------|
 | `name` | string | `"Administrator"` |
+| `description` | string | The role's documentation in Project Security; `""` when none |
 | `is_anonymous` | bool | True if this is the anonymous/guest role |
 | `module_roles` | list of string | `["Sales.Admin", "HR.Viewer"]` |
 
