@@ -1031,7 +1031,7 @@ func importXmlActionToGen(a *microflows.ImportXmlAction) element.Element {
 
 	imc := newElem("Microflows$ImportMappingCall", "")
 	addStr(imc, "Commit", "YesWithoutEvents")
-	addStr(imc, "ContentType", "Json")
+	addStr(imc, "ContentType", orDefault(rh.ContentType, "Json"))
 	addBool(imc, "ForceSingleOccurrence", forceSingle)
 	addStr(imc, "ObjectHandlingBackup", "Create")
 	addStr(imc, "ParameterVariableName", "")
@@ -1847,7 +1847,7 @@ func restResultHandlingToGen(rh microflows.ResultHandling, outputVar string) ele
 		}
 		imc := newElem("Microflows$ImportMappingCall", "")
 		addStr(imc, "Commit", "YesWithoutEvents")
-		addStr(imc, "ContentType", "Json")
+		addStr(imc, "ContentType", orDefault(h.ContentType, "Json"))
 		addBool(imc, "ForceSingleOccurrence", forceSingle)
 		addStr(imc, "ObjectHandlingBackup", "Create")
 		addStr(imc, "ParameterVariableName", "")
