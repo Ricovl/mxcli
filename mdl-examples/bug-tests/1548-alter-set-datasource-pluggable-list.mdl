@@ -1,0 +1,44 @@
+mdl 1;
+-- mendixlabs/mxcli#1548: `alter page … set (DataSource: microflow M.F) on <w>`
+-- worked on a list view, but on a Gallery or Data grid 2 it passed check,
+-- printed "Altered page" and left the page unit byte-identical. A pluggable
+-- widget keeps its source in its `datasource` property, not in a top-level
+-- DataSource key, and the setter's write onto that missing key failed silently.
+--
+-- Expected: the describe below shows all three widgets with
+-- `DataSource: microflow Bug1548.DS_Order_Open`. A source kind `set` cannot
+-- write onto a pluggable widget (e.g. `selection <w>`) is refused by check.
+
+create module Bug1548;
+
+create persistent entity Bug1548.Order (Number: string(20));
+
+create microflow Bug1548.DS_Order_Open ()
+returns list of Bug1548.Order as $Orders
+begin
+  retrieve $Orders from Bug1548.Order;
+  return $Orders;
+end;
+
+create page Bug1548.Order_Overview (
+  title: 'Orders',
+  layout: Atlas_Core.Atlas_Default
+) {
+  gallery galOrders (DataSource: database Bug1548.Order) {
+    dynamictext txtNumber (Content: '{1}', ContentParams: ({1} = Number))
+  }
+  datagrid dgOrders (DataSource: database Bug1548.Order) {
+    column (Attribute: Number)
+  }
+  listview lvOrders (DataSource: database Bug1548.Order) {
+    dynamictext txtNumber2 (Content: '{1}', ContentParams: ({1} = Number))
+  }
+};
+
+alter page Bug1548.Order_Overview {
+  set (DataSource: microflow Bug1548.DS_Order_Open) on galOrders;
+  set (DataSource: microflow Bug1548.DS_Order_Open) on dgOrders;
+  set (DataSource: microflow Bug1548.DS_Order_Open) on lvOrders
+};
+
+describe page Bug1548.Order_Overview;

@@ -150,11 +150,52 @@ func (m *Mutator) SetWidgetDataSource(widgetRef string, ds pages.DataSource) err
 		return err
 	}
 
+	if bsonnav.DGetString(result.widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return m.setPluggableDataSource(result.widget, ds)
+	}
+
 	serialized := serializeDataSourceBson(ds)
 	if serialized == nil {
 		return fmt.Errorf("unsupported DataSource type %T", ds)
 	}
-	bsonnav.DSet(result.widget, "DataSource", serialized)
+	// DSet only replaces an existing key. Ignoring its result is how a widget
+	// with nowhere to keep a source reported "Altered page" unchanged
+	// (mendixlabs/mxcli#1548).
+	if !bsonnav.DSet(result.widget, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s) has no data source to set", widgetRef, widgetTypeName(result.widget))
+	}
+	return nil
+}
+
+// setPluggableDataSource writes ds into a pluggable widget's datasource
+// property. A Gallery or Data grid 2 has no top-level DataSource key — the
+// source is the Value of the property its schema keys "datasource" — so the
+// plain-widget write above found nothing to replace and reported success with
+// the unit byte-identical (mendixlabs/mxcli#1548). The source is serialized by
+// the engine's pluggable serializer, the one CREATE PAGE and INSERT use for
+// the same property, rather than by serializeDataSourceBson: a second copy of
+// that shape is the drift this file keeps paying for.
+func (m *Mutator) setPluggableDataSource(widget bson.D, ds pages.DataSource) error {
+	name := bsonnav.DGetString(widget, "Name")
+	valDoc := pluggableDataSourceValue(widget)
+	if valDoc == nil {
+		return fmt.Errorf("%q (%s) has no data source property to set", name, widgetTypeName(widget))
+	}
+	var serialized bson.D
+	switch ds.(type) {
+	case *pages.MicroflowSource, *pages.NanoflowSource:
+		if m.deps != nil {
+			serialized = m.deps.SerializeCustomWidgetDataSource(ds)
+		}
+	}
+	if serialized == nil {
+		return fmt.Errorf("setting this kind of data source on %q (%s) is not supported by `set` — "+
+			"use `replace <widget> with …` instead, which rebuilds the widget through the CREATE PAGE path",
+			name, widgetTypeName(widget))
+	}
+	if !bsonnav.DSet(valDoc, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s): its data source property has no DataSource slot", name, widgetTypeName(widget))
+	}
 	return nil
 }
 
@@ -1323,6 +1364,12 @@ func widgetOwnDataSourceDoc(wDoc bson.D) bson.D {
 // property the widget's schema keys "datasource", and returns its DataSource
 // document.
 func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
+	return bsonnav.DGetDoc(pluggableDataSourceValue(widgetDoc), "DataSource")
+}
+
+// pluggableDataSourceValue returns the Value document of the CustomWidget
+// property its schema keys "datasource" — the one holding a DataSource key.
+func pluggableDataSourceValue(widgetDoc bson.D) bson.D {
 	obj := bsonnav.DGetDoc(widgetDoc, "Object")
 	if obj == nil {
 		return nil
@@ -1344,8 +1391,8 @@ func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
 		if valDoc == nil {
 			continue
 		}
-		if dsDoc := bsonnav.DGetDoc(valDoc, "DataSource"); dsDoc != nil {
-			return dsDoc
+		if hasKey(valDoc, "DataSource") {
+			return valDoc
 		}
 	}
 	return nil
