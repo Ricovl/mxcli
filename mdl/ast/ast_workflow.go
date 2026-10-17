@@ -109,6 +109,7 @@ type WorkflowUserTaskNode struct {
 	IsMultiUser     bool                        // Issue #8: true if MULTI USER TASK
 	BoundaryEvents  []WorkflowBoundaryEventNode // Issue #7
 	TaskDescription string                      // from DESCRIPTION 'text'
+	AutoAssign      bool                        // `auto assign single user` (AutoAssignSingleTargetUser)
 
 	// Multi-user task only.
 	Participants  *WorkflowParticipantsNode   // `participants …`; nil = all

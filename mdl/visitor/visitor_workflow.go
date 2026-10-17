@@ -704,6 +704,8 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		for _, beCtx := range c.AllWorkflowBoundaryEventClause() {
 			node.BoundaryEvents = append(node.BoundaryEvents, buildBoundaryEventNode(beCtx))
 		}
+	case c.AUTO() != nil:
+		node.AutoAssign = true
 	}
 }
 

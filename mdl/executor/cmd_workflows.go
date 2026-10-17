@@ -528,6 +528,10 @@ func formatUserTask(ctx *ExecContext, a *workflows.UserTask, indent string) []st
 			}
 		}
 	}
+	// Off is what a task gets without the clause, so only on is printed.
+	if a.AutoAssignSingleTargetUser {
+		lines = append(lines, indent+"  auto assign single user")
+	}
 
 	if a.OnCreated != "" {
 		lines = append(lines, fmt.Sprintf("%s  on created microflow %s", indent, a.OnCreated))
