@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`describe module` prints an entity's grants after the associations they name** (mendixlabs/mxcli#1409) — an entity's grant naming one of its associations was printed with the entity, ahead of the association, so replaying the output stopped with "entity ModA.EntA has no member(s) EntA_EntB", leaving the entity without its association or access. `check` passed the same script; it now reports a grant naming an association created further down the script, with the reorder.
 - **Workflow user tasks keep "Auto-assign when targeting results in one user"** (mendixlabs/mxcli#1547) — every single- and multi-user task was written with `AutoAssignSingleTargetUser = false`, MDL had no spelling for it and `describe workflow` did not print it, so `create or modify workflow` turned off a box ticked in Studio Pro. When the targeting then yielded one user, the task was not assigned to them and completing it from a microflow failed at runtime with "You can't complete this user task, it is not assigned to you"; `check` and `mx check` were silent. The new clause `auto assign single user` (on `user task` and `multi user task`) writes it, `describe` prints it when set, and a `create or modify` or `replace activity` that does not restate a stored one is refused, like `await all users`. Omitted, it is off, which is what Studio Pro 11.14 stores for a new task. The MCP backend sent `false` too and now sends the task's value.
 
 ## [0.27.0] - 2026-10-15

@@ -688,17 +688,23 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	run.emitKinds(moduleDocKindsBeforeDomainModel)
 
 	// Entities in dependency order (base entities before derived entities),
-	// then associations once every entity is defined.
+	// then associations once every entity is defined, then the entities'
+	// access rules — a grant names the associations its entity owns, and exec
+	// refuses one naming an association that does not exist yet
+	// (mendixlabs/mxcli#1409).
 	dm, err := ctx.Backend.GetDomainModel(targetModule.ID)
 	if err != nil {
 		run.fail("domain model "+moduleName, err)
 	} else if dm != nil {
-		for _, entity := range sortEntitiesByGeneralization(dm.Entities, moduleName) {
+		entities := sortEntitiesByGeneralization(dm.Entities, moduleName)
+		described := make([]*domainmodel.Entity, 0, len(entities))
+		for _, entity := range entities {
 			qn := ast.QualifiedName{Module: moduleName, Name: entity.Name}
-			if err := describeEntity(ctx, qn); err != nil {
+			if err := describeEntityWith(ctx, qn, false); err != nil {
 				run.fail("entity "+qn.String(), err)
 				continue
 			}
+			described = append(described, entity)
 			fmt.Fprintln(ctx.Output)
 		}
 		// Cross-module associations are stored in a separate collection but are
@@ -716,6 +722,13 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 				run.fail("association "+qn.String(), err)
 				continue
 			}
+			fmt.Fprintln(ctx.Output)
+		}
+		for _, entity := range described {
+			if len(entity.AccessRules) == 0 {
+				continue
+			}
+			outputEntityAccessGrants(ctx, entity, moduleName, entity.Name)
 			fmt.Fprintln(ctx.Output)
 		}
 	}

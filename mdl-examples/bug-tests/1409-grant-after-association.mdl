@@ -1,0 +1,43 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1409 — a grant naming an association member is refused when it
+-- precedes the association.
+--
+-- `describe module` printed each entity's grant with the entity, ahead of the
+-- associations, so replaying its output into a second app stopped with
+--
+--   Error: entity ModA.EntA has no member(s) EntA_EntB; grant only names
+--   members of the entity or of an entity it inherits from
+--
+-- after `check` had said "Check passed!". `describe module` now prints every
+-- grant after every association, and `check -p` reports a grant naming an
+-- association created further down ("… yet — the association is created later
+-- in this script; move the grant below that create statement").
+--
+--   mxcli exec this-file -p app.mpr
+--   mxcli -p app.mpr -c "describe module Issue1409 with all" > out.mdl
+--     before: the grant line comes before `create or modify association`
+--     after:  it comes after, and out.mdl replays into an app holding only
+--             the module and its role
+--
+-- This is the order describe now prints. Moving the grant above the
+-- `create association` is the reported shape: `check -p` refuses it.
+-- ============================================================================
+
+create module Issue1409;
+create module role Issue1409.Admin;
+
+@position(100, 100)
+create persistent entity Issue1409.EntA (
+  Name: string(50)
+);
+
+@position(360, 100)
+create persistent entity Issue1409.EntB (
+  Name: string(50)
+);
+
+create association Issue1409.EntA_EntB
+from Issue1409.EntA to Issue1409.EntB;
+
+grant read (Name, EntA_EntB), write (Name) on entity Issue1409.EntA to Issue1409.Admin;
