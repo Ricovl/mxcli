@@ -144,6 +144,18 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 		}
 	}
 
+	// "Auto-assign when targeting results in one user" on either task kind. Every
+	// rebuild wrote it off until `auto assign single user` existed (#1445), and an
+	// omitted clause still means off, so a stored `true` must be restated.
+	if stored, authored := rawAutoAssignTasks(raw), countAuthoredAutoAssign(authoredActs); len(stored) > authored {
+		return mdlerrors.NewUnsupported(fmt.Sprintf(
+			"workflow %s has %d user task(s) that auto-assign when targeting results in one user but this statement "+
+				"declares %d — rewriting it would turn auto-assign off for the difference:\n  - %s\n"+
+				"  Restate them (`auto assign single user`), which `describe workflow %s` now emits, or use ALTER "+
+				"WORKFLOW to change one activity at a time.",
+			qualifiedName, len(stored), authored, strings.Join(stored, "\n  - "), qualifiedName))
+	}
+
 	// Ends inside branches. MDL could not state one until `end workflow`, and
 	// describe dropped them, so a rewrite from an older describe output would
 	// delete every one — and a branch that ended the workflow would silently
@@ -392,7 +404,41 @@ func rawReplaceLosses(d map[string]any, replacement ast.WorkflowActivityNode) []
 	if rawAwaitsAllUsers(d) && (!isMulti || !mut.AwaitAllUsers) {
 		out = append(out, "it waits for all users, which the replacement does not restate (add `await all users`)")
 	}
+	if rawAutoAssigns(d) && (mut == nil || !mut.AutoAssign) {
+		out = append(out, "it auto-assigns when targeting results in one user, which the replacement does not restate (add `auto assign single user`)")
+	}
 	return out
+}
+
+func rawAutoAssigns(d map[string]any) bool {
+	on, _ := d["AutoAssignSingleTargetUser"].(bool)
+	return on
+}
+
+// rawAutoAssignTasks labels every stored user task, single or multi, that
+// auto-assigns when its targeting yields one user.
+func rawAutoAssignTasks(raw map[string]any) []string {
+	var out []string
+	walkRawDocs(raw, func(d map[string]any) {
+		switch t, _ := d["$Type"].(string); t {
+		case "Workflows$SingleUserTaskActivity", "Workflows$MultiUserTaskActivity", "Workflows$UserTask":
+			if rawAutoAssigns(d) {
+				name, _ := d["Name"].(string)
+				out = append(out, fmt.Sprintf("user task '%s' auto-assigns a single targeted user", name))
+			}
+		}
+	})
+	return out
+}
+
+func countAuthoredAutoAssign(activities []ast.WorkflowActivityNode) int {
+	n := 0
+	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
+		if t, ok := a.(*ast.WorkflowUserTaskNode); ok && t.AutoAssign {
+			n++
+		}
+	})
+	return n
 }
 
 // validateAlterReplaceKeepsStudioProState refuses REPLACE ACTIVITY on an activity

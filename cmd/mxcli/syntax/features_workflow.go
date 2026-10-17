@@ -114,7 +114,7 @@ func init() {
 		Path:    "workflow.user-task",
 		Summary: "User task activity — assigns work to users with outcomes",
 		Keywords: []string{
-			"user task", "human task", "assign", "assignee",
+			"user task", "human task", "assign", "assignee", "auto assign", "auto-assign",
 			"outcomes", "approve", "reject", "page",
 		},
 		// The task page's parameter rule is the platform's, not MDL's, and it was
@@ -125,6 +125,7 @@ func init() {
 		Syntax: "[MULTI] USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
 			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
+			"  [AUTO ASSIGN SINGLE USER]  -- assign the task when targeting yields exactly one user\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE <expression>]\n" +
@@ -134,6 +135,9 @@ func init() {
 			"-- stores one user source — so writing both is refused rather than\n" +
 			"-- letting the second silently win. OUTCOMES and BOUNDARY EVENT are\n" +
 			"-- list-valued and may repeat.\n\n" +
+			"-- AUTO ASSIGN SINGLE USER is Studio Pro's \"Auto-assign when targeting\n" +
+			"-- results in one user\". Omitted, it is off, as Studio Pro creates a task;\n" +
+			"-- CREATE OR MODIFY refuses to turn a stored one off unless restated.\n\n" +
 			"-- The task page is opened with the TASK, not with the workflow's context\n" +
 			"-- object, so it must take a System.WorkflowUserTask parameter:\n" +
 			"--   page with no parameters              -> CE7410\n" +
@@ -195,6 +199,7 @@ func init() {
 		Syntax: "MULTI USER TASK <name> '<caption>'\n" +
 			"  PAGE Module.TaskPage\n" +
 			"  [TARGETING [USERS | GROUPS] MICROFLOW Module.MF | TARGETING [USERS | GROUPS] XPATH [<xpath>]]\n" +
+			"  [AUTO ASSIGN SINGLE USER]  -- assign the task when targeting yields exactly one user\n" +
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE <expression>]\n" +

@@ -410,7 +410,7 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 	if a.Annotation != "" {
 		addPart(g, "Annotation", annotationElem(a.Annotation))
 	}
-	addBool(g, "AutoAssignSingleTargetUser", false)
+	addBool(g, "AutoAssignSingleTargetUser", a.AutoAssignSingleTargetUser)
 	if a.IsMulti {
 		addBool(g, "AwaitAllUsers", a.AwaitAllUsers)
 	}

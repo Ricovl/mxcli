@@ -503,6 +503,7 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 	task.DueDate = n.DueDate
 	task.TaskDescription = n.TaskDescription
 	task.IsMulti = n.IsMultiUser
+	task.AutoAssignSingleTargetUser = n.AutoAssign
 	if n.IsMultiUser {
 		task.AwaitAllUsers = n.AwaitAllUsers
 		task.TargetUserInput = buildTargetUserInput(n.Participants)
