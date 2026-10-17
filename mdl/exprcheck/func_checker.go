@@ -4,6 +4,7 @@ package exprcheck
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/exprcheck/hints"
 )
@@ -25,6 +26,29 @@ type funcSig struct {
 	// `abs($int)` and `max($int, 3)` into an Integer are accepted, `abs($dec)`
 	// and `max($int, 3.5)` are CE0117.
 	retFromArgs bool
+
+	// variadic lets the last parameter repeat: max/min take any number of
+	// operands from two up (`max($i, 1, 2, 3, 4)` builds at 0 errors).
+	variadic bool
+
+	// alts lists further kinds a parameter accepts beside args[i]. An index
+	// past the end of args falls on the last parameter, as variadic does.
+	alts map[int][]TypeKind
+
+	// unverified marks a row nobody has built against mxbuild. Its argument
+	// kinds are not trusted, so E005 never fires on it.
+	unverified bool
+}
+
+// accepts returns the kinds parameter i accepts.
+func (s funcSig) accepts(i int) []TypeKind {
+	if len(s.args) == 0 {
+		return nil
+	}
+	if i >= len(s.args) {
+		i = len(s.args) - 1
+	}
+	return append([]TypeKind{s.args[i]}, s.alts[i]...)
 }
 
 // retFor returns the result kind for a call with argc arguments.
@@ -58,9 +82,11 @@ var funcTable = map[string]funcSig{
 	"isMatch":    {args: []TypeKind{KindString, KindString}, ret: KindBoolean},
 
 	// String — transforms
-	"length":       {args: []TypeKind{KindString}, ret: KindInteger},
-	"find":         {args: []TypeKind{KindString, KindString}, ret: KindInteger},
-	"findLast":     {args: []TypeKind{KindString, KindString}, ret: KindInteger},
+	"length": {args: []TypeKind{KindString}, ret: KindInteger},
+	// find/findLast(text, fragment [, startIndex]) — the start index builds at
+	// 0 errors on 11.6.6 and 11.15.0 (mendixlabs/mxcli#1515).
+	"find":         {args: []TypeKind{KindString, KindString, KindInteger}, minArgs: 2, ret: KindInteger},
+	"findLast":     {args: []TypeKind{KindString, KindString, KindInteger}, minArgs: 2, ret: KindInteger},
 	"substring":    {args: []TypeKind{KindString, KindInteger, KindInteger}, minArgs: 2, ret: KindString},
 	"trim":         {args: []TypeKind{KindString}, ret: KindString},
 	"toUpperCase":  {args: []TypeKind{KindString}, ret: KindString},
@@ -79,10 +105,12 @@ var funcTable = map[string]funcSig{
 	// default overload: `parseBoolean($s, false)` is CE0117. All measured with
 	// mx check on 11.14.0 (mendixlabs/mxcli#1216).
 	"parseInteger": {args: []TypeKind{KindString, KindInteger}, minArgs: 1, ret: KindInteger},
-	"parseDecimal": {args: []TypeKind{KindString, KindString, KindDecimal}, minArgs: 1, ret: KindDecimal},
+	"parseDecimal": {args: []TypeKind{KindString, KindString, KindDecimal}, minArgs: 1, ret: KindDecimal, alts: map[int][]TypeKind{1: {KindDecimal}}},
 	"parseBoolean": {args: []TypeKind{KindString}, ret: KindBoolean},
-	// formatDecimal(value [, format [, languageTag]])  — format is optional
-	"formatDecimal": {args: []TypeKind{KindDecimal, KindString, KindString}, minArgs: 1, ret: KindString},
+	// formatDecimal(value, format [, languageTag]). The format is NOT
+	// optional: `formatDecimal($d)` is CE0117 on 11.6.6 and 11.15.0, as is a
+	// number in either String slot (mendixlabs/mxcli#1515).
+	"formatDecimal": {args: []TypeKind{KindDecimal, KindString, KindString}, minArgs: 2, ret: KindString},
 
 	// Math. The return kinds here are what Mendix actually accepts in an
 	// Integer/Long target, not what the expression documentation prints: floor,
@@ -93,14 +121,18 @@ var funcTable = map[string]funcSig{
 	// There is no `trunc`. It used to be treated as a rounding function here;
 	// Mendix has no such built-in and `trunc($d)` fails the build with CE0117, so
 	// MDL044 flagging it is correct and adding it to this table would be wrong.
-	"abs":    {args: []TypeKind{KindDecimal}, ret: KindDecimal, retFromArgs: true},
-	"round":  {args: []TypeKind{KindDecimal, KindInteger}, minArgs: 1, ret: KindDecimal, retByArity: map[int]TypeKind{1: KindInteger}},
-	"floor":  {args: []TypeKind{KindDecimal}, ret: KindInteger},
-	"ceil":   {args: []TypeKind{KindDecimal}, ret: KindInteger},
-	"pow":    {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal},
-	"sqrt":   {args: []TypeKind{KindDecimal}, ret: KindDecimal},
-	"max":    {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal, retFromArgs: true},
-	"min":    {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal, retFromArgs: true},
+	"abs":   {args: []TypeKind{KindDecimal}, ret: KindDecimal, retFromArgs: true},
+	"round": {args: []TypeKind{KindDecimal, KindInteger}, minArgs: 1, ret: KindDecimal, retByArity: map[int]TypeKind{1: KindInteger}},
+	"floor": {args: []TypeKind{KindDecimal}, ret: KindInteger},
+	"ceil":  {args: []TypeKind{KindDecimal}, ret: KindInteger},
+	"pow":   {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal},
+	"sqrt":  {args: []TypeKind{KindDecimal}, ret: KindDecimal},
+	// max/min take two or more operands, numbers or DateTimes (`max($dt, $dt)`
+	// and `min(1, 2.5, $l)` build at 0 errors on 11.6.6 and 11.15.0; a String
+	// or Boolean operand is CE0117). A single-argument max/min is not this
+	// function at all: the visitor reads it as the MAXIMUM/MINIMUM aggregate.
+	"max":    {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal, retFromArgs: true, variadic: true, alts: map[int][]TypeKind{0: {KindDateTime}, 1: {KindDateTime}}},
+	"min":    {args: []TypeKind{KindDecimal, KindDecimal}, ret: KindDecimal, retFromArgs: true, variadic: true, alts: map[int][]TypeKind{0: {KindDateTime}, 1: {KindDateTime}}},
 	"random": {args: []TypeKind{}, ret: KindDecimal},
 
 	// Enumerations
@@ -120,9 +152,11 @@ var funcTable = map[string]funcSig{
 
 	// DateTime — construction. There is no currentDateTime(): the current time
 	// is the [%CurrentDateTime%] token (see tokenFuncs in unknown_funcs.go).
-	// dateTime/dateTimeUTC(year, month, day [, hour, minute, second]) — 3 or 6 args
-	"dateTime":    {args: []TypeKind{KindInteger, KindInteger, KindInteger, KindInteger, KindInteger, KindInteger}, minArgs: 3, ret: KindDateTime},
-	"dateTimeUTC": {args: []TypeKind{KindInteger, KindInteger, KindInteger, KindInteger, KindInteger, KindInteger}, minArgs: 3, ret: KindDateTime},
+	// dateTime/dateTimeUTC(year [, month, day, hour, minute, second]): every
+	// count from 1 to 6 builds at 0 errors on 11.6.6 and 11.15.0
+	// (mendixlabs/mxcli#1515).
+	"dateTime":    {args: []TypeKind{KindInteger, KindInteger, KindInteger, KindInteger, KindInteger, KindInteger}, minArgs: 1, ret: KindDateTime},
+	"dateTimeUTC": {args: []TypeKind{KindInteger, KindInteger, KindInteger, KindInteger, KindInteger, KindInteger}, minArgs: 1, ret: KindDateTime},
 
 	// DateTime — add (local calendar)
 	"addMilliseconds": {args: []TypeKind{KindDateTime, KindInteger}, ret: KindDateTime},
@@ -201,7 +235,9 @@ var funcTable = map[string]funcSig{
 	"trimToYearsUTC":  {args: []TypeKind{KindDateTime}, ret: KindDateTime},
 
 	// DateTime — formatting / parsing (local calendar)
-	"formatDateTime": {args: []TypeKind{KindDateTime, KindString}, ret: KindString},
+	// The format is optional for all three (1 argument builds at 0 errors on
+	// 11.6.6 and 11.15.0; a third is CE0117).
+	"formatDateTime": {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	"formatTime":     {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	"formatDate":     {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	// parseDateTime/parseDateTimeUTC(value, format [, default]) — the default is
@@ -210,7 +246,7 @@ var funcTable = map[string]funcSig{
 	"parseDateTime": {args: []TypeKind{KindString, KindString, KindDateTime}, minArgs: 2, ret: KindDateTime},
 
 	// DateTime — formatting / parsing (UTC calendar)
-	"formatDateTimeUTC": {args: []TypeKind{KindDateTime, KindString}, ret: KindString},
+	"formatDateTimeUTC": {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	"formatTimeUTC":     {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	"formatDateUTC":     {args: []TypeKind{KindDateTime, KindString}, minArgs: 1, ret: KindString},
 	"parseDateTimeUTC":  {args: []TypeKind{KindString, KindString, KindDateTime}, minArgs: 2, ret: KindDateTime},
@@ -226,42 +262,49 @@ var funcTable = map[string]funcSig{
 	// (`parseInteger(formatDateTime($d, 'yyyy'))`). The sibling extraction names
 	// below are UNVERIFIED against a real Mendix build and are likely invalid too;
 	// remove any that a build rejects (do not add more without confirming against
-	// Studio Pro — this whole family looks speculative).
-	"dayOfYear":   {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"dayOfMonth":  {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"weekOfYear":  {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"dayOfWeek":   {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"hour":        {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"minute":      {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"second":      {args: []TypeKind{KindDateTime}, ret: KindInteger},
-	"millisecond": {args: []TypeKind{KindDateTime}, ret: KindInteger},
+	// Studio Pro — this whole family looks speculative). Measured since: every
+	// row below, dateTimeToDate included, is CE0117 on 11.6.6 and 11.15.0 with
+	// a DateTime argument (mendixlabs/mxcli#1515), so these are not built-ins.
+	// Removing them turns them into MDL044 errors, a change of its own; until
+	// then they are marked unverified and E005 stays off them.
+	"dayOfYear":   {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"dayOfMonth":  {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"weekOfYear":  {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"dayOfWeek":   {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"hour":        {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"minute":      {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"second":      {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
+	"millisecond": {args: []TypeKind{KindDateTime}, ret: KindInteger, unverified: true},
 
 	// DateTime — extraction (legacy alias)
-	"dateTimeToDate": {args: []TypeKind{KindDateTime}, ret: KindDateTime},
+	"dateTimeToDate": {args: []TypeKind{KindDateTime}, ret: KindDateTime, unverified: true},
 }
 
-// checkCallExpr returns hints for arity / arg-type mismatches against
-// the built-in function signature table. User-defined microflow calls
-// (CallExpr.Name containing a dot) are not checked here — they require
-// catalog lookup.
+// checkCallExpr returns hints for arity (E006) and argument-kind (E005)
+// mismatches against the built-in function signature table. User-defined
+// microflow calls (CallExpr.Name containing a dot) are not checked here — they
+// require catalog lookup.
 func checkCallExpr(c *CallExpr, ctx Context) []Hint {
 	sig, ok := funcTable[c.Name]
 	if !ok {
 		return nil
 	}
-	var out []Hint
 	got := len(c.Args)
 	minA, maxA := sig.min(), len(sig.args)
-	if got < minA || got > maxA {
+	if got < minA || (!sig.variadic && got > maxA) {
 		var expectStr, fixStr string
-		if minA == maxA {
+		switch {
+		case sig.variadic:
+			expectStr = fmt.Sprintf("at least %d", minA)
+			fixStr = fmt.Sprintf("Provide at least %d argument(s) for %s().", minA, c.Name)
+		case minA == maxA:
 			expectStr = fmt.Sprintf("%d", maxA)
 			fixStr = fmt.Sprintf("Provide %d argument(s) for %s().", maxA, c.Name)
-		} else {
+		default:
 			expectStr = fmt.Sprintf("%d to %d", minA, maxA)
 			fixStr = fmt.Sprintf("Provide %d to %d argument(s) for %s().", minA, maxA, c.Name)
 		}
-		out = append(out, Hint{
+		return []Hint{{
 			Code: "E006", Slug: "func-arg-arity",
 			Severity: hints.SeverityError,
 			Where: hints.Location{
@@ -277,9 +320,124 @@ func checkCallExpr(c *CallExpr, ctx Context) []Hint {
 				FunctionReturns: typeKindName(sig.ret),
 				FunctionArgs:    typeKindNames(sig.args),
 			},
+		}}
+	}
+	if sig.unverified {
+		return nil
+	}
+	var out []Hint
+	for i, a := range c.Args {
+		k := argKind(a, ctx)
+		want := sig.accepts(i)
+		if argAccepted(want, k) {
+			continue
+		}
+		wantStr := kindList(want)
+		out = append(out, Hint{
+			Code: "E005", Slug: "func-arg-type",
+			Severity: hints.SeverityError,
+			Where: hints.Location{
+				File: ctx.File, Line: a.Pos().Line, Column: a.Pos().Column,
+				Microflow: ctx.Microflow,
+				Context:   fmt.Sprintf("argument %d of %s()", i+1, c.Name),
+			},
+			YouWrote: fmt.Sprintf("%s(...) with a %s as argument %d", c.Name, typeKindName(k), i+1),
+			Problem: fmt.Sprintf("%s() argument %d must be %s, but this expression is %s — "+
+				"the build fails CE0117 \"Error(s) in expression\".", c.Name, i+1, wantStr, withArticle(typeKindName(k))),
+			Fix: argFix(want, k),
+			Reference: &hints.Reference{
+				FunctionName:    c.Name,
+				FunctionReturns: typeKindName(sig.ret),
+				FunctionArgs:    typeKindNames(sig.args),
+			},
 		})
 	}
 	return out
+}
+
+// argKind is the kind of a call argument as far as E005 is concerned.
+//
+// A [%Token%] is the one place inferKind is too coarse: it calls every token a
+// String, while [%CurrentDateTime%] and the [%BeginOf…%]/[%EndOf…%] family are
+// DateTimes and [%CurrentUser%] is an object. Rather than change what every
+// other rule sees, the argument check types the date tokens and tolerates the
+// rest.
+func argKind(e RobustExpr, ctx Context) TypeKind {
+	if t, ok := unwrapParens(e).(*TokenExpr); ok {
+		name := strings.TrimSuffix(t.Token, "UTC")
+		if name == "CurrentDateTime" || strings.HasPrefix(name, "BeginOf") || strings.HasPrefix(name, "EndOf") {
+			return KindDateTime
+		}
+		return KindUnknown
+	}
+	return inferKind(e, ctx)
+}
+
+// argAccepted reports whether an argument of kind got may stand where one of
+// want is expected. It only refuses what it can prove: an argument of unknown
+// kind, `empty`, an enumeration, an object, a list or a binary is never
+// refused, nor is a parameter typed Any.
+//
+// Numbers follow what mxbuild does, measured on 11.6.6 and 11.15.0
+// (mendixlabs/mxcli#1515): Integer and Long are interchangeable and both widen
+// to Decimal, but a Decimal where an Integer or Long is expected is CE0117 —
+// `addDays($dt, 1.5)`, `substring($s, $d)`, `round($d, $d)`.
+func argAccepted(want []TypeKind, got TypeKind) bool {
+	switch got {
+	case KindBoolean, KindString, KindInteger, KindLong, KindDecimal, KindDateTime:
+	default:
+		return true
+	}
+	if len(want) == 0 {
+		return true
+	}
+	for _, w := range want {
+		switch {
+		case w == KindAny || w == KindUnknown || w == got:
+			return true
+		case w == KindDecimal && (got == KindInteger || got == KindLong):
+			return true
+		case (w == KindInteger || w == KindLong) && (got == KindInteger || got == KindLong):
+			return true
+		case w != KindBoolean && w != KindString && w != KindInteger &&
+			w != KindLong && w != KindDecimal && w != KindDateTime:
+			// A parameter of a kind this check does not model (Enumeration,
+			// Object, …): nothing to compare against.
+			return true
+		}
+	}
+	return false
+}
+
+func kindList(ks []TypeKind) string {
+	names := typeKindNames(ks)
+	for i, n := range names {
+		names[i] = withArticle(n)
+	}
+	return strings.Join(names, " or ")
+}
+
+func withArticle(name string) string {
+	if name != "" && strings.ContainsRune("AEIOU", rune(name[0])) {
+		return "an " + name
+	}
+	return "a " + name
+}
+
+func argFix(want []TypeKind, got TypeKind) string {
+	for _, w := range want {
+		switch {
+		case w == KindString:
+			return "Pass a String: quote a literal, or convert the value with toString()."
+		case (w == KindInteger || w == KindLong) && got == KindDecimal:
+			return "Pass a whole number: round the value with round(), floor() or ceil()."
+		case w == KindInteger || w == KindLong || w == KindDecimal:
+			return "Pass a number: write a numeric literal, or convert text with parseInteger()/parseDecimal()."
+		case w == KindDateTime:
+			return "Pass a DateTime: a DateTime variable, [%CurrentDateTime%], or parseDateTime() for text."
+		}
+	}
+	return "Pass an argument of the kind the function's signature lists."
 }
 
 func typeKindName(k TypeKind) string {
@@ -328,7 +486,9 @@ func KindName(k TypeKind) string { return typeKindName(k) }
 type PublicFuncSig struct {
 	Args    []string
 	MinArgs int // 0 means all Args are required
-	Returns string
+	// Variadic means the last of Args may repeat: there is no maximum.
+	Variadic bool
+	Returns  string
 }
 
 // PublicFuncTable returns a JSON-friendly view of the built-in function
@@ -337,9 +497,10 @@ func PublicFuncTable() map[string]PublicFuncSig {
 	out := make(map[string]PublicFuncSig, len(funcTable))
 	for k, v := range funcTable {
 		out[k] = PublicFuncSig{
-			Args:    typeKindNames(v.args),
-			MinArgs: v.minArgs,
-			Returns: typeKindName(v.ret),
+			Args:     typeKindNames(v.args),
+			MinArgs:  v.minArgs,
+			Variadic: v.variadic,
+			Returns:  typeKindName(v.ret),
 		}
 	}
 	return out

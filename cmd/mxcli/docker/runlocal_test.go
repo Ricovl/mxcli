@@ -645,3 +645,58 @@ func TestDBConfig_IsFileBased(t *testing.T) {
 		t.Error("the check must use the runtime spelling set by applyDatabaseDefaults, not the raw flag")
 	}
 }
+
+// run --local must boot with scheduled events running (mendixlabs/mxcli#1528):
+// the runtime's own default for ScheduledEventExecution is NONE, so a dev loop
+// that never sets it silently never fires a scheduled event.
+func TestRunLocalScheduledEventsDefault(t *testing.T) {
+	// Nothing requested → ALL is added, and it reaches the boot payload.
+	s, val, defaulted := withScheduledEventsDefault(nil)
+	if !defaulted || val != "ALL" {
+		t.Fatalf("got value %q defaulted=%v, want ALL defaulted", val, defaulted)
+	}
+	params := runtimeConfigParams(LocalRuntimeOptions{RuntimeSettings: s}, nil)
+	if params["ScheduledEventExecution"] != "ALL" {
+		t.Errorf("boot payload ScheduledEventExecution = %v, want ALL", params["ScheduledEventExecution"])
+	}
+
+	// Other settings are kept alongside the default.
+	in, _ := buildRuntimeSettings(true, false, nil)
+	s, _, _ = withScheduledEventsDefault(in)
+	if s["Metrics.Registries"] == nil || s["ScheduledEventExecution"] != "ALL" {
+		t.Errorf("want metrics registry kept and ALL added, got %v", s)
+	}
+
+	// An explicit --runtime-setting wins.
+	in, _ = buildRuntimeSettings(false, false, []string{"ScheduledEventExecution=NONE"})
+	s, val, defaulted = withScheduledEventsDefault(in)
+	if defaulted || val != "NONE" || s["ScheduledEventExecution"] != "NONE" {
+		t.Errorf("explicit NONE must win, got value %q defaulted=%v settings %v", val, defaulted, s)
+	}
+	params = runtimeConfigParams(LocalRuntimeOptions{RuntimeSettings: s}, nil)
+	if params["ScheduledEventExecution"] != "NONE" {
+		t.Errorf("boot payload ScheduledEventExecution = %v, want NONE", params["ScheduledEventExecution"])
+	}
+}
+
+// The shared boot payload (also used by the test runner) must not grow the
+// default: only RunLocal opts in, so test runs stay deterministic.
+func TestRuntimeConfigParamsHasNoScheduledEventsDefault(t *testing.T) {
+	params := runtimeConfigParams(LocalRuntimeOptions{}, nil)
+	if _, ok := params["ScheduledEventExecution"]; ok {
+		t.Errorf("runtimeConfigParams must not set ScheduledEventExecution itself, got %v", params["ScheduledEventExecution"])
+	}
+}
+
+func TestScheduledEventsLine(t *testing.T) {
+	got := scheduledEventsLine("ALL", true, 3)
+	for _, want := range []string{"Scheduled events: ALL", "3 defined", "--runtime-setting ScheduledEventExecution=NONE"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("line %q missing %q", got, want)
+		}
+	}
+	got = scheduledEventsLine("NONE", false, -1)
+	if !strings.Contains(got, "Scheduled events: NONE") || strings.Contains(got, "defined") {
+		t.Errorf("explicit NONE with unknown count: %q", got)
+	}
+}

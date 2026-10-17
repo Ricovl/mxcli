@@ -104,6 +104,7 @@ type flowParam struct {
 	Name   string
 	Entity string // entity qualified name, "" when unknown or not an object
 	Object bool   // takes an object or a list of objects
+	List   bool   // takes a list (Object is then true too)
 }
 
 // flowSignature is a flow's parameters plus the entity it returns — the return
@@ -602,9 +603,18 @@ func sdkFlowSignature(params []*microflows.MicroflowParameter, ret microflows.Da
 			Name:   p.Name,
 			Entity: entity,
 			Object: entity != "",
+			List:   isSDKListType(p.Type),
 		})
 	}
 	return sig
+}
+
+func isSDKListType(dt microflows.DataType) bool {
+	switch dt.(type) {
+	case *microflows.ListType, microflows.ListType:
+		return true
+	}
+	return false
 }
 
 // sdkDataTypeEntity returns the entity qualified name behind an object or list
@@ -637,6 +647,7 @@ func astFlowSignature(params []ast.MicroflowParam, ret *ast.MicroflowReturnType)
 			Name:   p.Name,
 			Entity: entity,
 			Object: entity != "",
+			List:   p.Type.Kind == ast.TypeListOf,
 		})
 	}
 	return sig

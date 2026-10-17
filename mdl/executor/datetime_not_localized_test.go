@@ -219,3 +219,42 @@ func TestCreateViewEntity_StatedLocalizeWinsOverDerived(t *testing.T) {
 		}
 	}
 }
+
+// An unstated `localized` keeps a stored `not localized` (#743, #1373) — a rule
+// the user cannot see from the statement, so a script that meant Studio Pro's
+// default silently left the attribute in UTC (mendixlabs/mxcli#1521). The
+// carry stays; a note names the attribute and the spelling that changes it.
+func TestLocalizeCarry_NotesKeptNotLocalized(t *testing.T) {
+	const note = "keeps its stored `not localized`"
+	cases := []struct {
+		name, src string
+		wantNote  bool
+	}{
+		{"create or modify, unstated, stored not localized", "create or modify persistent entity Shop.Person (BirthDate: DateTime, CreatedAt: DateTime);", true},
+		{"alter modify, unstated, stored not localized", "alter entity Shop.Person modify attribute BirthDate: DateTime;", true},
+		{"create or modify, stated localized", "create or modify persistent entity Shop.Person (BirthDate: DateTime localized, CreatedAt: DateTime);", false},
+		{"create or modify, stated not localized", "create or modify persistent entity Shop.Person (BirthDate: DateTime not localized, CreatedAt: DateTime);", false},
+		{"alter modify, stated localized", "alter entity Shop.Person modify attribute BirthDate: DateTime localized;", false},
+		{"alter modify, unstated, stored localized", "alter entity Shop.Person modify attribute CreatedAt: DateTime;", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newNotLocalizedFixture(t)
+			f.exec(t, c.src)
+			out := f.out.String()
+			if got := strings.Contains(out, note); got != c.wantNote {
+				t.Fatalf("note present = %v, want %v\noutput:\n%s", got, c.wantNote, out)
+			}
+			if c.wantNote {
+				for _, want := range []string{"BirthDate", "DateTime localized"} {
+					if !strings.Contains(out, want) {
+						t.Errorf("note missing %q:\n%s", want, out)
+					}
+				}
+				if strings.Contains(out, "CreatedAt") && strings.Contains(out, "CreatedAt keeps") {
+					t.Errorf("a stored-localized attribute must not be noted:\n%s", out)
+				}
+			}
+		})
+	}
+}

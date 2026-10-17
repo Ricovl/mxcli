@@ -74,30 +74,27 @@ const retrieveListAsObjectRule = "MDL-RETRIEVE03"
 // through the list type, and mxbuild answered CE1613 "The selected attribute
 // 'List of Module.Entity.Attr' no longer exists" (mendixlabs/mxcli#1422).
 //
-// Only a database retrieve is judged: a retrieve over an association binds an
-// object or a list depending on the association, which this AST walk does not
-// know. A member path `$E/Attr` in any expression of a later statement is the
-// same mistake (CE0117 "Error(s) in expression.", measured on 11.6.6). `set $E
-// = empty` over the list is a Change list Replace and builds (measured), so it
-// is not flagged.
+// Only a database retrieve is judged here: a retrieve over an association binds
+// an object or a list depending on the association's type and owner and on
+// which end the start variable is, which needs the project. check --references
+// judges those with the same walk (validateAssociationRetrieveListUse,
+// mendixlabs/mxcli#1516). A member path `$E/Attr` in any expression of a later
+// statement is the same mistake (CE0117 "Error(s) in expression.", measured on
+// 11.6.6). `set $E = empty` over the list is a Change list Replace and builds
+// (measured), so it is not flagged.
 func (v *microflowValidator) checkRetrieveListAsObject(body []ast.MicroflowStatement) {
 	list := map[string]bool{}
-	forEachMicroflowStatement(body, func(s ast.MicroflowStatement) {
-		if c, ok := s.(*ast.ChangeObjectStmt); ok && list[c.Variable] {
-			v.addViolation(retrieveListAsObjectRule, linter.SeverityError,
-				fmt.Sprintf("$%s was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), "+
-					"not a single object, so `change $%s` cannot take it — mxbuild rejects the stored member "+
-					"with CE1613 \"The selected attribute 'List of …' no longer exists\".", c.Variable, c.Variable),
-				fmt.Sprintf("Retrieve the object with `retrieve $%s from … first;`, or keep the list and "+
-					"change its items inside a `loop`.", c.Variable))
-		}
-		reported := map[string]bool{}
-		for _, e := range statementOwnExpressions(s) {
-			for _, name := range predicatePathVariables(e) {
-				if !list[name] || reported[name] {
-					continue
-				}
-				reported[name] = true
+	walkListObjectUses(body, func(name string) bool { return list[name] },
+		func(_ ast.MicroflowStatement, name string, use listObjectUse) {
+			switch use {
+			case listUseChange:
+				v.addViolation(retrieveListAsObjectRule, linter.SeverityError,
+					fmt.Sprintf("$%s was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), "+
+						"not a single object, so `change $%s` cannot take it — mxbuild rejects the stored member "+
+						"with CE1613 \"The selected attribute 'List of …' no longer exists\".", name, name),
+					fmt.Sprintf("Retrieve the object with `retrieve $%s from … first;`, or keep the list and "+
+						"change its items inside a `loop`.", name))
+			case listUseMemberPath:
 				v.addViolation(retrieveListAsObjectRule, linter.SeverityError,
 					fmt.Sprintf("$%s was retrieved as a list (under `mdl 1;` `limit 1` is a list of one), "+
 						"not a single object, so a member path `$%s/…` has nothing to navigate — mxbuild "+
@@ -105,13 +102,54 @@ func (v *microflowValidator) checkRetrieveListAsObject(body []ast.MicroflowState
 					fmt.Sprintf("Retrieve the object with `retrieve $%s from … first;`, or take one item "+
 						"of the list first (`$item = head($%s);`).", name, name))
 			}
+		},
+		nil,
+		func(s ast.MicroflowStatement) {
+			for _, p := range statementProducedVars(s) {
+				delete(list, p.name)
+			}
+			if r, ok := s.(*ast.RetrieveStmt); ok && !r.First && r.StartVariable == "" && r.Variable != "" {
+				list[r.Variable] = true
+			}
+		})
+}
+
+// listObjectUse is how a statement takes a list variable as one object.
+type listObjectUse int
+
+const (
+	listUseChange     listObjectUse = iota // `change $L (…)`
+	listUseMemberPath                      // `$L/Attr` in one of the statement's expressions
+)
+
+// walkListObjectUses is the walk MDL-RETRIEVE03 runs, with and without a
+// project. In statement order (nested bodies included) it reports each `change`
+// of, and each member path through, a variable isList says holds a list — at
+// most one member-path report per variable per statement. other, when set, runs
+// next for checks the caller adds, and rebind last, so a statement that both
+// consumes and produces a name is judged on what it consumed.
+func walkListObjectUses(body []ast.MicroflowStatement, isList func(string) bool,
+	use func(ast.MicroflowStatement, string, listObjectUse),
+	other func(ast.MicroflowStatement), rebind func(ast.MicroflowStatement)) {
+
+	forEachMicroflowStatement(body, func(s ast.MicroflowStatement) {
+		if c, ok := s.(*ast.ChangeObjectStmt); ok && isList(c.Variable) {
+			use(s, c.Variable, listUseChange)
 		}
-		for _, p := range statementProducedVars(s) {
-			delete(list, p.name)
+		reported := map[string]bool{}
+		for _, e := range statementOwnExpressions(s) {
+			for _, name := range predicatePathVariables(e) {
+				if !isList(name) || reported[name] {
+					continue
+				}
+				reported[name] = true
+				use(s, name, listUseMemberPath)
+			}
 		}
-		if r, ok := s.(*ast.RetrieveStmt); ok && !r.First && r.StartVariable == "" && r.Variable != "" {
-			list[r.Variable] = true
+		if other != nil {
+			other(s)
 		}
+		rebind(s)
 	})
 }
 

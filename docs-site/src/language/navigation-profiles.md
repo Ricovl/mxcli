@@ -19,7 +19,11 @@ does not have it yet. The offline kinds are the online names plus `Offline`.
 
 ## CREATE OR REPLACE NAVIGATION
 
-Replaces an entire navigation profile:
+Sets the clauses it states on a navigation profile. Every clause is optional,
+and an omitted clause keeps the stored value: a statement with only a menu
+keeps the home page, role home pages, login page and not-found page. The
+`{ }` block replaces the whole menu, and `HOME … FOR <UserRole>` replaces the
+home page of that role only.
 
 ```sql
 CREATE OR REPLACE NAVIGATION <Profile>

@@ -347,6 +347,24 @@ func resolveAlterPageUnit(ctx *ExecContext, s *ast.AlterPageStmt, h *ContainerHi
 // ============================================================================
 
 func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.SetPropertyOp, moduleName string, moduleID model.ID) error {
+	if err := applySetProperties(ctx, mutator, op, moduleName, moduleID); err != nil {
+		return err
+	}
+	if op.Target.IsColumn() {
+		names := make([]string, 0, len(op.Properties))
+		for k := range op.Properties {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		return resetHiddenColumnProperties(ctx, mutator, op.Target, names)
+	}
+	return nil
+}
+
+// applySetProperties writes each property of a SET, without the column
+// follow-up — what check's per-property dry run exercises, since a column's
+// hidden-property rules can only be judged on the statement as a whole.
+func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.SetPropertyOp, moduleName string, moduleID model.ID) error {
 	// Sort property names for deterministic application order.
 	propNames := make([]string, 0, len(op.Properties))
 	for k := range op.Properties {
@@ -420,6 +438,27 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		}
+	}
+	return nil
+}
+
+// resetHiddenColumnProperties puts every column property the Data grid 2 now
+// hides back at its declared default, once the statement's own values are in.
+// `set (ColumnWidth: autoFill)` after a manual width left `size` at 220, which
+// the widget hides unless the width is manual: CE0463 (mendixlabs/mxcli#1519).
+// The rules are the installed package's editorConfig — which property depends
+// on which is the widget's to say, not a list kept here.
+func resetHiddenColumnProperties(ctx *ExecContext, mutator backend.PageMutator, target ast.WidgetRef, setProps []string) error {
+	resetter, ok := mutator.(backend.ColumnHiddenPropertyResetter)
+	if !ok {
+		return nil
+	}
+	rules := resolveWidgetVisibilityRules(ctx.MprPath, pages.WidgetIDDataGrid2)
+	if len(rules) == 0 {
+		return nil
+	}
+	if _, err := resetter.ResetHiddenColumnProperties(target.Widget, columnRefOf(target), rules, setProps); err != nil {
+		return mdlerrors.NewBackend("set on "+target.Name(), err)
 	}
 	return nil
 }

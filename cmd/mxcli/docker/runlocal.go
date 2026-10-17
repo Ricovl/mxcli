@@ -295,6 +295,54 @@ func buildRuntimeSettings(metrics, trace bool, raw []string) (map[string]any, er
 	return out, nil
 }
 
+// scheduledEventExecutionKey is the runtime setting that decides which
+// scheduled events run. The runtime's own default is NONE.
+const scheduledEventExecutionKey = "ScheduledEventExecution"
+
+// withScheduledEventsDefault makes run --local boot with scheduled events
+// running (mendixlabs/mxcli#1528). Without it the runtime default NONE applies
+// and an app's scheduled events silently never fire; the only trace is a
+// "Synchronizing scheduled events: None" runtime log line. An explicit
+// --runtime-setting ScheduledEventExecution=... wins. It returns the settings,
+// the effective value, and whether the default was applied.
+//
+// Only RunLocal calls this: the test runner (StartLocalApp) keeps the runtime
+// default so a scheduled event cannot fire in the middle of a test run.
+func withScheduledEventsDefault(settings map[string]any) (map[string]any, string, bool) {
+	if v, ok := settings[scheduledEventExecutionKey]; ok {
+		return settings, fmt.Sprint(v), false
+	}
+	if settings == nil {
+		settings = map[string]any{}
+	}
+	settings[scheduledEventExecutionKey] = "ALL"
+	return settings, "ALL", true
+}
+
+// scheduledEventsLine is the start-summary line naming the scheduled-event
+// setting. count < 0 means the count is unknown and is left out.
+func scheduledEventsLine(value string, defaulted bool, count int) string {
+	line := "Scheduled events: " + value
+	if count >= 0 {
+		line += fmt.Sprintf(" (%d defined)", count)
+	}
+	if defaulted {
+		line += " — override with --runtime-setting ScheduledEventExecution=NONE"
+	} else {
+		line += " (from --runtime-setting)"
+	}
+	return line
+}
+
+// countScheduledEvents counts the model's scheduled events; -1 when unreadable.
+func countScheduledEvents(reader backend.FullBackend) int {
+	events, err := reader.ListScheduledEvents()
+	if err != nil {
+		return -1
+	}
+	return len(events)
+}
+
 // parseRuntimeSetting splits "Key=Value"; Value is parsed as JSON when possible
 // (so arrays/objects/numbers/bools pass through typed), else kept as a string.
 func parseRuntimeSetting(s string) (string, any, error) {
@@ -649,6 +697,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// separate step; collect them here so the boot can vendor any that are
 	// missing (mxcli-formula1 findings #12).
 	declaredJars := declaredJarDependencies(reader)
+	scheduledEventCount := countScheduledEvents(reader)
 	reader.Disconnect()
 	version := pv.ProductVersion
 	fmt.Fprintf(w, "  Mendix version: %s\n", version)
@@ -816,6 +865,8 @@ func RunLocal(opts LocalRunOptions) error {
 	if err != nil {
 		return err
 	}
+	runtimeSettings, schedValue, schedDefaulted := withScheduledEventsDefault(runtimeSettings)
+	fmt.Fprintln(w, scheduledEventsLine(schedValue, schedDefaulted, scheduledEventCount))
 	warnWildcardWithoutRootURL(stderr, opts.ListenAddr, opts.AppPort, appRootURL, runtimeSettings)
 	traceService := opts.TraceService
 	if opts.Trace && traceService == "" {

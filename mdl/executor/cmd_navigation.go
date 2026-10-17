@@ -15,7 +15,9 @@ import (
 )
 
 // execAlterNavigation handles CREATE [OR REPLACE] NAVIGATION <profile> command.
-// It fully replaces the profile's home pages, login page, not-found page, and menu tree.
+// A clause the statement states replaces what it names; an omitted clause keeps
+// the stored value (mendixlabs/mxcli#1522) -- the writer's rule, see
+// navPatchWebProfile.
 func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()

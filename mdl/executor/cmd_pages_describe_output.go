@@ -1203,6 +1203,12 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	}
 	if col.Caption != "" {
 		props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, col.Caption)))
+	} else if col.Attribute == "" {
+		// An untitled actions column (mendixlabs/mxcli#1520): say the empty
+		// header outright rather than leave the column with no identifying
+		// property. The writer stores `Caption: ''` as the empty template
+		// Studio Pro writes — the shape that was read here.
+		props = append(props, "Caption: ''")
 	}
 	if len(col.CaptionParams) > 0 {
 		props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(col.CaptionParams), ", ")))

@@ -13,15 +13,15 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 | 31-40 | When to Use This Skill |
 | 41-59 | Navigation Concepts |
 | 60-77 | Show Commands (Read-Only) |
-| 78-358 | CREATE OR MODIFY NAVIGATION (Full Replacement) |
-| 359-380 | Round-Trip Workflow |
-| 381-402 | Catalog Queries |
-| 403-452 | Common Patterns |
-| 453-504 | Menu Documents (standalone, reusable) |
-| 505-575 | Offline Profiles |
-| 576-590 | Checklist |
-| 591-594 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
-| 595-597 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
+| 78-359 | CREATE OR MODIFY NAVIGATION |
+| 360-381 | Round-Trip Workflow |
+| 382-403 | Catalog Queries |
+| 404-453 | Common Patterns |
+| 454-505 | Menu Documents (standalone, reusable) |
+| 506-576 | Offline Profiles |
+| 577-591 | Checklist |
+| 592-595 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
+| 596-598 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
 
 <!-- /skill-index -->
 # Navigation Management Skill
@@ -75,9 +75,9 @@ list navigation menu;             -- all profiles
 list navigation homes;
 ```
 
-## CREATE OR MODIFY NAVIGATION (Full Replacement)
+## CREATE OR MODIFY NAVIGATION
 
-This command fully replaces a navigation profile's configuration. All clauses are optional — omitted clauses clear that section. The output from `describe navigation` can be pasted back directly.
+All clauses are optional, and **an omitted clause keeps the stored value** — a statement with only a `{ … }` menu keeps the home page, role home pages, login page and not-found page (mendixlabs/mxcli#1522; before that fix they were cleared, and the missing home page failed the build with CE0527). A stated clause replaces what it names: `{ … }` the whole menu, `sync ( … )` the whole list, `home page X for R` role R's home page only. There is no clause that clears a home, login or not-found page. The output from `describe navigation` can be pasted back directly.
 
 ### Basic: Set Home and Login Page
 
@@ -179,13 +179,14 @@ The **bare** form is the icon-collection icon and is what you normally want. Use
 navigation` emits it for you — and `image` for a picture from an image
 collection, which is a different document from an icon collection.
 
-**Do not invent a glyph code.** It is a bare integer that nothing resolves, so a
-code the Mendix font does not define passes `mxcli check` AND `mx check` at 0
-errors and then breaks `mxbuild --target=deploy` with *"An exception occurred
-while exporting layout '<some layout>'"* — a message naming a document that is
-not the cause. `mxcli check` now warns (**MDL078**) against the 247 codes the
-shipped font defines, but a glyph is still an unchecked number where an icon
-collection reference is a resolved model reference. Browse the codes with `list glyphs`
+**Do not invent a glyph code.** It is a bare integer that `mx check` does not
+resolve: a code the Mendix font does not define passes `mx check` at 0 errors and
+then crashes `mxbuild --target=deploy` (exit 1, *"Sequence contains no matching
+element"*, naming a layout that is not the cause, and no error file).
+`mxcli check` refuses it as **MDL078**, an error, against the 247 codes the font
+defines, and `exec` writes nothing (mendixlabs/mxcli#1522); the message names the
+defined glyphs either side of the code. An icon collection reference is still the
+better choice: it names the icon. Browse the codes with `list glyphs`
 (`list glyphs like 'star'` searches by name, `describe glyph 57350` goes the
 other way), or use `Icon: Atlas_Core.Atlas.<name>` and list the names with
 `describe icon collection Atlas_Core.Atlas`.

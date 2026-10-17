@@ -1,0 +1,47 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1525: CREATE OR MODIFY business event service re-minted every ChannelName
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   Every run of `create or modify business event service` generated a new
+--   random ChannelName for every message, so a re-run of an unchanged script
+--   reported "Modified" and moved the channels. The ChannelName is the Kafka
+--   topic a deployed app publishes on; subscribers in other apps kept listening
+--   on the old one. mx check and the build stay clean.
+--
+-- After fix:
+--   Each declared message keeps its stored channel (name and $ID), matched by
+--   message name; only a new message gets a new channel name.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1525-business-event-channel-identity.mdl -p app.mpr
+--   mxcli -p app.mpr -c "select ChannelName, MessageName from CATALOG.business_events"
+--   mxcli exec mdl-examples/bug-tests/1525-business-event-channel-identity.mdl -p app.mpr
+--   -> second run prints "Unchanged business event service: MyFirstModule.Bug1525Events"
+--      and the catalog shows the same ChannelName per message.
+--
+-- (Run `refresh catalog` between the two selects. A buildable publisher also
+-- needs the BusinessEvents marketplace module and PBE_ entities that extend
+-- BusinessEvents.PublishedBusinessEvent; the channel identity does not.)
+-- ============================================================================
+
+create or modify persistent entity MyFirstModule.PBE_Bug1525Order (
+  OrderId: long,
+  Note: string(200)
+);
+create or modify persistent entity MyFirstModule.PBE_Bug1525Shipped (
+  OrderId: long
+);
+
+create or modify business event service MyFirstModule.Bug1525Events
+(
+  ServiceName: 'Bug1525Events',
+  EventNamePrefix: ''
+)
+{
+  message OrderCreated (OrderId: long, Note: string) publish
+    entity MyFirstModule.PBE_Bug1525Order;
+  message OrderShipped (OrderId: long) publish
+    entity MyFirstModule.PBE_Bug1525Shipped;
+};

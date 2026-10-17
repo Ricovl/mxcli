@@ -1,0 +1,37 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1522 (part a) — an undefined glyph code was a WARNING (MDL078), so
+-- `exec` wrote it, `mx check` passed it at 0 errors, and
+-- `mxbuild --target=deploy` crashed: exit 1, "System.InvalidOperationException:
+-- Sequence contains no matching element at ...GlyphFont.GetClass(Int32)", and
+-- no error file for a build gate to read.
+--
+-- 57388 (0xE02C) is in a gap of the font: the defined codes either side are
+-- 57385 play-circle and 57392 repeat. mxbuild's font
+-- (modeler/glyphicons-halflings-regular.ttf, byte-identical in 9.24, 10.12,
+-- 11.6.6 and 11.15.0) defines exactly the 247 codes `list glyphs` shows.
+--
+-- MDL078 is now an ERROR: `check` fails and `exec` refuses before writing.
+--
+--   mxcli check this-file           -> MDL078 error naming glyph 57388
+--   mxcli exec this-file -p app.mpr -> "Refusing to execute", nothing written
+--   before: check passed with a warning; exec applied it; mx check 0 errors;
+--           mxbuild --target=deploy exit 1, no error file
+--
+-- A .fail.mdl: `make check-mdl` requires `check` to reject it.
+-- ============================================================================
+
+create module Issue1522Glyph;
+
+create page Issue1522Glyph.Home (
+  Title: 'Home',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create or modify navigation Responsive
+  home page Issue1522Glyph.Home
+{
+  menu item 'A' ( OnClick: show page Issue1522Glyph.Home, Icon: glyph 57388 )
+};

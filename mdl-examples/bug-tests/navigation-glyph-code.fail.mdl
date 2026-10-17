@@ -26,9 +26,12 @@ mdl 1;
 -- of the font Atlas_Core ships (glyphicons-halflings-regular.woff), 247 codes in
 -- 35 runs, which agrees with mxbuild on both measured points.
 --
--- A WARNING, not an error. The table is a snapshot of a Mendix asset, and if
--- Mendix ever extends the font then refusing a newly-valid code would be worse
--- than the gap this closes.
+-- AN ERROR since mendixlabs/mxcli#1522 (it was a warning): exec applied the
+-- code and mxbuild then crashed with exit 1 and no error file. mxbuild's own
+-- font (modeler/glyphicons-halflings-regular.ttf) is byte-identical in 9.24,
+-- 10.12, 11.6.6 and 11.15.0 and defines exactly these 247 codes, so the
+-- "snapshot" the warning hedged against has not moved. This file is therefore a
+-- negative test (.fail.mdl): `check` must reject it.
 --
 -- THE BETTER SPELLING is an icon collection reference, which is a model
 -- reference and is resolved by `mxcli check --references` before anything is
@@ -50,8 +53,8 @@ mdl 1;
 --
 -- Verify:
 --
---   mxcli check navigation-glyph-code.mdl
---     -- one MDL078 warning, for GlyphNav.PG_Bad's item only
+--   mxcli check navigation-glyph-code.fail.mdl
+--     -- one MDL078 error, for GlyphNav.MENU_Bad's item only
 --
 -- Then perturb:
 --

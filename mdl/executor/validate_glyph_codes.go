@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -45,11 +46,29 @@ import (
 // exactly that stack, and 57377 (0xE021, in the font) exports pages and layouts
 // cleanly. The font's cmap and mxbuild's table agree on both points.
 //
-// # A warning, not an error
+// # An error, not a warning (mendixlabs/mxcli#1522)
 //
-// The table is a snapshot of a Mendix asset. If Mendix ever extends the font,
-// a correct code would be reported here, and refusing it would be worse than the
-// gap this closes — so `exec` still writes it and the author still gets told.
+// This rule was a warning, on the reasoning that the table is a snapshot of a
+// Mendix asset and a font Mendix later extended would make a correct code look
+// wrong. The cost of that caution turned out to be the larger one: `exec`
+// wrote the code, `mx check` passed it at 0 errors, and `mxbuild
+// --target=deploy` died on the unhandled InvalidOperationException with exit 1
+// and NO error file — so a build gate that reads the error file had nothing to
+// report, and the author had a stack trace naming the wrong document.
+//
+// The snapshot risk is measured, not assumed. mxbuild does not read the font
+// Atlas_Core ships; it bundles its own `modeler/glyphicons-halflings-regular.ttf`,
+// and that file is byte-identical (sha256 e3950440…57456) in mxbuild 9.24, 10.12,
+// 11.6.6 and 11.15.0. Its cmap's private-use range is exactly the 247 codes in
+// glyphIcons, none more and none fewer, and the two measured builds (11.14.0)
+// agree with it on both points. The font has been frozen for the whole span
+// mxcli supports, so refusing a code outside it refuses a build crash, not a
+// valid icon. If a later Mendix ever does extend it, glyphIcons is the one
+// table to update, and `--no-check` is the escape hatch meanwhile.
+//
+// Every carrier goes through this one rule — navigation menu items, menu
+// documents and page/snippet/layout widgets, via iconRefsInStatement — so they
+// all refuse alike.
 //
 // # It needs no project
 //
@@ -72,19 +91,41 @@ func validateGlyphCodes(stmt ast.Statement) []linter.Violation {
 		}
 		out = append(out, linter.Violation{
 			RuleID:   "MDL078",
-			Severity: linter.SeverityWarning,
+			Severity: linter.SeverityError,
 			Message: fmt.Sprintf(
-				"%s uses glyph %d, which the Mendix glyph font does not define — the build fails "+
-					"at `mxbuild --target=deploy` with \"An exception occurred while exporting "+
-					"<page or layout> '<name>'\" and \"Sequence contains no matching element\", "+
-					"which names the document the icon is IN and never the icon",
+				"%s uses glyph %d, which the Mendix glyph font does not define — "+
+					"`mxbuild --target=deploy` crashes on it (\"Sequence contains no matching "+
+					"element\", exit 1, no error file) while `mx check` passes",
 				ref.where, ref.code),
-			Suggestion: "prefer an icon collection reference, which IS resolved before anything " +
-				"is written: `Atlas_Core.Atlas.<name>` (list them with " +
-				"`describe icon collection Atlas_Core.Atlas`). To keep a glyph, pick a code from " +
-				"`show glyphs` — the font's codes are sparse, so nearby numbers are usually " +
-				"not defined either.",
+			Suggestion: "check the icon: " + glyphNeighbours(ref.code) +
+				"`list glyphs like '<name>'` finds a glyph by name. Better, use an icon collection " +
+				"reference, which is resolved before anything is written: `Atlas_Core.Atlas.<name>` " +
+				"(list them with `describe icon collection Atlas_Core.Atlas`).",
 		})
 	}
 	return out
+}
+
+// glyphNeighbours names the defined glyphs either side of an undefined code,
+// e.g. "the nearest defined glyphs are 57385 (play-circle) and 57392 (repeat); ".
+// The codes are sparse, so "a nearby number" is usually undefined too; naming
+// real neighbours is the useful version of that hint.
+func glyphNeighbours(code int) string {
+	i := sort.Search(len(glyphIcons), func(i int) bool { return glyphIcons[i].Code >= code })
+	var near []string
+	if i > 0 {
+		g := glyphIcons[i-1]
+		near = append(near, fmt.Sprintf("%d (%s)", g.Code, g.Name))
+	}
+	if i < len(glyphIcons) {
+		g := glyphIcons[i]
+		near = append(near, fmt.Sprintf("%d (%s)", g.Code, g.Name))
+	}
+	switch len(near) {
+	case 2:
+		return "the nearest defined glyphs are " + near[0] + " and " + near[1] + "; "
+	case 1:
+		return "the nearest defined glyph is " + near[0] + "; "
+	}
+	return ""
 }

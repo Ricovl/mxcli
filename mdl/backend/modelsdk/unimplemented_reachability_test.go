@@ -80,7 +80,6 @@ import (
 // rather than adding a row to match the failure.
 var unreachableUnimplemented = map[string]string{
 	"FindAllCustomWidgetTypes": "BYPASS, accepted: reached only via the reader, inside modelsdk/mpr itself",
-	"GetProjectRootID":         "BYPASS, accepted: callers hold a reader; this package uses b.reader.GetProjectRootID directly",
 	"ListAllUnitIDs":           "BYPASS, accepted: cmd/mxcli/diag.go holds a concrete reader; infrastructure_write.go uses b.reader",
 }
 

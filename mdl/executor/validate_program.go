@@ -201,6 +201,12 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// can say which layouts are native.
 	violations = append(violations, ValidatePageLayoutGrid(prog, projectNativeLayouts(project))...)
 
+	// A widget data source constraint whose one-hop comparand is the wrong type
+	// (MDL-XPATH02) or names its association unqualified (MDL-XPATH01) —
+	// CE0161 at build time (mendixlabs/mxcli#1466). The script's declarations
+	// answer first; the project, when there is one, for the rest.
+	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
+
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix
 	// rejects those with CE6206 on any page an offline profile can reach, and

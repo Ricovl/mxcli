@@ -32,12 +32,19 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	if vs := completionRuleViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
+	if vs := callWorkflowParameterViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 
 	// Same exec-side guard as CREATE WORKFLOW: ALTER had no reference validation
 	// at all, so an inserted activity could name a microflow that exists nowhere
 	// and still be written (issue #943).
 	if err := refuseWorkflowReturn(alterWorkflowAddedActivities(s)); err != nil {
 		return err
+	}
+	// MDL-WF19, as for CREATE (mendixlabs/mxcli#1529).
+	if vs := checkWorkflowExprScope(alterWorkflowExprSites(s), "", workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
 	}
 	if refErrors := validateAlterWorkflowRefs(ctx, s, nil); len(refErrors) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
@@ -108,7 +115,11 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 					return mdlerrors.NewBackend("set "+o.Property, err)
 				}
 			default:
-				if err := mutator.SetProperty(o.Property, o.Value); err != nil {
+				value := o.Value
+				if o.Property == "due_date" {
+					value = normalizeWorkflowContextExpr(value) // MDL-WF19's accepted casings
+				}
+				if err := mutator.SetProperty(o.Property, value); err != nil {
 					return mdlerrors.NewBackend("set "+o.Property, err)
 				}
 			}
@@ -120,6 +131,8 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				value = o.PageName.Module + "." + o.PageName.Name
 			case "targeting_microflow":
 				value = o.Microflow.Module + "." + o.Microflow.Name
+			case "due_date":
+				value = normalizeWorkflowContextExpr(value) // MDL-WF19's accepted casings
 			}
 			if err := mutator.SetActivityProperty(o.ActivityRef, o.AtPosition, o.Property, value); err != nil {
 				return mdlerrors.NewBackend("set activity", err)
@@ -198,7 +211,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
 			acts := buildAndBindActivities(ctx, o.Activities)
-			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, o.Delay, acts); err != nil {
+			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
 

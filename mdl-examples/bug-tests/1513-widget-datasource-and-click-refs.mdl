@@ -1,0 +1,64 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1513 - QUAL004 flags a Data grid 2 datasource
+-- microflow as "not called from anywhere"
+-- ============================================================================
+--
+-- Symptom:
+--   A widget that names two microflows in its own BSON — a Data grid 2 (or
+--   gallery, list view) with `datasource: microflow …` and an `onClick: call
+--   microflow …` — recorded only the alphabetically smaller one in the catalog.
+--   The other got no refs row, so `mxcli lint` reported QUAL004 "is not called
+--   from anywhere. Remove if unused" for a live microflow, and `show callers`
+--   found nothing. Here Tmp1513.Open sorts before Tmp1513.Rows, so the
+--   datasource microflow was the one dropped.
+--
+-- After fix:
+--   `refresh catalog full` then `mxcli lint` reports no QUAL004 for
+--   Tmp1513.Rows, Tmp1513.Open, Tmp1513.GalleryRows or Tmp1513.GalleryOpen, and
+--   `show callers of Tmp1513.Rows` lists Tmp1513.Overview.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1513-widget-datasource-and-click-refs.mdl -p app.mpr
+--   mxcli lint -p app.mpr
+-- ============================================================================
+
+create module Tmp1513;
+
+create persistent entity Tmp1513.Item (Name: string(100));
+
+create microflow Tmp1513.Rows ()
+returns list of Tmp1513.Item as $items
+begin
+  retrieve $items from Tmp1513.Item;
+  return $items;
+end;
+
+create microflow Tmp1513.Open ($Item: Tmp1513.Item)
+begin
+end;
+
+create microflow Tmp1513.GalleryRows ()
+returns list of Tmp1513.Item as $items
+begin
+  retrieve $items from Tmp1513.Item;
+  return $items;
+end;
+
+create microflow Tmp1513.GalleryOpen ($Item: Tmp1513.Item)
+begin
+end;
+
+create or modify page Tmp1513.Overview (
+  Title: 'Overview',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  datagrid gItems (datasource: microflow Tmp1513.Rows, Selection: None, onClick: call microflow Tmp1513.Open(Item = $currentObject)) {
+    column (attribute: Name, caption: 'Name')
+  }
+  gallery galItems (datasource: microflow Tmp1513.GalleryRows, Selection: None, onClick: call microflow Tmp1513.GalleryOpen(Item = $currentObject)) {
+    template {
+      dynamictext txtName (content: '{1}', contentparams: ({1} = Name))
+    }
+  }
+};

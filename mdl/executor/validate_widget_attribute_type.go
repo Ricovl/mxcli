@@ -217,6 +217,10 @@ func checkMemberTypeIndex(ctx *ExecContext, sc *scriptContext) memberTypeIndex {
 		parents: map[string]string{},
 		assocs:  map[string][2]string{},
 	}
+	// No project (a script checked on its own): the index is the script's.
+	if ctx == nil || ctx.Backend == nil {
+		return overlayScriptMembers(ix, sc)
+	}
 	if modules, err := getModulesFromCache(ctx); err == nil {
 		moduleNames := make(map[model.ID]string, len(modules))
 		for _, m := range modules {
@@ -260,6 +264,11 @@ func checkMemberTypeIndex(ctx *ExecContext, sc *scriptContext) memberTypeIndex {
 			}
 		}
 	}
+	return overlayScriptMembers(ix, sc)
+}
+
+// overlayScriptMembers lays what the script declares over the project's index.
+func overlayScriptMembers(ix memberTypeIndex, sc *scriptContext) memberTypeIndex {
 	if sc == nil {
 		return ix
 	}

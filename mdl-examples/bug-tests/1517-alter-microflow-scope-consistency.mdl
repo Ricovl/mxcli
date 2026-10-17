@@ -1,0 +1,70 @@
+mdl 1;
+-- mendixlabs/mxcli#1517 — scope verdicts of one `alter microflow` block
+--
+-- An alter block's operations are aimed at the flow as stored, but the block
+-- writes ONE flow, and its scope checks must judge that flow:
+--
+--   A2  a consistent rename (producer, reader, return) in one block was
+--       refused "$Code is still used by: log …; return $Code" — each operation
+--       was judged against readers a later one replaces;
+--   B2  a fragment reading a variable an earlier operation of the block
+--       declares upstream of it was refused MDL090 "not declared on the path";
+--   B3  a replaced loop's body was never scope-checked (a loop renders as its
+--       header only): a body reading an undefined variable was "Altered" and
+--       mx check gave CE0109 "Undefined variable".
+--
+-- Run against any project with a MyFirstModule:
+--   mxcli exec mdl-examples/bug-tests/1517-alter-microflow-scope-consistency.mdl -p app.mpr
+-- Expected: both A2/B2 alters print "Altered microflow", then the B3 alter is
+-- refused with "the fragment uses $Nope, which is not declared on the path",
+-- and exec (all or nothing) rolls the whole script back. Without the B3 alter
+-- the script applies and mx check reports 0 errors. Before the fix, the A2
+-- alter was refused; and the B3 alter alone was "Altered" and mx check gave
+-- CE0109 (measured on 11.6.6 and 11.15.0).
+
+create persistent entity MyFirstModule.Bug1517Item (Name: String(100));
+
+create microflow MyFirstModule.Bug1517Helper () returns String
+begin
+  return 'x';
+end;
+
+create microflow MyFirstModule.Bug1517Rename () returns String
+begin
+  $Code = call microflow MyFirstModule.Bug1517Helper();
+  log info node 'T' $Code;
+  return $Code;
+end;
+
+create microflow MyFirstModule.Bug1517Loop ($Items: List of MyFirstModule.Bug1517Item)
+begin
+  log info node 'T' 'start';
+  loop $It in $Items
+  begin
+    commit $It;
+  end loop;
+  log info node 'T' 'done';
+end;
+
+-- A2 (and B2: the reader's replacement reads the $Code2 op 1 declares).
+alter microflow MyFirstModule.Bug1517Rename {
+  replace $Code = call microflow MyFirstModule.Bug1517Helper() with begin $Code2 = call microflow MyFirstModule.Bug1517Helper(); end;
+  replace log node 'T' * with begin log info node 'T' $Code2; end;
+  replace return $Code with begin return $Code2; end;
+};
+
+-- B2: a declaration an earlier operation puts upstream of the reader.
+alter microflow MyFirstModule.Bug1517Loop {
+  insert after log node 'T' 'start' begin declare $Late Integer = 0; end;
+  replace log node 'T' 'done' with begin log info node 'T' toString($Late); end;
+};
+
+-- B3: must be refused — $Nope is declared nowhere.
+alter microflow MyFirstModule.Bug1517Loop {
+  replace loop $It in $Items with begin
+    loop $It in $Items
+    begin
+      log info node 'T' $Nope;
+    end loop;
+  end;
+};

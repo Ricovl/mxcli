@@ -1,0 +1,39 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1530 - a call workflow mapping keyed on
+-- anything but WorkflowContext builds to CE1613
+-- ============================================================================
+--
+-- Symptom:
+--   With the child declared as `parameter $Task: M.Item`, the parent's
+--   `call workflow M.WF_Child(Task = $WorkflowContext);` passed check and exec,
+--   then mx check reported CE1613 "The selected parameter 'M.WF_Child.Task' no
+--   longer exists" (11.6.6 and 11.15.0). A workflow has one parameter and Mendix
+--   stores it as WorkflowContext; the header's `$Task` is only an alias.
+--
+-- After fix:
+--   check and exec refuse that key as MDL-WF18, naming WorkflowContext. The
+--   form below — the same child header, the mapping keyed WorkflowContext —
+--   checks clean and builds with 0 errors.
+--
+--   The refused form, kept out of the script so it stays checkable:
+--     call workflow M.WF_Child(Task = $WorkflowContext);
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/1530-call-workflow-parameter-key.mdl
+--   mxcli exec  mdl-examples/bug-tests/1530-call-workflow-parameter-key.mdl -p app.mpr
+-- ============================================================================
+
+create module M;
+create persistent entity M.Item (Name: string(100));
+
+create workflow M.WF_Child
+  parameter $Task: M.Item
+begin
+end workflow;
+
+create workflow M.WF_Parent
+  parameter $WorkflowContext: M.Item
+begin
+  call workflow M.WF_Child(WorkflowContext = $WorkflowContext);
+end workflow;

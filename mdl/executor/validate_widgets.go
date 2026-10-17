@@ -266,6 +266,16 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validatePluggableTemplateParams(w, locationPrefix)...)
 		}
 		out = append(out, validateWidgetVisibility(w, registry, locationPrefix)...)
+		// #1519: several attributes for a widget with one attribute slot — the
+		// drop-down filter. exec refuses it; so does check.
+		if m, attrs, over := singleAttributeOverflow(lookupWidgetDef(w, registry), w); over {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET47",
+				Severity:   linter.SeverityError,
+				Message:    locationPrefix + ": " + singleAttributeOverflowMessage(w, m, attrs),
+				Suggestion: "A drop-down filter compares one attribute; list several only on a textfilter.",
+			})
+		}
 		// An IMAGE with nothing to show — the default source needs an image
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
@@ -423,17 +433,13 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 	if w == nil || !strings.EqualFold(w.Type, "combobox") {
 		return nil
 	}
+	// A data source is what selects association mode (the def's `hasDataSource`
+	// condition), whichever key names the association — `Association:` or the
+	// `Attribute:` spelling — so the caption is judged before either is read.
+	if comboBoxHasOptionsDataSource(w) {
+		return validateComboBoxCaption(w, locationPrefix)
+	}
 	if w.GetStringProp("Association") == "" {
-		return nil
-	}
-	if w.GetDataSource() != nil {
-		return nil // has an options datasource — association mode is complete enough
-	}
-	// The option list may also be given under the schema key the widget declares
-	// for it. Reading only the generic clause made this rule contradict
-	// MDL-WIDGET05, which had just accepted the same value: one said the
-	// datasource was fine, the other that there was none.
-	if _, named := lookupProperty(w.Properties, comboBoxOptionsDataSourceKey); named {
 		return nil
 	}
 	return []linter.Violation{{
@@ -444,6 +450,86 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 			locationPrefix, w.Name),
 		Suggestion: "Association mode needs the option list and a caption: `combobox " + w.Name + " (Association: Module.Ref, datasource: database Module.TargetEntity, CaptionAttribute: Name)`.",
 	}}
+}
+
+// comboBoxHasOptionsDataSource reports whether a ComboBox carries the option
+// list of association mode. The option list may also be given under the schema
+// key the widget declares for it. Reading only the generic clause made
+// MDL-WIDGET16 contradict MDL-WIDGET05, which had just accepted the same value:
+// one said the datasource was fine, the other that there was none.
+func comboBoxHasOptionsDataSource(w *ast.WidgetV3) bool {
+	if w.GetDataSource() != nil {
+		return true
+	}
+	_, named := lookupProperty(w.Properties, comboBoxOptionsDataSourceKey)
+	return named
+}
+
+// validateComboBoxCaption flags an association-mode ComboBox with no caption —
+// MDL-WIDGET16's second half (mendixlabs/mxcli#1466). The issue's own script
+// omitted `CaptionAttribute:` on both of its combo boxes; check and exec passed
+// and mxbuild reported, per combo box:
+//
+//	[error] [CE0642] "Property 'Caption' is required." at Combo box 'cb'
+//
+// Measured on fresh 11.13.0 and 11.14.0 projects, identical on both. The
+// caption the build reads is the one the caption TYPE selects:
+//
+//	no caption (database or microflow source, either association spelling)  CE0642
+//	CaptionAttribute / optionsSourceAssociationCaptionAttribute                ok
+//	CaptionType expression + CaptionExpression                                 ok
+//	CaptionType expression + only CaptionAttribute                             CE0642
+//	CaptionType expression, nothing else                                       CE0642
+//	CaptionExpression with no type, or with type attribute                     CE0642
+//	enumeration mode (`Attribute: Kind`, no data source)                       ok
+//
+// Enumeration mode is not judged: it has no Caption property at all.
+func validateComboBoxCaption(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	byExpression := strings.EqualFold(comboBoxPropText(w, "optionsSourceAssociationCaptionType"), "expression")
+	if byExpression {
+		if comboBoxPropText(w, "optionsSourceAssociationCaptionExpression") != "" {
+			return nil
+		}
+	} else if comboBoxPropText(w, "CaptionAttribute") != "" ||
+		comboBoxPropText(w, "optionsSourceAssociationCaptionAttribute") != "" {
+		return nil
+	}
+	why := "has an options data source (association mode) but no caption"
+	fix := "Name the attribute shown for each option: `CaptionAttribute: <attribute of the listed entity>`, " +
+		"or give an expression caption: `optionsSourceAssociationCaptionType: expression, " +
+		"optionsSourceAssociationCaptionExpression: '$currentObject/<Attr>'`."
+	if !byExpression && comboBoxPropText(w, "optionsSourceAssociationCaptionExpression") != "" {
+		why = "has `optionsSourceAssociationCaptionExpression` but not `optionsSourceAssociationCaptionType: expression`, so the build reads the (absent) caption attribute"
+		fix = "Add `optionsSourceAssociationCaptionType: expression`, or replace the expression with `CaptionAttribute: <Attr>`."
+	}
+	if byExpression {
+		why = "sets `optionsSourceAssociationCaptionType: expression` but no `optionsSourceAssociationCaptionExpression` — the expression type ignores `CaptionAttribute`"
+		fix = "Add `optionsSourceAssociationCaptionExpression: '$currentObject/<Attr>'`, or drop the caption type and use `CaptionAttribute: <Attr>`."
+	}
+	return []linter.Violation{{
+		RuleID:   "MDL-WIDGET16",
+		Severity: linter.SeverityError,
+		Message: fmt.Sprintf(
+			"%s: combobox `%s` %s — mxbuild fails the build with CE0642 (\"Property 'Caption' is required.\")",
+			locationPrefix, w.Name, why),
+		Suggestion: fix,
+	}}
+}
+
+// comboBoxPropText is a ComboBox property's value as text, "" when it is absent
+// or empty. An expression value that is not a plain string counts as set.
+func comboBoxPropText(w *ast.WidgetV3, key string) string {
+	v, ok := lookupProperty(w.Properties, key)
+	if !ok || v == nil {
+		return ""
+	}
+	if s, isString := v.(string); isString {
+		return strings.TrimSpace(s)
+	}
+	if s := strings.TrimSpace(stringifyAny(v)); s != "" {
+		return s
+	}
+	return "set"
 }
 
 // headingRenderModeRe matches the block-level dynamictext render modes H1–H6.
@@ -565,8 +651,22 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 	explicit = map[string]bool{}
 
 	mappings := append([]PropertyMapping(nil), def.PropertyMappings...)
-	for _, m := range def.Modes {
-		mappings = append(mappings, m.PropertyMappings...)
+	// A mode the widget is NOT built in writes none of its constants, so they
+	// are not the widget's configuration. Reading them anyway let whichever mode
+	// came last decide: a drop-down filter given `attributes:` builds with
+	// attrChoice "linked" and baseType at its default, but the union read the
+	// default mode's "auto" and the association mode's "ref", and reported its
+	// `attr` as hidden twice over (#1519). What the script wrote still counts.
+	inactive := map[int]bool{}
+	active, _ := (&PluggableWidgetEngine{}).selectMode(def, w)
+	for i := range def.Modes {
+		mode := &def.Modes[i]
+		for _, m := range mode.PropertyMappings {
+			if active != nil && mode != active {
+				inactive[len(mappings)] = true
+			}
+			mappings = append(mappings, m)
+		}
 	}
 	// An MDL source keyword shared by SEVERAL properties does not name any one of
 	// them. File Uploader 2.5.0 routes both `associatedFiles` and
@@ -580,7 +680,7 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			sharedSource[m.Source]++
 		}
 	}
-	for _, m := range mappings {
+	for i, m := range mappings {
 		key := strings.ToLower(m.PropertyKey)
 		val, set := "", false
 		viaSharedSource := false
@@ -607,6 +707,8 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			if !viaSharedSource {
 				explicit[key] = true
 			}
+		} else if inactive[i] {
+			continue // a constant of a mode the widget is not built in
 		} else if m.Default != "" {
 			val = m.Default
 		} else if m.Operation == "primitive" && m.Value != "" {

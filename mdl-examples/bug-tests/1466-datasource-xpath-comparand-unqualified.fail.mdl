@@ -1,0 +1,40 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — one-hop comparand naming its association unqualified
+-- ============================================================================
+--
+-- NEGATIVE TEST (.fail.mdl): `mxcli check` MUST reject this file
+-- (MDL-XPATH01, the page-datasource arm of the retrieve rule). An unexpected
+-- pass means the comparand check has regressed.
+--
+-- `$currentObject/AreaPicker_Region` reads as an ATTRIBUTE of AreaPicker, and
+-- there is none, so on fresh 11.13.0 and 11.14.0 projects:
+--
+--   [error] [CE0161] "Error(s) in XPath constraint." at Combo box 'cbDistrict'
+--
+-- `$currentObject/Bug1466U.AreaPicker_Region`, qualified, builds clean.
+-- ============================================================================
+
+create module Bug1466U;
+create persistent entity Bug1466U.Region (Name: String(100));
+create persistent entity Bug1466U.District (Name: String(100));
+create persistent entity Bug1466U.AreaPicker (Label: String(50));
+create association Bug1466U.District_Region from Bug1466U.District to Bug1466U.Region type Reference;
+create association Bug1466U.AreaPicker_Region from Bug1466U.AreaPicker to Bug1466U.Region type Reference;
+create association Bug1466U.AreaPicker_District from Bug1466U.AreaPicker to Bug1466U.District type Reference;
+
+create page Bug1466U.Unqualified (
+  Params: ($Picker: Bug1466U.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvPicker (DataSource: $Picker) {
+          combobox cbDistrict (Association: Bug1466U.AreaPicker_District,
+            DataSource: database Bug1466U.District where [Bug1466U.District_Region = $currentObject/AreaPicker_Region],
+            CaptionAttribute: Name)
+        }
+      }
+    }
+  }
+};

@@ -154,7 +154,7 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 			Target:     op.Target,
 			Properties: map[string]any{name: op.Properties[name]},
 		}
-		if err := applySetPropertyMutator(ctx, probe, one, modName, modID); err != nil {
+		if err := applySetProperties(ctx, probe, one, modName, modID); err != nil {
 			if scriptDeclaresMissing(sc, err, modName) {
 				continue
 			}
@@ -164,6 +164,18 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 		}
 		for _, msg := range setImageRefErrors(ctx, p, op.Target, name, op.Properties[name], sc) {
 			errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s", label, msg)))
+		}
+	}
+	// A column's properties are then judged TOGETHER, with the follow-up that
+	// resets what the widget now hides: `ColumnWidth: autoFill, Size: 220` is
+	// fine one property at a time and refused as a whole, since the width hides
+	// the size, and `ColumnWidth: manual, Size: 220` is the reverse — judged
+	// one at a time, Size alone would be hidden (mendixlabs/mxcli#1519).
+	if len(errs) == 0 && op.Target.IsColumn() {
+		if probe, err := p.Probe(); err == nil {
+			if err := applySetPropertyMutator(ctx, probe, op, modName, modID); err != nil && !scriptDeclaresMissing(sc, err, modName) {
+				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %v", label, err)))
+			}
 		}
 	}
 	return errs

@@ -458,6 +458,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "entity: %s", s.Name)
+		noteKeptNotLocalized(ctx, s.Name.String(), keptNotLocalized(entity.Attributes, statedLocalize(s.Attributes)))
 		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 	} else {
 		// Create new entity
@@ -577,14 +578,48 @@ func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmod
 
 // carryStoredLocalizeDate copies a stored DateTime's LocalizeDate onto a rebuilt
 // type that is still a DateTime. A type change is the statement's to decide, so
-// nothing carries onto (or from) another type.
-func carryStoredLocalizeDate(stored, rebuilt domainmodel.AttributeType) {
+// nothing carries onto (or from) another type. It reports whether that kept a
+// stored `not localized` — the case noteKeptNotLocalized tells the user about.
+func carryStoredLocalizeDate(stored, rebuilt domainmodel.AttributeType) bool {
 	dt, ok := rebuilt.(*domainmodel.DateTimeAttributeType)
 	if !ok {
-		return
+		return false
 	}
 	if odt, ok := stored.(*domainmodel.DateTimeAttributeType); ok {
 		dt.LocalizeDate = odt.LocalizeDate
+		return !odt.LocalizeDate
+	}
+	return false
+}
+
+// keptNotLocalized names the attributes a rewrite left `not localized` without
+// the statement saying so: an unstated `localized` on a DateTime defaults to
+// localized for a new attribute, so a written false on an unstated one can only
+// be the carried stored value.
+func keptNotLocalized(attrs []*domainmodel.Attribute, stated map[string]bool) []string {
+	var names []string
+	for _, a := range attrs {
+		if a == nil || stated[a.Name] {
+			continue
+		}
+		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok && !dt.LocalizeDate {
+			names = append(names, a.Name)
+		}
+	}
+	return names
+}
+
+// noteKeptNotLocalized says when an unstated `localized` kept a stored `not
+// localized` (mendixlabs/mxcli#1521). The carry is deliberate — a rewrite must
+// not flip a Studio Pro choice it has no words for (#743) — but it is invisible
+// in the statement, and the reporter's script that meant the default left a
+// DateTime in UTC with no trace. Stated values and stored-localized attributes
+// are never noted.
+func noteKeptNotLocalized(ctx *ExecContext, entity string, names []string) {
+	for _, n := range names {
+		fmt.Fprintf(ctx.Output,
+			"  Note: %s.%s keeps its stored `not localized` (the statement does not say); "+
+				"write `%s: DateTime localized` to change it.\n", entity, n, n)
 	}
 }
 
@@ -1443,6 +1478,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return err
 		}
 		found := false
+		keptUnlocalized := false
 		storedSignatures := attributeSignatures(entity)
 		for _, attr := range entity.Attributes {
 			if attr.Name == s.AttributeName {
@@ -1452,7 +1488,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 				// the statement says `localized` / `not localized` (#1373);
 				// rebuilding the type reset it to true.
 				if s.DataType.Localize == ast.LocalizeUnstated {
-					carryStoredLocalizeDate(storedType, attr.Type)
+					keptUnlocalized = carryStoredLocalizeDate(storedType, attr.Type)
 				}
 				if s.Calculated {
 					attrValue, err := resolveCalculatedValue(ctx, s.CalculatedMicroflow, s.Name.String(), s.AttributeName, s.DataType)
@@ -1492,6 +1528,9 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "attribute '%s' on entity %s", s.AttributeName, s.Name)
+		if keptUnlocalized {
+			noteKeptNotLocalized(ctx, s.Name.String(), []string{s.AttributeName})
+		}
 		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 
 	case ast.AlterEntityDropAttribute:

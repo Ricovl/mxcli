@@ -1225,7 +1225,12 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 					if startsFromChildSide {
 						otherEntity = assocInfo.parentEntityQN
 					}
-					if startsFromChildSide && !outputUsedAsObject {
+					// associationRetrieveYieldsList is shared with check
+					// --references (MDL-RETRIEVE03, mendixlabs/mxcli#1516), which
+					// refuses the object use this branch types leniently.
+					yieldsList := associationRetrieveYieldsList(false,
+						assocInfo.Owner == domainmodel.AssociationOwnerBoth, startsFromChildSide)
+					if yieldsList && !outputUsedAsObject {
 						fb.varTypes[s.Variable] = "List of " + otherEntity
 					} else {
 						fb.varTypes[s.Variable] = otherEntity

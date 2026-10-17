@@ -329,7 +329,7 @@ datagrid gridName (
 | `Draggable` | `true`, `false` | `true` | Can reorder column |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | Can hide column |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | Column width mode |
-| `Size` | integer (px) | `1` | Width in pixels (when `ColumnWidth: manual`) |
+| `Size` | integer (px) | `1` | Width in pixels — only under `ColumnWidth: manual`. Any other width hides it, so it must stay `1` (CE0463 otherwise): an `ALTER PAGE … SET (ColumnWidth: autoFill)` puts it back at `1` itself, and `SET (ColumnWidth: autoFill, Size: 220)` is refused |
 | `visible` | expression string | `true` | Column-level visibility — hides/shows the whole column, so use page variables, NOT `$currentObject` (per-object widget visibility is different — see "Conditional Visibility and Editability") |
 | `DynamicCellClass` | expression string | (empty) | Dynamic CSS class per cell |
 | `tooltip` | text string | (empty) | Cell tooltip text |
@@ -551,6 +551,12 @@ combobox cbCountry (label: 'Country', attribute: Country)
 combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer, CaptionAttribute: Name)
 -- WRONG: `combobox (Association: X)` with no datasource — mxcli check errors
 -- MDL-WIDGET16 (Mendix would otherwise drop the binding → CE0642).
+-- WRONG: a datasource with no caption — also MDL-WIDGET16, CE0642
+-- "Property 'Caption' is required." An expression caption works instead of
+-- CaptionAttribute, but needs BOTH keys:
+--   optionsSourceAssociationCaptionType: expression,
+--   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
+-- Enumeration mode (no datasource) has no caption and needs none.
 ```
 
 ### DataView with Form Layout
@@ -694,6 +700,12 @@ datefilter datefilter (attributes: [Module.Entity.CreateDate])
 ```sql
 dropdownfilter statusFilter (attributes: [Module.Entity.Status])
 ```
+
+It filters on **one** attribute (an enumeration or a Boolean), stored as the widget's
+custom attribute (Studio Pro's "Attribute config: Custom"); listing two is refused
+(MDL-WIDGET47) — use a `textfilter` for several. A bare `dropdownfilter f` takes the
+attribute of the Data grid 2 column it sits in ("Auto"), so in a **gallery's**
+`filter { … }` bar, which has no column, the attribute must be named.
 
 Filter by an **association** instead of an attribute — the options are the
 associated objects. Giving the filter a `datasource:` (the OPTION list) selects
