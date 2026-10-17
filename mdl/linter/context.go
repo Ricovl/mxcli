@@ -1086,8 +1086,33 @@ func (ctx *LintContext) ScheduledEvents() iter.Seq[ScheduledEvent] {
 			return
 		}
 
+		// An event's container is a folder whenever it is not at the module
+		// root — every Marketplace module keeps its events that way — so walk
+		// up the folder chain to the module (ako/mxcli#1452).
+		folderParent := map[model.ID]model.ID{}
+		if folders, err := ctx.reader.ListFolders(); err == nil {
+			for _, f := range folders {
+				folderParent[f.ID] = f.ContainerID
+			}
+		} else {
+			ctx.recordQueryError("ScheduledEvents (folders)", err)
+		}
+		moduleOf := func(container model.ID) string {
+			for range len(folderParent) + 1 {
+				if name, ok := moduleNames[container]; ok {
+					return name
+				}
+				parent, ok := folderParent[container]
+				if !ok {
+					return ""
+				}
+				container = parent
+			}
+			return ""
+		}
+
 		for _, e := range events {
-			moduleName := moduleNames[e.ContainerID]
+			moduleName := moduleOf(e.ContainerID)
 			if ctx.IsExcluded(moduleName) {
 				continue
 			}
