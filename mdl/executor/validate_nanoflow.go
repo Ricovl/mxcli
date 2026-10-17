@@ -53,6 +53,9 @@ func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) 
 	v.checkVoidCallOutputUse(v.params, stmt.Body)
 	// MDL-SET01: a nanoflow's Change variable is as primitive-only (CE7247).
 	v.checkSetOnObjectVariable(v.params, stmt.Body)
+	// MDL-FLOW05: a nanoflow's flow is built by the same builder, so a statement
+	// after a return is dead there too (mendixlabs/mxcli#1491).
+	v.checkUnreachableStatements(stmt.Body)
 	// The nanoflow restrictions exec's build refuses (validateNanoflow): an
 	// action a nanoflow cannot hold, an error-handling clause its activity
 	// rejects (CE6035), a Binary return. They ran only inside exec, so `check`
