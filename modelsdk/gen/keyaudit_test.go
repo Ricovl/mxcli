@@ -94,7 +94,6 @@ var knownWrongKeys = []keyMismatch{
 	{"Forms$ReferenceSetSelector", "XPathConstraint", "SelectableXPathConstraint"},
 	{"Forms$SearchBar", "Items", "NewButtons"},
 	{"Forms$SelectButton", "Caption", "CaptionTemplate"},
-	{"Forms$SidebarToggleButton", "Caption", "CaptionTemplate"},
 	{"Forms$Table", "Columns", "ColumnWidths"},
 	{"Forms$TableColumn", "Width", "Value"},
 

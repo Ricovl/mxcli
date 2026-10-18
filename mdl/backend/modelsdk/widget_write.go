@@ -135,6 +135,28 @@ func init() {
 		NullFields: []string{"Icon", "ConditionalVisibilitySettings", "NativeAccessibilitySettings"},
 	})
 	codec.RegisterListMarker("Forms$ActionButton", 2)
+	// SidebarToggleButton: null Icon/visibility slots; marker 2 as a widget.
+	// Measured on Atlas_Core.Atlas_Default (11.13.0, mendixlabs/mxcli#1220).
+	codec.RegisterTypeDefaults("Forms$SidebarToggleButton", codec.TypeDefaults{
+		NullFields: []string{"Icon", "ConditionalVisibilitySettings"},
+	})
+	codec.RegisterListMarker("Forms$SidebarToggleButton", 2)
+	// A native layout's content: RightHeaderPlaceholder is null when unset
+	// (NativePhone_FullPage) and SidebarWidgets always stored, marker 2 —
+	// 5 of 5 native Atlas_Core layouts (11.13.0).
+	codec.RegisterTypeDefaults("Forms$NativeLayoutContent", codec.TypeDefaults{
+		NullFields:           []string{"RightHeaderPlaceholder"},
+		MandatoryListMarkers: map[string]int32{"SidebarWidgets": 2},
+	})
+	codec.RegisterPropertyListMarker("Forms$NativeLayoutContent", "SidebarWidgets", 2)
+	// Header: both widget lists always stored, marker 2 — 9 of 9 in Atlas_Core
+	// (11.13.0).
+	codec.RegisterTypeDefaults("Forms$Header", codec.TypeDefaults{
+		MandatoryListMarkers: map[string]int32{"LeftWidgets": 2, "RightWidgets": 2},
+	})
+	codec.RegisterPropertyListMarker("Forms$Header", "LeftWidgets", 2)
+	codec.RegisterPropertyListMarker("Forms$Header", "RightWidgets", 2)
+	codec.RegisterListMarker("Forms$Header", 2)
 	// Title: null visibility/accessibility slots; marker 2 as a widget.
 	codec.RegisterTypeDefaults("Forms$Title", codec.TypeDefaults{
 		NullFields: []string{"ConditionalVisibilitySettings", "NativeAccessibilitySettings"},
@@ -823,6 +845,47 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		}
 		g.SetMenuSource(src)
 		g.SetOrientation(orDefaultStr(string(x.Orientation), string(pages.MenuOrientationHorizontal)))
+		return g, nil
+
+	case *pages.LayoutHeader:
+		// Forms$Header, a phone/tablet layout's header bar. gen also exposes
+		// the singular LeftWidget / RightWidget, deleted in 7.15 and never set.
+		g := genPg.NewHeader()
+		applyWidgetBase(g, &x.BaseWidget)
+		for _, w := range x.LeftWidgets {
+			wg, err := widgetToGen(w)
+			if err != nil {
+				return nil, err
+			}
+			g.AddLeftWidgets(wg)
+		}
+		for _, w := range x.RightWidgets {
+			wg, err := widgetToGen(w)
+			if err != nil {
+				return nil, err
+			}
+			g.AddRightWidgets(wg)
+		}
+		return g, nil
+
+	case *pages.SidebarToggleButton:
+		// An action button's face without the action (mendixlabs/mxcli#1220).
+		// Studio Pro always stores a CaptionTemplate, empty on Atlas's own.
+		g := genPg.NewSidebarToggleButton()
+		applyWidgetBase(g, &x.BaseWidget)
+		g.SetRenderType(orDefaultStr(string(x.RenderMode), "Button"))
+		g.SetButtonStyle(orDefaultStr(string(x.ButtonStyle), "Default"))
+		if x.CaptionTemplate != nil {
+			g.SetCaption(clientTemplateToGen(x.CaptionTemplate))
+		} else {
+			g.SetCaption(textAsClientTemplate(nil))
+		}
+		g.SetTooltip(captionToGen(x.Tooltip))
+		if x.Icon != nil {
+			if icon := iconToGen(x.Icon); icon != nil {
+				g.SetIcon(icon)
+			}
+		}
 		return g, nil
 
 	case *pages.GroupBox:
@@ -2298,6 +2361,7 @@ func scrollRegionToGen(r *pages.ScrollContainerRegion) (element.Element, error) 
 	}
 	g.SetSize(int32(size))
 	g.SetSizeMode(orDefaultStr(r.SizeMode, "Auto"))
+	g.SetToggleMode(orDefaultStr(r.ToggleMode, "None"))
 	for _, w := range r.Widgets {
 		wg, err := widgetToGen(w)
 		if err != nil {

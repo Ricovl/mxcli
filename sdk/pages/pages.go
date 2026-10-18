@@ -81,6 +81,15 @@ type Layout struct {
 	// Content.LayoutCall with Content.Widgets [] (mendixlabs/mxcli#1411).
 	LayoutCall *LayoutCall `json:"layoutCall,omitempty"`
 
+	// The native-only parts of Forms$NativeLayoutContent, all stored on every
+	// native Atlas layout (11.13.0): the placeholder on the header's right
+	// (null on NativePhone_FullPage), whether the bottom bar shows, and the
+	// sidebar with its widgets. A copy that left them out lost them silently.
+	HeaderPlaceholder *LayoutPlaceholder `json:"headerPlaceholder,omitempty"`
+	ShowBottomBar     bool               `json:"showBottomBar,omitempty"`
+	Sidebar           bool               `json:"sidebar,omitempty"`
+	SidebarWidgets    []Widget           `json:"sidebarWidgets,omitempty"`
+
 	// MainPlaceholderID and Widget are the shallow forms older readers filled.
 	MainPlaceholderID model.ID `json:"mainPlaceholderId,omitempty"`
 	Widget            Widget   `json:"widget,omitempty"`

@@ -370,10 +370,16 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// output cannot be fed back in.
 	rawData, _ := ctx.Backend.GetRawUnit(foundLayout.ID)
 	header := layoutHeaderMDL(ctx, layoutTypeStr, foundLayout.Class, layoutOuterName(rawData))
+	if native := nativeLayoutContent(rawData); native != nil {
+		if on, _ := native["ShowBottomBar"].(bool); on {
+			header += ",\n  showbottombar: true"
+		}
+	}
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
 	outputLayoutBodyMDL(ctx, rawData)
+	outputNativeLayoutPartsMDL(ctx, rawData)
 
 	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
@@ -391,6 +397,52 @@ func layoutHeaderMDL(ctx *ExecContext, layoutType, class, outer string) string {
 		header += fmt.Sprintf(",\n  Layout: %s", outer)
 	}
 	return header
+}
+
+// nativeLayoutContent returns a native layout's Forms$NativeLayoutContent, or
+// nil for a web layout.
+func nativeLayoutContent(rawData map[string]any) map[string]any {
+	content, _ := rawData["Content"].(map[string]any)
+	if t, _ := content["$Type"].(string); t != "Forms$NativeLayoutContent" {
+		return nil
+	}
+	return content
+}
+
+// outputNativeLayoutPartsMDL writes what a native layout keeps beside its
+// content tree: the placeholder on the header's right as `region header`, and
+// the sidebar — Sidebar plus SidebarWidgets — as `region sidebar`. A copy that
+// left them out lost a page's header and side menu with nothing printed.
+func outputNativeLayoutPartsMDL(ctx *ExecContext, rawData map[string]any) {
+	content := nativeLayoutContent(rawData)
+	if content == nil {
+		return
+	}
+	if ph, ok := content["RightHeaderPlaceholder"].(map[string]any); ok {
+		fmt.Fprint(ctx.Output, "  region header {\n")
+		for _, w := range parseRawWidget(ctx, ph) {
+			outputWidgetMDLV3(ctx, w, 2)
+		}
+		fmt.Fprint(ctx.Output, "  }\n")
+	}
+	if on, _ := content["Sidebar"].(bool); !on {
+		return
+	}
+	var widgets []rawWidget
+	for _, w := range getBsonArrayElements(content["SidebarWidgets"]) {
+		if wMap, ok := w.(map[string]any); ok {
+			widgets = append(widgets, parseRawWidget(ctx, wMap)...)
+		}
+	}
+	if len(widgets) == 0 {
+		fmt.Fprint(ctx.Output, "  region sidebar\n")
+		return
+	}
+	fmt.Fprint(ctx.Output, "  region sidebar {\n")
+	for _, w := range widgets {
+		outputWidgetMDLV3(ctx, w, 2)
+	}
+	fmt.Fprint(ctx.Output, "  }\n")
 }
 
 // layoutCallOf returns the call a layout built on another layout stores under
@@ -826,6 +878,9 @@ type rawWidget struct {
 	// TabCaption: a nameless container whose identity DESCRIBE has to put back.
 	RegionSize     int
 	RegionSizeMode string
+	// RegionToggleMode is a scroll container region's ToggleMode — how a
+	// sidebar toggle opens it. None (the default) is not printed.
+	RegionToggleMode string
 	// NavigationProfile is a Forms$NavigationTree's profile, which the document
 	// keeps one level down in MenuSource rather than on the tree.
 	NavigationProfile string

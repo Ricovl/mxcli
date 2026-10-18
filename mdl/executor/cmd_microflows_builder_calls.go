@@ -1699,10 +1699,14 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 		// three reference documents store Range.SingleObject=false.
 		singleObject := !s.Result.IsList
 		fso := false
-		if singleObject && fb.backend != nil {
+		contentType := ""
+		if fb.backend != nil {
 			if im, err := fb.backend.GetImportMappingByQualifiedName(
-				s.Result.MappingName.Module, s.Result.MappingName.Name); err == nil {
-				fso = fb.mappingRootIsList(im)
+				s.Result.MappingName.Module, s.Result.MappingName.Name); err == nil && im != nil {
+				if singleObject {
+					fso = fb.mappingRootIsList(im)
+				}
+				contentType = importMappingContentType(im)
 			}
 		}
 		rangeAll := false
@@ -1714,6 +1718,7 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 			SingleObject:          singleObject,
 			ForceSingleOccurrence: &fso,
 			RangeSingleObject:     &rangeAll,
+			ContentType:           contentType,
 		}
 	case ast.RestResultNone:
 		resultHandling = &microflows.ResultHandlingNone{
@@ -2023,6 +2028,17 @@ func jsonMappingRootIsList(lookup jsonStructureLookup, im *model.ImportMapping) 
 	return types.JsonMappingRootIsList(lookup, im)
 }
 
+// importMappingContentType is the content type an import mapping call takes
+// for the mapping: XML when it is sourced from an XML schema or a web service
+// operation, JSON otherwise — what Studio Pro sets when the activity is opened
+// ("This action now imports XML"; mendixlabs/mxcli#1232).
+func importMappingContentType(im *model.ImportMapping) string {
+	if im.XmlSchema != "" || im.WebServiceSource.IsSet() {
+		return "Xml"
+	}
+	return "Json"
+}
+
 // addImportFromMappingAction adds an ImportXmlAction to the microflow.
 func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) model.ID {
 	activityX := fb.posX
@@ -2114,6 +2130,7 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 			if !rangeAuthored && fb.mappingRootIsList(im) {
 				resultHandling.SingleObject = false
 			}
+			resultHandling.ContentType = importMappingContentType(im)
 			if len(im.Elements) > 0 && im.Elements[0] != nil && im.Elements[0].Entity != "" {
 				resultEntityQN = im.Elements[0].Entity
 				resultHandling.ResultEntityID = model.ID(resultEntityQN)
