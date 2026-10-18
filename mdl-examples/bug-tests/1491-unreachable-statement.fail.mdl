@@ -1,0 +1,27 @@
+mdl 1;
+-- Bug (mendixlabs/mxcli#1491): a statement that can never run passed `check`,
+-- `exec` wrote it, and `mx check` refused the microflow. Here: a `return`
+-- after a `while true` that is left only by `return`.
+--
+-- Measured on mxbuild 11.13.0 (reported on 10.24.18 with the same codes):
+--   this microflow                -> CE0104 "End event is unreachable."
+--   a log after the same loop     -> CE0104 + CE0105
+--   a log after `return` in an if -> CE0709 "Sequence flow is not accepted …"
+--   a log after break / continue / join / raise error -> CE0709 (+ CE0105)
+-- The controls, all 0 errors, are in 1491-unreachable-statement-controls.mdl.
+--
+-- `check` now refuses this as MDL-FLOW05; no project is needed to decide it.
+create module if not exists Bug1491;
+
+create or modify microflow Bug1491.ReturnAfterWhileTrue ($N: Integer)
+begin
+  declare $I Integer = 0;
+  while true
+  begin
+    set $I = $I + 1;
+    if $I >= $N then
+      return;
+    end if;
+  end while;
+  return;
+end;

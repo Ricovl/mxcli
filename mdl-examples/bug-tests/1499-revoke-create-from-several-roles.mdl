@@ -1,0 +1,50 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1499 — `revoke create on entity … from RoleA, RoleB, RoleC` said
+-- "nothing to revoke", exited 0, and `show access` still listed
+-- `Rights: create, read` for all three roles.
+--
+-- Same cause as #1501, a different right: the rules were granted one role
+-- each, and a partial revoke only matched a rule whose role set EQUALLED the
+-- statement's. RoleC's rule has no XPath, so the constraint is not the cause.
+-- The #1501 fix (match every rule all of whose roles are named) covers the
+-- entity-level create right too; this script pins it.
+--
+--   mxcli exec this-file -p app.mpr
+--     before: "Unchanged entity access: Issue1499.Ticket (Issue1499.RoleA,
+--             Issue1499.RoleB, Issue1499.RoleC) — nothing to revoke";
+--             `list access` shows create, read for all three roles
+--     after:  "Revoked partial access on Issue1499.Ticket from …";
+--             read only, XPath kept on RoleA and RoleB
+-- ============================================================================
+
+create module Issue1499;
+create module role Issue1499.RoleA;
+create module role Issue1499.RoleB;
+create module role Issue1499.RoleC;
+create module role Issue1499.RoleD;
+
+@position(100, 100)
+create persistent entity Issue1499.Ticket (
+  Title: string(200)
+);
+
+create association Issue1499.Ticket_Owner
+  from Issue1499.Ticket
+  to System.User
+  type Reference;
+
+-- One rule per role, `create, read`; two constrained, one not — the reported shape.
+grant create, read * on entity Issue1499.Ticket to Issue1499.RoleA
+  where [Issue1499.Ticket_Owner = '[%CurrentUser%]'];
+grant create, read * on entity Issue1499.Ticket to Issue1499.RoleB
+  where [Issue1499.Ticket_Owner = '[%CurrentUser%]'];
+grant create, read * on entity Issue1499.Ticket to Issue1499.RoleC;
+grant create, read * on entity Issue1499.Ticket to Issue1499.RoleD;
+
+-- One statement for all three roles: the bug.
+revoke create on entity Issue1499.Ticket from Issue1499.RoleA, Issue1499.RoleB, Issue1499.RoleC;
+-- The reporter's control, which always worked.
+revoke all on entity Issue1499.Ticket from Issue1499.RoleD;
+
+list access on entity Issue1499.Ticket;

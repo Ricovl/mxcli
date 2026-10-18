@@ -216,6 +216,7 @@ workflowUserTaskClause
     | DESCRIPTION STRING_LITERAL
     | OUTCOMES workflowUserTaskOutcome+
     | BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*
+    | AUTO ASSIGN SINGLE USER   // "Auto-assign when targeting results in one user"
     ;
 
 /** The above, plus the three clauses only a multi user task has. */

@@ -1131,6 +1131,10 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"outcomes":          vals,
 			}
 			mapMultiUserTaskCompletion(m, act, vals)
+			// Sent only when on, like awaitAllUsers: off is the constructor's default.
+			if act.AutoAssignSingleTargetUser {
+				m["autoAssignSingleTargetUser"] = true
+			}
 		} else {
 			outcomes, err := mapUserTaskOutcomes(act.Outcomes)
 			if err != nil {
@@ -1147,7 +1151,7 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"userTargeting":              mapUserTargeting(act.UserSource),
 				"onCreatedEvent":             mapOnCreatedEvent(act.OnCreated),
 				"outcomes":                   outcomes,
-				"autoAssignSingleTargetUser": false,
+				"autoAssignSingleTargetUser": act.AutoAssignSingleTargetUser,
 			}
 		}
 		if bevents != nil {

@@ -21,8 +21,9 @@ var builderOwnedWidgetKeywords = map[string]bool{
 	"statictext": true, "dynamictext": true, "title": true, "label": true,
 	"button": true, "actionbutton": true, "linkbutton": true, "tabcontainer": true,
 	"tabpage": true, "groupbox": true, "scrollcontainer": true, "region": true,
-	"navigationtree": true, "menubar": true, "simplemenubar": true,
-	"placeholder": true, "radiobuttons": true, "navigationlist": true, "item": true,
+	"navigationtree": true, "menubar": true, "simplemenubar": true, "sidebartoggle": true,
+	"layoutheader": true,
+	"placeholder":  true, "radiobuttons": true, "navigationlist": true, "item": true,
 	"snippetcall": true, "footer": true, "header": true, "controlbar": true,
 	"template": true, "filter": true, "staticimage": true, "dynamicimage": true,
 }

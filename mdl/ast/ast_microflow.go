@@ -173,6 +173,9 @@ type CreateNanoflowStmt struct {
 	// properties. Accepting it in the grammar and explaining the refusal beats a
 	// parse error that says only "no viable alternative".
 	Expose []ExposeActionClause
+	// ExportLevel is "API" or "Hidden"; nil preserves. Nanoflows$Nanoflow
+	// stores it like a microflow does (mendixlabs/mxcli#1498).
+	ExportLevel *string
 }
 
 func (s *CreateNanoflowStmt) isStatement() {}

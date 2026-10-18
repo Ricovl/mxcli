@@ -460,43 +460,14 @@ var widgetVisibilityRules = map[string][]types.WidgetVisibilityRule{
 	},
 }
 
-// widgetSlotKeywordOverrides maps (widgetID, propertyKey) pairs to the MDL
-// keyword used in a widget body to fill that property. Most widgets[]-typed
-// properties use the uppercase property key as their MDL keyword; entries
-// here cover the cases where the keyword is a different conventional word.
-//
-// Background: a widget's .mpk declares property keys (e.g. filtersPlaceholder)
-// but not the MDL keyword users type for that slot. Studio Pro authors think
-// of `controlbar { ... }` (DataGrid) and `filter { ... }` (Gallery) rather
-// than `filtersplaceholder { ... }`. The keyword paths (datagrid_builder.go
-// etc.) encode this convention today; this table makes the same mapping
-// visible to the registry-driven engine.
-//
-// Keys are (widgetID, propertyKey). When v0.12.0 collapses the keyword paths
-// into the engine, this table is the single source of truth for the convention.
-var widgetSlotKeywordOverrides = map[string]map[string]string{
-	"com.mendix.widget.web.datagrid.Datagrid": {
-		"filtersPlaceholder": "CONTROLBAR",
-	},
-	"com.mendix.widget.web.gallery.Gallery": {
-		"filtersPlaceholder": "FILTER",
-	},
-}
+// widgetSlotKeywordOverrides is the shared slot-keyword table in mdl/types,
+// where the page mutator reads it too (`<widget>.<keyword>` addresses a slot).
+var widgetSlotKeywordOverrides = types.WidgetSlotKeywordOverrides
 
 // mdlContainerForWidgetSlot returns the MDL keyword for a widgets-typed
-// property. Defaults to the uppercase property key; recognized special cases
-// override that default. Widget-specific entries in widgetSlotKeywordOverrides
-// win over the global `content` → `TEMPLATE` convention.
+// property — see types.WidgetSlotKeyword.
 func mdlContainerForWidgetSlot(widgetID, propertyKey string) string {
-	if widgetSpecific, ok := widgetSlotKeywordOverrides[widgetID]; ok {
-		if kw, ok := widgetSpecific[propertyKey]; ok {
-			return kw
-		}
-	}
-	if propertyKey == "content" {
-		return "TEMPLATE"
-	}
-	return strings.ToUpper(propertyKey)
+	return types.WidgetSlotKeyword(widgetID, propertyKey)
 }
 
 // itemSlotAcceptedChildTypes lists widget MDL keywords that route to a

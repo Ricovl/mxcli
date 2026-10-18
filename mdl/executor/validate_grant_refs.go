@@ -539,7 +539,7 @@ type grantXPathResolver struct {
 
 func (g *grantResolver) memberProblem(qn ast.QualifiedName, rights []ast.EntityAccessRight) string {
 	name := qn.String()
-	if g.whole.entities[name] || g.whole.indirectEntities[name] || g.whole.alteredEntities[name] {
+	if g.whole.indirectEntities[name] {
 		return ""
 	}
 	var readMembers, writeMembers []string
@@ -554,20 +554,67 @@ func (g *grantResolver) memberProblem(qn ast.QualifiedName, rights []ast.EntityA
 	if len(readMembers) == 0 && len(writeMembers) == 0 {
 		return ""
 	}
+	if g.whole.entities[name] || g.whole.alteredEntities[name] {
+		return g.laterAssociationProblem(qn, readMembers, writeMembers)
+	}
 	members, ok := grantableMemberNames(g.ctx, qn)
 	if !ok {
 		return ""
 	}
-	// An association the script declares becomes a member exec will find.
-	for assoc := range g.whole.associations {
+	// An association created above the grant is a member exec will find; one
+	// created below it is not yet (laterAssociationProblem).
+	for assoc := range g.sc.associations {
 		members[assoc] = true
 	}
 	unknown := unmatchedGrantMembers(readMembers, writeMembers, members)
 	if len(unknown) == 0 {
 		return ""
 	}
+	if later := g.laterAssociationProblem(qn, readMembers, writeMembers); later != "" {
+		var rest []string
+		for _, m := range unknown {
+			if g.whole.associations[m] == "" {
+				rest = append(rest, m)
+			}
+		}
+		if len(rest) == 0 {
+			return later
+		}
+		return fmt.Sprintf("%s; and it has no member(s) %s at all", later, strings.Join(rest, ", "))
+	}
 	return fmt.Sprintf("entity %s has no member(s) %s; grant only names members of the entity or of an entity it inherits from",
 		name, strings.Join(unknown, ", "))
+}
+
+// laterAssociationProblem reports the members a grant names that are
+// associations a LATER statement creates. exec resolves the member list when
+// it writes the grant, so it refuses them — and `describe` used to print an
+// entity's grant ahead of the associations it names, which `check` passed
+// because it resolved them against the whole script (mendixlabs/mxcli#1409).
+//
+// It is the one member check made for an entity the script declares or
+// alters: the rest of such an entity's member list would be a second, drifting
+// copy of exec's, but an association is a statement of its own whose position
+// the script decides.
+func (g *grantResolver) laterAssociationProblem(qn ast.QualifiedName, readMembers, writeMembers []string) string {
+	stored, _ := grantableMemberNames(g.ctx, qn)
+	var later []string
+	seen := map[string]bool{}
+	for _, list := range [][]string{readMembers, writeMembers} {
+		for _, m := range list {
+			if seen[m] || stored[m] || g.sc.associations[m] != "" || g.whole.associations[m] == "" {
+				continue
+			}
+			seen[m] = true
+			later = append(later, m)
+		}
+	}
+	if len(later) == 0 {
+		return ""
+	}
+	sort.Strings(later)
+	return fmt.Sprintf("entity %s has no member(s) %s yet — the association is created later in this script; "+
+		"move the grant below that create statement", qn.String(), strings.Join(later, ", "))
 }
 
 // grantableMemberNames is the set of member names execGrantEntityAccess builds

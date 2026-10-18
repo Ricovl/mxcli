@@ -215,6 +215,15 @@ func listEntity(ctx *ExecContext, name *ast.QualifiedName) error {
 
 // describeEntity handles DESCRIBE ENTITY command.
 func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
+	return describeEntityWith(ctx, name, true)
+}
+
+// describeEntityWith describes an entity, with its access rules as grants when
+// withGrants is set. `describe module` leaves them out and prints them after
+// the module's associations, which a grant may name: replayed in entity order,
+// such a grant was refused because the association did not exist yet
+// (mendixlabs/mxcli#1409).
+func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants bool) error {
 	module, err := findModule(ctx, name.Module)
 	if err != nil {
 		return err
@@ -457,7 +466,9 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 			outputEntityValidationRules(ctx, entity, name.Module, name.Name, attrNames)
 
 			// Output access rule GRANT statements
-			outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
+			if withGrants {
+				outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
+			}
 
 			return nil
 		}

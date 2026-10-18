@@ -1,0 +1,42 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1220 — copying Atlas_Core.Atlas_Default with `describe layout` →
+-- `create layout` lost the responsive sidebar toggle. describe printed
+--
+--   -- Forms$SidebarToggleButton (sidebarToggle3)  -- NOT re-executable:
+--   -- mxcli cannot author this widget, so re-running this script would drop it
+--
+-- and Atlas's slide-in navigation on phones and tablets depends on it.
+--
+-- `sidebartoggle` writes the widget with the keys Atlas's own carries. The
+-- region it opens needs a ToggleMode: without one mxbuild reports CE0628 "For
+-- the sidebar toggle button to work, the outermost widget on the layout must
+-- be a scroll container with a region that can be toggled" (measured on
+-- 11.13.0), so the region's ToggleMode round-trips too.
+--
+--   mxcli exec this-file -p app.mpr && mxcli docker check -p app.mpr
+-- ============================================================================
+
+create or modify layout MyFirstModule.App_Sidebar1220 (
+  layouttype: 'Responsive',
+  class: 'layout-atlas layout-atlas-responsive-default'
+) {
+  scrollcontainer layoutContainer {
+    region top (Class: 'region-topbar') {
+      container topbarContent (Class: 'topbar-content') {
+        sidebartoggle sidebarToggle1 (
+          Tooltip: 'Toggle Menu',
+          ButtonStyle: Primary,
+          Icon: 'Atlas_Core.Atlas_Filled.navigation-menu',
+          Class: 'toggle-btn'
+        )
+      }
+    }
+    region left (Size: 232, SizeMode: 'Pixels', ToggleMode: 'ShrinkContentInitiallyClosed', Class: 'region-sidebar') {
+      navigationtree navigationTree1 (Profile: 'Responsive')
+    }
+    region center (Class: 'region-content') {
+      placeholder Main
+    }
+  }
+};

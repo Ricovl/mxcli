@@ -1161,6 +1161,13 @@ type ResultHandlingMapping struct {
 	// than merely undescribed).
 	LimitExpression  string `json:"limitExpression,omitempty"`
 	OffsetExpression string `json:"offsetExpression,omitempty"`
+
+	// ContentType is the ImportMappingCall's "Json" or "Xml", which follows the
+	// mapping's source: XML for an XML schema or a web service operation. A
+	// constant "Json" made mx check refuse a web-service mapping with "The
+	// selected import mapping cannot handle content type JSON"
+	// (mendixlabs/mxcli#1232). Empty writes "Json".
+	ContentType string `json:"contentType,omitempty"`
 }
 
 func (ResultHandlingMapping) isResultHandling() {}

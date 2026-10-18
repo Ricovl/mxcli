@@ -131,6 +131,9 @@ type Nanoflow struct {
 	// ReturnVariableName is the `as $Var` of `returns T as $Var`. Empty on a
 	// write means "not authored": the backend then carries the stored value.
 	ReturnVariableName string `json:"returnVariableName,omitempty"`
+	// ExportLevel is `Hidden` or `API`, as on a Microflow. Empty on a write
+	// means "not authored": the backend then carries the stored value.
+	ExportLevel string `json:"exportLevel,omitempty"`
 
 	// Parameters
 	Parameters []*MicroflowParameter `json:"parameters,omitempty"`

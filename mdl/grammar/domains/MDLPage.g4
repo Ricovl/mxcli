@@ -449,6 +449,8 @@ widgetTypeV3
     | NAVIGATIONTREE
     | MENUBAR
     | SIMPLEMENUBAR   // Atlas phone bottom bar: renders a menu document (#573)
+    | SIDEBARTOGGLE   // Atlas's responsive sidebar toggle button (mendixlabs/mxcli#1220)
+    | LAYOUTHEADER    // Forms$Header: a phone/tablet layout's header bar, `region left|right { … }`
     // Object-list container keywords for pluggable widgets (Phase 1 — #538).
     // Each is the singular form of a Type:"object"+IsList:true widget property
     // (e.g. Accordion groups → GROUP). Routed at executor time via the parent

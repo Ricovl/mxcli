@@ -320,6 +320,26 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
+	case "Forms$Header", "Pages$Header", "Forms$HeaderSide":
+		// A layout header and its two sides (the latter synthetic, like a
+		// scroll container's regions).
+		header := fmt.Sprintf("layoutheader %s", mdlIdent(w.Name))
+		var props []string
+		if w.Type == "Forms$HeaderSide" {
+			header = "region " + w.Name
+		} else {
+			props = appendAppearanceProps(ctx, nil, w)
+		}
+		if len(w.Children) == 0 {
+			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			break
+		}
+		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+		for _, child := range w.Children {
+			outputWidgetMDLV3(ctx, child, indent+1)
+		}
+		fmt.Fprintf(ctx.Output, "%s}\n", prefix)
+
 	case "Forms$ScrollContainerRegion":
 		// A synthetic wrapper: the slot is in Name, and `region top` is how MDL
 		// spells it. 200/Auto is Studio Pro's untouched default, so emitting it
@@ -332,6 +352,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		}
 		if w.RegionSizeMode != "" && w.RegionSizeMode != "Auto" {
 			props = append(props, fmt.Sprintf("SizeMode: %s", mdlQuote(ctx, w.RegionSizeMode)))
+		}
+		if w.RegionToggleMode != "" && w.RegionToggleMode != "None" {
+			props = append(props, fmt.Sprintf("ToggleMode: %s", mdlQuote(ctx, w.RegionToggleMode)))
 		}
 		props = appendAppearanceProps(ctx, props, w)
 		if len(w.Children) > 0 {
@@ -524,14 +547,22 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
-	case "Forms$ActionButton", "Pages$ActionButton":
-		// RenderType "Link" round-trips as the `linkbutton` keyword.
+	case "Forms$ActionButton", "Pages$ActionButton", "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
+		// RenderType "Link" round-trips as the `linkbutton` keyword. A sidebar
+		// toggle has no keyword of its own for it, so says it as a property.
+		toggle := strings.HasSuffix(w.Type, "$SidebarToggleButton")
 		keyword := "actionbutton"
-		if w.RenderMode == "Link" {
+		switch {
+		case toggle:
+			keyword = "sidebartoggle"
+		case w.RenderMode == "Link":
 			keyword = "linkbutton"
 		}
 		header := fmt.Sprintf("%s %s", keyword, mdlIdent(w.Name))
 		props := []string{}
+		if toggle && w.RenderMode == "Link" {
+			props = append(props, "RenderMode: Link")
+		}
 		if w.Caption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.Caption)))
 		}

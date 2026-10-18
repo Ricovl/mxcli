@@ -157,6 +157,10 @@ type UserTask struct {
 	OnCreated       string             `json:"onCreated,omitempty"`       // Microflow called on task creation
 	BoundaryEvents  []*BoundaryEvent   `json:"boundaryEvents,omitempty"`  // Boundary events (e.g., timers)
 
+	// AutoAssignSingleTargetUser is Studio Pro's "Auto-assign when targeting
+	// results in one user". Off by default, as Studio Pro creates a task.
+	AutoAssignSingleTargetUser bool `json:"autoAssignSingleTargetUser,omitempty"`
+
 	// Multi-user task only.
 	CompletionCriteria *CompletionCriteria `json:"completionCriteria,omitempty"` // nil = consensus on the first outcome
 	TargetUserInput    *TargetUserInput    `json:"targetUserInput,omitempty"`    // nil = all targeted users

@@ -580,6 +580,11 @@ func buildNanoflowFromStmt(ctx *ExecContext, s *ast.CreateNanoflowStmt, opts bui
 	if preserveDocumentation {
 		nf.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existingDocumentation)
 	}
+	// Authored only; absent leaves "" and the backend carries the stored level
+	// (mendixlabs/mxcli#1498).
+	if s.ExportLevel != nil {
+		nf.ExportLevel = *s.ExportLevel
+	}
 	// A new flow starts with no allowed roles: access is the author's grant
 	// (mendixlabs/mxcli#1474).
 	if preserveAllowedRoles {

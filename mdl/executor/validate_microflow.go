@@ -182,6 +182,10 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	// CONV011 all along, but only after the write and only project-wide. See
 	// validate_commit_in_loop.go.
 	v.checkCommitInLoop(body)
+
+	// mendixlabs/mxcli#1491: a statement after one that ends the path is
+	// written anyway and refused by the build. See validate_microflow_unreachable.go.
+	v.checkUnreachableStatements(body)
 }
 
 // checkDuplicateLoopVariables flags a loop iterator name used by more than one

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -150,11 +151,52 @@ func (m *Mutator) SetWidgetDataSource(widgetRef string, ds pages.DataSource) err
 		return err
 	}
 
+	if bsonnav.DGetString(result.widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return m.setPluggableDataSource(result.widget, ds)
+	}
+
 	serialized := serializeDataSourceBson(ds)
 	if serialized == nil {
 		return fmt.Errorf("unsupported DataSource type %T", ds)
 	}
-	bsonnav.DSet(result.widget, "DataSource", serialized)
+	// DSet only replaces an existing key. Ignoring its result is how a widget
+	// with nowhere to keep a source reported "Altered page" unchanged
+	// (mendixlabs/mxcli#1548).
+	if !bsonnav.DSet(result.widget, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s) has no data source to set", widgetRef, widgetTypeName(result.widget))
+	}
+	return nil
+}
+
+// setPluggableDataSource writes ds into a pluggable widget's datasource
+// property. A Gallery or Data grid 2 has no top-level DataSource key — the
+// source is the Value of the property its schema keys "datasource" — so the
+// plain-widget write above found nothing to replace and reported success with
+// the unit byte-identical (mendixlabs/mxcli#1548). The source is serialized by
+// the engine's pluggable serializer, the one CREATE PAGE and INSERT use for
+// the same property, rather than by serializeDataSourceBson: a second copy of
+// that shape is the drift this file keeps paying for.
+func (m *Mutator) setPluggableDataSource(widget bson.D, ds pages.DataSource) error {
+	name := bsonnav.DGetString(widget, "Name")
+	valDoc := pluggableDataSourceValue(widget)
+	if valDoc == nil {
+		return fmt.Errorf("%q (%s) has no data source property to set", name, widgetTypeName(widget))
+	}
+	var serialized bson.D
+	switch ds.(type) {
+	case *pages.MicroflowSource, *pages.NanoflowSource:
+		if m.deps != nil {
+			serialized = m.deps.SerializeCustomWidgetDataSource(ds)
+		}
+	}
+	if serialized == nil {
+		return fmt.Errorf("setting this kind of data source on %q (%s) is not supported by `set` — "+
+			"use `replace <widget> with …` instead, which rebuilds the widget through the CREATE PAGE path",
+			name, widgetTypeName(widget))
+	}
+	if !bsonnav.DSet(valDoc, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s): its data source property has no DataSource slot", name, widgetTypeName(widget))
+	}
 	return nil
 }
 
@@ -460,6 +502,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if handled, err := m.insertIntoDataViewFooter(widgetRef, columnRef, position, widgets); handled {
 			return err
 		}
+		if handled, err := m.insertIntoPluggableSlot(widgetRef, columnRef, position, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -498,6 +543,10 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if strings.EqualFold(string(position), "into") {
 		newContainer, err := appendChildrenToContainer(result.widget, widgetRef, newBsonWidgets)
 		if err != nil {
+			if hint := pluggableSlotHint(result, widgetRef); hint != "" {
+				return fmt.Errorf("cannot INSERT INTO %q: a pluggable widget keeps its child widgets in named slots, "+
+					"not in a list of its own — use %s", widgetRef, hint)
+			}
 			return err
 		}
 		// Write the (possibly reallocated — an empty container gains a new Widgets
@@ -603,6 +652,14 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			continue
 		}
 		if ref.IsColumn() {
+			if handled, err := m.dropPluggableSlot(ref.Widget, ref.Column); handled {
+				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		if ref.IsColumn() {
 			r, err := findBsonColumn(m.rawData, ref.Widget, ref.Column, m.widgetFinder)
 			if err != nil {
 				return err
@@ -631,6 +688,9 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pages.Widget) error {
 	if columnRef != "" {
 		if handled, err := m.replaceDataViewFooter(widgetRef, columnRef, widgets); handled {
+			return err
+		}
+		if handled, err := m.replacePluggableSlot(widgetRef, columnRef, widgets); handled {
 			return err
 		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
@@ -1323,6 +1383,12 @@ func widgetOwnDataSourceDoc(wDoc bson.D) bson.D {
 // property the widget's schema keys "datasource", and returns its DataSource
 // document.
 func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
+	return bsonnav.DGetDoc(pluggableDataSourceValue(widgetDoc), "DataSource")
+}
+
+// pluggableDataSourceValue returns the Value document of the CustomWidget
+// property its schema keys "datasource" — the one holding a DataSource key.
+func pluggableDataSourceValue(widgetDoc bson.D) bson.D {
 	obj := bsonnav.DGetDoc(widgetDoc, "Object")
 	if obj == nil {
 		return nil
@@ -1344,8 +1410,8 @@ func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
 		if valDoc == nil {
 			continue
 		}
-		if dsDoc := bsonnav.DGetDoc(valDoc, "DataSource"); dsDoc != nil {
-			return dsDoc
+		if hasKey(valDoc, "DataSource") {
+			return valDoc
 		}
 	}
 	return nil
@@ -1519,6 +1585,15 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 	// TabContainer: TabPages[] are named elements themselves (`set Caption … on
 	// tabPage2`), and findInWidgetArray descends into each one's Widgets[].
 	if result := findInWidgetArray(wDoc, "TabPages", widgetName); result != nil {
+		return result
+	}
+
+	// Legacy table: Cells[].Widgets[] (mendixlabs/mxcli#1453). A cell has no
+	// Name, so findInWidgetArray descends straight into its Widgets. Keyed on
+	// the list, not the $Type: Mendix 11 stores a cell as Forms$DbTableCell,
+	// which gen does not model, and Forms$Table is the only page type with a
+	// Cells list.
+	if result := findInWidgetArray(wDoc, "Cells", widgetName); result != nil {
 		return result
 	}
 
@@ -2302,6 +2377,9 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
 	}
+	if ds, found := findNearestDSInWidgets(wDoc, "Cells", widgetName, curDS); found {
+		return ds, true
+	}
 	if isNavigationList(wDoc) {
 		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
 			return ds, true
@@ -2504,6 +2582,7 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	collectWidgetScope(wDoc, "Cells", scope) // legacy table cells (#1453)
 	if isNavigationList(wDoc) {
 		collectWidgetScope(wDoc, "Items", scope)
 	}
@@ -3811,11 +3890,11 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		case string:
 			bsonnav.DSet(valDoc, "PrimitiveValue", v)
 		case bool:
-			if v {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "yes")
-			} else {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "no")
+			spelled, err := pluggableBooleanSpelling(widget, typePointerID, kind, propName, v)
+			if err != nil {
+				return err
 			}
+			bsonnav.DSet(valDoc, "PrimitiveValue", spelled)
 		case int:
 			bsonnav.DSet(valDoc, "PrimitiveValue", fmt.Sprintf("%d", v))
 		case float64:
@@ -3826,6 +3905,58 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		return nil
 	}
 	return fmt.Errorf("pluggable property %q not found", propName)
+}
+
+// pluggableBooleanSpelling is how a bare `true`/`false` is stored in a pluggable
+// property, which the property's declared kind decides — not the MDL literal.
+// It was always "yes"/"no" (mendixlabs/mxcli#1454), the spelling of neither
+// Studio Pro nor the widget template for a Boolean: those store "true"/"false",
+// and the client reads anything but "true" as false, so `set (showFooter: true)`
+// passed mx check and switched the footer off. A production scan of 13k Boolean
+// values found no "yes"/"no" at all; those strings occur only as the keys of an
+// Enumeration that literally declares them, which keeps taking a boolean. Any
+// other enumeration has no key a boolean can mean, so it is refused rather
+// than written with a key the widget does not declare.
+func pluggableBooleanSpelling(widget bson.D, typePointerID, kind, propName string, v bool) (string, error) {
+	if kind != "Enumeration" {
+		return strconv.FormatBool(v), nil
+	}
+	keys := pluggableEnumerationKeys(widget, typePointerID)
+	want := "no"
+	if v {
+		want = "yes"
+	}
+	for _, k := range keys {
+		if k == want {
+			return k, nil
+		}
+	}
+	return "", fmt.Errorf("pluggable property %q is an enumeration (%s), not a Boolean — "+
+		"write one of its keys as a quoted string instead of %v",
+		propName, strings.Join(keys, ", "), v)
+}
+
+// pluggableEnumerationKeys lists the keys the widget's schema declares for the
+// enumeration property typePointerID, in declaration order.
+func pluggableEnumerationKeys(widget bson.D, typePointerID string) []string {
+	objType := bsonnav.DGetDoc(bsonnav.DGetDoc(widget, "Type"), "ObjectType")
+	for _, pt := range bsonnav.DGetArrayElements(bsonnav.DGet(objType, "PropertyTypes")) {
+		ptDoc, ok := pt.(bson.D)
+		if !ok || bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(ptDoc, "$ID")) != typePointerID {
+			continue
+		}
+		var keys []string
+		valueType := bsonnav.DGetDoc(ptDoc, "ValueType")
+		for _, ev := range bsonnav.DGetArrayElements(bsonnav.DGet(valueType, "EnumerationValues")) {
+			if evDoc, ok := ev.(bson.D); ok {
+				if k := bsonnav.DGetString(evDoc, "_Key"); k != "" {
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys
+	}
+	return nil
 }
 
 // noPluggableObjectError explains a SET that reached the pluggable fallback on a

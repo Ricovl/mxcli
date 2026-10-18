@@ -156,6 +156,7 @@ func nanoflowFromGen(nf *genMf.Nanoflow, containerID model.ID) *microflows.Nanof
 		MarkAsUsed:         nf.MarkAsUsed(),
 		ReturnType:         dataTypeFromGen(nf.MicroflowReturnType()),
 		ReturnVariableName: nf.ReturnVariableName(),
+		ExportLevel:        nf.ExportLevel(),
 	}
 	out.ID = model.ID(nf.ID())
 	for _, qn := range nf.AllowedModuleRolesQualifiedNames() {

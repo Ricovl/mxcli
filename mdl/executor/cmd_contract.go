@@ -526,11 +526,6 @@ func createExternalEntities(ctx *ExecContext, s *ast.CreateExternalEntitiesStmt)
 		return mdlerrors.NewBackend("get domain model", err)
 	}
 
-	// Index existing entities by name for upsert
-	existing := make(map[string]*domainmodel.Entity)
-	for _, ent := range dm.Entities {
-		existing[ent.Name] = ent
-	}
 	// What new entities are placed against: the module as read, plus every
 	// entity this import creates, so they clear each other as well.
 	placed := &domainmodel.DomainModel{
@@ -568,15 +563,20 @@ func createExternalEntities(ctx *ExecContext, s *ast.CreateExternalEntitiesStmt)
 			}
 			isTopLevel := entitySetName != ""
 
-			// Mendix entity name: entity set name when present (e.g. "People"),
-			// otherwise the type name (e.g. "PlanItem", "Flight", "Trip").
+			// Mendix entity name: the entity TYPE name, as Studio Pro names it
+			// ("Part" for entity set "Parts", "Person" for "People"). Naming it
+			// after the set broke every script written against Studio Pro's name
+			// (mendixlabs/mxcli#1432). An entity an older mxcli imported under
+			// the set name is still found, by its remote identity, and keeps the
+			// name pages and microflows already use.
+			existingEntity := importedEntityFor(dm, serviceRef, entitySetName, et.Name)
 			mendixName := et.Name
-			if isTopLevel {
-				mendixName = entitySetName
+			if existingEntity != nil {
+				mendixName = existingEntity.Name
 			}
 
 			// Apply entity name filter (matched against type name OR entity set name)
-			if len(filterSet) > 0 && !filterSet[strings.ToLower(et.Name)] && !filterSet[strings.ToLower(mendixName)] {
+			if len(filterSet) > 0 && !filterSet[strings.ToLower(et.Name)] && !filterSet[strings.ToLower(entitySetName)] {
 				continue
 			}
 
@@ -808,7 +808,7 @@ func createExternalEntities(ctx *ExecContext, s *ast.CreateExternalEntitiesStmt)
 				attrs = append(attrs, attr)
 			}
 
-			if existingEntity, ok := existing[mendixName]; ok {
+			if existingEntity != nil {
 				if !s.CreateOrModify {
 					fmt.Fprintf(ctx.Output, "  SKIPPED: %s.%s (already exists; use create or modify to update)\n", targetModule, mendixName)
 					skipped++
@@ -921,15 +921,8 @@ func createPrimitiveCollectionNPEs(
 	// Lookup parent Mendix entity by EDMX type qualified name.
 	parentByQN := make(map[string]*domainmodel.Entity)
 	for qn, et := range typeByQualified {
-		mendixName := et.Name
-		if es := esMap[qn]; es != "" {
-			mendixName = es
-		}
-		for _, ent := range dm.Entities {
-			if ent.Name == mendixName {
-				parentByQN[qn] = ent
-				break
-			}
+		if ent := importedEntityFor(dm, serviceRef, esMap[qn], et.Name); ent != nil {
+			parentByQN[qn] = ent
 		}
 	}
 
@@ -1051,6 +1044,26 @@ func isInheritedProperty(et *types.EdmEntityType, propName string, byQN map[stri
 	return true
 }
 
+// importedEntityFor returns the entity an import of this OData entity type
+// writes to: the one already mapped to the same entity set of the same service,
+// else the one carrying the type's name.
+//
+// The remote identity comes first because mxcli once named a top-level entity
+// after its entity SET (mendixlabs/mxcli#1432). Matching on the name alone would
+// make a re-import of such a module create a type-named twin mapping the same
+// set, and renaming the old one would break everything written against it.
+func importedEntityFor(dm *domainmodel.DomainModel, serviceRef, entitySetName, typeName string) *domainmodel.Entity {
+	if entitySetName != "" {
+		for _, ent := range dm.Entities {
+			if ent.Source == "Rest$ODataRemoteEntitySource" &&
+				ent.RemoteServiceName == serviceRef && ent.RemoteEntitySet == entitySetName {
+				return ent
+			}
+		}
+	}
+	return findEntityByName(dm, typeName)
+}
+
 // findEntityByName returns a domain model entity by name, or nil if not found.
 func findEntityByName(dm *domainmodel.DomainModel, name string) *domainmodel.Entity {
 	for _, ent := range dm.Entities {
@@ -1136,20 +1149,10 @@ func createNavigationAssociations(
 		esByType[es.EntityType] = es
 	}
 	// Build a lookup from EDMX type qualified name → existing Mendix entity.
-	// An entity type matches by its EntitySet name when present, otherwise by
-	// its bare type name.
 	mendixByType := make(map[string]*domainmodel.Entity)
 	for qn, et := range typeByQualified {
-		entitySetName := esMap[qn]
-		mendixName := et.Name
-		if entitySetName != "" {
-			mendixName = entitySetName
-		}
-		for _, ent := range dm.Entities {
-			if ent.Name == mendixName {
-				mendixByType[qn] = ent
-				break
-			}
+		if ent := importedEntityFor(dm, serviceRef, esMap[qn], et.Name); ent != nil {
+			mendixByType[qn] = ent
 		}
 	}
 
@@ -1162,6 +1165,22 @@ func createNavigationAssociations(
 	// legacy read preserves; the modelsdk read does not, so the natural
 	// association name (== nav-property name) is the fallback skip signal.
 	existingAssocs, existingNav := indexExistingAssociations(dm)
+
+	// The association an earlier import made for a navigation property, keyed
+	// like existingNav, so a partnered end imported the old way can be named.
+	navAssoc := make(map[assocKey]*domainmodel.Association)
+	entityName := make(map[model.ID]string, len(dm.Entities))
+	for _, ent := range dm.Entities {
+		entityName[ent.ID] = ent.Name
+	}
+	for _, a := range dm.Associations {
+		if p, ok := entityName[a.ParentID]; ok && a.RemoteParentNavigationProperty != "" {
+			navAssoc[assocKey{p, a.RemoteParentNavigationProperty}] = a
+		}
+	}
+	// Partnered navigations Mendix does not offer, and associations from an
+	// earlier import that map a partnered end the way that is CE6618.
+	var unavailable, stale []string
 
 	count := 0
 	for _, schema := range doc.Schemas {
@@ -1199,6 +1218,55 @@ func createNavigationAssociations(
 				// stored as Rest$ODataEntityTypeSource (Persistable=false).
 				if parentEnt.Persistable && !childEnt.Persistable {
 					continue
+				}
+
+				// A navigation property with a Partner is one END of a
+				// bidirectional relationship, and Mendix does not treat the ends
+				// separately (mendixlabs/mxcli#1231). Measured on 11.12.1, with
+				// importing each end as its own association as the baseline —
+				// CE6618 "Navigation 'Lines' from external entity 'Buffer' to
+				// 'Line' is not available in the OData service" on every end:
+				//
+				//	one-to-many    ONE association, from the single-valued end,
+				//	               naming both properties          0 errors
+				//	many-to-many   no form builds — one association, two, or
+				//	one-to-one     Owner Both: CE6618 on both ends
+				//
+				// So a one-to-many pair is created once, by its single-valued end
+				// (it holds the reference, so it is the FROM entity), and the
+				// other two are not created at all and are reported instead.
+				// The unpartnered collection navigations beside them in the same
+				// contract build clean, which is what makes Partner the line.
+				partner := partnerNavigation(np, parentQN, typeByQualified[targetTypeName])
+				if partner != nil {
+					partnerMany := strings.HasPrefix(partner.Type, "Collection(")
+					if isMany == partnerMany {
+						if prior := navAssoc[assocKey{parentEnt.Name, np.Name}]; prior != nil {
+							stale = append(stale, prior.Name)
+						}
+						// Once per pair: from the end that sorts first.
+						if parentQN+"/"+np.Name <= targetTypeName+"/"+partner.Name {
+							kind := "many-to-many"
+							if !isMany {
+								kind = "one-to-one"
+							}
+							unavailable = append(unavailable, fmt.Sprintf("%s.%s / %s.%s (%s)",
+								parentEnt.Name, np.Name, childEnt.Name, partner.Name, kind))
+						}
+						continue
+					}
+					if isMany {
+						// The single-valued end creates the association; one
+						// an earlier import made from this end is CE6618.
+						if prior := navAssoc[assocKey{parentEnt.Name, np.Name}]; prior != nil {
+							stale = append(stale, prior.Name)
+						}
+						continue
+					}
+					if prior := navAssoc[assocKey{parentEnt.Name, np.Name}]; prior != nil &&
+						prior.RemoteChildNavigationProperty == "" {
+						stale = append(stale, prior.Name)
+					}
 				}
 
 				// Re-import dedup: if this nav property already has an
@@ -1260,6 +1328,28 @@ func createNavigationAssociations(
 					CreatableFromParent:            creatable,
 					UpdatableFromParent:            updatable,
 				}
+				if partner != nil {
+					// The child end's capabilities come from the TARGET's entity
+					// set, exactly as the parent end's come from the source's.
+					creatableFromChild := true
+					updatableFromChild := true
+					if es, ok := esByType[targetTypeName]; ok {
+						creatableFromChild = es.Insertable != nil && *es.Insertable
+						updatableFromChild = es.Updatable != nil && *es.Updatable
+					}
+					if r, ok := restrictionsByType[targetTypeName]; ok {
+						if r.nonInsertable[partner.Name] {
+							creatableFromChild = false
+						}
+						if r.nonUpdatable[partner.Name] {
+							updatableFromChild = false
+						}
+					}
+					assoc.RemoteChildNavigationProperty = partner.Name
+					assoc.Navigability2 = "BothDirections"
+					assoc.CreatableFromChild = creatableFromChild
+					assoc.UpdatableFromChild = updatableFromChild
+				}
 				assoc.ID = model.ID(types.GenerateID())
 
 				if err := ctx.Backend.CreateAssociation(dm.ID, assoc); err != nil {
@@ -1268,11 +1358,57 @@ func createNavigationAssociations(
 				}
 				existingAssocs[assocKey{parentEnt.Name, assocName}] = true
 				existingNav[assocKey{parentEnt.Name, np.Name}] = true
+				if partner != nil {
+					existingNav[assocKey{childEnt.Name, partner.Name}] = true
+				}
 				count++
 			}
 		}
 	}
+
+	if len(unavailable) > 0 {
+		sort.Strings(unavailable)
+		fmt.Fprintf(ctx.Output, "\n  %d partnered navigation pair(s) not imported — Mendix does not offer a\n", len(unavailable))
+		fmt.Fprintf(ctx.Output, "  bidirectional many-to-many or one-to-one navigation, and an association\n")
+		fmt.Fprintf(ctx.Output, "  for either end fails the build with CE6618:\n")
+		for _, u := range unavailable {
+			fmt.Fprintf(ctx.Output, "    %s\n", u)
+		}
+	}
+	if len(stale) > 0 {
+		sort.Strings(stale)
+		fmt.Fprintf(ctx.Output, "\n  %d association(s) from an earlier import map one end of a partnered\n", len(stale))
+		fmt.Fprintf(ctx.Output, "  navigation separately, which fails the build with CE6618. Drop them and\n")
+		fmt.Fprintf(ctx.Output, "  re-run this import:\n")
+		prefix := ""
+		if mod := moduleNameOfDomainModel(ctx, dm); mod != "" {
+			prefix = mod + "."
+		}
+		for _, name := range stale {
+			fmt.Fprintf(ctx.Output, "    drop association %s%s;\n", prefix, name)
+		}
+	}
 	return count
+}
+
+// partnerNavigation returns the navigation property on the target type that np
+// names as its Partner, provided it points back at np's own type — or nil when
+// np is one-directional. A Partner that does not lead back is malformed
+// metadata, and treating it as one-directional is what Mendix can still map.
+func partnerNavigation(np *types.EdmNavigationProperty, ownerQN string, target *types.EdmEntityType) *types.EdmNavigationProperty {
+	if np.Partner == "" || target == nil {
+		return nil
+	}
+	for _, other := range target.NavigationProperties {
+		if other.Name != np.Partner || other.ContainsTarget {
+			continue
+		}
+		back := strings.TrimSuffix(strings.TrimPrefix(other.Type, "Collection("), ")")
+		if back == ownerQN {
+			return other
+		}
+	}
+	return nil
 }
 
 // indexExistingAssociations builds the two lookup tables the re-import dedup
@@ -1305,6 +1441,11 @@ func indexExistingAssociations(dm *domainmodel.DomainModel) (byName, byNav map[a
 		byName[assocKey{p, a.Name}] = true
 		if a.RemoteParentNavigationProperty != "" {
 			byNav[assocKey{p, a.RemoteParentNavigationProperty}] = true
+		}
+		// A partnered pair is one association; its other end is reached from
+		// the child entity under the child navigation property.
+		if c, ok := parentName[a.ChildID]; ok && a.RemoteChildNavigationProperty != "" {
+			byNav[assocKey{c, a.RemoteChildNavigationProperty}] = true
 		}
 	}
 	return byName, byNav

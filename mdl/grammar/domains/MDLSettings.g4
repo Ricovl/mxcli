@@ -658,9 +658,9 @@ keyword
     // Agent editor
     | AGENT | AGENTS | KNOWLEDGE | BASES | CONSUMED | MCP | TOOL
 
-    // Workflow multi-user task completion — words, so still usable as names
+    // Workflow user task settings — words, so still usable as names
     | DECIDE | CONSENSUS | MAJORITY | MORE_KW | THAN | HALF | MOST | CHOSEN | THRESHOLD
-    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT
+    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT | AUTO | ASSIGN
 
     // Microflow / Nanoflow
     | MICROFLOW | MICROFLOWS | NANOFLOW | NANOFLOWS
@@ -714,7 +714,7 @@ keyword
     // Layout structure. SCROLLREGION is spelled `region`, an ordinary enough
     // word that leaving it out of this rule would make `region` unusable as an
     // attribute or widget name anywhere in MDL.
-    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR
+    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR | SIDEBARTOGGLE | LAYOUTHEADER
     // Object-list container keywords for pluggable widgets (#538)
     | GROUP | CUSTOMITEM | MARKER | DYNAMICMARKER | SERIES | LINE | SCALECOLOR
     | CUSTOMBUTTON | ALLOWEDFILEFORMAT

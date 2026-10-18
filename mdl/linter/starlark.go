@@ -13,6 +13,7 @@ import (
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+	"go.starlark.net/syntax"
 
 	"github.com/mendixlabs/mxcli/mdl/exprcheck"
 )
@@ -295,7 +296,14 @@ func LoadStarlarkRule(path string) (*StarlarkRule, error) {
 		Name: filepath.Base(path),
 	}
 
-	globals, err := starlark.ExecFile(thread, path, data, predeclared)
+	// Recursion is on: an expression tree from parse_xpath is walked
+	// recursively — the write-lint-rules skill's own example does — and with
+	// Starlark's default that failed as "function called recursively"
+	// (ako/mxcli#1439). The interpreter still stops a runaway rule at 100,000
+	// frames with "Starlark stack overflow", which is a rule failure, not a crash.
+	opts := syntax.LegacyFileOptions()
+	opts.Recursion = true
+	globals, err := starlark.ExecFileOptions(opts, thread, path, data, predeclared)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute Starlark file: %w", err)
 	}
@@ -431,6 +439,7 @@ func (r *StarlarkRule) buildPredeclared() starlark.StringDict {
 		"is_pascal_case": starlark.NewBuiltin("is_pascal_case", builtinIsPascalCase),
 		"is_camel_case":  starlark.NewBuiltin("is_camel_case", builtinIsCamelCase),
 		"matches":        starlark.NewBuiltin("matches", builtinMatches),
+		"find_all":       starlark.NewBuiltin("find_all", builtinFindAll),
 
 		// Struct constructor (from starlarkstruct)
 		"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
@@ -1168,6 +1177,7 @@ func userRoleToStarlark(ur UserRoleInfo) starlark.Value {
 	}
 	return starlarkstruct.FromStringDict(starlark.String("user_role"), starlark.StringDict{
 		"name":         starlark.String(ur.Name),
+		"description":  starlark.String(ur.Description),
 		"is_anonymous": starlark.Bool(ur.IsAnonymous),
 		"module_roles": starlark.NewList(moduleRoles),
 	})
@@ -1344,7 +1354,9 @@ func (r *StarlarkRule) builtinParseXPath(_ *starlark.Thread, _ *starlark.Builtin
 
 	inner := stripXPathBrackets(string(s))
 	parser := exprcheck.NewParser()
-	ast, _ := parser.Parse(inner, exprcheck.NewSyntaxContext("", ""))
+	ctx := exprcheck.NewSyntaxContext("", "")
+	ctx.XPath = true
+	ast, _ := parser.Parse(inner, ctx)
 	return robustExprToStarlark(ast), nil
 }
 
@@ -1458,6 +1470,36 @@ func builtinMatches(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple
 		return starlark.True, nil
 	}
 	return starlark.False, nil
+}
+
+// builtinFindAll returns every match of pattern in s: per match, a tuple of
+// its capture groups, or the matched text when the pattern has none — the
+// shape of Python's re.findall. matches() answers only yes or no, so a rule
+// could not read the part of a name it had matched (ako/mxcli#1439).
+func builtinFindAll(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var s, pattern starlark.String
+	if err := starlark.UnpackArgs("find_all", args, kwargs, "s", &s, "pattern", &pattern); err != nil {
+		return nil, err
+	}
+
+	re, err := regexp.Compile(string(pattern))
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
+	}
+
+	var out []starlark.Value
+	for _, m := range re.FindAllStringSubmatch(string(s), -1) {
+		if len(m) == 1 {
+			out = append(out, starlark.String(m[0]))
+			continue
+		}
+		groups := make(starlark.Tuple, len(m)-1)
+		for i, g := range m[1:] {
+			groups[i] = starlark.String(g)
+		}
+		out = append(out, groups)
+	}
+	return starlark.NewList(out), nil
 }
 
 // RuleLoadFailure is a .star file that was found but produced no rule.

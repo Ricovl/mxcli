@@ -940,6 +940,7 @@ func readMappingCall(doc, imc bson.Raw) (h *microflows.ResultHandlingMapping, fo
 		mapping = rawStr(imc, "ReturnValueMapping")
 	}
 	h.MappingID = model.ID(mapping)
+	h.ContentType = rawStr(imc, "ContentType")
 	force, _ = imc.Lookup("ForceSingleOccurrence").BooleanOK()
 	h.ForceSingleOccurrence = &force
 	// The Range is polymorphic: a ConstantRange carries SingleObject (All/First)

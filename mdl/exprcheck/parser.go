@@ -492,7 +492,13 @@ func parseIdentLed(s *Stream, ctx Context) (RobustExpr, []Hint) {
 		if s.Peek().Kind == TokLParen {
 			return parseQualifiedCall(s, ctx, t.Pos, name+"."+n2)
 		}
+		if ctx.XPath && startsXPathPathStep(s) {
+			return parseXPathPath(s, ctx, t.Pos, "", []string{name + "." + n2})
+		}
 		return &QNameExpr{baseNode: baseNode{P: t.Pos}, Module: name, Name: n2}, nil
+	}
+	if ctx.XPath && startsXPathPathStep(s) {
+		return parseXPathPath(s, ctx, t.Pos, "", []string{name})
 	}
 	// Bare records that this came from a plain identifier rather than
 	// `$Name`. The two collapse to the same node, and telling them apart is
@@ -531,6 +537,9 @@ func parseQualifiedCall(s *Stream, ctx Context, pos Position, name string) (Robu
 func parseDollar(s *Stream, ctx Context) (RobustExpr, []Hint) {
 	t := s.Consume()
 	name := strings.TrimPrefix(t.Text, "$")
+	if ctx.XPath && s.Peek().Kind == TokSlash {
+		return parseXPathPath(s, ctx, t.Pos, name, nil)
+	}
 	if s.Peek().Kind != TokSlash {
 		return &VariableExpr{baseNode: baseNode{P: t.Pos}, Name: name}, nil
 	}
@@ -552,6 +561,66 @@ func parseDollar(s *Stream, ctx Context) (RobustExpr, []Hint) {
 		}
 	}
 	return &AttributePathExpr{baseNode: baseNode{P: t.Pos}, Variable: name, Path: path}, nil
+}
+
+// startsXPathPathStep reports whether the next token continues an XPath path:
+// a `/` to the next segment, or a `[` opening a predicate on this one. The
+// lexer has no bracket token (`[` is only meaningful as `[%token%]` in an
+// expression), so a bare bracket arrives as a one-character TokError.
+func startsXPathPathStep(s *Stream) bool {
+	t := s.Peek()
+	return t.Kind == TokSlash || isBracket(t, "[")
+}
+
+func isBracket(t Token, b string) bool { return t.Kind == TokError && t.Text == b }
+
+// parseXPathPath reads the rest of an XPath path whose first segments (if
+// any) are already in path: `/`-separated segments, each a possibly
+// qualified name, each optionally followed by a `[...]` predicate.
+func parseXPathPath(s *Stream, ctx Context, pos Position, variable string, path []string) (RobustExpr, []Hint) {
+	var preds []RobustExpr
+	var hs []Hint
+	hasPred := false
+	predicate := func() {
+		var pred RobustExpr
+		if isBracket(s.Peek(), "[") {
+			s.Consume()
+			var h []Hint
+			pred, h = parseOr(s, ctx)
+			hs = append(hs, h...)
+			if isBracket(s.Peek(), "]") {
+				s.Consume()
+			}
+			hasPred = true
+		}
+		preds = append(preds, pred)
+	}
+	if len(path) > 0 {
+		// Only the last segment already read can still take a predicate.
+		preds = make([]RobustExpr, len(path)-1)
+		predicate()
+	}
+	for s.Peek().Kind == TokSlash {
+		s.Consume()
+		if s.Peek().Kind != TokIdent {
+			break
+		}
+		seg := s.Consume().Text
+		for s.Peek().Kind == TokDot {
+			s.Consume()
+			if s.Peek().Kind != TokIdent {
+				break
+			}
+			seg += "." + s.Consume().Text
+		}
+		path = append(path, seg)
+		predicate()
+	}
+	node := &AttributePathExpr{baseNode: baseNode{P: pos}, Variable: variable, Path: path}
+	if hasPred {
+		node.Predicates = preds
+	}
+	return node, hs
 }
 
 func parseConstantRef(s *Stream, ctx Context, p Position) (RobustExpr, []Hint) {
