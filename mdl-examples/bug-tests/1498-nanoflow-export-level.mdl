@@ -1,0 +1,23 @@
+mdl 1;
+-- Bug (mendixlabs/mxcli#1498, follow-up comment): `export level api` on a
+-- nanoflow parsed, `check` passed and exec reported "Created nanoflow", but the
+-- document was stored with ExportLevel "Hidden" and describe printed no clause.
+-- The same clause on a microflow was stored as API. The visitor read the
+-- clause for CREATE MICROFLOW only.
+--
+-- Measured on 11.13.0, this file:
+--   pre-fix  bson dump: nanoflow ExportLevel "Hidden", microflow "API"
+--   fixed    nanoflow "API"; describe prints `export level api`
+--   create or modify without the clause -> API kept ("set: Documentation")
+--   with `export level hidden` -> Hidden; describe -> exec into a fresh
+--   project -> API; mx check 0 errors on both projects
+create module if not exists Bug1498Nf;
+create persistent entity Bug1498Nf.Order (Number: String(50));
+
+create or modify nanoflow Bug1498Nf.NF_Order_IsOpen ($Order: Bug1498Nf.Order)
+  returns Boolean as $IsOpen
+  export level api
+begin
+  declare $IsOpen Boolean = true;
+  return $IsOpen;
+end;

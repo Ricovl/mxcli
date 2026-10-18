@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1452 (mendixlabs/mxcli#1555) — scheduled_events() lost the module
+-- of an event kept in a folder
+-- ============================================================================
+--
+-- Reported: "scheduled_events() returns events of modules listed in
+-- excludeModules (e.g. Marketplace modules MicrosoftGraph, OIDC), and each
+-- event has an empty module_name; qualified_name becomes .Name".
+--
+-- The iterator mapped the event's direct container to a module, and a
+-- Marketplace module keeps its events in folders, so the container is a
+-- folder: no module name, and IsExcluded("") is false.
+--
+-- The assertion is a Go test (mdl/linter/starlark_scheduledevents_test.go,
+-- TestScheduledEvents_InFolderResolveModule): the symptom is in the lint API,
+-- which `make check-mdl` does not exercise. To reproduce by hand, run this
+-- script, then lint a rule that returns
+--   [violation(message = e.qualified_name) for e in scheduled_events()]
+-- with and without `-e Ext`: it must print Ext.SE_Sync, and nothing when
+-- excluded.
+-- ============================================================================
+
+create module Ext;
+
+create microflow Ext.SE_DoSync () begin end;
+
+create scheduled event Ext.SE_Sync folder 'Private/Events' (
+  Microflow: Ext.SE_DoSync,
+  Repeat: Hourly,
+  Multiplier: 1
+);

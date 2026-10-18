@@ -103,10 +103,21 @@ func robustExprToStarlark(expr exprcheck.RobustExpr) starlark.Value {
 		for i, p := range n.Path {
 			pathParts[i] = starlark.String(p)
 		}
+		// One predicate per segment, kind "null" where it has none, so a rule
+		// can index predicates[i] alongside path[i].
+		preds := make([]starlark.Value, len(n.Path))
+		for i := range n.Path {
+			var p exprcheck.RobustExpr
+			if i < len(n.Predicates) {
+				p = n.Predicates[i]
+			}
+			preds[i] = robustExprToStarlark(p)
+		}
 		return starlarkstruct.FromStringDict(starlark.String("expr"), starlark.StringDict{
-			"kind":     starlark.String("attr_path"),
-			"variable": starlark.String(n.Variable),
-			"path":     starlark.NewList(pathParts),
+			"kind":       starlark.String("attr_path"),
+			"variable":   starlark.String(n.Variable),
+			"path":       starlark.NewList(pathParts),
+			"predicates": starlark.NewList(preds),
 		})
 	case *exprcheck.QNameExpr:
 		return starlarkstruct.FromStringDict(starlark.String("expr"), starlark.StringDict{

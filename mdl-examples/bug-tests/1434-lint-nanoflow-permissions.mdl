@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1434 (mendixlabs/mxcli#1536) — permissions() had no rows for
+-- nanoflows
+-- ============================================================================
+--
+-- Reported: "GRANT EXECUTE ON NANOFLOW Module.NF TO Module.Role is stored, but
+-- permissions() only returns microflow EXECUTE rows. A rule that checks exposed
+-- flows ... misses every exposed nanoflow."
+--
+-- The catalog's buildPermissions read microflows, pages, entities and OData
+-- services, never nanoflows. It now emits element_type "NANOFLOW",
+-- access_type "EXECUTE".
+--
+-- The assertion is a Go test (mdl/catalog/builder_permissions_nanoflow_test.go):
+-- the symptom is in the catalog, which `make check-mdl` does not exercise. To
+-- reproduce by hand, run this script, then lint a rule returning
+--   [violation(message = p.element_name) for p in permissions()
+--    if p.element_type == "NANOFLOW"]
+-- It must report Perm.NF_Open (and only that, NF_Private being granted to no
+-- one).
+-- ============================================================================
+
+create module Perm;
+
+create module role Perm.User;
+
+create nanoflow Perm.NF_Open () begin end;
+
+create nanoflow Perm.NF_Private () begin end;
+
+grant execute on nanoflow Perm.NF_Open to Perm.User;

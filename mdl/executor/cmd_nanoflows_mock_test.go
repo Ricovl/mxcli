@@ -1031,3 +1031,72 @@ func TestDescribeNanoflow_Mock_EmitsGrantForAllowedRoles(t *testing.T) {
 		t.Errorf("grant roles = %q, want %q", got, "Shop.User, Shop.Admin")
 	}
 }
+
+// mendixlabs/mxcli#1498 (follow-up): `export level api` on a nanoflow parsed
+// and passed check, and exec stored Hidden — the clause never left the parser.
+func TestCreateNanoflow_ExportLevelReachesTheWriter(t *testing.T) {
+	var written *microflows.Nanoflow
+	modID := model.ID("mod-shop")
+	mod := &model.Module{BaseElement: model.BaseElement{ID: modID}, Name: "Shop"}
+	mb := &mock.MockBackend{
+		IsConnectedFunc:     func() bool { return true },
+		ListModulesFunc:     func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		GetModuleByNameFunc: func(string) (*model.Module, error) { return mod, nil },
+		ListMicroflowsFunc:  func() ([]*microflows.Microflow, error) { return nil, nil },
+		ListNanoflowsFunc:   func() ([]*microflows.Nanoflow, error) { return nil, nil },
+		CreateNanoflowFunc:  func(nf *microflows.Nanoflow) error { written = nf; return nil },
+	}
+	ctx, _ := newMockCtx(t, withBackend(mb))
+	for _, tc := range []struct{ clause, want string }{
+		{"export level api", types.ExportLevelAPI},
+		{"export level hidden", types.ExportLevelHidden},
+		// Control: no clause authors nothing, so the stored level is carried.
+		{"", ""},
+	} {
+		written = nil
+		stmt := firstStatement[*ast.CreateNanoflowStmt](t, "create nanoflow Shop.NF_IsOpen ()\n"+tc.clause+"\nbegin\nend;")
+		if err := execCreateNanoflow(ctx, stmt); err != nil {
+			t.Fatalf("%q: %v", tc.clause, err)
+		}
+		if written == nil || written.ExportLevel != tc.want {
+			t.Errorf("%q: written ExportLevel = %+v, want %q", tc.clause, written, tc.want)
+		}
+	}
+}
+
+// DESCRIBE prints the clause for an API nanoflow, and only that clause: the
+// microflow-only concurrency and URL lines have no nanoflow property. Both
+// renderers are checked — `describe nanoflow` and the one `create or modify`
+// compares against — because they are separate code and only one was fixed at
+// first.
+func TestDescribeNanoflow_EmitsExportLevel(t *testing.T) {
+	for _, tc := range []struct{ level, want string }{
+		{"API", "export level api"},
+		// Control: Hidden is the default and is not printed.
+		{"Hidden", ""},
+	} {
+		mod := mkModule("Shop")
+		nf := mkNanoflow(mod.ID, "NF_IsOpen")
+		nf.ExportLevel = tc.level
+		h := mkHierarchy(mod)
+		withContainer(h, nf.ContainerID, mod.ID)
+		mb := &mock.MockBackend{
+			IsConnectedFunc:      func() bool { return true },
+			ListNanoflowsFunc:    func() ([]*microflows.Nanoflow, error) { return []*microflows.Nanoflow{nf}, nil },
+			ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return nil, nil },
+			ListModulesFunc:      func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		}
+		ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+		qn := ast.QualifiedName{Module: "Shop", Name: "NF_IsOpen"}
+		assertNoError(t, describeNanoflow(ctx, qn))
+		rendered := renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(nf), qn, nil, nil, nil)
+		for label, out := range map[string]string{"describe nanoflow": buf.String(), "modify comparison": rendered} {
+			if got := strings.Contains(out, "export level"); got != (tc.want != "") || (tc.want != "" && !strings.Contains(out, tc.want)) {
+				t.Errorf("%s, stored %s: want %q in\n%s", label, tc.level, tc.want, out)
+			}
+			if strings.Contains(out, "concurrent") {
+				t.Errorf("%s prints a concurrency clause a nanoflow cannot hold:\n%s", label, out)
+			}
+		}
+	}
+}
