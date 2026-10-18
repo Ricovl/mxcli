@@ -106,6 +106,19 @@ type SidebarToggleButton struct {
 	RenderMode      ButtonRenderMode `json:"renderMode,omitempty"`
 }
 
+// LayoutHeader is a phone or tablet layout's header bar (Forms$Header): two
+// widget lists, left and right. Atlas's Phone_ and Tablet_ layouts keep their
+// HeaderLeft / HeaderRight placeholders in it, and Phone_Sidebar /
+// Tablet_Sidebar their sidebar toggle.
+//
+// Measured on Atlas_Core (11.13.0): Appearance, LeftWidgets, Name,
+// RightWidgets, TabIndex, both lists marker 2.
+type LayoutHeader struct {
+	BaseWidget
+	LeftWidgets  []Widget `json:"leftWidgets,omitempty"`
+	RightWidgets []Widget `json:"rightWidgets,omitempty"`
+}
+
 // MenuOrientation represents menu orientation.
 type MenuOrientation string
 

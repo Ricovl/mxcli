@@ -217,6 +217,7 @@ var mdlKeywordStorageType = map[string]string{
 	"menubar":         "Forms$MenuBar",
 	"simplemenubar":   "Forms$SimpleMenuBar",
 	"sidebartoggle":   "Forms$SidebarToggleButton",
+	"layoutheader":    "Forms$Header",
 	"placeholder":     "Forms$Placeholder",
 }
 
@@ -330,6 +331,7 @@ var storageTypeThemeKeys = map[string]string{
 	// A Button subclass, so Studio Pro applies Atlas's "Button" group — the
 	// Size: Large Atlas_Default's toggle carries comes from it.
 	"SidebarToggleButton": "Button",
+	"Header":              "Header",
 	"Placeholder":         "Placeholder",
 	"SnippetCallWidget":   "SnippetCallWidget",
 }

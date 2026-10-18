@@ -478,7 +478,8 @@ LIST IMPACT OF htmlelement;
 			"layout", "layouts", "create layout", "scrollcontainer", "region",
 			"placeholder", "navigationtree", "topbar", "sidebar", "frame",
 			"menubar", "simplemenubar", "bottom bar", "phone layout", "menu document",
-			"sidebartoggle", "sidebar toggle", "toggle button",
+			"sidebartoggle", "sidebar toggle", "toggle button", "layoutheader", "header bar",
+			"native layout", "showbottombar", "native sidebar",
 		},
 		Syntax: "CREATE [OR MODIFY] LAYOUT Module.Name (\n" +
 			"  layouttype: 'Responsive' | 'Phone' | 'Tablet' | 'ModalPopup'   -- web\n" +
@@ -498,11 +499,20 @@ LIST IMPACT OF htmlelement;
 			"      SIDEBARTOGGLE name ([Caption: '…', Tooltip: '…', ButtonStyle: Primary,\n" +
 			"                    Icon: 'Mod.Collection.icon', RenderMode: Button | Link])\n" +
 			"      -- the button that opens and closes the sidebar on phones and tablets\n" +
+			"      LAYOUTHEADER name { REGION left { … } REGION right { … } }\n" +
+			"      -- a phone/tablet layout's header bar (Atlas: HeaderLeft / HeaderRight)\n" +
 			"      -- Every menu widget renders EITHER a navigation profile (Profile: '…')\n" +
 			"      -- OR a menu document (Menu: Module.Menu, see CREATE MENU) — not both.\n" +
 			"      PLACEHOLDER Main\n" +
 			"    }\n" +
 			"  }\n" +
+			"}\n" +
+			"-- A native layout (Default | Popup) has no scroll container; beside its\n" +
+			"-- content it keeps a header placeholder, a bottom bar and a sidebar:\n" +
+			"CREATE LAYOUT Module.Name (layouttype: 'Default' [, showbottombar: true]) {\n" +
+			"  PLACEHOLDER Main\n" +
+			"  [REGION header { PLACEHOLDER Header }]     -- the header's right side\n" +
+			"  [REGION sidebar { … }]                     -- present = the layout has a sidebar\n" +
 			"}",
 		Example: "mdl 1;\n" +
 			"-- Mendix's own guidance is not to edit the supplied Atlas layouts:\n" +

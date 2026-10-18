@@ -452,6 +452,8 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		widget, err = pb.buildSimpleMenuBarV3(w)
 	case "sidebartoggle":
 		widget, err = pb.buildSidebarToggleV3(w)
+	case "layoutheader":
+		widget, err = pb.buildLayoutHeaderV3(w)
 	case "placeholder":
 		widget, err = pb.buildPlaceholderV3(w)
 	case "radiobuttons":
@@ -3333,6 +3335,48 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 		sc.Regions = append(sc.Regions, region)
 	}
 	return sc, nil
+}
+
+// buildLayoutHeaderV3 builds a phone or tablet layout's header bar
+// (Forms$Header). Its children are its two sides, spelled like a scroll
+// container's regions: `region left { … }` and `region right { … }`.
+func (pb *pageBuilder) buildLayoutHeaderV3(w *ast.WidgetV3) (pages.Widget, error) {
+	h := &pages.LayoutHeader{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$Header",
+			},
+			Name: w.Name,
+		},
+	}
+	seen := map[string]bool{}
+	for _, child := range w.Children {
+		side := strings.ToLower(child.Name)
+		if strings.ToLower(child.Type) != "region" || (side != "left" && side != "right") {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layoutheader %q: its children are its two sides, `region left { … }` and `region right { … }`", w.Name))
+		}
+		if seen[side] {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("layoutheader %q: region %q given twice", w.Name, side))
+		}
+		seen[side] = true
+		for _, gc := range child.Children {
+			cw, err := pb.buildWidgetV3(gc)
+			if err != nil {
+				return nil, err
+			}
+			if side == "left" {
+				h.LeftWidgets = append(h.LeftWidgets, cw)
+			} else {
+				h.RightWidgets = append(h.RightWidgets, cw)
+			}
+		}
+	}
+	if err := pb.registerWidgetName(w.Name, h.ID); err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 // regionToggleModes are the values of Forms$ScrollContainerRegion.ToggleMode:

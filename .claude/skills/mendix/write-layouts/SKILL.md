@@ -15,10 +15,10 @@ description: "CREATE LAYOUT syntax — the frame a page is built on: scroll-cont
 | 195-234 | The four things only a layout has |
 | 235-246 | Layout type, and why there is no `native:` flag |
 | 247-268 | The layout class is load-bearing |
-| 269-317 | Gotchas |
-| 318-330 | Validate |
-| 331-343 | What `mxcli new` scaffolds |
-| 344-346 | Layouts (SHOW/DESCRIBE/CREATE [OR REPLACE] LAYOUT) |
+| 269-328 | Gotchas |
+| 329-341 | Validate |
+| 342-354 | What `mxcli new` scaffolds |
+| 355-357 | Layouts (SHOW/DESCRIBE/CREATE [OR REPLACE] LAYOUT) |
 
 <!-- /skill-index -->
 # CREATE LAYOUT — the frame a page is built on
@@ -307,7 +307,18 @@ section.
   with no `Action`: it opens and closes the layout's sidebar, which is how
   Atlas's responsive layouts navigate on phones and tablets. A copy of
   `Atlas_Core.Atlas_Default` keeps it.
-- **The menu bar's logo and Atlas's `Forms$Header` are not authorable.**
+- **A phone/tablet header bar is `layoutheader`** — Atlas's Phone_ and Tablet_
+  layouts keep their `HeaderLeft` / `HeaderRight` placeholders (and, on the
+  Sidebar ones, the sidebar toggle) in a `Forms$Header`:
+  `layoutheader header1 { region left { … } region right { placeholder HeaderRight } }`.
+  Before it was authorable, a copy dropped the header, so pages bound to those
+  placeholders failed CE1613 and a Sidebar copy failed CE0611 ("A sidebar
+  toggle button is required if a region can toggle").
+- **A native layout's header placeholder, bottom bar and sidebar** are
+  `region header { placeholder Header }`, `showbottombar: true` in the header,
+  and `region sidebar { … }` (present = the layout has a sidebar). A copy used
+  to drop all three without a word.
+- **The menu bar's logo is not authorable.**
 - **Authoring is modelsdk-only.** The legacy writer cannot produce the `Content`
   wrapper the widget tree hangs off; it refuses rather than writing a layout with
   no tree.

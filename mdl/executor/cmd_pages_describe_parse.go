@@ -342,6 +342,22 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Icon, widget.IconType, widget.IconCode = extractButtonIcon(w)
 		return []rawWidget{widget}
 
+	case "Forms$Header", "Pages$Header":
+		// A phone/tablet layout's header bar: two widget lists, described as
+		// its two sides `region left` / `region right`.
+		for _, side := range []struct{ key, name string }{{"LeftWidgets", "left"}, {"RightWidgets", "right"}} {
+			child := rawWidget{Type: "Forms$HeaderSide", Name: side.name}
+			for _, c := range getBsonArrayElements(w[side.key]) {
+				if cMap, ok := c.(map[string]any); ok {
+					child.Children = append(child.Children, parseRawWidget(ctx, cMap, inheritedCtx)...)
+				}
+			}
+			if len(child.Children) > 0 {
+				widget.Children = append(widget.Children, child)
+			}
+		}
+		return []rawWidget{widget}
+
 	case "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
 		// An action button's face without the action (mendixlabs/mxcli#1220).
 		widget.Caption = extractButtonCaption(ctx, w)

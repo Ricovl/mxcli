@@ -266,6 +266,7 @@ func TestKeywordStorageTypesMatchBuilder(t *testing.T) {
   menubar k_menubar (profile: 'Responsive')
   simplemenubar k_simplemenubar (profile: 'Responsive')
   sidebartoggle k_sidebartoggle
+  layoutheader k_layoutheader
   placeholder k_placeholder
 }`
 	prog, errs := visitor.Build(src)

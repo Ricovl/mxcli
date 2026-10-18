@@ -74,6 +74,27 @@ sidebartoggle sidebarToggle3 (
 It takes an action button's `Caption`, `Tooltip`, `ButtonStyle` and `Icon`,
 and `RenderMode: Link` to render as a link; it has no `Action`.
 
+The phone and tablet layouts keep their header bar in a `layoutheader`, whose
+two sides are spelled like a scroll container's regions:
+
+```sql
+layoutheader header1 {
+  region left { sidebartoggle sidebarToggle2 (RenderMode: Link, Icon: 'Atlas_Core.Atlas_Filled.navigation-menu') }
+  region right { placeholder HeaderRight }
+}
+```
+
+A native layout keeps three things beside its content tree: the placeholder on
+the header's right, whether the bottom bar shows, and the sidebar.
+
+```sql
+create layout MyModule.Native_SideMenu (layouttype: 'Default', showbottombar: true) {
+  placeholder Main
+  region header { placeholder Header }
+  region sidebar { placeholder Placeholder1 }
+};
+```
+
 ## Parameters
 
 `module.Name`

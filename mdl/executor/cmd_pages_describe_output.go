@@ -320,6 +320,26 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
+	case "Forms$Header", "Pages$Header", "Forms$HeaderSide":
+		// A layout header and its two sides (the latter synthetic, like a
+		// scroll container's regions).
+		header := fmt.Sprintf("layoutheader %s", mdlIdent(w.Name))
+		var props []string
+		if w.Type == "Forms$HeaderSide" {
+			header = "region " + w.Name
+		} else {
+			props = appendAppearanceProps(ctx, nil, w)
+		}
+		if len(w.Children) == 0 {
+			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			break
+		}
+		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+		for _, child := range w.Children {
+			outputWidgetMDLV3(ctx, child, indent+1)
+		}
+		fmt.Fprintf(ctx.Output, "%s}\n", prefix)
+
 	case "Forms$ScrollContainerRegion":
 		// A synthetic wrapper: the slot is in Name, and `region top` is how MDL
 		// spells it. 200/Auto is Studio Pro's untouched default, so emitting it

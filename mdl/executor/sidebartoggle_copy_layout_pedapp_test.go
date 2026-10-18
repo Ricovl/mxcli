@@ -159,3 +159,146 @@ func storedRegionToggleModes(t *testing.T, exec *Executor, qn string) map[string
 	walk(bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: u.Contents})
 	return modes
 }
+
+// Every Atlas_Core layout, copied with describe → create layout, keeps every
+// widget it stores. Nine of them hold a Forms$Header that describe printed as
+// NOT re-executable; two of those carry the sidebar toggle, so once a region's
+// ToggleMode was copied the copies failed mx check with CE0611 "A sidebar
+// toggle button is required if a region can toggle" (11.13.0), and the other
+// seven lost the HeaderLeft / HeaderRight placeholders pages bind to.
+func TestCopyEveryAtlasLayoutKeepsEveryWidget(t *testing.T) {
+	exec, out, dir := openPedAppCopy(t)
+	ctx := exec.newExecContext(context.Background())
+	layouts, err := ctx.Backend.ListLayouts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, l := range layouts {
+		if h.GetModuleName(h.FindModuleID(l.ContainerID)) == "Atlas_Core" {
+			names = append(names, l.Name)
+		}
+	}
+	sort.Strings(names)
+	if len(names) < 20 {
+		t.Fatalf("found only %d Atlas_Core layouts in the fixture: %v", len(names), names)
+	}
+	headers := 0
+	for _, name := range names {
+		out.Reset()
+		if err := exec.Execute(&ast.DescribeStmt{ObjectType: ast.DescribeLayout, Name: ast.QualifiedName{Module: "Atlas_Core", Name: name}}); err != nil {
+			t.Fatalf("describe layout %s: %v", name, err)
+		}
+		described := languageHeader.ReplaceAllString(out.String(), "")
+		if strings.Contains(described, "NOT re-executable") {
+			t.Errorf("%s: describe still drops a widget:\n%s", name, described)
+			continue
+		}
+		copied := strings.Replace(described, "create or modify layout Atlas_Core."+name+" ", "create layout MyFirstModule.Copy_"+name+" ", 1)
+		if got := agreeCheck(t, exec, dir, "mdl 1;\n"+copied); len(got) != 0 {
+			t.Errorf("%s: check refuses the copy:\n%s", name, strings.Join(got, "\n"))
+			continue
+		}
+		if err := agreeExec(t, exec, "mdl 1;\n"+copied); err != nil {
+			t.Errorf("%s: exec of the copy: %v\n%s", name, err, copied)
+			continue
+		}
+		orig := storedWidgetTypes(t, exec, "Atlas_Core."+name)
+		copy := storedWidgetTypes(t, exec, "MyFirstModule.Copy_"+name)
+		if orig != copy {
+			t.Errorf("%s: the copy stores different widgets:\n copy:     %s\n original: %s", name, copy, orig)
+		}
+		if strings.Contains(orig, "Forms$Header") {
+			headers++
+		}
+		if a, b := storedContentShape(t, exec, "MyFirstModule.Copy_"+name), storedContentShape(t, exec, "Atlas_Core."+name); a != b {
+			t.Errorf("%s: the copy's content wrapper differs:\n copy:     %s\n original: %s", name, a, b)
+		}
+		out.Reset()
+		if err := exec.Execute(&ast.DescribeStmt{ObjectType: ast.DescribeLayout, Name: ast.QualifiedName{Module: "MyFirstModule", Name: "Copy_" + name}}); err != nil {
+			t.Fatalf("describe copy of %s: %v", name, err)
+		}
+		again := strings.Replace(languageHeader.ReplaceAllString(out.String(), ""), "create or modify layout", "create layout", 1)
+		if again != copied {
+			t.Errorf("%s: the copy describes differently:\n--- first\n%s\n--- copy\n%s", name, copied, again)
+		}
+		om, cm := storedRegionToggleModes(t, exec, "Atlas_Core."+name), storedRegionToggleModes(t, exec, "MyFirstModule.Copy_"+name)
+		for slot, want := range om {
+			if cm[slot] != want {
+				t.Errorf("%s: region %s ToggleMode = %q in the copy, Studio Pro stores %q", name, slot, cm[slot], want)
+			}
+		}
+	}
+	if headers == 0 {
+		t.Error("no Atlas_Core layout in the fixture holds a Forms$Header; the header half of this test proves nothing")
+	}
+}
+
+// storedWidgetTypes is the layout's widget $Types, with each widget's sorted
+// key set, as one comparable string — so a dropped widget, an extra one, or one
+// written with a different property set all show up.
+func storedWidgetTypes(t *testing.T, exec *Executor, qn string) string {
+	t.Helper()
+	ctx := exec.newExecContext(context.Background())
+	u, err := ctx.Backend.GetRawUnitByName("layout", qn)
+	if err != nil || u == nil {
+		t.Fatalf("raw layout %s: %v", qn, err)
+	}
+	var found []string
+	var walk func(v bson.RawValue)
+	walk = func(v bson.RawValue) {
+		switch v.Type {
+		case bson.TypeEmbeddedDocument:
+			doc := v.Document()
+			if typ := doc.Lookup("$Type").StringValue(); strings.HasPrefix(typ, "Forms$") && doc.Lookup("Name").Type == bson.TypeString {
+				found = append(found, typ+"{"+rawKeysOf(doc)+"}")
+			}
+			elems, _ := doc.Elements()
+			for _, e := range elems {
+				walk(e.Value())
+			}
+		case bson.TypeArray:
+			vals, _ := v.Array().Values()
+			for _, x := range vals {
+				walk(x)
+			}
+		}
+	}
+	walk(bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: u.Contents})
+	sort.Strings(found)
+	return strings.Join(found, "\n  ")
+}
+
+// storedContentShape is the layout's Content wrapper — its keys and its
+// primitive values — which is where a native layout keeps its header
+// placeholder, bottom bar and sidebar.
+func storedContentShape(t *testing.T, exec *Executor, qn string) string {
+	t.Helper()
+	ctx := exec.newExecContext(context.Background())
+	u, err := ctx.Backend.GetRawUnitByName("layout", qn)
+	if err != nil || u == nil {
+		t.Fatalf("raw layout %s: %v", qn, err)
+	}
+	content, ok := bson.Raw(u.Contents).Lookup("Content").DocumentOK()
+	if !ok {
+		return "<no content>"
+	}
+	elems, _ := content.Elements()
+	var parts []string
+	for _, e := range elems {
+		switch v := e.Value(); v.Type {
+		case bson.TypeBoolean, bson.TypeString:
+			if e.Key() != "$ID" {
+				parts = append(parts, e.Key()+"="+v.String())
+			}
+		default:
+			parts = append(parts, e.Key())
+		}
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ",")
+}
