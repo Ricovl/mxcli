@@ -1,0 +1,83 @@
+mdl 1;
+-- ============================================================================
+-- Bug: `mxcli check` without a project called a Data grid 2's own settings
+-- "not recognized and silently dropped" (mendixlabs/mxcli#1573)
+-- ============================================================================
+--
+-- A Data grid 2 takes every one of its settings by the widget's own property
+-- key. `exec -p` stores each of these and `check -p` accepts them. `check`
+-- without a project — which is what `make check-mdl` runs on this file — warned
+-- MDL-WIDGET07 for each of them ("property `configurationAttribute` is not
+-- recognized and will be silently dropped on write"), and REFUSED the two
+-- Expression-typed ones as MDL-WIDGET42 ("a plain-value property cannot hold
+-- the expression"), which makes the file fail `check` outright.
+--
+-- Without a project DATAGRID has no definition (it is generated from the
+-- project's own package), so the check judged its keys against the vocabulary
+-- of the built-in widgets. It now reads the property list of the Data grid 2
+-- template mxcli embeds: a key that template declares is accepted, and an
+-- Expression-typed one takes an expression. A key it does not declare is still
+-- reported, now as one that cannot be verified without a project — the
+-- template is a baseline, not the installed widget.
+--
+-- This file must pass `mxcli check` with no MDL-WIDGET07 and no MDL-WIDGET42.
+-- The negative case (a misspelled key still warns) is a Go test:
+-- mdl/executor/validate_widget_embedded_schema_test.go.
+-- ============================================================================
+
+CREATE MODULE BugDgCheck;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugDgCheck.Ord (
+  Code: String(20),
+  Amount: Decimal,
+  Open: Boolean
+);
+
+CREATE OR MODIFY PERSISTENT ENTITY BugDgCheck.GridPref (
+  Config: String(unlimited)
+);
+
+-- Keyword settings and settings by key, grid and column.
+CREATE PAGE BugDgCheck.Orders_Settings (Title: 'Settings', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgSettings (
+    DataSource: database BugDgCheck.Ord,
+    PageSize: 25,
+    Pagination: virtualScrolling,
+    Selection: Single,
+    refreshInterval: 30,
+    columnsHidable: false,
+    showEmptyPlaceholder: custom,
+    rowClass: if $currentObject/Open then 'row-open' else 'row-closed',
+    exportDialogLabel: 'Exporting'
+  ) {
+    column (Attribute: Code, Caption: 'Code', Sortable: true, columnClass: if $currentObject/Open then 'is-open' else '') { textfilter tf }
+    column (Attribute: Amount, ShowContentAs: customContent, ColumnWidth: autoFit, minWidth: manual, minWidthLimit: 150, allowEventPropagation: false) {
+      dynamictext amt (Content: 'amt')
+    }
+  }
+};
+
+-- Personalization kept in the browser.
+CREATE PAGE BugDgCheck.Orders_Local (Title: 'Local', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgLocal (
+    DataSource: database BugDgCheck.Ord,
+    configurationStorageType: localStorage,
+    storeFiltersInPersonalization: true
+  ) {
+    column (Attribute: Code) { textfilter tf }
+  }
+};
+
+-- Personalization kept in an attribute of the surrounding object.
+CREATE PAGE BugDgCheck.Orders_Attribute (Title: 'Attribute', Layout: Atlas_Core.Atlas_Default, Params: ( $Pref: BugDgCheck.GridPref )) {
+  dataview dvPref (DataSource: $Pref) {
+    datagrid dgAttr (
+      DataSource: database BugDgCheck.Ord,
+      configurationStorageType: attribute,
+      configurationAttribute: Config,
+      storeFiltersInPersonalization: true
+    ) {
+      column (Attribute: Code) { textfilter tf }
+    }
+  }
+};
