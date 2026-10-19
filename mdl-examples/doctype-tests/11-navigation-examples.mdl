@@ -70,7 +70,7 @@ list navigation homes;
 -- Set the home page and login page for Responsive profile
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.login;
+  login page Administration.Login;
 
 -- Set home page with a role-based override.
 -- `for` takes a USER role, written bare. A module-qualified name here
@@ -79,12 +79,12 @@ create or modify navigation Responsive
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
   home page NavTest.NavTest_Home for Administrator
-  login page Administration.login;
+  login page Administration.Login;
 
 -- Replace the entire menu tree
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.login
+  login page Administration.Login
   {
     menu item 'Home' ( OnClick: show page NavTest.NavTest_Home )
     menu 'Admin' {
@@ -101,7 +101,7 @@ create or modify navigation Responsive
 
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.login
+  login page Administration.Login
   {
     menu item 'Home' ( OnClick: show page NavTest.NavTest_Home, Icon: Atlas_Core.Atlas.home )
     menu 'Admin' ( Icon: Atlas_Core.Atlas.user ) {
