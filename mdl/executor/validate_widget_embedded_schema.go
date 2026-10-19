@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
-	"github.com/mendixlabs/mxcli/sdk/widgets"
+	"github.com/mendixlabs/mxcli/modelsdk/widgets"
 )
 
 // What a check without a project knows about Data grid 2.
