@@ -220,6 +220,11 @@ func unresolvedNavigationTargets(ctx *ExecContext, targets []navTarget, sc *scri
 	var out []string
 	for _, t := range targets {
 		known := storedOf(t.kind)
+		// The build*QualifiedNames helpers return an empty set both when the
+		// project has none of a kind and when the list could not be read, so
+		// an empty set is not evidence: refusing on it would turn a read
+		// failure into a false "not found". The cost is that a nanoflow target
+		// in a project with no nanoflows is left to mx check.
 		if len(known) == 0 || known[t.name] || inScript(t.kind, t.name) {
 			continue
 		}
