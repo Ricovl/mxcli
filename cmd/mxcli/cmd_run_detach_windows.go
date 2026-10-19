@@ -31,8 +31,10 @@ func setDetachAttrs(cmd *exec.Cmd) {
 }
 
 // terminateProcess ends the run and its whole process tree. Windows has no
-// SIGTERM for a console-less process, so this is not a graceful stop: the
-// run's own teardown (removing --test-endpoint) does not run.
+// SIGTERM, and the run's hidden console (CREATE_NO_WINDOW) is not one the
+// caller is attached to, so no Ctrl-Break can reach it either: this is not a
+// graceful stop, and the run's own teardown (removing --test-endpoint) does
+// not run.
 func terminateProcess(pid int) error {
 	return exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprint(pid)).Run()
 }
