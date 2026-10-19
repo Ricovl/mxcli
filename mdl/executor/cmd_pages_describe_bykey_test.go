@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
-	"github.com/mendixlabs/mxcli/modelsdk/widgets"
+	"github.com/mendixlabs/mxcli/sdk/widgets"
 )
 
 const dataGridWidgetID = "com.mendix.widget.web.datagrid.Datagrid"
