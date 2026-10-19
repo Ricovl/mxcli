@@ -244,12 +244,14 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 			entCtx = entityContext[0]
 		}
 		var columns []rawDataGridColumn
+		colSchemas := objectListPropertySchemas(w, "columns")
 		for _, colObj := range objects {
 			colMap, ok := colObj.(map[string]any)
 			if !ok {
 				continue
 			}
 			col := extractDataGrid2Column(ctx, colMap, colPropKeyMap, entCtx)
+			col.ExtraProps, col.OmittedProps = extractDataGrid2ColumnByKeyProps(ctx, colMap, colSchemas, entCtx)
 			// Every object of the resolved `columns` list is a column. The
 			// actions column has no attribute and an empty header, and keeping
 			// only columns with one of those dropped it with all its widgets,

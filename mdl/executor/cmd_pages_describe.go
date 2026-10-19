@@ -664,6 +664,11 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// Destination is the entity an association source's last hop arrives at, as
+	// stored (EntityRef.Steps[last].DestinationEntity). Reference is the
+	// association there, so this is the entity the source puts in scope. Empty
+	// when the model does not store it.
+	Destination string
 	// EntitySteps is set on a database source reached over associations from a
 	// context object: a Forms$ListViewXPathSource whose EntityRef is an
 	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
@@ -695,6 +700,26 @@ type rawEntityStep struct {
 type rawDataSourceArg struct {
 	Name  string
 	Value string
+}
+
+// associationSourceDestination returns the entity the last hop of an association
+// source arrives at, as stored — "" when there is no hop or none is stored.
+// associationSourcePath keeps only the association of a single hop, so this
+// reads the same steps for the entity.
+func associationSourceDestination(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return ""
+	}
+	steps := getBsonArrayElements(entityRef["Steps"])
+	if len(steps) == 0 {
+		return ""
+	}
+	last, ok := steps[len(steps)-1].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return extractString(last["DestinationEntity"])
 }
 
 // associationSourcePath reconstructs the association navigation of a
@@ -772,6 +797,11 @@ type rawDataGridColumn struct {
 	Visible           string      // expression, e.g. "true"
 	DynamicCellClass  string      // expression
 	Tooltip           string      // text
+	// ExtraProps are the column settings MDL has no keyword for (minWidth,
+	// allowEventPropagation, …) that differ from their defaults, printed under
+	// the key the widget declares. OmittedProps names those that could not be.
+	ExtraProps   []rawExplicitProp
+	OmittedProps []string
 }
 
 // rawWidget represents a widget from raw BSON data for MDL output.
@@ -925,6 +955,12 @@ type rawWidget struct {
 	// describe -> exec round trip cannot silently delete a widget's body.
 	// See unreconstructedContainers.
 	OmittedContainers []string
+
+	// OmittedProps names properties whose stored value differs from the default
+	// and that DESCRIBE has no spelling for (an attribute reached over
+	// associations, …). Emitted as a comment, like OmittedContainers, so a
+	// describe -> exec round trip cannot reset them without saying so.
+	OmittedProps []string
 	// Data container context: entity qualified name provided by this container
 	EntityContext string
 	// Full widget ID (e.g. "com.mendix.widget.custom.switch.Switch")

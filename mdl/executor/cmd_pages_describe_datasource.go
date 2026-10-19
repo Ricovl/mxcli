@@ -104,7 +104,7 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		}
 	case dsType == dsTypeAssociation:
 		if path, ctxVar := associationSourcePath(ds); path != "" {
-			return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
+			return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar, Destination: associationSourceDestination(ds)}
 		}
 	case dsType == dsTypeCustomWidgetDatabase:
 		if got := parseCustomWidgetDatabaseSource(ds); got != nil {
@@ -329,7 +329,7 @@ func entityPathExpr(ds *rawDataSource) string {
 // or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
 	if path, ctxVar := associationSourcePath(ds); path != "" {
-		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
+		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar, Destination: associationSourceDestination(ds)}
 	}
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
 		if param := extractString(sv["PageParameter"]); param != "" {

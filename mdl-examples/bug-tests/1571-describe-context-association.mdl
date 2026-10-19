@@ -1,0 +1,107 @@
+mdl 1;
+-- ============================================================================
+-- Bug (mendixlabs/mxcli#1571) — `describe page` named the ASSOCIATION as the
+-- context entity of a data container bound over an association:
+--
+--   dataview dvCustomer (DataSource: $currentObject/CtxAssoc.Order_Customer) {
+--     -- Context: $currentObject (CtxAssoc.Order_Customer)   <- the association
+--
+-- The datasource reference was used verbatim as the context entity. That is
+-- right for a database source (the reference is the entity) and wrong for an
+-- association source, whose reference is the association's qualified name — the
+-- same mistake the microflow/nanoflow case had (795b-flow-datasource-context-
+-- entity.mdl). The page itself was always correct (`mx check` clean); only the
+-- comment, and anything resolving names against the context, was wrong.
+--
+-- The entity the association reaches is stored on the last hop of the source
+-- (EntityRef.Steps[last].DestinationEntity), so describe reads it: the other
+-- end for a reference, the element entity for a reference set, and the owner when
+-- the page is read from the child's side.
+--
+-- Describe output is not asserted by CI for a script (Go tests cover it:
+-- mdl/executor/cmd_pages_describe_assoc_context_test.go); this script builds the
+-- shapes so the output can be read by hand.
+--
+-- Manual verification (needs a project with Atlas_Core):
+--
+--   mxcli exec 1571-describe-context-association.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page CtxAssoc.Probe"
+--   mxcli -p app.mpr -c "describe page CtxAssoc.ProbeFromCustomer"
+--
+-- Expect, under dvCustomer:        -- Context: $currentObject (CtxAssoc.Customer)
+--         under lvLines:           -- Context: $currentObject (CtxAssoc.OrderLine), $lvLines (selection)
+--         under lvOrders (Probe-
+--         FromCustomer):           -- Context: $currentObject (CtxAssoc.Order), $lvOrders (selection)
+-- Before the fix each named the association (CtxAssoc.Order_Customer,
+-- CtxAssoc.Order_Line, CtxAssoc.Order_Customer). The `DataSource:` text is
+-- unchanged, and describe -> exec still reports "Unchanged page".
+-- ============================================================================
+
+create module CtxAssoc;
+create module role CtxAssoc.User;
+
+@position(100, 100)
+create persistent entity CtxAssoc.Customer (
+  Name: string(200)
+);
+
+@position(400, 100)
+create persistent entity CtxAssoc.Order (
+  Number: string(200)
+);
+
+@position(700, 100)
+create persistent entity CtxAssoc.OrderLine (
+  Description: string(200)
+);
+
+-- A reference: Order -> Customer.
+create association CtxAssoc.Order_Customer from CtxAssoc.Order to CtxAssoc.Customer;
+
+-- A reference set: Order -> OrderLine.
+create association CtxAssoc.Order_Line from CtxAssoc.Order to CtxAssoc.OrderLine type ReferenceSet;
+
+create or modify page CtxAssoc.Probe (
+  Title: 'Probe',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Order: CtxAssoc.Order )
+) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvOrder (DataSource: $Order) {
+          -- Over a reference: the context is the Customer, not the association.
+          dataview dvCustomer (DataSource: $currentObject/CtxAssoc.Order_Customer) {
+            textbox tbName (Label: 'Name', Attribute: Name)
+          }
+          -- Over a reference set: the context is one OrderLine.
+          listview lvLines (DataSource: $currentObject/CtxAssoc.Order_Line) {
+            textbox tbDescription (Label: 'Description', Attribute: Description, Editable: Never)
+          }
+        }
+      }
+    }
+  }
+};
+
+-- The same reference read from the other side: the context is the Order.
+create or modify page CtxAssoc.ProbeFromCustomer (
+  Title: 'Probe',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Customer: CtxAssoc.Customer )
+) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvCustomer (DataSource: $Customer) {
+          listview lvOrders (DataSource: $currentObject/CtxAssoc.Order_Customer) {
+            textbox tbNumber (Label: 'Number', Attribute: Number, Editable: Never)
+          }
+        }
+      }
+    }
+  }
+};
+
+describe page CtxAssoc.Probe;
+describe page CtxAssoc.ProbeFromCustomer;
