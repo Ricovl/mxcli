@@ -27,6 +27,20 @@ create page NavTest.NavTest_Home
   }
 };
 
+-- The login page the profiles below name. The project has no
+-- Administration.Login, and check/exec refuse a navigation target that does
+-- not exist (mendixlabs/mxcli#1569).
+create page NavTest.NavTest_Login
+(
+  title: 'Sign in',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  container ctnLogin {
+    dynamictext txtSignIn (content: 'Sign in to continue.')
+  }
+};
+
 -- MARK: Show Commands
 
 -- ============================================================================
@@ -70,7 +84,7 @@ list navigation homes;
 -- Set the home page and login page for Responsive profile
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.Login;
+  login page NavTest.NavTest_Login;
 
 -- Set home page with a role-based override.
 -- `for` takes a USER role, written bare. A module-qualified name here
@@ -79,12 +93,12 @@ create or modify navigation Responsive
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
   home page NavTest.NavTest_Home for Administrator
-  login page Administration.Login;
+  login page NavTest.NavTest_Login;
 
 -- Replace the entire menu tree
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.Login
+  login page NavTest.NavTest_Login
   {
     menu item 'Home' ( OnClick: show page NavTest.NavTest_Home )
     menu 'Admin' {
@@ -101,7 +115,7 @@ create or modify navigation Responsive
 
 create or modify navigation Responsive
   home page NavTest.NavTest_Home
-  login page Administration.Login
+  login page NavTest.NavTest_Login
   {
     menu item 'Home' ( OnClick: show page NavTest.NavTest_Home, Icon: Atlas_Core.Atlas.home )
     menu 'Admin' ( Icon: Atlas_Core.Atlas.user ) {
