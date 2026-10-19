@@ -16,9 +16,9 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/security"
 )
 
-// A navigation statement names pages and microflows in six places: the home
-// page (also per role), a home flow, the login page, the not-found page, and
-// every menu item at any depth. `check -p` resolved none of them, and `exec`
+// A navigation statement names pages and microflows in five places: the home
+// page (also per role), a home flow, the not-found page, and every menu item at
+// any depth (the login page may be the theme's login.html, so it is not one). `check -p` resolved none of them, and `exec`
 // wrote them by name, so a typo reached the model and was first reported by
 // `mx check` as CE1613 "The selected page 'X' no longer exists." — after exec
 // had rewritten the whole menu (CREATE OR REPLACE NAVIGATION replaces it).
@@ -237,7 +237,6 @@ func TestNavigationTargets_CheckCoversEveryTargetKind(t *testing.T) {
 		"home microflow":         {"home microflow Shop.Gone", "home microflow: microflow not found: Shop.Gone"},
 		"role-based home page":   {"home page Shop.Gone for Administrator", "home page for Administrator: page not found: Shop.Gone"},
 		"role-based home flow":   {"home microflow Shop.Gone for Administrator", "home microflow for Administrator: microflow not found: Shop.Gone"},
-		"login page":             {"login page Shop.Gone", "login page: page not found: Shop.Gone"},
 		"not found page":         {"not found page Shop.Gone", "not found page: page not found: Shop.Gone"},
 		"menu item nanoflow":     {"{ menu item 'X' ( OnClick: call nanoflow Shop.Gone ) }", "menu item 'X': nanoflow not found: Shop.Gone"},
 		"menu item create+show":  {"{ menu item 'X' ( OnClick: create object Shop.Order then show page Shop.Gone ) }", "menu item 'X': page not found: Shop.Gone"},
@@ -255,6 +254,20 @@ func TestNavigationTargets_CheckCoversEveryTargetKind(t *testing.T) {
 				t.Errorf("check -p lacks %q in:\n%s", c.want, got)
 			}
 		})
+	}
+}
+
+// The sign-in page may be the theme's static login.html, not a page document,
+// so a login page the project does not have is accepted — by mx check too.
+// The not-found page beside it is still resolved, which makes this the control.
+func TestNavigationTargets_CheckDoesNotResolveTheLoginPage(t *testing.T) {
+	f := newNavFixture(t)
+	got, _ := f.check(t, "create or modify navigation Responsive login page Shop.Gone not found page Shop.AlsoGone;")
+	if strings.Contains(got, "Shop.Gone") {
+		t.Errorf("a login page outside the project was refused:\n%s", got)
+	}
+	if !strings.Contains(got, "not found page: page not found: Shop.AlsoGone") {
+		t.Errorf("the not-found page beside it was not resolved:\n%s", got)
 	}
 }
 

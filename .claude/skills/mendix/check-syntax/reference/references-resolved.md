@@ -12,8 +12,9 @@ Beyond the page, microflow, entity and icon names a statement names directly,
 - `Module.Enum.Key` in an expression;
 - a view entity's FROM / JOIN entities;
 - the pages and flows a navigation profile or a menu document names: the home
-  page (and one per user role), a home flow, the login and not-found pages, and
-  every menu item's page, microflow or nanoflow at any depth. The target must
+  page (and one per user role), a home flow, the not-found page, and every menu
+  item's page, microflow or nanoflow at any depth. The login page is not
+  resolved: it may be the theme's static login.html rather than a page. The target must
   exist, or be created by the script (further down only in a run that rolls
   back, as for a flow call); `exec` refuses the same statement
   before it rewrites the profile or menu.

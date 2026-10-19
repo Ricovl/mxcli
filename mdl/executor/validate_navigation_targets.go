@@ -2,9 +2,11 @@
 
 // Reference validation for the targets a navigation statement names.
 //
-// A navigation profile points at documents in six places: its home page (and
-// one per user role), a home flow, the login page, the not-found page, and
-// every menu item at any depth. A standalone menu document carries the same
+// A navigation profile points at documents in five places: its home page (and
+// one per user role), a home flow, the not-found page, and every menu item at
+// any depth. Its login page is not one of them: the sign-in page may be a
+// static file of the theme (login.html) rather than a page document, so a name
+// that resolves to no page is not a dangling reference, and mx check accepts it. A standalone menu document carries the same
 // menu items. Nothing resolved any of them: the names were written to the model
 // as they stood, `check -p` said "Check passed!", and the first sign of a typo
 // was MxBuild, one build later:
@@ -96,9 +98,7 @@ func navigationTargets(stmt ast.Statement, native func(profile string) bool) (la
 			}
 			out = append(out, navTarget{kind: kind, name: hp.Target.String(), where: where})
 		}
-		if s.LoginPage != nil {
-			out = append(out, navTarget{kind: navPage, name: s.LoginPage.String(), where: "login page"})
-		}
+		// The login page is deliberately not a target: see the file comment.
 		if s.NotFoundPage != nil {
 			out = append(out, navTarget{kind: navPage, name: s.NotFoundPage.String(), where: "not found page"})
 		}

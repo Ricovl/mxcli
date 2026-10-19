@@ -2,9 +2,10 @@ mdl 1;
 -- A navigation profile and a menu document name pages and microflows
 -- (mendixlabs/mxcli#1569).
 --
--- A navigation statement points at documents in six places: the home page
--- (also one per user role), a home flow, the login page, the not-found page and
--- every menu item at any depth. None of them was resolved: `check -p` said
+-- A navigation statement points at documents in five places: the home page
+-- (also one per user role), a home flow, the not-found page and every menu item
+-- at any depth. (Its login page may be the theme's static login.html, so it is
+-- not resolved.) None of them was resolved: `check -p` said
 -- "Check passed!", `exec` wrote the profile, and `mx check` was the first to
 -- object:
 --
