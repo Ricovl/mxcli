@@ -37,8 +37,10 @@ func TestDataTypeEntity(t *testing.T) {
 	}
 }
 
-// TestDataSourceEntityContext_NonFlowSources: a database or association source
-// already names its entity, so it must pass straight through.
+// TestDataSourceEntityContext_NonFlowSources: a database source already names its
+// entity, so it passes straight through. An association source with no stored
+// destination (cmd_pages_describe_assoc_context_test.go covers one that has it)
+// and a parameter source keep their reference too.
 func TestDataSourceEntityContext_NonFlowSources(t *testing.T) {
 	for _, dsType := range []string{"database", "association", "parameter"} {
 		t.Run(dsType, func(t *testing.T) {

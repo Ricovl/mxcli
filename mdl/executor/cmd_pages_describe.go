@@ -664,6 +664,11 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// Destination is the entity an association source's last hop arrives at, as
+	// stored (EntityRef.Steps[last].DestinationEntity). Reference is the
+	// association there, so this is the entity the source puts in scope. Empty
+	// when the model does not store it.
+	Destination string
 	// EntitySteps is set on a database source reached over associations from a
 	// context object: a Forms$ListViewXPathSource whose EntityRef is an
 	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
@@ -695,6 +700,26 @@ type rawEntityStep struct {
 type rawDataSourceArg struct {
 	Name  string
 	Value string
+}
+
+// associationSourceDestination returns the entity the last hop of an association
+// source arrives at, as stored — "" when there is no hop or none is stored.
+// associationSourcePath keeps only the association of a single hop, so this
+// reads the same steps for the entity.
+func associationSourceDestination(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return ""
+	}
+	steps := getBsonArrayElements(entityRef["Steps"])
+	if len(steps) == 0 {
+		return ""
+	}
+	last, ok := steps[len(steps)-1].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return extractString(last["DestinationEntity"])
 }
 
 // associationSourcePath reconstructs the association navigation of a
