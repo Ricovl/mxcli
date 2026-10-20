@@ -1,0 +1,45 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1522 (part a) — adding one menu item deleted the others.
+--
+-- The reporter added one item to an existing menu with
+-- `create or modify navigation Responsive { menu item 'Reports' … }` and lost
+-- every item the statement did not restate: a `{ }` menu block replaces the
+-- whole menu. The only way to change one item was to restate all of them
+-- (describe, edit, re-run), which also re-validates — and can be refused over —
+-- items the edit never touched.
+--
+-- `alter navigation` adds the item to the stored menu and keeps the rest:
+--
+--   mxcli exec this-file -p app.mpr ; mx check app.mpr
+--     `describe navigation Responsive` lists Home, Orders and Reports;
+--     mx check: 0 errors (measured on 11.6.6 and 11.15.0)
+-- ============================================================================
+
+create module Issue1522a;
+
+create page Issue1522a.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create page Issue1522a.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtOrders (Content: 'Orders')
+};
+
+create page Issue1522a.Reports (Title: 'Reports', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtReports (Content: 'Reports')
+};
+
+create or modify navigation Responsive
+  home page Issue1522a.Home
+{
+  menu item 'Home' ( OnClick: show page Issue1522a.Home, Icon: Atlas_Core.Atlas.home )
+  menu item 'Orders' ( OnClick: show page Issue1522a.Orders, Icon: Atlas_Core.Atlas."list-bullets" )
+};
+
+-- The one item the reporter wanted to add. Home and Orders must survive.
+alter navigation Responsive {
+  insert { menu item 'Reports' ( OnClick: show page Issue1522a.Reports, Icon: Atlas_Core.Atlas.home ) }
+};
+
+describe navigation Responsive;
