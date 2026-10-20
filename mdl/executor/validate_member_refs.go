@@ -121,9 +121,6 @@ func resolveMemberOnEntity(ctx *ExecContext, entityQN, memberName string) member
 	return memberMissing
 }
 
-// associationNamedInModule reports whether the domain model has an association
-// of this bare name. A qualified member is handled by the caller; this covers
-// the unqualified spelling, which resolves in the entity's own module.
 // backendRefusesModule reports whether the project's module list answers,
 // confidently, that no module of this name exists. A list that cannot be read
 // is NOT absence — this file's rule is silence over a guess
@@ -145,6 +142,9 @@ func backendRefusesModule(ctx *ExecContext, qualifier string) bool {
 	return true
 }
 
+// associationNamedInModule reports whether the domain model has an association
+// of this bare name. A qualified member is handled by the caller; this covers
+// the unqualified spelling, which resolves in the entity's own module.
 func associationNamedInModule(dm *domainmodel.DomainModel, name string) bool {
 	for _, a := range dm.Associations {
 		if a != nil && a.Name == name {
@@ -458,7 +458,10 @@ func checkMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 		// writer refuses the same shape.
 		// (docs/12-bug-reports/2026-10-16-change-member-through-association.md)
 		if dot := strings.Index(name, "."); dot >= 0 {
-			if strings.Count(name, ".") == 1 && backendRefusesModule(ctx, name[:dot]) {
+			// A module the script creates further up is a module, even though
+			// the project does not have it yet.
+			if strings.Count(name, ".") == 1 && !(sc != nil && sc.modules[name[:dot]]) &&
+				backendRefusesModule(ctx, name[:dot]) {
 				out = append(out, fmt.Sprintf(
 					"%s: %q on %s is a member reached through an association — a change item cannot set it. "+
 						"Retrieve the associated object and change that instead (`retrieve $obj from $var/%s;` then `change $obj (%s = ...)`); "+

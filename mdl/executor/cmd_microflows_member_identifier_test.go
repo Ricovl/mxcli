@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -162,3 +163,44 @@ func TestResolveMemberChange_RejectsAssociationMemberPath(t *testing.T) {
 		}
 	}
 }
+
+// The production reader answers GetModuleByName for a missing module with an
+// ERROR ("module not found"), not (nil, nil) as the mock does by default, so
+// the module list is what decides there. The test above never reaches that
+// branch. These three cover it: a list without the qualifier refuses, an
+// unreadable list keeps the old silent fallback, and a real module qualifier
+// (`Module.Assoc`) is never read as a member reached through an association.
+func TestResolveMemberChange_AssociationMemberPathOnTheReadersErrorPath(t *testing.T) {
+	notFound := func(name string) (*model.Module, error) {
+		if name == "Hop" {
+			return &model.Module{BaseElement: model.BaseElement{ID: model.ID("hop")}, Name: "Hop"}, nil
+		}
+		return nil, errModuleNotFound
+	}
+	hopOnly := func() ([]*model.Module, error) {
+		return []*model.Module{{BaseElement: model.BaseElement{ID: model.ID("hop")}, Name: "Hop"}}, nil
+	}
+	const refusal = "is not a module"
+	cases := []struct {
+		name, member string
+		list         func() ([]*model.Module, error)
+		wantRefusal  bool
+	}{
+		{"qualifier missing from a readable list", "A_B.Title", hopOnly, true},
+		{"unreadable list stays silent", "A_B.Title",
+			func() ([]*model.Module, error) { return nil, errModuleNotFound }, false},
+		{"a real module qualifier is an association-set", "Hop.A_B", hopOnly, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fb := &flowBuilder{backend: &mock.MockBackend{GetModuleByNameFunc: notFound, ListModulesFunc: c.list}}
+			fb.resolveMemberChange(&microflows.MemberChange{}, c.member, "Hop.A")
+			got := strings.Join(fb.errors, "\n")
+			if c.wantRefusal != strings.Contains(got, refusal) {
+				t.Errorf("refusal = %v, want %v; errors:\n%s", !c.wantRefusal, c.wantRefusal, got)
+			}
+		})
+	}
+}
+
+var errModuleNotFound = errors.New("module not found")

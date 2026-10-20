@@ -426,3 +426,22 @@ func TestValidateMemberReferences_UntypedTargetIsUnchecked(t *testing.T) {
 		t.Errorf("checked a member against an entity it could not establish: %v", msgs)
 	}
 }
+
+// A module the script creates further up is not in the project's module list
+// yet, but `NewMod.Order_Customer` over it is an association-set, not a member
+// reached through an association. The check consults the script's own modules
+// before the project's; the same member over a qualifier the script does NOT
+// create is the control and is still refused.
+func TestValidateMemberReferences_ScriptCreatedModuleIsAModule(t *testing.T) {
+	ctx := memberFixture(t)
+	prog := flowProgram(orderParam(), changeStmt("Order", "NewMod.Order_Customer"))
+
+	sc := newScriptContext()
+	sc.modules["NewMod"] = true
+	if msgs := validateMemberReferences(ctx, prog, sc); len(msgs) != 0 {
+		t.Errorf("a module the script creates was read as an association: %v", msgs)
+	}
+	if msgs := validateMemberReferences(ctx, prog, newScriptContext()); len(msgs) != 1 {
+		t.Errorf("control: got %d messages without the script's module, want 1: %v", len(msgs), msgs)
+	}
+}
