@@ -4,7 +4,6 @@ package mcp
 
 import (
 	"fmt"
-	"github.com/mendixlabs/mxcli/sdk/workflows"
 	"strings"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
+	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
 // A page's ContainerID is its immediate parent, which for most Studio Pro pages is
