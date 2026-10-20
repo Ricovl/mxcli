@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -17,7 +16,7 @@ import (
 // carries every variant field at once — as a real WidgetValue does. The
 // TextTemplate holds oldText when withTemplate is set, and is null otherwise.
 func kindedPluggableWidget(propKey, kind, oldText string, withTemplate bool) bson.D {
-	typeID := primitive.Binary{Subtype: 0x04, Data: []byte{
+	typeID := bson.Binary{Subtype: 0x04, Data: []byte{
 		0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28,
 		0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
 	}}

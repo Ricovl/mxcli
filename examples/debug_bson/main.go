@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"os"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -48,7 +49,7 @@ func main() {
 		rows.Scan(&unitID, &containerID, &containmentName, &contents)
 
 		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 

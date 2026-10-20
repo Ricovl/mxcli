@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // formatActivity formats a single microflow activity as an MDL statement.
@@ -1284,7 +1285,7 @@ func isBareIdentifier(part string) bool {
 
 func rawUnitName(contents []byte) string {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return ""
 	}
 	name, _ := raw["Name"].(string)

@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Studio Pro writes Security$ProjectSecurity's UserRoles and DemoUsers lists

@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -28,7 +27,7 @@ import (
 // and the one a `SET` has to be resolved against, since no widget definition on
 // disk can say what THIS project's installed grid declares.
 func storedGridPage() bson.D {
-	typeID := primitive.Binary{Subtype: 0x04, Data: []byte{
+	typeID := bson.Binary{Subtype: 0x04, Data: []byte{
 		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
 		0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
 	}}

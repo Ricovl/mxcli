@@ -13,12 +13,13 @@ package meta
 
 import (
 	"encoding/binary"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"sort"
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Every measured row names an entity SystemEntities knows, so a typo cannot
@@ -127,7 +128,7 @@ func systemReadAccessFromMDP(raw []byte) (map[string][]SystemReadGrant, error) {
 			break
 		}
 		var doc bson.M
-		if err := bson.Unmarshal(raw[off:off+size], &doc); err == nil {
+		if err := bsoncompat.UnmarshalDocM(raw[off:off+size], &doc); err == nil {
 			docs = append(docs, doc)
 		}
 		off += size

@@ -3,10 +3,11 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // A profile's login page and not-found page must survive a write -> read cycle.
@@ -102,17 +103,17 @@ func TestUpdateNavigationProfile_NotFoundPageType(t *testing.T) {
 	if err := bson.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	profiles, _ := doc.Map()["Profiles"].(bson.A)
+	profiles, _ := bsoncompat.DMap(doc)["Profiles"].(bson.A)
 	for _, p := range profiles {
 		prof, ok := p.(bson.D)
 		if !ok {
 			continue
 		}
-		nfp, ok := prof.Map()["NotFoundHomepage"].(bson.D)
+		nfp, ok := bsoncompat.DMap(prof)["NotFoundHomepage"].(bson.D)
 		if !ok {
-			t.Fatalf("NotFoundHomepage is not a document: %#v", prof.Map()["NotFoundHomepage"])
+			t.Fatalf("NotFoundHomepage is not a document: %#v", bsoncompat.DMap(prof)["NotFoundHomepage"])
 		}
-		if got := nfp.Map()["$Type"]; got != "Navigation$NotFoundHomePage" {
+		if got := bsoncompat.DMap(nfp)["$Type"]; got != "Navigation$NotFoundHomePage" {
 			t.Errorf("NotFoundHomepage $Type = %v, want Navigation$NotFoundHomePage (ako/TestApp)", got)
 		}
 		return

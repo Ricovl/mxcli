@@ -268,9 +268,19 @@ func (pb *pageBuilder) buildContainerV3(w *ast.WidgetV3) (*pages.Container, erro
 		},
 	}
 
-	// Handle RenderMode
+	// Handle RenderMode. The codec stores it verbatim, so an unknown member is
+	// refused here rather than written into a document Studio Pro cannot open.
 	if rm := w.GetRenderMode(); rm != "" {
-		container.RenderMode = pages.ContainerRenderMode(rm)
+		mode, ok := pages.CanonicalContainerRenderMode(rm)
+		if !ok {
+			names := make([]string, len(pages.ContainerRenderModes))
+			for i, m := range pages.ContainerRenderModes {
+				names[i] = string(m)
+			}
+			return nil, mdlerrors.NewValidationf("container %q: unknown RenderMode %q — valid modes are %s",
+				w.Name, rm, strings.Join(names, ", "))
+		}
+		container.RenderMode = mode
 	}
 
 	// Handle Action / OnClick property — a Container is clickable in Mendix via

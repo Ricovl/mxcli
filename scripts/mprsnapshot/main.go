@@ -38,8 +38,7 @@ import (
 
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func main() {
@@ -240,8 +239,8 @@ type element struct {
 	guid string // domain-model elements carry a GUID distinct from their $ID
 }
 
-// The mongo driver decodes nested documents as primitive.M and arrays as
-// primitive.A. Those are *named* types, so a plain `.(map[string]any)`
+// The mongo driver decodes nested documents as bson.M and arrays as
+// bson.A. Those are *named* types, so a plain `.(map[string]any)`
 // assertion fails on them and a walk written against the builtin types silently
 // finds nothing. Every traversal below goes through these two helpers.
 
@@ -282,7 +281,7 @@ func asString(m map[string]any, key string) (string, bool) {
 // with no nested elements at all.
 func elementID(m map[string]any) (string, bool) {
 	switch t := m["$ID"].(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		if len(t.Data) != 16 {
 			return "", false
 		}
@@ -300,7 +299,7 @@ func elementID(m map[string]any) (string, bool) {
 // GUID can move independently, and an upgrade that preserves one while
 // renumbering the other has very different consequences depending on which.
 func binaryUUID(v any) string {
-	if b, ok := v.(primitive.Binary); ok && len(b.Data) == 16 {
+	if b, ok := v.(bson.Binary); ok && len(b.Data) == 16 {
 		return types.BlobToUUID(b.Data)
 	}
 	return ""
@@ -402,7 +401,7 @@ func collectRefs(v any, path string, depth int, out *[]string) {
 			if k == "$ID" {
 				continue
 			}
-			if b, ok := m[k].(primitive.Binary); ok && len(b.Data) == 16 {
+			if b, ok := m[k].(bson.Binary); ok && len(b.Data) == 16 {
 				*out = append(*out, fmt.Sprintf("%s/%s=%s", path, k, types.BlobToUUID(b.Data)))
 				continue
 			}

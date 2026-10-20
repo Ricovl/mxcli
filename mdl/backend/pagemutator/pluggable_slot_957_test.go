@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -19,7 +18,7 @@ import (
 // describe prints as `controlbar { … }` — holds the named buttons, stored as
 // Studio Pro leaves it once its last button is gone: an empty Widgets [2].
 func dataGrid2WithControlBar(buttons ...string) bson.D {
-	typeID := primitive.Binary{Subtype: 0x04, Data: []byte{
+	typeID := bson.Binary{Subtype: 0x04, Data: []byte{
 		0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68,
 		0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, 0x70,
 	}}

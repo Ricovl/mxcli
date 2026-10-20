@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ako/mxcli#968 (mendixlabs/mxcli#1263): a date picker's DateFormat /

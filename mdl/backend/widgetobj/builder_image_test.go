@@ -5,7 +5,7 @@ package widgetobj
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // mxcli-formula1 FINDINGS §142, and the gap MDL-WIDGET22 was named for: MDL

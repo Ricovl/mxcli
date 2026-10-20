@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // UpdateQualifiedNameInAllUnits rewrites every reference to oldName across all
@@ -224,9 +223,9 @@ func replaceQNInValueCounted(v any, oldName, newName string, count *int) any {
 			return newName + val[len(oldName):]
 		}
 		return val
-	case primitive.D:
+	case bson.D:
 		return replaceQNInDocCounted(val, oldName, newName, count)
-	case primitive.A:
+	case bson.A:
 		for i, elem := range val {
 			val[i] = replaceQNInValueCounted(elem, oldName, newName, count)
 		}
@@ -246,7 +245,7 @@ func replaceQNInValue(v any, oldName, newName string) (any, bool) {
 	switch val := v.(type) {
 	case string:
 		return replaceQualifiedNameRef(val, oldName, newName)
-	case primitive.D: // also matches bson.D (alias)
+	case bson.D: // also matches bson.D (alias)
 		changed := false
 		for i, elem := range val {
 			if nv, ok := replaceQNInValue(elem.Value, oldName, newName); ok {
@@ -255,7 +254,7 @@ func replaceQNInValue(v any, oldName, newName string) (any, bool) {
 			}
 		}
 		return val, changed
-	case primitive.A:
+	case bson.A:
 		changed := false
 		for i, elem := range val {
 			if nv, ok := replaceQNInValue(elem, oldName, newName); ok {

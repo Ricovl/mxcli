@@ -4,10 +4,10 @@ package rules
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // GallerySelectionListenerRule catches Studio Pro error CE3637:
@@ -198,7 +198,7 @@ func bsonBinaryID(v any) string {
 		return val
 	case []byte:
 		return guidFromBytes(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return guidFromBytes(val.Data)
 	}
 	return ""

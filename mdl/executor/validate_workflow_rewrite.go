@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // checkNoDroppedWorkflowConstructs refuses a CREATE OR REPLACE/MODIFY WORKFLOW
@@ -587,7 +586,7 @@ func restatesOnCreated(act ast.WorkflowActivityNode) bool {
 // plainRawUnit returns a copy of a stored unit with every array and document in
 // the plain []any / map[string]any shape the guards in this file walk.
 //
-// The legacy engine decodes a unit's arrays as primitive.A — measured on a
+// The legacy engine decodes a unit's arrays as bson.A — measured on a
 // workflow it wrote: OnWorkflowEvent and Flow.Activities both — and a type switch
 // on []any does not match that named type. So on the legacy engine every guard
 // here saw no list at all, and allowed each rewrite it exists to refuse (stored
@@ -608,9 +607,9 @@ func plainRawValue(v any) any {
 			m[k] = plainRawValue(e)
 		}
 		return m
-	case primitive.M:
+	case bson.M:
 		return plainRawValue(map[string]any(t))
-	case primitive.D:
+	case bson.D:
 		m := make(map[string]any, len(t))
 		for _, e := range t {
 			m[e.Key] = plainRawValue(e.Value)
@@ -622,7 +621,7 @@ func plainRawValue(v any) any {
 			l[i] = plainRawValue(e)
 		}
 		return l
-	case primitive.A:
+	case bson.A:
 		return plainRawValue([]any(t))
 	default:
 		return v

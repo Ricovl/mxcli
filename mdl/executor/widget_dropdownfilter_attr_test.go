@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
@@ -99,7 +98,7 @@ func customWidgetValue(t *testing.T, cw *pages.CustomWidget, key string) bson.D 
 				switch f.Key {
 				case "TypePointer":
 					switch b := f.Value.(type) {
-					case primitive.Binary:
+					case bson.Binary:
 						ptr = types.BlobToUUID(b.Data)
 					case []byte:
 						ptr = types.BlobToUUID(b)

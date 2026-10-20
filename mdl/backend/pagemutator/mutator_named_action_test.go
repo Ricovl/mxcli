@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/model"
@@ -24,8 +23,8 @@ func noAction() bson.D {
 // NoAction into all of them — which is why the setter has to consult the
 // property TYPE rather than the presence of the field.
 func makeFileUploader(name string) bson.D {
-	id := func(b byte) primitive.Binary {
-		return primitive.Binary{Subtype: 0x04, Data: []byte{b, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}
+	id := func(b byte) bson.Binary {
+		return bson.Binary{Subtype: 0x04, Data: []byte{b, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}
 	}
 	propType := func(b byte, key, valueType string) bson.D {
 		return bson.D{

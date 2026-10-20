@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -16,7 +15,7 @@ import (
 
 // encodeMicroflowAction encodes a semantic microflow action through the codec
 // engine's write path, the same way a real CREATE MICROFLOW does.
-func encodeMicroflowAction(t *testing.T, a microflows.MicroflowAction) bsonv1.D {
+func encodeMicroflowAction(t *testing.T, a microflows.MicroflowAction) bson.D {
 	t.Helper()
 	el := microflowActionToGen(a)
 	if el == nil {
@@ -26,8 +25,8 @@ func encodeMicroflowAction(t *testing.T, a microflows.MicroflowAction) bsonv1.D 
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	return doc
@@ -112,7 +111,7 @@ func TestWebServiceCallAction_MatchesLegacyDocument(t *testing.T) {
 
 	// HttpConfiguration: a SOAP call writes the defaults with OverrideLocation
 	// FALSE, unlike the REST writer's shared $Type which writes true.
-	hc, ok := docGet(doc, "HttpConfiguration").(bsonv1.D)
+	hc, ok := docGet(doc, "HttpConfiguration").(bson.D)
 	if !ok {
 		t.Fatalf("HttpConfiguration = %#v, want a document", docGet(doc, "HttpConfiguration"))
 	}
@@ -129,7 +128,7 @@ func TestWebServiceCallAction_MatchesLegacyDocument(t *testing.T) {
 	assertTypedArrayMarker(t, hc, "HttpHeaderEntries", 3)
 
 	for _, field := range []string{"RequestBodyHandling", "RequestHeaderHandling"} {
-		rh, ok := docGet(doc, field).(bsonv1.D)
+		rh, ok := docGet(doc, field).(bson.D)
 		if !ok {
 			t.Fatalf("%s = %#v, want a document", field, docGet(doc, field))
 		}
@@ -150,7 +149,7 @@ func TestWebServiceCallAction_MatchesLegacyDocument(t *testing.T) {
 func TestWebServiceCallAction_ResultHandlingBindsTheReceiveMapping(t *testing.T) {
 	doc := encodeMicroflowAction(t, fullWebServiceCall())
 
-	rh, ok := docGet(doc, "NewResultHandling").(bsonv1.D)
+	rh, ok := docGet(doc, "NewResultHandling").(bson.D)
 	if !ok {
 		t.Fatalf("NewResultHandling = %#v, want a document", docGet(doc, "NewResultHandling"))
 	}
@@ -160,7 +159,7 @@ func TestWebServiceCallAction_ResultHandlingBindsTheReceiveMapping(t *testing.T)
 	if got := docGet(rh, "ResultVariableName"); got != "Root" {
 		t.Errorf("ResultVariableName = %#v, want Root", got)
 	}
-	imc, ok := docGet(rh, "ImportMappingCall").(bsonv1.D)
+	imc, ok := docGet(rh, "ImportMappingCall").(bson.D)
 	if !ok {
 		t.Fatalf("ImportMappingCall = %#v, want a document", docGet(rh, "ImportMappingCall"))
 	}
@@ -173,7 +172,7 @@ func TestWebServiceCallAction_ResultHandlingBindsTheReceiveMapping(t *testing.T)
 	if got := docGet(imc, "ContentType"); got != "Xml" {
 		t.Errorf("ContentType = %#v, want Xml", got)
 	}
-	rng, ok := docGet(imc, "Range").(bsonv1.D)
+	rng, ok := docGet(imc, "Range").(bson.D)
 	if !ok {
 		t.Fatalf("Range = %#v, want a document", docGet(imc, "Range"))
 	}
@@ -211,11 +210,11 @@ func TestWebServiceCallAction_VariableTypeIsTheMappingsEntity(t *testing.T) {
 	a := fullWebServiceCall()
 	a.ResultEntity = "Clients.Order"
 
-	rh, ok := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bsonv1.D)
+	rh, ok := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bson.D)
 	if !ok {
 		t.Fatal("NewResultHandling missing")
 	}
-	vt, ok := docGet(rh, "VariableType").(bsonv1.D)
+	vt, ok := docGet(rh, "VariableType").(bson.D)
 	if !ok {
 		t.Fatalf("VariableType = %#v, want a document", docGet(rh, "VariableType"))
 	}
@@ -229,8 +228,8 @@ func TestWebServiceCallAction_VariableTypeIsTheMappingsEntity(t *testing.T) {
 	// Control: unresolved, it stays VoidType — wrong, but what ships, so an
 	// unresolvable mapping is no worse off than before.
 	a.ResultEntity = ""
-	rh2, _ := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bsonv1.D)
-	vt2, _ := docGet(rh2, "VariableType").(bsonv1.D)
+	rh2, _ := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bson.D)
+	vt2, _ := docGet(rh2, "VariableType").(bson.D)
 	if got := docGet(vt2, "$Type"); got != "DataTypes$VoidType" {
 		t.Errorf("fallback VariableType.$Type = %#v, want DataTypes$VoidType", got)
 	}
@@ -245,7 +244,7 @@ func TestWebServiceCallAction_NoOutputVariable(t *testing.T) {
 	a.UseReturnVariable = false
 	a.ReceiveMappingID = ""
 
-	rh, ok := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bsonv1.D)
+	rh, ok := docGet(encodeMicroflowAction(t, a), "NewResultHandling").(bson.D)
 	if !ok {
 		t.Fatal("NewResultHandling missing")
 	}
@@ -274,7 +273,7 @@ func TestWebServiceCallAction_DefaultTimeout(t *testing.T) {
 // reference here). The payload must re-emit unchanged, not be replaced by the
 // structured form.
 func TestWebServiceCallAction_RawPassthrough(t *testing.T) {
-	raw, err := bsonv1.Marshal(bsonv1.D{
+	raw, err := bson.Marshal(bson.D{
 		{Key: "$Type", Value: "Microflows$CallWebServiceAction"},
 		{Key: "ImportedService", Value: "Raw.Service"},
 		{Key: "OperationName", Value: "RawOp"},
@@ -303,9 +302,9 @@ func TestWebServiceCallAction_RawPassthrough(t *testing.T) {
 
 // assertTypedArrayMarker checks an empty Mendix typed array: a one-element BSON
 // array holding just the int32 version marker.
-func assertTypedArrayMarker(t *testing.T, doc bsonv1.D, key string, want int32) {
+func assertTypedArrayMarker(t *testing.T, doc bson.D, key string, want int32) {
 	t.Helper()
-	arr, ok := docGet(doc, key).(bsonv1.A)
+	arr, ok := docGet(doc, key).(bson.A)
 	if !ok {
 		t.Fatalf("%s = %#v, want a typed array", key, docGet(doc, key))
 	}
@@ -337,7 +336,7 @@ func TestWebServiceCallAction_ArgumentsAreSimpleParameterMappings(t *testing.T) 
 		Checked:    true,
 	}}
 
-	body, ok := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bsonv1.D)
+	body, ok := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bson.D)
 	if !ok {
 		t.Fatal("RequestBodyHandling is not a document")
 	}
@@ -345,7 +344,7 @@ func TestWebServiceCallAction_ArgumentsAreSimpleParameterMappings(t *testing.T) 
 		t.Fatalf("$Type = %#v, want Microflows$SimpleRequestHandling", got)
 	}
 
-	arr, ok := docGet(body, "ParameterMappings").(bsonv1.A)
+	arr, ok := docGet(body, "ParameterMappings").(bson.A)
 	if !ok || len(arr) != 2 {
 		t.Fatalf("ParameterMappings = %#v, want the marker plus one mapping", docGet(body, "ParameterMappings"))
 	}
@@ -357,7 +356,7 @@ func TestWebServiceCallAction_ArgumentsAreSimpleParameterMappings(t *testing.T) 
 		t.Errorf("ParameterMappings marker = %#v, want int32(2)", arr[0])
 	}
 
-	pm, ok := arr[1].(bsonv1.D)
+	pm, ok := arr[1].(bson.D)
 	if !ok {
 		t.Fatalf("mapping = %#v, want a document", arr[1])
 	}
@@ -378,7 +377,7 @@ func TestWebServiceCallAction_ArgumentsAreSimpleParameterMappings(t *testing.T) 
 	}
 
 	// The HEADER handling stays the bare empty form — it is not where arguments go.
-	hdr, ok := docGet(encodeMicroflowAction(t, a), "RequestHeaderHandling").(bsonv1.D)
+	hdr, ok := docGet(encodeMicroflowAction(t, a), "RequestHeaderHandling").(bson.D)
 	if !ok {
 		t.Fatal("RequestHeaderHandling is not a document")
 	}
@@ -405,7 +404,7 @@ func TestWebServiceCallAction_SendMappingIsAMappingRequestHandling(t *testing.T)
 	a.SendMappingID = "Clients.SoapOrderExportMapping"
 	a.SendMappingVariable = "NewSaveOrder"
 
-	body, ok := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bsonv1.D)
+	body, ok := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bson.D)
 	if !ok {
 		t.Fatal("RequestBodyHandling is not a document")
 	}
@@ -439,7 +438,7 @@ func TestWebServiceCallAction_SendMappingContentTypeIsCarried(t *testing.T) {
 	a.SendMappingVariable = "Order"
 	a.SendMappingContentType = "Xml"
 
-	body, _ := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bsonv1.D)
+	body, _ := docGet(encodeMicroflowAction(t, a), "RequestBodyHandling").(bson.D)
 	if got := docGet(body, "ContentType"); got != "Xml" {
 		t.Errorf("ContentType = %#v, want the stored Xml", got)
 	}
@@ -452,57 +451,57 @@ func TestWebServiceCallAction_SendMappingContentTypeIsCarried(t *testing.T) {
 // through bson.Unmarshal to poke at a nested field does not work here: driver v2
 // decodes nested documents into bson.D even when the top level is a bson.M, the
 // mirror image of the map-vs-D trap already recorded for driver v1.
-func referenceSoapActionMap() bsonv2.M {
-	return bsonv2.M{
+func referenceSoapActionMap() bson.M {
+	return bson.M{
 		"$Type":             "Microflows$CallWebServiceAction",
 		"ErrorHandlingType": "Rollback",
-		"HttpConfiguration": bsonv2.M{
+		"HttpConfiguration": bson.M{
 			"$Type":                      "Microflows$HttpConfiguration",
 			"ClientCertificate":          "",
 			"CustomLocation":             "",
 			"CustomLocationTemplate":     nil,
 			"HttpAuthenticationPassword": "",
 			"HttpAuthenticationUserName": "",
-			"HttpHeaderEntries":          bsonv2.A{int32(3)},
+			"HttpHeaderEntries":          bson.A{int32(3)},
 			"HttpMethod":                 "Post",
 			"OverrideLocation":           false,
 			"UseHttpAuthentication":      false,
 		},
 		"ImportedService":      "Clients.OrderSoapClient",
 		"IsValidationRequired": false,
-		"NewResultHandling": bsonv2.M{
+		"NewResultHandling": bson.M{
 			"$Type": "Microflows$ResultHandling", "Bind": true,
-			"ImportMappingCall": bsonv2.M{
+			"ImportMappingCall": bson.M{
 				"$Type": "Microflows$ImportMappingCall", "Commit": "YesWithoutEvents",
 				"ContentType": "Xml", "ForceSingleOccurrence": false,
 				"ObjectHandlingBackup": "Create", "ParameterVariableName": "",
-				"Range":              bsonv2.M{"$Type": "Microflows$ConstantRange", "SingleObject": true},
+				"Range":              bson.M{"$Type": "Microflows$ConstantRange", "SingleObject": true},
 				"ReturnValueMapping": "Clients.SoapOrdersImportMapping",
 			},
 			"ResultVariableName": "Orders",
-			"VariableType":       bsonv2.M{"$Type": "DataTypes$ObjectType", "Entity": "Clients.Order"},
+			"VariableType":       bson.M{"$Type": "DataTypes$ObjectType", "Entity": "Clients.Order"},
 		},
 		"OperationName": "GetOrder", "ProxyConfiguration": nil,
-		"RequestBodyHandling": bsonv2.M{
+		"RequestBodyHandling": bson.M{
 			"$Type": "Microflows$SimpleRequestHandling", "NullValueOption": "LeaveOutElement",
-			"ParameterMappings": bsonv2.A{int32(2), bsonv2.M{
+			"ParameterMappings": bson.A{int32(2), bson.M{
 				"$Type":    "Microflows$WebServiceOperationSimpleParameterMapping",
 				"Argument": "2", "IsChecked": true, "ParameterName": "",
 				"ParameterPath": "http%3A//www.example.com/:GetOrder|OrderId",
 			}},
 		},
-		"RequestHeaderHandling": bsonv2.M{
+		"RequestHeaderHandling": bson.M{
 			"$Type": "Microflows$SimpleRequestHandling", "NullValueOption": "LeaveOutElement",
-			"ParameterMappings": bsonv2.A{int32(2)},
+			"ParameterMappings": bson.A{int32(2)},
 		},
 		"RequestProxyType": "DefaultProxy", "ServiceName": "OrdersWS",
 		"TimeOutExpression": "300", "UseRequestTimeOut": true,
 	}
 }
 
-func marshalAction(t *testing.T, m bsonv2.M) bsonv2.Raw {
+func marshalAction(t *testing.T, m bson.M) bson.Raw {
 	t.Helper()
-	out, err := bsonv2.Marshal(m)
+	out, err := bson.Marshal(m)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
@@ -521,59 +520,59 @@ func TestWebServiceActionRequiresRawBSON_AgreesWithLegacy(t *testing.T) {
 
 	for _, tc := range []struct {
 		name  string
-		mutit func(bsonv2.M)
+		mutit func(bson.M)
 	}{
 		// Measured: Clients.GetOrders stores SingleObject FALSE where mxcli
 		// writes true. No error comes of it, which is exactly why writing it
 		// back must not happen silently.
-		{"Range.SingleObject differs", func(m bsonv2.M) {
-			m["NewResultHandling"].(bsonv2.M)["ImportMappingCall"].(bsonv2.M)["Range"] =
-				bsonv2.M{"$Type": "Microflows$ConstantRange", "SingleObject": false}
+		{"Range.SingleObject differs", func(m bson.M) {
+			m["NewResultHandling"].(bson.M)["ImportMappingCall"].(bson.M)["Range"] =
+				bson.M{"$Type": "Microflows$ConstantRange", "SingleObject": false}
 		}},
 		// Measured: Clients.SaveOrder binds $IsSaved with NO import mapping and
 		// a DataTypes$BooleanType — the OPERATION's return type, which lives in
 		// the WSDL. Written back as VoidType it is CE0366 + CE6011.
-		{"result type comes from the WSDL, not a mapping", func(m bsonv2.M) {
-			m["NewResultHandling"] = bsonv2.M{
+		{"result type comes from the WSDL, not a mapping", func(m bson.M) {
+			m["NewResultHandling"] = bson.M{
 				"$Type": "Microflows$ResultHandling", "Bind": true,
 				"ImportMappingCall":  nil,
 				"ResultVariableName": "IsSaved",
-				"VariableType":       bsonv2.M{"$Type": "DataTypes$BooleanType"},
+				"VariableType":       bson.M{"$Type": "DataTypes$BooleanType"},
 			}
 		}},
-		{"HTTP authentication configured", func(m bsonv2.M) {
-			m["HttpConfiguration"].(bsonv2.M)["UseHttpAuthentication"] = true
+		{"HTTP authentication configured", func(m bson.M) {
+			m["HttpConfiguration"].(bson.M)["UseHttpAuthentication"] = true
 		}},
-		{"custom location", func(m bsonv2.M) {
-			m["HttpConfiguration"].(bsonv2.M)["CustomLocation"] = "https://elsewhere/"
+		{"custom location", func(m bson.M) {
+			m["HttpConfiguration"].(bson.M)["CustomLocation"] = "https://elsewhere/"
 		}},
-		{"a SOAP header is configured", func(m bsonv2.M) {
-			m["RequestHeaderHandling"].(bsonv2.M)["ParameterMappings"] = bsonv2.A{int32(2),
-				bsonv2.M{"$Type": "Microflows$WebServiceOperationSimpleParameterMapping"}}
+		{"a SOAP header is configured", func(m bson.M) {
+			m["RequestHeaderHandling"].(bson.M)["ParameterMappings"] = bson.A{int32(2),
+				bson.M{"$Type": "Microflows$WebServiceOperationSimpleParameterMapping"}}
 		}},
-		{"validation required", func(m bsonv2.M) { m["IsValidationRequired"] = true }},
-		{"non-default proxy", func(m bsonv2.M) { m["RequestProxyType"] = "NoProxy" }},
-		{"timeout disabled", func(m bsonv2.M) { m["UseRequestTimeOut"] = false }},
-		{"advanced parameter mapping", func(m bsonv2.M) {
-			m["RequestBodyHandling"].(bsonv2.M)["ParameterMappings"] = bsonv2.A{int32(2),
-				bsonv2.M{"$Type": "Microflows$WebServiceOperationAdvancedParameterMapping"}}
+		{"validation required", func(m bson.M) { m["IsValidationRequired"] = true }},
+		{"non-default proxy", func(m bson.M) { m["RequestProxyType"] = "NoProxy" }},
+		{"timeout disabled", func(m bson.M) { m["UseRequestTimeOut"] = false }},
+		{"advanced parameter mapping", func(m bson.M) {
+			m["RequestBodyHandling"].(bson.M)["ParameterMappings"] = bson.A{int32(2),
+				bson.M{"$Type": "Microflows$WebServiceOperationAdvancedParameterMapping"}}
 		}},
-		{"parameter path with no name segment", func(m bsonv2.M) {
-			pms := m["RequestBodyHandling"].(bsonv2.M)["ParameterMappings"].(bsonv2.A)
-			pms[1].(bsonv2.M)["ParameterPath"] = "http%3A//www.example.com/:GetOrder"
+		{"parameter path with no name segment", func(m bson.M) {
+			pms := m["RequestBodyHandling"].(bson.M)["ParameterMappings"].(bson.A)
+			pms[1].(bson.M)["ParameterPath"] = "http%3A//www.example.com/:GetOrder"
 		}},
-		{"unknown key entirely", func(m bsonv2.M) { m["SomethingNew"] = int32(1) }},
+		{"unknown key entirely", func(m bson.M) { m["SomethingNew"] = int32(1) }},
 		// A key the structured form writes but the stored call lacks: written
 		// back, the call would gain it — the ErrorHandlingType mdl-examples'
 		// raw payload leaves out reads back as Rollback, so describe -> exec
 		// changed it, and a re-run re-spliced the call (ako/mxcli#861).
-		{"ErrorHandlingType absent", func(m bsonv2.M) { delete(m, "ErrorHandlingType") }},
-		{"IsValidationRequired absent", func(m bsonv2.M) { delete(m, "IsValidationRequired") }},
-		{"HttpConfiguration absent", func(m bsonv2.M) { delete(m, "HttpConfiguration") }},
-		{"NewResultHandling absent", func(m bsonv2.M) { delete(m, "NewResultHandling") }},
+		{"ErrorHandlingType absent", func(m bson.M) { delete(m, "ErrorHandlingType") }},
+		{"IsValidationRequired absent", func(m bson.M) { delete(m, "IsValidationRequired") }},
+		{"HttpConfiguration absent", func(m bson.M) { delete(m, "HttpConfiguration") }},
+		{"NewResultHandling absent", func(m bson.M) { delete(m, "NewResultHandling") }},
 		// A by-ID service reference: the structured form prints it as ''.
-		{"ImportedService is not a name", func(m bsonv2.M) {
-			m["ImportedService"] = bsonv2.Binary{Subtype: 0, Data: make([]byte, 16)}
+		{"ImportedService is not a name", func(m bson.M) {
+			m["ImportedService"] = bson.Binary{Subtype: 0, Data: make([]byte, 16)}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

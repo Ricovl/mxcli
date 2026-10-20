@@ -11,8 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -451,7 +450,7 @@ func layoutRawID(d bson.D) (string, bool) {
 			continue
 		}
 		switch v := e.Value.(type) {
-		case primitive.Binary:
+		case bson.Binary:
 			return types.BlobToUUID(v.Data), true
 		case []byte:
 			return types.BlobToUUID(v), true

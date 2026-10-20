@@ -5,14 +5,14 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
-func encodeWidget(t *testing.T, w pages.Widget) bsonv1.D {
+func encodeWidget(t *testing.T, w pages.Widget) bson.D {
 	t.Helper()
 	el, err := widgetToGen(w)
 	if err != nil {
@@ -22,14 +22,14 @@ func encodeWidget(t *testing.T, w pages.Widget) bsonv1.D {
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	return doc
 }
 
-func docGet(doc bsonv1.D, key string) any {
+func docGet(doc bson.D, key string) any {
 	for _, e := range doc {
 		if e.Key == key {
 			return e.Value
@@ -50,7 +50,7 @@ func TestWidgetConditionalVisibility_Serialized(t *testing.T) {
 	}
 
 	doc := encodeWidget(t, ctn)
-	cvs, ok := docGet(doc, "ConditionalVisibilitySettings").(bsonv1.D)
+	cvs, ok := docGet(doc, "ConditionalVisibilitySettings").(bson.D)
 	if !ok {
 		t.Fatalf("ConditionalVisibilitySettings not serialized (got %T)", docGet(doc, "ConditionalVisibilitySettings"))
 	}
@@ -97,7 +97,7 @@ func TestNavigationListItemConditionalVisibility_ModuleRoles(t *testing.T) {
 	if !ok {
 		t.Fatal("item ConditionalVisibilitySettings not written — the role restriction was dropped")
 	}
-	if roles, _ := cvs["ModuleRoles"].(bsonv1.A); len(roles) != 2 || roles[1] != "M.Admin" {
+	if roles, _ := cvs["ModuleRoles"].(bson.A); len(roles) != 2 || roles[1] != "M.Admin" {
 		t.Errorf("ModuleRoles = %v, want [1 M.Admin]", cvs["ModuleRoles"])
 	}
 	el, err = navListItemToGen(&pages.NavigationListItem{Action: &pages.NoClientAction{}})
@@ -121,12 +121,12 @@ func TestWidgetConditionalVisibility_ModuleRoles(t *testing.T) {
 		Expression:  "$currentObject/Name != ''",
 		ModuleRoles: []string{"M.Admin", "M.User"},
 	}
-	cvs, ok := docGet(encodeWidget(t, ctn), "ConditionalVisibilitySettings").(bsonv1.D)
+	cvs, ok := docGet(encodeWidget(t, ctn), "ConditionalVisibilitySettings").(bson.D)
 	if !ok {
 		t.Fatal("ConditionalVisibilitySettings not serialized")
 	}
-	roles, _ := docGet(cvs, "ModuleRoles").(bsonv1.A)
-	want := bsonv1.A{int32(1), "M.Admin", "M.User"}
+	roles, _ := docGet(cvs, "ModuleRoles").(bson.A)
+	want := bson.A{int32(1), "M.Admin", "M.User"}
 	if len(roles) != len(want) {
 		t.Fatalf("ModuleRoles = %v, want %v", roles, want)
 	}

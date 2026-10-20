@@ -933,6 +933,14 @@ func createDefaultWidgetValue(vtID string, bsonType string, p mpk.PropertyDef) m
 		if p.DefaultValue != "" {
 			val["PrimitiveValue"] = p.DefaultValue
 		}
+	case "Expression":
+		// The declared default expression, as Studio Pro writes it. Left empty,
+		// a defaulted expression the script does not name fails the build —
+		// the Calendar's `editable` (defaultValue="true") was CE0642 "Property
+		// 'Editable' is required" on every page (mendixlabs/mxcli#1578).
+		if p.DefaultValue != "" {
+			val["Expression"] = p.DefaultValue
+		}
 	case "TextTemplate":
 		// Populate the default template with the widget's shipped caption
 		// translations (empty when the .mpk declares none). A required textTemplate

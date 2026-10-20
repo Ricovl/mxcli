@@ -4,23 +4,22 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // asActionMap normalizes a raw BSON sub-document (a client action) into a
 // map[string]any, accepting either the already-converted map form or the
-// raw primitive.M produced by the mongo driver. Returns nil if v is neither.
+// raw bson.M produced by the mongo driver. Returns nil if v is neither.
 func asActionMap(v any) map[string]any {
 	switch m := v.(type) {
 	case map[string]any:
 		return m
-	case primitive.M:
+	case bson.M:
 		return map[string]any(m)
 	default:
 		return nil
@@ -256,6 +255,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if typeName == "Forms$DivContainer" || typeName == "Pages$DivContainer" {
 			if onClick := asActionMap(w["OnClickAction"]); onClick != nil {
 				widget.Action = extractButtonAction(ctx, map[string]any{"Action": onClick})
+			}
+			// The HTML element it renders as (mendixlabs/mxcli#1582).
+			if rm, ok := w["RenderMode"].(string); ok {
+				widget.RenderMode = rm
 			}
 		}
 		// Extract GroupBox-specific properties

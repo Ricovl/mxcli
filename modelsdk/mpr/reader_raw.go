@@ -9,10 +9,9 @@ package mpr
 
 import (
 	"fmt"
-	"strings"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -29,7 +28,7 @@ func (r *Reader) GetRawUnit(id model.ID) (map[string]any, error) {
 		return nil, err
 	}
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal BSON: %w", err)
 	}
 	// bson v2 decodes nested documents/arrays in interface{} slots as bson.D /
@@ -45,13 +44,13 @@ func (r *Reader) GetRawUnit(id model.ID) (map[string]any, error) {
 }
 
 // RawDocumentMap decodes one BSON document into the legacy map shape GetRawUnit
-// returns (nested map[string]any / []any, binaries as v1 primitive.Binary), for
+// returns (nested map[string]any / []any, binaries as v1 bson.Binary), for
 // a raw-BSON consumer handed an element rather than a whole unit — a navigation
 // menu item's client action, which describe renders with the same code a
 // button's goes through (ako/mxcli#980).
 func RawDocumentMap(contents []byte) (map[string]any, error) {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal BSON: %w", err)
 	}
 	for k, v := range raw {
@@ -90,9 +89,9 @@ func normalizeBSONValue(v any) any {
 	case bson.Binary:
 		// Reference IDs (entity/attribute/widget refs) are stored as binary. The
 		// raw-BSON consumers (extractBinaryID, blobToUUID, …) type-assert the v1
-		// primitive.Binary the legacy reader produces, so convert to match — else
+		// bson.Binary the legacy reader produces, so convert to match — else
 		// reference properties (Attribute / DataSource / CaptionAttribute) read empty.
-		return primitive.Binary{Subtype: t.Subtype, Data: t.Data}
+		return bson.Binary{Subtype: t.Subtype, Data: t.Data}
 	default:
 		return v
 	}
@@ -450,7 +449,7 @@ func (r *Reader) FindViewEntitySourceDocumentID(moduleName, docName string) (mod
 			continue
 		}
 		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 		name, _ := raw["Name"].(string)
@@ -478,7 +477,7 @@ func (r *Reader) FindAllViewEntitySourceDocumentIDs(moduleName, docName string) 
 			continue
 		}
 		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 		name, _ := raw["Name"].(string)

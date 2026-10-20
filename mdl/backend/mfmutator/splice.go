@@ -35,8 +35,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -840,7 +839,7 @@ func (m *Mutator) markRemoved(v any) {
 	case bson.D:
 		for _, e := range t {
 			if e.Key == "$ID" {
-				if b, ok := e.Value.(primitive.Binary); ok {
+				if b, ok := e.Value.(bson.Binary); ok {
 					m.removed[string(b.Data)] = true
 				}
 				continue
@@ -890,7 +889,7 @@ func (m *Mutator) checkIntegrity() error {
 			for _, el := range t {
 				walk(el, key)
 			}
-		case primitive.Binary:
+		case bson.Binary:
 			if len(t.Data) != 16 {
 				return
 			}
@@ -1288,7 +1287,7 @@ func setArray(d bson.D, key string, elements []any) bool {
 }
 
 func binaryID(v any) string {
-	b, ok := v.(primitive.Binary)
+	b, ok := v.(bson.Binary)
 	if !ok || len(b.Data) != 16 {
 		return ""
 	}
@@ -1299,15 +1298,15 @@ func binaryID(v any) string {
 // stored pointer uses.
 func setPointer(d bson.D, key string, id model.ID) {
 	sub := byte(0)
-	if b, ok := dGet(d, key).(primitive.Binary); ok {
+	if b, ok := dGet(d, key).(bson.Binary); ok {
 		sub = b.Subtype
 	}
-	dSet(d, key, primitive.Binary{Subtype: sub, Data: types.UUIDToBlob(string(id))})
+	dSet(d, key, bson.Binary{Subtype: sub, Data: types.UUIDToBlob(string(id))})
 }
 
 func setBinary(d bson.D, key string, v any) {
-	if b, ok := v.(primitive.Binary); ok {
-		dSet(d, key, primitive.Binary{Subtype: b.Subtype, Data: bytes.Clone(b.Data)})
+	if b, ok := v.(bson.Binary); ok {
+		dSet(d, key, bson.Binary{Subtype: b.Subtype, Data: bytes.Clone(b.Data)})
 	}
 }
 

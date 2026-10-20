@@ -345,7 +345,7 @@ func TestApplyPluggableSystemSettings_QuotedExpression(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			cw := &pages.CustomWidget{RawType: typeDeclaring(c.declared...), Editable: "Always"}
 			w := &ast.WidgetV3{Type: "switch", Name: "w", Properties: map[string]any{"Editable": lockedExpr}}
-			err := applyPluggableSystemSettings(cw, w)
+			err := applyPluggableSystemSettings(cw, w, nil)
 			if c.wantErr != (err != nil) {
 				t.Fatalf("err = %v, want error: %v", err, c.wantErr)
 			}

@@ -29,8 +29,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -440,7 +439,7 @@ func (m *Mutator) findByID(id []byte) backend.MenuItemPath {
 
 func idOf(doc bson.D) []byte {
 	switch v := bsonnav.DGet(doc, "$ID").(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		return v.Data
 	case string:
 		return []byte(v)

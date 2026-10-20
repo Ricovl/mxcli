@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strconv"
 	"strings"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ============================================================================
@@ -611,7 +610,7 @@ func getBsonArrayMaps(v any) []map[string]any {
 			}
 		}
 		return result
-	case primitive.A:
+	case bson.A:
 		var result []map[string]any
 		for _, item := range arr {
 			if m, ok := item.(map[string]any); ok {
@@ -1072,8 +1071,8 @@ func toBsonArray(v any) []any {
 	switch arr := v.(type) {
 	case []any:
 		return arr
-	case primitive.A:
-		// primitive.A is already []interface{} under the hood
+	case bson.A:
+		// bson.A is already []interface{} under the hood
 		return []any(arr)
 	default:
 		return nil
@@ -1112,7 +1111,7 @@ func getPageWidgetsFromRaw(ctx *ExecContext, pageID model.ID) []rawWidget {
 		return nil
 	}
 
-	// Handle both []interface{} and primitive.A types
+	// Handle both []interface{} and bson.A types
 	args := getBsonArrayElements(formCall["Arguments"])
 	if args == nil {
 		return nil
@@ -1241,7 +1240,7 @@ func extractBinaryID(v any) string {
 		return val
 	case []byte:
 		return formatGUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return formatGUID(val.Data)
 	default:
 		return ""

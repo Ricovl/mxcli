@@ -5,7 +5,7 @@ package widgetobj
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // mendixlabs/mxcli#1476: no MDL form bound the Image widget to an uploaded

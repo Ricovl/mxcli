@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
@@ -18,10 +17,10 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
-func mfID(name string) primitive.Binary {
+func mfID(name string) bson.Binary {
 	b := make([]byte, 16)
 	copy(b, name)
-	return primitive.Binary{Data: b}
+	return bson.Binary{Data: b}
 }
 
 func mfUUID(name string) string { return types.BlobToUUID(mfID(name).Data) }

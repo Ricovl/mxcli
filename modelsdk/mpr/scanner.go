@@ -7,6 +7,7 @@ package mpr
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -42,7 +43,7 @@ func (r *Reader) ScanRenameReferences(oldName, newName string) ([]types.UnitPatc
 		}
 
 		var raw bson.D
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 
@@ -96,7 +97,7 @@ func (r *Reader) ScanQualifiedNameUpdates(oldName, newName string) ([]types.Unit
 		}
 
 		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 

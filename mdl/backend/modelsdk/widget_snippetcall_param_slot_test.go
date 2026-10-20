@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -33,16 +33,16 @@ func TestSnippetCallMappingVariableSlot(t *testing.T) {
 			}
 			sc.Name = "sc1"
 			doc := encodeWidget(t, sc)
-			call, ok := docGet(doc, "FormCall").(bsonv1.D)
+			call, ok := docGet(doc, "FormCall").(bson.D)
 			if !ok {
 				t.Fatalf("FormCall not serialized (got %T)", docGet(doc, "FormCall"))
 			}
-			mappings, ok := docGet(call, "ParameterMappings").(bsonv1.A)
+			mappings, ok := docGet(call, "ParameterMappings").(bson.A)
 			if !ok || len(mappings) != 2 {
 				t.Fatalf("ParameterMappings = %#v, want [marker, mapping]", docGet(call, "ParameterMappings"))
 			}
-			m, _ := mappings[1].(bsonv1.D)
-			pv, ok := docGet(m, "Variable").(bsonv1.D)
+			m, _ := mappings[1].(bson.D)
+			pv, ok := docGet(m, "Variable").(bson.D)
 			if !ok {
 				t.Fatalf("Variable not a document (got %T)", docGet(m, "Variable"))
 			}

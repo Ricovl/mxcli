@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 	}
 
 	var raw map[string]any
-	if err := bson.Unmarshal(data, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(data, &raw); err != nil {
 		fmt.Printf("Error unmarshaling BSON: %v\n", err)
 		os.Exit(1)
 	}

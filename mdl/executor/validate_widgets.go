@@ -921,7 +921,13 @@ func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapp
 			continue
 		}
 		hint := ""
-		if ext := extensionsOf(key, names); len(ext) > 0 {
+		var slots []itemSlotHint
+		for _, s := range mapping.ItemSlots {
+			slots = append(slots, itemSlotHint{Key: s.PropertyKey, Accepts: s.AcceptedChildTypes})
+		}
+		if h := widgetSlotHint(key, strings.ToLower(mapping.MDLContainer), slots); h != "" {
+			hint = h
+		} else if ext := extensionsOf(key, names); len(ext) > 0 {
 			// `attributeValue` on an HTMLElement attribute: the value lives under
 			// attributeValueTemplate / attributeValueExpression, and edit
 			// distance picks attributeName, the one key that is certainly wrong.
@@ -941,6 +947,38 @@ func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapp
 		})
 	}
 	return out
+}
+
+// itemSlotHint is one widgets slot of a widget or object-list item: its key
+// and the widget types it routes, when known.
+type itemSlotHint struct {
+	Key     string
+	Accepts []string
+}
+
+// widgetSlotHint explains a key that names one of the item's widgets slots —
+// `Filterable: true` on a column, whose filter is the `filter` slot. A slot
+// takes child widgets, written in the item's braces, never a property value;
+// the generic "did you mean" picked an unrelated key there (`FilterType`), and
+// the property list did not mention the slot at all (mendixlabs/mxcli#177).
+func widgetSlotHint(key, kind string, slots []itemSlotHint) string {
+	lower := strings.ToLower(key)
+	for _, s := range slots {
+		if s.Key == "" || !strings.HasPrefix(lower, strings.ToLower(s.Key)) {
+			continue
+		}
+		child := "<widget>"
+		if len(s.Accepts) > 0 {
+			child = s.Accepts[0]
+		}
+		hint := fmt.Sprintf(" — `%s` is a slot for child widgets, not a property: put the widget in the %s's braces, "+
+			"e.g. `%s (…) { %s w1 (…) }`", s.Key, kind, kind, child)
+		if len(s.Accepts) > 1 {
+			hint += fmt.Sprintf(" (it takes %s)", strings.Join(s.Accepts, ", "))
+		}
+		return hint
+	}
+	return ""
 }
 
 // extensionsOf returns the candidates that extend key (case-insensitively),
@@ -1157,7 +1195,9 @@ func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, 
 			candidates = append(append([]string(nil), schema.Names...), staticWidgetKnownPropList...)
 		}
 		hint := ""
-		if suggestion := nearestKey(key, candidates); suggestion != "" {
+		if h := widgetSlotHint(key, strings.ToLower(w.Type), schema.widgetSlots()); h != "" {
+			hint = h
+		} else if suggestion := nearestKey(key, candidates); suggestion != "" {
 			hint = fmt.Sprintf(" — did you mean `%s`?", suggestion)
 		}
 		message := fmt.Sprintf(

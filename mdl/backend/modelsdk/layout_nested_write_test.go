@@ -10,7 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	genPg "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // mendixlabs/mxcli#1411: a layout built on another layout. The shapes below are

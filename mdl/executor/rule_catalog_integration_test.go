@@ -10,7 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ruleKeys is Microflows$Rule's property list. A rule is a microflow minus nine

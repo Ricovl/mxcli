@@ -5,8 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
@@ -17,14 +16,14 @@ import (
 // v2ToV1 bridges a modelsdk/widgets template (bson v2) into the v1 bson.D that
 // pages.CustomWidget.RawType/RawObject use. The future LoadWidgetTemplate must do
 // the same conversion at the v2(engine)→v1(shared model) boundary.
-func v2ToV1(t *testing.T, d bsonv2.D) bsonv1.D {
+func v2ToV1(t *testing.T, d bson.D) bson.D {
 	t.Helper()
-	b, err := bsonv2.Marshal(d)
+	b, err := bson.Marshal(d)
 	if err != nil {
 		t.Fatalf("v2 marshal: %v", err)
 	}
-	var out bsonv1.D
-	if err := bsonv1.Unmarshal(b, &out); err != nil {
+	var out bson.D
+	if err := bson.Unmarshal(b, &out); err != nil {
 		t.Fatalf("v1 unmarshal: %v", err)
 	}
 	return out
@@ -57,8 +56,8 @@ func TestCustomWidgetEmbed(t *testing.T) {
 		t.Fatalf("encode: %v", err)
 	}
 
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	get := func(key string) interface{} {
@@ -83,7 +82,7 @@ func TestCustomWidgetEmbed(t *testing.T) {
 		t.Error("Object (widget values) was dropped")
 	}
 	// The embedded Object must still carry the pluggable widget's own $Type marker.
-	if objDoc, ok := get("Object").(bsonv1.D); ok {
+	if objDoc, ok := get("Object").(bson.D); ok {
 		var objType string
 		for _, e := range objDoc {
 			if e.Key == "$Type" {

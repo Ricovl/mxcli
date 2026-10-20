@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // imageWidgetID is in the shared fixture; combobox and datagrid are too.
@@ -50,7 +50,7 @@ func TestFindCustomWidgetType_ReturnsTheStoredWidget(t *testing.T) {
 	// documents, and the two are unrelated types with the SAME NAME — so the
 	// failure reads "widget type is bson.D, want bson.D" and a cast written to
 	// silence it panics. Asserting the concrete v1 type is what pins the currency.
-	typeDoc, ok := w.RawType.(bsonv1.D)
+	typeDoc, ok := w.RawType.(bson.D)
 	if !ok {
 		t.Fatalf("RawType is %T, want v1 bson.D — check the conversion, and note "+
 			"that a v2 bson.D prints under the same name", w.RawType)
@@ -59,7 +59,7 @@ func TestFindCustomWidgetType_ReturnsTheStoredWidget(t *testing.T) {
 		t.Error("RawType is empty — a widget's schema cannot be")
 	}
 	if w.RawObject != nil {
-		if _, ok := w.RawObject.(bsonv1.D); !ok {
+		if _, ok := w.RawObject.(bson.D); !ok {
 			t.Errorf("RawObject is %T, want v1 bson.D", w.RawObject)
 		}
 	}

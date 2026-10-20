@@ -6,8 +6,7 @@ import (
 	"bytes"
 	"strconv"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -358,7 +357,7 @@ func remapTypePointers(v any, newPaths, storedIDs map[string]string) (any, bool)
 // idKey renders an element ID — binary as stored, or a string — as a map key.
 func idKey(v any) string {
 	switch x := v.(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		return "b:" + string(x.Data)
 	case []byte:
 		return "b:" + string(x)
@@ -374,10 +373,10 @@ func idValue(key string, like any) any {
 	switch key[:2] {
 	case "b:":
 		data := []byte(key[2:])
-		if b, ok := like.(primitive.Binary); ok {
-			return primitive.Binary{Subtype: b.Subtype, Data: data}
+		if b, ok := like.(bson.Binary); ok {
+			return bson.Binary{Subtype: b.Subtype, Data: data}
 		}
-		return primitive.Binary{Data: data}
+		return bson.Binary{Data: data}
 	default:
 		return key[2:]
 	}

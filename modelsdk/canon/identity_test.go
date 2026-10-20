@@ -4,6 +4,7 @@ package canon
 
 import (
 	"bytes"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -27,7 +28,7 @@ func microflowUnit(t *testing.T, stableID bson.Binary, name string) []byte {
 func readStableID(t *testing.T, raw []byte) []byte {
 	t.Helper()
 	var d bson.M
-	if err := bson.Unmarshal(raw, &d); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &d); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	v, ok := d["StableId"]
@@ -56,7 +57,7 @@ func TestCarryIdentity_CarriesStableId(t *testing.T) {
 		t.Errorf("input document was mutated: StableId = %x", got)
 	}
 	var d bson.M
-	if err := bson.Unmarshal(out, &d); err != nil {
+	if err := bsoncompat.UnmarshalDocM(out, &d); err != nil {
 		t.Fatalf("patched document no longer parses: %v", err)
 	}
 	if d["Name"] != "Flow" {

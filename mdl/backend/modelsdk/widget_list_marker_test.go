@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	genPg "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
@@ -13,13 +13,13 @@ import (
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
-func arrayMarker(t *testing.T, doc bsonv1.D, key string) (int32, int) {
+func arrayMarker(t *testing.T, doc bson.D, key string) (int32, int) {
 	t.Helper()
 	for _, e := range doc {
 		if e.Key != key {
 			continue
 		}
-		arr, ok := e.Value.(bsonv1.A)
+		arr, ok := e.Value.(bson.A)
 		if !ok || len(arr) == 0 {
 			t.Fatalf("%s is %T %v, want a typed array", key, e.Value, e.Value)
 		}
@@ -30,13 +30,13 @@ func arrayMarker(t *testing.T, doc bsonv1.D, key string) (int32, int) {
 	return 0, 0
 }
 
-func subDocs(t *testing.T, doc bsonv1.D, key string) []bsonv1.D {
+func subDocs(t *testing.T, doc bson.D, key string) []bson.D {
 	t.Helper()
 	for _, e := range doc {
 		if e.Key == key {
-			var out []bsonv1.D
-			for _, v := range e.Value.(bsonv1.A)[1:] {
-				out = append(out, v.(bsonv1.D))
+			var out []bson.D
+			for _, v := range e.Value.(bson.A)[1:] {
+				out = append(out, v.(bson.D))
 			}
 			return out
 		}
@@ -102,16 +102,16 @@ func TestWidgetsListMarker_EmptiedListIsTwo(t *testing.T) {
 
 func decodeStoredBox(t *testing.T) *genPg.DivContainer {
 	t.Helper()
-	stored := bsonv1.D{
+	stored := bson.D{
 		{Key: "$ID", Value: idBinaryForTest(t)},
 		{Key: "$Type", Value: "Forms$DivContainer"},
 		{Key: "Name", Value: "box"},
-		{Key: "Widgets", Value: bsonv1.A{int32(2),
-			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "inner1"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
-			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "inner2"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
+		{Key: "Widgets", Value: bson.A{int32(2),
+			bson.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "inner1"}, {Key: "Widgets", Value: bson.A{int32(2)}}},
+			bson.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "inner2"}, {Key: "Widgets", Value: bson.A{int32(2)}}},
 		}},
 	}
-	raw, err := bsonv1.Marshal(stored)
+	raw, err := bson.Marshal(stored)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func idBinaryForTest(t *testing.T) any {
 }
 
 // findDoc returns the first sub-document of $Type typeName, depth-first.
-func findDoc(doc bsonv1.D, typeName string) bsonv1.D {
+func findDoc(doc bson.D, typeName string) bson.D {
 	for _, e := range doc {
 		if e.Key == "$Type" && e.Value == typeName {
 			return doc
@@ -149,13 +149,13 @@ func findDoc(doc bsonv1.D, typeName string) bsonv1.D {
 	}
 	for _, e := range doc {
 		switch v := e.Value.(type) {
-		case bsonv1.D:
+		case bson.D:
 			if d := findDoc(v, typeName); d != nil {
 				return d
 			}
-		case bsonv1.A:
+		case bson.A:
 			for _, x := range v {
-				if d, ok := x.(bsonv1.D); ok {
+				if d, ok := x.(bson.D); ok {
 					if found := findDoc(d, typeName); found != nil {
 						return found
 					}
@@ -245,15 +245,15 @@ func TestWidgetsListMarker_TemplateGridContents(t *testing.T) {
 		t.Errorf("%s.Widgets (first child Forms$TabControl) = marker %d len %d, want 2", owner, m, n)
 	}
 
-	stored := bsonv1.D{
+	stored := bson.D{
 		{Key: "$ID", Value: idBinaryForTest(t)},
 		{Key: "$Type", Value: owner},
-		{Key: "Widgets", Value: bsonv1.A{int32(2),
-			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "a"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
-			bsonv1.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "b"}, {Key: "Widgets", Value: bsonv1.A{int32(2)}}},
+		{Key: "Widgets", Value: bson.A{int32(2),
+			bson.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "a"}, {Key: "Widgets", Value: bson.A{int32(2)}}},
+			bson.D{{Key: "$ID", Value: idBinaryForTest(t)}, {Key: "$Type", Value: "Forms$DivContainer"}, {Key: "Name", Value: "b"}, {Key: "Widgets", Value: bson.A{int32(2)}}},
 		}},
 	}
-	raw, err := bsonv1.Marshal(stored)
+	raw, err := bson.Marshal(stored)
 	if err != nil {
 		t.Fatal(err)
 	}
