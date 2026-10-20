@@ -78,6 +78,43 @@ func TestNewProfile_Refusals(t *testing.T) {
 	}
 }
 
+// An item `create menu` wrote carries no Icon key when it has no icon (Studio
+// Pro writes `Icon: null`). Setting one inserts the key where Studio Pro keeps
+// it, between Caption and Items, rather than failing or appending it last.
+func TestSetMenuItemIcon_InsertsAMissingKeyInStudioProOrder(t *testing.T) {
+	it := item("A")
+	var noIcon bson.D
+	for _, e := range it {
+		if e.Key != "Icon" {
+			noIcon = append(noIcon, e)
+		}
+	}
+	doc := bson.D{{Key: "$Type", Value: "Menus$MenuDocument"}, {Key: "ItemCollection", Value: bson.D{
+		{Key: "$Type", Value: "Menus$MenuItemCollection"}, {Key: "Items", Value: bson.A{int32(3), noIcon}}}}}
+	deps := &iconDeps{}
+	m, err := NewMenuDocument(doc, "u", deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetMenuItemIcon(backend.MenuItemPath{0}, types.NavMenuItemSpec{}); err != nil {
+		t.Fatalf("set icon on an item without an Icon key: %v", err)
+	}
+	got := itemElements(m.collection())[0]
+	var keys []string
+	for _, e := range got {
+		keys = append(keys, e.Key)
+	}
+	if strings.Join(keys, ",") != "$ID,$Type,Action,AlternativeText,Caption,Icon,Items" {
+		t.Errorf("keys = %v", keys)
+	}
+}
+
+type iconDeps struct{ fakeDeps }
+
+func (iconDeps) BuildMenuIcon(types.NavMenuItemSpec) any {
+	return bson.D{{Key: "$Type", Value: "Forms$GlyphIcon"}, {Key: "Code", Value: int32(57377)}}
+}
+
 func TestMenuDocument_HasNoPageClauses(t *testing.T) {
 	doc := bson.D{{Key: "$Type", Value: "Menus$MenuDocument"}, {Key: "ItemCollection", Value: bson.D{
 		{Key: "$Type", Value: "Menus$MenuItemCollection"}, {Key: "Items", Value: bson.A{int32(3), item("A", item("B"))}}}}}

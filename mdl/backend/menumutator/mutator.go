@@ -483,10 +483,7 @@ func (m *Mutator) SetMenuItemCaption(path backend.MenuItemPath, caption string) 
 		{Key: "$Type", Value: "Texts$Text"},
 		{Key: "Items", Value: bson.A{markerItems, translationDoc(model.AuthoringLanguage(), caption)}},
 	}
-	if !bsonnav.DSet(it, "Caption", text) {
-		return fmt.Errorf("menu item %s has no Caption property", idString(it))
-	}
-	return nil
+	return m.setItemField(path, "Caption", text)
 }
 
 // SetMenuItemAction replaces the item's client action with the one spec
@@ -506,22 +503,42 @@ func (m *Mutator) SetMenuItemAction(path backend.MenuItemPath, spec types.NavMen
 	if err != nil {
 		return err
 	}
-	if !bsonnav.DSet(it, "Action", action) {
-		return fmt.Errorf("menu item %s has no Action property", idString(it))
-	}
-	return nil
+	return m.setItemField(path, "Action", action)
 }
 
 // SetMenuItemIcon replaces the item's icon; a spec with no icon stores null.
 func (m *Mutator) SetMenuItemIcon(path backend.MenuItemPath, spec types.NavMenuItemSpec) error {
+	return m.setItemField(path, "Icon", m.deps.BuildMenuIcon(spec))
+}
+
+// setItemField sets key on the item at path. A key the stored item lacks is
+// inserted where Studio Pro keeps it — properties in alphabetical order after
+// $ID and $Type — and the grown item is written back into its list: an item
+// `create menu` wrote has no Icon key when it has no icon, where every Studio
+// Pro item carries `Icon: null`.
+func (m *Mutator) setItemField(path backend.MenuItemPath, key string, value any) error {
 	it, err := m.item(path)
 	if err != nil {
 		return err
 	}
-	if !bsonnav.DSet(it, "Icon", m.deps.BuildMenuIcon(spec)) {
-		return fmt.Errorf("menu item %s has no Icon property", idString(it))
+	if bsonnav.DSet(it, key, value) {
+		return nil
 	}
-	return nil
+	at := len(it)
+	for i, e := range it {
+		if !strings.HasPrefix(e.Key, "$") && e.Key > key {
+			at = i
+			break
+		}
+	}
+	grown := append(append(append(bson.D(nil), it[:at]...), bson.E{Key: key, Value: value}), it[at:]...)
+	_, holder, err := m.list(path.Parent())
+	if err != nil {
+		return err
+	}
+	items := itemElements(holder)
+	items[path.Index()] = grown
+	return setItems(holder, items)
 }
 
 // --- the profile's page clauses ---
