@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ADR-0013 moved call rest service's dialog settings from clauses into one

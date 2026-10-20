@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func (b *Builder) buildPages() error {
@@ -803,7 +803,7 @@ func toBsonArray(v any) []any {
 	switch arr := v.(type) {
 	case []any:
 		return arr
-	case primitive.A:
+	case bson.A:
 		return []any(arr)
 	default:
 		return nil
@@ -837,8 +837,8 @@ func extractBsonID(v any) string {
 		}
 	}
 
-	// Try primitive.Binary
-	if bin, ok := v.(primitive.Binary); ok {
+	// Try bson.Binary
+	if bin, ok := v.(bson.Binary); ok {
 		return formatGUID(bin.Data)
 	}
 
@@ -861,7 +861,7 @@ func extractBinaryID(v any) string {
 		return val
 	case []byte:
 		return formatGUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return formatGUID(val.Data)
 	default:
 		return ""

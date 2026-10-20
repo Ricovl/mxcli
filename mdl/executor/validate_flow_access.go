@@ -8,8 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -246,9 +245,9 @@ func (s *flowAccessSim) loadStoredUses(h *ContainerHierarchy) {
 			}
 			name, _ := bsonField(doc, "Name").(string)
 			if typ == "Navigation$NavigationDocument" {
-				profiles, _ := bsonField(doc, "Profiles").(primitive.A)
+				profiles, _ := bsonField(doc, "Profiles").(bson.A)
 				for _, p := range profiles {
-					pd, ok := p.(primitive.D)
+					pd, ok := p.(bson.D)
 					if !ok {
 						continue
 					}
@@ -283,7 +282,7 @@ func flowUseSourceLabel(unitType string) string {
 	return unitType
 }
 
-func bsonField(doc primitive.D, key string) any {
+func bsonField(doc bson.D, key string) any {
 	for _, e := range doc {
 		if e.Key == key {
 			return e.Value
@@ -294,12 +293,12 @@ func bsonField(doc primitive.D, key string) any {
 
 // collectRawFlowRefs collects every qualified name stored under a "Microflow"
 // or "Nanoflow" key anywhere in the document.
-func collectRawFlowRefs(doc primitive.D) []flowRef {
+func collectRawFlowRefs(doc bson.D) []flowRef {
 	var out []flowRef
 	var walk func(v any)
 	walk = func(v any) {
 		switch t := v.(type) {
-		case primitive.D:
+		case bson.D:
 			for _, e := range t {
 				if s, ok := e.Value.(string); ok && strings.Contains(s, ".") {
 					switch e.Key {
@@ -313,7 +312,7 @@ func collectRawFlowRefs(doc primitive.D) []flowRef {
 				}
 				walk(e.Value)
 			}
-		case primitive.A:
+		case bson.A:
 			for _, x := range t {
 				walk(x)
 			}

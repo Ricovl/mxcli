@@ -9,8 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/widgetobj"
@@ -45,7 +44,7 @@ func (b *Backend) LoadWidgetTemplate(widgetID string, projectPath string) (backe
 // project's .mpk) with its Type written in the shape the project's Mendix
 // version declares — see widgetTypeForVersion. Every template-built widget goes
 // through it: LoadWidgetTemplate and BuildFilterWidget alike.
-func templateFullBSONIDs(widgetID, projectPath string, pv *types.ProjectVersion) (bsonv2.D, bsonv2.D, map[string]mwidgets.PropertyTypeIDEntry, string, error) {
+func templateFullBSONIDs(widgetID, projectPath string, pv *types.ProjectVersion) (bson.D, bson.D, map[string]mwidgets.PropertyTypeIDEntry, string, error) {
 	typeBSON, objBSON, propIDs, objectTypeID, _, err := mwidgets.GetTemplateFullBSON(widgetID, mmpr.GenerateID, projectPath)
 	if err != nil || typeBSON == nil {
 		return typeBSON, objBSON, propIDs, objectTypeID, err
@@ -79,7 +78,7 @@ func templateFullBSONIDs(widgetID, projectPath string, pv *types.ProjectVersion)
 // Not codec.Encoder.OmitKeys: the Type is decoded from raw bytes and its
 // elements are clean, and the encoder passes a clean element's fields through
 // verbatim without consulting OmitKeys.
-func widgetTypeForVersion(t bsonv2.D, pv *types.ProjectVersion) bsonv2.D {
+func widgetTypeForVersion(t bson.D, pv *types.ProjectVersion) bson.D {
 	if pv == nil || pv.MajorVersion == 0 {
 		return t
 	}
@@ -87,14 +86,14 @@ func widgetTypeForVersion(t bsonv2.D, pv *types.ProjectVersion) bsonv2.D {
 	return dropUndeclaredWidgetKeys(t, v)
 }
 
-func dropUndeclaredWidgetKeys(d bsonv2.D, v mversion.Version) bsonv2.D {
+func dropUndeclaredWidgetKeys(d bson.D, v mversion.Version) bson.D {
 	typeName := ""
 	for _, e := range d {
 		if e.Key == "$Type" {
 			typeName, _ = e.Value.(string)
 		}
 	}
-	out := make(bsonv2.D, 0, len(d))
+	out := make(bson.D, 0, len(d))
 	for _, e := range d {
 		if strings.HasPrefix(typeName, "CustomWidgets$") && !canon.PropertyDeclared(typeName, e.Key, v) {
 			continue
@@ -107,10 +106,10 @@ func dropUndeclaredWidgetKeys(d bsonv2.D, v mversion.Version) bsonv2.D {
 
 func dropUndeclaredWidgetValue(val any, v mversion.Version) any {
 	switch x := val.(type) {
-	case bsonv2.D:
+	case bson.D:
 		return dropUndeclaredWidgetKeys(x, v)
-	case bsonv2.A:
-		out := make(bsonv2.A, len(x))
+	case bson.A:
+		out := make(bson.A, len(x))
 		for i := range x {
 			out[i] = dropUndeclaredWidgetValue(x[i], v)
 		}
@@ -211,7 +210,7 @@ func takeChildSerializeErr() error {
 // content through the modelsdk codec converters, then bridging v2→v1 BSON.
 type codecChildSerializer struct{}
 
-func (codecChildSerializer) SerializeWidget(w pages.Widget) bsonv1.D {
+func (codecChildSerializer) SerializeWidget(w pages.Widget) bson.D {
 	el, err := widgetToGen(w)
 	if err != nil {
 		recordChildSerializeErr(fmt.Errorf("serialize child widget %T: %w", w, err))
@@ -220,7 +219,7 @@ func (codecChildSerializer) SerializeWidget(w pages.Widget) bsonv1.D {
 	return genToV1BSON(el)
 }
 
-func (codecChildSerializer) SerializeClientAction(a pages.ClientAction) bsonv1.D {
+func (codecChildSerializer) SerializeClientAction(a pages.ClientAction) bson.D {
 	el, err := clientActionToGen(a)
 	if err != nil {
 		recordChildSerializeErr(fmt.Errorf("serialize client action %T: %w", a, err))
@@ -229,7 +228,7 @@ func (codecChildSerializer) SerializeClientAction(a pages.ClientAction) bsonv1.D
 	return genToV1BSON(el)
 }
 
-func (codecChildSerializer) SerializeCustomWidgetDataSource(ds pages.DataSource) bsonv1.D {
+func (codecChildSerializer) SerializeCustomWidgetDataSource(ds pages.DataSource) bson.D {
 	el, err := customWidgetDataSourceToGen(ds)
 	if err != nil {
 		recordChildSerializeErr(fmt.Errorf("serialize custom widget data source %T: %w", ds, err))
@@ -243,14 +242,14 @@ func (codecChildSerializer) SerializeCustomWidgetDataSource(ds pages.DataSource)
 
 // genToV1BSON encodes a gen element with the codec (bson v2 bytes) and decodes it
 // back into a v1 bson.D for the shared (v1) builder.
-func genToV1BSON(el element.Element) bsonv1.D {
+func genToV1BSON(el element.Element) bson.D {
 	out, err := (&codec.Encoder{}).Encode(el)
 	if err != nil {
 		recordChildSerializeErr(fmt.Errorf("encode child element %T: %w", el, err))
 		return nil
 	}
-	var d bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &d); err != nil {
+	var d bson.D
+	if err := bson.Unmarshal([]byte(out), &d); err != nil {
 		log.Printf("modelsdk: v1 decode child element: %v", err)
 		return nil
 	}
@@ -258,13 +257,13 @@ func genToV1BSON(el element.Element) bsonv1.D {
 }
 
 // v2ToV1BSON bridges a modelsdk/widgets template document (bson v2) to v1.
-func v2ToV1BSON(d bsonv2.D) bsonv1.D {
-	b, err := bsonv2.Marshal(d)
+func v2ToV1BSON(d bson.D) bson.D {
+	b, err := bson.Marshal(d)
 	if err != nil {
 		return nil
 	}
-	var out bsonv1.D
-	if err := bsonv1.Unmarshal(b, &out); err != nil {
+	var out bson.D
+	if err := bson.Unmarshal(b, &out); err != nil {
 		return nil
 	}
 	return out

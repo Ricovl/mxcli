@@ -9,8 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -90,7 +89,7 @@ func storedMenu(t *testing.T, b *Backend, profile string) (map[string][]byte, []
 func idHex(d bson.D) string {
 	for _, e := range d {
 		if e.Key == "$ID" {
-			if bin, ok := e.Value.(primitive.Binary); ok {
+			if bin, ok := e.Value.(bson.Binary); ok {
 				return fmt.Sprintf("%x", bin.Data)
 			}
 		}

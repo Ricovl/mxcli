@@ -8,8 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -177,12 +176,12 @@ func scriptTouchesEntityAccessCalls(prog *ast.Program) bool {
 // collectRawEntityAccessCalls reads the calls out of a stored microflow: the
 // qualified name under `Microflow` in a Microflows$MicroflowCall (call
 // activities, queued or not) or a Microflows$RuleCall (a rule split).
-func collectRawEntityAccessCalls(doc primitive.D) []eaCall {
+func collectRawEntityAccessCalls(doc bson.D) []eaCall {
 	var out []eaCall
 	var walk func(v any)
 	walk = func(v any) {
 		switch t := v.(type) {
-		case primitive.D:
+		case bson.D:
 			typ, _ := bsonField(t, "$Type").(string)
 			kind := ""
 			switch typ {
@@ -199,7 +198,7 @@ func collectRawEntityAccessCalls(doc primitive.D) []eaCall {
 			for _, e := range t {
 				walk(e.Value)
 			}
-		case primitive.A:
+		case bson.A:
 			for _, x := range t {
 				walk(x)
 			}

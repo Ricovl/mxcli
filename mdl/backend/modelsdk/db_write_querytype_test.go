@@ -4,13 +4,14 @@ package modelsdkbackend
 
 import (
 	"database/sql"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/dbconnector"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	_ "modernc.org/sqlite"
 )
@@ -104,7 +105,7 @@ func readFirstQuery(t *testing.T, proj, unitID string) map[string]any {
 	t.Helper()
 	raw := readUnitBytes(t, proj, unitID)
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal unit: %v", err)
 	}
 	arr, ok := doc["Queries"].(bson.A)

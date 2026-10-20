@@ -26,8 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -207,7 +206,7 @@ func templateSystemProps(projectPath, widgetID string) (map[string]bool, bool) {
 	if typ, _, err := mwidgets.GetTemplateBSON(widgetID, idGen, projectPath); err == nil && typ != nil {
 		// The registry speaks bson v2, the stored-Type readers v1.
 		var v1 bson.D
-		if raw, err := bsonv2.Marshal(typ); err == nil && bson.Unmarshal(raw, &v1) == nil {
+		if raw, err := bson.Marshal(typ); err == nil && bson.Unmarshal(raw, &v1) == nil {
 			if declared, ok := systemPropsOfType(v1); ok {
 				out = declared
 			}

@@ -4,8 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -25,7 +26,7 @@ func (b *Backend) ListQueues() ([]*types.Queue, error) {
 	out := make([]*types.Queue, 0, len(units))
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			return nil, fmt.Errorf("unmarshal queue %s: %w", u.ID, err)
 		}
 		q := &types.Queue{ContainerID: model.ID(u.ContainerID)}

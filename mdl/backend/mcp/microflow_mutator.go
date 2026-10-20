@@ -8,8 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
@@ -146,8 +145,8 @@ type mcpFlowDeps struct {
 	annotations map[string]*microflows.AnnotationFlow
 }
 
-func binaryOf(id model.ID) primitive.Binary {
-	return primitive.Binary{Subtype: 0, Data: types.UUIDToBlob(string(id))}
+func binaryOf(id model.ID) bson.Binary {
+	return bson.Binary{Subtype: 0, Data: types.UUIDToBlob(string(id))}
 }
 
 func (d *mcpFlowDeps) SerializeObject(obj microflows.MicroflowObject) (bson.D, error) {
@@ -248,7 +247,7 @@ func flowList(d bson.D, objects bool) (ids []string, docs []bson.D) {
 		if !ok {
 			continue
 		}
-		b, _ := docValue(e, "$ID").(primitive.Binary)
+		b, _ := docValue(e, "$ID").(bson.Binary)
 		ids = append(ids, types.BlobToUUID(b.Data))
 		docs = append(docs, e)
 	}
@@ -265,7 +264,7 @@ func docValue(d bson.D, key string) any {
 }
 
 func pointerID(d bson.D, key string) string {
-	b, _ := docValue(d, key).(primitive.Binary)
+	b, _ := docValue(d, key).(bson.Binary)
 	return types.BlobToUUID(b.Data)
 }
 

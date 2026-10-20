@@ -13,7 +13,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // MoveEnumeration reparents an enumeration unit to its (already-updated) target

@@ -14,6 +14,7 @@ package microflows
 import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 )
@@ -231,7 +232,7 @@ func SortPartsFromRawBSON(raw []byte) []SortPartFromRaw {
 		return nil
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
 	listMap := lookupBSONMap(doc, "NewSortings", "Sortings", "SortItemList", "sortItemList")
@@ -288,7 +289,7 @@ func StringTemplateArgsFromRaw(raw []byte) []string {
 		return nil
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
 	arr := lookupBSONArray(doc, "Parameters", "Arguments")
@@ -347,7 +348,7 @@ func unmarshalBSONDoc(raw []byte) bson.M {
 		return nil
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
 	return doc

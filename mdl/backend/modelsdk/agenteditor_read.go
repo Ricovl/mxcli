@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/agenteditor"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // rawCustomBlob is the decoded CustomBlobDocument wrapper (the fields the
@@ -25,7 +26,7 @@ type rawCustomBlob struct {
 // parseCustomBlobWrapper decodes the outer CustomBlobDocument BSON wrapper.
 func parseCustomBlobWrapper(contents []byte) (*rawCustomBlob, error) {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal CustomBlobDocument BSON: %w", err)
 	}
 	out := &rawCustomBlob{}

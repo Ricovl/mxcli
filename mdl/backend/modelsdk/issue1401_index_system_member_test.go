@@ -8,8 +8,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // An index segment on a system date member (changedDate / createdDate) is
@@ -29,16 +28,16 @@ func TestIssue1401_IndexSegmentTypeRoundTrips(t *testing.T) {
 
 	g := indexToGen(idx)
 	doc := encodeElement(t, g)
-	var segs bsonv1.A
+	var segs bson.A
 	for _, e := range doc {
 		if e.Key == "Attributes" {
-			segs, _ = e.Value.(bsonv1.A)
+			segs, _ = e.Value.(bson.A)
 		}
 	}
 	if len(segs) != 2 {
 		t.Fatalf("Attributes = %v, want [marker, one segment]", segs)
 	}
-	segDoc, _ := segs[1].(bsonv1.D)
+	segDoc, _ := segs[1].(bson.D)
 	got := map[string]any{}
 	for _, e := range segDoc {
 		got[e.Key] = e.Value
@@ -46,7 +45,7 @@ func TestIssue1401_IndexSegmentTypeRoundTrips(t *testing.T) {
 	if got["Type"] != "ChangedDate" {
 		t.Errorf("encoded segment Type = %v, want ChangedDate", got["Type"])
 	}
-	ptr, ok := got["AttributePointer"].(primitive.Binary)
+	ptr, ok := got["AttributePointer"].(bson.Binary)
 	if !ok || !bytes.Equal(ptr.Data, make([]byte, 16)) {
 		t.Errorf("encoded AttributePointer = %#v, want the all-zero GUID", got["AttributePointer"])
 	}

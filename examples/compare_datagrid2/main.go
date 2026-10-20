@@ -13,8 +13,7 @@ import (
 	"strings"
 
 	modelsdkbackend "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func main() {
@@ -489,10 +488,10 @@ func getTypePointerString(prop map[string]any) string {
 		return "<nil>"
 	}
 	switch t := tp.(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		return base64.StdEncoding.EncodeToString(t.Data)
 	case map[string]any:
-		if data, ok := t["Data"].(primitive.Binary); ok {
+		if data, ok := t["Data"].(bson.Binary); ok {
 			return base64.StdEncoding.EncodeToString(data.Data)
 		}
 	}

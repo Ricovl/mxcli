@@ -3,6 +3,7 @@
 package mpr
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -19,7 +20,7 @@ func TestRawUnitName_AgreesWithMapDecode(t *testing.T) {
 	}
 	for label, doc := range docs {
 		var raw map[string]any
-		wantOK := bson.Unmarshal(doc, &raw) == nil
+		wantOK := bsoncompat.UnmarshalDocMap(doc, &raw) == nil
 		want, _ := raw["Name"].(string)
 		got, ok := rawUnitName(doc)
 		if ok != wantOK || (ok && got != want) {

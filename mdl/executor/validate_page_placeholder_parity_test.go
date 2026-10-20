@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlmodelsdk "github.com/mendixlabs/mxcli/mdl/backend/modelsdk"

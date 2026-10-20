@@ -5,9 +5,10 @@ package modelsdkbackend
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -41,7 +42,7 @@ func TestNavListItemToGen_StudioProShape(t *testing.T) {
 			t.Fatal(err)
 		}
 		var doc bson.M
-		if err := bson.Unmarshal(out, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(out, &doc); err != nil {
 			t.Fatal(err)
 		}
 		if _, ok := doc["Name"]; ok != c.hasName {
@@ -71,7 +72,7 @@ func TestNavListItemToGen_WritesAppearance(t *testing.T) {
 		t.Fatal(err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(out, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(out, &doc); err != nil {
 		t.Fatal(err)
 	}
 	app, _ := doc["Appearance"].(bson.M)

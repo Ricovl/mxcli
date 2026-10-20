@@ -3,10 +3,11 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // markerOf returns the leading typed-array marker of the named array field.
@@ -108,7 +109,7 @@ func TestUpdateNavigationProfile_TypedArrayMarkers(t *testing.T) {
 	if err := bson.Unmarshal(raw, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	profiles, _ := doc.Map()["Profiles"].(bson.A)
+	profiles, _ := bsoncompat.DMap(doc)["Profiles"].(bson.A)
 	var prof bson.D
 	for _, p := range profiles {
 		if d, ok := p.(bson.D); ok {
@@ -119,7 +120,7 @@ func TestUpdateNavigationProfile_TypedArrayMarkers(t *testing.T) {
 	if prof == nil {
 		t.Fatal("no profile document")
 	}
-	homeItems, _ := prof.Map()["HomeItems"].(bson.A)
+	homeItems, _ := bsoncompat.DMap(prof)["HomeItems"].(bson.A)
 	if len(homeItems) != 2 {
 		t.Fatalf("HomeItems holds %d entries, want the marker plus one role-based home page", len(homeItems))
 	}

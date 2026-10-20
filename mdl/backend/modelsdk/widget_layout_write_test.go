@@ -5,10 +5,11 @@ package modelsdkbackend
 import (
 	"testing"
 
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // encodeToMap encodes an element the way storage does and decodes it back to a
@@ -22,7 +23,7 @@ func encodeToMap(t *testing.T, e element.Element) map[string]any {
 		t.Fatalf("encode: %v", err)
 	}
 	var m map[string]any
-	if err := bson.Unmarshal(raw, &m); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(raw, &m); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	return m

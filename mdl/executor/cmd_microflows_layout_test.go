@@ -5,13 +5,14 @@ package executor
 import (
 	"bytes"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"reflect"
 	"regexp"
 	"sort"
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -51,7 +52,7 @@ func rawFlow(t *testing.T, exec *Executor, kind, name string) (bson.M, *layoutGr
 		t.Fatalf("read raw %s: %v", name, err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("parse %s: %v", name, err)
 	}
 	return doc, g

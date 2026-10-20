@@ -4,10 +4,10 @@ package rules
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ImageSourceRule checks for IMAGE widgets with no source configured.
@@ -263,7 +263,7 @@ func extractStr(v any) string {
 }
 
 // getBsonArray extracts elements from a BSON array value.
-// Handles primitive.A and []any types, and strips the leading type indicator
+// Handles bson.A and []any types, and strips the leading type indicator
 // integer that Mendix BSON arrays use.
 func getBsonArray(v any) []any {
 	if v == nil {
@@ -273,7 +273,7 @@ func getBsonArray(v any) []any {
 	switch a := v.(type) {
 	case []any:
 		arr = a
-	case primitive.A:
+	case bson.A:
 		arr = []any(a)
 	default:
 		return nil

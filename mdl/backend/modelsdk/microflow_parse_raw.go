@@ -3,8 +3,7 @@
 package modelsdkbackend
 
 import (
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -21,11 +20,11 @@ import (
 // away): nothing this produces is written back, so the field reordering a map
 // round-trip causes cannot reach storage.
 func (b *Backend) ParseMicroflowFromRaw(raw map[string]any, unitID, containerID model.ID) *microflows.Microflow {
-	data, err := bsonv1.Marshal(raw)
+	data, err := bson.Marshal(raw)
 	if err != nil {
 		return nil
 	}
-	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(data))
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(data))
 	if err != nil {
 		return nil
 	}
@@ -45,11 +44,11 @@ func (b *Backend) ParseMicroflowFromRaw(raw map[string]any, unitID, containerID 
 // header stub, so a change to its body counted as modified and diffed to
 // nothing (mendixlabs/mxcli#1393).
 func (b *Backend) ParseNanoflowFromRaw(raw map[string]any, unitID, containerID model.ID) *microflows.Nanoflow {
-	data, err := bsonv1.Marshal(raw)
+	data, err := bson.Marshal(raw)
 	if err != nil {
 		return nil
 	}
-	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bsonv2.Raw(data))
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(data))
 	if err != nil {
 		return nil
 	}

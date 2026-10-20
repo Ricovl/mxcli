@@ -5,7 +5,7 @@ package catalog
 import (
 	"database/sql"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // agentEditorTable maps a CustomBlobDocument's CustomDocumentType to its catalog

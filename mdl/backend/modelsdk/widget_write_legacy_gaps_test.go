@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
@@ -51,20 +51,20 @@ var (
 
 // encodeElement is encodeWidget's sibling for a sub-element built directly,
 // without going through the widget dispatch.
-func encodeElement(t *testing.T, el element.Element) bsonv1.D {
+func encodeElement(t *testing.T, el element.Element) bson.D {
 	t.Helper()
 	out, err := (&codec.Encoder{}).Encode(el)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	return doc
 }
 
-func docKeys(doc bsonv1.D) []string {
+func docKeys(doc bson.D) []string {
 	out := make([]string, 0, len(doc))
 	for _, e := range doc {
 		out = append(out, e.Key)
@@ -73,7 +73,7 @@ func docKeys(doc bsonv1.D) []string {
 	return out
 }
 
-func assertKeys(t *testing.T, doc bsonv1.D, want []string) {
+func assertKeys(t *testing.T, doc bson.D, want []string) {
 	t.Helper()
 	got := docKeys(doc)
 	sorted := append([]string(nil), want...)
@@ -169,7 +169,7 @@ func TestDynamicImageMatchesMetamodelShape(t *testing.T) {
 	}
 	assertEmptyClientTemplate(t, doc, "AlternativeText")
 
-	src, ok := docGet(doc, "DataSource").(bsonv1.D)
+	src, ok := docGet(doc, "DataSource").(bson.D)
 	if !ok {
 		t.Fatalf("DataSource = %T, want a Forms$ImageViewerSource", docGet(doc, "DataSource"))
 	}
@@ -201,14 +201,14 @@ func TestDynamicImageWritesTheDataSourceEntity(t *testing.T) {
 	doc := encodeWidget(t, img)
 	assertKeys(t, doc, dynamicImageKeys)
 
-	src, ok := docGet(doc, "DataSource").(bsonv1.D)
+	src, ok := docGet(doc, "DataSource").(bson.D)
 	if !ok {
 		t.Fatalf("DataSource = %T, want a Forms$ImageViewerSource", docGet(doc, "DataSource"))
 	}
 	if got := docGet(src, "$Type"); got != "Forms$ImageViewerSource" {
 		t.Fatalf("DataSource.$Type = %v", got)
 	}
-	ref, ok := docGet(src, "EntityRef").(bsonv1.D)
+	ref, ok := docGet(src, "EntityRef").(bson.D)
 	if !ok {
 		t.Fatalf("EntityRef = %#v, want a DomainModels$DirectEntityRef — CE0489 without it",
 			docGet(src, "EntityRef"))
@@ -313,7 +313,7 @@ func TestDropDownMatchesMetamodelShape(t *testing.T) {
 	}
 	assertKeys(t, doc, dropDownKeys)
 	// EmptyOptionCaption is the blank option's caption — a holder, not a null.
-	cap, ok := docGet(doc, "EmptyOptionCaption").(bsonv1.D)
+	cap, ok := docGet(doc, "EmptyOptionCaption").(bson.D)
 	if !ok {
 		t.Fatalf("EmptyOptionCaption = %T, want a Texts$Text", docGet(doc, "EmptyOptionCaption"))
 	}
@@ -328,9 +328,9 @@ func TestDropDownMatchesMetamodelShape(t *testing.T) {
 // exist on Forms$ClientTemplate (generated/metamodel: Fallback / Parameters /
 // Template), and an invented key is what Studio Pro reports as "Sequence
 // contains no matching element" while mxbuild builds it at 0 errors.
-func assertEmptyClientTemplate(t *testing.T, parent bsonv1.D, key string) {
+func assertEmptyClientTemplate(t *testing.T, parent bson.D, key string) {
 	t.Helper()
-	ct, ok := docGet(parent, key).(bsonv1.D)
+	ct, ok := docGet(parent, key).(bson.D)
 	if !ok {
 		t.Fatalf("%s = %T, want a Forms$ClientTemplate", key, docGet(parent, key))
 	}
@@ -341,7 +341,7 @@ func assertEmptyClientTemplate(t *testing.T, parent bsonv1.D, key string) {
 		t.Errorf("%s carries a FallbackValue; Forms$ClientTemplate has no such property", key)
 	}
 	for _, sub := range []string{"Fallback", "Template"} {
-		txt, ok := docGet(ct, sub).(bsonv1.D)
+		txt, ok := docGet(ct, sub).(bson.D)
 		if !ok {
 			t.Errorf("%s.%s = %T, want a Texts$Text", key, sub, docGet(ct, sub))
 			continue
@@ -352,12 +352,12 @@ func assertEmptyClientTemplate(t *testing.T, parent bsonv1.D, key string) {
 		// Marker 3 and no translations. Measured: every one of the 3,257
 		// Texts$Text lists in ako/TestApp uses marker 3, empty or not — legacy
 		// writes 2 for a non-empty one, which is the other way this drifted.
-		items, ok := docGet(txt, "Items").(bsonv1.A)
+		items, ok := docGet(txt, "Items").(bson.A)
 		if !ok || len(items) != 1 || items[0] != int32(3) {
 			t.Errorf("%s.%s.Items = %#v, want [3]", key, sub, docGet(txt, "Items"))
 		}
 	}
-	params, ok := docGet(ct, "Parameters").(bsonv1.A)
+	params, ok := docGet(ct, "Parameters").(bson.A)
 	if !ok || len(params) != 1 || params[0] != int32(2) {
 		t.Errorf("%s.Parameters = %#v, want [2]", key, docGet(ct, "Parameters"))
 	}
@@ -394,7 +394,7 @@ func TestNanoflowSourceIsFlat_StudioProShape(t *testing.T) {
 	if v, ok := docGet(d, "ForceFullObjects").(bool); !ok || v {
 		t.Errorf("ForceFullObjects = %#v, want false", docGet(d, "ForceFullObjects"))
 	}
-	pm, ok := docGet(d, "ParameterMappings").(bsonv1.A)
+	pm, ok := docGet(d, "ParameterMappings").(bson.A)
 	if !ok || len(pm) != 1 || pm[0] != int32(2) {
 		t.Errorf("ParameterMappings = %#v, want [2] (Studio Pro's empty-list marker)", docGet(d, "ParameterMappings"))
 	}
@@ -411,11 +411,11 @@ func TestNanoflowSource_KeepsParameterMappings(t *testing.T) {
 		},
 	})
 	d := encodeToD(t, el)
-	pm, ok := docGet(d, "ParameterMappings").(bsonv1.A)
+	pm, ok := docGet(d, "ParameterMappings").(bson.A)
 	if !ok || len(pm) != 2 {
 		t.Fatalf("ParameterMappings = %#v, want marker + 1 mapping", docGet(d, "ParameterMappings"))
 	}
-	m, ok := pm[1].(bsonv1.D)
+	m, ok := pm[1].(bson.D)
 	if !ok {
 		t.Fatalf("mapping = %T", pm[1])
 	}

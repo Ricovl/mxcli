@@ -4,9 +4,10 @@ package catalog
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	sched "github.com/mendixlabs/mxcli/mdl/scheduledevents"
 	"github.com/mendixlabs/mxcli/model"
@@ -47,7 +48,7 @@ func (b *Builder) buildScheduledEvents() error {
 	count := 0
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
 		}
 		ev := sched.Parse(doc, model.ID(u.ID), model.ID(u.ContainerID))
@@ -108,7 +109,7 @@ func (b *Builder) buildQueues() error {
 	count := 0
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
 		}
 		name, _ := doc["Name"].(string)
