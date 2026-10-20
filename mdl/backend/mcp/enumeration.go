@@ -60,7 +60,7 @@ func (b *Backend) DeleteEnumeration(id model.ID) error {
 func (b *Backend) forgetSessionEnum(moduleName, name string) {
 	out := b.sessionEnums[:0]
 	for _, e := range b.sessionEnums {
-		if mod, err := b.GetModule(e.ContainerID); err == nil && mod.Name == moduleName && e.Name == name {
+		if mod, err := b.moduleNameForContainer(e.ContainerID); err == nil && mod == moduleName && e.Name == name {
 			continue
 		}
 		out = append(out, e)
