@@ -3264,6 +3264,9 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		if isDynamicTextWidget(widget) {
 			return setDynamicTextRenderModeMut(widget, value)
 		}
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$DivContainer" || typ == "Pages$DivContainer" {
+			return setContainerRenderModeMut(widget, value)
+		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
@@ -3318,6 +3321,27 @@ func setDynamicTextRenderModeMut(widget bson.D, value any) error {
 	}
 	return fmt.Errorf("invalid RenderMode %q for dynamic text %q: expected one of %s",
 		fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+}
+
+// setContainerRenderModeMut writes a container's RenderMode — the HTML element
+// it renders as — in place, canonically spelled; an unknown member is refused
+// before the document is touched (mendixlabs/mxcli#1582).
+func setContainerRenderModeMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	mode, ok := pages.CanonicalContainerRenderMode(s)
+	if !ok {
+		names := make([]string, len(pages.ContainerRenderModes))
+		for i, m := range pages.ContainerRenderModes {
+			names[i] = string(m)
+		}
+		return fmt.Errorf("invalid RenderMode %q for container %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+	}
+	if !bsonnav.DSet(widget, "RenderMode", string(mode)) {
+		return fmt.Errorf("container %q has no stored RenderMode property to set",
+			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
 }
 
 // setLegacyImageRefMut writes a static image's Image or a dynamic image's

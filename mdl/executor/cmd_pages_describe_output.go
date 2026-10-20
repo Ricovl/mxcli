@@ -453,7 +453,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 
 	case "Forms$DivContainer", "Pages$DivContainer":
 		header := fmt.Sprintf("container %s", mdlIdent(w.Name))
-		props := appendAppearanceProps(ctx, nil, w)
+		var props []string
+		if w.RenderMode != "" && w.RenderMode != "Div" {
+			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
+		}
+		props = appendAppearanceProps(ctx, props, w)
 		if w.Action != "" {
 			props = append(props, actionProp("Action", w.Action))
 		}
