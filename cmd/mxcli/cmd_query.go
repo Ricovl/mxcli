@@ -232,8 +232,12 @@ of project elements, and MDL source definitions. Requires at least a FULL
 catalog build (done automatically).
 
 Besides captions, labels and messages, it searches the documentation of every
-element the catalog records (entities, attributes, constants, pages, microflows,
-Java actions, REST services, ... and a module's domain model documentation).
+element that has documentation (entities, attributes, constants, pages,
+microflows, Java actions, REST services, ... and a module's domain model
+documentation). The full list is the catalog tables with a Description or
+Documentation column:
+  mxcli -p app.mpr -c "list catalog tables"
+  mxcli -p app.mpr -c "describe CATALOG.entities"
 Not searched: the documentation of an enumeration value (Mendix has no such
 field) and the summary text of a remote service's contract.
 A hit names the element (qualified name, type) and the field: the context
