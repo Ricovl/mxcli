@@ -176,7 +176,7 @@ func scriptTouchesFlowAccess(prog *ast.Program) bool {
 		case *ast.CreateMicroflowStmt, *ast.CreateNanoflowStmt, *ast.DropMicroflowStmt, *ast.DropNanoflowStmt,
 			*ast.RevokeMicroflowAccessStmt, *ast.RevokeNanoflowAccessStmt,
 			*ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3, *ast.AlterPageStmt,
-			*ast.CreateMenuStmt, *ast.AlterNavigationStmt, *ast.DropModuleRoleStmt:
+			*ast.CreateMenuStmt, *ast.CreateNavigationStmt, *ast.DropModuleRoleStmt:
 			return true
 		}
 	}
@@ -592,7 +592,7 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 		s.usesBy["menu "+st.Name.String()] = menuItemFlowRefs(st.Items)
 	case *ast.DropMenuStmt:
 		delete(s.usesBy, "menu "+st.Name.String())
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		refs := menuItemFlowRefs(st.MenuItems)
 		for _, hp := range st.HomePages {
 			if !hp.IsPage && hp.Target.Module != "" {

@@ -50,7 +50,7 @@ func validateMenuItemIcons(stmt ast.Statement) []linter.Violation {
 	var where string
 
 	switch s := stmt.(type) {
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		items, where = s.MenuItems, "navigation "+s.ProfileName
 	case *ast.CreateMenuStmt:
 		items, where = s.Items, "menu "+s.Name.String()

@@ -175,7 +175,7 @@ func TestDescribeNavigation_EmitsCreateOrModify(t *testing.T) {
 	if len(prog.Deprecations) != 0 {
 		t.Errorf("describe navigation emitted a deprecated spelling %+v:\n%s", prog.Deprecations, buf.String())
 	}
-	stmt := firstStatement[*ast.AlterNavigationStmt](t, buf.String())
+	stmt := firstStatement[*ast.CreateNavigationStmt](t, buf.String())
 	if !stmt.CreateOrModify {
 		t.Errorf("describe navigation is not an idempotent create:\n%s", buf.String())
 	}

@@ -71,8 +71,8 @@ func TestCreatingAnOfflineProfileWarnsAboutMultiStepPaths(t *testing.T) {
 	mb := navBackendWithTwoHopPage(t)
 	ctx, buf := newMockCtx(t, withBackend(mb))
 
-	stmt := &ast.AlterNavigationStmt{ProfileName: "TabletOffline"}
-	assertNoError(t, execAlterNavigation(ctx, stmt))
+	stmt := &ast.CreateNavigationStmt{ProfileName: "TabletOffline"}
+	assertNoError(t, execCreateNavigation(ctx, stmt))
 
 	out := buf.String()
 	assertContainsStr(t, out, "created")
@@ -88,8 +88,8 @@ func TestCreatingAnOnlineProfileSaysNothingAboutOfflinePaths(t *testing.T) {
 	mb := navBackendWithTwoHopPage(t)
 	ctx, buf := newMockCtx(t, withBackend(mb))
 
-	stmt := &ast.AlterNavigationStmt{ProfileName: "Tablet"}
-	assertNoError(t, execAlterNavigation(ctx, stmt))
+	stmt := &ast.CreateNavigationStmt{ProfileName: "Tablet"}
+	assertNoError(t, execCreateNavigation(ctx, stmt))
 
 	out := buf.String()
 	assertContainsStr(t, out, "created")
@@ -115,7 +115,7 @@ func TestReplacingAnExistingOfflineProfileDoesNotWarn(t *testing.T) {
 	}
 	ctx, buf := newMockCtx(t, withBackend(mb))
 
-	assertNoError(t, execAlterNavigation(ctx, &ast.AlterNavigationStmt{ProfileName: "TabletOffline"}))
+	assertNoError(t, execCreateNavigation(ctx, &ast.CreateNavigationStmt{ProfileName: "TabletOffline"}))
 
 	out := buf.String()
 	assertContainsStr(t, out, "updated")
@@ -139,7 +139,7 @@ func TestOfflineProfileWarningIsSilentOnACleanProject(t *testing.T) {
 	mb.GetRawUnitBytesFunc = func(model.ID) ([]byte, error) { return clean, nil }
 	ctx, buf := newMockCtx(t, withBackend(mb))
 
-	assertNoError(t, execAlterNavigation(ctx, &ast.AlterNavigationStmt{ProfileName: "PhoneOffline"}))
+	assertNoError(t, execCreateNavigation(ctx, &ast.CreateNavigationStmt{ProfileName: "PhoneOffline"}))
 	if strings.Contains(buf.String(), "CE6206") {
 		t.Errorf("warned about a project with no multi-step path:\n%s", buf.String())
 	}

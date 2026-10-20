@@ -210,7 +210,7 @@ func iconRefsInStatement(stmt ast.Statement) []iconRef {
 				}
 			}
 		}
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		for _, item := range s.MenuItems {
 			out = append(out, iconRefsInMenu(item)...)
 		}

@@ -80,7 +80,7 @@ type navTarget struct {
 // nanoflow it is (see checkProfileClauses), so the name is looked up as one.
 func navigationTargets(stmt ast.Statement, native func(profile string) bool) (label string, out []navTarget, ok bool) {
 	switch s := stmt.(type) {
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		label = "navigation " + s.ProfileName
 		for _, hp := range s.HomePages {
 			where, kind := "home page", navPage

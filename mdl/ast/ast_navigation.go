@@ -4,9 +4,10 @@ package ast
 
 import "github.com/mendixlabs/mxcli/mdl/types"
 
-// AlterNavigationStmt represents: CREATE [OR REPLACE] NAVIGATION <profile> [clauses...]
-// This is a full-replacement command: omitted clauses clear that section.
-type AlterNavigationStmt struct {
+// CreateNavigationStmt represents: CREATE [OR MODIFY] NAVIGATION <profile> [clauses...]
+// A clause it states replaces what it names (a { } menu block the whole menu);
+// an omitted clause keeps the stored value (mendixlabs/mxcli#1522).
+type CreateNavigationStmt struct {
 	ProfileName  string           // e.g. "Responsive"
 	HomePages    []NavHomePageDef // HOME PAGE/MICROFLOW ... [FOR role]
 	LoginPage    *QualifiedName   // LOGIN PAGE ...
@@ -27,7 +28,7 @@ type AlterNavigationStmt struct {
 	CreateOrModify    bool // true if CREATE OR REPLACE/MODIFY was used
 }
 
-func (s *AlterNavigationStmt) isStatement() {}
+func (s *CreateNavigationStmt) isStatement() {}
 
 // NavSyncDef represents one `SYNC <entity> <mode>` line inside a SYNC block.
 //

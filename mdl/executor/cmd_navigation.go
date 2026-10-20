@@ -14,11 +14,11 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// execAlterNavigation handles CREATE [OR REPLACE] NAVIGATION <profile> command.
+// execCreateNavigation handles CREATE [OR MODIFY] NAVIGATION <profile> command.
 // A clause the statement states replaces what it names; an omitted clause keeps
 // the stored value (mendixlabs/mxcli#1522) -- the writer's rule, see
 // navPatchWebProfile.
-func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
+func execCreateNavigation(ctx *ExecContext, s *ast.CreateNavigationStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
@@ -171,7 +171,7 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 // web app settings. Mendix then registers no service worker -- index.js carries
 // "registerServiceWorker": false -- so no page opens without a network, while
 // check, exec and mx check all pass (mendixlabs/mxcli#1377).
-func warnOfflineWithoutPWA(ctx *ExecContext, s *ast.AlterNavigationStmt, kind string, stored *types.NavPWASettings) {
+func warnOfflineWithoutPWA(ctx *ExecContext, s *ast.CreateNavigationStmt, kind string, stored *types.NavPWASettings) {
 	if !types.IsOfflineProfileKind(kind) {
 		return
 	}
@@ -196,7 +196,7 @@ func warnOfflineWithoutPWA(ctx *ExecContext, s *ast.AlterNavigationStmt, kind st
 // stayed as it was. Its flow home is a nanoflow — `home microflow` there is
 // what describe used to print, so it is read as the nanoflow and warned about —
 // while a web profile's is a microflow, so `home nanoflow` there is refused.
-func checkProfileClauses(ctx *ExecContext, s *ast.AlterNavigationStmt, isNative bool) error {
+func checkProfileClauses(ctx *ExecContext, s *ast.CreateNavigationStmt, isNative bool) error {
 	if !isNative {
 		for _, hp := range s.HomePages {
 			if hp.IsNanoflow {

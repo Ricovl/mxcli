@@ -69,7 +69,7 @@ func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
 func hasProtectedModuleCandidates(prog *ast.Program) bool {
 	for _, stmt := range prog.Statements {
 		switch stmt.(type) {
-		case *ast.AlterNavigationStmt, *ast.CreateMenuStmt, *ast.CreateMicroflowStmt, *ast.CreateNanoflowStmt:
+		case *ast.CreateNavigationStmt, *ast.CreateMenuStmt, *ast.CreateMicroflowStmt, *ast.CreateNanoflowStmt:
 			return true
 		}
 	}
@@ -149,7 +149,7 @@ func (r *protectedRefResolver) recordDefinition(stmt ast.Statement) {
 
 func (r *protectedRefResolver) check(stmt ast.Statement) []string {
 	switch s := stmt.(type) {
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		return r.checkNavigation(s)
 	case *ast.CreateMenuStmt:
 		if r.protected[s.Name.Module] {
@@ -166,7 +166,7 @@ func (r *protectedRefResolver) check(stmt ast.Statement) []string {
 	return nil
 }
 
-func (r *protectedRefResolver) checkNavigation(s *ast.AlterNavigationStmt) []string {
+func (r *protectedRefResolver) checkNavigation(s *ast.CreateNavigationStmt) []string {
 	const src = "project level documents"
 	who := fmt.Sprintf("navigation profile '%s'", s.ProfileName)
 	var out []string

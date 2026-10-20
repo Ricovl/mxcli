@@ -165,7 +165,7 @@ func TestPrintMenuMDL_EmittedIconsReParse(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("DESCRIBE emitted output its own parser rejects:\n%s\nerrors: %v", script, errs)
 			}
-			stmt, ok := prog.Statements[0].(*ast.AlterNavigationStmt)
+			stmt, ok := prog.Statements[0].(*ast.CreateNavigationStmt)
 			if !ok || len(stmt.MenuItems) != 1 {
 				t.Fatalf("re-parsed to %T", prog.Statements[0])
 			}

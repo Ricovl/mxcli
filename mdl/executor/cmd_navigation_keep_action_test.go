@@ -51,7 +51,7 @@ func TestNavigationRewrite_KeepsAnActionMDLCannotExpress(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	assertNoError(t, execAlterNavigation(ctx, prog.Statements[0].(*ast.AlterNavigationStmt)))
+	assertNoError(t, execCreateNavigation(ctx, prog.Statements[0].(*ast.CreateNavigationStmt)))
 
 	if len(got.MenuItems) != 3 {
 		t.Fatalf("spec has %d items, want 3", len(got.MenuItems))

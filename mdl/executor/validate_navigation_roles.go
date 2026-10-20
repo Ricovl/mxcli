@@ -52,7 +52,7 @@ type navRoleRef struct {
 
 // navigationRoleRefs collects the role references in one statement.
 func navigationRoleRefs(stmt ast.Statement) []navRoleRef {
-	s, ok := stmt.(*ast.AlterNavigationStmt)
+	s, ok := stmt.(*ast.CreateNavigationStmt)
 	if !ok {
 		return nil
 	}
@@ -124,7 +124,7 @@ func validateNavigationRoles(ctx *ExecContext, prog *ast.Program) []error {
 // validateNavigationRoleForExec is the same check at execution time. By the time
 // a navigation statement runs, a role the script creates is already in the
 // project, so the stored roles alone are the right set.
-func validateNavigationRoleForExec(ctx *ExecContext, stmt *ast.AlterNavigationStmt) error {
+func validateNavigationRoleForExec(ctx *ExecContext, stmt *ast.CreateNavigationStmt) error {
 	refs := navigationRoleRefs(stmt)
 	if len(refs) == 0 {
 		return nil
