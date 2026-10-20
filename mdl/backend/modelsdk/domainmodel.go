@@ -300,6 +300,7 @@ func attributeFromGen(a *genDm.Attribute) *domainmodel.Attribute {
 		Name:          a.Name(),
 		Documentation: a.Documentation(),
 		Type:          attributeTypeFromGen(a.Type()),
+		ExportLevel:   a.ExportLevel(),
 	}
 	attr.ID = model.ID(a.ID())
 	switch v := a.Value().(type) {
@@ -578,6 +579,7 @@ func assocFromGen(a *genDm.Association) *domainmodel.Association {
 	out := &domainmodel.Association{
 		Name:          a.Name(),
 		Documentation: a.Documentation(),
+		ExportLevel:   a.ExportLevel(),
 		ParentID:      model.ID(a.ParentRefID()), // FROM entity (owns the FK)
 		ChildID:       model.ID(a.ChildRefID()),  // TO entity
 		// Type/Owner/StorageFormat/DeleteBehavior MUST be read here: the executor's
@@ -650,6 +652,7 @@ func crossAssocFromGen(ca *genDm.CrossAssociation) *domainmodel.CrossModuleAssoc
 	out := &domainmodel.CrossModuleAssociation{
 		Name:          ca.Name(),
 		Documentation: ca.Documentation(),
+		ExportLevel:   ca.ExportLevel(),
 		ParentID:      model.ID(ca.ParentRefID()), // local FROM entity (owns the FK)
 		ChildRef:      ca.ChildQualifiedName(),    // remote TO entity, BY_NAME
 		Type:          domainmodel.AssociationType(ca.Type()),

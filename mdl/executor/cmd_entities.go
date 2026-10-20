@@ -89,6 +89,9 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	// An unqualified EXTENDS target is refused here as well as at check time:
 	// `exec --no-check` skips the pre-flight, and this is the case that writes a
@@ -259,6 +262,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 			Name:          a.Name,
 			Documentation: doc,
 			Type:          convertDataType(a.Type),
+			ExportLevel:   authoredExportLevel(a.ExportLevel),
 		}
 		attr.ID = attrID
 
@@ -375,6 +379,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		HasChangedBy:    storeChangedBy,
 		HasCreatedDate:  storeCreatedDate,
 		HasChangedDate:  storeChangedDate,
+		ExportLevel:     authoredExportLevel(s.ExportLevel),
 	}
 	if autoPlace {
 		// The next grid slot whose box clears everything already in the module.
@@ -529,6 +534,11 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 	} else {
 		merged.Documentation = declared.Documentation
 	}
+	// EXPORT LEVEL likewise: an absent clause ("" on the rebuilt entity) keeps
+	// the stored level (mendixlabs/mxcli#1498).
+	if declared.ExportLevel != "" {
+		merged.ExportLevel = declared.ExportLevel
+	}
 	return &merged
 }
 
@@ -572,6 +582,9 @@ func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmod
 		}
 		if !stated[a.Name] {
 			carryStoredLocalizeDate(old.Type, a.Type)
+		}
+		if a.ExportLevel == "" {
+			a.ExportLevel = old.ExportLevel // no EXPORT LEVEL clause: keep it (#1498)
 		}
 	}
 }
@@ -660,6 +673,7 @@ var entityFieldsDeclaredByStatement = map[string]bool{
 	"GeneralizationRef": true,
 	"Generalization":    true,
 	"GeneralizationID":  true,
+	"ExportLevel":       true, // when stated: "" keeps the stored level (#1498)
 	// ContainerID and the embedded BaseElement identify the stored element, so
 	// they are preserved. `entity.ID = existingEntity.ID` at the call site says
 	// the same thing about the ID; the merge is where it now comes from.
@@ -1103,6 +1117,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			Value: &domainmodel.AttributeValue{
 				ViewReference: a.Name, // OQL column alias matches attribute name
 			},
+			ExportLevel: authoredExportLevel(a.ExportLevel),
 		}
 		if dt, ok := attr.Type.(*domainmodel.DateTimeAttributeType); ok && a.Type.Localize == ast.LocalizeUnstated {
 			if l, ok := localize[a.Name]; ok {
@@ -1114,6 +1129,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			attr.ID = ea.ID
 			if ea.Value != nil {
 				attr.Value.ID = ea.Value.ID
+			}
+			if attr.ExportLevel == "" {
+				attr.ExportLevel = ea.ExportLevel // no clause: keep it (#1498)
 			}
 		}
 		attrs = append(attrs, attr)
@@ -1131,6 +1149,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		Source:            "DomainModels$OqlViewEntitySource",
 		SourceDocumentRef: sourceDocRef,
 		OqlQuery:          s.Query.RawQuery,
+		ExportLevel:       authoredExportLevel(s.ExportLevel),
 	}
 	if autoPlace {
 		entity.Location = dmlayout.Place(dm, entity)
@@ -1156,6 +1175,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
 		merged.Documentation = carriedDocumentation(
 			s.DocumentationSet, s.Documentation, existingEntity.Documentation)
+		if s.ExportLevel != nil { // absent keeps the stored level (#1498)
+			merged.ExportLevel = *s.ExportLevel
+		}
 		// The ID and the Source object ID (CE-6770) are the stored ones.
 		entity = &merged
 		created = entity
@@ -1209,6 +1231,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
+	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
 	}
 
 	// Find module
@@ -1296,6 +1321,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			Name:          a.Name,
 			Documentation: a.Documentation,
 			Type:          convertDataType(a.Type),
+			ExportLevel:   authoredExportLevel(a.ExportLevel),
 		}
 		attr.ID = attrID
 		if a.Calculated {
@@ -1515,6 +1541,9 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 					}
 					attr.Value = &domainmodel.AttributeValue{DefaultValue: defaultStr}
 				}
+				if s.ModifyExportLevel != nil {
+					attr.ExportLevel = *s.ModifyExportLevel
+				}
 				found = true
 				break
 			}
@@ -1696,6 +1725,14 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		}
 		invalidateDomainModelsCache(ctx)
 		fmt.Fprintf(ctx.Output, "Set documentation on entity %s\n", s.Name)
+
+	case ast.AlterEntitySetExportLevel:
+		entity.ExportLevel = s.ExportLevel
+		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
+			return mdlerrors.NewBackend("set export level", err)
+		}
+		invalidateDomainModelsCache(ctx)
+		ctx.ReportMutation("Set", "export level %s on entity %s", exportLevelKeyword(s.ExportLevel), s.Name)
 
 	case ast.AlterEntitySetPosition:
 		if s.Position == nil {

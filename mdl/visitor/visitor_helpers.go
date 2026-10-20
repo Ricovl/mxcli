@@ -226,6 +226,9 @@ func buildAttributes(ctx parser.IAttributeDefinitionListContext, b *Builder) []a
 				}
 			}
 			applyLocalizeConstraint(&attr.Type, c)
+			if el := c.MicroflowExportLevelClause(); el != nil {
+				attr.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 
 		attrs = append(attrs, attr)
@@ -285,6 +288,9 @@ func buildSingleAttribute(a *parser.AttributeDefinitionContext) *ast.Attribute {
 			}
 		}
 		applyLocalizeConstraint(&attr.Type, c)
+		if el := c.MicroflowExportLevelClause(); el != nil {
+			attr.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+		}
 	}
 
 	return attr
