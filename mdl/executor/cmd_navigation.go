@@ -38,6 +38,12 @@ func execCreateNavigation(ctx *ExecContext, s *ast.CreateNavigationStmt) error {
 		return err
 	}
 
+	// Captions are read (to pair the script's items with the stored ones) and
+	// written in the project's default language, as a page's texts are: resolve
+	// it before the first read, since the backend reads it through
+	// model.AuthoringLanguage.
+	authoringLanguage(ctx)
+
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
@@ -567,6 +573,7 @@ func listNavigation(ctx *ExecContext) error {
 // listNavigationMenu handles SHOW NAVIGATION MENU [profile] command.
 // Displays the menu tree for a specific profile, or all profiles if none specified.
 func listNavigationMenu(ctx *ExecContext, profileName *ast.QualifiedName) error {
+	describeDefaultLanguage(ctx) // captions are read in it, as describe reads them
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
@@ -642,6 +649,10 @@ func flowHomeWord(p *types.NavigationProfile) string {
 // describeNavigation handles DESCRIBE NAVIGATION [profile] command.
 // Outputs a complete MDL-style description of a navigation profile.
 func describeNavigation(ctx *ExecContext, name ast.QualifiedName) error {
+	// A menu item's caption is read in the project's default language, as a
+	// page's texts are (model.SelectTranslation). The backend reads it through
+	// model.AuthoringLanguage, so it is resolved first.
+	describeDefaultLanguage(ctx)
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
