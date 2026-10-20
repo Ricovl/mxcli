@@ -1,0 +1,51 @@
+mdl 1;
+-- ============================================================================
+-- ALTER PAGE over MCP failed for every page inside a folder  (mendixlabs/mxcli#1593)
+-- ============================================================================
+--
+-- Symptom (before fix), MCP backend against Studio Pro 11.12.5:
+--
+--   failed to open page for mutation: module not found: <uuid>
+--
+--   for a page in a folder (one level or A/B/Pages), while the same statement on
+--   a page at the module root succeeded. `check --references` passed in both
+--   cases, and the trace showed no PED tool call before the error.
+--
+-- Root cause:
+--   The MCP page mutator resolved the page's module with
+--   GetModule(page.ContainerID). A page's ContainerID is its immediate parent,
+--   which for a foldered page is the FOLDER — the <uuid> in the error was the
+--   folder's ID. The backend already had a folder-aware resolver
+--   (moduleNameForContainer, walking the folder chain up to the module); the
+--   page mutator did not use it. UpdateConstant (CREATE OR MODIFY constant),
+--   UpdateWorkflow (CREATE OR MODIFY workflow) and the session registries'
+--   DROP cleanup had the same lookup and are fixed with it.
+--
+-- WHAT THIS FILE PROVES, AND WHAT IT DOES NOT
+--   Run with the default (modelsdk) backend, this script only shows the shape
+--   is valid MDL and that the modelsdk engine handles it — that engine never
+--   had the bug. The defect lived in the MCP backend, which needs a live
+--   Studio Pro; it is covered by mdl/backend/mcp/page_mutator_folder_test.go
+--   against a fake Studio Pro. To reproduce live, open the app in Studio Pro
+--   and run this script with `--mcp <url>`.
+
+create module "Bug1593";
+
+create page "Bug1593"."RootPage" (Title: 'Root', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtRoot (Content: 'root')
+};
+
+create page "Bug1593"."FolderPage" folder 'Pages' (Title: 'Folder', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtFolder (Content: 'folder')
+};
+
+create page "Bug1593"."NestedPage" folder 'A/B/Pages' (Title: 'Nested', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtNested (Content: 'nested')
+};
+
+-- control: module-root page always worked
+alter page "Bug1593"."RootPage" { insert after txtRoot { dynamictext txtRoot2 (Content: 'root 2') } };
+-- reported: one folder deep
+alter page "Bug1593"."FolderPage" { insert after txtFolder { dynamictext txtFolder2 (Content: 'folder 2') } };
+-- reported: nested folders
+alter page "Bug1593"."NestedPage" { insert after txtNested { dynamictext txtNested2 (Content: 'nested 2') } };
