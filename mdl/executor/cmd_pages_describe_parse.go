@@ -257,6 +257,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			if onClick := asActionMap(w["OnClickAction"]); onClick != nil {
 				widget.Action = extractButtonAction(ctx, map[string]any{"Action": onClick})
 			}
+			// The HTML element it renders as (mendixlabs/mxcli#1582).
+			if rm, ok := w["RenderMode"].(string); ok {
+				widget.RenderMode = rm
+			}
 		}
 		// Extract GroupBox-specific properties
 		if typeName == "Forms$GroupBox" || typeName == "Pages$GroupBox" {

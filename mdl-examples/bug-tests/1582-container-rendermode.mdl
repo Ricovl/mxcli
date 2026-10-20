@@ -1,0 +1,33 @@
+-- mendixlabs/mxcli#1582: `container ctnMain (RenderMode: 'Main')` in a layout or
+-- page was stored, but `describe` never printed it — so it read as dropped, and
+-- a describe → exec round trip did drop it. `alter layout … set (RenderMode: …)`
+-- was refused with `property "RenderMode" is not a property of this built-in
+-- widget`, and an unknown value (`'Banner'`, or `'main'` as typed) was written
+-- verbatim into the document.
+-- After the fix describe prints `RenderMode: Main`, ALTER sets it, the value is
+-- stored in its canonical spelling, and an unknown member is refused.
+mdl 1;
+
+create module BugTest1582;
+
+create or modify layout BugTest1582.L_Landmarks (
+  layouttype: 'Responsive'
+) {
+  scrollcontainer layoutContainer {
+    region center {
+      container ctnMain (RenderMode: 'Main', Class: 'app-main') {
+        placeholder Main
+      }
+      container ctnNav (RenderMode: nav) {
+        placeholder Nav
+      }
+    }
+  }
+};
+
+alter layout BugTest1582.L_Landmarks {
+  set (RenderMode: 'Header') on ctnNav;
+};
+
+-- Expect: ctnMain (RenderMode: Main, …) and ctnNav (RenderMode: Header).
+describe layout BugTest1582.L_Landmarks;

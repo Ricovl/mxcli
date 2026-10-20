@@ -564,7 +564,7 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err
 	}
-	if err := applyPluggableSystemSettings(widget, w); err != nil {
+	if err := applyPluggableSystemSettings(widget, w, def); err != nil {
 		return nil, err
 	}
 	if err := pb.applyVisibleWhen(widget, w); err != nil {

@@ -68,6 +68,41 @@ func widgetAsksEditability(w *ast.WidgetV3) bool {
 	return ok && (expr != "" || enum != "Always")
 }
 
+// editableIsOwnProperty reports whether `editable:` on a widget of def is the
+// widget's own `editable` property rather than the widget-level editability.
+// The generator maps it only when the package declares no Editability system
+// property, so it never shadows a setting the widget has — the Marketplace
+// Calendar's required `editable` expression could otherwise not be written at
+// all (mendixlabs/mxcli#1578).
+func editableIsOwnProperty(def *WidgetDefinition) bool {
+	if def == nil {
+		return false
+	}
+	owns := func(ms []PropertyMapping) bool {
+		for _, m := range ms {
+			if strings.EqualFold(m.PropertyKey, "editable") {
+				return true
+			}
+		}
+		return false
+	}
+	if owns(def.PropertyMappings) {
+		return true
+	}
+	for _, mode := range def.Modes {
+		if owns(mode.PropertyMappings) {
+			return true
+		}
+	}
+	return false
+}
+
+// widgetAsksSystemEditability is widgetAsksEditability for a pluggable widget:
+// false when `editable:` names the widget's own property.
+func widgetAsksSystemEditability(w *ast.WidgetV3, def *WidgetDefinition) bool {
+	return !editableIsOwnProperty(def) && widgetAsksEditability(w)
+}
+
 // systemPropsOfType returns the system properties a CustomWidgetType declares,
 // and false when the Type carries no property types at all (nothing to judge).
 func systemPropsOfType(rawType any) (map[string]bool, bool) {
@@ -86,7 +121,7 @@ func systemPropsOfType(rawType any) (map[string]bool, bool) {
 
 // undeclaredSystemProps lists the system properties the statement needs that
 // the widget does not declare.
-func undeclaredSystemProps(w *ast.WidgetV3, declared map[string]bool) []string {
+func undeclaredSystemProps(w *ast.WidgetV3, def *WidgetDefinition, declared map[string]bool) []string {
 	var missing []string
 	// Visibility is not gated: Studio Pro offers conditional visibility on
 	// every pluggable widget, declared or not — TestApp's Studio Pro-authored
@@ -94,7 +129,7 @@ func undeclaredSystemProps(w *ast.WidgetV3, declared map[string]bool) []string {
 	// a Datagrid whose Type declares no Visibility system property. Refusing
 	// it made describe → exec of that page fail. A declared Visibility only
 	// places the setting in the widget's own property tabs.
-	if widgetAsksEditability(w) && !declared[sysPropEditability] {
+	if widgetAsksSystemEditability(w, def) && !declared[sysPropEditability] {
 		missing = append(missing, sysPropEditability)
 	}
 	return missing
@@ -118,14 +153,19 @@ func pluralY(n int) string {
 // editability, refusing either when the widget's package does not declare it.
 // The attribute-based `visible: Attr in (…)` form is applied by the caller,
 // which has the entity context it resolves against.
-func applyPluggableSystemSettings(cw *pages.CustomWidget, w *ast.WidgetV3) error {
+func applyPluggableSystemSettings(cw *pages.CustomWidget, w *ast.WidgetV3, def *WidgetDefinition) error {
 	if cw == nil || w == nil {
 		return nil
 	}
 	if declared, known := systemPropsOfType(cw.RawType); known {
-		if missing := undeclaredSystemProps(w, declared); len(missing) > 0 {
+		if missing := undeclaredSystemProps(w, def, declared); len(missing) > 0 {
 			return mdlerrors.NewValidation(undeclaredSystemPropMessage(w.Name, w.Type, missing))
 		}
+	}
+	if editableIsOwnProperty(def) {
+		// The engine wrote `editable:` into the widget's own property; it is
+		// not also the widget-level setting.
+		w = withoutEditability(w)
 	}
 	applyConditionalSettings(cw, w)
 	// The writer stores CustomWidget.Editable (the engine fills it with the
@@ -134,6 +174,19 @@ func applyPluggableSystemSettings(cw *pages.CustomWidget, w *ast.WidgetV3) error
 		cw.Editable = pages.WidgetEditability(&cw.BaseWidget)
 	}
 	return nil
+}
+
+// withoutEditability is a shallow copy of w without its `editable:` keys.
+func withoutEditability(w *ast.WidgetV3) *ast.WidgetV3 {
+	c := *w
+	c.Properties = make(map[string]any, len(w.Properties))
+	for k, v := range w.Properties {
+		if strings.EqualFold(k, "Editable") || strings.EqualFold(k, "EditableIf") {
+			continue
+		}
+		c.Properties[k] = v
+	}
+	return &c
 }
 
 // templateSystemPropsCache: projectPath + "\x00" + widgetID → declared set
@@ -176,14 +229,14 @@ func validatePluggableSystemProps(w *ast.WidgetV3, def *WidgetDefinition, regist
 	if w == nil || def == nil || def.WidgetID == "" {
 		return nil
 	}
-	if !widgetAsksVisibility(w) && !widgetAsksEditability(w) {
+	if !widgetAsksVisibility(w) && !widgetAsksSystemEditability(w, def) {
 		return nil
 	}
 	declared, known := templateSystemProps(registryProjectPath(registry), def.WidgetID)
 	if !known {
 		return nil
 	}
-	missing := undeclaredSystemProps(w, declared)
+	missing := undeclaredSystemProps(w, def, declared)
 	if len(missing) == 0 {
 		return nil
 	}

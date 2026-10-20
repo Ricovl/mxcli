@@ -1313,6 +1313,22 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 			continue
 		}
 
+		// An expression property: its text, quoted. This path had no branch for
+		// one, so a stored expression was described as absent — the Calendar's
+		// `editable` and `showEventDate` (mendixlabs/mxcli#1578). Only an
+		// Expression-typed property is read: a value of another type keeps
+		// whatever its PrimitiveValue says below.
+		if valueTypes[typePointerID] == "Expression" {
+			if expr := extractString(value["Expression"]); expr != "" {
+				result = append(result, rawExplicitProp{
+					Key:       propKey,
+					Value:     expr,
+					ValueType: "Expression",
+				})
+			}
+			continue
+		}
+
 		// Check for a PrimitiveValue.
 		//
 		// Booleans used to be dropped here as "common defaults". They are not:

@@ -1,0 +1,52 @@
+-- mendixlabs/mxcli#1578: a page with the Marketplace Calendar (content 245304)
+-- passed `check` and `exec`, then `mx check` failed with
+--   [CE0642] "Property 'Editable' is required." at Calendar 'CalRepro_Calendar'
+--   [CE0642] "Property 'Show event date range' is required."
+-- Both are `type="expression" defaultValue="true"` in Calendar.xml. The
+-- template wrote them empty, `editable:` only ever reached the widget-level
+-- editability (which the Calendar does not declare), `showEventDate:` drew a
+-- false MDL-WIDGET06, and `describe page` printed neither.
+-- After the fix an unnamed one gets its declared default, `editable:` and
+-- `showEventDate:` are written in every spelling, and describe prints both.
+-- Needs: `mxcli marketplace install 245304 -p <app>` first.
+mdl 1;
+
+create module BugTest1578;
+
+create persistent entity BugTest1578.LeaveRequest (
+  Reason: String(200),
+  StartDate: DateTime,
+  EndDate: DateTime
+);
+
+-- Neither property named: both get their default, `mx check` is clean.
+create or modify page BugTest1578.CalDefaults (Title: 'Calendar', Layout: Atlas_Core.Atlas_Default) {
+  pluggablewidget 'com.mendix.widget.web.calendar.Calendar' calDefaults (
+    databaseDataSource: database BugTest1578.LeaveRequest,
+    titleType: 'attribute',
+    titleAttribute: Reason,
+    startAttribute: StartDate,
+    endAttribute: EndDate,
+    view: 'standard',
+    defaultViewStandard: 'month'
+  )
+};
+
+-- Both named with a non-default value.
+create or modify page BugTest1578.CalReadOnly (Title: 'Calendar', Layout: Atlas_Core.Atlas_Default) {
+  pluggablewidget 'com.mendix.widget.web.calendar.Calendar' calReadOnly (
+    databaseDataSource: database BugTest1578.LeaveRequest,
+    titleType: 'attribute',
+    titleAttribute: Reason,
+    startAttribute: StartDate,
+    endAttribute: EndDate,
+    view: 'standard',
+    defaultViewStandard: 'month',
+    editable: false,
+    showEventDate: 'false'
+  )
+};
+
+-- Expect: editable: 'true', showEventDate: 'true' — and 'false' on the second.
+describe page BugTest1578.CalDefaults;
+describe page BugTest1578.CalReadOnly;
