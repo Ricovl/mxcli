@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-```sql
+```text
 ALTER NAVIGATION profile {
     item_operation | page_clause_operation
     [ ... ]

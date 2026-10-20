@@ -140,7 +140,6 @@
 1	syntax	docs-site/src/reference/microflow/create-javascript-action.md
 16	syntax	docs-site/src/reference/microflow/create-microflow.md
 4	syntax	docs-site/src/reference/microflow/create-nanoflow.md
-2	syntax	docs-site/src/reference/navigation/alter-navigation.md
 1	syntax	docs-site/src/reference/navigation/list-navigation.md
 2	syntax	docs-site/src/reference/navigation/menu.md
 3	syntax	docs-site/src/reference/organization/create-folder.md

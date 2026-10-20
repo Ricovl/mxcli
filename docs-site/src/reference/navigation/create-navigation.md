@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-```sql
+```text
 CREATE [ OR MODIFY ] NAVIGATION profile
     HOME { PAGE module.PageName | MICROFLOW module.Flow | NANOFLOW module.Flow }
     [ HOME { PAGE | MICROFLOW | NANOFLOW } module.Name FOR UserRole ]
@@ -97,7 +97,7 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
 offline profile downloads nothing without it** — the app builds, routes and
 installs as a PWA, and shows an empty screen.
 
-```sql
+```text
 SYNC (
     SYNC Sales.Setting ONLINE;
     SYNC Sales.Order ALL;
