@@ -62,7 +62,7 @@ func TestNavigationRewrite_SubMenuDoesNotKeepAStoredAction(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	assertNoError(t, execAlterNavigation(ctx, prog.Statements[0].(*ast.AlterNavigationStmt)))
+	assertNoError(t, execCreateNavigation(ctx, prog.Statements[0].(*ast.CreateNavigationStmt)))
 
 	if len(got.MenuItems) != 2 || got.MenuItems[0].Caption != "Work" {
 		t.Fatalf("spec items = %+v, want 'Work' and 'Reports'", got.MenuItems)

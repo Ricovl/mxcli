@@ -723,6 +723,7 @@ LIST IMPACT OF htmlelement;
 			"  MENU '<caption>' [( Icon: Module.Collection.name )] { <nested items> }\n" +
 			"};\n" +
 			"DESCRIBE MENU Module.Name;\n" +
+			"ALTER MENU Module.Name { <item operations> };   -- one item at a time: mxcli syntax navigation.menu-document.alter\n" +
 			"DROP MENU Module.Name;",
 		Example: "CREATE OR MODIFY MENU MyModule.Main_Menu {\n" +
 			"  menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )\n" +
@@ -737,7 +738,8 @@ LIST IMPACT OF htmlelement;
 			"--     NOT the menu inside a navigation profile — for that use\n" +
 			"--     LIST NAVIGATION MENU and ALTER NAVIGATION. Both use these same items.\n" +
 			"--   * OR MODIFY replaces the item list wholesale; an omitted item is removed.\n" +
-			"--     The document's identity and export level are preserved.\n" +
+			"--     The document's identity and export level are preserved. To add, move,\n" +
+			"--     rename or drop one item, use ALTER MENU, which keeps the rest as stored.\n" +
 			"--   * SIGN OUT is the log-out menu item. It needs no target and stores the\n" +
 			"--     same Forms$SignOutClientAction a sign-out BUTTON carries. Works both\n" +
 			"--     here and in a navigation profile's menu.\n" +
@@ -748,7 +750,35 @@ LIST IMPACT OF htmlelement;
 			"--     write the other two icon kinds.\n" +
 			"--   * A page with required parameters cannot be opened from a menu item\n" +
 			"--     without an argument — Mendix reports CE1571.",
-		SeeAlso: []string{"navigation.create", "navigation.show", "page.show"},
+		SeeAlso: []string{"navigation.create", "navigation.show", "navigation.menu-document.alter", "page.show"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "navigation.menu-document.alter",
+		Summary: "Edit a menu document's items in place (ALTER MENU)",
+		Keywords: []string{
+			"alter menu", "edit menu document", "add menu item", "insert menu item",
+			"drop menu item", "move menu item", "rename menu item",
+		},
+		Syntax: "ALTER MENU Module.Name {\n" +
+			"  INSERT BEFORE | AFTER | INTO <item> { <menu items> }\n" +
+			"  INSERT { <menu items> }\n" +
+			"  REPLACE <item> WITH { <menu items> }\n" +
+			"  MOVE <item> BEFORE | AFTER | INTO <item>\n" +
+			"  DROP <item> [, <item> ...]\n" +
+			"  SET ( Caption: '...', OnClick: <action> | NOTHING, Icon: <icon> | NONE ) ON <item>\n" +
+			"};\n\n" +
+			"-- The item operations of ALTER NAVIGATION (mxcli syntax navigation.alter) on a\n" +
+			"-- Menus$MenuDocument, which holds the same items; there are no page clauses.\n" +
+			"-- <item> is a caption path: 'Group' > 'Item', @n among equal captions.",
+		Example: "mdl 1;\n" +
+			"ALTER MENU MyModule.Main_Menu {\n" +
+			"  INSERT AFTER 'Home' { MENU ITEM 'Orders' ( OnClick: SHOW PAGE MyModule.Order_Overview ) }\n" +
+			"  MOVE 'Run' INTO 'Admin';\n" +
+			"  SET ( Caption: 'Accounts and roles' ) ON 'Admin' > 'Accounts';\n" +
+			"  DROP 'Plain';\n" +
+			"};",
+		SeeAlso: []string{"navigation.menu-document", "navigation.alter"},
 	})
 
 	// ── Fragment ──────────────────────────────────────────────────────────

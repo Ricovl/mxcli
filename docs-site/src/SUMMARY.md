@@ -266,6 +266,7 @@
   - [CREATE DEMO USER](reference/security/create-demo-user.md)
   - [UPDATE SECURITY](reference/security/update-security.md)
 - [Navigation Statements](reference/navigation/README.md)
+  - [CREATE NAVIGATION](reference/navigation/create-navigation.md)
   - [ALTER NAVIGATION](reference/navigation/alter-navigation.md)
   - [LIST NAVIGATION](reference/navigation/list-navigation.md)
   - [CREATE MENU](reference/navigation/menu.md)

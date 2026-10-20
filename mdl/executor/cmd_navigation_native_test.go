@@ -34,7 +34,7 @@ func runNav(t *testing.T, mb *mock.MockBackend, script string) (string, error) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	err := execAlterNavigation(ctx, prog.Statements[0].(*ast.AlterNavigationStmt))
+	err := execCreateNavigation(ctx, prog.Statements[0].(*ast.CreateNavigationStmt))
 	return buf.String(), err
 }
 

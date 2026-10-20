@@ -119,8 +119,8 @@ func (f *navFixture) exec(t *testing.T, script string) error {
 	for _, stmt := range buildProg(t, script).Statements {
 		var err error
 		switch s := stmt.(type) {
-		case *ast.AlterNavigationStmt:
-			err = execAlterNavigation(f.ctx, s)
+		case *ast.CreateNavigationStmt:
+			err = execCreateNavigation(f.ctx, s)
 		case *ast.CreateMenuStmt:
 			err = execCreateMenu(f.ctx, s)
 		default:

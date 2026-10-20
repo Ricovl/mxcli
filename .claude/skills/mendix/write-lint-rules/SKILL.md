@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-602 | Object Properties |
-| 603-616 | Helper Functions |
-| 617-703 | Common Patterns |
-| 704-713 | Validation |
+| 162-606 | Object Properties |
+| 607-620 | Helper Functions |
+| 621-707 | Common Patterns |
+| 708-716 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
@@ -521,7 +521,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 
 | Property | Type | Example |
 |----------|------|---------|
-| `module_role_name` | string | `"Admin"` |
+| `module_role_name` | string | `"Sales.Admin"` — qualified, so it compares directly against `user_role.module_roles` |
 | `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"NANOFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
 | `element_name` | string | `"Sales.Customer"` |
 | `module_name` | string | `"Sales"` |
@@ -539,6 +539,10 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | `description` | string | The role's documentation in Project Security; `""` when none |
 | `is_anonymous` | bool | True if this is the anonymous/guest role |
 | `module_roles` | list of string | `["Sales.Admin", "HR.Viewer"]` |
+| `check_security` | bool | Studio Pro's per-role "Check security" flag |
+| `manage_all_roles` | bool | The role may hand out every user role |
+| `manage_users_without_roles` | bool | The role may manage users that have no role |
+| `manageable_roles` | list of string | The user roles this role may hand out, when not all |
 
 ### module_role
 | Property | Type | Example |
@@ -704,7 +708,6 @@ def check():
 ## Validation
 
 Test your rule by running the linter:
-
 ```bash
 mxcli lint -p app.mpr --list-rules   # Verify rule is loaded
 mxcli lint -p app.mpr                 # run all rules including yours

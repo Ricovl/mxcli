@@ -214,11 +214,17 @@ func registerSecurityHandlers(r *Registry) {
 }
 
 func registerNavigationHandlers(r *Registry) {
-	r.Register(&ast.AlterNavigationStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
-		return execAlterNavigation(ctx, stmt.(*ast.AlterNavigationStmt))
+	r.Register(&ast.CreateNavigationStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execCreateNavigation(ctx, stmt.(*ast.CreateNavigationStmt))
 	})
 	r.Register(&ast.CreateMenuStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execCreateMenu(ctx, stmt.(*ast.CreateMenuStmt))
+	})
+	r.Register(&ast.AlterNavigationStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execAlterNavigation(ctx, stmt.(*ast.AlterNavigationStmt))
+	})
+	r.Register(&ast.AlterMenuStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return execAlterMenu(ctx, stmt.(*ast.AlterMenuStmt))
 	})
 	r.Register(&ast.DropMenuStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return execDropMenu(ctx, stmt.(*ast.DropMenuStmt))

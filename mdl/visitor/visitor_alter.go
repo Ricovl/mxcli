@@ -22,6 +22,15 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		b.exitAlterFlowStatement(ctx)
 		return
 	}
+	// ALTER NAVIGATION / ALTER MENU: item-level menu edits.
+	if ctx.NAVIGATION() != nil {
+		b.exitAlterNavigationStatement(ctx)
+		return
+	}
+	if ctx.MENU_KW() != nil {
+		b.exitAlterMenuStatement(ctx)
+		return
+	}
 
 	// Handle ALTER PAGES … SET LAYOUT (the bulk repoint)
 	if sub := ctx.AlterPagesStylingStatement(); sub != nil {
