@@ -521,7 +521,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 
 | Property | Type | Example |
 |----------|------|---------|
-| `module_role_name` | string | `"Admin"` |
+| `module_role_name` | string | `"Sales.Admin"` — qualified, so it compares directly against `user_role.module_roles` |
 | `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"NANOFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
 | `element_name` | string | `"Sales.Customer"` |
 | `module_name` | string | `"Sales"` |
