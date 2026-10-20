@@ -44,6 +44,24 @@ type embeddedWidgetSchema struct {
 	// types maps a lower-cased key to its declared type ("Expression",
 	// "TextTemplate", "Boolean", …).
 	types map[string]string
+	// slotAccepts are the widget types an item's widgets slot routes, by slot
+	// key (a column's `filter` → textfilter, …); empty for a widget's own schema.
+	slotAccepts map[string][]string
+}
+
+// widgetSlots lists the schema's widgets-typed properties — the slots a child
+// widget goes in — with the widget types each one routes.
+func (s *embeddedWidgetSchema) widgetSlots() []itemSlotHint {
+	if s == nil {
+		return nil
+	}
+	var out []itemSlotHint
+	for _, n := range s.Names {
+		if s.types[strings.ToLower(n)] == "Widgets" {
+			out = append(out, itemSlotHint{Key: n, Accepts: s.slotAccepts[n]})
+		}
+	}
+	return out
 }
 
 // declares reports whether the template declares key, case-insensitively — or
@@ -128,6 +146,7 @@ func loadEmbeddedSchema(widgetID, listKey string) *embeddedWidgetSchema {
 			schema = &embeddedWidgetSchema{Title: tmpl.Name, Version: tmpl.Version, types: map[string]string{}}
 			if listKey != "" {
 				schema.Title += " column"
+				schema.slotAccepts = itemSlotAcceptedChildTypes[widgetID][listKey]
 			}
 			for _, pt := range propTypes {
 				key, _ := pt["PropertyKey"].(string)
