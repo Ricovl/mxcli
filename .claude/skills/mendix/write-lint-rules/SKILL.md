@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-602 | Object Properties |
-| 603-616 | Helper Functions |
-| 617-703 | Common Patterns |
-| 704-713 | Validation |
+| 162-606 | Object Properties |
+| 607-620 | Helper Functions |
+| 621-707 | Common Patterns |
+| 708-717 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
