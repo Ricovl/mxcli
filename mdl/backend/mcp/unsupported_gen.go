@@ -1007,8 +1007,18 @@ func (unsupportedBackend) MoveViewEntitySourceDocument(_ string, _ model.ID, _ s
 	return
 }
 
+func (unsupportedBackend) OpenMenuDocumentForMutation(_ model.ID) (r0 backend.MenuMutator, err1 error) {
+	err1 = errUnsupported("OpenMenuDocumentForMutation")
+	return
+}
+
 func (unsupportedBackend) OpenMicroflowForMutation(_ model.ID) (r0 backend.MicroflowMutator, err1 error) {
 	err1 = errUnsupported("OpenMicroflowForMutation")
+	return
+}
+
+func (unsupportedBackend) OpenNavigationProfileForMutation(_ string) (r0 backend.NavigationProfileMutator, err1 error) {
+	err1 = errUnsupported("OpenNavigationProfileForMutation")
 	return
 }
 
