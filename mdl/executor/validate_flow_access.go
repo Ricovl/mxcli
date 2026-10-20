@@ -175,7 +175,8 @@ func scriptTouchesFlowAccess(prog *ast.Program) bool {
 		case *ast.CreateMicroflowStmt, *ast.CreateNanoflowStmt, *ast.DropMicroflowStmt, *ast.DropNanoflowStmt,
 			*ast.RevokeMicroflowAccessStmt, *ast.RevokeNanoflowAccessStmt,
 			*ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3, *ast.AlterPageStmt,
-			*ast.CreateMenuStmt, *ast.AlterNavigationStmt, *ast.DropModuleRoleStmt:
+			*ast.CreateMenuStmt, *ast.CreateNavigationStmt, *ast.DropModuleRoleStmt,
+			*ast.AlterNavigationStmt, *ast.AlterMenuStmt:
 			return true
 		}
 	}
@@ -591,7 +592,7 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 		s.usesBy["menu "+st.Name.String()] = menuItemFlowRefs(st.Items)
 	case *ast.DropMenuStmt:
 		delete(s.usesBy, "menu "+st.Name.String())
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		refs := menuItemFlowRefs(st.MenuItems)
 		for _, hp := range st.HomePages {
 			if !hp.IsPage && hp.Target.Module != "" {
@@ -599,6 +600,25 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 			}
 		}
 		s.usesBy["navigation "+st.ProfileName] = refs
+	case *ast.AlterNavigationStmt, *ast.AlterMenuStmt:
+		// An alter adds to what the document uses; the items it does not name
+		// keep their flows.
+		var key string
+		var refs []flowRef
+		switch v := menuAlterView(st).(type) {
+		case *ast.CreateNavigationStmt:
+			key = "navigation " + v.ProfileName
+			refs = menuItemFlowRefs(v.MenuItems)
+			for _, hp := range v.HomePages {
+				if !hp.IsPage && hp.Target.Module != "" {
+					refs = append(refs, flowRef{"microflow", hp.Target.String()})
+				}
+			}
+		case *ast.CreateMenuStmt:
+			key = "menu " + v.Name.String()
+			refs = menuItemFlowRefs(v.Items)
+		}
+		s.usesBy[key] = append(s.usesBy[key], refs...)
 	}
 }
 

@@ -122,13 +122,13 @@ func TestNavigationRoleRefs(t *testing.T) {
 	}{
 		{
 			name: "default home page carries no role",
-			stmt: &ast.AlterNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
+			stmt: &ast.CreateNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
 				{IsPage: true, Target: ast.QualifiedName{Module: "M", Name: "Home"}},
 			}},
 		},
 		{
 			name: "role-based home page",
-			stmt: &ast.AlterNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
+			stmt: &ast.CreateNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
 				{IsPage: true, Target: ast.QualifiedName{Module: "M", Name: "Home"}},
 				{IsPage: true, Target: ast.QualifiedName{Module: "M", Name: "Admin"}, ForRole: navRole("", "Administrator")},
 			}},
@@ -138,7 +138,7 @@ func TestNavigationRoleRefs(t *testing.T) {
 			// Several roles in one profile: checking only the first would let the
 			// rest through.
 			name: "every role-based home page is collected",
-			stmt: &ast.AlterNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
+			stmt: &ast.CreateNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
 				{ForRole: navRole("", "Administrator")},
 				{ForRole: navRole("M", "Manager")},
 			}},
@@ -147,7 +147,7 @@ func TestNavigationRoleRefs(t *testing.T) {
 		{
 			// HOME MICROFLOW takes a role the same way HOME PAGE does.
 			name: "home microflow carries a role too",
-			stmt: &ast.AlterNavigationStmt{ProfileName: "Phone", HomePages: []ast.NavHomePageDef{
+			stmt: &ast.CreateNavigationStmt{ProfileName: "Phone", HomePages: []ast.NavHomePageDef{
 				{IsPage: false, Target: ast.QualifiedName{Module: "M", Name: "MF"}, ForRole: navRole("", "User")},
 			}},
 			want: []string{"User"},
@@ -180,7 +180,7 @@ func TestScriptUserRoles(t *testing.T) {
 	prog := &ast.Program{Statements: []ast.Statement{
 		&ast.CreateUserRoleStmt{Name: "Supervisor"},
 		&ast.CreateUserRoleStmt{Name: ""}, // must not become an empty known role
-		&ast.AlterNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
+		&ast.CreateNavigationStmt{ProfileName: "Responsive", HomePages: []ast.NavHomePageDef{
 			{ForRole: navRole("", "Supervisor")},
 		}},
 	}}

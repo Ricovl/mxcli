@@ -160,6 +160,9 @@ type iconRef struct {
 // exists to prevent (mendixlabs/mxcli#1008).
 func iconRefsInStatement(stmt ast.Statement) []iconRef {
 	var out []iconRef
+	if v := menuAlterView(stmt); v != nil {
+		stmt = v // the icons an ALTER NAVIGATION / ALTER MENU writes
+	}
 	switch s := stmt.(type) {
 	case *ast.CreatePageStmtV3:
 		for _, w := range s.Widgets {
@@ -210,7 +213,7 @@ func iconRefsInStatement(stmt ast.Statement) []iconRef {
 				}
 			}
 		}
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		for _, item := range s.MenuItems {
 			out = append(out, iconRefsInMenu(item)...)
 		}

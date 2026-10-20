@@ -33,7 +33,7 @@ func TestDescribeNavigation_CaptionWithApostropheRoundTrips(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatalf("describe output does not re-parse: %v\n%s", errs[0], out)
 	}
-	menu := prog.Statements[0].(*ast.AlterNavigationStmt).MenuItems
+	menu := prog.Statements[0].(*ast.CreateNavigationStmt).MenuItems
 	if len(menu) != 1 || menu[0].Caption != "Customer's menu" {
 		t.Fatalf("sub-menu re-parsed as %+v\n%s", menu, out)
 	}

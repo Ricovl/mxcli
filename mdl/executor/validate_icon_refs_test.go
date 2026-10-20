@@ -153,7 +153,7 @@ func TestIconRefsInStatement(t *testing.T) {
 		},
 		{
 			name: "navigation menu, including sub-items",
-			stmt: &ast.AlterNavigationStmt{MenuItems: []ast.NavMenuItemDef{
+			stmt: &ast.CreateNavigationStmt{MenuItems: []ast.NavMenuItemDef{
 				{Caption: "Home", Icon: "Atlas_Core.Atlas.home", Items: []ast.NavMenuItemDef{
 					{Caption: "Nested", Icon: "Atlas_Core.Atlas.pencil"},
 				}},

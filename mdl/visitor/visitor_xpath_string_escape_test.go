@@ -80,7 +80,7 @@ var xpathKinds = []struct {
 		}},
 	{"navigation sync", "create or replace navigation TabletOffline sync ( sync M.E where [Name = LIT]; );",
 		"[Name = LIT]", func(t *testing.T, prog *ast.Program) string {
-			return prog.Statements[0].(*ast.AlterNavigationStmt).SyncEntries[0].Constraint
+			return prog.Statements[0].(*ast.CreateNavigationStmt).SyncEntries[0].Constraint
 		}},
 }
 

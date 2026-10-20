@@ -26,7 +26,7 @@ func (b *Builder) ExitCreateNavigationStatement(ctx *parser.CreateNavigationStat
 		return
 	}
 
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: profileName,
 	}
 
@@ -48,7 +48,7 @@ func (b *Builder) ExitCreateNavigationStatement(ctx *parser.CreateNavigationStat
 }
 
 // processNavigationClause processes a single navigation clause.
-func (b *Builder) processNavigationClause(stmt *ast.AlterNavigationStmt, ctx *parser.NavigationClauseContext) {
+func (b *Builder) processNavigationClause(stmt *ast.CreateNavigationStmt, ctx *parser.NavigationClauseContext) {
 	if ctx.HOME() != nil {
 		// HOME PAGE/MICROFLOW qualifiedName [FOR qualifiedName]
 		names := ctx.AllQualifiedName()

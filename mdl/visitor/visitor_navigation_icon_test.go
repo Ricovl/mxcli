@@ -17,9 +17,9 @@ func navMenuItems(t *testing.T, menuBody string) []ast.NavMenuItemDef {
 	if len(errs) > 0 {
 		t.Fatalf("parsing the menu: %v", errs)
 	}
-	stmt, ok := prog.Statements[0].(*ast.AlterNavigationStmt)
+	stmt, ok := prog.Statements[0].(*ast.CreateNavigationStmt)
 	if !ok {
-		t.Fatalf("expected AlterNavigationStmt, got %T", prog.Statements[0])
+		t.Fatalf("expected CreateNavigationStmt, got %T", prog.Statements[0])
 	}
 	return stmt.MenuItems
 }

@@ -274,6 +274,13 @@ alterStatement
     // The old per-action form: each alternative of alterWorkflowAction is a
     // registered alias (MDL-DEPR140-149).
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
+    // The generic ALTER on a navigation profile's menu and page clauses, and
+    // on a menu document's items (accepted proposal
+    // PROPOSAL_alter_navigation_menu_items): its targets are menu items,
+    // addressed by caption path, and its fragments are menu items written as
+    // `create navigation` writes them.
+    | ALTER NAVIGATION (qualifiedName | IDENTIFIER) LBRACE alterNavigationOperation+ RBRACE
+    | ALTER MENU_KW qualifiedName LBRACE alterMenuOperation+ RBRACE
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
@@ -629,6 +636,71 @@ navigationClause
     // Precaching and InstallPrompt (R3, R10); a bare clause sets the platform
     // defaults, OFF stores null again, and an omitted clause leaves them alone.
     | PROGRESSIVE WEB APP (settingsItemOptions | OFF)?
+    ;
+
+/**
+ * `alter navigation` / `alter menu` operations (ADR-0012 decision 2, accepted
+ * proposal PROPOSAL_alter_navigation_menu_items):
+ *
+ * ```mdl
+ * alter navigation Responsive {
+ *   insert after 'Home' { menu item 'Orders' ( OnClick: show page Shop.Orders ) }
+ *   insert into 'Admin' { menu item 'Audit log' ( OnClick: show page Shop.Audit ) }
+ *   insert { menu item 'Last' ( OnClick: sign out ) }       -- append to the top level
+ *   replace 'Help' with { menu 'Help' { … } }
+ *   move 'Log out' after 'Help';
+ *   drop 'Old import', 'Admin' > 'Legacy';
+ *   set ( Caption: 'User accounts', Icon: none ) on 'Admin' > 'Users';
+ *   set home page Shop.Home for Administrator;
+ *   drop home page for Administrator;
+ *   set login page Shop.Login;      drop login page;
+ *   set not found page Shop.Oops;   drop not found page;
+ * }
+ * ```
+ *
+ * A fragment is navMenuChildren, exactly the block `create navigation` and
+ * `create menu` take, so describe output pastes into it. A page clause is the
+ * `create navigation` clause after `set` or `drop`. A bare `drop home page` is
+ * parsed so the refusal can say why (CE0527), not to be executed.
+ */
+alterNavigationOperation
+    : alterMenuOperation
+    | SET HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)? SEMICOLON?
+    | DROP HOME PAGE (FOR qualifiedName)? SEMICOLON?
+    | SET LOGIN PAGE qualifiedName SEMICOLON?
+    | DROP LOGIN PAGE SEMICOLON?
+    | SET NOT FOUND PAGE qualifiedName SEMICOLON?
+    | DROP NOT FOUND PAGE SEMICOLON?
+    ;
+
+alterMenuOperation
+    : INSERT (BEFORE | AFTER | INTO) alterMenuTarget navMenuChildren SEMICOLON?
+    | INSERT navMenuChildren SEMICOLON?
+    | REPLACE alterMenuTarget WITH navMenuChildren SEMICOLON?
+    | MOVE alterMenuTarget (BEFORE | AFTER | INTO) alterMenuTarget SEMICOLON?
+    | DROP alterMenuTarget (COMMA alterMenuTarget)* SEMICOLON?
+    | SET LPAREN alterMenuItemProp (COMMA alterMenuItemProp)* COMMA? RPAREN ON alterMenuTarget SEMICOLON?
+    ;
+
+// A menu item has no name, so it is addressed by the caption describe prints,
+// as a path written outer to inner: 'Admin' > 'Users'. The first segment
+// matches anywhere in the tree, each further one a direct sub-item of the one
+// before; @n picks the n-th match of its own segment (backend.ResolveMenuItemAddress).
+alterMenuTarget
+    : alterMenuTargetSegment (GREATER_THAN alterMenuTargetSegment)*
+    ;
+
+alterMenuTargetSegment
+    : STRING_LITERAL (AT NUMBER_LITERAL)?
+    ;
+
+// The keys `create` uses for an item, plus Caption, which `create` writes
+// positionally. `Icon: none` stores no icon. NONE comes first: a qualifiedName
+// would also accept the keyword.
+alterMenuItemProp
+    : CAPTION COLON STRING_LITERAL
+    | ONCLICK COLON navMenuAction
+    | ICON COLON (NONE | navMenuIconValue)
     ;
 
 // Offline synchronization, one statement per entity, mirroring the MENU block:

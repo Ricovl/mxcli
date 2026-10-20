@@ -287,7 +287,7 @@ func eagerDefRefs(stmt ast.Statement) []defRef {
 	case *ast.GrantPageAccessStmt:
 		return oneDefRef(s.Page, defPage, "grant view on page "+s.Page.String())
 
-	case *ast.AlterNavigationStmt, *ast.CreateMenuStmt:
+	case *ast.CreateNavigationStmt, *ast.CreateMenuStmt, *ast.AlterNavigationStmt, *ast.AlterMenuStmt:
 		// The home, login and not-found pages and every menu item's target,
 		// which the handler resolves before it writes the profile or menu.
 		return navigationDefRefs(stmt)

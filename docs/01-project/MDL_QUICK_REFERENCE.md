@@ -911,15 +911,16 @@ alter workflow Module.OrderApproval {
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
 | Show navigation | `list navigation;` | Summary of all profiles |
-| Show menu tree | `list navigation menu [Profile];` | Menu tree for profile or all |
+| Show menu tree | `list navigation menu [Profile];` | One row per item, with the **Address** `alter navigation` takes (`'Admin' > 'Users'`, `'Home'@2`) |
 | Show home pages | `list navigation homes;` | Home page assignments across profiles |
 | Describe navigation | `describe navigation [Profile];` | Full MDL output (round-trippable) |
 | Native home | `home nanoflow Mod.Flow` | A native profile's flow home; mxcli writes a native profile's home pages and sync only |
-| Create/replace navigation | `create or replace navigation Profile ...;` | Full replacement — and **creates** the profile if the project does not have it |
+| Create/modify navigation | `create or modify navigation Profile ...;` | Writes the clauses it states (a `{ }` block replaces the whole menu) — and **creates** the profile if the project does not have it |
+| Alter navigation | `alter navigation Profile { insert after 'Home' { menu item … } drop 'Old'; … };` | Edits one profile in place: `insert before\|after\|into <item> { … }`, `insert { … }`, `replace <item> with { … }`, `move <item> before\|after\|into <item>`, `drop <item>, …`, `set ( Caption:, OnClick:, Icon: \| none ) on <item>`, `set home page\|microflow M.X [for Role]`, `drop home page for Role`, `set/drop login page`, `set/drop not found page`. `<item>` is a caption path `'Admin' > 'Users'` (`@n` among equal captions). Untouched items stay as stored; a refusal writes nothing |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
 | Progressive web app | `progressive web app ( Precaching: true )` / `progressive web app off` | A clause of CREATE NAVIGATION: Studio Pro's *Progressive web app* settings. An offline profile without them gets no service worker, so no page opens offline (mendixlabs/mxcli#1377). Keys: `Precaching` (default false), `InstallPrompt` (default true); omitted, the stored settings stay |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
-| Offline profiles | `create or replace navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
+| Offline profiles | `create or modify navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
 
 Menu items are the profile's children, in `{ }` after its clauses, with no `;`
 between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
@@ -1564,9 +1565,11 @@ MDL uses explicit property declarations for pages:
 | Describe building block | `describe building block Module.Name;` | Informational (header comment + widget tree), not a `create` statement |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 
 **DataGrid Column Properties:**

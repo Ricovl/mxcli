@@ -22,9 +22,9 @@ func TestCreateNavigation(t *testing.T) {
 		}
 		return
 	}
-	stmt, ok := prog.Statements[0].(*ast.AlterNavigationStmt)
+	stmt, ok := prog.Statements[0].(*ast.CreateNavigationStmt)
 	if !ok {
-		t.Fatalf("Expected AlterNavigationStmt, got %T", prog.Statements[0])
+		t.Fatalf("Expected CreateNavigationStmt, got %T", prog.Statements[0])
 	}
 	if stmt.ProfileName != "Responsive" {
 		t.Errorf("Got ProfileName %q", stmt.ProfileName)

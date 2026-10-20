@@ -32,7 +32,7 @@ func navIconWarnings(vs []linter.Violation) []linter.Violation {
 // written without one built cleanly, passed `mx check`, and only looked wrong in
 // a browser.
 func TestValidateMenuItemIcons_FlagsMissingIcon(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{
 			{Caption: "Home", Icon: "Atlas_Core.Atlas.home", IconKind: types.MenuIconCollection},
@@ -56,7 +56,7 @@ func TestValidateMenuItemIcons_FlagsMissingIcon(t *testing.T) {
 // The control: an item WITH an icon must stay silent, or the rule is "warn on
 // every menu item" and the first assertion proves nothing.
 func TestValidateMenuItemIcons_IconedItemIsSilent(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{
 			{Caption: "Home", Icon: "Atlas_Core.Atlas.home", IconKind: types.MenuIconCollection},
@@ -73,7 +73,7 @@ func TestValidateMenuItemIcons_IconedItemIsSilent(t *testing.T) {
 // Sub-items are menu items too. A submenu's children render in the flyout the
 // collapsed rail opens, and the parent itself sits ON the rail.
 func TestValidateMenuItemIcons_RecursesIntoSubItems(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{
 			{Caption: "Admin", Icon: "Atlas_Core.Atlas.cog", IconKind: types.MenuIconCollection, Items: []ast.NavMenuItemDef{
@@ -121,7 +121,7 @@ func TestValidateMenuItemIcons_CoversMenuDocuments(t *testing.T) {
 // Nothing to say about a statement with no menu at all, or another statement
 // type entirely.
 func TestValidateMenuItemIcons_Quiet(t *testing.T) {
-	if got := validateMenuItemIcons(&ast.AlterNavigationStmt{ProfileName: "Responsive"}); len(got) != 0 {
+	if got := validateMenuItemIcons(&ast.CreateNavigationStmt{ProfileName: "Responsive"}); len(got) != 0 {
 		t.Errorf("a profile with no MENU block warned: %+v", got)
 	}
 	if got := validateMenuItemIcons(&ast.CreateEntityStmt{}); len(got) != 0 {
@@ -134,7 +134,7 @@ func TestValidateMenuItemIcons_Quiet(t *testing.T) {
 // trap that hid four defects in the widget work.
 func TestValidateMenuItemIcons_RunsWithoutAProject(t *testing.T) {
 	prog := &ast.Program{Statements: []ast.Statement{
-		&ast.AlterNavigationStmt{
+		&ast.CreateNavigationStmt{
 			ProfileName: "Responsive",
 			MenuItems:   []ast.NavMenuItemDef{{Caption: "Orders"}},
 		},
@@ -150,7 +150,7 @@ func TestValidateMenuItemIcons_RunsWithoutAProject(t *testing.T) {
 // Home item carries glyph 57377 — so the naive rule warned about the majority of
 // real menus while claiming they had no icon.
 func TestValidateMenuItemIcons_AGlyphIconIsAnIcon(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{
 			{Caption: "Home", IconKind: types.MenuIconGlyph, IconCode: 57377},

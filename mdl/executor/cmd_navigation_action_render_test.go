@@ -68,7 +68,7 @@ func TestDescribeNavigation_EveryMenuActionKind(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("does not parse: %v", errs[0])
 			}
-			if got := prog.Statements[0].(*ast.AlterNavigationStmt).MenuItems[0].Action; got == nil || got.Type != c.kind {
+			if got := prog.Statements[0].(*ast.CreateNavigationStmt).MenuItems[0].Action; got == nil || got.Type != c.kind {
 				t.Errorf("re-parsed as %+v, want %s", got, c.kind)
 			}
 		})
@@ -98,7 +98,7 @@ func TestNavigationRewrite_BuildsTheStatedAction(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	assertNoError(t, execAlterNavigation(ctx, prog.Statements[0].(*ast.AlterNavigationStmt)))
+	assertNoError(t, execCreateNavigation(ctx, prog.Statements[0].(*ast.CreateNavigationStmt)))
 	it := got.MenuItems[0]
 	if it.Action == nil || it.KeepAction != nil || !bytes.Equal(it.StoredAction, stored) {
 		t.Errorf("stated action: Action=%T KeepAction=%q StoredAction=%q", it.Action, it.KeepAction, it.StoredAction)
