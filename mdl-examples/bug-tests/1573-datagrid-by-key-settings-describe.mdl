@@ -1,0 +1,158 @@
+mdl 1;
+-- ============================================================================
+-- Bug: DESCRIBE PAGE dropped a Data grid 2's / Gallery's settings that MDL has
+-- no keyword for (mendixlabs/mxcli#1573)
+-- ============================================================================
+--
+-- A pluggable widget has far more settings than MDL has keywords. exec takes
+-- every one of them under the widget's own property key, stores it, and
+-- `mx check` is clean — but `describe page` printed only the keyword
+-- properties (PageSize, Pagination, Selection, …). A describe -> edit -> exec
+-- cycle therefore wrote the widget's default back over each of them, silently:
+-- the personalization storage, the selection method, the labels, the column
+-- minimum width, the empty-state placeholder.
+--
+-- `describe page` now prints every setting whose stored value differs from the
+-- default, under its key, so describe -> exec reproduces the stored widget:
+--
+--     describe page BugDgByKey.Orders_Local
+--       datagrid dgLocal (DataSource: database from BugDgByKey.Ord,
+--                         configurationStorageType: 'localStorage', …)
+--
+-- This script is the INPUT side: it must keep passing `mxcli check`, and every
+-- setting below is one the description has to carry. The BSON round trip needs a
+-- project; it is asserted by mdl/executor/cmd_pages_describe_bykey_test.go
+-- (against the shipped widget template) and was measured on Mendix 11.12.5:
+-- exec this script, drop each page, exec its description, compare the page
+-- BSON with ids stripped (identical) and `mx check` (0 errors).
+--
+-- Two Data grid 2 rules the settings below respect (mxcli check enforces both):
+--   * a setting the widget's editor config hides must hold its default
+--     (MDL-WIDGET10): itemSelectionMode needs a non-checkbox selection method,
+--     showSelectAllToggle needs the checkbox method, a column's hidable needs
+--     columnsHidable on;
+--   * columnsFilterable: false needs columns without a filter (page E).
+--
+-- An Expression-typed setting (rowClass) is covered by the Go test: the checker
+-- cannot tell it is one without a project (a separate fix).
+-- ============================================================================
+
+CREATE MODULE BugDgByKey;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugDgByKey.Ord (
+  Code: String(20),
+  Amount: Decimal,
+  Placed: DateTime,
+  Open: Boolean
+);
+
+CREATE OR MODIFY PERSISTENT ENTITY BugDgByKey.GridPref (
+  Config: String(unlimited)
+);
+
+-- A: selection, refresh, loading, paging, labels, empty-state placeholder, and
+-- the column settings that have no keyword.
+CREATE PAGE BugDgByKey.Orders_All (Title: 'All settings', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgAll (
+    DataSource: database BugDgByKey.Ord,
+    Selection: Multi,
+    itemSelectionMethod: rowClick,
+    itemSelectionMode: toggle,
+    keepSelection: true,
+    refreshInterval: 30,
+    refreshIndicator: true,
+    loadingType: skeleton,
+    columnsSortable: false,
+    columnsResizable: false,
+    columnsDraggable: false,
+    showEmptyPlaceholder: custom,
+    onClickTrigger: double,
+    PageSize: 50,
+    PagingPosition: top,
+    ShowPagingButtons: auto,
+    exportDialogLabel: 'Exporting',
+    cancelExportLabel: 'Stop export',
+    selectRowLabel: 'Pick row',
+    selectAllRowsLabel: 'Pick all',
+    filterSectionTitle: 'Narrow down',
+    selectedCountTemplateSingular: '1 row picked',
+    selectedCountTemplatePlural: 'Many rows picked'
+  ) {
+    emptyplaceholder {
+      dynamictext noRows (Content: 'Nothing here')
+    }
+    column (Attribute: Code, Hidable: no) { textfilter tf }
+    column (Attribute: Amount, ShowContentAs: customContent, ColumnWidth: autoFit, minWidth: manual, minWidthLimit: 150, allowEventPropagation: false) {
+      dynamictext amt (Content: 'amt')
+    }
+    column (Attribute: Placed, Alignment: center, WrapText: true, Tooltip: 'when') { datefilter df }
+  }
+};
+
+-- B: "load more" paging with a row count.
+CREATE PAGE BugDgByKey.Orders_LoadMore (Title: 'Load more', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgMore (
+    DataSource: database BugDgByKey.Ord,
+    Pagination: loadMore,
+    showNumberOfRows: true,
+    loadMoreButtonCaption: 'Show more',
+    advanced: true
+  ) {
+    column (Attribute: Code) { textfilter tf }
+  }
+};
+
+-- C: the grid's personalization stored in an attribute of the surrounding object.
+CREATE PAGE BugDgByKey.Orders_Attribute (Title: 'Attribute', Layout: Atlas_Core.Atlas_Default, Params: ( $Pref: BugDgByKey.GridPref )) {
+  dataview dvPref (DataSource: $Pref) {
+    datagrid dgAttr (
+      DataSource: database BugDgByKey.Ord,
+      configurationStorageType: attribute,
+      configurationAttribute: Config,
+      storeFiltersInPersonalization: false
+    ) {
+      column (Attribute: Code) { textfilter tf }
+    }
+  }
+};
+
+-- D: the grid's personalization stored in the browser; a plain selection grid
+-- with the columns' hide switch off.
+CREATE PAGE BugDgByKey.Orders_Local (Title: 'Local', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgLocal (
+    DataSource: database BugDgByKey.Ord,
+    configurationStorageType: localStorage,
+    storeFiltersInPersonalization: false,
+    columnsHidable: false,
+    Selection: Multi,
+    showSelectAllToggle: false
+  ) {
+    column (Attribute: Code) { textfilter tf }
+  }
+};
+
+-- E: no column filters, so the grid can switch filtering off.
+CREATE PAGE BugDgByKey.Orders_NoFilters (Title: 'No filters', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgNoFilter (DataSource: database BugDgByKey.Ord, columnsFilterable: false) {
+    column (Attribute: Code)
+  }
+};
+
+-- F: a Gallery takes its settings by key the same way.
+CREATE PAGE BugDgByKey.Orders_Gallery (Title: 'Gallery', Layout: Atlas_Core.Atlas_Default) {
+  gallery glOrders (
+    DataSource: database BugDgByKey.Ord,
+    Selection: Multi,
+    itemSelectionMode: toggle,
+    pagination: loadMore,
+    pageSize: 5,
+    showEmptyPlaceholder: custom
+  ) {
+    emptyplaceholder {
+      dynamictext glNoRows (Content: 'Nothing here')
+    }
+    template {
+      dynamictext glCode (Content: 'order')
+    }
+  }
+};

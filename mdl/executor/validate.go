@@ -450,6 +450,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// worse than the two above: a module-qualified role here makes the project
 	// unloadable rather than merely failing the build (mendixlabs/mxcli#1001).
 	errors = append(errors, validateNavigationRoles(ctx, prog)...)
+	// Resolve the pages and flows a navigation profile or menu document names:
+	// home, login and not-found pages and every menu item. Written by name and
+	// unchecked, so a typo was CE1613 at build time, after the whole menu had
+	// been rewritten.
+	errors = append(errors, validateNavigationTargets(ctx, prog, sc)...)
 	// Resolve what a GRANT / REVOKE, a user role and a demo user name: the
 	// entity, document or member, and the module and user roles. exec refuses
 	// the grants after the statements before them are written, and writes the
@@ -782,9 +787,21 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+		// A bare `returns Module.Name` that names an enumeration is one: exec
+		// retypes it the same way before it validates the rule. One that names
+		// nothing is reported as that, not as "not a Boolean or an enumeration".
+		ruleReturn := s.ReturnType
+		if ruleReturn != nil && ctx.Connected() {
+			r := newDeclaredTypeResolver(ctx, sc)
+			if retyped, ok := r.bareEnumeration(ruleReturn.Type); ok {
+				ruleReturn = &ast.MicroflowReturnType{Type: retyped, Variable: ruleReturn.Variable}
+			} else if msg := r.check(ruleReturn.Type, "return type of rule "+s.Name.String()); msg != "" {
+				return mdlerrors.NewValidationf("rule '%s' has reference errors:\n  - %s", s.Name.String(), msg)
+			}
+		}
 		// The same validateRule the executor calls, so `check` and `exec` cannot
 		// disagree about what a rule may contain.
-		if errMsg := validateRule(s.Name.String(), s.Body, s.ReturnType); errMsg != "" {
+		if errMsg := validateRule(s.Name.String(), s.Body, ruleReturn); errMsg != "" {
 			return mdlerrors.NewValidationf("%s", strings.TrimRight(errMsg, "\n"))
 		}
 		if validationErrors := ValidateRuleBody(s); len(validationErrors) > 0 {

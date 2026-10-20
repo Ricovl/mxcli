@@ -100,6 +100,21 @@ func looksNumeric(s string) bool {
 	return body != "."
 }
 
+// appendExplicitProps appends a pluggable widget's settings printed under their
+// own key: `key: value`, and a text template's `{N}` bindings as the
+// `<key>Params` companion — a `{1}` re-executed without its parameter is CE0720,
+// so the companion travels with the text it belongs to (#575).
+func appendExplicitProps(ctx *ExecContext, props []string, explicit []rawExplicitProp) []string {
+	for _, ep := range explicit {
+		props = append(props, fmt.Sprintf("%s: %s", ep.Key, explicitPropValue(ctx, ep)))
+		if len(ep.Params) > 0 {
+			props = append(props, fmt.Sprintf("%sParams: (%s)",
+				ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
+		}
+	}
+	return props
+}
+
 // appendDataGridPagingProps appends non-default paging properties for DataGrid2.
 func appendDataGridPagingProps(props []string, w rawWidget) []string {
 	if w.PageSize != "" && w.PageSize != "20" {
@@ -765,12 +780,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendNamedActionProps(props, w)
 			// Add paging properties if non-default
 			props = appendDataGridPagingProps(props, w)
+			// Every other setting that differs from its default, under the
+			// widget's own key (configurationStorageType, columnsHidable, …).
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
-			// Output CONTROLBAR and columns as children
-			hasContent := len(w.ControlBar) > 0 || len(w.DataGridColumns) > 0
+			// Output CONTROLBAR, the widget slots and columns as children
+			hasContent := len(w.ControlBar) > 0 || len(w.DataGridColumns) > 0 ||
+				len(w.ChildSlots) > 0 || len(w.OmittedProps) > 0
 			if hasContent {
 				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
+				writeOmittedPropsNote(ctx.Output, prefix+"  ", w.OmittedProps)
 				// Output CONTROLBAR section if control bar widgets present
 				if len(w.ControlBar) > 0 {
 					fmt.Fprintf(ctx.Output, "%s  controlbar {\n", prefix)
@@ -779,6 +799,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 					}
 					fmt.Fprintf(ctx.Output, "%s  }\n", prefix)
 				}
+				// The empty-state placeholder, and any other slot the grid declares.
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
 				// Output columns. A DataGrid 2 column has no name in the model,
 				// so none is written: the one derived from its attribute gave two
 				// columns over one attribute the same name (#749). ALTER PAGE
@@ -818,12 +840,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				props = append(props, actionProp("onClick", w.OnClick))
 			}
 			props = appendNamedActionProps(props, w)
+			// Every other setting that differs from its default, under the
+			// widget's own key (pagination, pageSize, …).
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
 			// Output filter and content widgets
-			hasContent := len(w.Children) > 0 || len(w.FilterWidgets) > 0
+			hasContent := len(w.Children) > 0 || len(w.FilterWidgets) > 0 ||
+				len(w.ChildSlots) > 0 || len(w.OmittedProps) > 0
 			if hasContent {
 				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
+				writeOmittedPropsNote(ctx.Output, prefix+"  ", w.OmittedProps)
 				// Output FILTER section if filter widgets present
 				if len(w.FilterWidgets) > 0 {
 					fmt.Fprintf(ctx.Output, "%s  filter {\n", prefix)
@@ -840,6 +867,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 					}
 					fmt.Fprintf(ctx.Output, "%s  }\n", prefix)
 				}
+				// The empty-state placeholder, and any other slot the gallery declares.
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
 				fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 			} else {
 				formatWidgetProps(ctx.Output, prefix, header, props, "\n")
@@ -884,15 +913,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			// the datasource is gone. The DESCRIBE text was byte-identical before
 			// and after, so only mx check separated them (#956).
 			props = appendWidgetDataSources(ctx, props, w)
-			for _, ep := range w.ExplicitProperties {
-				props = append(props, fmt.Sprintf("%s: %s", ep.Key, explicitPropValue(ctx, ep)))
-				// A `{1}` re-executed without its parameter is CE0720, so the
-				// companion travels with the text it belongs to (#575).
-				if len(ep.Params) > 0 {
-					props = append(props, fmt.Sprintf("%sParams: (%s)",
-						ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
-				}
-			}
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			// onClick action (ledger #67 — reported on CustomChart)
 			if w.OnClick != "" {
 				props = append(props, actionProp("onClick", w.OnClick))
@@ -1304,6 +1325,8 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	if col.Tooltip != "" {
 		props = append(props, fmt.Sprintf("Tooltip: %s", mdlQuote(ctx, col.Tooltip)))
 	}
+	// Any other column setting that differs from its default, by its own key.
+	props = appendExplicitProps(ctx, props, col.ExtraProps)
 
 	// No name: Mendix stores none on a DataGrid 2 column (#749).
 	header := "column"
@@ -1311,11 +1334,12 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	// the builder routes a filter back to its own slot by widget type. Emitting
 	// only the content widgets deleted the filter of every custom-content column
 	// on a describe→exec round trip (ako/mxcli#489).
-	hasContent := len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0
+	hasContent := len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0 || len(col.OmittedProps) > 0
 
 	if hasContent {
 		// Output column with content block
 		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+		writeOmittedPropsNote(ctx.Output, prefix+"  ", col.OmittedProps)
 		for _, widget := range col.ContentWidgets {
 			outputWidgetMDLV3(ctx, widget, len(prefix)/2+1)
 		}
