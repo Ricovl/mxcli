@@ -10,19 +10,20 @@ description: "The full lifecycle of Mendix Marketplace modules and widgets from 
 
 | lines | section |
 |---|---|
-| 34-42 | When to Use This Skill |
-| 43-59 | Prerequisites: Authenticate |
-| 60-93 | Step 1 — Discover |
-| 94-103 | Step 2 — Download a `.mpk` to disk (optional) |
-| 104-223 | Step 3 — Install into a project |
-| 224-288 | Step 4 — Repair the model after the install (required, headless) |
-| 289-345 | Step 5 — Before updating: has the module been edited? |
-| 346-404 | Step 6 — Update an installed module |
-| 405-450 | Worked example: the agent-editor stack on a vanilla app |
-| 451-458 | Notes |
-| 459-462 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
-| 463-466 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
-| 467-471 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
+| 35-44 | When to Use This Skill |
+| 45-61 | Prerequisites: Authenticate |
+| 62-95 | Step 1 — Discover |
+| 96-105 | Step 2 — Download a `.mpk` to disk (optional) |
+| 106-225 | Step 3 — Install into a project |
+| 226-290 | Step 4 — Repair the model after the install (required, headless) |
+| 291-347 | Step 5 — Before updating: has the module been edited? |
+| 348-406 | Step 6 — Update an installed module |
+| 407-452 | Worked example: the agent-editor stack on a vanilla app |
+| 453-474 | Package a module of the project (`marketplace package`) |
+| 475-482 | Notes |
+| 483-486 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
+| 487-490 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
+| 491-495 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
 
 <!-- /skill-index -->
 # Download, Install and Update Marketplace Content
