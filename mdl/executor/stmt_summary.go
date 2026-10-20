@@ -159,6 +159,10 @@ func stmtSummary(stmt ast.Statement) string {
 	// Navigation
 	case *ast.CreateNavigationStmt:
 		return fmt.Sprintf("create navigation %s", s.ProfileName)
+	case *ast.AlterNavigationStmt:
+		return fmt.Sprintf("alter navigation %s", s.ProfileName)
+	case *ast.AlterMenuStmt:
+		return fmt.Sprintf("alter menu %s", s.Name.String())
 
 	// Query
 	case *ast.ShowStmt:

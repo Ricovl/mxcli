@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
@@ -571,7 +572,11 @@ func listNavigation(ctx *ExecContext) error {
 }
 
 // listNavigationMenu handles SHOW NAVIGATION MENU [profile] command.
-// Displays the menu tree for a specific profile, or all profiles if none specified.
+// Lists the menu tree of a profile (or of every profile) as a table, one row
+// per item in describe order, with the Address an ALTER NAVIGATION writes to
+// reach it: the shortest unique caption path (`'Admin' > 'Users'`, `@n` where
+// captions repeat). A native profile's bottom bar has no address: alter
+// navigation does not edit it.
 func listNavigationMenu(ctx *ExecContext, profileName *ast.QualifiedName) error {
 	describeDefaultLanguage(ctx) // captions are read in it, as describe reads them
 	nav, err := ctx.Backend.GetNavigation()
@@ -579,21 +584,35 @@ func listNavigationMenu(ctx *ExecContext, profileName *ast.QualifiedName) error 
 		return mdlerrors.NewBackend("get navigation", err)
 	}
 
-	for _, p := range nav.Profiles {
-		if profileName != nil && !strings.EqualFold(p.Name, profileName.Name) {
-			continue
+	result := &TableResult{Columns: []string{"Profile", "Item", "Action", "Address"}}
+	profiles, items := 0, 0
+	if nav != nil {
+		for _, p := range nav.Profiles {
+			if profileName != nil && !strings.EqualFold(p.Name, profileName.Name) {
+				continue
+			}
+			profiles++
+			tree := backend.MenuTreeFromNavItems(p.MenuItems)
+			var walk func(list []*types.NavMenuItem, prefix backend.MenuItemPath)
+			walk = func(list []*types.NavMenuItem, prefix backend.MenuItemPath) {
+				for i, it := range list {
+					path := append(append(backend.MenuItemPath(nil), prefix...), i)
+					address := "-"
+					if !p.IsNative {
+						address = backend.ShortestMenuItemAddress(tree, path).String()
+					}
+					result.Rows = append(result.Rows, []any{p.Name,
+						strings.Repeat("  ", len(prefix)) + it.Caption,
+						strings.TrimPrefix(menuItemTarget(it), " -> "), address})
+					items++
+					walk(it.Items, path)
+				}
+			}
+			walk(p.MenuItems, nil)
 		}
-
-		fmt.Fprintf(ctx.Output, "-- Navigation Menu: %s (%s)\n", p.Name, p.Kind)
-		if len(p.MenuItems) == 0 {
-			fmt.Fprintln(ctx.Output, "  (no menu items)")
-		} else {
-			printMenuTree(ctx.Output, p.MenuItems, 0)
-		}
-		fmt.Fprintln(ctx.Output)
 	}
-
-	return nil
+	result.Summary = fmt.Sprintf("(%d menu items in %d navigation profiles)", items, profiles)
+	return writeResult(ctx, result)
 }
 
 // listNavigationHomes handles SHOW NAVIGATION HOMES command.
@@ -801,18 +820,6 @@ func countMenuItems(items []*types.NavMenuItem) int {
 		count += countMenuItems(item.Items)
 	}
 	return count
-}
-
-// printMenuTree prints a menu tree with indentation to an io.Writer.
-func printMenuTree(w io.Writer, items []*types.NavMenuItem, depth int) {
-	indent := strings.Repeat("  ", depth+1)
-	for _, item := range items {
-		target := menuItemTarget(item)
-		fmt.Fprintf(w, "%s%s%s\n", indent, item.Caption, target)
-		if len(item.Items) > 0 {
-			printMenuTree(w, item.Items, depth+1)
-		}
-	}
 }
 
 // menuItemTarget returns a display string for a menu item's action target.

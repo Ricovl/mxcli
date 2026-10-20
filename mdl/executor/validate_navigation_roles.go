@@ -52,6 +52,9 @@ type navRoleRef struct {
 
 // navigationRoleRefs collects the role references in one statement.
 func navigationRoleRefs(stmt ast.Statement) []navRoleRef {
+	if v := menuAlterView(stmt); v != nil {
+		stmt = v // `set home … for <role>` in an ALTER NAVIGATION
+	}
 	s, ok := stmt.(*ast.CreateNavigationStmt)
 	if !ok {
 		return nil

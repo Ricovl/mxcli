@@ -79,6 +79,9 @@ type navTarget struct {
 // exactly one clause: a native profile's `home microflow` is stored as the
 // nanoflow it is (see checkProfileClauses), so the name is looked up as one.
 func navigationTargets(stmt ast.Statement, native func(profile string) bool) (label string, out []navTarget, ok bool) {
+	if v := menuAlterView(stmt); v != nil {
+		stmt = v // an ALTER NAVIGATION / ALTER MENU: what it states
+	}
 	switch s := stmt.(type) {
 	case *ast.CreateNavigationStmt:
 		label = "navigation " + s.ProfileName

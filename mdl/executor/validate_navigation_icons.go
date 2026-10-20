@@ -54,6 +54,12 @@ func validateMenuItemIcons(stmt ast.Statement) []linter.Violation {
 		items, where = s.MenuItems, "navigation "+s.ProfileName
 	case *ast.CreateMenuStmt:
 		items, where = s.Items, "menu "+s.Name.String()
+	case *ast.AlterNavigationStmt:
+		// Only the items the statement adds: a stored item it does not name is
+		// not re-judged, and a `set` names an item that already exists.
+		items, where = menuAlterFragmentItems(s.Operations), "navigation "+s.ProfileName
+	case *ast.AlterMenuStmt:
+		items, where = menuAlterFragmentItems(s.Operations), "menu "+s.Name.String()
 	default:
 		return nil
 	}
