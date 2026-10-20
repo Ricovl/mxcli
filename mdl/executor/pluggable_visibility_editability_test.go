@@ -142,7 +142,7 @@ func TestApplyPluggableSystemSettings_RefusesUndeclared(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			cw := &pages.CustomWidget{RawType: typeDeclaring(c.declared...), Editable: "Always"}
-			err := applyPluggableSystemSettings(cw, &ast.WidgetV3{Type: "switch", Name: "w", Properties: c.props})
+			err := applyPluggableSystemSettings(cw, &ast.WidgetV3{Type: "switch", Name: "w", Properties: c.props}, nil)
 			if c.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)

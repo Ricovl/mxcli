@@ -347,6 +347,31 @@ func GenerateDefJSON(mpkDef *mpk.WidgetDefinition, mdlName string) *WidgetDefini
 				Operation:   "action",
 				Description: p.Description,
 			})
+		case "expression":
+			// A top-level expression property is authored by its own key, like a
+			// named action slot. It had no mapping at all, so it was a
+			// known-but-unmapped key: the Calendar's `showEventDate` drew
+			// MDL-WIDGET06 and its `editable` was unreachable (mendixlabs/mxcli#1578).
+			// An unset one keeps the template's default (applyOperation).
+			aliases := propertyAliases[mpkDef.ID][p.Key]
+			if strings.EqualFold(p.Key, "editable") {
+				if mpkDef.SystemPropertyKeys()["Editability"] {
+					// `editable:` is the widget-level editability here, which the
+					// package declares; the widget's own property of that name
+					// stays unmapped rather than taking the setting's spelling.
+					continue
+				}
+				// No Editability system property, so `editable:` can only mean
+				// this property. EditableIf is the key the visitor gives its
+				// bare-expression form; `Editable` already matches the key.
+				aliases = append(append([]string(nil), aliases...), "EditableIf")
+			}
+			def.PropertyMappings = append(def.PropertyMappings, PropertyMapping{
+				PropertyKey: p.Key,
+				Operation:   "expression",
+				Description: p.Description,
+				MdlAliases:  aliases,
+			})
 		case "boolean", "integer", "decimal", "string", "enumeration":
 			m := PropertyMapping{
 				PropertyKey: p.Key,
