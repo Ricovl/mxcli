@@ -11,7 +11,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/exprcheck"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
-	"github.com/mendixlabs/mxcli/model"
 )
 
 // TestExprCheckRoundTrip_DescribeProducesZeroHints walks every microflow in the
@@ -46,13 +45,16 @@ func TestExprCheckRoundTrip_DescribeProducesZeroHints(t *testing.T) {
 		t.Fatal("no backend on the test executor")
 	}
 
-	modules, err := be.ListModules()
+	// A microflow's ContainerID is its FOLDER when it sits in one, not its
+	// module, so a flat module-id map resolves almost nothing: measured on
+	// testdata/expr-checker/minimal.mpr, a map built from ListModules named 1
+	// of 16 microflows, while the hierarchy walk named all 16. That is what
+	// the removed executor.GetHierarchyForMining did, and dropping it is what
+	// made the first run of this test describe a single microflow and find no
+	// expressions at all.
+	h, err := NewContainerHierarchyFromBackend(be)
 	if err != nil {
-		t.Fatalf("list modules: %v", err)
-	}
-	moduleName := make(map[model.ID]string, len(modules))
-	for _, m := range modules {
-		moduleName[m.GetID()] = m.Name
+		t.Fatalf("container hierarchy: %v", err)
 	}
 
 	mfs, err := be.ListMicroflows()
@@ -68,11 +70,8 @@ func TestExprCheckRoundTrip_DescribeProducesZeroHints(t *testing.T) {
 
 	var described, slots, hints int
 	for _, mf := range mfs {
-		modName := moduleName[mf.ContainerID]
+		modName := h.GetModuleName(h.FindModuleID(mf.ContainerID))
 		if modName == "" || mf.Name == "" {
-			// A microflow in a folder rather than directly in a module: its
-			// container is not a module id, so the qualified name cannot be
-			// formed here. The original test skipped these too.
 			continue
 		}
 		qn := ast.QualifiedName{Module: modName, Name: mf.Name}
