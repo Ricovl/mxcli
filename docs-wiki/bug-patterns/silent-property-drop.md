@@ -146,6 +146,22 @@ model holding a value that the tool reports as absent — the same lossy round t
 wearing the right answer. Several findings here are the follow-up half of a fix
 that shipped write-only.
 
+**"Not stored" is usually read off `describe` — check the store first.** A
+report that a value was dropped is almost always an inference from `describe`
+printing nothing, and `describe` is a separate hop that can be the only one
+missing. A container's `RenderMode` was on disk all along; only the read side
+had never learnt it. One `bson dump` splits a write drop from a read gap before
+any code is opened, and points the fix at the right half.
+
+**A builtin key can shadow a widget's own property of the same name.** The
+universal names (`Editable`, `Visible`, …) win over a pluggable widget's own
+key, and where the package declares no matching system property the builtin is
+a no-op as well — so the widget's own property is unreachable in every
+spelling, with nothing to warn about because the key is "known". Which meaning
+a key has is a fact of the package (its system properties), so decide it where
+the package is read — the definition generator — and let check and build both
+read that one answer.
+
 **A half-wired feature is worse than a missing one.** When the grammar already
 accepts a form, scripts using it look correct and produce models without it.
 Before assuming a spelling works, follow the whole chain: AST → model → both
