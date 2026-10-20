@@ -37,6 +37,7 @@ Exactly one of these lowercase values:
 |--------|---------|--------|
 | `draft` | Early design, not finalised | active |
 | `proposed` | Design complete, not yet started | active |
+| `accepted` | Design approved by the maintainer; implementation pending or under way | active |
 | `partial` | Some phases implemented, more to come | active |
 | `done` | Fully implemented | `archive/` |
 | `superseded` | Replaced by another proposal | `archive/` |

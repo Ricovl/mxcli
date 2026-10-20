@@ -32,7 +32,7 @@ func TestNavMenuItem_OnClickTakesEveryMenuActionKind(t *testing.T) {
 			if len(errs) > 0 {
 				t.Fatalf("%q: %v", c.onClick, errs[0])
 			}
-			item := prog.Statements[0].(*ast.AlterNavigationStmt).MenuItems[0]
+			item := prog.Statements[0].(*ast.CreateNavigationStmt).MenuItems[0]
 			if item.Action == nil || item.Action.Type != c.kind {
 				t.Fatalf("%q: action %+v, want kind %s", c.onClick, item.Action, c.kind)
 			}
@@ -47,7 +47,7 @@ func TestNavMenuItem_OnClickTakesEveryMenuActionKind(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	items := prog.Statements[0].(*ast.AlterNavigationStmt).MenuItems
+	items := prog.Statements[0].(*ast.CreateNavigationStmt).MenuItems
 	if items[0].Page == nil || items[0].Page.String() != "M.P" || items[1].Page == nil || items[1].Action == nil {
 		t.Errorf("simple targets: %+v / %+v", items[0], items[1])
 	}
@@ -73,7 +73,7 @@ func TestNavigation_HomeNanoflowParses(t *testing.T) {
 	if len(errs) > 0 {
 		t.Fatal(errs[0])
 	}
-	hp := prog.Statements[0].(*ast.AlterNavigationStmt).HomePages
+	hp := prog.Statements[0].(*ast.CreateNavigationStmt).HomePages
 	if len(hp) != 2 || !hp[0].IsNanoflow || hp[0].IsPage || hp[1].IsNanoflow {
 		t.Errorf("home pages = %+v", hp)
 	}

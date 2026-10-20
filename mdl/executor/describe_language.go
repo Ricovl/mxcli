@@ -45,40 +45,23 @@ func describeDefaultLanguage(ctx *ExecContext) string {
 }
 
 // selectTranslationText picks the best translation string from a Texts$Text
-// Items array ([marker, Texts$Translation{LanguageCode, Text}, …]): the preferred
-// language, else en_US, else the first non-empty translation. This replaces the
-// old "return the first item" behaviour that surfaced the wrong language (#702).
-//
-// A preferred-language translation that is present but EMPTY is returned as the
-// empty string. DESCRIBE output is re-executed, and whatever it prints is written
-// back into the preferred language — so falling back to another language here
-// turned a caption stored as en_US "" + nl_NL "Knop" into en_US "Knop"
-// (ako/mxcli#705). The fallbacks are for a text with no entry in that language.
+// Items array ([marker, Texts$Translation{LanguageCode, Text}, …]) by
+// model.SelectTranslation: the preferred language (even when empty), else
+// en_US, else the first non-empty translation. This replaces the old "return
+// the first item" behaviour that surfaced the wrong language (#702), and is the
+// rule navigation and menu captions are read with too.
 func selectTranslationText(items []any, preferredLang string) string {
-	byLang := make(map[string]string)
-	firstNonEmpty := ""
+	var entries []model.TranslationEntry
 	for _, item := range items {
 		m, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
 		text, _ := m["Text"].(string)
-		if lang, _ := m["LanguageCode"].(string); lang != "" {
-			if _, exists := byLang[lang]; !exists {
-				byLang[lang] = text
-			}
-		}
-		if firstNonEmpty == "" && text != "" {
-			firstNonEmpty = text
-		}
+		lang, _ := m["LanguageCode"].(string)
+		entries = append(entries, model.TranslationEntry{LanguageCode: lang, Text: text})
 	}
-	if v, ok := byLang[preferredLang]; ok && preferredLang != "" {
-		return v
-	}
-	if byLang[fallbackLanguageCode] != "" {
-		return byLang[fallbackLanguageCode]
-	}
-	return firstNonEmpty
+	return model.SelectTranslation(entries, preferredLang)
 }
 
 // pickTextTranslation selects the best translation from a model.Text map: the

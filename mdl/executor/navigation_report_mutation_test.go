@@ -47,7 +47,7 @@ func TestCreateOrModifyNavigation_ReportsWhatHappened(t *testing.T) {
 			ctx, out := newMockCtx(t)
 			ctx.Backend = cb
 			prog := parseMDL(t, "create or modify navigation Responsive {\n  menu item 'Reports'\n};")
-			assertNoError(t, execAlterNavigation(ctx, prog.Statements[0].(*ast.AlterNavigationStmt)))
+			assertNoError(t, execCreateNavigation(ctx, prog.Statements[0].(*ast.CreateNavigationStmt)))
 			got := out.String()
 			if !strings.Contains(got, tc.want) {
 				t.Fatalf("output %q, want it to contain %q", got, tc.want)

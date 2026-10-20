@@ -13,7 +13,7 @@ mdl 1;
 -- The reported case — a button in a page body — was already caught (the
 -- resolver shipped in 0.18.0). Four OTHER shapes were not, because
 -- iconRefsInStatement walked only CreatePageStmtV3.Widgets, AlterPageStmt and
--- AlterNavigationStmt. Each of these holds its widgets in a field the walk never
+-- CreateNavigationStmt. Each of these holds its widgets in a field the walk never
 -- visited, so the icon was never seen at all:
 --
 --   1. `placeholder X { … }` — CreatePageStmtV3.Placeholders, held apart from

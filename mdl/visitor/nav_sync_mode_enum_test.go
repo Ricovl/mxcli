@@ -112,7 +112,7 @@ func TestBothWhereFormsProduceTheSameConstraint(t *testing.T) {
 		if len(errs) > 0 {
 			t.Fatalf("%s form failed to parse: %v", name, errs[0])
 		}
-		stmt, ok := prog.Statements[0].(*ast.AlterNavigationStmt)
+		stmt, ok := prog.Statements[0].(*ast.CreateNavigationStmt)
 		if !ok || len(stmt.SyncEntries) != 1 {
 			t.Fatalf("%s form did not produce one sync entry: %+v", name, prog.Statements[0])
 		}

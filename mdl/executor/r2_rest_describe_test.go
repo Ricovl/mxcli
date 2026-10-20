@@ -41,7 +41,7 @@ func TestDescribeNavigation_MenuItemsAreChildren(t *testing.T) {
 		"menu item 'Users' ( OnClick: call microflow M.ShowUsers )",
 		"menu item 'Out' ( OnClick: sign out )",
 		"};")
-	stmt := findStmt[*ast.AlterNavigationStmt](t, reparse(t, out), out)
+	stmt := findStmt[*ast.CreateNavigationStmt](t, reparse(t, out), out)
 	if len(stmt.MenuItems) != 2 || len(stmt.MenuItems[1].Items) != 2 || !stmt.MenuItems[1].Items[1].SignOut ||
 		stmt.MenuItems[1].IconCode != 57345 || stmt.MenuItems[0].Page == nil {
 		t.Errorf("menu did not round-trip: %+v", stmt.MenuItems)

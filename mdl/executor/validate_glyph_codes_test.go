@@ -30,8 +30,8 @@ import (
 // Atlas_Core ships (glyphicons-halflings-regular.woff): 247 codes, and it agrees
 // with mxbuild on both measured points.
 
-func glyphStmt(code int) *ast.AlterNavigationStmt {
-	return &ast.AlterNavigationStmt{
+func glyphStmt(code int) *ast.CreateNavigationStmt {
+	return &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{{
 			Caption:  "Overview",
@@ -109,7 +109,7 @@ func TestMDL078_IgnoresNonGlyphIcons(t *testing.T) {
 // Sub-items render in the flyout a collapsed rail opens, so a bad code there
 // breaks the same build. The walk is recursive for the same reason MDL077's is.
 func TestMDL078_WalksSubItems(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{{
 			Caption:  "Group",
