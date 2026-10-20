@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -25,7 +25,7 @@ import (
 // the key set. Same class as #1180 (DomainModels$NoGeneralization).
 
 // mappingKeys returns the non-$ keys of a parameter mapping, sorted.
-func mappingKeys(pm bsonv1.D) []string {
+func mappingKeys(pm bson.D) []string {
 	var keys []string
 	for _, e := range pm {
 		if !strings.HasPrefix(e.Key, "$") {
@@ -39,7 +39,7 @@ func mappingKeys(pm bsonv1.D) []string {
 // assertStudioProMappingShape checks the key set Studio Pro writes for a
 // Forms$MicroflowParameterMapping / Forms$NanoflowParameterMapping at 11.12.2
 // (the baseNames of the reported crash), with Variable null when unused.
-func assertStudioProMappingShape(t *testing.T, pm bsonv1.D) {
+func assertStudioProMappingShape(t *testing.T, pm bson.D) {
 	t.Helper()
 	got := strings.Join(mappingKeys(pm), ", ")
 	if want := "Expression, Parameter, Variable"; got != want {
@@ -61,7 +61,7 @@ func TestMicroflowActionExpressionArgWritesNullVariable(t *testing.T) {
 	// The reported path: a pluggable widget's named action slot, serialized
 	// through the child serializer the page mutator calls.
 	doc := codecChildSerializer{}.SerializeClientAction(a)
-	settings, ok := docGet(doc, "MicroflowSettings").(bsonv1.D)
+	settings, ok := docGet(doc, "MicroflowSettings").(bson.D)
 	if !ok {
 		t.Fatalf("MicroflowSettings missing: %#v", doc)
 	}
@@ -87,7 +87,7 @@ func TestMicroflowActionVariableArgKeepsPageVariable(t *testing.T) {
 			{ParameterName: "LearningJourney", Variable: "$LearningJourney", VariableKind: "parameter"},
 		},
 	}
-	settings, _ := docGet(encodeAction(t, a), "MicroflowSettings").(bsonv1.D)
+	settings, _ := docGet(encodeAction(t, a), "MicroflowSettings").(bson.D)
 	pm := firstParamMapping(t, settings)
 	if got := strings.Join(mappingKeys(pm), ", "); got != "Expression, Parameter, Variable" {
 		t.Fatalf("mapping keys = %s", got)

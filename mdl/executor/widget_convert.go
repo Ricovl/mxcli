@@ -6,8 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -56,10 +55,10 @@ func widgetToMap(v any) any {
 			out[i] = widgetToMap(item)
 		}
 		return out
-	case primitive.Binary:
+	case bson.Binary:
 		return bsonutil.BsonBinaryToID(t)
 	case []byte:
-		return bsonutil.BsonBinaryToID(primitive.Binary{Subtype: 0x00, Data: t})
+		return bsonutil.BsonBinaryToID(bson.Binary{Subtype: 0x00, Data: t})
 	case int32:
 		// The template pipeline models Mendix's array markers and small ints as
 		// float64; keep one numeric representation so comparisons behave.

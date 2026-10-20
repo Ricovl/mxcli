@@ -3,10 +3,11 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -189,7 +190,7 @@ func TestWithStoredTopLevel(t *testing.T) {
 	if got := strings.Join(keys, ","); got != "$ID,AuthenticationTypes,Name,PublicDocumentation,Version" {
 		t.Errorf("keys = %s", got)
 	}
-	m := d.Map()
+	m := bsoncompat.DMap(d)
 	if a, ok := m["AuthenticationTypes"].(bson.A); !ok || len(a) != 2 || a[1] != "Basic" {
 		t.Errorf("AuthenticationTypes = %v, want the stored [1 Basic]", m["AuthenticationTypes"])
 	}

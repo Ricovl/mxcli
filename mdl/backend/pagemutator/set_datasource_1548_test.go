@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/model"
@@ -31,7 +30,7 @@ func (cwSourceDeps) SerializeCustomWidgetDataSource(ds pages.DataSource) bson.D 
 // galleryDoc is a CustomWidget whose schema keys one property "datasource",
 // stored with a database (XPath) source — the reported starting point.
 func galleryDoc(name string) bson.D {
-	typeID := primitive.Binary{Subtype: 0x04, Data: []byte{
+	typeID := bson.Binary{Subtype: 0x04, Data: []byte{
 		0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
 		0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, 0x50,
 	}}

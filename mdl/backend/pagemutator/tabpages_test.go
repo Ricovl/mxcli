@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 
@@ -91,8 +90,8 @@ func toPos(s string) backend.InsertPosition { return backend.InsertPosition(s) }
 
 // equalIDs compares two stored pointers; nil equals nil.
 func equalIDs(a, b any) bool {
-	ab, aok := a.(primitive.Binary)
-	bb, bok := b.(primitive.Binary)
+	ab, aok := a.(bson.Binary)
+	bb, bok := b.(bson.Binary)
 	if !aok || !bok {
 		return a == nil && b == nil
 	}

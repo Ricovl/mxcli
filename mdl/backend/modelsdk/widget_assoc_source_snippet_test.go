@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -36,11 +36,11 @@ func TestAssociationSourceContextVariableSlot(t *testing.T) {
 				ContextVariable:    "Order",
 				IsSnippetParameter: tc.inSnip,
 			}))
-			src, ok := docGet(doc, "DataSource").(bsonv1.D)
+			src, ok := docGet(doc, "DataSource").(bson.D)
 			if !ok {
 				t.Fatalf("DataSource not serialized (got %T)", docGet(doc, "DataSource"))
 			}
-			sv, ok := docGet(src, "SourceVariable").(bsonv1.D)
+			sv, ok := docGet(src, "SourceVariable").(bson.D)
 			if !ok {
 				t.Fatalf("SourceVariable not a document (got %T)", docGet(src, "SourceVariable"))
 			}

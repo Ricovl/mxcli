@@ -3,10 +3,11 @@
 package pagemutator
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -24,7 +25,7 @@ func TestSetPluggableBooleanWritesTrueFalse_1454(t *testing.T) {
 		if err := setPluggableWidgetPropertyMut(w, "showFooter", tc.value); err != nil {
 			t.Fatalf("set %v: %v", tc.value, err)
 		}
-		if got := kindedValue(t, w).Map()["PrimitiveValue"]; got != tc.want {
+		if got := bsoncompat.DMap(kindedValue(t, w))["PrimitiveValue"]; got != tc.want {
 			t.Errorf("set showFooter = %v: PrimitiveValue = %q, want %q", tc.value, got, tc.want)
 		}
 	}
@@ -57,7 +58,7 @@ func TestSetPluggableEnumYesNoTakesBoolean_1454(t *testing.T) {
 	if err := setPluggableWidgetPropertyMut(w, "mode", true); err != nil {
 		t.Fatal(err)
 	}
-	if got := kindedValue(t, w).Map()["PrimitiveValue"]; got != "yes" {
+	if got := bsoncompat.DMap(kindedValue(t, w))["PrimitiveValue"]; got != "yes" {
 		t.Errorf("PrimitiveValue = %q, want yes", got)
 	}
 }
@@ -68,7 +69,7 @@ func TestSetPluggableEnumRefusesBoolean_1454(t *testing.T) {
 	w := withEnumKeys(kindedPluggableWidget("source", "Enumeration", "", false), "context", "database")
 	err := setPluggableWidgetPropertyMut(w, "source", true)
 	if err == nil {
-		t.Fatalf("expected a refusal, wrote %q", kindedValue(t, w).Map()["PrimitiveValue"])
+		t.Fatalf("expected a refusal, wrote %q", bsoncompat.DMap(kindedValue(t, w))["PrimitiveValue"])
 	}
 	if !strings.Contains(err.Error(), "context") || !strings.Contains(err.Error(), "database") {
 		t.Errorf("refusal should name the declared keys: %v", err)

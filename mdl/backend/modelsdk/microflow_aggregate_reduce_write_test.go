@@ -3,10 +3,11 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // TestReduceFoldReachesStorage proves the half of #1004 that no amount of
@@ -118,7 +119,7 @@ func collectAggregateProps(t *testing.T, raw []byte) []map[string]any {
 	t.Helper()
 
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal unit: %v", err)
 	}
 

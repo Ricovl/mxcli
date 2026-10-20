@@ -33,11 +33,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // volatileFields are regenerated on every write regardless of content, so they
@@ -130,7 +130,7 @@ func renderValue(b *strings.Builder, v any, ids map[string]int, mask bool) {
 // in it is a real difference.
 func renderScalar(v any, ids map[string]int) string {
 	switch t := v.(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		if len(t.Data) == 16 {
 			if n, ok := ids[types.BlobToUUID(t.Data)]; ok {
 				return fmt.Sprintf("#%d", n)

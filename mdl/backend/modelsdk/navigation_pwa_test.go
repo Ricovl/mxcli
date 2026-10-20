@@ -7,11 +7,10 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	genNav "github.com/mendixlabs/mxcli/modelsdk/gen/navigation"
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func pwaOf(doc bsonv1.D) any {
+func pwaOf(doc bson.D) any {
 	for _, e := range doc {
 		if e.Key == "ProgressiveWebAppSettings" {
 			return e.Value
@@ -20,8 +19,8 @@ func pwaOf(doc bsonv1.D) any {
 	return "absent"
 }
 
-func pwaStored(id string, installPrompt, precaching bool) bsonv1.D {
-	return bsonv1.D{
+func pwaStored(id string, installPrompt, precaching bool) bson.D {
+	return bson.D{
 		{Key: "$ID", Value: id},
 		{Key: "$Type", Value: "Navigation$ProgressiveWebAppSettings"},
 		{Key: "InstallPrompt", Value: installPrompt},
@@ -36,7 +35,7 @@ func pwaStored(id string, installPrompt, precaching bool) bsonv1.D {
 // from one that rewrites the defaults every time.
 func TestPWASettingsAreLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 	for _, stored := range []any{nil, pwaStored("keep", true, false), pwaStored("keep", false, true)} {
-		doc := bsonv1.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: stored}}
+		doc := bson.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: stored}}
 		out := mustNavPatchWebProfile(t, doc, types.NavigationProfileSpec{})
 		got := pwaOf(out)
 		if stored == nil {
@@ -45,19 +44,19 @@ func TestPWASettingsAreLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 			}
 			continue
 		}
-		if g, ok := got.(bsonv1.D); !ok || navGetBool(g, "InstallPrompt") != navGetBool(stored.(bsonv1.D), "InstallPrompt") ||
-			navGetBool(g, "Precaching") != navGetBool(stored.(bsonv1.D), "Precaching") {
+		if g, ok := got.(bson.D); !ok || navGetBool(g, "InstallPrompt") != navGetBool(stored.(bson.D), "InstallPrompt") ||
+			navGetBool(g, "Precaching") != navGetBool(stored.(bson.D), "Precaching") {
 			t.Errorf("a silent rewrite changed %v to %v", stored, got)
 		}
 	}
 }
 
 func TestPWAClauseWritesTheSettings(t *testing.T) {
-	null := bsonv1.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: nil}}
+	null := bson.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: nil}}
 
 	// A bare clause writes the platform defaults, as Studio Pro's checkbox does.
 	out := mustNavPatchWebProfile(t, null, types.NavigationProfileSpec{ProgressiveWebApp: &types.NavPWASpec{}})
-	d, ok := pwaOf(out).(bsonv1.D)
+	d, ok := pwaOf(out).(bson.D)
 	if !ok {
 		t.Fatalf("`progressive web app` wrote %v, want a settings element", pwaOf(out))
 	}
@@ -71,7 +70,7 @@ func TestPWAClauseWritesTheSettings(t *testing.T) {
 	// Named keys are written, both ways.
 	for _, v := range []bool{true, false} {
 		out = mustNavPatchWebProfile(t, null, types.NavigationProfileSpec{ProgressiveWebApp: &types.NavPWASpec{Precaching: boolPtr(v), InstallPrompt: boolPtr(!v)}})
-		d = pwaOf(out).(bsonv1.D)
+		d = pwaOf(out).(bson.D)
 		if navGetBool(d, "Precaching") != v || navGetBool(d, "InstallPrompt") != !v {
 			t.Errorf("Precaching: %v, InstallPrompt: %v written as %v", v, !v, d)
 		}
@@ -80,9 +79,9 @@ func TestPWAClauseWritesTheSettings(t *testing.T) {
 	// Over stored settings: their $ID is kept, and a key the clause leaves out
 	// takes its default, not the stored value -- describe omits a default, so
 	// keeping the stored value would make describe -> exec change nothing back.
-	stored := bsonv1.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: pwaStored("id-1", false, false)}}
+	stored := bson.D{{Key: "Name", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: pwaStored("id-1", false, false)}}
 	out = mustNavPatchWebProfile(t, stored, types.NavigationProfileSpec{ProgressiveWebApp: &types.NavPWASpec{Precaching: boolPtr(true)}})
-	d = pwaOf(out).(bsonv1.D)
+	d = pwaOf(out).(bson.D)
 	if navGetString(d, "$ID") != "id-1" || navGetBool(d, "InstallPrompt") != true || navGetBool(d, "Precaching") != true {
 		t.Errorf("`( Precaching: true )` over stored {InstallPrompt false, Precaching false} gave %v, want the same $ID, InstallPrompt true", d)
 	}
@@ -94,9 +93,9 @@ func TestPWAClauseWritesTheSettings(t *testing.T) {
 	}
 }
 
-func navProfileFromDoc(t *testing.T, doc bsonv2.D) *types.NavigationProfile {
+func navProfileFromDoc(t *testing.T, doc bson.D) *types.NavigationProfile {
 	t.Helper()
-	raw, err := bsonv2.Marshal(doc)
+	raw, err := bson.Marshal(doc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,14 +106,14 @@ func navProfileFromDoc(t *testing.T, doc bsonv2.D) *types.NavigationProfile {
 }
 
 func TestPWASettingsAreRead(t *testing.T) {
-	p := navProfileFromDoc(t, bsonv2.D{{Key: "$Type", Value: "Navigation$NavigationProfile"}, {Key: "Name", Value: "PhoneOffline"},
+	p := navProfileFromDoc(t, bson.D{{Key: "$Type", Value: "Navigation$NavigationProfile"}, {Key: "Name", Value: "PhoneOffline"},
 		{Key: "Kind", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: nil}})
 	if p.ProgressiveWebApp != nil {
 		t.Errorf("null settings read as %+v", p.ProgressiveWebApp)
 	}
 	for _, v := range []bool{true, false} {
-		p = navProfileFromDoc(t, bsonv2.D{{Key: "$Type", Value: "Navigation$NavigationProfile"}, {Key: "Name", Value: "PhoneOffline"},
-			{Key: "Kind", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: bsonv2.D{
+		p = navProfileFromDoc(t, bson.D{{Key: "$Type", Value: "Navigation$NavigationProfile"}, {Key: "Name", Value: "PhoneOffline"},
+			{Key: "Kind", Value: "PhoneOffline"}, {Key: "ProgressiveWebAppSettings", Value: bson.D{
 				{Key: "$ID", Value: "x"}, {Key: "$Type", Value: "Navigation$ProgressiveWebAppSettings"},
 				{Key: "InstallPrompt", Value: !v}, {Key: "Precaching", Value: v}}}})
 		if p.ProgressiveWebApp == nil || p.ProgressiveWebApp.Precaching != v || p.ProgressiveWebApp.InstallPrompt != !v {

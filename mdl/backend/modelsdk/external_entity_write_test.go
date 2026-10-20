@@ -3,13 +3,14 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // encodeEntity runs an entity through the write adapters exactly as CreateEntity
@@ -28,7 +29,7 @@ func encodeEntity(t *testing.T, e *domainmodel.Entity, module string) map[string
 		t.Fatalf("encode domain model: %v", err)
 	}
 	var m map[string]any
-	if err := bson.Unmarshal(raw, &m); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(raw, &m); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	entities := extractArray(m["Entities"])
@@ -199,7 +200,7 @@ func TestAssocToGen_ODataRemoteAssociationSource(t *testing.T) {
 		t.Fatalf("encode association: %v", err)
 	}
 	var m map[string]any
-	if err := bson.Unmarshal(raw, &m); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(raw, &m); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	src, ok := m["Source"].(map[string]any)

@@ -9,7 +9,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	genPg "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Forms$Page and Forms$Snippet carry two properties Mendix introduced after the

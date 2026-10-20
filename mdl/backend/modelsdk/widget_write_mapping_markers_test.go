@@ -21,7 +21,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/model"
@@ -30,8 +30,8 @@ import (
 
 // listMarker returns the typed-array marker of a list key, or -1 when the key is
 // absent — the two failures here are "wrong marker" and "no key at all".
-func listMarker(d bsonv1.D, key string) int32 {
-	arr, ok := bsonnav.DGet(d, key).(bsonv1.A)
+func listMarker(d bson.D, key string) int32 {
+	arr, ok := bsonnav.DGet(d, key).(bson.A)
 	if !ok || len(arr) == 0 {
 		return -1
 	}

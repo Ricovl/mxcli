@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -83,7 +82,7 @@ func menuActionComparable(v any) any {
 			out[i] = menuActionComparable(e)
 		}
 		return out
-	case primitive.Binary:
+	case bson.Binary:
 		return string(t.Data)
 	case int32:
 		return int64(t)

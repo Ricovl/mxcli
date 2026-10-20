@@ -4,8 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	sched "github.com/mendixlabs/mxcli/mdl/scheduledevents"
 	"github.com/mendixlabs/mxcli/model"
@@ -29,7 +30,7 @@ func (b *Backend) ListScheduledEvents() ([]*model.ScheduledEvent, error) {
 	out := make([]*model.ScheduledEvent, 0, len(units))
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			return nil, fmt.Errorf("unmarshal scheduled event %s: %w", u.ID, err)
 		}
 		out = append(out, sched.Parse(doc, model.ID(u.ID), model.ID(u.ContainerID)))

@@ -8,8 +8,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
-	"go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func navIconEntry(d bson.D, key string) (interface{}, bool) {
@@ -86,14 +85,14 @@ func TestMenuIconOf_NilIconYieldsNothing(t *testing.T) {
 
 // decodeIcon puts an icon document through the real codec, which is the only
 // way to get the element shape menuIconOf actually receives.
-func decodeIcon(t *testing.T, typeName string, extra bsonv2.E) element.Element {
+func decodeIcon(t *testing.T, typeName string, extra bson.E) element.Element {
 	t.Helper()
-	doc := bsonv2.D{{Key: "$Type", Value: typeName}, extra}
-	raw, err := bsonv2.Marshal(bsonv2.D{{Key: "Icon", Value: doc}})
+	doc := bson.D{{Key: "$Type", Value: typeName}, extra}
+	raw, err := bson.Marshal(bson.D{{Key: "Icon", Value: doc}})
 	if err != nil {
 		t.Fatalf("marshalling the fixture: %v", err)
 	}
-	el, err := codec.DecodeChild(bsonv2.Raw(raw), "Icon")
+	el, err := codec.DecodeChild(bson.Raw(raw), "Icon")
 	if err != nil {
 		t.Fatalf("decoding the icon: %v", err)
 	}
@@ -115,7 +114,7 @@ func TestMenuIconOf_ReadsTheNameOffARegisteredVariant(t *testing.T) {
 		{"Forms$ImageIcon", "System.Images.Close"},
 	} {
 		t.Run(tc.typeName, func(t *testing.T) {
-			el := decodeIcon(t, tc.typeName, bsonv2.E{Key: "Image", Value: tc.image})
+			el := decodeIcon(t, tc.typeName, bson.E{Key: "Image", Value: tc.image})
 			gotType, gotImage, _ := menuIconOf(el)
 			if gotType != tc.typeName {
 				t.Errorf("type = %q, want %q", gotType, tc.typeName)
@@ -130,7 +129,7 @@ func TestMenuIconOf_ReadsTheNameOffARegisteredVariant(t *testing.T) {
 // A glyph carries a Code and no name; reporting an empty image is what stops
 // DESCRIBE from emitting a lossy ICON clause for it.
 func TestMenuIconOf_GlyphHasNoName(t *testing.T) {
-	el := decodeIcon(t, "Forms$GlyphIcon", bsonv2.E{Key: "Code", Value: int32(9999)})
+	el := decodeIcon(t, "Forms$GlyphIcon", bson.E{Key: "Code", Value: int32(9999)})
 	gotType, gotImage, _ := menuIconOf(el)
 	if gotType != "Forms$GlyphIcon" {
 		t.Errorf("type = %q", gotType)
@@ -144,7 +143,7 @@ func TestMenuIconOf_GlyphHasNoName(t *testing.T) {
 // alone left a caller knowing one was there and nothing more, so DESCRIBE could
 // not re-emit it and a rewrite replaced it with nothing.
 func TestMenuIconOf_ReadsTheGlyphCode(t *testing.T) {
-	el := decodeIcon(t, "Forms$GlyphIcon", bsonv2.E{Key: "Code", Value: int32(57345)})
+	el := decodeIcon(t, "Forms$GlyphIcon", bson.E{Key: "Code", Value: int32(57345)})
 	gotType, gotImage, gotCode := menuIconOf(el)
 	if gotType != "Forms$GlyphIcon" {
 		t.Errorf("type = %q, want Forms$GlyphIcon", gotType)
@@ -160,7 +159,7 @@ func TestMenuIconOf_ReadsTheGlyphCode(t *testing.T) {
 // The control: a collection icon must NOT pick up a code, or "has a code" stops
 // distinguishing a glyph from anything else.
 func TestMenuIconOf_CollectionIconHasNoCode(t *testing.T) {
-	el := decodeIcon(t, "Forms$IconCollectionIcon", bsonv2.E{Key: "Image", Value: "Atlas_Core.Atlas.home"})
+	el := decodeIcon(t, "Forms$IconCollectionIcon", bson.E{Key: "Image", Value: "Atlas_Core.Atlas.home"})
 	_, gotImage, gotCode := menuIconOf(el)
 	if gotImage != "Atlas_Core.Atlas.home" {
 		t.Errorf("image = %q", gotImage)

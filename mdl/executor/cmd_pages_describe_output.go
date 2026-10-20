@@ -6,14 +6,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // mdl0Quote writes s as an mdl 0 string literal: a backslash, a line break, a
@@ -1507,12 +1506,12 @@ func extractOnChangeAction(ctx *ExecContext, w map[string]any) string {
 }
 
 // actionMapForKey unwraps a client-action node stored under key into a plain map
-// (handling both map[string]any and primitive.M), or nil when absent.
+// (handling both map[string]any and bson.M), or nil when absent.
 func actionMapForKey(w map[string]any, key string) map[string]any {
 	if action, ok := w[key].(map[string]any); ok {
 		return action
 	}
-	if actionM, ok := w[key].(primitive.M); ok {
+	if actionM, ok := w[key].(bson.M); ok {
 		return map[string]any(actionM)
 	}
 	return nil

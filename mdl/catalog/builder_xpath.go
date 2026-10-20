@@ -6,9 +6,10 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
@@ -114,7 +115,7 @@ func (b *Builder) buildXPathExpressions() error {
 
 			// Parse just the Name field from the BSON
 			var raw map[string]any
-			if err := bson.Unmarshal(ru.Contents, &raw); err != nil {
+			if err := bsoncompat.UnmarshalDocMap(ru.Contents, &raw); err != nil {
 				continue
 			}
 			name, _ := raw["Name"].(string)

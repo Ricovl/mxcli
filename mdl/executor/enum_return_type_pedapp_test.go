@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -169,7 +168,7 @@ func stripFlowIdentity(v bson.D) bson.D {
 		case bson.D:
 			var out bson.D
 			for _, e := range t {
-				if _, isID := e.Value.(primitive.Binary); isID || (top && e.Key == "Name") {
+				if _, isID := e.Value.(bson.Binary); isID || (top && e.Key == "Name") {
 					continue
 				}
 				out = append(out, bson.E{Key: e.Key, Value: walk(e.Value, false)})

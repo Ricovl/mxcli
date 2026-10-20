@@ -13,8 +13,7 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -99,7 +98,7 @@ func Serialize(ev *model.ScheduledEvent) ([]byte, error) {
 		doc = append(doc, bson.E{Key: "Schedule", Value: sched})
 	}
 	doc = append(doc,
-		bson.E{Key: "StartDateTime", Value: primitive.DateTime(start.UnixMilli())},
+		bson.E{Key: "StartDateTime", Value: bson.DateTime(start.UnixMilli())},
 		bson.E{Key: "TimeZone", Value: timeZone},
 	)
 
@@ -209,7 +208,7 @@ func Parse(doc bson.M, id, containerID model.ID) *model.ScheduledEvent {
 	ev.TimeZone, _ = doc["TimeZone"].(string)
 	ev.IntervalType, _ = doc["IntervalType"].(string)
 	ev.Interval = anyInt(doc["Interval"])
-	if dt, ok := doc["StartDateTime"].(primitive.DateTime); ok {
+	if dt, ok := doc["StartDateTime"].(bson.DateTime); ok {
 		t := time.UnixMilli(int64(dt)).UTC()
 		ev.StartDateTime = &t
 	}

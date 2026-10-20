@@ -3,10 +3,11 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func offlineCfg(entity, mode, constraint string, compat bool) bson.D {
@@ -25,7 +26,7 @@ func cfgMap(t *testing.T, v any) map[string]any {
 	if !ok {
 		t.Fatalf("not a document: %T", v)
 	}
-	return d.Map()
+	return bsoncompat.DMap(d)
 }
 
 // The property MDL cannot spell must survive a rewrite that never mentions it.

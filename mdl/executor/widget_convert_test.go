@@ -6,8 +6,7 @@ import (
 	"bytes"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // The whole point of converting a stored widget to map form is to run
@@ -19,8 +18,8 @@ import (
 // map[string]any is unordered, so the round trip re-derives key order by sorting.
 // This test is what justifies that assumption.
 func TestWidgetRoundTripIsByteStable(t *testing.T) {
-	id := func(b byte) primitive.Binary {
-		return primitive.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{b}, 16)}
+	id := func(b byte) bson.Binary {
+		return bson.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{b}, 16)}
 	}
 
 	// A widget shaped like the real thing: ordered alphabetically, IDs as binary,
@@ -111,7 +110,7 @@ func TestWidgetRoundTripIsByteStable(t *testing.T) {
 // A TypePointer must survive as binary and still equal the PropertyType's $ID —
 // breaking that pairing yields a project Mendix cannot load at all.
 func TestWidgetRoundTripPreservesTypePointerBinding(t *testing.T) {
-	ptID := primitive.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0xAB}, 16)}
+	ptID := bson.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0xAB}, 16)}
 
 	doc := bson.D{
 		{Key: "PropertyTypes", Value: bson.A{bson.D{
@@ -228,8 +227,8 @@ func TestEnsureUniqueWidgetIDsSeparatesListEntries(t *testing.T) {
 // ensureUniqueWidgetIDs call and re-running the fixture, which then aborts with
 // "refusing to write" instead of corrupting the project.
 func TestWidgetIDsAreUniqueDetectsDuplicates(t *testing.T) {
-	dup := primitive.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0x7C}, 16)}
-	other := primitive.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0x2E}, 16)}
+	dup := bson.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0x7C}, 16)}
+	other := bson.Binary{Subtype: 0x00, Data: bytes.Repeat([]byte{0x2E}, 16)}
 
 	clean := bson.D{
 		{Key: "$ID", Value: dup},
