@@ -103,7 +103,8 @@ func logFragment() *backend.MicroflowFragment {
 // The splice becomes PED path operations addressed by the stored indexes:
 // the moved end, the new activity (added bare, then its action and position
 // set, as PED's skeleton constructor requires), the rewired flow's end, and
-// the new flow — and no removal.
+// the new flow — and no removal. Which of them wait for the second update is
+// TestFlowPatchOps_NewElementsAreFilledInOnceTheyExist.
 func TestFlowPatchOps_InsertAfter(t *testing.T) {
 	var sent []any
 	f := newFakePED(t, func(name string, args map[string]any) (string, bool) {
@@ -131,10 +132,10 @@ func TestFlowPatchOps_InsertAfter(t *testing.T) {
 	if err := m.Save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if len(sent) != 1 {
-		t.Fatalf("want one ped_update_document, got %d", len(sent))
+	if len(sent) != 2 {
+		t.Fatalf("want the insert and its fill, got %d updates", len(sent))
 	}
-	js, _ := json.Marshal(sent[0])
+	js, _ := json.Marshal(append(sent[0].([]any), sent[1].([]any)...))
 	got := string(js)
 	var ops []pedOpEntry
 	if err := json.Unmarshal(js, &ops); err != nil {
@@ -209,8 +210,8 @@ func TestFlowPatchOps_InsertNote(t *testing.T) {
 	if err := m.Save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if len(sent) != 1 {
-		t.Fatalf("want one ped_update_document, got %d", len(sent))
+	if len(sent) != 2 {
+		t.Fatalf("want the insert and its fill, got %d updates", len(sent))
 	}
 	js, _ := json.Marshal(sent[0])
 	var ops []pedOpEntry
@@ -231,8 +232,8 @@ func TestFlowPatchOps_InsertNote(t *testing.T) {
 		}
 	}
 	// PED stores a note line after a sequence flow added later in the same
-	// update, so the new sequence flow (and the sets addressing it as
-	// /flows/3) must come first.
+	// update, so the new sequence flow must come first: the fill that follows
+	// addresses it as /flows/3.
 	if lineAt < lastSequenceOp {
 		t.Errorf("the note line (op %d) is added before the new sequence flow's ops (last at %d):\n%s", lineAt, lastSequenceOp, js)
 	}
@@ -251,6 +252,181 @@ func TestFlowPatchOps_InsertNote(t *testing.T) {
 	}
 	if fmt.Sprint(line["originConnectionIndex"], line["destinationConnectionIndex"]) != "2 0" {
 		t.Errorf("note line sides = %v -> %v, want the unoriented 2 -> 0", line["originConnectionIndex"], line["destinationConnectionIndex"])
+	}
+}
+
+// reducePED fakes Studio Pro holding storedReduce, and records each
+// ped_update_document's operations.
+func reducePED(t *testing.T, sent *[][]pedOpEntry) *Backend {
+	t.Helper()
+	f := newFakePED(t, func(name string, args map[string]any) (string, bool) {
+		switch name {
+		case "ped_read_document":
+			return `{"results":[{"path":"/objectCollection/objects","result":[` +
+				`{"$Type":"Microflows$StartEvent","relativeMiddlePoint":{"x":-98,"y":200}},` +
+				`{"$Type":"Microflows$EndEvent","relativeMiddlePoint":{"x":564,"y":200}},` +
+				`{"$Type":"Microflows$ActionActivity","relativeMiddlePoint":{"x":214,"y":200}},` +
+				`{"$Type":"Microflows$ActionActivity","relativeMiddlePoint":{"x":404,"y":200}}]},` +
+				`{"path":"/flows","result":[{},{},{}]}]}`, false
+		case "ped_update_document":
+			js, _ := json.Marshal(args["operations"])
+			var ops []pedOpEntry
+			if err := json.Unmarshal(js, &ops); err != nil {
+				t.Fatal(err)
+			}
+			*sent = append(*sent, ops)
+			return "SUCCESS: All operations have been performed successfully.", false
+		case "ped_check_errors":
+			return "No errors found.", false
+		}
+		return "SUCCESS", false
+	})
+	return &Backend{client: f.connectClient(t)}
+}
+
+// opsAt maps the paths an update sets to their JSON values.
+func opsAt(ops []pedOpEntry) map[string]string {
+	got := map[string]string{}
+	for _, op := range ops {
+		if op.Operation.Type == "set" {
+			v, _ := json.Marshal(op.Operation.Value)
+			got[op.Path] = string(v)
+		}
+	}
+	return got
+}
+
+// PED resolves a path against the document as it was before the update, so
+// an element the update adds cannot be addressed in it (measured on
+// 11.15.0-rc.4): a set below a new flow's line fails the whole update with
+// `undefined is not an object (evaluating 'u.$Type')`, which made every insert
+// fail, and a set of a new activity's action is accepted and lost, which left
+// it with "No action defined". So the update that adds an element addresses
+// nothing on it, and a second update fills it in.
+func TestFlowPatchOps_NewElementsAreFilledInOnceTheyExist(t *testing.T) {
+	var sent [][]pedOpEntry
+	m, _ := openFlowMutator(t, reducePED(t, &sent))
+	if err := m.InsertAfter(model.ID(mfUUID("a")), logFragment()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if len(sent) != 2 {
+		t.Fatalf("want the insert and then its fill, got %d updates: %v", len(sent), sent)
+	}
+	// The stored document has four objects and three flows, so the insert
+	// adds /objectCollection/objects/4 and /flows/3.
+	for _, op := range sent[0] {
+		if strings.HasPrefix(op.Path, "/objectCollection/objects/4/") || strings.HasPrefix(op.Path, "/flows/3/") {
+			t.Errorf("the update that adds the element also sets %s on it", op.Path)
+		}
+	}
+	got := opsAt(sent[1])
+	if !strings.Contains(got["/objectCollection/objects/4/action"], `"Microflows$LogMessageAction"`) {
+		t.Errorf("the fill does not set the new activity's action: %v", got)
+	}
+	for p, v := range map[string]string{
+		// The new flow leaves the activity on the right…
+		"/flows/3/line/originControlVector": `{"height":0,"width":15}`,
+		// …and keeps the end the rewired flow had at b.
+		"/flows/3/line/destinationControlVector": `{"height":0,"width":-30}`,
+	} {
+		if got[p] != v {
+			t.Errorf("%s = %q, want %s", p, got[p], v)
+		}
+	}
+	for p := range got {
+		if !strings.HasPrefix(p, "/objectCollection/objects/4/") && !strings.HasPrefix(p, "/flows/3/") {
+			t.Errorf("the fill sets %s, which the first update could address", p)
+		}
+	}
+}
+
+// Several elements appended to one array in one update are stored in reverse,
+// and $id() resolves against that final order (measured on 11.15.0-rc.4): an
+// IF inserted over MCP was wired to the wrong objects. Every add therefore
+// carries the stored length as its index, which keeps them in listed order.
+func TestFlowPatchOps_AddsKeepTheirListedOrder(t *testing.T) {
+	var sent [][]pedOpEntry
+	m, _ := openFlowMutator(t, reducePED(t, &sent))
+	frag := logFragment()
+	second := logFragment().Objects[0]
+	second.SetPosition(model.Point{X: 520, Y: 200})
+	frag.Objects = append(frag.Objects, second)
+	frag.Flows = []*microflows.SequenceFlow{{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		OriginID:    frag.Entry, DestinationID: second.GetID(),
+		OriginConnectionIndex: 1, DestinationConnectionIndex: 3,
+	}}
+	frag.Exit = second.GetID()
+	if err := m.InsertAfter(model.ID(mfUUID("a")), frag); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	adds := map[string]int{}
+	for _, op := range sent[0] {
+		if op.Operation.Type != "add" {
+			continue
+		}
+		adds[op.Path]++
+		want := map[string]int{"/objectCollection/objects": 4, "/flows": 3}[op.Path]
+		if op.Operation.Index == nil || *op.Operation.Index != want {
+			t.Errorf("add to %s has index %v, want the stored length %d", op.Path, op.Operation.Index, want)
+		}
+	}
+	if adds["/objectCollection/objects"] != 2 || adds["/flows"] != 2 {
+		t.Errorf("adds = %v, want two objects and two flows", adds)
+	}
+}
+
+// A 0;0 control vector is the line's schema default, which PED asks not to be
+// sent.
+func TestNewFlowLineOps_LeavesOutDefaults(t *testing.T) {
+	ops := newFlowLineOps("/flows/4", &microflows.SequenceFlow{OriginControlVector: "0;0", DestinationControlVector: "0;-15"})
+	if len(ops) != 1 || ops[0].Path != "/flows/4/line/destinationControlVector" {
+		t.Errorf("ops = %+v, want only the destination vector", ops)
+	}
+	if ops := newFlowLineOps("/flows/4", &microflows.SequenceFlow{OriginControlVector: "0;0"}); len(ops) != 0 {
+		t.Errorf("default vectors produced %+v", ops)
+	}
+}
+
+// An error handler flow is marked in the fill too. Set in the update that adds
+// the flow, isErrorHandler is accepted and the flow reads back as an ordinary
+// one (measured on 11.15.0-rc.4) — a second normal exit from the activity.
+func TestFlowPatchOps_NewErrorHandlerFlowIsMarkedOnceItExists(t *testing.T) {
+	var sent [][]pedOpEntry
+	m, _ := openFlowMutator(t, reducePED(t, &sent))
+	frag := logFragment()
+	handler := logFragment().Objects[0]
+	handler.SetPosition(model.Point{X: 360, Y: 300})
+	frag.Objects = append(frag.Objects, handler)
+	frag.Flows = []*microflows.SequenceFlow{{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+		OriginID:    frag.Entry, DestinationID: handler.GetID(),
+		OriginConnectionIndex: 2, IsErrorHandler: true,
+	}}
+	if err := m.InsertAfter(model.ID(mfUUID("a")), frag); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if len(sent) != 2 {
+		t.Fatalf("want the insert and then its fill, got %d updates", len(sent))
+	}
+	for _, op := range sent[0] {
+		if strings.HasSuffix(op.Path, "/isErrorHandler") {
+			t.Errorf("the update that adds the flow also marks it at %s", op.Path)
+		}
+	}
+	// The fragment's own flow is added first (/flows/3), then the one leaving
+	// the fragment (/flows/4).
+	if got := opsAt(sent[1]); got["/flows/3/isErrorHandler"] != "true" {
+		t.Errorf("the error handler flow is not marked in the fill: %v", got)
 	}
 }
 
