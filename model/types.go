@@ -793,6 +793,11 @@ type PublishedRestService struct {
 	Excluded     bool                     `json:"excluded,omitempty"`
 	AllowedRoles []string                 `json:"allowedRoles,omitempty"`
 	Resources    []*PublishedRestResource `json:"resources,omitempty"`
+	// Documentation is the service's own Documentation property — the
+	// developer-facing text Studio Pro shows on the document, not
+	// PublicDocumentation, the OpenAPI description consumers read
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 
 	// AuthenticationTypes are the methods a caller may authenticate with, in
 	// the order stored: "Basic", "Session", "Microflow". Empty is "Requires
@@ -989,6 +994,9 @@ type DataTransformer struct {
 	SourceJSON  string                 `json:"sourceJson,omitempty"` // source content
 	Steps       []*DataTransformerStep `json:"steps,omitempty"`
 	Excluded    bool                   `json:"excluded,omitempty"`
+	// Documentation is the transformer's Documentation property
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 }
 
 // GetName returns the transformer's name.

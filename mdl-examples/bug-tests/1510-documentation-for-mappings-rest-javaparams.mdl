@@ -1,0 +1,68 @@
+-- mendixlabs/mxcli#1510: `lint` QUAL002 asks for documentation on import and
+-- export mappings, published REST services, data transformers and Java action
+-- parameters. MDL could not write the first four — the doc comment above their
+-- create was dropped with MDL089 — so the findings were permanent. After the
+-- fix each doc comment below is stored as the document's Documentation (a Java
+-- action parameter's as its Description), `describe` prints it back, and QUAL002
+-- reports none of these elements.
+--
+-- Check: exec, then `describe` each document, then `lint` — no QUAL002 for
+-- BugTest1510. The data transformer needs Mendix 11.9+; drop it on older ones.
+mdl 1;
+
+create module BugTest1510;
+
+/** One order line as the shop sends it. */
+create persistent entity BugTest1510.OrderLine (Code: String(20), Amount: Integer);
+
+/** The order line payload of the shop API. */
+create json structure BugTest1510.JSON_OrderLine sample '{"code": "A1", "amount": 2}';
+
+/**
+ * Reads an order line from the shop API.
+ *
+ * One object per payload.
+ */
+create import mapping BugTest1510.IMM_OrderLine
+  with json structure BugTest1510.JSON_OrderLine
+{
+  create BugTest1510.OrderLine {
+    Code = code,
+    Amount = amount
+  }
+};
+
+/** Writes an order line for the shop API. */
+create export mapping BugTest1510.EMM_OrderLine
+  with json structure BugTest1510.JSON_OrderLine
+{
+  BugTest1510.OrderLine {
+    code = Code,
+    amount = Amount
+  }
+};
+
+/** The order line API other apps call. */
+create published rest service BugTest1510.OrderLineApi (
+  Path: 'rest/orderlines/v1',
+  Version: '1.0.0',
+  ServiceName: 'Order lines'
+)
+{
+};
+
+/** Formats an amount for display. */
+create java action BugTest1510.FormatAmount (
+  /** The amount in cents. */
+  Amount: Integer not null
+) returns String
+as $$
+return String.valueOf(Amount);
+$$;
+
+/** Renames the amount field. */
+create data transformer BugTest1510.DT_Rename
+  source json '{"amount": 1}'
+{
+  jslt '{"total": .amount}';
+};

@@ -17,6 +17,7 @@ func (b *Builder) ExitCreateDataTransformerStatement(ctx *parser.CreateDataTrans
 	stmt := &ast.CreateDataTransformerStmt{
 		Name: buildQualifiedName(qn),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 
 	// Source type: JSON or XML
 	if ctx.JSON() != nil {
