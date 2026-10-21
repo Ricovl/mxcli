@@ -82,6 +82,9 @@ func (b *Backend) CreateEntity(domainModelID model.ID, entity *domainmodel.Entit
 	if err := b.gateAttributeDefaults(entity.Attributes); err != nil {
 		return err
 	}
+	if err := guardExportLevels(entity, nil); err != nil {
+		return err
+	}
 	value, err := b.buildEntityValue(entity)
 	if err != nil {
 		return err
@@ -160,6 +163,9 @@ func (b *Backend) AddAttribute(domainModelID model.ID, entityID model.ID, attr *
 	if err := b.gateAttributeDefaults([]*domainmodel.Attribute{attr}); err != nil {
 		return err
 	}
+	if err := guardExportLevels(&domainmodel.Entity{Name: name, Attributes: []*domainmodel.Attribute{attr}}, nil); err != nil {
+		return err
+	}
 	idx, err := b.entityIndex(moduleName, name)
 	if err != nil {
 		return err
@@ -211,6 +217,11 @@ func (b *Backend) UpdateEntity(domainModelID model.ID, entity *domainmodel.Entit
 	}
 	if err := b.gateAttributeDefaults(entity.Attributes); err != nil {
 		return err
+	}
+	if statesExportLevel(entity) {
+		if err := guardExportLevels(entity, b.storedEntity(domainModelID, entity.Name)); err != nil {
+			return err
+		}
 	}
 	entIdx, err := b.entityIndex(moduleName, entity.Name)
 	if err != nil {
@@ -632,6 +643,10 @@ func guardAssociationFeatures(a *domainmodel.Association) error {
 	if a.Source != "" {
 		return fmt.Errorf("association %q: external/OData associations are not supported by the MCP backend", a.Name)
 	}
+	if a.ExportLevel != "" && a.ExportLevel != "Hidden" {
+		return fmt.Errorf("association %q: `export level %s` is not yet supported by the MCP backend; "+
+			"run it against a local .mpr instead, or set it in Studio Pro", a.Name, strings.ToLower(a.ExportLevel))
+	}
 	return nil
 }
 
@@ -964,6 +979,73 @@ func guardUnsupportedEntityFeatures(entity *domainmodel.Entity) error {
 	for _, a := range entity.Attributes {
 		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok && !dt.LocalizeDate {
 			return unsupportedEntityFeature(entity.Name, "non-localized DateTime attributes (`not localized`, attribute "+a.Name+")")
+		}
+	}
+	return nil
+}
+
+// guardExportLevels refuses an export level this backend would drop: PED is not
+// sent one (mendixlabs/mxcli#1498), so `export level api` on a new entity or
+// attribute — or any level that differs from the stored one on a rewrite — is
+// refused rather than reported as written. stored is nil for a new entity; a new
+// element's default, Hidden, is what PED creates anyway.
+func guardExportLevels(entity, stored *domainmodel.Entity) error {
+	storedLevel := func(name string) string {
+		if stored == nil {
+			return "Hidden"
+		}
+		if name == "" {
+			return orHidden(stored.ExportLevel)
+		}
+		for _, a := range stored.Attributes {
+			if a.Name == name {
+				return orHidden(a.ExportLevel)
+			}
+		}
+		return "Hidden"
+	}
+	if entity.ExportLevel != "" && entity.ExportLevel != storedLevel("") {
+		return unsupportedEntityFeature(entity.Name, "export levels (`export level "+strings.ToLower(entity.ExportLevel)+"`)")
+	}
+	for _, a := range entity.Attributes {
+		if a.ExportLevel != "" && a.ExportLevel != storedLevel(a.Name) {
+			return unsupportedEntityFeature(entity.Name, "export levels (`export level "+strings.ToLower(a.ExportLevel)+"` on attribute "+a.Name+")")
+		}
+	}
+	return nil
+}
+
+func orHidden(level string) string {
+	if level == "" {
+		return "Hidden"
+	}
+	return level
+}
+
+func statesExportLevel(entity *domainmodel.Entity) bool {
+	if entity.ExportLevel != "" {
+		return true
+	}
+	for _, a := range entity.Attributes {
+		if a.ExportLevel != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// storedEntity is the entity as this backend reads it, or nil.
+func (b *Backend) storedEntity(domainModelID model.ID, name string) *domainmodel.Entity {
+	if b.reader == nil {
+		return nil
+	}
+	dm, err := b.GetDomainModelByID(domainModelID)
+	if err != nil || dm == nil {
+		return nil
+	}
+	for _, e := range dm.Entities {
+		if e.Name == name {
+			return e
 		}
 	}
 	return nil

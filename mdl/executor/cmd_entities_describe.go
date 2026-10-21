@@ -235,21 +235,9 @@ func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants boo
 	}
 
 	lang := describeDefaultLanguage(ctx)
-	protection := moduleProtection(ctx, string(module.ID))
 
 	for _, entity := range dm.Entities {
 		if entity.Name == name.Name {
-			// In a Protected module an entity's export level decides whether
-			// other modules may use it (CE1406) and whether a Usable microflow
-			// may expose it (CE5400). MDL has no syntax for it, so it prints as
-			// a comment and a rewrite keeps the stored value (mendixlabs/mxcli#1498).
-			if protection != "" {
-				lvl := "Hidden"
-				if entity.ExportLevel == "API" {
-					lvl = "Usable"
-				}
-				fmt.Fprintf(ctx.Output, "-- export level: %s (%s is a protected module; set in Studio Pro)\n", lvl, module.Name)
-			}
 			// Output JavaDoc documentation if present
 			if entity.Documentation != "" {
 				outputJavadocIndented(ctx.Output, entity.Documentation, "")
@@ -362,6 +350,11 @@ func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants boo
 					}
 					constraints.WriteString(fmt.Sprintf(" default %s", defaultVal))
 				}
+				// In a Protected module the level decides whether other modules
+				// may use the member (mendixlabs/mxcli#1498).
+				if c := exportLevelClause(attr.ExportLevel); c != "" {
+					constraints.WriteString(" " + c)
+				}
 
 				line.WriteString(fmt.Sprintf("  %s: %s%s", attr.Name, typeStr, constraints.String()))
 				attrLines = append(attrLines, attrLine{text: line.String()})
@@ -390,6 +383,13 @@ func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants boo
 				fmt.Fprintf(ctx.Output, "%s%s\n", al.text, comma)
 			}
 			fmt.Fprint(ctx.Output, ")")
+			// In a Protected module an entity's export level decides whether
+			// other modules may use it (CE1406) and whether a Usable microflow
+			// may expose it (CE5400). Before a view's `as (…)`, which ends the
+			// statement's options (mendixlabs/mxcli#1498).
+			if c := exportLevelClause(entity.ExportLevel); c != "" {
+				fmt.Fprintf(ctx.Output, "\n%s", c)
+			}
 
 			// For VIEW entities, output the OQL query
 			if entityType == "view" && entity.OqlQuery != "" {

@@ -692,13 +692,18 @@ end;
   module's public surface when the module is exported. It bites in a
   **Protected (add-on) module** — `describe module` prints
   `-- export level: Protected …` and `show modules` says `Protected AddOn`:
-  another module or the navigation referencing a Hidden microflow, entity or
-  any page there is **CE1406**, and an `api` microflow whose parameter or return
-  type is a Hidden entity of that module is **CE5400**. `check -p --references`
-  reports both (mendixlabs/mxcli#1498). A page there cannot be made usable
-  (mxbuild refuses it even when stored as API) — reach it through an `api`
-  microflow in the module that shows it. An entity's export level has no MDL
-  syntax (`describe entity` prints it as a comment); set it in Studio Pro.
+  another module or the navigation referencing a Hidden microflow, entity,
+  attribute, association or any page there is **CE1406**, and an `api`
+  microflow whose parameter or return type is a Hidden entity or enumeration of
+  that module is **CE5400**. `check -p --references` reports CE5400 and the
+  microflow / entity / page cases of CE1406 (mendixlabs/mxcli#1498) — not yet a
+  Hidden attribute or association used from another module. A page there cannot
+  be made usable (mxbuild refuses it even when stored as API) — reach it through
+  an `api` microflow in the module that shows it. Entities, attributes,
+  associations and enumerations take the same clause: `alter entity M.E set
+  export level api`, `Attr: Type export level api`, `create association … export
+  level api`, `alter enumeration M.K set export level api`
+  (`mxcli syntax domain-model.export-level`).
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

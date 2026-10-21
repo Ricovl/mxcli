@@ -205,6 +205,10 @@ type Enumeration struct {
 	// carry the stored value rather than default it to false (#914).
 	Excluded bool               `json:"excluded,omitempty"`
 	Values   []EnumerationValue `json:"values,omitempty"`
+	// ExportLevel is "Hidden" or "API" (Studio Pro's "Usable"), which matters in
+	// a Protected (add-on) module (CE5400). The writer writes a set level and,
+	// for "", keeps the stored one (mendixlabs/mxcli#1498).
+	ExportLevel string `json:"exportLevel,omitempty"`
 }
 
 // GetName returns the enumeration's name.

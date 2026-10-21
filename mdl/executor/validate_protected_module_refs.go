@@ -19,8 +19,8 @@ import (
 //   - CE1406: nothing outside the module may reference a Hidden element in it.
 //     mxbuild words the source "project level documents" for navigation and
 //     "app modules" for a document in an ordinary module.
-//   - CE5400: a Usable microflow in the module may not expose a Hidden entity of
-//     it through a parameter or its return type.
+//   - CE5400: a Usable microflow in the module may not expose a Hidden entity or
+//     enumeration of it through a parameter or its return type.
 //
 // Measured on blank 11.14.0 and 11.13.0 apps, a control beside each refusal:
 // a home microflow, menu item, call microflow and parameter type are refused
@@ -28,7 +28,8 @@ import (
 // every one. A PAGE is refused even with ExportLevel "API" stored on it — from
 // navigation and from a show page activity alike — so a page in an add-on
 // module is reported whatever it stores; an API microflow inside the module
-// that shows it is the measured way in.
+// that shows it is the measured way in. The enumeration arm of CE5400 was
+// measured on 11.14.0 the same way (mendixlabs/mxcli#1498 follow-up).
 //
 // Covered shapes: navigation home pages, home flows, login / not-found pages and
 // menu items; menu documents; microflow and nanoflow parameter and return
@@ -49,7 +50,8 @@ func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
 		ctx:          ctx,
 		protected:    protected,
 		scriptFlows:  map[string]*string{},
-		scriptEntity: map[string]bool{},
+		scriptEntity: map[string]*string{},
+		scriptEnum:   map[string]*string{},
 		scriptPages:  map[string]bool{},
 		entityLevels: map[string]map[string]string{},
 	}
@@ -128,13 +130,16 @@ type protectedRefResolver struct {
 	protected map[string]bool
 
 	// What the script defines: a flow's stated export level (nil = not stated),
-	// the entities and pages it creates.
+	// the entities and enumerations it creates or sets a level on with the same
+	// convention, and the pages it creates.
 	scriptFlows  map[string]*string
-	scriptEntity map[string]bool
+	scriptEntity map[string]*string
+	scriptEnum   map[string]*string
 	scriptPages  map[string]bool
 
 	storedPages  map[string]bool
 	entityLevels map[string]map[string]string // module -> entity -> stored level; nil = unreadable
+	enumLevels   map[string]string            // qualified name -> stored level; nil = not read yet
 }
 
 func (r *protectedRefResolver) recordDefinition(stmt ast.Statement) {
@@ -142,9 +147,31 @@ func (r *protectedRefResolver) recordDefinition(stmt ast.Statement) {
 	case *ast.CreateMicroflowStmt:
 		r.scriptFlows[s.Name.String()] = s.ExportLevel
 	case *ast.CreateEntityStmt:
-		r.scriptEntity[s.Name.String()] = true
+		recordLevel(r.scriptEntity, s.Name.String(), s.ExportLevel)
+	case *ast.CreateViewEntityStmt:
+		recordLevel(r.scriptEntity, s.Name.String(), s.ExportLevel)
+	case *ast.AlterEntityStmt:
+		if s.Operation == ast.AlterEntitySetExportLevel {
+			lvl := s.ExportLevel
+			r.scriptEntity[s.Name.String()] = &lvl
+		}
+	case *ast.CreateEnumerationStmt:
+		recordLevel(r.scriptEnum, s.Name.String(), s.ExportLevel)
+	case *ast.AlterEnumerationStmt:
+		if s.Operation == ast.AlterEnumSetExportLevel {
+			lvl := s.ExportLevel
+			r.scriptEnum[s.Name.String()] = &lvl
+		}
 	case *ast.CreatePageStmtV3:
 		r.scriptPages[s.Name.String()] = true
+	}
+}
+
+// recordLevel notes that the script defines qn, with the level it states. A
+// level stated anywhere in the script wins over an unstated definition.
+func recordLevel(m map[string]*string, qn string, lvl *string) {
+	if lvl != nil || m[qn] == nil {
+		m[qn] = lvl
 	}
 }
 
@@ -231,15 +258,18 @@ func (r *protectedRefResolver) checkFlow(name ast.QualifiedName, params []ast.Mi
 		if level != types.ExportLevelAPI {
 			return nil
 		}
-		for _, p := range params {
-			if e, ok := signatureEntity(p.Type); ok && e.Module == name.Module && r.entityHidden(e) {
-				out = append(out, ce5400(e, fmt.Sprintf("parameter '%s'", p.Name)))
+		exposes := func(dt ast.DataType, exposer string) {
+			if e, ok := signatureEntity(dt); ok && e.Module == name.Module && r.entityHidden(e) {
+				out = append(out, ce5400("entity", e, exposer))
+			} else if e, ok := signatureEnumeration(dt); ok && e.Module == name.Module && r.enumHidden(e) {
+				out = append(out, ce5400("enumeration", e, exposer))
 			}
 		}
+		for _, p := range params {
+			exposes(p.Type, fmt.Sprintf("parameter '%s'", p.Name))
+		}
 		if ret != nil {
-			if e, ok := signatureEntity(ret.Type); ok && e.Module == name.Module && r.entityHidden(e) {
-				out = append(out, ce5400(e, fmt.Sprintf("microflow '%s'", name.String())))
-			}
+			exposes(ret.Type, fmt.Sprintf("microflow '%s'", name.String()))
 		}
 		return out
 	}
@@ -307,15 +337,17 @@ func (r *protectedRefResolver) entityRef(who string, qn ast.QualifiedName, src s
 		return ""
 	}
 	return fmt.Sprintf("CE1406: %s is not allowed to use entity '%s' because %s %s — %s is a protected module "+
-		"and the entity's export level is Hidden (mxcli cannot change an entity's export level; set it to Usable in Studio Pro)",
-		who, qn.String(), src, ce1406Tail, qn.Module)
+		"and the entity's export level is Hidden; make it usable with `alter entity %s set export level api`",
+		who, qn.String(), src, ce1406Tail, qn.Module, qn.String())
 }
 
-func ce5400(entity ast.QualifiedName, exposer string) string {
-	return fmt.Sprintf("CE5400: the export level of entity '%s' should be 'Usable' because %s exposes it and has export level 'Usable' "+
-		"(%s is a protected module and the entity is Hidden; mxcli cannot change an entity's export level — set it to Usable in Studio Pro, "+
-		"or drop `export level api` from the microflow)",
-		entity.String(), exposer, entity.Module)
+// ce5400 words mxbuild's message, kind being "entity" or "enumeration", and
+// names the MDL that makes the element Usable.
+func ce5400(kind string, qn ast.QualifiedName, exposer string) string {
+	return fmt.Sprintf("CE5400: the export level of %s '%s' should be 'Usable' because %s exposes it and has export level 'Usable' "+
+		"(%s is a protected module and the %s is Hidden) — make it usable with `alter %s %s set export level api` "+
+		"(or `export level api` on its create statement), or drop `export level api` from the microflow",
+		kind, qn.String(), exposer, qn.Module, kind, kind, qn.String())
 }
 
 // flowLevel is a microflow's effective export level: what the script states,
@@ -352,14 +384,48 @@ func (r *protectedRefResolver) storedMicroflowLevel(qn ast.QualifiedName) (strin
 	return "", false
 }
 
-// entityHidden reports whether an entity is known to be Hidden: a stored one
-// whose level is not API, or one the script creates (always written Hidden,
-// a rewrite carrying the stored level).
+// entityHidden reports whether an entity is known to be Hidden once the script
+// has run: the level the script states for it (on its create statement or by
+// `alter entity … set export level`), else the stored level, else Hidden for one
+// the script creates — the level an absent clause writes, a rewrite of a stored
+// entity carrying the stored level instead.
 func (r *protectedRefResolver) entityHidden(qn ast.QualifiedName) bool {
+	stated, defined := r.scriptEntity[qn.String()]
+	if stated != nil {
+		return *stated != types.ExportLevelAPI
+	}
 	if lvl, ok := r.storedEntityLevel(qn); ok {
 		return lvl != types.ExportLevelAPI
 	}
-	return r.scriptEntity[qn.String()]
+	return defined
+}
+
+// enumHidden is entityHidden for an enumeration.
+func (r *protectedRefResolver) enumHidden(qn ast.QualifiedName) bool {
+	stated, defined := r.scriptEnum[qn.String()]
+	if stated != nil {
+		return *stated != types.ExportLevelAPI
+	}
+	if lvl, ok := r.storedEnumLevel(qn); ok {
+		return lvl != types.ExportLevelAPI
+	}
+	return defined
+}
+
+func (r *protectedRefResolver) storedEnumLevel(qn ast.QualifiedName) (string, bool) {
+	if r.enumLevels == nil {
+		r.enumLevels = map[string]string{}
+		h, herr := getHierarchy(r.ctx)
+		enums, err := r.ctx.Backend.ListEnumerations()
+		if herr == nil && err == nil {
+			for _, e := range enums {
+				// "" is written as Hidden (enumToGen) and read so by mxbuild.
+				r.enumLevels[h.GetModuleName(h.FindModuleID(e.ContainerID))+"."+e.Name] = e.ExportLevel
+			}
+		}
+	}
+	lvl, ok := r.enumLevels[qn.String()]
+	return lvl, ok
 }
 
 func (r *protectedRefResolver) storedEntityLevel(qn ast.QualifiedName) (string, bool) {
@@ -398,6 +464,16 @@ func signatureEntity(dt ast.DataType) (ast.QualifiedName, bool) {
 	case (dt.Kind == ast.TypeEntity || dt.Kind == ast.TypeListOf) && dt.EntityRef != nil:
 		return *dt.EntityRef, true
 	case dt.Kind == ast.TypeEnumeration && !dt.ExplicitEnum && dt.EnumRef != nil:
+		return *dt.EnumRef, true
+	}
+	return ast.QualifiedName{}, false
+}
+
+// signatureEnumeration is the enumeration a parameter or return type names, if
+// any: `enum M.E`, or a bare `M.E`, which resolves only if an enumeration has
+// that name.
+func signatureEnumeration(dt ast.DataType) (ast.QualifiedName, bool) {
+	if dt.Kind == ast.TypeEnumeration && dt.EnumRef != nil {
 		return *dt.EnumRef, true
 	}
 	return ast.QualifiedName{}, false
