@@ -60,6 +60,22 @@ set $Name = $Product/Shop.Product_Category/Name;
 
 **Explanation**: XPath navigation requires the full qualified association name in the format `Module.AssociationName`.
 
+A path that **ends** on the association is not a value at all, in either
+direction: `return $Parent/Shop.Order_Customer;` is CE0117 at the end event
+(MDL049, as for a call argument), and `loop $o in $Customer/Shop.Order_Customer`
+has no list to store, CE0099 (MDL094). Retrieve over the association — that is
+the activity both mean:
+
+```mdl
+retrieve $Orders from $Customer/Shop.Order_Customer;
+loop $o in $Orders begin ... end loop;
+return $Orders;
+```
+
+Naming the target entity after a reference followed from its owner,
+`$Order/Shop.Order_Customer/Shop.Customer`, is the one path form that is an
+object value (Studio Pro's own spelling).
+
 ### 3. Missing Attributes
 
 **Error**: Attribute references must exist in entity definition
