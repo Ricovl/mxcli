@@ -67,9 +67,16 @@ has no list to store, CE0099 (MDL094). Retrieve over the association — that is
 the activity both mean:
 
 ```mdl
-retrieve $Orders from $Customer/Shop.Order_Customer;
-loop $o in $Orders begin ... end loop;
-return $Orders;
+mdl 1;
+create microflow Shop.CustomerOrders ($Customer: Shop.Customer)
+returns list of Shop.Order as $Orders
+begin
+  retrieve $Orders from $Customer/Shop.Order_Customer;
+  loop $o in $Orders begin
+    log info node 'Shop' $o/OrderNumber;
+  end loop;
+  return $Orders;
+end;
 ```
 
 Naming the target entity after a reference followed from its owner,
