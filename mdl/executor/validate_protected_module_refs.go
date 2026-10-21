@@ -33,7 +33,8 @@ import (
 //
 // Covered shapes: navigation home pages, home flows, login / not-found pages and
 // menu items; menu documents; microflow and nanoflow parameter and return
-// types, call microflow and show page in their bodies. Everything else is left
+// types, call microflow and show page in their bodies; and the attributes and
+// associations a flow uses (checkFlowMembers). Everything else is left
 // alone, and so is anything whose level cannot be established — settings that
 // do not read, a target that does not resolve (the not-found checks own that),
 // a nanoflow target (mxcli does not read a nanoflow's export level), or a
@@ -52,6 +53,8 @@ func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
 		scriptFlows:  map[string]*string{},
 		scriptEntity: map[string]*string{},
 		scriptEnum:   map[string]*string{},
+		scriptAttr:   map[string]*string{},
+		scriptAssoc:  map[string]*string{},
 		scriptPages:  map[string]bool{},
 		entityLevels: map[string]map[string]string{},
 	}
@@ -135,6 +138,8 @@ type protectedRefResolver struct {
 	scriptFlows  map[string]*string
 	scriptEntity map[string]*string
 	scriptEnum   map[string]*string
+	scriptAttr   map[string]*string // "Module.Entity.Attribute"
+	scriptAssoc  map[string]*string // "Module.Association"
 	scriptPages  map[string]bool
 
 	storedPages  map[string]bool
@@ -148,12 +153,30 @@ func (r *protectedRefResolver) recordDefinition(stmt ast.Statement) {
 		r.scriptFlows[s.Name.String()] = s.ExportLevel
 	case *ast.CreateEntityStmt:
 		recordLevel(r.scriptEntity, s.Name.String(), s.ExportLevel)
+		for _, a := range s.Attributes {
+			recordLevel(r.scriptAttr, s.Name.String()+"."+a.Name, a.ExportLevel)
+		}
 	case *ast.CreateViewEntityStmt:
 		recordLevel(r.scriptEntity, s.Name.String(), s.ExportLevel)
+		for _, a := range s.Attributes {
+			recordLevel(r.scriptAttr, s.Name.String()+"."+a.Name, a.ExportLevel)
+		}
 	case *ast.AlterEntityStmt:
-		if s.Operation == ast.AlterEntitySetExportLevel {
+		switch {
+		case s.Operation == ast.AlterEntitySetExportLevel:
 			lvl := s.ExportLevel
 			r.scriptEntity[s.Name.String()] = &lvl
+		case s.Operation == ast.AlterEntityAddAttribute && s.Attribute != nil:
+			recordLevel(r.scriptAttr, s.Name.String()+"."+s.Attribute.Name, s.Attribute.ExportLevel)
+		case s.Operation == ast.AlterEntityModifyAttribute && s.ModifyExportLevel != nil:
+			r.scriptAttr[s.Name.String()+"."+s.AttributeName] = s.ModifyExportLevel
+		}
+	case *ast.CreateAssociationStmt:
+		recordLevel(r.scriptAssoc, s.Name.String(), s.ExportLevel)
+	case *ast.AlterAssociationStmt:
+		if s.Operation == ast.AlterAssociationSetExportLevel {
+			lvl := s.ExportLevel
+			r.scriptAssoc[s.Name.String()] = &lvl
 		}
 	case *ast.CreateEnumerationStmt:
 		recordLevel(r.scriptEnum, s.Name.String(), s.ExportLevel)
@@ -188,11 +211,13 @@ func (r *protectedRefResolver) check(stmt ast.Statement) []string {
 		}
 		return r.checkMenuItems(s.Items, "app modules")
 	case *ast.CreateMicroflowStmt:
-		return r.checkFlow(s.Name, s.Parameters, s.ReturnType, s.Body, effectiveFlowLevel(r, s))
+		return append(r.checkFlow(s.Name, s.Parameters, s.ReturnType, s.Body, effectiveFlowLevel(r, s)),
+			r.checkFlowMembers(s.Name, s.Parameters, s.Body)...)
 	case *ast.CreateNanoflowStmt:
 		// A nanoflow's own export level is not read, so only its references out
 		// of an ordinary module are checked, never CE5400 on it.
-		return r.checkFlow(s.Name, s.Parameters, s.ReturnType, s.Body, "")
+		return append(r.checkFlow(s.Name, s.Parameters, s.ReturnType, s.Body, ""),
+			r.checkFlowMembers(s.Name, s.Parameters, s.Body)...)
 	}
 	return nil
 }
