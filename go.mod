@@ -2,7 +2,7 @@ module github.com/mendixlabs/mxcli
 
 go 1.26.0
 
-toolchain go1.27.2
+toolchain go1.27.3
 
 require (
 	github.com/alecthomas/chroma/v2 v2.26.1
@@ -14,6 +14,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jpillora/chisel v1.11.8
+	github.com/klauspost/compress v1.20.3
 	github.com/mattn/go-runewidth v0.0.24
 	github.com/microsoft/go-mssqldb v1.11.2
 	github.com/pmezard/go-difflib v1.0.0
