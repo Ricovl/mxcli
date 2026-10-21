@@ -16,6 +16,10 @@ features:
     entity_generalization:
       min_version: "9.0.0"
       mdl: "EXTENDS Module.ParentEntity"
+    export_levels:
+      min_version: "9.3.0"
+      mdl: "EXPORT LEVEL API | HIDDEN on an entity, attribute, association or enumeration"
+      notes: "DomainModels Entity/Attribute/AssociationBase.exportLevel and Projects Document.exportLevel (enumerations) introduced in 9.3.0 (mendixmodelsdk 4.116.0 StructureVersionInfo); mendixlabs/mxcli#1498"
 
   microflows:
     basic:

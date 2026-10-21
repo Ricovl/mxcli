@@ -90,6 +90,9 @@ func (b *Builder) ExitCreateEntityStatement(ctx *parser.CreateEntityStatementCon
 						stmt.EventHandlers = append(stmt.EventHandlers, *eh)
 					}
 				}
+				if el := optCtx.MicroflowExportLevelClause(); el != nil {
+					stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+				}
 			}
 		}
 	}
@@ -185,6 +188,13 @@ func (b *Builder) buildViewEntity(ctx *parser.CreateEntityStatementContext) {
 		bodyCtx := body.(*parser.EntityBodyContext)
 		if attrList := bodyCtx.AttributeDefinitionList(); attrList != nil {
 			stmt.Attributes = buildViewAttributes(attrList)
+		}
+		if opts := bodyCtx.EntityOptions(); opts != nil {
+			for _, opt := range opts.(*parser.EntityOptionsContext).AllEntityOption() {
+				if el := opt.(*parser.EntityOptionContext).MicroflowExportLevelClause(); el != nil {
+					stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+				}
+			}
 		}
 	}
 
@@ -518,7 +528,11 @@ func buildViewAttributes(attrList parser.IAttributeDefinitionListContext) []ast.
 			attr.Type = buildDataType(dt)
 		}
 		for _, c := range defCtx.AllAttributeConstraint() {
-			applyLocalizeConstraint(&attr.Type, c.(*parser.AttributeConstraintContext))
+			cc := c.(*parser.AttributeConstraintContext)
+			applyLocalizeConstraint(&attr.Type, cc)
+			if el := cc.MicroflowExportLevelClause(); el != nil {
+				attr.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 		attrs = append(attrs, attr)
 	}
@@ -704,6 +718,8 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 						}
 					case c.LOCALIZED() != nil:
 						applyLocalizeConstraint(&stmt.DataType, c)
+					case c.MicroflowExportLevelClause() != nil:
+						stmt.ModifyExportLevel = exportLevelOf(c.MicroflowExportLevelClause().(*parser.MicroflowExportLevelClauseContext))
 					}
 				}
 				b.statements = append(b.statements, stmt)
@@ -750,6 +766,16 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 					Name:          name,
 					Operation:     ast.AlterEntitySetDocumentation,
 					Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
+				})
+				return
+			}
+
+			// SET EXPORT LEVEL API | HIDDEN
+			if el := ctx.MicroflowExportLevelClause(); ctx.SET() != nil && el != nil {
+				b.statements = append(b.statements, &ast.AlterEntityStmt{
+					Name:        name,
+					Operation:   ast.AlterEntitySetExportLevel,
+					ExportLevel: *exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext)),
 				})
 				return
 			}
