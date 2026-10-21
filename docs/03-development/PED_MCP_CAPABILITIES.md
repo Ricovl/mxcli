@@ -572,6 +572,41 @@ behaviour change, not an error.
 read the `page-gen-common` skill first); page create and ALTER ran clean on both
 servers.
 
+### Microflow canvas: flow sides and notes (measured live 2026-10-21, 11.15.0-rc.4)
+
+- **A flow created without sides is drawn right → left.** The `SequenceFlow`
+  constructor takes `originConnectionSide` / `destinationConnectionSide`
+  (`Top | Right | Bottom | Left`). The create path sent neither, so every `@anchor`,
+  CASE outcome anchor and builder default was lost: a CASE built with
+  `@anchor(from: bottom, Approved: (from: right), (empty): (from: bottom, to: top))`
+  read back `1 -> 3` on all eight flows. **Fixed:** `buildFlowDocContent` maps the
+  connection indexes the way the splice already did (`setPEDSides`).
+- **A note is a `Microflows$Annotation` object** (`x`, `y`, `caption`, `size`) and
+  its line a **`Microflows$AnnotationFlow` element, not a constructor.** Its ends
+  are `origin` / `destination`, not `originId` / `destinationId`, and its sides are
+  the required `originConnectionIndex` / `destinationConnectionIndex` themselves.
+  The constructor keys are refused: `"/origin":"Expected reference (string), got
+  undefined"`. Before the fix, a microflow with a note failed the whole create
+  (`mapObjectTree` had no case for it). The splice had the same wrong keys too,
+  hidden because the note was refused before its line was mapped.
+- Verified: the same script read back from Studio Pro and from the modelsdk engine
+  gives **identical sides on all 10 flows**, both note lines included (an unplaced
+  note `2 -> 0`, a note placed below its activity `0 -> 2`). It also gives the same
+  note positions, sizes and captions, and `ped_check_errors` is clean on two
+  successive calls. A read-back leaves out a connection index of 0, its default.
+- The pre-11.14 (full) constructor's flows carry no `$Type`, so a note's line could
+  only be read as a `SequenceFlow`. The backend refuses notes there rather than
+  risk an execution edge out of a note.
+- Within one `ped_update_document`, an `AnnotationFlow` added *before* a
+  `SequenceFlow` is stored *after* it. So the splice adds its new sequence flows
+  (and the sets that address them by index) first, and note lines last.
+- **Open: ALTER MICROFLOW insert over MCP fails on 11.15.** Setting
+  `/flows/N/line/originControlVector` on a flow added in the same update fails the
+  whole update with `undefined is not an object (evaluating 'u.$Type')`. This
+  happened without any note: a plain one-activity insert failed, and so did a lone
+  `SequenceFlow` add followed by that set. Setting the flow's whole `line` instead
+  is accepted but **not applied**: the read-back has no control vectors.
+
 ## Capability gaps (established 11.11, status re-checked each release)
 
 These are the *absences* that bound what the backend can do. They are as
