@@ -767,7 +767,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	}
 
 	// Position error handler below the main flow
-	errorY := fb.posY + VerticalSpacing
+	errorY := fb.posY + ErrorHandlerPitch
 	errorX := sourceX
 
 	// Build error handler activities

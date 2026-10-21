@@ -609,7 +609,7 @@ func (fb *flowBuilder) addTerminalEndEventForPendingHandler(returns *ast.Microfl
 	end := &microflows.EndEvent{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    model.Point{X: fb.posX + HorizontalSpacing/2, Y: fb.baseY + VerticalSpacing},
+			Position:    model.Point{X: fb.posX + HorizontalSpacing/2, Y: fb.baseY + ErrorHandlerPitch},
 			Size:        model.Size{Width: EventSize, Height: EventSize},
 		},
 		ReturnValue: returnValue,
