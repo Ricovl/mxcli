@@ -120,7 +120,7 @@ func ruleToGen(rule *microflows.Rule, v flowVersion) *genMf.Rule {
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range rule.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, rule.Parameters, v))
 	}
 	if rule.ObjectCollection != nil {
 		for _, obj := range rule.ObjectCollection.Objects {

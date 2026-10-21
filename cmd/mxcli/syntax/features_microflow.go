@@ -878,7 +878,8 @@ func init() {
 			"A PARAMETER is a stored node with its own coordinates, so it takes\n" +
 			"@position too — written inside the parameter list, ahead of the parameter\n" +
 			"it places. It is the only annotation a parameter takes. Omit it and the\n" +
-			"parameters form a row along the top of the canvas at 200;53, 300;53, … ;\n" +
+			"parameters form a row along the top of the canvas from 200;53, spaced 100px\n" +
+			"apart or wider when a name needs it (about 7px a character, #1598);\n" +
 			"the same derived/authored rule as @start then applies, so a parameter on\n" +
 			"that row is re-derived and one anywhere else survives a rewrite and is\n" +
 			"emitted by DESCRIBE.\n\n" +

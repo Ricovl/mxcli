@@ -102,7 +102,7 @@ func nanoflowToGen(nf *microflows.Nanoflow, v flowVersion) *genMf.Nanoflow {
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range nf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, nf.Parameters, v))
 	}
 	if nf.ObjectCollection != nil {
 		for _, obj := range nf.ObjectCollection.Objects {

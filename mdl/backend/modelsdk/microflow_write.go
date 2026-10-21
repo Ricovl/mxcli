@@ -304,7 +304,7 @@ func microflowToGen(mf *microflows.Microflow, v flowVersion) *genMf.Microflow {
 	// Object collection (parameters merged first, then objects).
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range mf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, mf.Parameters, v))
 	}
 	if mf.ObjectCollection != nil {
 		for _, obj := range mf.ObjectCollection.Objects {
@@ -1521,15 +1521,15 @@ func memberChangeToGen(m *microflows.MemberChange) element.Element {
 }
 
 // microflowParameterToGen builds a gen MicroflowParameter. An authored position
-// is written as given; without one the position derives from the index, matching
-// the legacy serializer.
-func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, v flowVersion) element.Element {
+// is written as given; without one the position derives from the index and the
+// names of all the flow's parameters (params), which space the row.
+func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, params []*microflows.MicroflowParameter, v flowVersion) element.Element {
 	g := genMf.NewMicroflowParameter()
 	g.SetID(element.ID(p.ID))
 	g.SetDocumentation(p.Documentation)
 	g.SetHasVariableNameBeenChanged(false)
 	g.SetName(p.Name)
-	pos := microflows.DerivedParameterPosition(idx)
+	pos := microflows.DerivedParameterPosition(idx, params)
 	if p.Position != nil {
 		pos = *p.Position
 	}

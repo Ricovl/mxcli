@@ -271,7 +271,7 @@ func parameterMoves(d *flowDecl, stored []*microflows.MicroflowParameter) []flow
 			if sp.Name != p.Name {
 				continue
 			}
-			cur := microflows.DerivedParameterPosition(i)
+			cur := microflows.DerivedParameterPosition(i, stored)
 			if sp.Position != nil {
 				cur = *sp.Position
 			}
