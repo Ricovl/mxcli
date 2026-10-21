@@ -55,13 +55,15 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	var existingActionInfo *types.MicroflowActionInfo
 	var existingJSDoc string
 	haveExistingJS := false
-	// A parameter's Description and Category have no MDL spelling — DESCRIBE
-	// prints the description as a comment — so a rewrite carries them from the
-	// stored parameter of the same name, as the Java twin does (#731).
+	// A parameter's Category has no MDL spelling, and its Description is set
+	// only by a `/** … */` before it, so a rewrite carries both from the stored
+	// parameter of the same name unless the statement says otherwise, as the
+	// Java twin does (#731, mendixlabs/mxcli#1588).
 	storedParams := map[string]*types.JavaActionParameter{}
 	// The stored parameter names in order, for sourceUnchanged below.
 	var storedParamNames []string
-	// No MDL spelling for either, so a rewrite carries them; the defaults are
+	// The export level has no MDL spelling and the return value's name is set
+	// only by `returns T as $Name`, so a rewrite carries them; the defaults are
 	// Studio Pro's. "Public", which this hardcoded, is not a member of
 	// JavaScriptActionsExportLevel (API | Hidden) — see the Java twin.
 	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
@@ -108,6 +110,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	newID := model.ID(types.GenerateID())
 	if existingID != "" {
 		newID = existingID
+	}
+
+	if s.ReturnName != "" {
+		defaultReturnName = s.ReturnName
 	}
 
 	jsa := &types.JavaScriptAction{
@@ -170,10 +176,12 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 				p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 			}
 		}
+		var storedDescription string
 		if sp := storedParams[param.Name]; sp != nil {
-			p.Description = sp.Description
+			storedDescription = sp.Description
 			p.Category = sp.Category
 		}
+		p.Description = carriedDocumentation(param.DescriptionSet, param.Description, storedDescription)
 		jsa.Parameters = append(jsa.Parameters, p)
 	}
 
