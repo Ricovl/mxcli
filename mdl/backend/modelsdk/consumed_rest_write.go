@@ -13,20 +13,25 @@ import (
 )
 
 func init() {
-	// A consumed REST service's Operations list and each operation's Headers /
-	// Parameters / QueryParameters use the typed-array marker 2; Tags is a marker-1
-	// string array. BaseUrlParameter is always null; AuthenticationScheme is null
-	// when there is no authentication.
-	codec.RegisterListMarker("Rest$RestOperation", 2)
-	codec.RegisterListMarker("Rest$HeaderWithValueTemplate", 2)
-	codec.RegisterListMarker("Rest$OperationParameter", 2)
+	// A consumed REST service's Operations list and each operation's Headers and
+	// Parameters use the typed-array marker 3, its QueryParameters 2, and Tags is
+	// a marker-1 string array — measured on the Studio Pro-authored services in
+	// TestApp (11.14.0) and on `mx convert -p` of mxcli-written ones (11.6.6),
+	// which agree. The first three were 2, copied from the legacy serializer and
+	// never measured, so a rewrite of a Studio Pro-authored service changed its
+	// markers even when nothing else changed (mendixlabs/mxcli#1608).
+	// BaseUrlParameter is always null; AuthenticationScheme is null when there is
+	// no authentication.
+	codec.RegisterListMarker("Rest$RestOperation", 3)
+	codec.RegisterListMarker("Rest$HeaderWithValueTemplate", 3)
+	codec.RegisterListMarker("Rest$OperationParameter", 3)
 	codec.RegisterListMarker("Rest$QueryParameter", 2)
 	codec.RegisterTypeDefaults("Rest$ConsumedRestService", codec.TypeDefaults{
-		MandatoryListMarkers: map[string]int32{"Operations": 2},
+		MandatoryListMarkers: map[string]int32{"Operations": 3},
 		NullFields:           []string{"BaseUrlParameter", "AuthenticationScheme"},
 	})
 	codec.RegisterTypeDefaults("Rest$RestOperation", codec.TypeDefaults{
-		MandatoryListMarkers: map[string]int32{"Tags": 1, "Headers": 2, "Parameters": 2, "QueryParameters": 2},
+		MandatoryListMarkers: map[string]int32{"Tags": 1, "Headers": 3, "Parameters": 3, "QueryParameters": 2},
 	})
 }
 

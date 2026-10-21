@@ -102,7 +102,13 @@ func (b *Backend) EditConsumedRestService(id model.ID, edit *backend.ConsumedRes
 		}
 		ops = append(ops, od)
 	}
-	doc = setDocKey(doc, "Operations", append(bson.A{int32(2)}, ops...))
+	// The list keeps the marker it was stored with; one written without a list
+	// gets Studio Pro's.
+	marker := any(int32(3))
+	if stored, ok := bsonnav.DGet(doc, "Operations").(bson.A); ok && len(stored) > 0 {
+		marker = stored[0]
+	}
+	doc = setDocKey(doc, "Operations", append(bson.A{marker}, ops...))
 
 	contents, err := bson.Marshal(doc)
 	if err != nil {
