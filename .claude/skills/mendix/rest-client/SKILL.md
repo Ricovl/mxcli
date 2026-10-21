@@ -11,15 +11,15 @@ description: "Call external REST APIs from Mendix — the three approaches (inli
 | lines | section |
 |---|---|
 | 29-44 | Three Approaches |
-| 45-109 | Approach 0: OpenAPI Import (Fastest) |
-| 110-336 | Approach 1: REST Client (Manual) |
-| 337-382 | Approach 2: REST CALL (Inline HTTP) |
-| 383-415 | Data Transformers (JSLT — Mendix 11.9+) |
-| 416-453 | JSON Structures & Mappings |
-| 454-525 | Complete Pipeline Example |
-| 526-556 | Published REST: Authentication Parameters |
-| 557-566 | Mendix Validation Rules |
-| 567-587 | BSON Types Reference |
+| 45-110 | Approach 0: OpenAPI Import (Fastest) |
+| 111-337 | Approach 1: REST Client (Manual) |
+| 338-383 | Approach 2: REST CALL (Inline HTTP) |
+| 384-416 | Data Transformers (JSLT — Mendix 11.9+) |
+| 417-454 | JSON Structures & Mappings |
+| 455-526 | Complete Pipeline Example |
+| 527-557 | Published REST: Authentication Parameters |
+| 558-567 | Mendix Validation Rules |
+| 568-588 | BSON Types Reference |
 
 <!-- /skill-index -->
 # REST Integration Skill
@@ -96,6 +96,7 @@ non-persistent entities yourself and give the operations you call a mapping (see
 Types* below):
 
 ```sql
+mdl 1;
 alter consumed rest service PetStoreModule.PetStoreAPI
   modify operation getPetById (
     response: mapping PetStoreModule.Pet { Id = id, Name = name }
