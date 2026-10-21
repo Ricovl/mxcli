@@ -427,7 +427,7 @@ LIST IMPACT OF htmlelement;
 			"snippet", "snippets", "reusable", "snippetcall",
 			"page fragment", "component",
 		},
-		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: ( $P: Module.Entity ) )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: ( $P: Module.Entity ) )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)\n-- A snippet call renders no element: Class / Style / DynamicClasses /\n-- DesignProperties on it never reach the page (MDL-WIDGET48). Style a\n-- container around the call, or inside the snippet, instead.",
 		Example: "CREATE SNIPPET MyModule.CustomerInfo (\n  Params: ( $Customer: MyModule.Customer )\n)\n{\n  DATAVIEW dv (DataSource: $Customer) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n  }\n};",
 		SeeAlso: []string{"snippet.create", "snippet.alter", "page"},
 	})

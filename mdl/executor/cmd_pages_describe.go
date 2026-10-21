@@ -665,8 +665,10 @@ type rawDataSource struct {
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
 	// Destination is the entity an association source's last hop arrives at, as
 	// stored (EntityRef.Steps[last].DestinationEntity). Reference is the
-	// association there, so this is the entity the source puts in scope. Empty
-	// when the model does not store it.
+	// association there, so this is the entity the source puts in scope. A
+	// parameter source sets it to the parameter's entity (EntityRef.Entity),
+	// Reference being the parameter's name. Empty when the model does not
+	// store it.
 	Destination string
 	// EntitySteps is set on a database source reached over associations from a
 	// context object: a Forms$ListViewXPathSource whose EntityRef is an

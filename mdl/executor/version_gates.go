@@ -65,6 +65,34 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateViewEntityStmt:
 		return []versionGate{{"domain_model", "view_entities", "create view entity",
 			"upgrade your project to 10.18+ or use a regular entity with a microflow data source"}}
+	// A domain-model EXPORT LEVEL is 9.3+ (mendixlabs/mxcli#1498). Gated on the
+	// clause being STATED, as the deep-link URL is: a statement without one
+	// carries the stored level and writes nothing new.
+	case *ast.CreateEntityStmt:
+		if s.ExportLevel != nil || attributesStateExportLevel(s.Attributes) {
+			return []versionGate{exportLevelGate("export level on an entity or attribute")}
+		}
+	case *ast.AlterEntityStmt:
+		if s.Operation == ast.AlterEntitySetExportLevel || s.ModifyExportLevel != nil ||
+			(s.Attribute != nil && s.Attribute.ExportLevel != nil) {
+			return []versionGate{exportLevelGate("export level on an entity or attribute")}
+		}
+	case *ast.CreateAssociationStmt:
+		if s.ExportLevel != nil {
+			return []versionGate{exportLevelGate("export level on an association")}
+		}
+	case *ast.AlterAssociationStmt:
+		if s.Operation == ast.AlterAssociationSetExportLevel {
+			return []versionGate{exportLevelGate("export level on an association")}
+		}
+	case *ast.CreateEnumerationStmt:
+		if s.ExportLevel != nil {
+			return []versionGate{exportLevelGate("export level on an enumeration")}
+		}
+	case *ast.AlterEnumerationStmt:
+		if s.Operation == ast.AlterEnumSetExportLevel {
+			return []versionGate{exportLevelGate("export level on an enumeration")}
+		}
 	case *ast.CreateModelStmt:
 		return []versionGate{agentDocumentGate("agent_model", "create model")}
 	case *ast.CreateConsumedMCPServiceStmt:
@@ -144,6 +172,20 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		return gates
 	}
 	return nil
+}
+
+func exportLevelGate(statement string) versionGate {
+	return versionGate{"domain_model", "export_levels", statement,
+		"Mendix stores no export level on domain-model elements before 9.3 — remove the clause, or upgrade the project"}
+}
+
+func attributesStateExportLevel(attrs []ast.Attribute) bool {
+	for _, a := range attrs {
+		if a.ExportLevel != nil {
+			return true
+		}
+	}
+	return false
 }
 
 var (

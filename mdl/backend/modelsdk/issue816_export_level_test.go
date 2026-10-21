@@ -106,16 +106,19 @@ func orHidden(authored string) string {
 
 var exportLevelCases = []exportLevelCase{
 	{
-		name: "Enumeration",
+		// `create enumeration … export level api` (mendixlabs/mxcli#1498).
+		name:       "Enumeration",
+		authorable: true,
 		subject: func(t *testing.T, b *Backend) model.ID {
 			all, err := b.ListEnumerations()
 			return firstID(t, err, len(all), func() model.ID { return all[0].ID })
 		},
-		rewrite: func(t *testing.T, b *Backend, id model.ID, _ string) error {
+		rewrite: func(t *testing.T, b *Backend, id model.ID, authored string) error {
 			e, err := b.GetEnumeration(id)
 			if err != nil {
 				return err
 			}
+			e.ExportLevel = authored
 			return b.UpdateEnumeration(e)
 		},
 	},

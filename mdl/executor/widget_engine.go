@@ -480,7 +480,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 				e.recordDataSourceEntity(propKey, entityName)
 				if entityName != "" {
 					e.pageBuilder.entityContext = entityName
-					e.pageBuilder.argCtx = enteringDataWidget(ds, entityName)
+					e.pageBuilder.argCtx = enteringDataWidget(ds, entityName).inDataWidget(w.Name)
 				}
 			}
 		}
@@ -1615,7 +1615,7 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			e.recordDataSourceEntity(mapping.PropertyKey, entityName)
 			if entityName != "" {
 				e.pageBuilder.entityContext = entityName
-				e.pageBuilder.argCtx = enteringDataWidget(ds, entityName)
+				e.pageBuilder.argCtx = enteringDataWidget(ds, entityName).inDataWidget(w.Name)
 				if w.Name != "" {
 					e.pageBuilder.paramEntityNames[w.Name] = entityName
 				}
@@ -2462,15 +2462,25 @@ func (e *PluggableWidgetEngine) applyChildSlots(builder backend.WidgetObjectBuil
 			slot, ok = slotContainers[strings.ToLower(child.Name)]
 		}
 		if ok {
+			// The slot's children are built here, not through the slot's own
+			// node, so the context it gives them is applied here: a control
+			// bar holds its grid's selection (mendixlabs/mxcli#122), the same
+			// rule the check-time walk applies.
+			outerArgCtx := e.pageBuilder.argCtx
+			if lowerType == "controlbar" {
+				e.pageBuilder.argCtx = argContextForChildren(child, outerArgCtx)
+			}
 			for _, slotChild := range child.Children {
 				widget, err := e.pageBuilder.buildWidgetV3(slotChild)
 				if err != nil {
+					e.pageBuilder.argCtx = outerArgCtx
 					return err
 				}
 				if widget != nil {
 					slotWidgets[slot.PropertyKey] = append(slotWidgets[slot.PropertyKey], widget)
 				}
 			}
+			e.pageBuilder.argCtx = outerArgCtx
 		} else {
 			widget, err := e.pageBuilder.buildWidgetV3(child)
 			if err != nil {

@@ -1,0 +1,50 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1532 - no boundary events on CALL WORKFLOW
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   `call workflow … boundary event interrupting timer …` failed to parse:
+--     mismatched input 'boundary' expecting ';'
+--     mismatched input 'interrupting' expecting SUBPROCESS
+--   The same clause after `call microflow` and `wait for notification` parsed,
+--   and DESCRIBE printed it for a call workflow Studio Pro had given a timer —
+--   so describe output of such a workflow did not re-parse.
+--
+-- After fix:
+--   The clause is the one call microflow uses. Measured with mx check on
+--   Mendix 11.6.6 and 11.15.0: both parents below build with 0 errors, and
+--   describe -> exec of them reports "already in sync".
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1532-call-workflow-boundary-events.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe workflow BugTest1532.WF_ParentInt"
+--   mxcli docker check -p app.mpr   -- expect 0 errors
+-- ============================================================================
+
+create module BugTest1532;
+create persistent entity BugTest1532.Item ( Name: String(100) );
+
+create workflow BugTest1532.WF_Child
+  parameter $WorkflowContext: BugTest1532.Item
+begin
+  wait for timer childWait addDays([%CurrentDateTime%], 1);
+end workflow;
+
+-- Interrupting: the deadline cancels the child and ends the parent.
+create workflow BugTest1532.WF_ParentInt
+  parameter $WorkflowContext: BugTest1532.Item
+begin
+  call workflow BugTest1532.WF_Child(WorkflowContext = $WorkflowContext) as callChild
+    boundary event interrupting timer addDays([%CurrentDateTime%], 1) { end workflow; };
+end workflow;
+
+-- Non-interrupting: the reminder path runs alongside the child.
+create workflow BugTest1532.WF_ParentNonInt
+  parameter $WorkflowContext: BugTest1532.Item
+begin
+  call workflow BugTest1532.WF_Child(WorkflowContext = $WorkflowContext) as callChild
+    boundary event non interrupting timer addHours([%CurrentDateTime%], 4) {
+      wait for timer remindWait addHours([%CurrentDateTime%], 1);
+    };
+end workflow;

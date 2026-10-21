@@ -75,7 +75,8 @@ func describeDataTransformer(ctx *ExecContext, name ast.QualifiedName) error {
 
 		w := ctx.Output
 
-		// Emit re-executable MDL
+		// Emit re-executable MDL, the documentation first (mendixlabs/mxcli#1510).
+		writeDocumentDocComment(w, dt.Documentation)
 		fmt.Fprintf(w, "create or modify data transformer %s.%s%s\n", modName, dt.Name, describeFolderClause(ctx, dt.ContainerID))
 
 		// Source — collapse newlines into spaces for single-line string
@@ -137,10 +138,14 @@ func execCreateDataTransformer(ctx *ExecContext, s *ast.CreateDataTransformerStm
 		Name:        s.Name.Name,
 		SourceType:  s.SourceType,
 		SourceJSON:  s.SourceJSON,
+		// The doc comment (mendixlabs/mxcli#1510).
+		Documentation: s.Documentation,
 	}
 	if existing != nil {
 		// Excluded is model state, not script state (#914).
 		dt.Excluded = existing.Excluded
+		// A rewrite that carried no doc comment keeps the stored one (#1018).
+		dt.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
 	}
 
 	for _, step := range s.Steps {

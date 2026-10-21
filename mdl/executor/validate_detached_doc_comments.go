@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -20,7 +21,8 @@ const detachedDocCommentRule = "MDL089"
 // wrote `drop microflow if exists X;` between six flows' comments and their
 // creates, and only lint's QUAL002 noticed the missing documentation. The
 // warning names the next statement that would have stored it, which is almost
-// always the one it was meant for.
+// always the one it was meant for — except after a create, which is itself the
+// element the comment describes (mendixlabs/mxcli#1510).
 //
 // A warning, not an error, under every language version: the statement does
 // what it says, and only the comment is lost.
@@ -30,7 +32,16 @@ func ValidateDetachedDocComments(prog *ast.Program) []linter.Violation {
 		msg := fmt.Sprintf("line %d: the doc comment before `%s` is lost: that statement cannot store "+
 			"documentation, so the comment is ignored", d.Line, d.Statement)
 		suggestion := "Move the doc comment above the statement it documents, or make it a `--` comment."
-		if d.Next != "" {
+		switch {
+		case isCreateHead(d.Statement):
+			// The comment is ON the element it describes, which simply has no
+			// documentation MDL can write. The next statement documents a
+			// different element, so pointing there would move text written for
+			// this one onto that one (mendixlabs/mxcli#1510).
+			msg = fmt.Sprintf("line %d: the doc comment before `%s` is lost: MDL cannot store documentation "+
+				"for that element, so the comment is ignored", d.Line, d.Statement)
+			suggestion = "Make it a `--` comment, which keeps the note without implying it is stored."
+		case d.Next != "":
 			msg += fmt.Sprintf("; the next statement that can take it is `%s` (line %d)", d.Next, d.NextLine)
 			suggestion = fmt.Sprintf("Move the doc comment directly above `%s`, after the `%s`.", d.Next, d.Statement)
 		}
@@ -42,4 +53,10 @@ func ValidateDetachedDocComments(prog *ast.Program) []linter.Violation {
 		})
 	}
 	return out
+}
+
+// isCreateHead reports whether a statement head, as statementHead records it,
+// is a create — the element the doc comment above it describes.
+func isCreateHead(head string) bool {
+	return strings.HasPrefix(strings.ToLower(head), "create ")
 }

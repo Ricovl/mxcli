@@ -42,6 +42,10 @@ func (b *Builder) ExitCreateAssociationStatement(ctx *parser.CreateAssociationSt
 		for _, opt := range optsCtx.AllAssociationOption() {
 			optCtx := opt.(*parser.AssociationOptionContext)
 
+			if el := optCtx.MicroflowExportLevelClause(); el != nil {
+				stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
+
 			// TYPE
 			if optCtx.TYPE() != nil {
 				if optCtx.REFERENCE_SET() != nil {
@@ -240,6 +244,16 @@ func (b *Builder) ExitAlterAssociationAction(ctx *parser.AlterAssociationActionC
 					alter.DeleteErrorMessage = buildErrorMessage(msg)
 				}
 				b.statements = append(b.statements, alter)
+				return
+			}
+
+			// SET EXPORT LEVEL API | HIDDEN
+			if el := ctx.MicroflowExportLevelClause(); el != nil {
+				b.statements = append(b.statements, &ast.AlterAssociationStmt{
+					Name:        name,
+					Operation:   ast.AlterAssociationSetExportLevel,
+					ExportLevel: *exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext)),
+				})
 				return
 			}
 

@@ -345,6 +345,37 @@ func validateMemberReferences(ctx *ExecContext, prog *ast.Program, sc *scriptCon
 func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 	flowQN string, params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
 
+	var out []string
+	walkTypedFlow(ctx, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+		switch s := st.(type) {
+		case *ast.CreateObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("create %s", s.EntityType.String()),
+				s.EntityType.String(), s.Changes)...)
+		case *ast.ChangeObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("change $%s", s.Variable), vars[s.Variable], s.Changes)...)
+		case *ast.RetrieveStmt:
+			if s.Variable != "" && s.Source.Name != "" && s.StartVariable == "" {
+				out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
+			}
+		}
+	})
+	return out
+}
+
+// walkTypedFlow calls visit for every statement of a flow body — nested blocks,
+// loop bodies and custom error handlers included — with the entity each
+// variable is known to hold at that point. visit runs before the statement's
+// own output variable is typed, so a statement sees the variables it reads.
+//
+// It is the one variable-typing walk the --references checks share
+// (checkFlowMembers, the Protected-module member check): two copies of it would
+// drift on which statements type a variable, and a check that loses a variable
+// goes silent rather than wrong.
+func walkTypedFlow(ctx *ExecContext, params []ast.MicroflowParam, body []ast.MicroflowStatement,
+	visit func(st ast.MicroflowStatement, vars map[string]string)) {
+
 	vars := map[string]string{}
 	for _, p := range params {
 		if p.Name == "" {
@@ -362,22 +393,15 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 
-	var out []string
 	var walk func(stmts []ast.MicroflowStatement)
 	walk = func(stmts []ast.MicroflowStatement) {
 		for _, st := range stmts {
+			visit(st, vars)
 			switch s := st.(type) {
 			case *ast.CreateObjectStmt:
 				if s.Variable != "" {
 					vars[s.Variable] = s.EntityType.String()
 				}
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("create %s", s.EntityType.String()),
-					s.EntityType.String(), s.Changes)...)
-			case *ast.ChangeObjectStmt:
-				entityQN := vars[s.Variable]
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("change $%s", s.Variable), entityQN, s.Changes)...)
 			case *ast.RetrieveStmt:
 				// Source is the ENTITY for a database retrieve and the
 				// ASSOCIATION for an association retrieve (StartVariable set).
@@ -388,7 +412,6 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 				case s.Variable == "" || s.Source.Name == "":
 				case s.StartVariable == "":
 					vars[s.Variable] = s.Source.String()
-					out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
 				default:
 					if from, ok := vars[strings.TrimPrefix(s.StartVariable, "$")]; ok {
 						if to, ok := associationTargetFrom(ctx, s.Source.String(), from); ok {
@@ -417,7 +440,6 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 	walk(body)
-	return out
 }
 
 // checkMembers resolves each member of one CREATE / CHANGE.

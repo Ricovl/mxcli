@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1511 — Class / Style on a snippet call never reach the page
+-- ============================================================================
+--
+-- A snippet call renders no element of its own: the snippet's widgets are
+-- inlined into the parent. So the Class, Style, DynamicClasses and design
+-- properties on `scStyled` are valid, `mx check` clean, and silently useless —
+-- measured on Mendix 11.15.0 (run --local + playwright check): no element
+-- carries `.probe-x`, `.probe-dyn`, the red border, `pull-right` or
+-- `hide-tablet`, while container `ctl` with the same settings carries them all.
+--
+-- Expected: `mxcli check` warns MDL-WIDGET48 once, on `scStyled` only (not on
+-- `cWrap` or `ctl`, which are the fix and the control). Applied, `mxcli lint`
+-- reports MPR013 on `scStyled`. After applying, a separate script with
+--   alter page Bug1511.ProbePage { set (Class: 'x') on scPlain };
+-- warns MDL-WIDGET48 under `check -p … --references` (the target's type lives
+-- in the stored page, so only the reference pass can tell it is a snippet call).
+
+create module Bug1511;
+
+create snippet Bug1511.ProbeSnippet {
+  container scInner { dynamictext scTxt (Content: 'Inside the snippet') }
+};
+
+create page Bug1511.ProbePage ( Title: 'Probe', Layout: Atlas_Core.Atlas_Default, Url: 'probe1511' ) {
+  container cOuter (Class: 'probe-outer') {
+    snippetcall scStyled (
+      Snippet: Bug1511.ProbeSnippet,
+      Class: 'probe-x',
+      Style: 'border: 3px solid red',
+      DynamicClasses: 'probe-dyn',
+      DesignProperties: ('Align self': 'Right', 'Hide on': ('Tablet': on))
+    )
+  }
+  -- the fix: style a container around the call
+  container cWrap (Class: 'probe-wrap') {
+    snippetcall scPlain (Snippet: Bug1511.ProbeSnippet)
+  }
+  -- the control: the same settings on a container do render
+  container ctl (
+    Class: 'probe-ctl',
+    Style: 'border: 3px solid blue',
+    DynamicClasses: 'probe-ctl-dyn',
+    DesignProperties: ('Align self': 'Left', 'Hide on': ('Desktop': on))
+  ) {
+    dynamictext ctlTxt (Content: 'Control container')
+  }
+};
