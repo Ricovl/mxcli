@@ -266,6 +266,10 @@ func (fb *flowBuilder) buildFlowGraph(stmts []ast.MicroflowStatement, returns *a
 	// this is the first point where a row's real depth is known.
 	fb.separateRows()
 
+	// Note lines after everything has moved: the sides that face each other
+	// depend on where the note and its element finally sit.
+	orientAnnotationFlows(fb.objects, fb.annotationFlows)
+
 	return &microflows.MicroflowObjectCollection{
 		BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 		Objects:         fb.objects,

@@ -364,6 +364,18 @@ type AnnotationFlow struct {
 	model.BaseElement
 	OriginID      model.ID `json:"originId"`
 	DestinationID model.ID `json:"destinationId"`
+	// Sides is where the line attaches at each end: the note's side and the
+	// object's. nil means nothing chose them, and the writer draws the line as
+	// for a note sitting above its object.
+	Sides *ConnectionSides `json:"sides,omitempty"`
+}
+
+// ConnectionSides is the pair of connection indexes a flow attaches at, in the
+// numbering a SequenceFlow uses for an activity — 0 top, 1 right, 2 bottom,
+// 3 left. Studio Pro numbers a note's sides the same way.
+type ConnectionSides struct {
+	Origin      int `json:"origin"`
+	Destination int `json:"destination"`
 }
 
 // Events

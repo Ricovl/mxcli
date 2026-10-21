@@ -358,9 +358,15 @@ func annotationFlowsFromGen(items []element.Element) []*microflows.AnnotationFlo
 		if !ok {
 			continue
 		}
+		// The sides are carried, so a rewrite of a Studio Pro-drawn note keeps
+		// the line where its author put it.
 		f := &microflows.AnnotationFlow{
 			OriginID:      model.ID(g.OriginRefID()),
 			DestinationID: model.ID(g.DestinationRefID()),
+			Sides: &microflows.ConnectionSides{
+				Origin:      int(g.OriginConnectionIndex()),
+				Destination: int(g.DestinationConnectionIndex()),
+			},
 		}
 		f.ID = model.ID(g.ID())
 		flows = append(flows, f)
