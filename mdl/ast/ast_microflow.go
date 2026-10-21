@@ -340,12 +340,17 @@ const (
 	AnchorSideLeft   AnchorSide = 3
 )
 
-// FlowAnchors captures the origin/destination anchors for a single
-// SequenceFlow. Each side is independently optional: Unset means the builder
-// should derive the anchor from the visual direction.
+// FlowAnchors captures the sides a statement's flows attach at. Each side is
+// independently optional: Unset means the builder should derive the anchor
+// from the visual direction.
+//
+// The two halves name two DIFFERENT flows when written on a statement: From is
+// the side the flow leaving it leaves by, To the side the flow arriving at it
+// enters by. Nested in a branch form (`true: (from: …, to: …)`) both describe
+// that one branch's edge.
 type FlowAnchors struct {
 	From AnchorSide // OriginConnectionIndex on the outgoing SequenceFlow
-	To   AnchorSide // DestinationConnectionIndex on the outgoing SequenceFlow
+	To   AnchorSide // DestinationConnectionIndex on the INCOMING SequenceFlow
 }
 
 // HasCaption reports whether the statement states a caption, empty or not.
@@ -372,7 +377,7 @@ type ActivityAnnotations struct {
 	// canvas wired to nothing.
 	FreeNotes []MicroflowAnnotation
 	Excluded  bool         // @excluded
-	Anchor    *FlowAnchors // @anchor(from: X, to: Y) — anchors of the flow leaving this statement
+	Anchor    *FlowAnchors // @anchor(from: X, to: Y) — From for the flow leaving, To for the flow arriving
 
 	// Split-specific anchors for IF statements. When the statement is not an
 	// IF these remain nil. The grammar accepts them on IfStmt only:
