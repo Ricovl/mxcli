@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 )
 
 // isBuiltinModuleEntity returns true for modules whose entities are defined
@@ -18,6 +19,38 @@ import (
 // ("System.Workflow", "System.User", etc.) and resolved at runtime.
 func isBuiltinModuleEntity(moduleName string) bool {
 	return moduleName == "System"
+}
+
+// systemEnumerations holds the qualified name of every enumeration the System
+// module declares. Like its entities they are not stored in the project, so
+// ListEnumerations never returns them and findEnumeration cannot see them.
+var systemEnumerations = func() map[string]bool {
+	set := make(map[string]bool, len(meta.SystemEnumerations))
+	for _, e := range meta.SystemEnumerations {
+		set[e.Name] = true
+	}
+	return set
+}()
+
+// isKnownEnumeration reports whether module.name is an enumeration — one of the
+// project's, or one of the System module's.
+func isKnownEnumeration(ctx *ExecContext, module, name string) bool {
+	return systemEnumerations[module+"."+name] || findEnumeration(ctx, module, name) != nil
+}
+
+// settleSystemEnumeration retypes a bare System enumeration in a flow
+// parameter or return type. The visitor types every bare qualified name there
+// as an entity, and the entity-then-enumeration fallback the callers apply is
+// skipped for the System module (its entities are not in the project to look
+// up), so without this `$T: System.UserType` was written as an ObjectType with
+// Entity "System.UserType" — accepted by the local engines, refused by Studio
+// Pro ("Reference with qualified name System.UserType of type
+// DomainModels$Entity not found").
+func settleSystemEnumeration(dt ast.DataType) ast.DataType {
+	if dt.Kind == ast.TypeEntity && dt.EntityRef != nil && systemEnumerations[dt.EntityRef.Module+"."+dt.EntityRef.Name] {
+		return ast.DataType{Kind: ast.TypeEnumeration, EnumRef: dt.EntityRef}
+	}
+	return dt
 }
 
 // execCreateMicroflow handles CREATE MICROFLOW statements.
