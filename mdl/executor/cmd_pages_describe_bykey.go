@@ -5,6 +5,9 @@ package executor
 import (
 	"sort"
 	"strings"
+	"sync"
+
+	mwidgets "github.com/mendixlabs/mxcli/modelsdk/widgets"
 )
 
 // Settings addressed by the widget's own property key.
@@ -140,6 +143,20 @@ type byKeyOptions struct {
 	// AttrEntity returns the entity a bare attribute name of property sc
 	// resolves against on re-execution; "" when there is none.
 	AttrEntity func(sc widgetPropSchema) string
+	// WrittenDefault, when set, returns the primitive or expression value exec
+	// writes for property key left out, where that is not the schema's
+	// DefaultValue (templateWrittenDefaults).
+	WrittenDefault func(key string) (string, bool)
+}
+
+// defaultFor is the value a stored primitive or expression is compared with.
+func (o byKeyOptions) defaultFor(sc widgetPropSchema) string {
+	if o.WrittenDefault != nil {
+		if v, ok := o.WrittenDefault(sc.Key); ok {
+			return v
+		}
+	}
+	return sc.Default
 }
 
 // nonDefaultPropsByKey returns, in key order, the properties of a stored widget
@@ -170,13 +187,13 @@ func nonDefaultPropsByKey(ctx *ExecContext, objProps []any, schemas map[string]w
 			continue
 		case "Boolean", "Integer", "Decimal", "String", "Enumeration":
 			pv := extractString(value["PrimitiveValue"])
-			if pv == "" || pv == sc.Default {
+			if pv == "" || pv == opts.defaultFor(sc) {
 				continue
 			}
 			props = append(props, rawExplicitProp{Key: sc.Key, Value: pv, ValueType: sc.Type})
 		case "Expression":
 			expr := extractString(value["Expression"])
-			if expr == "" || expr == sc.Default {
+			if expr == "" || expr == opts.defaultFor(sc) {
 				continue
 			}
 			props = append(props, expressionByKeyProp(ctx, sc.Key, expr))
@@ -352,6 +369,97 @@ var galleryByKeySkip = map[string]bool{
 	"desktopItems": true, "tabletItems": true, "phoneItems": true, "onClickTrigger": true,
 }
 
+// sharedBranchByKeySkip are, per widget, the keys the combo box's and the data
+// grid filters' readers already print under an MDL keyword (Attribute:,
+// DataSource:, CaptionAttribute:, Attributes:, FilterType:, the expression
+// caption) or that select the mode those keywords imply. Every other scalar
+// setting is printed by its own key.
+var sharedBranchByKeySkip = map[string]map[string]bool{
+	"combobox": {
+		"source": true, "optionsSourceType": true,
+		"attributeEnumeration": true, "attributeBoolean": true, "attributeAssociation": true,
+		"optionsSourceAssociationCaptionType": true, "optionsSourceAssociationCaptionAttribute": true,
+		"optionsSourceAssociationCaptionExpression": true,
+	},
+	"textfilter":   {"attrChoice": true, "defaultFilter": true},
+	"numberfilter": {"attrChoice": true, "defaultFilter": true},
+	"datefilter":   {"attrChoice": true, "defaultFilter": true},
+	"dropdownfilter": {
+		"baseType": true, "attrChoice": true, "attr": true, "refEntity": true, "refCaption": true,
+	},
+}
+
+// comboBoxUndescribedModePrefixes are the keys of the combo box's database and
+// static option sources. DESCRIBE spells only the association and enumeration
+// modes, so these settings are named as not reproduced rather than printed: on
+// their own, without the mode and its datasource, they would be written into a
+// combo box in another mode — an attribute resolved against the wrong entity.
+var comboBoxUndescribedModePrefixes = []string{
+	"optionsSourceDatabase", "optionsSourceStatic", "staticDataSource", "staticAttribute", "databaseAttributeString",
+}
+
+// withoutUndescribedComboBoxModes moves the settings of a combo box's
+// undescribed option-source modes from props to omitted.
+func withoutUndescribedComboBoxModes(props []rawExplicitProp, omitted []string) ([]rawExplicitProp, []string) {
+	kept := props[:0:0]
+	for _, p := range props {
+		undescribed := false
+		for _, prefix := range comboBoxUndescribedModePrefixes {
+			if strings.HasPrefix(p.Key, prefix) {
+				undescribed = true
+				break
+			}
+		}
+		if undescribed {
+			omitted = append(omitted, p.Key)
+			continue
+		}
+		kept = append(kept, p)
+	}
+	sort.Strings(omitted)
+	return kept, omitted
+}
+
+var templateWrittenDefaultsCache sync.Map // widgetID → map[key]string
+
+// templateWrittenDefaults returns, per property key, the primitive or
+// expression value the widget's embedded template stores — which is what exec
+// writes for a property left out. It is not always the schema's DefaultValue:
+// the combo box template stores `readOnlyStyle: bordered` against a default of
+// `text`, so comparing with the default printed `readOnlyStyle: 'bordered'` on
+// every combo box mxcli wrote, and left a Studio Pro one's `text` unprinted —
+// which re-executed as `bordered`. Empty for a widget with no embedded template.
+func templateWrittenDefaults(widgetID string) map[string]string {
+	if v, ok := templateWrittenDefaultsCache.Load(widgetID); ok {
+		return v.(map[string]string)
+	}
+	out := map[string]string{}
+	if tmpl, err := mwidgets.GetTemplate(widgetID); err == nil && tmpl != nil {
+		keys := map[string]string{}
+		for id, sc := range widgetPropertySchemas(map[string]any{"Type": tmpl.Type}) {
+			keys[id] = sc.Key
+		}
+		for _, prop := range getBsonArrayElements(tmpl.Object["Properties"]) {
+			propMap, ok := prop.(map[string]any)
+			if !ok {
+				continue
+			}
+			key := keys[extractBinaryID(propMap["TypePointer"])]
+			value, ok := propMap["Value"].(map[string]any)
+			if key == "" || !ok {
+				continue
+			}
+			if pv := extractString(value["PrimitiveValue"]); pv != "" {
+				out[key] = pv
+			} else if expr := extractString(value["Expression"]); expr != "" {
+				out[key] = expr
+			}
+		}
+	}
+	templateWrittenDefaultsCache.Store(widgetID, out)
+	return out
+}
+
 // extractDataGrid2ByKeyProps returns the grid-level settings of a Data grid 2
 // that DESCRIBE has no keyword for and that differ from their defaults, and the
 // keys it could not print. enclosingEntity is the entity of the data container
@@ -369,19 +477,35 @@ func extractGalleryByKeyProps(ctx *ExecContext, w map[string]any, enclosingEntit
 }
 
 func extractWidgetByKeyProps(ctx *ExecContext, w map[string]any, skip map[string]bool, enclosingEntity, ownEntity string) ([]rawExplicitProp, []string) {
+	return widgetByKeyProps(ctx, w, byKeyOptions{Skip: skip}, enclosingEntity, ownEntity)
+}
+
+// extractSharedBranchByKeyProps is extractWidgetByKeyProps for a combo box or
+// a data grid filter, compared with what exec writes for a property left out
+// (templateWrittenDefaults) rather than with the schema's DefaultValue.
+func extractSharedBranchByKeyProps(ctx *ExecContext, w map[string]any, skip map[string]bool, enclosingEntity, ownEntity string) ([]rawExplicitProp, []string) {
+	written := templateWrittenDefaults(extractCustomWidgetID(ctx, w))
+	return widgetByKeyProps(ctx, w, byKeyOptions{
+		Skip: skip,
+		WrittenDefault: func(key string) (string, bool) {
+			v, ok := written[key]
+			return v, ok
+		},
+	}, enclosingEntity, ownEntity)
+}
+
+func widgetByKeyProps(ctx *ExecContext, w map[string]any, opts byKeyOptions, enclosingEntity, ownEntity string) ([]rawExplicitProp, []string) {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
 		return nil, nil
 	}
-	return nonDefaultPropsByKey(ctx, getBsonArrayElements(obj["Properties"]), widgetPropertySchemas(w), byKeyOptions{
-		Skip: skip,
-		AttrEntity: func(sc widgetPropSchema) string {
-			if sc.DataSourceProperty != "" {
-				return ownEntity
-			}
-			return enclosingEntity
-		},
-	})
+	opts.AttrEntity = func(sc widgetPropSchema) string {
+		if sc.DataSourceProperty != "" {
+			return ownEntity
+		}
+		return enclosingEntity
+	}
+	return nonDefaultPropsByKey(ctx, getBsonArrayElements(obj["Properties"]), widgetPropertySchemas(w), opts)
 }
 
 // extractDataGrid2ColumnByKeyProps is extractDataGrid2ByKeyProps for one

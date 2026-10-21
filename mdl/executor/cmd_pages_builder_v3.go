@@ -368,12 +368,10 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
-	// On a 9.x project a pluggable widget stores this form too, as a
-	// CustomWidgetDatabaseSource (mendixlabs/mxcli#1399); a widget with its
-	// own builder still refuses it there, in buildDataSourceV3.
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil && !pb.customWidgetDatabaseSourceSupported() {
-		return nil, err
-	}
+	// `database from $ctx/Assoc/Entity` needs no check here: a list view and
+	// every widget the pluggable engine writes store it (buildPluggableDataSourceV3,
+	// mendixlabs/mxcli#1399, #1599), and a widget with its own builder refuses
+	// it in buildDataSourceV3.
 	if err := checkWidgetHasName(w); err != nil {
 		return nil, err
 	}
@@ -864,27 +862,6 @@ func checkSearchByIsOnAListView(w *ast.WidgetV3) error {
 		w.Name, strings.ToLower(w.Type), strings.ToLower(w.Type)))
 }
 
-// checkDatabaseOverAssociationIsOnAListView refuses `database from $ctx/Assoc/…`
-// on a widget other than a list view. Only the List View writer stores a
-// database source reached over an association (a Forms$ListViewXPathSource with
-// an IndirectEntityRef); every other writer would store the entity alone and
-// drop the path — a retrieve of every row instead of the context's
-// (ako/mxcli#721 L5). A data view is refused by MDL-WIDGET09 whatever the form.
-func checkDatabaseOverAssociationIsOnAListView(w *ast.WidgetV3) error {
-	if w == nil || strings.EqualFold(w.Type, "listview") || strings.EqualFold(w.Type, "dataview") {
-		return nil
-	}
-	ds := w.GetDataSource()
-	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
-		return nil
-	}
-	return mdlerrors.NewValidation(fmt.Sprintf(
-		"widget %q (%s): `database from $%s/%s` is a LIST VIEW source reached over an association, "+
-			"and %s cannot store one — use the association source `$%s/%s`, or a `listview`.",
-		w.Name, strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath,
-		strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath))
-}
-
 // buildDataSourceV3 converts a V3 DataSource AST to a pages.DataSource.
 // Returns the datasource, the entity name for context, and any error.
 func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
@@ -929,14 +906,15 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 
 	case "database":
 		if ds.AssociationPath != "" {
-			// Only buildListViewDataSourceV3 may build this form. Every other
-			// caller — a widget-engine datasource under its own key, a chart
-			// series, a dynamic image — hands the result to a writer that stores
-			// the entity alone, a retrieve of every row instead of the context's
+			// Only buildListViewDataSourceV3 and buildPluggableDataSourceV3 may
+			// build this form. Every other caller — a chart series, a dynamic
+			// image — hands the result to a writer that stores the entity
+			// alone, a retrieve of every row instead of the context's
 			// (ako/mxcli#721 L5).
 			return nil, "", mdlerrors.NewValidationf(
-				"`database from $%s/%s` is a LIST VIEW source reached over an association; "+
-					"only a `listview` DataSource can store one — use the association source `$%s/%s` here",
+				"`database from $%s/%s` is a database source reached over an association; "+
+					"only a `listview` or a pluggable widget's DataSource (gallery, datagrid, …) can store one "+
+					"— use the association source `$%s/%s` here",
 				ds.ContextVariable, ds.AssociationPath, ds.ContextVariable, ds.AssociationPath)
 		}
 		// Database source: DATABASE Entity

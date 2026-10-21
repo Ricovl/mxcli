@@ -68,6 +68,11 @@ func LoadWidgetRegistry(projectPath string) *WidgetRegistry {
 		// from the same .mpk DESCRIBE parses. See
 		// widget_known_props_from_mpk.go for why this is not a list of nine.
 		enrichKnownPropertiesFromMPK(registry, projectPath)
+	} else {
+		// No project to read packages from: the embedded template is the
+		// widget's schema, so check without -p accepts what DESCRIBE prints
+		// by key (mendixlabs/mxcli#1586).
+		enrichKnownPropertiesFromTemplates(registry)
 	}
 	return registry
 }

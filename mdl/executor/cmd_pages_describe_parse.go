@@ -607,6 +607,22 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 				}
 			}
 		}
+		// Every other setting of a combo box or a data grid filter, by the
+		// widget's own key. Their readers above know only the keys MDL has a
+		// keyword for, so a stored `customEditabilityExpression` or a filter's
+		// `defaultValue` expression — written by exec's explicit-property pass
+		// — described back as nothing, and a describe → exec cycle reset it
+		// (mendixlabs/mxcli#1586).
+		if skip, ok := sharedBranchByKeySkip[widget.RenderMode]; ok {
+			ownEntity := ""
+			if widget.DataSource != nil {
+				ownEntity = dataSourceEntityContext(ctx, widget.DataSource)
+			}
+			widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, skip, inheritedCtx, ownEntity)
+			if widget.RenderMode == "combobox" {
+				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps)
+			}
+		}
 		// For pluggable Image widget, extract image-specific properties
 		if widget.RenderMode == "image" {
 			extractImageProperties(ctx, w, &widget)

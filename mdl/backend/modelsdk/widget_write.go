@@ -1850,7 +1850,22 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		assignID(src)
 		src.SetForceFullObjects(false)
 		src.SetXPathConstraint(d.XPathConstraint)
-		if d.EntityName != "" {
+		switch {
+		case len(d.EntitySteps) > 0:
+			// "Database" reached over associations from a context object: the
+			// hops as an IndirectEntityRef inside the XPath source, the start
+			// parameter in its SourceVariable — the shape listViewSourceToGen
+			// writes, and the one Studio Pro stores for a gallery or grid
+			// bound this way (mendixlabs/mxcli#1599).
+			src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+			if d.ContextVariable != "" {
+				kind := ""
+				if d.IsSnippetParameter {
+					kind = "snippet"
+				}
+				src.SetSourceVariable(sourceVariableToGen(d.ContextVariable, kind))
+			}
+		case d.EntityName != "":
 			ref := genDm.NewDirectEntityRef()
 			assignID(ref)
 			ref.SetEntityQualifiedName(d.EntityName)
