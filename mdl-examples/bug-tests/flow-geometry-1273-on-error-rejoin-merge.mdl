@@ -1,0 +1,40 @@
+mdl 1;
+-- ============================================================================
+-- Bug: the merge an ON ERROR handler rejoins at landed on the End event
+-- (ako/mxcli#1273; mendixlabs/mxcli#884, TDSC0706's repro)
+-- ============================================================================
+--
+-- Stored before the fix:
+--   ExclusiveMerge @(560, 200) 40x40
+--   EndEvent       @(560, 200) 20x20   <- same centre, the end inside the merge
+-- and with an activity after the guarded call, the merge sat RIGHT of that
+-- activity, so the edge into it ran backwards.
+--
+-- Fixed: the merge sits on the edge it splits, midway between the guarded
+-- activity's right edge and its successor's left edge. `@merge(x, y)` on the
+-- guarded statement still places it explicitly.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_ErrorBranch
+-- Expected: ExclusiveMerge at (425, 200), clear of the call (x <= 300) and of
+-- the End event (x >= 550).
+-- ============================================================================
+
+create or modify microflow MyFirstModule.SUB_ErrorCallee ()
+begin
+  @position(200, 200)
+  log info node 'Repro' 'callee';
+  @position(400, 200)
+  return;
+end;
+
+create or modify microflow MyFirstModule.ACT_ErrorBranch ()
+begin
+  @position(240, 200)
+  call microflow MyFirstModule.SUB_ErrorCallee() on error without rollback begin
+    @position(240, 380)
+    log error node 'Repro' 'handled';
+  end error;
+  @position(560, 200)
+  return;
+end;
