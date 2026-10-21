@@ -1,13 +1,14 @@
 ---
 title: Generated Microflow Geometry and Wiring
 category: bug-pattern
-last-synced: ced830e0
+last-synced: 40d189164
 covers:
   - mdl/executor
 sources:
   - .claude/skills/fix-issue/findings/mdl-executor/
   - mdl/executor/layout.go
   - mdl/executor/cmd_microflows_builder_control.go
+  - mdl/backend/mfmutator/splice.go
 ---
 
 > **Do not duplicate**: the measurement formulas and per-construct fixes live in
@@ -65,6 +66,33 @@ describe → exec round trip moved a Studio Pro-authored start event. Verify a
 coordinate fix against the *whole* coordinate set — dump every point before and
 after and diff — or a change that pins one element while shifting another reads
 as success.
+
+**The convention is measurable; measure it.** Most geometry findings are a
+side, a pitch or a placement where mxcli chose a constant and Studio Pro does
+something else. Studio Pro's own documents settle it in one pass — the
+`mx-test-projects` apps, ako/TestApp and PedApp together hold hundreds of
+note lines, handler rows, parameter rows and CASE outcomes. A guess written
+into an issue is not evidence: a proposed note numbering was refuted by notes
+level with their activity, which only the activity numbering explains, and a
+"~140px" estimate turned out to be a 130px median. Write the measured number
+into the test literally; a test that compares against the builder's own
+constant passes at any value.
+
+**A side can carry meaning, not just drawing.** Up to three CASE outcomes keep
+their WHEN-order sides because DESCRIBE reads the case order back from them;
+following the geometry there reorders a CASE whose branches were placed out of
+order. Before making a default "look right", find every reader of the value.
+
+**Removing a node needs a way to keep it.** When the builder stops drawing a
+node (a merge at a loop tail), a stored one survives a rebuild only if the
+description states it — and the canonical describe drops what it thinks is
+derivable, so the statement has to be unconditional. Graph comparisons in the
+tests are merge-blind; count merges.
+
+**A splice has its own geometry.** A fragment is laid out alone and then
+translated into the gap; anything that is not on the line (a note) must not
+size the gap, and anything the script placed absolutely must not be
+translated.
 
 ## See also
 
