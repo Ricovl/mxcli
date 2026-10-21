@@ -11,15 +11,15 @@ description: "Call external REST APIs from Mendix — the three approaches (inli
 | lines | section |
 |---|---|
 | 29-44 | Three Approaches |
-| 45-91 | Approach 0: OpenAPI Import (Fastest) |
-| 92-318 | Approach 1: REST Client (Manual) |
-| 319-364 | Approach 2: REST CALL (Inline HTTP) |
-| 365-397 | Data Transformers (JSLT — Mendix 11.9+) |
-| 398-435 | JSON Structures & Mappings |
-| 436-507 | Complete Pipeline Example |
-| 508-538 | Published REST: Authentication Parameters |
-| 539-548 | Mendix Validation Rules |
-| 549-569 | BSON Types Reference |
+| 45-110 | Approach 0: OpenAPI Import (Fastest) |
+| 111-337 | Approach 1: REST Client (Manual) |
+| 338-383 | Approach 2: REST CALL (Inline HTTP) |
+| 384-416 | Data Transformers (JSLT — Mendix 11.9+) |
+| 417-454 | JSON Structures & Mappings |
+| 455-526 | Complete Pipeline Example |
+| 527-557 | Published REST: Authentication Parameters |
+| 558-567 | Mendix Validation Rules |
+| 568-588 | BSON Types Reference |
 
 <!-- /skill-index -->
 # REST Integration Skill
@@ -44,7 +44,10 @@ No API to call against yet — or one you would rather not depend on while build
 
 ## Approach 0: OpenAPI Import (Fastest)
 
-If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in one command:
+If the API has an OpenAPI 3.x spec (JSON or YAML), generate the REST client in one command.
+A **Swagger 2.0** spec (`"swagger": "2.0"`, e.g. `petstore.swagger.io/v2/swagger.json`) is
+refused — convert it first (`npx swagger2openapi in.json -o out.json`, or
+https://converter.swagger.io) and import the converted file:
 
 ```sql
 mdl 1;
@@ -86,6 +89,22 @@ describe contract operation from openapi 'specs/capital.json';
 ```
 
 **After import:** the REST client is ready to use with `SEND REST REQUEST`. No manual operation definition needed.
+
+**But every JSON response is imported as `response: json` — a raw string, not objects.** The
+import does not generate response entities yet (ako/mxcli#1234). To get objects, create the
+non-persistent entities yourself and give the operations you call a mapping (see *Response
+Types* below):
+
+```sql
+mdl 1;
+alter consumed rest service PetStoreModule.PetStoreAPI
+  modify operation getPetById (
+    response: mapping PetStoreModule.Pet { Id = id, Name = name }
+  );
+```
+
+Writing the entities and an import-mapping document but leaving the operation at
+`response: json` is the common mistake: nothing uses the mapping, and nothing reports that.
 
 ---
 
