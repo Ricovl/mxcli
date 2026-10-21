@@ -1184,7 +1184,11 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 | Show clients | `list consumed rest services [in module];` | List all or filter by module |
 | Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing — an operation it omits is removed (and named in the output) |
+| Add operation | `alter consumed rest service Module.Name add operation Name ( ... );` | Operation body uses CREATE syntax; other operations stay as stored |
+| Modify operation | `alter consumed rest service Module.Name modify operation Name ( Timeout: 60 );` | Writes only the keys listed |
+| Drop operation | `alter consumed rest service Module.Name drop operation Name;` | |
+| Set service properties | `alter consumed rest service Module.Name set ( BaseUrl: '...', Authentication: none );` | BaseUrl, Authentication |
 | Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
@@ -1222,7 +1226,7 @@ create consumed rest service Module.Api (
 ```
 
 **Body types:** `json from $var`, `template '...'`, `mapping entity { jsonField = attr, ... }`
-**Response types:** `json as $var`, `string as $var`, `file as $var`, `status as $var`, `none`, `mapping entity { attr = jsonField, ... }`
+**Response types:** `json`, `string`, `file`, `status` (each optionally `as $var` — the variable is not stored), `none`, `mapping entity { attr = jsonField, ... }`
 **Authentication:** `none`, `basic (username: '...', password: '...')`
 
 ### OpenAPI Import

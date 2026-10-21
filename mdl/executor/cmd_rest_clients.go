@@ -426,42 +426,10 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 			stmt.DocumentationSet, stmt.Documentation, preservedDocumentation)
 	}
 
-	// Authentication — Mendix requires Rest$ConstantValue for BASIC auth credentials
-	// (Rest$StringValue causes InvalidCastException in Studio Pro). When literal
-	// strings are provided, auto-create constants to hold them.
 	if stmt.Authentication != nil {
-		auth := &model.RestAuthentication{
-			Scheme: stmt.Authentication.Scheme,
-		}
-		// Username — must use Rest$ConstantValue pointing to a real constant.
-		// $Variable refs pass through; literal strings auto-create constants.
-		if strings.HasPrefix(stmt.Authentication.Username, "$") {
-			// Already a $Constant ref — resolve to qualified name for BY_NAME lookup
-			name := strings.TrimPrefix(stmt.Authentication.Username, "$")
-			if !strings.Contains(name, ".") {
-				name = moduleName + "." + name
-			}
-			auth.Username = "$" + name
-		} else if stmt.Authentication.Username != "" {
-			constName := stmt.Name.Name + "_Username"
-			if err := ensureConstant(ctx, moduleName, containerID, constName, stmt.Authentication.Username); err != nil {
-				return fmt.Errorf("failed to create username constant: %w", err)
-			}
-			auth.Username = "$" + moduleName + "." + constName
-		}
-		// Password
-		if strings.HasPrefix(stmt.Authentication.Password, "$") {
-			name := strings.TrimPrefix(stmt.Authentication.Password, "$")
-			if !strings.Contains(name, ".") {
-				name = moduleName + "." + name
-			}
-			auth.Password = "$" + name
-		} else if stmt.Authentication.Password != "" {
-			constName := stmt.Name.Name + "_Password"
-			if err := ensureConstant(ctx, moduleName, containerID, constName, stmt.Authentication.Password); err != nil {
-				return fmt.Errorf("failed to create password constant: %w", err)
-			}
-			auth.Password = "$" + moduleName + "." + constName
+		auth, err := restAuthFromDef(ctx, stmt.Name, containerID, stmt.Authentication)
+		if err != nil {
+			return err
 		}
 		svc.Authentication = auth
 	}
@@ -487,6 +455,49 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	ctx.ReportMutation(verb, "rest client: %s.%s (%d operations)",
 		moduleName, stmt.Name.Name, len(svc.Operations))
 	return nil
+}
+
+// restAuthFromDef resolves a statement's basic authentication for service
+// name. Mendix requires Rest$ConstantValue for BASIC auth credentials
+// (Rest$StringValue causes InvalidCastException in Studio Pro), so a literal
+// string gets a constant to hold it, created in containerID; a `$Constant`
+// reference is qualified with the service's module.
+func restAuthFromDef(ctx *ExecContext, name ast.QualifiedName, containerID model.ID, def *ast.RestAuthDef) (*model.RestAuthentication, error) {
+	moduleName := name.Module
+	auth := &model.RestAuthentication{
+		Scheme: def.Scheme,
+	}
+	// Username — must use Rest$ConstantValue pointing to a real constant.
+	// $Variable refs pass through; literal strings auto-create constants.
+	if strings.HasPrefix(def.Username, "$") {
+		// Already a $Constant ref — resolve to qualified name for BY_NAME lookup
+		n := strings.TrimPrefix(def.Username, "$")
+		if !strings.Contains(n, ".") {
+			n = moduleName + "." + n
+		}
+		auth.Username = "$" + n
+	} else if def.Username != "" {
+		constName := name.Name + "_Username"
+		if err := ensureConstant(ctx, moduleName, containerID, constName, def.Username); err != nil {
+			return nil, fmt.Errorf("failed to create username constant: %w", err)
+		}
+		auth.Username = "$" + moduleName + "." + constName
+	}
+	// Password
+	if strings.HasPrefix(def.Password, "$") {
+		n := strings.TrimPrefix(def.Password, "$")
+		if !strings.Contains(n, ".") {
+			n = moduleName + "." + n
+		}
+		auth.Password = "$" + n
+	} else if def.Password != "" {
+		constName := name.Name + "_Password"
+		if err := ensureConstant(ctx, moduleName, containerID, constName, def.Password); err != nil {
+			return nil, fmt.Errorf("failed to create password constant: %w", err)
+		}
+		auth.Password = "$" + moduleName + "." + constName
+	}
+	return auth, nil
 }
 
 // saveConsumedRestService writes a consumed REST client, rewriting the stored

@@ -1516,6 +1516,44 @@ begin
 end;
 
 -- ############################################################################
+-- PART 16b: CHANGING AN EXISTING CLIENT (ALTER)
+-- ############################################################################
+
+-- MARK: Alter
+
+-- `create or modify` declares the whole operation list, so an operation it does
+-- not list is removed. `alter` changes the stored client in place: an operation
+-- no action names is written back as stored (mendixlabs/mxcli#1608).
+
+create or modify consumed rest service RestTest.RC022_BookingAPI (
+  BaseUrl: 'https://api.example.com',
+  Authentication: none
+)
+{
+  operation PostBooking (
+    Method: post,
+    Path: '/bookings',
+    Body: json from $Payload,
+    Response: json
+  )
+
+  operation LegacyBooking (Method: get, Path: '/legacy', Response: none)
+};
+
+alter consumed rest service RestTest.RC022_BookingAPI
+  add operation GetBooking (
+    Method: get,
+    Path: '/bookings/{id}',
+    Parameters: ($id: String),
+    Response: json
+  ),
+  modify operation PostBooking (Timeout: 60),
+  drop operation LegacyBooking,
+  set (BaseUrl: 'https://api.example.com/v2');
+
+describe consumed rest service RestTest.RC022_BookingAPI;
+
+-- ############################################################################
 -- PART 17: VERIFICATION COMMANDS
 -- ############################################################################
 

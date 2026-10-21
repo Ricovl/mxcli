@@ -168,6 +168,14 @@ var restClientSchema = propSchema{on: "a REST client", keys: []propKey{
 	{"Folder", []propShape{shapeString}},
 }}
 
+// What `alter consumed rest service … set ( … )` can change. The folder is
+// not a property of the document's contents, and the OpenAPI source is
+// CREATE's input, not something stored to set.
+var restClientAlterSetSchema = propSchema{on: "an ALTER of a REST client", keys: []propKey{
+	{"BaseUrl", []propShape{shapeString}},
+	{"Authentication", []propShape{shapeNone, shapeBasic}},
+}}
+
 var restClientBasicAuthSchema = propSchema{on: "REST client basic authentication", keys: []propKey{
 	{"Username", []propShape{shapeString, shapeConstant, shapeVariable}},
 	{"Password", []propShape{shapeString, shapeConstant, shapeVariable}},

@@ -12,14 +12,14 @@ description: "Call external REST APIs from Mendix — the three approaches (inli
 |---|---|
 | 29-44 | Three Approaches |
 | 45-91 | Approach 0: OpenAPI Import (Fastest) |
-| 92-291 | Approach 1: REST Client (Manual) |
-| 292-337 | Approach 2: REST CALL (Inline HTTP) |
-| 338-370 | Data Transformers (JSLT — Mendix 11.9+) |
-| 371-408 | JSON Structures & Mappings |
-| 409-480 | Complete Pipeline Example |
-| 481-511 | Published REST: Authentication Parameters |
-| 512-521 | Mendix Validation Rules |
-| 522-542 | BSON Types Reference |
+| 92-318 | Approach 1: REST Client (Manual) |
+| 319-364 | Approach 2: REST CALL (Inline HTTP) |
+| 365-397 | Data Transformers (JSLT — Mendix 11.9+) |
+| 398-435 | JSON Structures & Mappings |
+| 436-507 | Complete Pipeline Example |
+| 508-538 | Published REST: Authentication Parameters |
+| 539-548 | Mendix Validation Rules |
+| 549-569 | BSON Types Reference |
 
 <!-- /skill-index -->
 # REST Integration Skill
@@ -284,8 +284,35 @@ end;
 list consumed rest services [in module];
 describe consumed rest service Module.ClientName;
 drop consumed rest service Module.ClientName;
-create or modify consumed rest service Module.ClientName ...  -- idempotent
+create or modify consumed rest service Module.ClientName ...  -- idempotent; REPLACES the operation list
 ```
+
+### Change an Existing Client — `alter`, Not `create or modify`
+
+`create or modify` declares the client's whole operation list: an operation it
+does not list is **deleted** (the output names it). To add, change or remove
+one operation — above all on a client made in Studio Pro, whose operations carry
+settings MDL cannot express — use `alter`. Every operation it does not name is
+written back exactly as stored.
+
+```sql
+mdl 1;
+
+alter consumed rest service Module.BookingApi
+  add operation GetBooking (
+    method: get,
+    path: '/bookings/{id}',
+    parameters: ($id: string),
+    response: json
+  ),
+  modify operation PostBooking (timeout: 60),     -- only the keys listed change
+  drop operation LegacyBooking,
+  set (BaseUrl: 'https://api.example.com/v2');   -- BaseUrl, Authentication
+```
+
+`add` refuses a name that exists (use `modify`); `modify` and `drop` refuse one
+that does not, listing the operations there are. Actions apply in order, so
+`drop operation X, add operation X (…)` replaces X whole.
 
 ---
 

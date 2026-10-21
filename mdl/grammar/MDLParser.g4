@@ -284,6 +284,9 @@ alterStatement
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
+    // Edits the stored consumed REST service in place: an operation the statement
+    // does not name is written back as stored (mendixlabs/mxcli#1608).
+    | ALTER consumedRestServiceKw qualifiedName alterConsumedRestServiceAction (COMMA? alterConsumedRestServiceAction)*
     | ALTER aiModelKw qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER KNOWLEDGE BASE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER CONSUMED MCP SERVICE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
