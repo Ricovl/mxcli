@@ -49,6 +49,7 @@ mxcli lint -p app.mpr --exclude System --exclude Administration
 | CONV012 | quality | ExclusiveSplitCaption - Exclusive splits need meaningful captions |
 | CONV013 | quality | ErrorHandlingOnCalls - External calls (REST/WS/Java) need custom error handling |
 | CONV014 | quality | NoContinueErrorHandling - Don't silently swallow errors with Continue |
+| CONV020 | quality | CreatedObjectNeverPersisted - A microflow creates a persistent object without commit and never commits, returns or passes it on, so it is discarded |
 
 ## Bundled Starlark Rules
 

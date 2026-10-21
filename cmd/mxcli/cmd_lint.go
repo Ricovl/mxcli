@@ -76,6 +76,7 @@ Bundled Starlark rules (in .claude/lint-rules/):
   - No validation rules (CONV015) - use microflows instead of entity validation rules
   - No event handlers (CONV016) - avoid entity event handlers
   - No calculated attributes (CONV017) - avoid calculated attributes
+  - Created object never persisted (CONV020) - a created object that is never committed, returned or passed on
 
 Custom Starlark rules in .claude/lint-rules/*.star are loaded automatically.
 
@@ -432,7 +433,8 @@ func builtinLintRules() []linter.Rule {
 		rules.NewExclusiveSplitCaptionRule(),
 		rules.NewErrorHandlingOnCallsRule(),
 		rules.NewNoContinueErrorHandlingRule(),
-		rules.NewIrreducibleFlowGraphRule(),     // MDL-FLOW01 - graph structure vs MDL nesting
-		rules.NewImportRangeObjectMappingRule(), // MDL-MAP04 - First over an object-rooted mapping in the model
+		rules.NewCreatedObjectNeverPersistedRule(), // CONV020 - create without commit, never persisted or passed on
+		rules.NewIrreducibleFlowGraphRule(),        // MDL-FLOW01 - graph structure vs MDL nesting
+		rules.NewImportRangeObjectMappingRule(),    // MDL-MAP04 - First over an object-rooted mapping in the model
 	}
 }
