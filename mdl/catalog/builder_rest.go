@@ -178,7 +178,7 @@ func (b *Builder) buildPublishedRestServices() error {
 			svc.ServiceName,
 			len(svc.Resources),
 			opCount,
-			"", // Documentation not stored on published REST
+			svc.Documentation, // was always "", so QUAL002 could never close (mendixlabs/mxcli#1510)
 			projectID, snapshotID,
 		)
 		if err != nil {

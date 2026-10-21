@@ -1,0 +1,41 @@
+-- mendixlabs/mxcli#1597 (case A): a `@curve` on a statement inside a `loop` or
+-- `while` body passed check and exec and was not stored — `describe` printed the
+-- body with no `@curve`, while the same annotation after the loop was kept.
+-- After the fix the body's curve is written on the flow leaving that statement,
+-- and `describe` prints it inside the loop as it does outside.
+mdl 1;
+
+create module BugTest1597;
+
+create persistent entity BugTest1597.Item (Code: String(20));
+
+create microflow BugTest1597.ACT_Loop ()
+begin
+  retrieve $L from BugTest1597.Item;
+  loop $I in $L
+  begin
+    @curve(from: (39, 0), to: (0, 61))
+    log info node 'n' 'inside-a';
+    log info node 'n' 'inside-b';
+  end loop;
+  @curve(from: (39, 0), to: (0, 61))
+  log info node 'n' 'outside-c';
+  log info node 'n' 'outside-d';
+end;
+
+create microflow BugTest1597.ACT_While ()
+begin
+  declare $N integer = 0;
+  while $N < 3
+  begin
+    @curve(from: (39, 0), to: (0, 61))
+    log info node 'n' 'inside-a';
+    log info node 'n' 'inside-b';
+    set $N = $N + 1;
+  end while;
+end;
+
+-- Expect: `@curve(from: (39, 0), to: (0, 61))` above `log … 'inside-a'` in both,
+-- and above `log … 'outside-c'` in ACT_Loop.
+describe microflow BugTest1597.ACT_Loop;
+describe microflow BugTest1597.ACT_While;

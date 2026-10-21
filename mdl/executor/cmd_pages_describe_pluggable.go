@@ -1259,7 +1259,12 @@ func isKnownCustomWidgetType(widgetType string) bool {
 
 // extractExplicitProperties extracts non-default property values from a CustomWidget BSON.
 // Returns attribute references and primitive values for properties that differ from defaults.
-func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicitProp {
+//
+// enclosingEntity is the entity of the data container the widget sits in. An
+// attribute property linked to no datasource binds to that object, so one of
+// another entity keeps its qualified name: shortened, re-exec bound it to the
+// container's entity (mendixlabs/mxcli#1591, CE1613).
+func extractExplicitProperties(ctx *ExecContext, w map[string]any, enclosingEntity ...string) []rawExplicitProp {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
 		return nil
@@ -1270,6 +1275,11 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		return nil
 	}
 	valueTypes := buildPropertyValueTypeMap(w)
+	schemas := widgetPropertySchemas(w)
+	enclosing := ""
+	if len(enclosingEntity) > 0 {
+		enclosing = enclosingEntity[0]
+	}
 
 	var result []rawExplicitProp
 	props := getBsonArrayElements(obj["Properties"])
@@ -1291,9 +1301,14 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		// Check for AttributeRef (attribute binding)
 		if attrRef, ok := value["AttributeRef"].(map[string]any); ok && attrRef != nil {
 			if attr := extractString(attrRef["Attribute"]); attr != "" {
+				value := describeAttr(ctx, attr)
+				if schemas[typePointerID].DataSourceProperty == "" && strings.Contains(enclosing, ".") &&
+					!strings.EqualFold(attributeEntity(attr), enclosing) {
+					value = attr
+				}
 				result = append(result, rawExplicitProp{
 					Key:   propKey,
-					Value: describeAttr(ctx, attr),
+					Value: value,
 					IsRef: true,
 				})
 				continue

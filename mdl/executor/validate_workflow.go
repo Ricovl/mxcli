@@ -324,9 +324,6 @@ func walkWorkflowActivities(acts []ast.WorkflowActivityNode, visit func(ast.Work
 			for _, o := range n.Outcomes {
 				walkWorkflowActivities(o.Activities, visit)
 			}
-			for _, b := range n.BoundaryEvents {
-				walkWorkflowActivities(b.Activities, visit)
-			}
 		case *ast.WorkflowDecisionNode:
 			for _, o := range n.Outcomes {
 				walkWorkflowActivities(o.Activities, visit)
@@ -335,19 +332,34 @@ func walkWorkflowActivities(acts []ast.WorkflowActivityNode, visit func(ast.Work
 			for _, o := range n.Outcomes {
 				walkWorkflowActivities(o.Activities, visit)
 			}
-			for _, b := range n.BoundaryEvents {
-				walkWorkflowActivities(b.Activities, visit)
-			}
 		case *ast.WorkflowParallelSplitNode:
 			for _, p := range n.Paths {
 				walkWorkflowActivities(p.Activities, visit)
 			}
-		case *ast.WorkflowWaitForNotificationNode:
-			for _, b := range n.BoundaryEvents {
-				walkWorkflowActivities(b.Activities, visit)
-			}
+		}
+		for _, b := range workflowActivityBoundaryEvents(a) {
+			walkWorkflowActivities(b.Activities, visit)
 		}
 	}
+}
+
+// workflowActivityBoundaryEvents returns the boundary events an authored
+// activity owns: user tasks, call microflow, call workflow and wait for
+// notification. Every walk over boundary events goes through it — each used to
+// switch on the owners itself, and when `call workflow` gained the clause
+// (mendixlabs/mxcli#1532) eight of those switches had to learn it at once.
+func workflowActivityBoundaryEvents(a ast.WorkflowActivityNode) []ast.WorkflowBoundaryEventNode {
+	switch n := a.(type) {
+	case *ast.WorkflowUserTaskNode:
+		return n.BoundaryEvents
+	case *ast.WorkflowCallMicroflowNode:
+		return n.BoundaryEvents
+	case *ast.WorkflowCallWorkflowNode:
+		return n.BoundaryEvents
+	case *ast.WorkflowWaitForNotificationNode:
+		return n.BoundaryEvents
+	}
+	return nil
 }
 
 // ValidateAlterWorkflow applies the rules that ALTER WORKFLOW can reach:

@@ -1,0 +1,55 @@
+mdl 1;
+-- ============================================================================
+-- Control-bar SHOW PAGE passing the grid's selection  (mendixlabs/mxcli#122)
+-- ============================================================================
+--
+-- Symptom (before fix), Mendix 11.12.5:
+--   - `Order = $currentObject` in the control bar: MDL-BUTTON01 (CE1571 —
+--     a control bar is not row-scoped), whose hint said to pass `$dgOrders`;
+--   - `Order = $dgOrders`: MDL-PAGEARG01 "a widget's page argument is always
+--     the enclosing context object";
+--   - no argument: mx check CE1571 "No argument has been selected for
+--     parameter 'OrderParam'".
+--   There was no spelling that built.
+--
+-- Fix: `$dgOrders` in dgOrders' control bar is the grid's selection, stored
+-- as an explicit Forms$PageParameterMapping {Argument "", Variable:
+-- Forms$PageVariable{Widget "dgOrders"}}. Measured on mxbuild 11.12.5:
+--   that shape                        → 0 errors
+--   Argument "$dgOrders" instead      → CE0115 "arguments … do not match"
+--   no mapping                        → CE1571
+-- In the running app the button is disabled until a row is selected, and
+-- opens the detail page with the selected row (checked against the 2nd row).
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/122-controlbar-show-page-grid-selection.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                       → 0 errors
+--   mxcli -p app.mpr -c "describe page BugTest122.Order_Overview"
+--     → Action: show page BugTest122.Order_Detail(OrderParam = $dgOrders)
+-- ============================================================================
+
+create module BugTest122;
+
+create persistent entity BugTest122.Order (OrderNumber: String(50));
+
+create page BugTest122.Order_Detail (
+  Title: 'Order',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $OrderParam: BugTest122.Order )
+) {
+  dataview dv (DataSource: $OrderParam) {
+    textbox tbNumber (Label: 'Number', Attribute: OrderNumber)
+  }
+};
+
+create page BugTest122.Order_Overview (
+  Title: 'Orders',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  datagrid dgOrders (DataSource: database from BugTest122.Order, Selection: Single) {
+    controlbar {
+      actionbutton btnView (Caption: 'View', Action: show page BugTest122.Order_Detail(OrderParam = $dgOrders), ButtonStyle: Primary)
+    }
+    column (Attribute: OrderNumber, Caption: 'Order')
+  }
+};

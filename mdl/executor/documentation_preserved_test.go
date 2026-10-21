@@ -275,6 +275,36 @@ func docPreserveCases() []docPreserveCase {
 			describe: "describe enumeration TestModule.DocEnum",
 		},
 		{
+			name: "import mapping",
+			create: "create entity TestModule.DocImEnt ( Code: String );\n" +
+				"create json structure TestModule.DocImJs sample '{\"code\": \"x\"}';\n" + doc +
+				"create import mapping TestModule.DocIm\n  with json structure TestModule.DocImJs\n{\n  create TestModule.DocImEnt {\n    Code = code\n  }\n};",
+			rewrite:  "create or modify import mapping TestModule.DocIm\n  with json structure TestModule.DocImJs\n{\n  find TestModule.DocImEnt or create {\n    Code = code key\n  }\n};",
+			describe: "describe import mapping TestModule.DocIm",
+		},
+		{
+			name: "export mapping",
+			create: "create entity TestModule.DocEmEnt ( Code: String );\n" +
+				"create json structure TestModule.DocEmJs sample '{\"code\": \"x\"}';\n" + doc +
+				"create export mapping TestModule.DocEm\n  with json structure TestModule.DocEmJs\n{\n  TestModule.DocEmEnt {\n    code = Code\n  }\n};",
+			rewrite:  "create or modify export mapping TestModule.DocEm\n  with json structure TestModule.DocEmJs\n  null values SendAsNil\n{\n  TestModule.DocEmEnt {\n    code = Code\n  }\n};",
+			describe: "describe export mapping TestModule.DocEm",
+		},
+		{
+			name:     "published rest service",
+			create:   doc + "create published rest service MyFirstModule.DocPrs (\n  Path: 'rest/doc/v1',\n  Version: '1.0.0'\n)\n{\n};",
+			rewrite:  "create or modify published rest service MyFirstModule.DocPrs (\n  Path: 'rest/doc/v2',\n  Version: '2.0.0'\n)\n{\n};",
+			describe: "describe published rest service MyFirstModule.DocPrs",
+		},
+		{
+			name:     "data transformer",
+			minMajor: 11,
+			minMinor: 9,
+			create:   doc + "create data transformer MyFirstModule.DocDt\n  source json '{\"a\": 1}'\n{\n  jslt '{\"b\": .a}';\n};",
+			rewrite:  "create or modify data transformer MyFirstModule.DocDt\n  source json '{\"a\": 2}'\n{\n  jslt '{\"c\": .a}';\n};",
+			describe: "describe data transformer MyFirstModule.DocDt",
+		},
+		{
 			// The module's documentation is its domain model's
 			// (mendixlabs/mxcli#1314).
 			name:     "module",

@@ -184,6 +184,10 @@ DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
 }
 ```
 
+A `SHOW PAGE` in the control bar takes the selection the same way —
+`Action: SHOW PAGE Sales.Order_Detail(Order = $dgOrders)` opens the page with
+the selected row, and the button is disabled until a row is selected.
+
 `mxcli check -p <app.mpr>` reports a missing argument before mxbuild does.
 
 ### ButtonStyle Values

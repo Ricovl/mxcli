@@ -127,6 +127,7 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkListOperationSource(body)
 	v.checkMergeJoinLabels(body)
 	v.checkAnnotationLabels(body)
+	v.checkAssociationPathValues(body)
 
 	// Walk the body for per-statement checks (validation feedback, return value checks)
 	v.emptyListVars = make(map[string]bool)

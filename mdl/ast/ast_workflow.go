@@ -172,6 +172,7 @@ type WorkflowCallWorkflowNode struct {
 	Workflow          QualifiedName
 	Caption           string
 	ParameterMappings []WorkflowParameterMappingNode
+	BoundaryEvents    []WorkflowBoundaryEventNode // mendixlabs/mxcli#1532
 }
 
 func (n *WorkflowCallWorkflowNode) workflowActivityNode() {}

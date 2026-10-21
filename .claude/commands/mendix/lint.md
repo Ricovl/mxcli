@@ -41,6 +41,7 @@ mxcli lint -p app.mpr --exclude System --exclude Administration
 | MPR006 | quality | EmptyContainer - Empty layout containers |
 | MPR007 | security | PageNavigationSecurity - Navigation pages need allowed roles (CE0557); every user role must be able to open its home page (at Production security, else CE2729 per widget) |
 | MPR012 | correctness | LegacyImageWidget - staticimage/dynamicimage are unsupported by the React client (CE0582) |
+| MPR013 | correctness | SnippetCallAppearance - Class/Style/DynamicClasses/design properties on a snippet call never reach the page (it renders no element) |
 | SEC001 | security | NoEntityAccessRules - Persistent entities need access rules |
 | SEC002 | security | WeakPasswordPolicy - Password minimum length should be 8+ |
 | SEC003 | security | DemoUsersActive - Demo users should be off at Production security |
@@ -49,6 +50,7 @@ mxcli lint -p app.mpr --exclude System --exclude Administration
 | CONV012 | quality | ExclusiveSplitCaption - Exclusive splits need meaningful captions |
 | CONV013 | quality | ErrorHandlingOnCalls - External calls (REST/WS/Java) need custom error handling |
 | CONV014 | quality | NoContinueErrorHandling - Don't silently swallow errors with Continue |
+| CONV020 | quality | CreatedObjectNeverPersisted - A microflow creates a persistent object without commit and never commits, returns or passes it on, so it is discarded |
 
 ## Bundled Starlark Rules
 

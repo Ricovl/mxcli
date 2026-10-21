@@ -309,6 +309,7 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
 Create a published REST service with CRUD operations backed by microflows.
 
 ```sql
+/** Order management API for the shop front end. */
 CREATE PUBLISHED REST SERVICE Module.OrderAPI (
   Path: 'rest/orders/v1',
   Version: '1.0.0',
@@ -324,6 +325,8 @@ CREATE PUBLISHED REST SERVICE Module.OrderAPI (
   }
 };
 ```
+
+**Documentation:** the `/** … */` doc comment above `CREATE` is the service's documentation — what `lint` QUAL002 asks for. On `CREATE OR MODIFY` no comment keeps the stored text and `/** */` clears it. The OpenAPI description consumers read (`PublicDocumentation`) has no MDL spelling and is kept as stored.
 
 **Operation paths:** Use empty string `''` for the root, `'{paramName}'` for path parameters. Do NOT start or end with `/`. Path parameters must match a microflow parameter name exactly (case-sensitive) — `'{id}'` binds the microflow's `$id`, whatever its type.
 

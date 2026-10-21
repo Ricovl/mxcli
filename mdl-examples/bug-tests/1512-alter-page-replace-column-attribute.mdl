@@ -1,0 +1,46 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1512: ALTER PAGE REPLACE of a Data grid 2 column with a new
+-- Attribute passed check, then mxbuild failed
+-- ============================================================================
+--
+-- Reported on v0.26.0 (11.15.0):
+--   An attribute is required when 'Show' is set to 'Attribute'. Select the
+--   'Attribute' property for column (C)
+-- plus the sorting variant. Reproduced verbatim with a build from before
+-- mendixlabs/mxcli#1468's fix, on the MICROFLOW-sourced grid below only; every
+-- other source kind built clean. It is #1468 (the column path took no entity
+-- from a flow source), fixed since — this case pins the reporter's shape: a
+-- DIFFERENT attribute than the column held.
+--
+-- Found while reproducing: the REPLACE's own column address was never resolved
+-- by check, so `replace grid1 column(C)` on a grid with no column C passed and
+-- exec refused it. check now reports it (validateAlterPageReferences).
+--
+-- To verify: exec, then `mxcli docker check` reports 0 errors.
+-- ============================================================================
+
+create module Bug1512;
+create persistent entity Bug1512.Order (Number: String(50), Note: String(200), Total: Decimal);
+
+create microflow Bug1512.DS_Orders () returns list of Bug1512.Order as $L
+begin
+  retrieve $L from Bug1512.Order;
+  return $L;
+end;
+
+create page Bug1512.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgDatabase (DataSource: database from Bug1512.Order) {
+    column (Attribute: Number, Caption: 'C')
+  }
+  datagrid dgMicroflow (DataSource: microflow Bug1512.DS_Orders) {
+    column (Attribute: Number, Caption: 'C')
+  }
+};
+
+alter page Bug1512.Orders {
+  replace dgDatabase column(Number) with { column (Attribute: Note, Caption: 'C') };
+  replace dgMicroflow column(Number) with { column (Attribute: Note, Caption: 'C') };
+  -- addressed by the column an earlier operation put there
+  replace dgMicroflow column(Note) with { column (Attribute: Total, Caption: 'T') };
+};

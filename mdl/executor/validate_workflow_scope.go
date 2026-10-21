@@ -101,6 +101,7 @@ func workflowActivityExprSites(acts []ast.WorkflowActivityNode) []wfExprSite {
 			boundary(n.BoundaryEvents, "call microflow "+n.Microflow.String())
 		case *ast.WorkflowCallWorkflowNode:
 			mappings(n.ParameterMappings, "call workflow", n.Workflow.String())
+			boundary(n.BoundaryEvents, "call workflow "+n.Workflow.String())
 		case *ast.WorkflowDecisionNode:
 			sites = append(sites, wfExprSite{where: "decision " + workflowDecisionLabel(n), expr: n.Expression})
 		case *ast.WorkflowWaitForTimerNode:

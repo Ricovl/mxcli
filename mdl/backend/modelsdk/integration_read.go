@@ -411,6 +411,8 @@ func (b *Backend) ListPublishedRestServices() ([]*model.PublishedRestService, er
 			ServiceName:  g.ServiceName(),
 			Excluded:     g.Excluded(),
 			AllowedRoles: append([]string(nil), g.AllowedRolesQualifiedNames()...),
+			// mendixlabs/mxcli#1510
+			Documentation: g.Documentation(),
 
 			AuthenticationTypes:     append([]string(nil), g.AuthenticationTypesItems()...),
 			AuthenticationMicroflow: g.AuthenticationMicroflowQualifiedName(),

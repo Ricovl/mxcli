@@ -32,6 +32,11 @@ type CreateImportMappingStmt struct {
 	RootElement    *ImportMappingElementDef
 	CreateOrModify bool // true for CREATE OR MODIFY / CREATE OR REPLACE
 	Excluded       bool // @excluded — document excluded from project
+	// Documentation is the `/** … */` doc comment before the statement
+	// (mendixlabs/mxcli#1510). DocumentationSet says one was written: absent
+	// keeps the stored documentation on a rewrite, empty clears it (#1018).
+	Documentation    string
+	DocumentationSet bool
 }
 
 func (s *CreateImportMappingStmt) isStatement() {}
@@ -112,6 +117,9 @@ type CreateExportMappingStmt struct {
 	RootElement     *ExportMappingElementDef
 	CreateOrModify  bool // true for CREATE OR MODIFY / CREATE OR REPLACE
 	Excluded        bool // @excluded — document excluded from project
+	// Documentation — see the note on CreateImportMappingStmt (#1510).
+	Documentation    string
+	DocumentationSet bool
 }
 
 func (s *CreateExportMappingStmt) isStatement() {}

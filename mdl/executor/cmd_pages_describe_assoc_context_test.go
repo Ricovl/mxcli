@@ -147,20 +147,22 @@ func TestDescribe_AssociationSourceContextIsTheEntityReached(t *testing.T) {
 
 // The pluggable Gallery / Data grid 2 / chart datasource reads through the same
 // parser (#941): an XPath source with no entity and the association hops in
-// EntityRef.
+// EntityRef. It is a database retrieve over the association, spelled as one so
+// its XPath and sort survive (mendixlabs/mxcli#1599); the context is the entity
+// reached either way.
 func TestParseDataSource_PluggableAssociationSourceContextIsTheEntityReached(t *testing.T) {
 	ds := parseDataSource(map[string]any{
 		"$Type":     "CustomWidgets$CustomWidgetXPathSource",
 		"EntityRef": indirectRef(assocStep("Shop.Order_Line", "Shop.OrderLine")),
 	})
-	if ds == nil || ds.Type != "association" {
-		t.Fatalf("parseDataSource = %+v, want an association source", ds)
+	if ds == nil || ds.Type != "database" {
+		t.Fatalf("parseDataSource = %+v, want a database source over the association", ds)
 	}
 	if got := dataSourceEntityContext(nil, ds); got != "Shop.OrderLine" {
 		t.Errorf("dataSourceEntityContext = %q, want Shop.OrderLine", got)
 	}
-	if got := dataSourceExpr(nil, ds); got != "$currentObject/Shop.Order_Line" {
-		t.Errorf("dataSourceExpr = %q, want the unchanged $currentObject/Shop.Order_Line", got)
+	if got := dataSourceExpr(nil, ds); got != "database from $currentObject/Shop.Order_Line/Shop.OrderLine" {
+		t.Errorf("dataSourceExpr = %q, want database from $currentObject/Shop.Order_Line/Shop.OrderLine", got)
 	}
 }
 

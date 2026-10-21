@@ -60,7 +60,6 @@ func collectEndBodies(b endBody, out *[]endBody) {
 			for _, o := range n.Outcomes {
 				child(o.Activities, false, false)
 			}
-			boundary(n.BoundaryEvents)
 		case *ast.WorkflowDecisionNode:
 			for _, o := range n.Outcomes {
 				child(o.Activities, false, false)
@@ -69,14 +68,12 @@ func collectEndBodies(b endBody, out *[]endBody) {
 			for _, o := range n.Outcomes {
 				child(o.Activities, false, false)
 			}
-			boundary(n.BoundaryEvents)
 		case *ast.WorkflowParallelSplitNode:
 			for _, p := range n.Paths {
 				child(p.Activities, true, false)
 			}
-		case *ast.WorkflowWaitForNotificationNode:
-			boundary(n.BoundaryEvents)
 		}
+		boundary(workflowActivityBoundaryEvents(a))
 	}
 }
 
@@ -367,6 +364,8 @@ func collectStoredPlacements(flow *workflows.Flow, ref string, at storedPlacemen
 			for _, o := range t.Outcomes {
 				collectStoredPlacements(o.GetFlow(), ref, at, out)
 			}
+			boundary(t.BoundaryEvents)
+		case *workflows.CallWorkflowActivity:
 			boundary(t.BoundaryEvents)
 		case *workflows.WaitForNotificationActivity:
 			boundary(t.BoundaryEvents)

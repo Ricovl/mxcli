@@ -1,0 +1,47 @@
+mdl 1;
+-- mendixlabs/mxcli#1518: an object created without commit and never committed,
+-- returned or passed on is discarded when the microflow ends. check, mx check
+-- and the build are silent; lint rule CONV020 reports it.
+--
+--   mxcli exec 1518-created-object-never-persisted.mdl -p app.mpr
+--   mxcli lint -p app.mpr -r CONV020
+--
+-- Expected: exactly one CONV020 warning, on Tmp1518.Seed. The other three are
+-- controls: committed, a non-persistent entity, and a nanoflow.
+
+create module Tmp1518;
+
+create persistent entity Tmp1518.Item (Cnt: Integer);
+create non-persistent entity Tmp1518.Helper (Cnt: Integer);
+
+-- Reported: $o is never committed, returned or passed on.
+create microflow Tmp1518.Seed () returns Boolean as $b
+begin
+  declare $b Boolean = true;
+  $o = create Tmp1518.Item (Cnt = 1);
+  log info node 'Seed' 'Seeded {1}' with ({1} = toString($o/Cnt));
+  return $b;
+end;
+
+-- Not reported: committed.
+create microflow Tmp1518.SeedCommitted () returns Boolean as $b
+begin
+  declare $b Boolean = true;
+  $o = create Tmp1518.Item (Cnt = 1);
+  commit $o;
+  return $b;
+end;
+
+-- Not reported: a non-persistent entity is meant to be temporary.
+create microflow Tmp1518.TempHelper () returns Boolean as $b
+begin
+  declare $b Boolean = true;
+  $h = create Tmp1518.Helper (Cnt = 1);
+  return $b;
+end;
+
+-- Not reported: nanoflows are out of scope.
+create nanoflow Tmp1518.SeedInClient ()
+begin
+  $o = create Tmp1518.Item (Cnt = 1);
+end;

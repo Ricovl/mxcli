@@ -19,6 +19,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	// A FROM entity in another module writes a project that cannot be LOADED, so
 	// this must fail before the write — `check` reporting it is not enough for a
@@ -121,6 +124,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					assoc.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage, ErrorMessageLanguage: deleteLang}
 					assoc.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), assoc.Documentation)
+					if s.ExportLevel != nil { // absent keeps the stored level (#1498)
+						assoc.ExportLevel = *s.ExportLevel
+					}
 					// Anchors are applied only when the statement names them —
 					// silence preserves what is stored, so a `create or modify`
 					// that is not about layout does not flatten a hand-tuned line.
@@ -148,6 +154,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					ca.ChildRef = childRef
 					ca.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), ca.Documentation)
+					if s.ExportLevel != nil { // as above (#1498)
+						ca.ExportLevel = *s.ExportLevel
+					}
 					if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 						return mdlerrors.NewBackend("update cross-module association", err)
 					}
@@ -195,6 +204,7 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			StorageFormat: storageFormat,
 			ParentID:      parentID,
 			ChildRef:      childRef,
+			ExportLevel:   authoredExportLevel(s.ExportLevel),
 			ChildDeleteBehavior: &domainmodel.DeleteBehavior{
 				Type:                 deleteBehavior,
 				ErrorMessage:         deleteMessage,
@@ -228,6 +238,7 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			StorageFormat: storageFormat,
 			ParentID:      parentID,
 			ChildID:       childID,
+			ExportLevel:   authoredExportLevel(s.ExportLevel),
 			ChildDeleteBehavior: &domainmodel.DeleteBehavior{
 				Type:                 deleteBehavior,
 				ErrorMessage:         deleteMessage,
@@ -269,6 +280,9 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	module, err := findModule(ctx, s.Name.Module)
 	if err != nil {
@@ -298,10 +312,13 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 				assoc.Documentation = s.Comment
 			case ast.AlterAssociationSetAnchor:
 				applyAnchors(assoc, s.FromAnchor, s.ToAnchor)
+			case ast.AlterAssociationSetExportLevel:
+				assoc.ExportLevel = s.ExportLevel
 			}
 			want := alteredAssociationValue(s.Operation, assocAlterView{
 				del: assoc.ChildDeleteBehavior, owner: string(assoc.Owner), storage: string(assoc.StorageFormat),
 				doc: assoc.Documentation, lang: authoringLanguage(ctx), anchors: associationAnchors(assoc),
+				exportLevel: assoc.ExportLevel,
 			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update association", err)
@@ -333,6 +350,8 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 				ca.StorageFormat = domainmodel.AssociationStorageFormat(s.Storage.String())
 			case ast.AlterAssociationSetComment:
 				ca.Documentation = s.Comment
+			case ast.AlterAssociationSetExportLevel:
+				ca.ExportLevel = s.ExportLevel
 			case ast.AlterAssociationSetAnchor:
 				// DomainModels$CrossAssociation has no connection properties at
 				// all, and writing them there crashes Studio Pro (#50) — so this
@@ -343,7 +362,7 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			}
 			want := alteredAssociationValue(s.Operation, assocAlterView{
 				del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
-				doc: ca.Documentation, lang: authoringLanguage(ctx),
+				doc: ca.Documentation, lang: authoringLanguage(ctx), exportLevel: ca.ExportLevel,
 			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update cross-module association", err)
@@ -428,8 +447,8 @@ func reconcileModuleAccess(ctx *ExecContext, moduleName, why string) error {
 // assocAlterView is the part of an association ALTER ASSOCIATION can change,
 // common to the same-module and the cross-module kind.
 type assocAlterView struct {
-	del                          *domainmodel.DeleteBehavior
-	owner, storage, doc, anchors string
+	del                                       *domainmodel.DeleteBehavior
+	owner, storage, doc, anchors, exportLevel string
 	// lang is the language the delete message is compared in — the one the
 	// alter wrote. Reading it back in en_US would compare against a stale
 	// translation the write carried over (mendixlabs/mxcli#1344).
@@ -458,6 +477,8 @@ func alteredAssociationValue(op ast.AlterAssociationOperation, v assocAlterView)
 		return v.doc
 	case ast.AlterAssociationSetAnchor:
 		return v.anchors
+	case ast.AlterAssociationSetExportLevel:
+		return v.exportLevel
 	}
 	return ""
 }
@@ -485,6 +506,7 @@ func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterA
 				got, found = alteredAssociationValue(s.Operation, assocAlterView{
 					del: a.ChildDeleteBehavior, owner: string(a.Owner), storage: string(a.StorageFormat),
 					doc: a.Documentation, lang: authoringLanguage(ctx), anchors: associationAnchors(a),
+					exportLevel: a.ExportLevel,
 				}), true
 				break
 			}
@@ -494,7 +516,7 @@ func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterA
 				if ca.Name == s.Name.Name {
 					got, found = alteredAssociationValue(s.Operation, assocAlterView{
 						del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
-						doc: ca.Documentation, lang: authoringLanguage(ctx),
+						doc: ca.Documentation, lang: authoringLanguage(ctx), exportLevel: ca.ExportLevel,
 					}), true
 					break
 				}
@@ -746,7 +768,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 	// omitted; Table is not, so it is always printed — omitting it made a table
 	// association come back as column wherever the description was replayed
 	// (#704).
-	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior) {
+	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior, exportLevel string) {
 		var clauses []string
 		if assocType == domainmodel.AssociationTypeReferenceSet {
 			clauses = append(clauses, "type ReferenceSet")
@@ -763,6 +785,9 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		// back through the parser.
 		if del := describeDeleteClause(ctx, childDeleteBehavior); del != defaultDeleteClause {
 			clauses = append(clauses, del)
+		}
+		if c := exportLevelClause(exportLevel); c != "" { // mendixlabs/mxcli#1498
+			clauses = append(clauses, c)
 		}
 		for _, c := range clauses {
 			fmt.Fprintf(ctx.Output, "\n%s", c)
@@ -782,7 +807,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			describeConnectionPoints(ctx, assoc)
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, assoc.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, toEntity)
-			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
+			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior, assoc.ExportLevel)
 			return nil
 		}
 	}
@@ -799,7 +824,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, ca.ChildRef)
-			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
+			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior, ca.ExportLevel)
 			return nil
 		}
 	}

@@ -3,6 +3,7 @@
 ## Synopsis
 
 ```sql
+[ /** description */ ]
 CREATE [ OR MODIFY ] EXPORT MAPPING module.Name
     [ FOLDER 'folder_path' ]
     [ WITH JSON STRUCTURE module.JsonStructure ]
@@ -56,6 +57,9 @@ If `OR MODIFY` is specified and the mapping already exists, it is updated in pla
 
 `FOLDER 'folder_path'`
 :   Optional. Places the document in the named module folder, creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
+
+`/** description */`
+:   Optional. The documentation of the export mapping, as a doc comment before the statement. `lint` QUAL002 reports a export mapping without it, and `DESCRIBE` prints it back. On `CREATE OR MODIFY`, no doc comment keeps the stored documentation and an empty `/** */` clears it.
 
 `WITH JSON STRUCTURE module.JsonStructure`
 :   Associates the mapping with the named JSON structure.
