@@ -1,0 +1,46 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1271 (page data source): a widget XPath naming a member the
+-- SAME script adds to a stored entity was "neither an attribute nor an
+-- association of it"
+-- ============================================================================
+--
+-- The microflow retrieve was fixed for this in v0.27.0; the page data source
+-- still resolved the members against the project only:
+--   page Shop.Order_Overview: datagrid "dgOrders": the constraint on Shop.Order
+--   names "IsPaid", which is neither an attribute nor an association of it —
+--   mxbuild reports this as CE1613 "The selected attribute 'IsPaid' no longer
+--   exists"
+--   Refusing to execute: 1 unresolved reference(s) above. Nothing was written.
+-- It now uses the retrieve's script-aware resolver (scriptXPathResolver).
+--
+-- The entities must ALREADY be in the project for the defect to show — a
+-- script that creates them too was never affected. To verify: exec the SETUP
+-- section alone, then `mxcli check` the rest with `-p app.mpr --references`
+-- (passes), exec it, and `mxcli docker check` reports 0 errors.
+-- ============================================================================
+
+-- SETUP (exec first, on its own)
+create module Bug1271;
+create persistent entity Bug1271.Order (Number: String(50));
+create persistent entity Bug1271.Customer (Name: String(200));
+
+-- SCRIPT UNDER TEST
+-- An attribute added by ALTER ENTITY.
+alter entity Bug1271.Order add attribute IsPaid: Boolean default false;
+-- An attribute added by restating the entity.
+create or modify persistent entity Bug1271.Customer (Name: String(200), Vip: Boolean default false);
+-- An association the script creates between the two stored entities.
+create association Bug1271.Order_Customer from Bug1271.Order to Bug1271.Customer type Reference;
+
+create page Bug1271.Order_Overview (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgOrders (DataSource: database from Bug1271.Order where [IsPaid = true]) {
+    column (Attribute: Number, Caption: 'Number')
+  }
+  datagrid dgVip (DataSource: database from Bug1271.Order where [Bug1271.Order_Customer/Bug1271.Customer/Vip = true]) {
+    column (Attribute: Number, Caption: 'Number')
+  }
+  datagrid dgCustomers (DataSource: database from Bug1271.Customer where [Vip = true]) {
+    column (Attribute: Name, Caption: 'Name')
+  }
+};
