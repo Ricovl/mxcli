@@ -230,6 +230,8 @@ type PageClientParameterMapping struct {
 	// explicit mapping whose Variable is a Forms$PageVariable, as Studio Pro
 	// does. Empty means the argument is the context object, which Mendix infers
 	// from an empty ParameterMappings array (#296). See mendixlabs/mxcli#1403.
+	// "widget" is a control-bar button passing its grid's selection, Variable
+	// then naming the grid (mendixlabs/mxcli#122).
 	VariableKind string `json:"variableKind,omitempty"`
 }
 

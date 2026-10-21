@@ -2086,7 +2086,14 @@ func pageSettingsWithMappings(pageName string, mappings []*pages.PageClientParam
 		assignID(m)
 		m.SetParameterQualifiedName(pageName + "." + pm.ParameterName)
 		m.SetArgument("")
-		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		if pm.VariableKind == "widget" {
+			// A control-bar button passing its grid's selection names the grid
+			// in the Widget slot (mendixlabs/mxcli#122). mxbuild 11.12.5: 0
+			// errors; the empty array is CE1571, Argument "$grid" CE0115.
+			m.SetVariable(pageVariableToGen(strings.TrimPrefix(pm.Variable, "$"), "", ""))
+		} else {
+			m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		}
 		ps.AddParameterMappings(m)
 	}
 	return ps
