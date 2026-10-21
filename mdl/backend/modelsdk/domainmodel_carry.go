@@ -155,6 +155,13 @@ func entityUnchanged(e *domainmodel.Entity, orig *genDm.Entity) bool {
 	if stored.OqlQuery == "" {
 		stored.OqlQuery = e.OqlQuery
 	}
+	// Nor is a specialization's Persistable: it is its root's, resolved by the
+	// domain-model read and stored nowhere on this element (#1600). Comparing it
+	// with entityFromGen's unresolved default would rebuild every specialization
+	// of a non-persistent entity on every write of its domain model.
+	if _, inherits := orig.Generalization().(*genDm.Generalization); inherits {
+		stored.Persistable = e.Persistable
+	}
 	return semanticEqual(e, stored)
 }
 

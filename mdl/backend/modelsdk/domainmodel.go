@@ -12,6 +12,7 @@ import (
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
 	genRest "github.com/mendixlabs/mxcli/modelsdk/gen/rest"
 	genTexts "github.com/mendixlabs/mxcli/modelsdk/gen/texts"
+	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/model"
@@ -40,6 +41,7 @@ func (b *Backend) ListDomainModels() ([]*domainmodel.DomainModel, error) {
 	// The System module is virtual (not stored in the project); inject its domain
 	// model so platform entities (System.WorkflowUserTask, User, …) resolve.
 	out = append(out, buildSystemDomainModel())
+	b.resolveInheritedPersistability(units, out...)
 	return out, nil
 }
 
@@ -90,6 +92,94 @@ func (b *Backend) populateViewEntityOql(dms []*domainmodel.DomainModel) {
 	}
 }
 
+// persistabilityLink is what one entity's own generalization element says about
+// persistability: a root stores the flag, a specialization names its parent.
+type persistabilityLink struct {
+	persistable bool
+	parent      string
+}
+
+// resolveInheritedPersistability sets Persistable on every specialization in dms
+// to its root generalization's. Mendix stores the flag only on a root's
+// NoGeneralization — a Generalization element has no such property — so
+// entityFromGen cannot know it, and its default made every specialization of a
+// non-persistent entity read as persistent: DESCRIBE printed `persistent entity
+// … extends` for it, and `show entities where non-persistent`, the catalog and
+// the microflow builder all treated it as a table (mendixlabs/mxcli#1600).
+//
+// The chain may cross modules and end in the virtual System module, so the index
+// is built over every stored domain model in units plus the System entities. A
+// chain that leaves the project or loops keeps the default: there is no root to
+// read, and the model is already unloadable (CE1613).
+func (b *Backend) resolveInheritedPersistability(units []mprread.Unit[*genDm.DomainModel], dms ...*domainmodel.DomainModel) {
+	need := false
+	for _, dm := range dms {
+		for _, e := range dm.Entities {
+			if e.GeneralizationRef != "" {
+				need = true
+			}
+		}
+	}
+	if !need {
+		return
+	}
+
+	index := make(map[string]persistabilityLink)
+	for _, e := range meta.ModelerSystemEntities() {
+		index["System."+e.Name] = persistabilityLink{persistable: e.Persistable, parent: e.Generalization}
+	}
+	moduleName := make(map[model.ID]string)
+	if mods, err := b.reader.ListModules(); err == nil {
+		for _, m := range mods {
+			moduleName[model.ID(m.ID)] = m.Name
+		}
+	}
+	for _, u := range units {
+		mod := moduleName[u.ContainerID]
+		if mod == "" {
+			continue
+		}
+		for _, el := range u.Element.EntitiesItems() {
+			e, ok := el.(*genDm.Entity)
+			if !ok {
+				continue
+			}
+			switch g := e.Generalization().(type) {
+			case *genDm.NoGeneralization:
+				index[mod+"."+e.Name()] = persistabilityLink{persistable: g.Persistable()}
+			case *genDm.Generalization:
+				index[mod+"."+e.Name()] = persistabilityLink{parent: g.GeneralizationQualifiedName()}
+			}
+		}
+	}
+
+	rootPersistable := func(qn string) (bool, bool) {
+		seen := make(map[string]bool)
+		for !seen[qn] {
+			seen[qn] = true
+			link, ok := index[qn]
+			if !ok {
+				return false, false
+			}
+			if link.parent == "" {
+				return link.persistable, true
+			}
+			qn = link.parent
+		}
+		return false, false
+	}
+	for _, dm := range dms {
+		for _, e := range dm.Entities {
+			if e.GeneralizationRef == "" {
+				continue
+			}
+			if p, ok := rootPersistable(e.GeneralizationRef); ok {
+				e.Persistable = p
+			}
+		}
+	}
+}
+
 // GetDomainModel returns the domain model whose container is moduleID.
 func (b *Backend) GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, error) {
 	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
@@ -100,6 +190,7 @@ func (b *Backend) GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, e
 		if u.ContainerID == moduleID {
 			dm := domainModelFromGen(u.Element, u.ContainerID)
 			b.populateViewEntityOql([]*domainmodel.DomainModel{dm})
+			b.resolveInheritedPersistability(units, dm)
 			return dm, nil
 		}
 	}
@@ -107,6 +198,7 @@ func (b *Backend) GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, e
 	// so serve the injected one (matching ListDomainModels) so DESCRIBE System.* and
 	// any lookup of a platform entity's domain model resolves instead of erroring.
 	if sys := buildSystemDomainModel(); sys.ContainerID == moduleID {
+		b.resolveInheritedPersistability(units, sys)
 		return sys, nil
 	}
 	// Match the legacy contract: a missing domain model is an error, not (nil, nil).
@@ -198,8 +290,10 @@ func entityFromGen(e *genDm.Entity) *domainmodel.Entity {
 		out.HasCreatedDate = g.HasCreatedDate()
 	case *genDm.Generalization:
 		out.GeneralizationRef = g.GeneralizationQualifiedName()
-		// Persistability is inherited from the parent chain; default true
-		// matches legacy (sdk/mpr parser_domainmodel.go).
+		// A specialization stores no Persistable — it is its root's, which this
+		// entity alone cannot see. The default stands until the domain-model
+		// reads resolve the chain (resolveInheritedPersistability); a caller of
+		// entityFromGen on its own gets the unresolved value.
 	}
 
 	out.Location = parseLocation(e.Location())
