@@ -1,0 +1,20 @@
+mdl 1;
+-- Bug mendixlabs/mxcli#280 (ako/mxcli#1234), Phase 0 of
+-- docs/11-proposals/PROPOSAL_openapi_response_entities.md.
+--
+-- The reporter imported the Swagger 2.0 Petstore
+-- (https://petstore.swagger.io/v2/swagger.json). The OpenAPI importer reads only
+-- OpenAPI 3 fields, so a 2.0 document parsed "successfully" into an empty
+-- contract: BaseUrl '', request bodies dropped, every response `none`, no warning.
+--
+-- It is now refused at execution time. `mxcli check` cannot see that, so this is
+-- a plain .mdl. The guard is pinned by TestParseSpec_RefusesSwagger2
+-- (mdl/openapi/parser_test.go). Run it to see the message:
+--
+--   mxcli exec mdl-examples/bug-tests/280-openapi-swagger2-refused.mdl
+--
+-- Expect: "this is a Swagger 2.0 document; only OpenAPI 3 is supported. Convert
+-- it to OpenAPI 3 first ...". Before the fix it printed a service whose every
+-- operation had `Response: none`.
+
+describe contract operation from openapi 'mdl-examples/openapi-local-specs/petstore-swagger2.json';

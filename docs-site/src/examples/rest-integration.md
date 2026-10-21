@@ -219,7 +219,9 @@ CREATE IMPORT MAPPING Integration.IMM_Order
 
 ### From an OpenAPI Spec (Recommended)
 
-If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in one command:
+If the API has an OpenAPI 3.x spec (JSON or YAML), generate the REST client in one command.
+A Swagger 2.0 spec is refused; convert it to OpenAPI 3 first (for example
+`npx swagger2openapi swagger.json -o openapi.json`) and import the converted file.
 
 ```sql
 mdl 1;
@@ -235,6 +237,10 @@ CREATE OR MODIFY CONSUMED REST SERVICE PetStoreModule.PetStoreAPI (
 ```
 
 Operations, path/query parameters, request bodies, response types, resource groups (from `tags`), and Basic auth are all derived automatically from the spec.
+
+JSON responses are imported as `Response: JSON` (a string). The import does not yet create
+entities for them: to get objects, create non-persistent entities and give the operation a
+`Response: MAPPING Module.Entity { … }`, as shown under *Manual Definition* below.
 
 **Preview without writing:**
 ```sql

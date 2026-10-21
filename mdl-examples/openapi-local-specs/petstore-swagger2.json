@@ -1,0 +1,18 @@
+{
+  "swagger": "2.0",
+  "info": {"title": "Swagger Petstore", "version": "1.0.7"},
+  "host": "petstore.swagger.io",
+  "basePath": "/v2",
+  "schemes": ["https"],
+  "paths": {
+    "/pet/{petId}": {
+      "get": {
+        "operationId": "getPetById",
+        "produces": ["application/json"],
+        "parameters": [{"name": "petId", "in": "path", "required": true, "type": "integer", "format": "int64"}],
+        "responses": {"200": {"description": "ok", "schema": {"$ref": "#/definitions/Pet"}}}
+      }
+    }
+  },
+  "definitions": {"Pet": {"type": "object", "properties": {"id": {"type": "integer"}}}}
+}

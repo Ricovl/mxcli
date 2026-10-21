@@ -19,6 +19,10 @@ import (
 
 // Spec is a minimal OpenAPI 3.0 representation covering fields needed for REST client generation.
 type Spec struct {
+	// OpenAPI is the 3.x version string; Swagger is set instead by a 2.0
+	// document, which this parser does not read (see ParseSpec).
+	OpenAPI    string                `json:"openapi"    yaml:"openapi"`
+	Swagger    string                `json:"swagger"    yaml:"swagger"`
 	Info       Info                  `json:"info"       yaml:"info"`
 	Servers    []Server              `json:"servers"    yaml:"servers"`
 	Paths      map[string]PathItem   `json:"paths"      yaml:"paths"`
@@ -124,6 +128,16 @@ func ParseSpec(data []byte, ext string) (*Spec, error) {
 		if err := yaml.Unmarshal(data, &spec); err != nil {
 			return nil, fmt.Errorf("YAML parse error: %w", err)
 		}
+	}
+	// A Swagger 2.0 document unmarshals without error into the OpenAPI 3 types,
+	// but none of the fields that carry its contract (host/basePath, response
+	// `schema`, `in: body`, `definitions`) exist there. Converting it produced
+	// an empty contract — BaseUrl '', no request bodies, every response
+	// `none` — with no warning (mendixlabs/mxcli#280). Refuse it instead.
+	if spec.Swagger != "" {
+		return nil, fmt.Errorf("this is a Swagger %s document; only OpenAPI 3 is supported. "+
+			"Convert it to OpenAPI 3 first (for example with https://converter.swagger.io "+
+			"or `npx swagger2openapi`) and import the converted file", spec.Swagger)
 	}
 	return &spec, nil
 }
