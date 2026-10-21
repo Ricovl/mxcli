@@ -87,15 +87,16 @@ var builtinModes = map[string]builtinProbe{
 	"integration_surface": {CatalogCommunities, ""},
 
 	// No catalog access.
-	"parse_xpath":    {CatalogFast, ""},
-	"violation":      {CatalogFast, ""},
-	"location":       {CatalogFast, ""},
-	"is_pascal_case": {CatalogFast, ""},
-	"is_camel_case":  {CatalogFast, ""},
-	"matches":        {CatalogFast, ""},
-	"find_all":       {CatalogFast, ""},
-	"struct":         {CatalogFast, ""},
-	"get_option":     {CatalogFast, ""},
+	"parse_xpath":     {CatalogFast, ""},
+	"violation":       {CatalogFast, ""},
+	"location":        {CatalogFast, ""},
+	"is_pascal_case":  {CatalogFast, ""},
+	"is_camel_case":   {CatalogFast, ""},
+	"matches":         {CatalogFast, ""},
+	"find_all":        {CatalogFast, ""},
+	"struct":          {CatalogFast, ""},
+	"get_option":      {CatalogFast, ""},
+	"get_list_option": {CatalogFast, ""},
 }
 
 // fieldsKnownFull are struct fields filled only by a full build, pinned so the

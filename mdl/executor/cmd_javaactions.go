@@ -97,62 +97,15 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	sb.WriteString(describeFolderClause(ctx, ja.ContainerID))
 	sb.WriteString("(")
 
-	// Parameters — one per line when descriptions are present
-	hasParamDescriptions := false
-	for _, p := range ja.Parameters {
-		if p.Description != "" {
-			hasParamDescriptions = true
-			break
-		}
-	}
-
-	for i, param := range ja.Parameters {
-		if hasParamDescriptions {
-			sb.WriteString("\n    ")
-		}
-		sb.WriteString(param.Name)
-		sb.WriteString(": ")
-		if param.ParameterType != nil {
-			sb.WriteString(formatJavaActionType(param.ParameterType))
-		} else {
-			sb.WriteString("Object")
-		}
-		if param.IsRequired {
-			sb.WriteString(" not null")
-		}
-		// The separator precedes any `--` doc comment: written after it, the
-		// comment swallows the comma and the next parameter fails to parse (#1412).
-		if i < len(ja.Parameters)-1 {
-			sb.WriteString(",")
-			if !hasParamDescriptions {
-				sb.WriteString(" ")
-			}
-		}
-		if param.Description != "" {
-			paramDoc := strings.ReplaceAll(param.Description, "\r\n", "\n")
-			paramDoc = strings.ReplaceAll(paramDoc, "\r", "\n")
-			firstLine, _, _ := strings.Cut(paramDoc, "\n")
-			sb.WriteString("  -- ")
-			sb.WriteString(firstLine)
-		}
-	}
-	if hasParamDescriptions {
-		sb.WriteString("\n")
-	}
+	writeCodeActionParams(&sb, ja.Parameters, formatJavaActionType)
 	sb.WriteString(")")
 
-	// Return type
+	// Return type, and the return value's name
 	if ja.ReturnType != nil {
 		sb.WriteString(" returns ")
 		sb.WriteString(formatJavaActionReturnType(ja.ReturnType))
 	}
-
-	// RETURN NAME metadata
-	if ja.ActionDefaultReturnName != "" {
-		sb.WriteString("\n-- return NAME: '")
-		sb.WriteString(ja.ActionDefaultReturnName)
-		sb.WriteString("'")
-	}
+	sb.WriteString(describeCodeActionReturnName(ja.ActionDefaultReturnName, ja.ReturnType != nil))
 
 	// EXPOSED AS clause
 	if ja.MicroflowActionInfo != nil && ja.MicroflowActionInfo.Caption != "" {
@@ -346,6 +299,94 @@ func formatJavaActionType(t javaactions.CodeActionParameterType) string {
 }
 
 // formatJavaActionReturnType formats a Java action return type.
+// writeCodeActionParams prints a Java or JavaScript action's parameters, each
+// description as the `/** … */` doc comment that create reads before a
+// parameter — the form an entity attribute's documentation takes. It was a
+// trailing `--` comment, which the lexer discards: a script copying describe's
+// output lost every description, and only the first line was printed anyway
+// (mendixlabs/mxcli#1588). One parameter per line when any is described.
+func writeCodeActionParams(sb *strings.Builder, params []*javaactions.JavaActionParameter,
+	formatType func(javaactions.CodeActionParameterType) string) {
+	described := false
+	for _, p := range params {
+		if p.Description != "" {
+			described = true
+			break
+		}
+	}
+	for i, param := range params {
+		if described {
+			sb.WriteString("\n")
+			if param.Description != "" {
+				doc := strings.ReplaceAll(param.Description, "\r\n", "\n")
+				doc = strings.ReplaceAll(doc, "\r", "\n")
+				// A `*/` would end the doc comment mid-text and the rest would not
+				// parse. Shown as a comment, the parameter states none, so a
+				// rewrite carries the stored one.
+				if strings.Contains(doc, "*/") {
+					for line := range strings.SplitSeq(doc, "\n") {
+						fmt.Fprintf(sb, "    -- %s\n", line)
+					}
+				} else if !strings.Contains(doc, "\n") && !strings.HasPrefix(doc, "*") {
+					// The inline form holds one line that does not itself start with
+					// `*`, which the parser strips as the gutter (mendixlabs/mxcli#1428).
+					fmt.Fprintf(sb, "    /** %s */\n", doc)
+				} else {
+					outputJavadocIndented(sb, doc, "    ")
+				}
+			}
+			sb.WriteString("    ")
+		}
+		sb.WriteString(param.Name)
+		sb.WriteString(": ")
+		if param.ParameterType != nil {
+			sb.WriteString(formatType(param.ParameterType))
+		} else {
+			sb.WriteString("Object")
+		}
+		if param.IsRequired {
+			sb.WriteString(" not null")
+		}
+		if i < len(params)-1 {
+			sb.WriteString(",")
+			if !described {
+				sb.WriteString(" ")
+			}
+		}
+	}
+	if described {
+		sb.WriteString("\n")
+	}
+}
+
+// describeCodeActionReturnName is the ` as $Name` that follows `returns T`,
+// naming the return value as create reads it (mendixlabs/mxcli#1588). A name
+// the `$Name` token cannot spell, or one with no `returns` to follow, is still
+// shown, as a comment on its own line.
+func describeCodeActionReturnName(name string, hasReturns bool) string {
+	if name == "" {
+		return ""
+	}
+	if hasReturns && isVariableTokenBody(name) {
+		return " as $" + name
+	}
+	return "\n-- return NAME: '" + name + "'"
+}
+
+// isVariableTokenBody reports whether `$` + s lexes as one VARIABLE token
+// ('$' ID_BODY+).
+func isVariableTokenBody(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
 func formatJavaActionReturnType(t javaactions.CodeActionReturnType) string {
 	if t == nil {
 		return "Void"
@@ -455,11 +496,12 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	var existingJADoc string
 	haveExistingJA := false
 	var existingActionInfo *javaactions.MicroflowActionInfo
-	// A parameter's Description and Category have no MDL spelling either —
-	// DESCRIBE prints the description as a comment — so a rewrite carries them
-	// from the stored parameter of the same name.
+	// A parameter's Category has no MDL spelling, and its Description is set
+	// only by a `/** … */` before it, so a rewrite carries both from the stored
+	// parameter of the same name unless the statement says otherwise.
 	storedParams := map[string]*javaactions.JavaActionParameter{}
-	// Neither has an MDL spelling, so a rewrite carries them. The defaults are
+	// The export level has no MDL spelling and the return value's name is set
+	// only by `returns T as $Name`, so a rewrite carries them. The defaults are
 	// what Studio Pro writes on a new action; "Public" — what this used to
 	// hardcode — is not a member of JavaActionsExportLevel (API | Hidden), and
 	// every rewrite turned a Hidden action into it (ako/mxcli#705).
@@ -503,6 +545,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	newID := model.ID(types.GenerateID())
 	if existingJAID != "" {
 		newID = existingJAID
+	}
+
+	// `returns T as $Name` names the return value (mendixlabs/mxcli#1588).
+	if s.ReturnName != "" {
+		defaultReturnName = s.ReturnName
 	}
 
 	// Create the Java action
@@ -581,10 +628,14 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		} else {
 			jaParam.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 		}
+		var storedDescription string
 		if sp := storedParams[param.Name]; sp != nil {
-			jaParam.Description = sp.Description
+			storedDescription = sp.Description
 			jaParam.Category = sp.Category
 		}
+		// A doc comment before the parameter sets its description; none keeps
+		// the stored one (mendixlabs/mxcli#1588).
+		jaParam.Description = carriedDocumentation(param.DescriptionSet, param.Description, storedDescription)
 		ja.Parameters = append(ja.Parameters, jaParam)
 	}
 

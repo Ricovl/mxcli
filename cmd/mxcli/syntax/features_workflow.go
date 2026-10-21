@@ -323,7 +323,8 @@ func init() {
 		Keywords: []string{
 			"call workflow", "sub-workflow", "nested workflow",
 		},
-		Syntax: "CALL WORKFLOW Module.WF[(WorkflowContext = <expression>)] [AS <name>] [CAPTION '<text>'];\n\n" +
+		Syntax: "CALL WORKFLOW Module.WF[(WorkflowContext = <expression>)] [AS <name>] [CAPTION '<text>']\n" +
+			"  [BOUNDARY EVENT ...];\n\n" +
 			"-- A workflow has exactly one parameter and Mendix stores it as WorkflowContext,\n" +
 			"-- whatever name the called workflow's `PARAMETER $Name: ...` header declares — so\n" +
 			"-- the mapping key is always WorkflowContext. Any other key is CE1613 (MDL-WF18).\n" +
@@ -332,8 +333,11 @@ func init() {
 		Example: "CALL WORKFLOW HR.SubApproval CAPTION 'Delegate to sub-process';\n\n" +
 			"CALL WORKFLOW HR.SubApproval(WorkflowContext = $WorkflowContext) AS callWf1;\n\n" +
 			"-- pass an associated object: the path names the association AND its target entity\n" +
-			"CALL WORKFLOW HR.ReviewLine(WorkflowContext = $WorkflowContext/HR.Request_Line/HR.Line) AS callWf2;",
-		SeeAlso: []string{"workflow.create", "workflow.call-microflow", "microflow.workflow-actions"},
+			"CALL WORKFLOW HR.ReviewLine(WorkflowContext = $WorkflowContext/HR.Request_Line/HR.Line) AS callWf2;\n\n" +
+			"-- put a deadline on the child without moving the timer into it\n" +
+			"CALL WORKFLOW HR.SubApproval AS callWf3\n" +
+			"  BOUNDARY EVENT INTERRUPTING TIMER addDays([%CurrentDateTime%], 5) { END WORKFLOW; };",
+		SeeAlso: []string{"workflow.create", "workflow.call-microflow", "workflow.boundary-event", "microflow.workflow-actions"},
 	})
 
 	Register(SyntaxFeature{
@@ -419,7 +423,7 @@ func init() {
 
 	Register(SyntaxFeature{
 		Path:    "workflow.boundary-event",
-		Summary: "Attach boundary events (timer) to user tasks for timeouts",
+		Summary: "Attach boundary events (timer) to user tasks, calls and waits for timeouts",
 		Keywords: []string{
 			"boundary event", "timer", "timeout", "deadline",
 			"SLA", "escalation",
@@ -430,7 +434,7 @@ func init() {
 		// 'Workflows$TimerBoundaryEvent' could not be found"). This entry showed
 		// the bare form, with 'P3D' — not a valid timer expression — as its delay.
 		// ako/view-entity-examples FINDINGS §7.
-		Syntax:     "-- inline, as a clause of a USER TASK (after OUTCOMES):\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } } };\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
+		Syntax:     "-- inline, as a clause of a USER TASK or CALL MICROFLOW (after OUTCOMES),\n-- a CALL WORKFLOW or a WAIT FOR NOTIFICATION:\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } } };\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
 		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer addDays([%CurrentDateTime%], 3) {\n    call microflow Module.WF_Escalate;\n  };",
 		MinVersion: "10.6.0",
 		SeeAlso:    []string{"workflow.user-task", "workflow.notification", "workflow.event-subprocess"},

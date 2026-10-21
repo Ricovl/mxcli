@@ -40,11 +40,19 @@ import (
 // elsewhere, and an entity this cannot establish leaves the constraint
 // unchecked rather than wrongly checked — the same rule as the member resolver
 // in validate_member_refs.go, and for the same reason.
+//
+// The members are resolved against the project AND the script, with the
+// resolver the microflow retrieve uses. Project-only, a member the script adds
+// to a stored entity — `alter entity … add attribute`, a restating `create or
+// modify`, a new association — was "neither an attribute nor an association",
+// and exec refused a script that builds clean (mendixlabs/mxcli#1271).
 func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 	if prog == nil || !ctx.Connected() {
 		return nil
 	}
-	m := &execXPathModel{ctx: ctx}
+	sc := newScriptContext()
+	sc.collectDefinitions(prog)
+	m, resolve := scriptXPathResolver(ctx, sc)
 	var errs []error
 	for _, stmt := range prog.Statements {
 		forEachWidget(stmt, func(w *ast.WidgetV3, where string) {
@@ -58,7 +66,7 @@ func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 			}
 			// Checked as it is stored: a qualified attribute of the entity is
 			// the attribute, not a step to resolve (ako/mxcli#874).
-			for _, bad := range unresolvableXPathSteps(ctx, m, storedXPathConstraint(ds.Where, entityQN), entityQN) {
+			for _, bad := range unresolvableXPathStepsWith(ctx, m, storedXPathConstraint(ds.Where, entityQN), entityQN, resolve) {
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf(
 					"%s: the constraint on %s names %q, which is neither an attribute nor an "+
 						"association of it — mxbuild reports this as CE1613 \"The selected %s "+
@@ -76,8 +84,10 @@ type badStep struct {
 	kind string // "association" or "attribute" — which mxbuild will call it
 }
 
-// unresolvableXPathSteps walks the constraint's predicate groups and returns the
-// steps that name nothing on the entity.
+// unresolvableXPathStepsWith walks the constraint's predicate groups and returns
+// the steps that name nothing on the entity. resolveBare is the bare-member
+// lookup — every caller passes scriptXPathResolver's, which also knows the
+// entities the script declares; nil is resolveMemberOnEntity.
 //
 // The parse is deliberately lenient (ANTLR with the error listeners removed), so
 // a group it cannot read is SKIPPED rather than reported: a tree that quietly
@@ -85,13 +95,6 @@ type badStep struct {
 // wrote. That is the same trap xpathrefs documents for the rename path, where
 // the consequence is a corrupted constraint; here it is only a false error, but
 // a false error still blocks a script that builds.
-func unresolvableXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string) []badStep {
-	return unresolvableXPathStepsWith(ctx, m, constraint, entityQN, nil)
-}
-
-// unresolvableXPathStepsWith is unresolvableXPathSteps with the bare-member
-// lookup replaced — the microflow retrieve check passes one that also knows the
-// entities the script declares. nil is resolveMemberOnEntity.
 func unresolvableXPathStepsWith(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string,
 	resolveBare func(entityQN, member string) memberResolution) []badStep {
 	groups := visitor.SplitXPathPredicateGroups(constraint)

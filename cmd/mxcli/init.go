@@ -648,6 +648,9 @@ excludeModules:
 #     severity: warning
 #     options:
 #       maxObjects: 20
+#   QUAL004:            # orphaned elements: name prefixes of entry points
+#     options:
+#       entry_point_prefixes: [ACT_, SCH_, WS_, REST_, OData_]
 rules: {}
 `
 

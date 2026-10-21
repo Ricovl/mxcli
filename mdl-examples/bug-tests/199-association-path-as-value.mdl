@@ -1,0 +1,39 @@
+mdl 1;
+-- mendixlabs/mxcli#199 (ako/mxcli#1231) — an association path used as a whole
+-- value passed `mxcli check --references` and failed the build:
+--
+--   return $Parent/Mod.Child_Parent;       CE0117 "Error(s) in expression." at End event
+--   loop $c in $Parent/Mod.Child_Parent    CE0099 "The 'Iterate over' property is required."
+--
+-- check now refuses both (MDL049, MDL094); the retrieve below is the activity
+-- they mean, and it is what this script does. To see the refusal, change
+-- GetChildren to `return $Parent/BugTest199.Child_Parent;` and run
+-- `mxcli check` on it.
+--
+--   mxcli check mdl-examples/bug-tests/199-association-path-as-value.mdl
+--   mxcli exec  mdl-examples/bug-tests/199-association-path-as-value.mdl -p app.mpr
+--
+-- Expected: check passes, and `mxcli docker check` reports no error for
+-- either microflow. GetParent is the control for the one path form that IS a
+-- value: a reference followed from its owner with the target entity named.
+
+create module BugTest199;
+create persistent entity BugTest199.Parent (Name: String(100));
+create persistent entity BugTest199.Child (Code: String(50));
+create association BugTest199.Child_Parent from BugTest199.Child to BugTest199.Parent;
+
+create microflow BugTest199.GetChildren ($Parent: BugTest199.Parent)
+returns list of BugTest199.Child as $Children
+begin
+  retrieve $Children from $Parent/BugTest199.Child_Parent;
+  loop $c in $Children begin
+    log info node 'BugTest199' $c/Code;
+  end loop;
+  return $Children;
+end;
+
+create microflow BugTest199.GetParent ($Child: BugTest199.Child)
+returns BugTest199.Parent as $P
+begin
+  return $Child/BugTest199.Child_Parent/BugTest199.Parent;
+end;

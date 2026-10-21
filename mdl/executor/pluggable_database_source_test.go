@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -21,7 +20,8 @@ func pageBuilderAt(major, minor int) *pageBuilder {
 }
 
 // The source type exists in 9.x only: mx convert 10.12.19 rewrites every one
-// into an XPath source. On 10+ the pluggable form stays refused, as before.
+// into an XPath source, which is what 10+ builds (mendixlabs/mxcli#1599,
+// TestBuildPluggableDataSource_DatabaseOverAssociationOn10).
 func TestCustomWidgetDatabaseSourceVersionGate(t *testing.T) {
 	if !pageBuilderAt(9, 24).customWidgetDatabaseSourceSupported() {
 		t.Error("9.24 does not get the 9.x database source")
@@ -31,10 +31,6 @@ func TestCustomWidgetDatabaseSourceVersionGate(t *testing.T) {
 	}
 	if (&pageBuilder{backend: &mock.MockBackend{}}).customWidgetDatabaseSourceSupported() {
 		t.Error("an unknown version got the 9.x source")
-	}
-	ds := &ast.DataSourceV3{Type: "database", ContextVariable: "P", AssociationPath: "M.A_B/M.A"}
-	if _, _, err := pageBuilderAt(10, 24).buildPluggableDataSourceV3(ds); err == nil {
-		t.Error("10.24 built `database from $P/…` on a pluggable widget")
 	}
 }
 

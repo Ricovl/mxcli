@@ -1,0 +1,30 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1601: an entity an earlier MOVE or RENAME produced was
+-- "entity not found" to an ALTER ENTITY in the same script
+-- ============================================================================
+--
+-- check (v0.27.0):
+--   statement 2: entity not found: Probe.Item (referenced by alter entity)
+--   Refusing to execute: 2 unresolved reference(s) above. Nothing was written.
+-- and with --no-check the script applied cleanly. The move / rename target was
+-- recorded (scriptContext.indirectEntities) but the ALTER target check
+-- (validateAlterTarget) only read the entities a CREATE declares.
+--
+-- To verify: `mxcli check … -p app.mpr --references` passes, exec applies every
+-- statement, and `mxcli docker check` reports 0 errors.
+-- ============================================================================
+
+-- The ALTERed entity must land in a module the PROJECT has: an ALTER into a
+-- module the script creates was never checked, so it hid the defect. Hence
+-- MyFirstModule, which every blank app has.
+create module Bug1601;
+create persistent entity Bug1601.Item (Code: String(20));
+create persistent entity MyFirstModule.Bug1601Gadget (Code: String(20));
+
+move entity Bug1601.Item to MyFirstModule;
+alter entity MyFirstModule.Item set position (930, 560);
+alter entity MyFirstModule.Item set documentation 'moved';
+
+rename entity MyFirstModule.Bug1601Gadget to Bug1601Thing;
+alter entity MyFirstModule.Bug1601Thing set documentation 'renamed';

@@ -1,0 +1,56 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1498 — a Hidden attribute or association of a Protected
+-- (add-on) module used from another module (CE1406)
+-- ============================================================================
+--
+-- `check -p --references` reported CE1406 for a Hidden ENTITY, microflow or page
+-- of an add-on module, and passed every flow that used a Hidden MEMBER of a
+-- Usable entity. mxbuild refuses those too. Measured on a blank Mendix 11.14.0
+-- app, BugMembers1498 set to Protected, one microflow per shape, with Payload
+-- and Item_Request Hidden:
+--
+--   change $r (Payload = …)                  CE1406 … attribute
+--   create … (Payload = …)                   CE1406 … attribute
+--   change / create (… Item_Request = …)     CE1406 … association
+--   retrieve $x from $i/…Item_Request        CE1406 … association
+--   retrieve … where Payload = …             CE1406 … attribute
+--   retrieve … where …Item_Request = $r      CE1406 … association
+--   return $r/Payload                        CE1406 … attribute (End event)
+--   return $i/…Item_Request != empty         CE1406 … association (End event)
+--
+-- The same uses of Usable members, and of the Hidden ones from inside the
+-- add-on, were 0 errors; so was the whole script with the module ordinary.
+-- `check` now reports each of the nine, with the statement that fixes it
+-- (`alter entity … modify attribute Payload: String(200) export level api`,
+-- `alter association … set export level api`); with both applied, check
+-- passes and mxbuild reports 0 errors. This file as written: 0 from check and
+-- from mxbuild; with the two members' clauses removed: 8 CE1406 from each.
+--
+-- This file is the shape that must PASS: every member it uses is Usable. MDL
+-- cannot make a module Protected and `make check-mdl` runs without a project,
+-- so the refused cases are Go tests against a Protected module:
+-- mdl/executor/validate_protected_module_refs_test.go.
+-- ============================================================================
+
+CREATE MODULE BugMembers1498;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugMembers1498.Request (
+  Payload: String(200) EXPORT LEVEL api
+) EXPORT LEVEL api;
+CREATE OR MODIFY PERSISTENT ENTITY BugMembers1498.Item ( Name: String(50) EXPORT LEVEL api ) EXPORT LEVEL api;
+CREATE OR MODIFY ASSOCIATION BugMembers1498.Item_Request
+  FROM BugMembers1498.Item TO BugMembers1498.Request
+  EXPORT LEVEL api;
+
+CREATE OR MODIFY MICROFLOW MyFirstModule.BugMembers1498_Use ($r: BugMembers1498.Request, $i: BugMembers1498.Item)
+RETURNS Boolean
+BEGIN
+  CHANGE $r (Payload = 'x');
+  $n = CREATE BugMembers1498.Request (Payload = 'y');
+  CHANGE $i (BugMembers1498.Item_Request = $r);
+  RETRIEVE $Req FROM $i/BugMembers1498.Item_Request;
+  RETRIEVE $L FROM BugMembers1498.Request WHERE Payload = 'x';
+  RETRIEVE $Items FROM BugMembers1498.Item WHERE BugMembers1498.Item_Request = $r;
+  RETURN $r/Payload != empty and $i/BugMembers1498.Item_Request != empty;
+END;

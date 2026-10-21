@@ -68,6 +68,11 @@ func LoadWidgetRegistry(projectPath string) *WidgetRegistry {
 		// from the same .mpk DESCRIBE parses. See
 		// widget_known_props_from_mpk.go for why this is not a list of nine.
 		enrichKnownPropertiesFromMPK(registry, projectPath)
+	} else {
+		// No project to read packages from: the embedded template is the
+		// widget's schema, so check without -p accepts what DESCRIBE prints
+		// by key (mendixlabs/mxcli#1586).
+		enrichKnownPropertiesFromTemplates(registry)
 	}
 	return registry
 }
@@ -280,6 +285,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
+		// #1511: a snippet call renders no element, so its Class / Style /
+		// DynamicClasses / design properties never reach the page.
+		out = append(out, validateSnippetCallAppearance(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
 		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).

@@ -22,7 +22,7 @@ import (
 //	[CreatedDate > '[%CurrentDateTime%]']     CE0161  (the spelling describe prints)
 //	[createdDate > '[%CurrentDateTime%]']     clean
 //
-// The resolution is unresolvableXPathSteps, the widget check's walk, over the
+// The resolution is unresolvableXPathStepsWith, the widget check's walk, over the
 // constraint exactly as the flow builder stores it (retrieveXPathConstraint), so
 // what is checked is what is written. Silence where the entity cannot be
 // established, as everywhere in that walk.

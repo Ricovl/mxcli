@@ -4,6 +4,7 @@ package mcp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -14,6 +15,11 @@ const enumerationDocType = "Enumerations$Enumeration"
 // registers it in the session so it is visible to ListEnumerations this run
 // (e.g. a subsequent CREATE ENTITY with an attribute of this enum type).
 func (b *Backend) CreateEnumeration(enum *model.Enumeration) error {
+	// PED is not sent an export level (mendixlabs/mxcli#1498): refused, not dropped.
+	if enum.ExportLevel != "" && enum.ExportLevel != "Hidden" {
+		return fmt.Errorf("enumeration %q: `export level %s` is not yet supported by the MCP backend; "+
+			"run it against a local .mpr instead, or set it in Studio Pro", enum.Name, strings.ToLower(enum.ExportLevel))
+	}
 	moduleName, folderPath, err := b.resolveDocContainer(enum.ContainerID)
 	if err != nil {
 		return fmt.Errorf("resolve container for enumeration %q: %w", enum.Name, err)
@@ -60,7 +66,7 @@ func (b *Backend) DeleteEnumeration(id model.ID) error {
 func (b *Backend) forgetSessionEnum(moduleName, name string) {
 	out := b.sessionEnums[:0]
 	for _, e := range b.sessionEnums {
-		if mod, err := b.GetModule(e.ContainerID); err == nil && mod.Name == moduleName && e.Name == name {
+		if mod, err := b.moduleNameForContainer(e.ContainerID); err == nil && mod == moduleName && e.Name == name {
 			continue
 		}
 		out = append(out, e)

@@ -751,6 +751,20 @@ snippetcall snippetName (snippet: Module.SnippetName)
 snippetcall actions (snippet: Module.EntityActions, params: (entity = $Param))
 ```
 
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: Module.NavigationMenu)
+}
+```
+
 **A parameter satisfied by the enclosing data context takes NO mapping.** Mendix
 has no variable meaning "the surrounding context" — the correct model is the
 *absence* of a mapping, which is what Studio Pro writes. So inside a DataView

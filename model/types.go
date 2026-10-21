@@ -205,6 +205,10 @@ type Enumeration struct {
 	// carry the stored value rather than default it to false (#914).
 	Excluded bool               `json:"excluded,omitempty"`
 	Values   []EnumerationValue `json:"values,omitempty"`
+	// ExportLevel is "Hidden" or "API" (Studio Pro's "Usable"), which matters in
+	// a Protected (add-on) module (CE5400). The writer writes a set level and,
+	// for "", keeps the stored one (mendixlabs/mxcli#1498).
+	ExportLevel string `json:"exportLevel,omitempty"`
 }
 
 // GetName returns the enumeration's name.
@@ -789,6 +793,11 @@ type PublishedRestService struct {
 	Excluded     bool                     `json:"excluded,omitempty"`
 	AllowedRoles []string                 `json:"allowedRoles,omitempty"`
 	Resources    []*PublishedRestResource `json:"resources,omitempty"`
+	// Documentation is the service's own Documentation property — the
+	// developer-facing text Studio Pro shows on the document, not
+	// PublicDocumentation, the OpenAPI description consumers read
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 
 	// AuthenticationTypes are the methods a caller may authenticate with, in
 	// the order stored: "Basic", "Session", "Microflow". Empty is "Requires
@@ -985,6 +994,9 @@ type DataTransformer struct {
 	SourceJSON  string                 `json:"sourceJson,omitempty"` // source content
 	Steps       []*DataTransformerStep `json:"steps,omitempty"`
 	Excluded    bool                   `json:"excluded,omitempty"`
+	// Documentation is the transformer's Documentation property
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 }
 
 // GetName returns the transformer's name.

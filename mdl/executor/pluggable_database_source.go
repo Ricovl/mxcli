@@ -29,12 +29,15 @@ func (pb *pageBuilder) customWidgetDatabaseSourceSupported() bool {
 
 // buildPluggableDataSourceV3 builds the datasource of a widget the pluggable
 // engine writes. `database from $ctx/Assoc/Entity` is the one form it adds to
-// buildDataSourceV3: on a 9.x project it is the CustomWidgetDatabaseSource
-// Studio Pro writes for a repeater, gallery or grid bound to "Database" over an
-// association, its WHERE stored as constraint rows (mendixlabs/mxcli#1399).
-// Everywhere else the form keeps buildDataSourceV3's refusal.
+// buildDataSourceV3: the "Database" source Studio Pro writes for a repeater,
+// gallery or grid bound over an association. On 10+ that is a
+// CustomWidgetXPathSource holding the hops as an IndirectEntityRef beside its
+// XPath and sort bar (mendixlabs/mxcli#1599); on a 9.x project it is the
+// CustomWidgetDatabaseSource, its WHERE stored as constraint rows
+// (mendixlabs/mxcli#1399). A widget with its own builder keeps
+// buildDataSourceV3's refusal.
 func (pb *pageBuilder) buildPluggableDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
-	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" || !pb.customWidgetDatabaseSourceSupported() {
+	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
 		return pb.buildDataSourceV3(ds)
 	}
 	built, entity, err := pb.buildDatabaseOverAssociationV3(ds)
@@ -42,7 +45,7 @@ func (pb *pageBuilder) buildPluggableDataSourceV3(ds *ast.DataSourceV3) (pages.D
 		return nil, "", err
 	}
 	src, ok := built.(*pages.DatabaseSource)
-	if !ok {
+	if !ok || !pb.customWidgetDatabaseSourceSupported() {
 		return built, entity, nil
 	}
 	constraints, err := parseDatabaseConstraints(src.XPathConstraint, entity)

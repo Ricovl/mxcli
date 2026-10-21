@@ -108,6 +108,7 @@ create persistent entity Module.Photo (
 | Association line anchors | `@anchor(from: (0, 54), to: (100, 54))` above `create association …` | Where the connector attaches to each entity box, as a **percentage** of the box (0..100, whole numbers). `from` = the FROM entity's box, `to` = the TO entity's. Omitting an end preserves what is stored, so a `create or modify` about something else never flattens a hand-tuned line. Cross-module associations have no anchors — Mendix stores none |
 | Set documentation | `alter entity\|association\|enumeration Module.Name set documentation 'text';` | `set comment` is the deprecated spelling (MDL-DEPR135) |
 | Retune anchors in place | `alter association Module.Name set anchor from (50, 100) to (50, 0);` | `(0, 50)` left-middle, `(100, 50)` right-middle, `(50, 100)` bottom-centre. `describe association` re-emits a non-default pair as the same `@anchor(...)`, so describe → edit → exec round-trips |
+| Export level | `create … entity M.E (A: String(50) export level api) export level api;` · `create association … export level api;` · `create enumeration … export level api;` · `alter entity\|association\|enumeration M.X set export level api\|hidden;` | Studio Pro's **Usable** (`api`) / Hidden. Matters in a **Protected (add-on)** module: CE5400 when an `api` microflow exposes a Hidden entity or enumeration, CE1406 when another module uses a Hidden element. An absent clause keeps the stored level; Mendix 9.3+. `mxcli syntax domain-model.export-level` |
 
 ## ALTER ENTITY
 
@@ -1442,6 +1443,7 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 | Describe Java action | `describe java action Module.Name;` | Full MDL output with signature |
 | Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID |
 | Create with type params | `create java action Module.Name(EntityType: entity <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Describe a parameter, name the return value | `create java action Module.Name(/** The text. */ Input: String) returns String as $Result as $$ ... $$;` | `/** … */` before a parameter is its description; `as $Name` the return value's name. Omitted on `or modify`, both keep what is stored |
 | Create exposed action | `... exposed as 'caption' in 'Category' as $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Exposed action with bitmaps | `... exposed as 'caption' in 'Category' icon 'i.png' icon dark 'id.png' image 'm.png' image dark 'md.png' as $$ ... $$;` | Icon 64x64 PNG, image 256x192; paths relative to the .mdl file's own directory. A wrong size warns and is written; a non-PNG is refused |
 | Remove a toolbox entry | `... not exposed as $$ ... $$;` | An **omitted** clause preserves the stored entry (bitmaps included), so removal is explicit |

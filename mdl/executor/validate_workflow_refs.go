@@ -245,14 +245,7 @@ func bareTimerBoundaryEventErrors(ctx *ExecContext, activities []ast.WorkflowAct
 		}
 	}
 	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
-		switch t := a.(type) {
-		case *ast.WorkflowUserTaskNode:
-			count(t.BoundaryEvents)
-		case *ast.WorkflowCallMicroflowNode:
-			count(t.BoundaryEvents)
-		case *ast.WorkflowWaitForNotificationNode:
-			count(t.BoundaryEvents)
-		}
+		count(workflowActivityBoundaryEvents(a))
 	})
 	if n == 0 {
 		return nil

@@ -650,6 +650,9 @@ func buildCallWorkflowActivity(n *ast.WorkflowCallWorkflowNode) *workflows.CallW
 		act.ParameterMappings = append(act.ParameterMappings, mapping)
 	}
 
+	// BoundaryEvents (mendixlabs/mxcli#1532)
+	act.BoundaryEvents = buildBoundaryEvents(n.BoundaryEvents)
+
 	return act
 }
 

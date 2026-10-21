@@ -349,6 +349,7 @@ func (b *Builder) ExitCreatePublishedRestServiceStatement(ctx *parser.CreatePubl
 	stmt := &ast.CreatePublishedRestServiceStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 	// `folder '…'` after the name (R9); `Folder:` in the list is its alias.
 	folderClause := ctx.STRING_LITERAL() != nil
 	if folderClause {

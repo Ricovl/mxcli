@@ -56,6 +56,12 @@ var docCarryDone = map[string]bool{
 	"CreateConsumedMCPServiceStmt":   true,
 	"CreateAgentStmt":                true,
 	"CreateModuleStmt":               true,
+	// mendixlabs/mxcli#1510: covered by TestIntegrationDocumentation_Issue1510
+	// (unit, on PedApp) as well as TestDocumentation_SurvivesRewrite.
+	"CreateImportMappingStmt":        true,
+	"CreateExportMappingStmt":        true,
+	"CreatePublishedRestServiceStmt": true,
+	"CreateDataTransformerStmt":      true,
 }
 
 // docCarryPending is empty: every statement type in scope is carried AND

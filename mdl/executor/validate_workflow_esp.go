@@ -58,18 +58,10 @@ func workflowStatementActivities(stmt *ast.CreateWorkflowStmt) []ast.WorkflowAct
 func workflowUsesNotificationEvents(activities []ast.WorkflowActivityNode) bool {
 	found := false
 	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
-		var events []ast.WorkflowBoundaryEventNode
-		switch n := a.(type) {
-		case *ast.WorkflowNotificationNode:
+		if _, ok := a.(*ast.WorkflowNotificationNode); ok {
 			found = true
-		case *ast.WorkflowUserTaskNode:
-			events = n.BoundaryEvents
-		case *ast.WorkflowCallMicroflowNode:
-			events = n.BoundaryEvents
-		case *ast.WorkflowWaitForNotificationNode:
-			events = n.BoundaryEvents
 		}
-		for _, e := range events {
+		for _, e := range workflowActivityBoundaryEvents(a) {
 			if e.EventType == "InterruptingNotification" || e.EventType == "NonInterruptingNotification" {
 				found = true
 			}
@@ -101,6 +93,8 @@ func ValidateWorkflowEventSubProcesses(stmt *ast.CreateWorkflowStmt) []linter.Vi
 			events, label = n.BoundaryEvents, "user task "+workflowUserTaskLabel(n)
 		case *ast.WorkflowCallMicroflowNode:
 			events, label = n.BoundaryEvents, "call microflow "+workflowCallMicroflowLabel(n)
+		case *ast.WorkflowCallWorkflowNode:
+			events, label = n.BoundaryEvents, "call workflow "+n.Workflow.String()
 		case *ast.WorkflowWaitForNotificationNode:
 			name := n.Name
 			if name == "" {
