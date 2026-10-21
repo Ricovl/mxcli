@@ -210,7 +210,12 @@ trailing association with no entity gets the end opposite the context.
 
 It is a different source from `$Task/System.WorkflowUserTask_Assignees` — an
 **association** source, which follows the association in memory and has no
-XPath, sort or search. List views only; on any other widget it is refused.
+XPath, sort or search.
+
+A gallery, a data grid and any other pluggable widget take the same form for
+their "Database" source, with its XPath and sort (`search by` stays a list view
+search bar). Widgets with a source of their own, such as a chart series or a
+dynamic image, refuse it.
 
 #### Specialization templates
 
@@ -519,6 +524,20 @@ Embeds a snippet (reusable page fragment) into the page:
 
 ```sql
 SNIPPETCALL scNav (Snippet: MyModule.NavigationMenu)
+```
+
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: MyModule.NavigationMenu)
+}
 ```
 
 ## Navigation Widgets

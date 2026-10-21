@@ -487,6 +487,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// widget that is already stored, so its property can only be resolved
 	// against the document — which is why it passed check and failed exec.
 	errors = append(errors, validateAlterSetProperties(ctx, prog, sc)...)
+	// A SET or ALTER STYLING that styles a stored snippet call: valid, and
+	// useless — a snippet call renders no element (mendixlabs/mxcli#1511).
+	// What the target IS lives only in the document. Warns, never blocks.
+	validateStoredSnippetCallAppearance(ctx, prog, sc)
 	// The entity an ALTER's INSERT / REPLACE binds against is in the stored
 	// document, not the statement. Where it has none (a missing flow source, or
 	// no data container at all) a bare binding is written bare and the project
@@ -1955,6 +1959,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// MDL092: an @anchor parameter the visitor cannot use is dropped, the edge
 	// keeping its default sides — the same class as MDL060 (mendixlabs/mxcli#992).
 	"MDL092": true,
+	// MDL094: a loop over a path, `loop $c in $Parent/Mod.Assoc`. The model's
+	// loop holds a list VARIABLE, so the builder has nowhere to put the path and
+	// writes a loop over nothing — CE0099 on 11.12.1 (mendixlabs/mxcli#199).
+	"MDL094": true,
 	// MDL076: `on error continue` on an activity that rejects it is CE6035 at
 	// build time — every row of continueUnsupportedOn was measured on 11.14.0.
 	// check reported it; exec without the pre-check (-c, the REPL, --no-check)

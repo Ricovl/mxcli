@@ -1,0 +1,41 @@
+-- ============================================================================
+-- Bug test: mendixlabs/mxcli#1599 — DESCRIBE PAGE drops a gallery's sort when
+-- its "Database" source runs over an association
+-- ============================================================================
+--
+-- Studio Pro stores a gallery bound to "Database" over an association from its
+-- context object as a CustomWidgets$CustomWidgetXPathSource whose EntityRef is
+-- an IndirectEntityRef, with its XPath and sort bar beside it. DESCRIBE read it
+-- as the association source `$currentObject/Assoc`, without the sort; replayed,
+-- that is a Forms$AssociationSource — a different retrieve. MDL could not
+-- author the shape at all: `create page` refused `database from
+-- $currentObject/…` on a gallery.
+--
+-- To verify:
+--   1. mxcli exec this script, then: describe page Bug1599.P1
+--      -> gallery g1 (DataSource: database from
+--           $currentObject/Bug1599.Item_Parent/Bug1599.Item sort by Code asc, …)
+--   2. exec that output -> "Unchanged page Bug1599.P1".
+--   3. mx check: 0 errors (measured on 11.12.1).
+-- ============================================================================
+
+mdl 1;
+
+create module Bug1599;
+
+create persistent entity Bug1599.Parent (Name: String(50));
+create persistent entity Bug1599.Item (Code: String(20), Amount: Integer);
+create association Bug1599.Item_Parent from Bug1599.Item to Bug1599.Parent;
+
+create page Bug1599.P1 (Title: 'P', Layout: Atlas_Core.Atlas_Default) {
+  listview lv (DataSource: database from Bug1599.Parent) {
+    gallery g1 (
+      DataSource: database from $currentObject/Bug1599.Item_Parent/Bug1599.Item where [Amount > 0] sort by Code asc,
+      Selection: None
+    ) {
+      template {
+        dynamictext x (Content: '{1}', ContentParams: ({1} = Code))
+      }
+    }
+  }
+};

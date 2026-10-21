@@ -137,13 +137,22 @@ branch with `OUTCOMES`; return nothing for a single path.
 Start a sub-workflow:
 
 ```sql
-CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [CAPTION '<text>'];
+CALL WORKFLOW <Module>.<Name> [(<Param> = <expression>, ...)] [AS <name>] [CAPTION '<text>']
+  [BOUNDARY EVENT ...];
 ```
 
 Example:
 
 ```sql
 CALL WORKFLOW HR.BackgroundCheck CAPTION 'Run background check sub-process';
+```
+
+A call workflow takes the same boundary events as a user task or call microflow,
+so a parent can put a deadline on a child without moving the timer into it:
+
+```sql
+CALL WORKFLOW HR.BackgroundCheck AS callCheck
+  BOUNDARY EVENT INTERRUPTING TIMER addDays([%CurrentDateTime%], 5) { END WORKFLOW; };
 ```
 
 ## Decision
@@ -239,7 +248,7 @@ An intermediate notification event (Mendix 11.11+): the point a `NOTIFY WORKFLOW
 NOTIFICATION [<name>] [CAPTION '<caption>'];
 ```
 
-A **notification boundary event** attaches the same trigger to a user task, call microflow or wait. It takes a name instead of a timer delay:
+A **notification boundary event** attaches the same trigger to a user task, call microflow, call workflow or wait. It takes a name instead of a timer delay:
 
 ```sql
 USER TASK Review 'Review'

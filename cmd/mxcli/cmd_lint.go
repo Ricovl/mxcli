@@ -417,6 +417,7 @@ func builtinLintRules() []linter.Rule {
 		rules.NewValidationFeedbackRule(),
 		rules.NewImageSourceRule(),
 		rules.NewLegacyImageWidgetRule(),
+		rules.NewSnippetCallAppearanceRule(),
 		rules.NewEmptyContainerRule(),
 		rules.NewGallerySelectionListenerRule(),
 		rules.NewDataViewLayoutGridRule(),

@@ -1,12 +1,10 @@
 mdl 1;
 -- mendixlabs/mxcli#979 — a long XPath constraint is stored on one line.
 --
--- Filed as "preserve the whitespace I typed". Preserving is the weaker half:
--- the formatting the reporter cares about lives in Studio Pro's constraint
--- editor, and a constraint is rebuilt from its parse tree on every write, so
--- there is no original whitespace left by the time anything is stored. What is
--- stored instead is a layout DERIVED from the expression — which also covers a
--- constraint a person formatted by hand in Studio Pro.
+-- Filed as "preserve the whitespace I typed". A constraint written on ONE line
+-- is stored with a layout DERIVED from the expression; one its author already
+-- broke across lines is stored as written (mendixlabs/mxcli#1542, see
+-- 1542-retrieve-xpath-keeps-line-breaks.mdl).
 --
 -- Run this, then look at the stored constraints:
 --

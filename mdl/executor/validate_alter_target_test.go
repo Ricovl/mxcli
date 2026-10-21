@@ -169,3 +169,38 @@ func TestValidateAlterTarget_SilentWhenTheListingIsEmpty(t *testing.T) {
 		t.Errorf("an unanswerable listing produced a not-found: %v", err)
 	}
 }
+
+// An entity an earlier MOVE or RENAME in the same script produces is not in the
+// project yet, and is not CREATEd either — so `move entity … to Probe; alter
+// entity Probe.Item …` was "entity not found: Probe.Item (referenced by alter
+// entity)" and exec refused a script that `--no-check` applied cleanly
+// (mendixlabs/mxcli#1601). collectSingle already recorded the destination in
+// indirectEntities; the alter-target check did not read it.
+func TestValidateAlterTarget_CountsEntitiesAMoveOrRenameProduces(t *testing.T) {
+	ctx := alterTargetFixture(t)
+
+	for _, src := range []string{
+		"move entity Shop.Order to Probe;\nalter entity Probe.Order set documentation 'text';",
+		"rename entity Shop.Order to Thing;\nalter entity Shop.Thing set documentation 'text';",
+	} {
+		prog := parseMDL(t, src)
+		sc := newScriptContext()
+		sc.collectDefinitions(prog)
+		if err := validateAlterTarget(ctx, prog.Statements[1], sc); err != nil {
+			t.Errorf("%s\nthe entity the script moves or renames was reported missing: %v", src, err)
+		}
+	}
+}
+
+// CONTROL: the destination of a move is the only name the move vouches for — a
+// typo next to it is still a missing entity.
+func TestValidateAlterTarget_MoveDoesNotVouchForOtherNames(t *testing.T) {
+	ctx := alterTargetFixture(t)
+	prog := parseMDL(t, "move entity Shop.Order to Probe;\nalter entity Shop.Ordr set documentation 'text';")
+	sc := newScriptContext()
+	sc.collectDefinitions(prog)
+	err := validateAlterTarget(ctx, prog.Statements[1], sc)
+	if err == nil || !strings.Contains(err.Error(), "entity not found: Shop.Ordr") {
+		t.Errorf("a misspelled entity next to a move was accepted: %v", err)
+	}
+}

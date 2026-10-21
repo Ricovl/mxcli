@@ -73,3 +73,37 @@ func TestClientActionToGen_ShowPageWritesNamedParameterMapping(t *testing.T) {
 		t.Errorf("inferred argument written as %d explicit mappings, want 0 (#296: CE0115)", len(got))
 	}
 }
+
+// mendixlabs/mxcli#122: a control-bar button passing its grid's selection
+// (`$dgOrders`) is the same explicit mapping with the grid in the PageVariable's
+// Widget slot. Measured on mxbuild 11.12.5: this shape is 0 errors; the empty
+// array is CE1571 "No argument has been selected", and the selection written as
+// Argument "$dgOrders" is CE0115 "do not match the expected parameters".
+func TestClientActionToGen_ShowPageWritesSelectionMapping(t *testing.T) {
+	el, err := clientActionToGen(&pages.PageClientAction{
+		BaseElement: model.BaseElement{ID: "a"},
+		PageName:    "M.Detail",
+		ParameterMappings: []*pages.PageClientParameterMapping{
+			{ParameterName: "Order", Variable: "$dgOrders", VariableKind: "widget"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("clientActionToGen: %v", err)
+	}
+	items := el.(*genPg.PageClientAction).PageSettings().(*genPg.PageSettings).ParameterMappingsItems()
+	if len(items) != 1 {
+		t.Fatalf("%d mappings written, want 1", len(items))
+	}
+	m := items[0].(*genPg.PageParameterMapping)
+	if m.TypeName() != "Forms$PageParameterMapping" || m.ParameterQualifiedName() != "M.Detail.Order" || m.Argument() != "" {
+		t.Errorf("mapping $Type=%q Parameter=%q Argument=%q, want Forms$PageParameterMapping, M.Detail.Order, \"\"",
+			m.TypeName(), m.ParameterQualifiedName(), m.Argument())
+	}
+	pv, ok := m.Variable().(*genPg.PageVariable)
+	if !ok {
+		t.Fatalf("Variable = %T, want *PageVariable", m.Variable())
+	}
+	if pv.WidgetQualifiedName() != "dgOrders" || pv.PageParameterQualifiedName() != "" {
+		t.Errorf("PageVariable widget=%q page=%q, want dgOrders and \"\"", pv.WidgetQualifiedName(), pv.PageParameterQualifiedName())
+	}
+}

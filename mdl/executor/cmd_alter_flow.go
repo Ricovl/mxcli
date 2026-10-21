@@ -31,6 +31,10 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// An annotation the fragment's builder would drop (mendixlabs/mxcli#1597).
+	if err := validateAlterFlowRules(s); err != nil {
+		return err
+	}
 	a, err := loadAlterFlow(ctx, s)
 	if err != nil {
 		return err

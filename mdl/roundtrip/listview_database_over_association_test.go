@@ -163,14 +163,13 @@ func firstListViewSource(t *testing.T, unit []byte) []byte {
 	return ds
 }
 
-// Only the List View writer stores the path. A datasource property the widget
-// engine reaches under its own key — here a combo box's
-// optionsSourceAssociationDataSource — bypassed the `DataSource:` guard: exec
-// reported "Created page" and the pluggable writer stored the entity alone, a
-// retrieve of every row instead of the context's (describe read it back as
-// `database from Rules.BusinessRule`). Every non-List View call site of the
-// datasource builder must refuse it.
-func TestDatabaseOverAssociationRefusedUnderANamedDatasourceKey(t *testing.T) {
+// A combo box's named datasource takes `database from $ctx/Assoc/Entity` and
+// keeps the path: the pluggable writer stores it as a CustomWidgetXPathSource
+// with the hops in an IndirectEntityRef and the start parameter in its
+// SourceVariable, so the retrieve stays the context's
+// (mendixlabs/mxcli#1599). It used to be refused, because that writer stored
+// the entity alone and every row would have been retrieved.
+func TestDatabaseOverAssociationKeptUnderANamedDatasourceKey(t *testing.T) {
 	h := newFixtureHarness(t, testApp)
 	defer h.close()
 	h.restore()
@@ -188,11 +187,11 @@ func TestDatabaseOverAssociationRefusedUnderANamedDatasourceKey(t *testing.T) {
     )
   }
 };`)
-	if err == nil {
-		t.Fatal("a combo box's named datasource accepted `database from $ctx/Assoc/Entity` — " +
-			"its writer stores the entity alone, so every row would be retrieved")
+	if err != nil {
+		t.Fatalf("exec: %v", err)
 	}
-	if !strings.Contains(err.Error(), "list view") && !strings.Contains(err.Error(), "LIST VIEW") {
-		t.Errorf("refused for another reason: %v", err)
+	const want = "database from $RuleCategory/Rules.BusinessRule_RuleCategory/Rules.BusinessRule"
+	if got := h.mustDescribeMdl0(t, "page Rules.L5NamedKeyProbe"); !strings.Contains(got, want) {
+		t.Errorf("the combo box's datasource lost its path — describe lacks %q:\n%s", want, got)
 	}
 }

@@ -32,8 +32,12 @@ import (
 //
 // "Could not establish" stays silent: a document that will not open, a target
 // the script itself puts on the document (or renames a widget to), and a grid
-// column on a document the script adds widgets to (a column is addressed by a
-// derived name, so a name match cannot say whether the script adds it).
+// column on a document an EARLIER operation adds widgets to (a column is
+// addressed by a derived name, so a name match cannot say whether the script
+// adds it). Earlier only: exec resolves an operation's targets before it runs,
+// so a REPLACE's own column address is against what is already there. Waiving
+// it too passed `replace grid1 column(C) …` on a grid with no column C, which
+// exec then refused (found reproducing mendixlabs/mxcli#1512).
 
 // validateAlterPageReferences reports the unresolvable targets and widget
 // references of every ALTER PAGE / SNIPPET / LAYOUT in the script.
@@ -43,7 +47,7 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 	}
 	h, _ := getHierarchy(ctx)
 	added := widgetsTheScriptAddsTo(prog)
-	grows := documentsTheScriptAddsWidgetsTo(prog)
+	grown := map[string]bool{} // documents an operation so far has added widgets to
 	opened := map[model.ID]backend.PageMutator{}
 	var judge columnAttrJudge
 
@@ -118,24 +122,26 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 			}
 		}
 
-		// The targets, against the stored document.
-		if mutator == nil {
-			continue
-		}
+		// The targets, against the stored document, in the order exec
+		// resolves them.
 		for _, op := range s.Operations {
-			if _, isSet := op.(*ast.SetPropertyOp); isSet {
-				continue // validateAlterSetProperties' finding
+			// A SET's target is validateAlterSetProperties' finding.
+			if _, isSet := op.(*ast.SetPropertyOp); mutator != nil && !isSet {
+				for _, ref := range alterPageOperationTargets(op) {
+					if ref.Widget != "" && added[doc][ref.Widget] {
+						continue
+					}
+					if ref.IsColumn() && grown[doc] {
+						continue
+					}
+					if _, err := mutator.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
+						errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
+					}
+				}
 			}
-			for _, ref := range alterPageOperationTargets(op) {
-				if ref.Widget != "" && added[doc][ref.Widget] {
-					continue
-				}
-				if ref.IsColumn() && grows[doc] {
-					continue
-				}
-				if _, err := mutator.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
-					errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
-				}
+			switch op.(type) {
+			case *ast.InsertWidgetOp, *ast.ReplaceWidgetOp:
+				grown[doc] = true
 			}
 		}
 	}

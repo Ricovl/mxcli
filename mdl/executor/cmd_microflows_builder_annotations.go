@@ -182,6 +182,21 @@ func mergePosition(ann *ast.ActivityAnnotations, computedX, computedY int) (int,
 	return ann.Merge.X, ann.Merge.Y
 }
 
+// adoptCurves takes over the @curves a sub-builder recorded, for a caller that
+// is taking over its flows. applyFlowCurves runs once, on the builder that owns
+// the flows when the graph is complete, so a curve left behind on a loop body's
+// or an error handler's builder was never applied: check and exec passed and
+// the edge came out straight (mendixlabs/mxcli#991, mendixlabs/mxcli#1597).
+// Every site that appends a sub-builder's flows calls this alongside.
+func (fb *flowBuilder) adoptCurves(sub *flowBuilder) {
+	for id, c := range sub.curveByOrigin {
+		if fb.curveByOrigin == nil {
+			fb.curveByOrigin = map[model.ID]*ast.FlowCurve{}
+		}
+		fb.curveByOrigin[id] = c
+	}
+}
+
 // applyFlowCurves stamps each recorded @curve onto the flows leaving that
 // activity. Runs once, after the graph is built.
 //

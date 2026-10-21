@@ -8,6 +8,7 @@ sources:
   - .claude/skills/fix-issue/findings/mdl-executor/
   - mdl/executor/cmd_workflows.go
   - mdl/executor/cmd_pages_describe_pluggable.go
+  - mdl/executor/cmd_pages_describe_bykey.go
   - mdl/executor/cmd_microflows_show_crossed.go
   - mdl/executor/cmd_microflows_normalize.go
   - mdl/executor/describe_graph_invariant_test.go
@@ -152,6 +153,17 @@ whatever describe printed — so the fallback *invents* in one language and
 The same third state appears without translations: an argument field Studio Pro
 stores as `Argument: ""` is neither the value `empty` nor absence, and a
 describer that conflates it with either cannot round-trip to `Unchanged`.
+
+**"Default" means what exec writes for the key left out, not the schema's
+`DefaultValue`.** A by-key reader prints what differs from the default, and the
+two disagree wherever the embedded template stores something else — a combo
+box's `readOnlyStyle` is `bordered` in the template against a default of
+`text`. Compared with the schema, every mxcli-written widget prints a value
+nobody authored (*invents*), and every Studio Pro one storing the schema default
+prints nothing and replays as the template's value (*silently drops*). A reader
+for a widget with a dedicated describer has to run alongside it, or every key
+outside its keyword set is lost — and what it prints must also pass `check`
+without `-p`, where only the built-in definition knows the widget's keys.
 
 **Fixing one half is worse than the bug.** Where a describer has two defects at
 once — say, quoting *and* a missing property — shipping the quoting fix alone
