@@ -599,6 +599,13 @@ annotationParamName
     | POSITION    // the note's own place on the canvas, distinct from the
                   // @position of the activity it documents
     | TEXT
+    // @anchor(A: (from: right), (empty): (from: bottom)) on a CASE: one outcome,
+    // keyed by its WHEN value. A value can be a lexer keyword (`Open`) or the
+    // empty value, so both are keys here; without them the parameter fell
+    // through to the positional form and was refused (mendixlabs/mxcli#1587).
+    | LPAREN EMPTY RPAREN
+    | QUOTED_IDENTIFIER
+    | keyword
     ;
 
 annotationValue

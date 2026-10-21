@@ -11,15 +11,15 @@ description: "Call external REST APIs from Mendix — the three approaches (inli
 | lines | section |
 |---|---|
 | 29-44 | Three Approaches |
-| 45-102 | Approach 0: OpenAPI Import (Fastest) |
-| 103-299 | Approach 1: REST Client (Manual) |
-| 300-345 | Approach 2: REST CALL (Inline HTTP) |
-| 346-378 | Data Transformers (JSLT — Mendix 11.9+) |
-| 379-416 | JSON Structures & Mappings |
-| 417-488 | Complete Pipeline Example |
-| 489-519 | Published REST: Authentication Parameters |
-| 520-529 | Mendix Validation Rules |
-| 530-550 | BSON Types Reference |
+| 45-109 | Approach 0: OpenAPI Import (Fastest) |
+| 110-336 | Approach 1: REST Client (Manual) |
+| 337-382 | Approach 2: REST CALL (Inline HTTP) |
+| 383-415 | Data Transformers (JSLT — Mendix 11.9+) |
+| 416-453 | JSON Structures & Mappings |
+| 454-525 | Complete Pipeline Example |
+| 526-556 | Published REST: Authentication Parameters |
+| 557-566 | Mendix Validation Rules |
+| 567-587 | BSON Types Reference |
 
 <!-- /skill-index -->
 # REST Integration Skill
@@ -92,11 +92,18 @@ describe contract operation from openapi 'specs/capital.json';
 
 **But every JSON response is imported as `response: json` — a raw string, not objects.** The
 import does not generate response entities yet (ako/mxcli#1234). To get objects, create the
-non-persistent entities yourself and give the operations you call a `response: mapping
-Module.Entity { … }` (see *Response Types* below), e.g. by editing the
-`describe consumed rest service` output and re-running it as `create or modify`. Writing the
-entities and an import-mapping document but leaving the operation at `response: json` is the
-common mistake: nothing uses the mapping, and nothing reports that.
+non-persistent entities yourself and give the operations you call a mapping (see *Response
+Types* below):
+
+```sql
+alter consumed rest service PetStoreModule.PetStoreAPI
+  modify operation getPetById (
+    response: mapping PetStoreModule.Pet { Id = id, Name = name }
+  );
+```
+
+Writing the entities and an import-mapping document but leaving the operation at
+`response: json` is the common mistake: nothing uses the mapping, and nothing reports that.
 
 ---
 
@@ -189,7 +196,10 @@ call rest service post 'https://api.example.com/upload' (
 ### Response Types
 
 ```sql
--- Simple types (variable binding is at the call site, not stored on the operation)
+-- Simple types. The variable is optional and is NOT stored — the call site
+-- binds it — so `describe` prints the bare kind (`response: json`), and that
+-- form runs again as written.
+response: json
 response: json as $Result
 response: string as $text
 response: file as $Document
@@ -292,8 +302,35 @@ end;
 list consumed rest services [in module];
 describe consumed rest service Module.ClientName;
 drop consumed rest service Module.ClientName;
-create or modify consumed rest service Module.ClientName ...  -- idempotent
+create or modify consumed rest service Module.ClientName ...  -- idempotent; REPLACES the operation list
 ```
+
+### Change an Existing Client — `alter`, Not `create or modify`
+
+`create or modify` declares the client's whole operation list: an operation it
+does not list is **deleted** (the output names it). To add, change or remove
+one operation — above all on a client made in Studio Pro, whose operations carry
+settings MDL cannot express — use `alter`. Every operation it does not name is
+written back exactly as stored.
+
+```sql
+mdl 1;
+
+alter consumed rest service Module.BookingApi
+  add operation GetBooking (
+    method: get,
+    path: '/bookings/{id}',
+    parameters: ($id: string),
+    response: json
+  ),
+  modify operation PostBooking (timeout: 60),     -- only the keys listed change
+  drop operation LegacyBooking,
+  set (BaseUrl: 'https://api.example.com/v2');   -- BaseUrl, Authentication
+```
+
+`add` refuses a name that exists (use `modify`); `modify` and `drop` refuse one
+that does not, listing the operations there are. Actions apply in order, so
+`drop operation X, add operation X (…)` replaces X whole.
 
 ---
 

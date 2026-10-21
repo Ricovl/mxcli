@@ -60,6 +60,12 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		return
 	}
 
+	// Handle ALTER CONSUMED REST SERVICE
+	if ctx.ConsumedRestServiceKw() != nil {
+		b.exitAlterRestClientStatement(ctx)
+		return
+	}
+
 	// Handle agent-editor ALTER statements
 	if ctx.AiModelKw() != nil || ctx.AGENT() != nil ||
 		(ctx.KNOWLEDGE() != nil && ctx.BASE() != nil) ||

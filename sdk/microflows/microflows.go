@@ -4,6 +4,8 @@
 package microflows
 
 import (
+	"unicode/utf8"
+
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -227,15 +229,48 @@ type MicroflowParameter struct {
 // A person who places a parameter exactly where the layout would have is
 // indistinguishable from the layout — and re-deriving gives back the same point,
 // so the ambiguity costs nothing.
-func DerivedParameterPosition(idx int) model.Point {
+//
+// The row is spaced by the widest name among params (ParameterPitch), so the
+// position depends on the whole list, not the index alone.
+func DerivedParameterPosition(idx int, params []*MicroflowParameter) model.Point {
+	return model.Point{X: 200 + idx*ParameterPitch(params), Y: 53}
+}
+
+// ParameterPitch is the distance between neighbouring parameters on the derived
+// row: wide enough for the widest name at about 7px a character, rounded up to
+// 10px, and never under the 100px the row always had.
+//
+// It was 100px whatever the names, so 20-22 character names overlapped
+// (mendixlabs/mxcli#1598, case 5). The rate is fitted to Studio Pro authors'
+// own rows: in 95 Studio Pro-authored parameter rows the median pitch is 95px
+// for names of 5-9 characters, 106px for 10-14, 125px for 15-19 and 160px for
+// 20-24. Names under 15 characters keep the old 100px row exactly, so an
+// ordinary flow's parameters do not move.
+func ParameterPitch(params []*MicroflowParameter) int {
+	widest := 0
+	for _, p := range params {
+		if p != nil {
+			widest = max(widest, utf8.RuneCountInString(p.Name))
+		}
+	}
+	return max(100, (widest*7+9)/10*10)
+}
+
+// legacyParameterPosition is the fixed 100px row every mxcli before
+// ParameterPitch wrote. It is mxcli's arithmetic as much as the current row is.
+func legacyParameterPosition(idx int) model.Point {
 	return model.Point{X: 200 + idx*100, Y: 53}
 }
 
 // AuthoredParameterPosition returns stored, or nil when stored is the point the
-// layout would have derived for index idx. Readers call this so that everything
-// downstream can treat a non-nil Position as intent.
-func AuthoredParameterPosition(stored model.Point, idx int) *model.Point {
-	if stored == DerivedParameterPosition(idx) {
+// layout would have derived for index idx of params. Readers call this so that
+// everything downstream can treat a non-nil Position as intent.
+//
+// The old 100px row counts as derived too. Otherwise every long-named
+// parameter an earlier mxcli wrote would read as hand-placed, be pinned there,
+// and keep the overlap the wider row exists to remove.
+func AuthoredParameterPosition(stored model.Point, idx int, params []*MicroflowParameter) *model.Point {
+	if stored == DerivedParameterPosition(idx, params) || stored == legacyParameterPosition(idx) {
 		return nil
 	}
 	p := stored
@@ -364,6 +399,28 @@ type AnnotationFlow struct {
 	model.BaseElement
 	OriginID      model.ID `json:"originId"`
 	DestinationID model.ID `json:"destinationId"`
+	// Sides is where the line attaches at each end: the note's side and the
+	// object's. nil means nothing chose them, and the writer draws the line as
+	// for a note sitting above its object.
+	Sides *ConnectionSides `json:"sides,omitempty"`
+}
+
+// SidesOrDefault returns Sides, or — when nothing chose them — the drawing for
+// a note sitting above its object: out of the note's bottom edge, into the
+// object's top. Every writer uses it, so the engines agree on the default.
+func (f *AnnotationFlow) SidesOrDefault() ConnectionSides {
+	if f.Sides != nil {
+		return *f.Sides
+	}
+	return ConnectionSides{Origin: 2, Destination: 0}
+}
+
+// ConnectionSides is the pair of connection indexes a flow attaches at, in the
+// numbering a SequenceFlow uses for an activity — 0 top, 1 right, 2 bottom,
+// 3 left. Studio Pro numbers a note's sides the same way.
+type ConnectionSides struct {
+	Origin      int `json:"origin"`
+	Destination int `json:"destination"`
 }
 
 // Events

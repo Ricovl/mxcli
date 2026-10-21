@@ -328,11 +328,12 @@ func init() {
 		Summary: "Create consumed REST clients with operations, mappings, and authentication",
 		Keywords: []string{
 			"create consumed rest service", "create rest client", "rest client", "consume rest", "rest operation",
+			"alter consumed rest service", "add operation", "modify operation", "drop operation",
 			"get", "post", "put", "delete", "patch",
 			"body", "response", "mapping", "authentication",
 			"json structure", "import mapping", "export mapping",
 		},
-		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key': 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' (Body: binary $Doc/Contents)`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
+		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key': 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: NONE | JSON [AS $var] | STRING | FILE | STATUS | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- Change an existing service without restating it. An operation no action names\n-- is left exactly as stored (also one made in Studio Pro); MODIFY writes only the\n-- keys it lists. CREATE OR MODIFY instead replaces the whole operation list.\nALTER CONSUMED REST SERVICE Module.Name\n  ADD OPERATION Name ( ... ),\n  MODIFY OPERATION Name ( Timeout: 60 ),\n  DROP OPERATION Name,\n  SET ( BaseUrl: '...', Authentication: NONE | BASIC (...) );\n\n-- The response variable is not stored (the call site binds it), so describe\n-- prints `Response: JSON`; `AS $var` is optional.\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' (Body: binary $Doc/Contents)`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
 		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet (\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  )\n};",
 		SeeAlso: []string{"rest", "rest.published"},
 	})
@@ -348,7 +349,7 @@ func init() {
 			"basic authentication", "active session", "authentication microflow",
 			"authentication parameter", "header parameter", "api key", "token",
 		},
-		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
+		Syntax: "[/** documentation */]\nCREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
 			"-- Operation parameters come from the microflow, as Studio Pro derives them:\n" +
 			"--   a parameter named in the path ('{id}')  -> path parameter\n" +
 			"--   an object or a list                     -> the body\n" +
@@ -374,6 +375,9 @@ func init() {
 			"-- list only when it differs from that default.\n" +
 			"-- With authentication on, grant at least one module role (CE0338);\n" +
 			"-- custom authentication also needs app security on (CE6600).\n\n" +
+			"-- Documentation: the /** ... */ doc comment above CREATE, the service's own\n" +
+			"-- documentation (not the OpenAPI description, which MDL keeps unchanged).\n" +
+			"-- On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"ALTER PUBLISHED REST SERVICE Module.Name SET ( Version: '2.0.0', Authentication: (session) );\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
 		Example: "mdl 1;\nCREATE PUBLISHED REST SERVICE Module.OrderAPI (\n  Path: 'rest/orders/v1',\n  Version: '1.0.0',\n  ServiceName: 'Order API',\n  Authentication: (basic, session)\n)\n{\n  RESOURCE 'orders' {\n    GET '' MICROFLOW Module.GetAllOrders;\n    GET '{id}' MICROFLOW Module.GetOrderById;\n    POST '' MICROFLOW Module.CreateOrder;\n    DELETE '{id}' MICROFLOW Module.DeleteOrder;\n  }\n};\n\nGRANT ACCESS ON PUBLISHED REST SERVICE Module.OrderAPI\n  TO Module.User, Module.Admin;",
 		SeeAlso: []string{"rest", "rest.consumed"},
@@ -784,6 +788,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"object handling", "converter", "value transform", "custom handling", "by microflow",
 		},
 		Syntax: "LIST IMPORT MAPPINGS [IN Module];\nDESCRIBE IMPORT MAPPING Module.Name;\n" +
+			"[/** documentation */]\n" +
 			"CREATE [OR MODIFY] IMPORT MAPPING Module.Name [FOLDER 'path']\n" +
 			"  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n" +
 			"    | WITH MESSAGE DEFINITION Module.Collection.Definition\n" +
@@ -794,6 +799,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"    Attr = a/b/c,\n" +
 			"    Assoc/Module.Child = nestedKey { ... }\n  }\n};\nDROP IMPORT MAPPING Module.Name;\n\n" +
 			"OR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+			"Documentation: the /** ... */ doc comment above CREATE (QUAL002 asks for\n" +
+			"it). On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"Nested members (Attr = a/b/c):\n" +
 			"  Reaches a leaf several levels down with NO entity for the levels in\n" +
 			"  between — the shape Studio Pro produces when you tick a nested leaf\n" +
@@ -848,7 +855,9 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"with json structure", "with message definition", "null values",
 			"as jsonKey", "converter", "value transform",
 		},
-		Syntax: "LIST EXPORT MAPPINGS [IN Module];\nDESCRIBE EXPORT MAPPING Module.Name;\nCREATE [OR MODIFY] EXPORT MAPPING Module.Name [FOLDER 'path']\n  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n    | WITH MESSAGE DEFINITION Module.Collection.Definition\n    | WITH XML SCHEMA Module.Schema\n  [NULL VALUES LeaveOutElement|SendAsNil]\n{\n  Module.Entity {\n    jsonField = Attr,\n    jsonField = Module.MF(Attr),          -- value transform\n    group AS key { ... },                 -- entity-less grouping node\n    Assoc/Module.Child AS nestedKey { ... }\n  }\n};\nDROP EXPORT MAPPING Module.Name;\n\nOR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+		Syntax: "LIST EXPORT MAPPINGS [IN Module];\nDESCRIBE EXPORT MAPPING Module.Name;\n[/** documentation */]\nCREATE [OR MODIFY] EXPORT MAPPING Module.Name [FOLDER 'path']\n  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n    | WITH MESSAGE DEFINITION Module.Collection.Definition\n    | WITH XML SCHEMA Module.Schema\n  [NULL VALUES LeaveOutElement|SendAsNil]\n{\n  Module.Entity {\n    jsonField = Attr,\n    jsonField = Module.MF(Attr),          -- value transform\n    group AS key { ... },                 -- entity-less grouping node\n    Assoc/Module.Child AS nestedKey { ... }\n  }\n};\nDROP EXPORT MAPPING Module.Name;\n\nOR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+			"Documentation: the /** ... */ doc comment above CREATE, as on an import\n" +
+			"mapping. On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"Grouping nodes (group as key { ... }):\n" +
 			"  A JSON object with no Mendix object behind it — Studio Pro's\n" +
 			"  entity-less object element. It may hold OBJECT elements only: a\n" +
@@ -874,7 +883,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"data transformer", "create data transformer", "drop data transformer",
 			"list data transformers", "jslt", "xslt", "transform",
 		},
-		Syntax:  "LIST DATA TRANSFORMERS [IN Module];\nDESCRIBE DATA TRANSFORMER Module.Name;\nCREATE [OR MODIFY] DATA TRANSFORMER Module.Name [FOLDER 'path']\n  SOURCE JSON '{ ... }'\n{\n  JSLT 'single-line-expression';\n  -- or multi-line:\n  JSLT $$\n{ ... }\n  $$;\n};\nDROP DATA TRANSFORMER Module.Name;\n\nOR MODIFY: updates transformer in-place, preserves UUID.",
+		Syntax:  "LIST DATA TRANSFORMERS [IN Module];\nDESCRIBE DATA TRANSFORMER Module.Name;\n[/** documentation */]\nCREATE [OR MODIFY] DATA TRANSFORMER Module.Name [FOLDER 'path']\n  SOURCE JSON '{ ... }'\n{\n  JSLT 'single-line-expression';\n  -- or multi-line:\n  JSLT $$\n{ ... }\n  $$;\n};\nDROP DATA TRANSFORMER Module.Name;\n\nOR MODIFY: updates transformer in-place, preserves UUID.\n\nDocumentation: the /** ... */ doc comment above CREATE. On OR MODIFY no\ncomment keeps the stored text, /** */ clears it.",
 		Example: "mdl 1;\nCREATE DATA TRANSFORMER ETL.FlattenOrder\n  SOURCE JSON '{\"order\": {\"id\": 1, \"total\": 99.0}}'\n{\n  JSLT '{\"id\": .order.id, \"total\": .order.total}';\n};\n\n-- Multi-line JSLT\nCREATE OR MODIFY DATA TRANSFORMER ETL.WeatherSummary\n  SOURCE JSON '{\"current\": {\"temp\": 12.8, \"wind\": 18.3}}'\n{\n  JSLT $$\n{\n  \"temperature\": .current.temp,\n  \"wind_speed\":  .current.wind\n}\n  $$;\n};",
 		SeeAlso: []string{"integration"},
 	})

@@ -22,6 +22,58 @@ type CreateRestClientStmt struct {
 
 func (s *CreateRestClientStmt) isStatement() {}
 
+// AlterRestClientStmt represents:
+//
+//	ALTER CONSUMED REST SERVICE Module.Name <action> [, <action> ...]
+//
+// It edits the stored service in place: an operation no action names is
+// written back exactly as stored (mendixlabs/mxcli#1608).
+type AlterRestClientStmt struct {
+	Name    QualifiedName
+	Actions []RestClientAlterAction
+}
+
+func (s *AlterRestClientStmt) isStatement() {}
+
+// RestClientAlterAction is one action of an ALTER CONSUMED REST SERVICE.
+type RestClientAlterAction interface {
+	isRestClientAlterAction()
+}
+
+// RestClientSetAction represents SET ( BaseUrl: '…', Authentication: … ).
+// A property the list does not state keeps its stored value.
+type RestClientSetAction struct {
+	BaseUrl           string
+	BaseUrlSet        bool
+	Authentication    *RestAuthDef // nil with AuthenticationSet = Authentication: none
+	AuthenticationSet bool
+}
+
+func (a *RestClientSetAction) isRestClientAlterAction() {}
+
+// RestClientAddOperationAction represents ADD OPERATION Name ( … ).
+type RestClientAddOperationAction struct {
+	Operation *RestOperationDef
+}
+
+func (a *RestClientAddOperationAction) isRestClientAlterAction() {}
+
+// RestClientModifyOperationAction represents MODIFY OPERATION Name ( … ):
+// the keys in Operation.Keys are written, every other one keeps its stored
+// value.
+type RestClientModifyOperationAction struct {
+	Operation *RestOperationDef
+}
+
+func (a *RestClientModifyOperationAction) isRestClientAlterAction() {}
+
+// RestClientDropOperationAction represents DROP OPERATION Name.
+type RestClientDropOperationAction struct {
+	Name string
+}
+
+func (a *RestClientDropOperationAction) isRestClientAlterAction() {}
+
 // RestAuthDef represents authentication configuration in a CREATE REST CLIENT statement.
 type RestAuthDef struct {
 	Scheme   string // "BASIC"
@@ -45,6 +97,10 @@ type RestOperationDef struct {
 	ResponseVariable string          // e.g. "$CreatedItem"
 	ResponseMapping  *RestMappingDef // for MAPPING response
 	Timeout          int
+	// Keys are the properties the statement wrote, as their canonical names
+	// (Method, Path, Parameters, Query, Headers, Body, Timeout, Response) —
+	// what MODIFY OPERATION rewrites, leaving the others as stored.
+	Keys []string
 }
 
 // RestMappingDef represents an inline import/export mapping in a REST operation.
@@ -118,6 +174,11 @@ type CreatePublishedRestServiceStmt struct {
 	Authentication *PublishedRestAuthentication
 	Resources      []*PublishedRestResourceDef
 	CreateOrModify bool
+	// Documentation is the `/** … */` doc comment before the statement
+	// (mendixlabs/mxcli#1510). DocumentationSet says one was written: absent
+	// keeps the stored documentation on a rewrite, empty clears it (#1018).
+	Documentation    string
+	DocumentationSet bool
 }
 
 // PublishedRestAuthentication is `Authentication: none | ( method, … )`.

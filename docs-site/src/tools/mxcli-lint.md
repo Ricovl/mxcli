@@ -98,6 +98,12 @@ failure is an error (`Starlark rule error: …`). A rule's configured severity i
 `lint-config.yaml` applies to its findings, never to its failure. `mxcli report`
 keeps all rule failures out of the score.
 
+An option in `lint-config.yaml` that a rule cannot use — for example a number
+where the rule expects a list of prefixes — is reported at **warning** level as
+`lint-config.yaml: rules.<ID>.options.<key> … the rule ran with its default`.
+The rule still runs, on its built-in default, and the warning is kept out of the
+score like any other rule failure.
+
 A rule file that does not load at all (for example, one calling a builtin this
 mxcli lacks) is skipped with a warning on stderr.
 

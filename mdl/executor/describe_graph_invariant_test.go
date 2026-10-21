@@ -62,7 +62,7 @@ func assertDescriptionRebuildsGraph(t *testing.T, description string, stored *mi
 // itself a violation.
 func describedGraphViolationsFromText(description string, stored *microflows.MicroflowObjectCollection) []string {
 	src := description
-	if !strings.Contains(src, "create ") {
+	if !hasCreateStatement(src) {
 		src = "create microflow M.Described () returns Boolean\nbegin\n" + src + "\nend;"
 	}
 	prog, errs := visitor.Build(src)
@@ -95,6 +95,18 @@ func describedGraphViolationsFromText(description string, stored *microflows.Mic
 	}
 	rebuilt := fb.buildFlowGraph(body, returns)
 	return describedGraphViolations(stored, rebuilt)
+}
+
+// hasCreateStatement reports whether src holds a `create …` statement rather
+// than only a body. A line is checked, not a substring: a describe warning may
+// itself mention `create or modify`.
+func hasCreateStatement(src string) bool {
+	for _, line := range strings.Split(src, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "create ") {
+			return true
+		}
+	}
+	return false
 }
 
 // describedGraphViolations compares two collections modulo exclusive merges.

@@ -24,11 +24,23 @@ import (
 func ValidateRestClientMappings(prog *ast.Program) []linter.Violation {
 	var out []linter.Violation
 	for _, stmt := range prog.Statements {
-		createStmt, ok := stmt.(*ast.CreateRestClientStmt)
-		if !ok {
+		var opDefs []*ast.RestOperationDef
+		switch s := stmt.(type) {
+		case *ast.CreateRestClientStmt:
+			opDefs = s.Operations
+		case *ast.AlterRestClientStmt:
+			for _, a := range s.Actions {
+				switch a := a.(type) {
+				case *ast.RestClientAddOperationAction:
+					opDefs = append(opDefs, a.Operation)
+				case *ast.RestClientModifyOperationAction:
+					opDefs = append(opDefs, a.Operation)
+				}
+			}
+		default:
 			continue
 		}
-		for _, opDef := range createStmt.Operations {
+		for _, opDef := range opDefs {
 			if err := checkInlineMappingBody(opDef); err != nil {
 				out = append(out, linter.Violation{
 					RuleID:   "MDL-REST01",

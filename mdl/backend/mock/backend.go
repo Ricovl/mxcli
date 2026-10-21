@@ -202,6 +202,7 @@ type MockBackend struct {
 	ListPublishedRestServicesFunc   func() ([]*model.PublishedRestService, error)
 	CreateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
 	UpdateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
+	EditConsumedRestServiceFunc     func(id model.ID, edit *backend.ConsumedRestServiceEdit) error
 	DeleteConsumedRestServiceFunc   func(id model.ID) error
 	CreatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error
 	UpdatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error

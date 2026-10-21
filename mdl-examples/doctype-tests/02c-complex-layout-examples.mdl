@@ -803,3 +803,32 @@ begin
     + ' with outcome ' + $Outcome;
   return $Outcome;
 end;
+
+-- ============================================================================
+-- 7. CX_ROUTE_ByStatus — choosing each CASE outcome's side
+-- ============================================================================
+--
+-- @anchor on a CASE names each outcome's edge by its WHEN value, (empty)
+-- included; an outcome it does not name keeps its default side. The CASE's
+-- own `from:` is the flow leaving its merge, as on an IF. DESCRIBE writes an
+-- outcome only where its stored side differs from the default.
+-- (ako/mxcli#1492, mendixlabs/mxcli#1587)
+-- ============================================================================
+
+create microflow CxLayout.CX_ROUTE_ByStatus (
+  $Factory: CxLayout.Factory
+)
+begin
+  @anchor(from: bottom, Active: (from: right), (empty): (from: bottom, to: top))
+  case $Factory/Status
+    when Active then
+      log info node 'Route' 'active';
+    when Maintenance then
+      log info node 'Route' 'maintenance';
+    when Offline, Decommissioned then
+      log warning node 'Route' 'not running';
+    when (empty) then
+      log error node 'Route' 'no status';
+  end case;
+  log info node 'Route' 'routed';
+end;

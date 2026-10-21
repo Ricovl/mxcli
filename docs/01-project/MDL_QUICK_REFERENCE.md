@@ -608,7 +608,7 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
-| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)`; on a `case` one entry per outcome, `Open: (from: right)`, `(empty): (…)` | `to` = the flow arriving at the statement, `from` = the flow leaving it — never the far end of its own outgoing flow, which is the next statement's `to:`. On an `if` or a `case`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
@@ -1184,7 +1184,11 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 | Show clients | `list consumed rest services [in module];` | List all or filter by module |
 | Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing — an operation it omits is removed (and named in the output) |
+| Add operation | `alter consumed rest service Module.Name add operation Name ( ... );` | Operation body uses CREATE syntax; other operations stay as stored |
+| Modify operation | `alter consumed rest service Module.Name modify operation Name ( Timeout: 60 );` | Writes only the keys listed |
+| Drop operation | `alter consumed rest service Module.Name drop operation Name;` | |
+| Set service properties | `alter consumed rest service Module.Name set ( BaseUrl: '...', Authentication: none );` | BaseUrl, Authentication |
 | Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
@@ -1222,7 +1226,7 @@ create consumed rest service Module.Api (
 ```
 
 **Body types:** `json from $var`, `template '...'`, `mapping entity { jsonField = attr, ... }`
-**Response types:** `json as $var`, `string as $var`, `file as $var`, `status as $var`, `none`, `mapping entity { attr = jsonField, ... }`
+**Response types:** `json`, `string`, `file`, `status` (each optionally `as $var` — the variable is not stored), `none`, `mapping entity { attr = jsonField, ... }`
 **Authentication:** `none`, `basic (username: '...', password: '...')`
 
 ### OpenAPI Import

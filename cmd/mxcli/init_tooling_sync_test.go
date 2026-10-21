@@ -48,15 +48,15 @@ func mustRead(t *testing.T, path string) string {
 // ako/mxcli#952: `init --sync-skills` refreshed only the skills, so a project
 // kept the lint rules of whichever mxcli first initialised it. The bundled
 // rules are refreshed now; a project's own rule beside them is not touched.
+//
+// The stale copy is one mxcli shipped (v0.27.0): any other content under a
+// bundled name is the project's edit, and is kept (mendixlabs/mxcli#1615).
 func TestSyncProjectTooling_RefreshesBundledLintRulesOnly(t *testing.T) {
 	dir := newSyncProject(t)
-	names, err := bundledLintRuleNames()
-	if err != nil || len(names) == 0 {
-		t.Fatalf("no bundled lint rules: %v", err)
-	}
+	names := []string{exampleRule}
 	rulesDir := filepath.Join(dir, ".claude", "lint-rules")
 	stale := filepath.Join(rulesDir, names[0])
-	mustWrite(t, stale, "# yesterday's rule\n")
+	mustWrite(t, stale, string(v0270ExampleRule(t)))
 	user := filepath.Join(rulesDir, "zz_my_project_rule.star")
 	const userRule = "RULE_ID = \"PROJ001\"\ndef check():\n    return []\n"
 	mustWrite(t, user, userRule)

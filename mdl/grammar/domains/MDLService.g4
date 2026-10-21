@@ -107,6 +107,27 @@ createRestClientStatement
       (LBRACE restClientOperation* RBRACE)?
     ;
 
+/**
+ * ALTER CONSUMED REST SERVICE — the operation body is CREATE's; MODIFY writes
+ * only the keys it names and DROP removes one operation, so every operation the
+ * statement does not name stays as stored, including one made in Studio Pro.
+ *
+ * @example
+ * ```mdl
+ * alter consumed rest service Shop.BookingApi
+ *   add operation GetBooking (Method: get, Path: '/bookings/{id}', Parameters: ($id: String), Response: json),
+ *   modify operation PostBooking (Timeout: 60),
+ *   drop operation OldBooking,
+ *   set (BaseUrl: 'https://api.example.com/v2');
+ * ```
+ */
+alterConsumedRestServiceAction
+    : SET LPAREN restClientProperty (COMMA restClientProperty)* COMMA? RPAREN
+    | ADD restClientOperation
+    | MODIFY restClientOperation
+    | DROP OPERATION (identifierOrKeyword | STRING_LITERAL)
+    ;
+
 restClientProperty
     : identifierOrKeyword COLON STRING_LITERAL                       // BaseUrl: '...', Username: '...'
     | identifierOrKeyword COLON VARIABLE /* @alias MDL-DEPR083 */    // Username: $Constant (a constant of the client's own module)
@@ -132,7 +153,10 @@ restClientOpProp
     | identifierOrKeyword COLON NONE                                 // Response: NONE
     | identifierOrKeyword COLON LPAREN restClientParamItem (COMMA restClientParamItem)* RPAREN  // Parameters/Query
     | identifierOrKeyword COLON LPAREN restClientHeaderItem (COMMA restClientHeaderItem)* RPAREN  // Headers
-    | identifierOrKeyword COLON (JSON | FILE_KW | STRING_TYPE | STATUS) (FROM | AS) VARIABLE  // Body: JSON FROM $v, Response: JSON AS $v
+    // Body: JSON FROM $v, Response: JSON AS $v. A response's variable is optional:
+    // an operation stores none (the call activity names it), so describe prints
+    // `Response: json` and that has to run again (mendixlabs/mxcli#1608).
+    | identifierOrKeyword COLON (JSON | FILE_KW | STRING_TYPE | STATUS) ((FROM | AS) VARIABLE)?
     | identifierOrKeyword COLON TEMPLATE STRING_LITERAL              // Body: TEMPLATE '...'
     | identifierOrKeyword COLON MAPPING qualifiedName (LBRACE restClientMappingEntry* RBRACE)?  // Body/Response: MAPPING Entity { ... }
     ;

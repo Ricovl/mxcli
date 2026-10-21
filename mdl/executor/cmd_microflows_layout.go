@@ -378,7 +378,7 @@ func pairFlowLayout(stored, rebuilt *layoutGraph) (*layoutPlan, error) {
 	// gets the position the writer derives from its index.
 	byName := map[string]model.Point{}
 	for i, bp := range rebuilt.parameters {
-		pos := microflows.DerivedParameterPosition(i)
+		pos := microflows.DerivedParameterPosition(i, rebuilt.parameters)
 		if bp.Position != nil {
 			pos = *bp.Position
 		}

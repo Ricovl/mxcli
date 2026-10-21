@@ -39,8 +39,35 @@ The **lint rules** below run with `mxcli lint`. There is also a separate group o
 | **CONV012** | Exclusive split captions -- Checks that decision branches have meaningful captions |
 | **CONV013** | Error handling on external calls -- Ensures external service calls have error handling |
 | **CONV014** | No continue error handling -- Warns against using CONTINUE error handling without logging |
+| **CONV020** | Created object never persisted -- A microflow creates an object of a persistent entity without commit, and never commits, returns or passes it on, so the object is discarded when the microflow ends ([details](#conv020-details)) |
 | **MDL-FLOW01** | Un-describable branch structure -- Decision branches that re-enter each other's paths, so `DESCRIBE MICROFLOW` cannot render them as nested `IF`s without changing what they mean |
 | **MDL-MAP04** | First over an object-rooted import mapping -- An `import from mapping` or `rest call … returns mapping` activity already in the model stores Studio Pro's *First* (`ForceSingleOccurrence` or `Range.SingleObject`) over a mapping that returns one object. `mx check` reports 0 errors; the activity throws `key not found: Path(QName(None,),None,)` when it runs. `mxcli check` refuses the same statement in a script under the same ID; this finds activities written before that check existed, or with `exec --no-check`. A list-rooted mapping's *First* is legitimate and is not reported |
+
+### CONV020 details {#conv020-details}
+
+`$Item = create Shop.Item (...)` without `commit` makes an object in memory only.
+If the microflow then neither commits it nor hands it to anything that could,
+the object is gone when the microflow ends. Nothing else reports this: `check`,
+`mx check` and the build all pass, and the microflow runs without error. In the
+report that prompted the rule, an after-startup seed microflow logged
+"Seeded 20" and the table stayed empty.
+
+The rule reports a create only when **all** of these hold:
+
+- it is in a **microflow** (not a nanoflow or a rule) and its commit setting is
+  **No**;
+- the entity is **persistent** (a non-persistent entity is meant to be
+  temporary), and is not a System or Marketplace entity;
+- nothing in the microflow, on any path, uses the variable except to read one
+  of its members (`$Item/Name`) or to change it without commit.
+
+Any other mention counts as passing the object on and keeps the rule quiet:
+`commit`, `change … commit`, returning it, an argument to a microflow, Java or
+JavaScript action, workflow, mapping or page, adding it to a list, using it as
+an association value on another object, `delete`, `rollback`, or the bare
+variable anywhere in an expression. The check is flow-insensitive: a commit on
+one branch only, or only in an error handler, counts, so that case is not
+reported. When the rule cannot tell, it stays quiet.
 
 ## Running Built-in Rules
 

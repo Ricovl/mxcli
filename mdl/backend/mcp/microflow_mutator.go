@@ -280,8 +280,6 @@ func pedVector(s string) map[string]int {
 	return map[string]int{"width": p["x"], "height": p["y"]}
 }
 
-var pedSides = []string{"Top", "Right", "Bottom", "Left"}
-
 // pedQualifiedFlowType maps the storage $Type of a flow object to the
 // qualified name PED reports for it, where the two differ (CLAUDE.md, "BSON
 // Storage Names vs Qualified Names").
@@ -392,21 +390,19 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 			}
 		}
 	}
-	for j, id := range addedFlows {
-		fp := fmt.Sprintf("/flows/%d", len(oldFlowIDs)+j)
+	// Sequence flows are added before note lines. Within one update PED stores
+	// an AnnotationFlow after a SequenceFlow added later (measured on
+	// 11.15.0-rc.4), so the sets below address a new sequence flow by the
+	// right index only when no note line was added ahead of it.
+	var addedNotes []*microflows.AnnotationFlow
+	next := len(oldFlowIDs)
+	for _, id := range addedFlows {
 		if af, ok := d.annotations[id]; ok {
-			o, err := ref(string(af.OriginID))
-			if err != nil {
-				return nil, err
-			}
-			dst, err := ref(string(af.DestinationID))
-			if err != nil {
-				return nil, err
-			}
-			ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: map[string]any{
-				"$Type": "Microflows$AnnotationFlow", "originId": o, "destinationId": dst}}})
+			addedNotes = append(addedNotes, af)
 			continue
 		}
+		fp := fmt.Sprintf("/flows/%d", next)
+		next++
 		f, ok := d.flows[id]
 		if !ok {
 			return nil, fmt.Errorf("internal: spliced flow %s was not serialized", id)
@@ -420,12 +416,7 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 			return nil, err
 		}
 		v := map[string]any{"$Type": "Microflows$SequenceFlow", "originId": o, "destinationId": dst}
-		if f.OriginConnectionIndex >= 0 && f.OriginConnectionIndex < 4 {
-			v["originConnectionSide"] = pedSides[f.OriginConnectionIndex]
-		}
-		if f.DestinationConnectionIndex >= 0 && f.DestinationConnectionIndex < 4 {
-			v["destinationConnectionSide"] = pedSides[f.DestinationConnectionIndex]
-		}
+		setPEDSides(v, f)
 		cv, err := mapCaseValue(f.CaseValue)
 		if err != nil {
 			return nil, err
@@ -443,6 +434,17 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 		if f.DestinationControlVector != "" {
 			set(fp+"/line/destinationControlVector", pedVector(f.DestinationControlVector))
 		}
+	}
+	for _, af := range addedNotes {
+		o, err := ref(string(af.OriginID))
+		if err != nil {
+			return nil, err
+		}
+		dst, err := ref(string(af.DestinationID))
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: pedAnnotationFlow(af, o, dst)}})
 	}
 
 	for i := len(oldFlowIDs) - 1; i >= 0; i-- {
