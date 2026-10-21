@@ -326,9 +326,18 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	// a member of one was written bare (ako/mxcli#885).
 	a.declaredVarTypes = varTypes
 
+	// A node the script draws at a stated position is pinned under mdl 1 only
+	// (ADR-0011: a new refusal applies under the version that introduces it).
+	// Under mdl 0 the refused splice would fall back to rebuilding the whole
+	// flow, losing the merges, curves and $IDs the shift keeps, so a headerless
+	// script makes room as it did (mendixlabs/mxcli#1598, case 6).
+	var stated []model.Point
+	if flowRebuildRefused.Applies(ctx.LanguageVersion) {
+		stated = statedPoints(d)
+	}
 	p := &flowPlan{a: a, ops: ops, moves: moves, storedFolder: storedFolderOf(stored)}
 	if len(ops) > 0 || len(moves) > 0 || headerChanged {
-		if p.mut, err = patch(ctx, a, ops, targets, moves); err != nil {
+		if p.mut, err = patch(ctx, a, ops, targets, moves, stated); err != nil {
 			return nil, cannotSplice("%v", err)
 		}
 		if headerChanged {
