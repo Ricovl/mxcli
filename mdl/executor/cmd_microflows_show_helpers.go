@@ -1168,6 +1168,15 @@ func traverseFlow(
 			return
 		}
 		visited[currentID] = true
+		// A merge with one way in, on the main line, is spelled the way exec
+		// was given it — `join L; merge L;` — so the description rebuilds it
+		// instead of warning that it is lost (see inlineMerges).
+		if indent == 0 {
+			if label, ok := labels.inlineLabel(currentID); ok {
+				*lines = append(*lines, "join "+label+";")
+				*lines = append(*lines, mergeDeclarationLines(indent, label, obj, annotationsByTarget.layoutKeep(), flowsByOrigin)...)
+			}
+		}
 		for _, flow := range flowsByOrigin[currentID] {
 			traverseFlow(ctx, flow.DestinationID, activityMap, flowsByOrigin, flowsByDest, splitMergeMap, visited, entityNames, microflowNames, lines, indent, sourceMap, headerLineCount, annotationsByTarget, labels)
 		}
