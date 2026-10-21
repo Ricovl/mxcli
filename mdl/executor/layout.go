@@ -34,6 +34,10 @@ const (
 	VerticalSpacing   = 90  // Space between branches for error-handler flows
 	BranchGap         = 40  // Minimum edge-to-edge gap between parallel branches
 	LoopPadding       = 50  // Padding inside loop boxes
+	// LoopIteratorSpace is the column a foreach loop keeps on its left for the
+	// iterator icon and the list variable's label. A WHILE has no iterator and no
+	// column.
+	LoopIteratorSpace = 100
 	MinLoopWidth      = 200
 	MinLoopHeight     = 100
 )
@@ -316,8 +320,11 @@ func (m *layoutMeasurer) measureLoopStatement(s *ast.LoopStmt) Bounds {
 	// Measure loop body
 	bodyBounds := m.measureStatements(s.Body)
 
-	// Loop box size: body + padding on all sides
-	width := max(bodyBounds.Width+2*LoopPadding, MinLoopWidth)
+	// Loop box size: body + padding on all sides, plus the iterator column the
+	// builder reserves on the left. Leaving the column out measured every foreach
+	// loop 100px short, so the merge of an IF holding one landed inside the
+	// loop's box (mendixlabs/mxcli#1598, case 4).
+	width := max(bodyBounds.Width+2*LoopPadding+LoopIteratorSpace, MinLoopWidth)
 	height := max(bodyBounds.Height+2*LoopPadding, MinLoopHeight)
 
 	return Bounds{Width: width, Height: height}

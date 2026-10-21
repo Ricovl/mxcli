@@ -606,10 +606,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// First, measure the loop body to determine size
 	bodyBounds := fb.measurer.measureStatementsSpan(s.Body)
 
-	// Calculate loop box size with padding
-	// Extra width for iterator icon and its label (100 pixels)
-	iteratorSpace := 100
-	loopWidth := max(bodyBounds.Width+2*LoopPadding+iteratorSpace, MinLoopWidth)
+	// Calculate loop box size with padding, plus the iterator column. The
+	// measurer uses the same constant, so an IF holding this loop measures it at
+	// the width it is built at.
+	loopWidth := max(bodyBounds.Width+2*LoopPadding+LoopIteratorSpace, MinLoopWidth)
 	loopHeight := max(bodyBounds.Height+2*LoopPadding, MinLoopHeight)
 
 	// Inner positioning: activities start after the iterator icon on the left,
@@ -617,10 +617,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// (IF/CASE) centred on innerStartY stays within [0, loopHeight].
 	//
 	// A position is a CENTRE, so the first activity has to start half its own
-	// width past the iterator column; at LoopPadding+iteratorSpace its left edge
+	// width past the iterator column; at LoopPadding+LoopIteratorSpace its left edge
 	// landed 60px inside that column, on top of the iterator's icon and the list
 	// variable's label.
-	innerStartX := LoopPadding + iteratorSpace + ActivityWidth/2
+	innerStartX := LoopPadding + LoopIteratorSpace + ActivityWidth/2
 	innerStartY := loopHeight / 2
 
 	// posX is where the builder would CENTRE the next element. A loop box placed
