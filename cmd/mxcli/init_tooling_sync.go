@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/fs"
@@ -168,48 +167,30 @@ func bundledLintRuleNames() ([]string, error) {
 	return names, err
 }
 
-// syncBundledLintRules rewrites the bundled rules in a project's lint-rules
-// directory from the binary, returning the names that differed. A missing
-// directory means the project was not initialised with a tool that uses the
-// rules, and stays missing.
-//
-// An edit to a bundled rule file is overwritten — the file belongs to mxcli,
-// like a skill. To change one, copy it under a new name (and a new rule ID),
-// or override it in lint-config.yaml.
-func syncBundledLintRules(lintRulesDir string) ([]string, error) {
+// syncBundledLintRules brings the bundled rules in a project's lint-rules
+// directory up to date with the binary, keeping the ones the project made its
+// own (see writeBundledLintRules). A missing directory means the project was
+// not initialised with a tool that uses the rules, and stays missing.
+func syncBundledLintRules(lintRulesDir string) (bundledLintRuleWrite, error) {
 	if st, err := os.Stat(lintRulesDir); err != nil || !st.IsDir() {
-		return nil, nil
+		return bundledLintRuleWrite{}, nil
 	}
-	names, err := bundledLintRuleNames()
-	if err != nil {
-		return nil, err
-	}
-	var changed []string
-	for _, name := range names {
-		want, err := lintRulesFS.ReadFile("lint-rules/" + name)
-		if err != nil {
-			return changed, err
-		}
-		target := filepath.Join(lintRulesDir, name)
-		if have, readErr := os.ReadFile(target); readErr == nil && bytes.Equal(have, want) {
-			continue
-		}
-		if err := os.WriteFile(target, want, 0o644); err != nil {
-			return changed, fmt.Errorf("writing %s: %w", target, err)
-		}
-		changed = append(changed, name)
-	}
-	return changed, nil
+	return writeBundledLintRules(lintRulesDir)
 }
 
 // toolingSyncResult reports a full tooling refresh.
 type toolingSyncResult struct {
-	Skills       skillSyncResult
-	Companion    []string // companion mod files written or retired
-	LintRules    []string // bundled rule files rewritten
-	Docs         []string // owned docs whose mxcli section was rewritten
-	NoMarkers    []string // owned docs left alone: no markers to refresh between
-	StampWritten bool
+	Skills    skillSyncResult
+	Companion []string // companion mod files written or retired
+	LintRules []string // bundled rule files rewritten
+	// LintRulesKept are bundled rule files left alone because the project
+	// edited them; LintRulesShadowed are bundled rules not written because
+	// another file already defines their rule ID ("name (ID in file)").
+	LintRulesKept     []string
+	LintRulesShadowed []string
+	Docs              []string // owned docs whose mxcli section was rewritten
+	NoMarkers         []string // owned docs left alone: no markers to refresh between
+	StampWritten      bool
 	// RefusedFor is set when the sync did nothing because this binary is older
 	// than the one that wrote the tooling.
 	RefusedFor *toolingStamp
@@ -240,9 +221,11 @@ func syncProjectTooling(projectDir string) (toolingSyncResult, error) {
 		return res, fmt.Errorf("syncing the companion mod: %w", err)
 	}
 
-	if res.LintRules, err = syncBundledLintRules(filepath.Join(projectDir, ".claude", "lint-rules")); err != nil {
+	lint, err := syncBundledLintRules(filepath.Join(projectDir, ".claude", "lint-rules"))
+	if err != nil {
 		return res, fmt.Errorf("syncing lint rules: %w", err)
 	}
+	res.LintRules, res.LintRulesKept, res.LintRulesShadowed = lint.Written, lint.Kept, lint.Shadowed
 
 	// The docs embed the .mpr path, so without one there is nothing correct to
 	// render; init would write a placeholder, a refresh must not.
@@ -289,6 +272,12 @@ func reportToolingSync(w, errw io.Writer, res toolingSyncResult) {
 	if len(res.LintRules) > 0 {
 		fmt.Fprintf(w, "Refreshed %d bundled lint rule(s) in .claude/lint-rules/ to match this mxcli: %s\n",
 			len(res.LintRules), abridge(res.LintRules))
+	}
+	// What was kept is the project's choice and holds every session, so it is
+	// said once per mxcli — on the sync that stamps a new version, which is
+	// when the kept files first miss an update — not on every session start.
+	if res.StampWritten {
+		printKeptLintRules(w, "", res.LintRulesKept, res.LintRulesShadowed)
 	}
 	if len(res.Docs) > 0 {
 		fmt.Fprintf(w, "Refreshed the mxcli section of %s\n", strings.Join(res.Docs, ", "))

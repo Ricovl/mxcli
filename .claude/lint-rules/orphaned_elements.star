@@ -18,7 +18,8 @@
 #                          as a YAML list or comma-separated text. Replaces
 #                          the built-in list below; unset keeps it.
 #
-# Edit the option, not this file: `mxcli init` rewrites the shipped rules.
+# Edit the option, not this file: an edited copy is kept, and no longer
+# receives mxcli's updates to the rule.
 
 RULE_ID = "QUAL004"
 RULE_NAME = "Orphaned Elements"
