@@ -620,6 +620,13 @@ func (fb *flowBuilder) addTerminalEndEventForPendingHandler(returns *ast.Microfl
 
 // addStatement converts an AST statement to a microflow activity and returns its ID.
 func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
+	// The loop-body tail is this statement's alone: only an IF reads it, and a
+	// CASE or anything else must not leave it set for an IF nested inside,
+	// which is not at the tail (atBodyTail).
+	if _, isIf := stmt.(*ast.IfStmt); !isIf {
+		fb.atBodyTail = false
+	}
+
 	// Extract annotations from the statement and merge into pendingAnnotations
 	fb.mergeStatementAnnotations(stmt)
 

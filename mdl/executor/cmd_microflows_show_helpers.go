@@ -445,7 +445,14 @@ func emitMergeAnnotation(
 		return
 	}
 	merge := commonMergeAfter(obj.GetID(), flowsByOrigin, activityMap)
-	if merge == nil || !layout.keepsPosition(merge.GetID()) {
+	if merge == nil {
+		return
+	}
+	// A merge with no way out ends a loop body. The builder no longer draws one
+	// there (mendixlabs/mxcli#884), so a stored one — an earlier mxcli's, or one
+	// a person kept — exists in a rebuild only if the description says so,
+	// wherever it stands.
+	if !layout.keepsPosition(merge.GetID()) && len(findNormalFlows(flowsByOrigin[merge.GetID()])) > 0 {
 		return
 	}
 	p := merge.GetPosition()

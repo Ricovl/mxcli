@@ -93,6 +93,12 @@ type flowBuilder struct {
 	// splitID→nextActivity flow — which is emitted one iteration later by the
 	// outer loop, not by addIfStatement.
 	nextFlowAnchor *ast.FlowAnchors
+
+	// atBodyTail is set while the LAST statement of a loop body is built, and
+	// passed on to the last statement of each branch of an IF there. An IF/ELSE
+	// at the tail joins nothing — both branches end the iteration — so it gets
+	// no merge (mendixlabs/mxcli#884). Whoever reads it clears it.
+	atBodyTail bool
 	// curveByOrigin holds each statement's @curve keyed by the activity it was
 	// written on, applied to that activity's outgoing flows by applyFlowCurves
 	// once the graph is complete. (#884)

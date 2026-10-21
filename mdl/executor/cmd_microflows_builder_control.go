@@ -37,6 +37,20 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	thenNeedsErrorMerge := thenReturns && bodyHasContinuingCustomErrorHandler(s.ThenBody)
 	elseNeedsErrorMerge := elseReturns && bodyHasContinuingCustomErrorHandler(s.ElseBody)
 
+	// The last statement of a loop body: an IF/ELSE whose branches both carry
+	// on there joins nothing, since both end the iteration, and a loop-body
+	// activity with no outgoing flow is how Mendix ends one. Its merge had no
+	// way out, Studio Pro authors delete it by hand, and every re-run drew it
+	// again (mendixlabs/mxcli#884). Both branches must hold something — a split
+	// needs a flow per case — and an explicit @merge keeps the merge, which is
+	// how DESCRIBE carries a stored one through a rebuild.
+	atTail := fb.atBodyTail
+	fb.atBodyTail = false
+	tailWithoutMerge := atTail && hasElseBody && len(s.ThenBody) > 0 && len(s.ElseBody) > 0 &&
+		!thenReturns && !elseReturns &&
+		!bodyHasContinuingCustomErrorHandler(s.ThenBody) && !bodyHasContinuingCustomErrorHandler(s.ElseBody) &&
+		(s.Annotations == nil || s.Annotations.Merge == nil)
+
 	// Save/restore endsWithReturn around branch processing to avoid
 	// a branch's RETURN affecting the parent flow state prematurely
 	savedEndsWithReturn := fb.endsWithReturn
@@ -120,7 +134,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	// Determine if the merge would have 2+ incoming edges (non-redundant).
 	// Skip merge when only one branch flows into it (the other returns).
 	needMerge := false
-	if !bothReturn {
+	if !bothReturn && !tailWithoutMerge {
 		if hasElseBody {
 			needMerge = (!thenReturns && !elseReturns) || thenNeedsErrorMerge || elseNeedsErrorMerge
 		} else {
@@ -159,7 +173,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var pendingThenAnchor *ast.FlowAnchors
 		for i, stmt := range s.ThenBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ThenBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastThenID, splitID, "true", pendingThenCase, prevThenAnchor, trueBranchAnchor) {
 				pendingThenCase, pendingThenAnchor = "", nil
 				continue
@@ -255,7 +271,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var pendingElseAnchor *ast.FlowAnchors
 		for i, stmt := range s.ElseBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ElseBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastElseID, splitID, "false", pendingElseCase, prevElseAnchor, falseBranchAnchor) {
 				pendingElseCase, pendingElseAnchor = "", nil
 				continue
@@ -684,8 +702,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// its false flow entirely and mx check reports CE0079 (ledger #52).
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
@@ -1046,8 +1066,10 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 	// since ledger #52 and this one did not, so the two disagreed on the same body.
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
