@@ -64,8 +64,9 @@ func (b *Backend) UpdateEnumeration(enum *model.Enumeration) error {
 	if err != nil {
 		return fmt.Errorf("UpdateEnumeration: encode: %w", err)
 	}
-	// enumToGen writes ExportLevel "Hidden" as a constant (#816).
-	contents, err = b.keepStoredExportLevel(string(enum.ID), contents)
+	// An unauthored level keeps the stored one (#816); `export level` sets it
+	// (mendixlabs/mxcli#1498).
+	contents, err = b.keepStoredExportLevelUnlessSet(string(enum.ID), enum.ExportLevel, contents)
 	if err != nil {
 		return fmt.Errorf("UpdateEnumeration: %w", err)
 	}
@@ -80,8 +81,8 @@ func (b *Backend) DeleteEnumeration(id model.ID) error {
 	return b.writer.DeleteUnit(string(id))
 }
 
-// enumToGen builds a gen Enumeration from the model. ExportLevel="Hidden"
-// mirrors the legacy serializer; RemoteSource (null) comes from the registered
+// enumToGen builds a gen Enumeration from the model. ExportLevel is the model's,
+// "Hidden" when unset as the legacy serializer wrote it; RemoteSource (null) comes from the registered
 // default. Excluded is carried from the model — hardcoding false here made a
 // CREATE OR MODIFY silently un-exclude the document (#914).
 func enumToGen(enum *model.Enumeration) *genEnum.Enumeration {
@@ -89,7 +90,7 @@ func enumToGen(enum *model.Enumeration) *genEnum.Enumeration {
 	out.SetName(enum.Name)
 	out.SetDocumentation(enum.Documentation)
 	out.SetExcluded(enum.Excluded)
-	out.SetExportLevel("Hidden")
+	out.SetExportLevel(orDefault(enum.ExportLevel, "Hidden"))
 	for _, v := range enum.Values {
 		out.AddValues(enumValueToGen(v))
 	}
