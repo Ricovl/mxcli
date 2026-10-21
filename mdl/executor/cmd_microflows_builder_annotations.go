@@ -86,6 +86,9 @@ func (fb *flowBuilder) mergeStatementAnnotations(stmt ast.MicroflowStatement) {
 	if ann.BodyTailAnchor != nil {
 		fb.pendingAnnotations.BodyTailAnchor = ann.BodyTailAnchor
 	}
+	if len(ann.CaseAnchors) > 0 {
+		fb.pendingAnnotations.CaseAnchors = ann.CaseAnchors
+	}
 }
 
 // applyAnnotations applies pending annotations to the activity identified by activityID.

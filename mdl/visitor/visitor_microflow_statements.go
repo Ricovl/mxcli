@@ -555,7 +555,24 @@ func parseAnchorAnnotation(params *parser.AnnotationParamsContext, result *ast.A
 				result.BodyTailAnchor = fa
 			}
 		default:
-			invalid(pCtx)
+			// Anything else is a CASE outcome, keyed by its WHEN value, and
+			// takes the nested form. Validation refuses a key that is not a
+			// WHEN value of the statement it is written on.
+			nested := pCtx.AnnotationParenValue()
+			if nested == nil {
+				invalid(pCtx)
+				continue
+			}
+			fa, ok := parseNestedFlowAnchors(nested.(*parser.AnnotationParenValueContext))
+			if !ok {
+				invalid(pCtx)
+				continue
+			}
+			value := nameCtx.GetText()
+			if strings.EqualFold(value, "(empty)") {
+				value = "(empty)"
+			}
+			result.CaseAnchors = append(result.CaseAnchors, ast.CaseAnchor{Value: value, Anchors: fa})
 		}
 	}
 

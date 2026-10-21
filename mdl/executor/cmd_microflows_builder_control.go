@@ -533,9 +533,10 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	return splitID
 }
 
-// mergeExitFlowAnchor is the origin anchor an if's own `@anchor(from: X)` gives
-// the flow leaving its closing merge, or nil when it sets none.
-func mergeExitFlowAnchor(s *ast.IfStmt) *ast.FlowAnchors {
+// mergeExitFlowAnchor is the origin anchor an if's or a case's own
+// `@anchor(from: X)` gives the flow leaving its closing merge, or nil when it
+// sets none.
+func mergeExitFlowAnchor(s ast.MicroflowStatement) *ast.FlowAnchors {
 	own := stmtOwnAnchor(s)
 	if own == nil || own.From == ast.AnchorSideUnset {
 		return nil

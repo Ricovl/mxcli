@@ -314,7 +314,7 @@ func emitAnchorAnnotationWithActivityMap(
 
 	if _, isSplit := obj.(*microflows.ExclusiveSplit); isSplit {
 		emitSplitAnchorAnnotation(id, flowsByOrigin, flowsByDest, lines, indentStr, false,
-			mergeExitAnchor(id, flowsByOrigin, activityMap))
+			mergeExitAnchor(id, flowsByOrigin, activityMap), enumCaseAnchorFragments(id, flowsByOrigin, activityMap)...)
 		return
 	}
 	if _, isSplit := obj.(*microflows.InheritanceSplit); isSplit {
@@ -588,6 +588,7 @@ func emitSplitAnchorAnnotation(
 	indentStr string,
 	preserveDefaultIncoming bool,
 	mergeExitFrom string,
+	caseParts ...string,
 ) {
 	// Incoming flow anchor (where the previous activity's flow lands on the split).
 	var inTo string
@@ -607,7 +608,7 @@ func emitSplitAnchorAnnotation(
 		falseTo = anchorSideKeyword(falseFlow.DestinationConnectionIndex)
 	}
 
-	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" && mergeExitFrom == "" {
+	if inTo == "" && trueFrom == "" && trueTo == "" && falseFrom == "" && falseTo == "" && mergeExitFrom == "" && len(caseParts) == 0 {
 		return
 	}
 
@@ -631,6 +632,7 @@ func emitSplitAnchorAnnotation(
 	if p := branchAnchorFragmentWithDefaultSides("false", falseFrom, falseTo, falseDefaultFroms, falseDefaultTos); p != "" {
 		parts = append(parts, p)
 	}
+	parts = append(parts, caseParts...)
 	if len(parts) == 0 {
 		return
 	}
@@ -656,7 +658,7 @@ func mergeExitAnchor(
 	if activityMap == nil {
 		return ""
 	}
-	if trueFlow, falseFlow := findBranchFlows(flowsByOrigin[splitID]); trueFlow == nil && falseFlow == nil {
+	if trueFlow, falseFlow := findBranchFlows(flowsByOrigin[splitID]); trueFlow == nil && falseFlow == nil && !hasEnumCaseFlow(flowsByOrigin[splitID]) {
 		return ""
 	}
 	merge := commonMergeAfter(splitID, flowsByOrigin, activityMap)
@@ -673,6 +675,91 @@ func mergeExitAnchor(
 		return anchorSideKeyword(flow.OriginConnectionIndex)
 	}
 	return ""
+}
+
+// hasEnumCaseFlow reports whether any of a split's flows carries an
+// enumeration case — a CASE, whose `from:` is the flow leaving its merge as on
+// an IF (mendixlabs/mxcli#1587).
+func hasEnumCaseFlow(flows []*microflows.SequenceFlow) bool {
+	for _, f := range flows {
+		if _, ok := enumCaseValue(f); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// enumCaseAnchorFragments returns the `Value: (from: …[, to: …])` entries a
+// CASE's @anchor needs: one per outcome whose stored sides differ from what the
+// builder would draw for it there (mendixlabs/mxcli#1587). Without them a CASE
+// drawn in Studio Pro lost every side on describe -> exec.
+//
+// The default is computed exactly as addEnumSplit computes it — the branch's
+// place in describe order, the branch count, where split and target stand — so
+// an ordinary CASE gets no entries. `to:` is only written for a flow into a
+// merge: one into an activity is carried by that activity's own `@anchor(to:)`.
+func enumCaseAnchorFragments(
+	splitID model.ID,
+	flowsByOrigin map[model.ID][]*microflows.SequenceFlow,
+	activityMap map[model.ID]microflows.MicroflowObject,
+) []string {
+	split := activityMap[splitID]
+	if split == nil {
+		return nil
+	}
+	type branch struct {
+		dest  model.ID
+		flows []*microflows.SequenceFlow
+	}
+	var branches []branch
+	byDest := map[model.ID]int{}
+	for _, f := range orderedEnumSplitFlows(findNormalFlows(flowsByOrigin[splitID]), activityMap) {
+		if _, ok := enumCaseValue(f); !ok {
+			continue
+		}
+		if i, ok := byDest[f.DestinationID]; ok {
+			branches[i].flows = append(branches[i].flows, f)
+			continue
+		}
+		byDest[f.DestinationID] = len(branches)
+		branches = append(branches, branch{dest: f.DestinationID, flows: []*microflows.SequenceFlow{f}})
+	}
+	targetOf := func(id model.ID) model.Point {
+		if o := activityMap[id]; o != nil {
+			return o.GetPosition()
+		}
+		return model.Point{}
+	}
+	ys := make([]int, len(branches))
+	for i, b := range branches {
+		ys[i] = targetOf(b.dest).Y
+	}
+	origins := enumSplitOriginAnchors(ys, split.GetPosition().Y)
+
+	var out []string
+	for i, b := range branches {
+		slot := splitCaseSlot{order: i, origin: -1}
+		if origins != nil {
+			slot.origin = origins[i]
+		}
+		_, intoMerge := activityMap[b.dest].(*microflows.ExclusiveMerge)
+		for _, f := range b.flows {
+			def := &microflows.SequenceFlow{}
+			slot.apply(def, split.GetPosition(), targetOf(b.dest))
+			var inner []string
+			if f.OriginConnectionIndex != def.OriginConnectionIndex {
+				inner = append(inner, "from: "+anchorSideKeyword(f.OriginConnectionIndex))
+			}
+			if intoMerge && f.DestinationConnectionIndex != def.DestinationConnectionIndex {
+				inner = append(inner, "to: "+anchorSideKeyword(f.DestinationConnectionIndex))
+			}
+			if len(inner) > 0 {
+				value, _ := enumCaseValue(f)
+				out = append(out, formatEnumSplitCaseValue(value)+": ("+strings.Join(inner, ", ")+")")
+			}
+		}
+	}
+	return out
 }
 
 // branchAnchorFragment builds a `key: (from: X, to: Y)` fragment for a branch

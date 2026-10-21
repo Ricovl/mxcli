@@ -353,6 +353,13 @@ type FlowAnchors struct {
 	To   AnchorSide // DestinationConnectionIndex on the INCOMING SequenceFlow
 }
 
+// CaseAnchor is one outcome's entry in a CASE's @anchor: the WHEN value, as
+// written ("(empty)" for the empty value), and the sides of its flow.
+type CaseAnchor struct {
+	Value   string
+	Anchors *FlowAnchors
+}
+
 // HasCaption reports whether the statement states a caption, empty or not.
 func (a *ActivityAnnotations) HasCaption() bool {
 	return a != nil && (a.CaptionSet || a.Caption != "")
@@ -391,6 +398,13 @@ type ActivityAnnotations struct {
 	// populated on LoopStmt/WhileStmt.
 	IteratorAnchor *FlowAnchors
 	BodyTailAnchor *FlowAnchors
+
+	// CaseAnchors are a CASE's per-outcome anchors, keyed by the WHEN value,
+	// in source order:
+	//   @anchor(A: (from: right), (empty): (from: bottom, to: top))
+	// Each names the sides of the one flow that leaves the split for that
+	// value. Only a CASE takes them (mendixlabs/mxcli#1587).
+	CaseAnchors []CaseAnchor
 
 	// Curve is the bezier geometry of the flow LEAVING this statement:
 	// @curve(from: (40, -90), to: (-40, 90)).
