@@ -127,9 +127,14 @@ func (ix attributeIndex) declares(entityQN, attr string) (found, known bool) {
 // author either picks an attribute of the bound entity, or binds the value to
 // the property the widget links to the other datasource.
 //
+// A name no entity in scope has is refused too, without candidates. It was let
+// through as "a plain typo, which other checks own", and no check owned it: exec
+// wrote Entity.Missing and the first word of it was mx check's CE1613
+// (mendixlabs/mxcli#1591).
+//
 // Nothing is refused where the question cannot be answered: a qualified name or
-// path, a scope the rule did not decide (scopeShared), a model the index cannot
-// read, or a name no candidate has (a plain typo, which other checks own).
+// path, a scope the rule did not decide (scopeShared), or a model the index
+// cannot read.
 func misboundAttributeError(where, attr string, scope bindingScope, outer string, dsEntities map[string]string, ix attributeIndex) error {
 	if attr == "" || strings.ContainsAny(attr, "./$") || scope.Kind == scopeShared || scope.Entity == "" {
 		return nil
@@ -158,7 +163,10 @@ func misboundAttributeError(where, attr string, scope bindingScope, outer string
 		add(dsEntities[k], fmt.Sprintf("datasource `%s`", k))
 	}
 	if len(candidates) == 0 {
-		return nil
+		return mdlerrors.NewValidationf(
+			"%s: `%s` is not an attribute of %s, the entity this property binds to (%s), "+
+				"and writing it is CE1613 \"The selected attribute no longer exists\". Bind an attribute of %s here",
+			where, attr, scope.Entity, scope.describe(), scope.Entity)
 	}
 	return mdlerrors.NewValidationf(
 		"%s: `%s` is not an attribute of %s, the entity this property binds to (%s); "+

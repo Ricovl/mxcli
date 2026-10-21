@@ -1817,6 +1817,15 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		if value == "" {
 			value = pageVariableArgValue(mappingMap["Variable"])
 		}
+		// A PageVariable naming only a widget is a control-bar button passing
+		// its grid's selection (mendixlabs/mxcli#122), written `$grid`.
+		if value == "" {
+			if v, ok := mappingMap["Variable"].(map[string]any); ok {
+				if w := extractString(v["Widget"]); w != "" {
+					value = "$" + w
+				}
+			}
+		}
 
 		if value != "" {
 			params = append(params, visitor.ParameterNameSpelling(paramName)+" = "+value)

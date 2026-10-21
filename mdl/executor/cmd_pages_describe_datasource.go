@@ -326,6 +326,16 @@ func entityPathExpr(ds *rawDataSource) string {
 	return strings.Join(parts, "/")
 }
 
+// parameterSourceEntity is the entity a parameter source stores beside the
+// parameter's name (a DirectEntityRef), "" when it stores none.
+func parameterSourceEntity(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || extractString(entityRef["$Type"]) != "DomainModels$DirectEntityRef" {
+		return ""
+	}
+	return extractString(entityRef["Entity"])
+}
+
 // parseContextSource reads the "data from context" forms: over an association,
 // or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
@@ -334,13 +344,13 @@ func parseContextSource(ds map[string]any) *rawDataSource {
 	}
 	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
 		if param := extractString(sv["PageParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param}
+			return &rawDataSource{Type: "parameter", Reference: param, Destination: parameterSourceEntity(ds)}
 		}
 		// Inside a snippet the parameter has its own slot, PageParameter left
 		// empty; reading PageParameter alone described the data view with no
 		// DataSource, and re-executing that dropped the binding.
 		if param := extractString(sv["SnippetParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param}
+			return &rawDataSource{Type: "parameter", Reference: param, Destination: parameterSourceEntity(ds)}
 		}
 	}
 	if entityPath := extractString(ds["EntityPath"]); entityPath != "" {
