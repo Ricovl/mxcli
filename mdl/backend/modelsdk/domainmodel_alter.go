@@ -395,9 +395,10 @@ func (b *Backend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 // Unlike the Entities and Associations lists above, this does not rebuild: each
 // stored element is edited in place, and a property is set only when the semantic
 // value differs from what is stored. Everything the semantic model does not carry
-// — the GUID above all, but also the export level, the capabilities and the
-// remote-source name — is never touched, so it cannot be lost, and an unchanged
-// element stays clean and passes through byte-for-byte.
+// — the GUID above all, but also the capabilities and the remote-source name — is
+// never touched, so it cannot be lost, and an unchanged element stays clean and
+// passes through byte-for-byte. The export level is set only when it is set and
+// differs, so an unauthored one keeps the stored level (mendixlabs/mxcli#1498).
 //
 // A semantic association with no stored counterpart is new and is appended. A
 // stored one missing from the semantic model is REFUSED rather than silently kept
@@ -457,6 +458,9 @@ func patchCrossAssociation(gca *genDm.CrossAssociation, ca *domainmodel.CrossMod
 	}
 	if ca.StorageFormat != "" && gca.StorageFormat() != string(ca.StorageFormat) {
 		gca.SetStorageFormat(string(ca.StorageFormat))
+	}
+	if ca.ExportLevel != "" && gca.ExportLevel() != ca.ExportLevel {
+		gca.SetExportLevel(ca.ExportLevel)
 	}
 
 	db, ok := gca.DeleteBehavior().(*genDm.AssociationDeleteBehavior)
@@ -813,7 +817,7 @@ func (b *Backend) UpdateAttribute(domainModelID, entityID model.ID, attr *domain
 	// Attribute -> Attribute keeps the $Type, so carrying the stored raw bytes
 	// is enough; no raw transform is needed.
 	if stored, ok := items[idx].(*genDm.Attribute); ok {
-		carryStoredAttribute(next, stored)
+		carryStoredAttribute(next, stored, attr.ExportLevel)
 	}
 
 	// The generated list offers only Append and Remove, so an in-place replace
