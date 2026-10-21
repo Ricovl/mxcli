@@ -380,6 +380,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	// module root (#932).
 	var preservedContainerID model.ID
 	var preservedDocumentation string
+	var storedOperations []*model.RestClientOperation
 	wasModified := false
 	for _, existing := range existingServices {
 		existModID := h.FindModuleID(existing.ContainerID)
@@ -392,6 +393,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 				// A rewrite that carried no doc comment keeps the stored one, so
 				// it has to be read before anything replaces the unit (#1018).
 				preservedDocumentation = existing.Documentation
+				storedOperations = existing.Operations
 				wasModified = true
 			} else {
 				return mdlerrors.NewAlreadyExistsMsg("rest client", moduleName+"."+stmt.Name.Name, fmt.Sprintf("rest client already exists: %s.%s (use create or modify to overwrite)", moduleName, stmt.Name.Name))
@@ -454,7 +456,38 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	}
 	ctx.ReportMutation(verb, "rest client: %s.%s (%d operations)",
 		moduleName, stmt.Name.Name, len(svc.Operations))
+	if wasModified {
+		warnDroppedRestOperations(ctx, stmt.Name, storedOperations, svc.Operations)
+	}
 	return nil
+}
+
+// warnDroppedRestOperations names the stored operations a CREATE OR MODIFY
+// removed. The statement declares the service's whole operation list, so one
+// that names only the operations to add deletes the rest — often ones made in
+// Studio Pro, with headers and mappings — and used to report only
+// "Modified rest client: … (2 operations)" (mendixlabs/mxcli#1608). It still
+// applies, as `create or modify entity` does for attributes; it says so, and
+// names the statement that adds an operation without touching the others.
+func warnDroppedRestOperations(ctx *ExecContext, name ast.QualifiedName, stored, written []*model.RestClientOperation) {
+	kept := map[string]bool{}
+	for _, op := range written {
+		kept[strings.ToLower(op.Name)] = true
+	}
+	var dropped []string
+	for _, op := range stored {
+		if !kept[strings.ToLower(op.Name)] {
+			dropped = append(dropped, op.Name)
+		}
+	}
+	if len(dropped) == 0 {
+		return
+	}
+	fmt.Fprintf(ctx.Output,
+		"⚠ create or modify consumed rest service %s drops %d existing operation(s) not listed in this statement: %s\n",
+		name, len(dropped), strings.Join(dropped, ", "))
+	fmt.Fprintf(ctx.Output,
+		"  To add an operation without touching the others, use: alter consumed rest service %s add operation <Name> ( … );\n", name)
 }
 
 // restAuthFromDef resolves a statement's basic authentication for service
