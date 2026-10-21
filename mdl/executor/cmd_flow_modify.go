@@ -1103,14 +1103,16 @@ func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
 // insert (#859). A loop is paired this way only when its body can be edited in
 // place (editableLoopBody, ako/mxcli#1106); any other change inside a loop is
 // refused either way.
-//
-// An `if` whose condition changes is paired the same way (ako/mxcli#888): the
-// condition is set on the stored decision, and a change around it must not
-// merge with it into a replace of the decision.
 func sameBlockShell(declared, stored ast.MicroflowStatement) bool {
-	if _, _, ok := sameIfShell(declared, stored); ok {
-		return true
-	}
+	_, _, ok := sameIfShell(declared, stored)
+	return ok
+}
+
+// conditionChanged reports whether two statements are the same `if` but for
+// its condition (ifConditionChanged). Such a pair is matched as a pair too
+// (ako/mxcli#888): the condition is set on the stored decision, and a change
+// around it must not merge with it into a replace of the decision.
+func conditionChanged(declared, stored ast.MicroflowStatement) bool {
 	_, _, ok := ifConditionChanged(declared, stored)
 	return ok
 }
@@ -1450,6 +1452,12 @@ func insertAnchor(loc *storedLocator, stored []ast.MicroflowStatement, gapStart,
 // it too — it is that node, moved (ako/mxcli#818) — but an exact match weighs
 // more, so of two alike statements the one the script left in place keeps its
 // node.
+//
+// An `if` whose condition changes weighs least: of a new `if` and a restated
+// one before the same stored decision, the restated one — the same condition
+// — is that decision. Weighed alike, the tie went to the earlier pair: the new
+// if took the stored decision over and the restated one was inserted as a new
+// node, drawn on top of it (mendixlabs/mxcli#1598, case 6).
 func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 	n, m := len(declared), len(stored)
 	w := make([][]int, n)
@@ -1458,14 +1466,16 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 		for j := range stored {
 			switch {
 			case declaredMatches(declared[i], stored[j]):
-				w[i][j] = 2
+				w[i][j] = 4
 			case sameExceptPositions(declared[i], stored[j]):
-				w[i][j] = 1
+				w[i][j] = 2
 			case sameBlockShell(declared[i], stored[j]):
-				w[i][j] = 1
+				w[i][j] = 2
 			case editableLoopBody(declared[i], stored[j]):
 				// A loop edited in place inside is that loop: a change beside
 				// it must not merge with it into a replace (ako/mxcli#1106).
+				w[i][j] = 2
+			case conditionChanged(declared[i], stored[j]):
 				w[i][j] = 1
 			}
 		}
