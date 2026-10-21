@@ -88,3 +88,23 @@ func TestAnnotationFlowSidesAcrossALoopBoundary(t *testing.T) {
 		t.Fatalf("sides %+v, want %d -> %d (note below the loop-body activity)", af.Sides, AnchorTop, AnchorBottom)
 	}
 }
+
+// A note whose position the script states is recorded, so a spliced fragment
+// keeps it where it is instead of moving it with the fragment
+// (mendixlabs/mxcli#1598, case 1); a note placed by the layout is not.
+func TestStatedNotesAreRecordedForTheSplice(t *testing.T) {
+	fb := buildFlowFromMDL(t, `
+  @annotation(text: 'stated', position: (1500, 600), size: (200, 80))
+  log info node 'A' 'a';
+  @annotation(text: 'placed', size: (200, 80))
+  log info node 'B' 'b';`)
+	stated := map[string]bool{}
+	for _, o := range fb.objects {
+		if n, ok := o.(*microflows.Annotation); ok {
+			stated[n.Caption] = fb.statedNotes[n.ID]
+		}
+	}
+	if !stated["stated"] || stated["placed"] {
+		t.Errorf("recorded as stated: %v, want only the note with a position", stated)
+	}
+}

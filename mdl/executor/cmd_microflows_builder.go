@@ -99,6 +99,10 @@ type flowBuilder struct {
 	// at the tail joins nothing — both branches end the iteration — so it gets
 	// no merge (mendixlabs/mxcli#884). Whoever reads it clears it.
 	atBodyTail bool
+
+	// statedNotes are the notes whose position the script states, which a
+	// spliced fragment pins in place (see recordStatedNote).
+	statedNotes map[model.ID]bool
 	// curveByOrigin holds each statement's @curve keyed by the activity it was
 	// written on, applied to that activity's outgoing flows by applyFlowCurves
 	// once the graph is complete. (#884)

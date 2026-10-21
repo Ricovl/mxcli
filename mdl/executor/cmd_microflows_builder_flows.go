@@ -875,6 +875,14 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	fb.flows = append(fb.flows, errBuilder.flows...)
 	fb.annotationFlows = append(fb.annotationFlows, errBuilder.annotationFlows...)
 	fb.errors = append(fb.errors, errBuilder.errors...)
+	// The handler's objects land in this collection, so its stated notes are
+	// this builder's to pin too.
+	for id := range errBuilder.statedNotes {
+		if fb.statedNotes == nil {
+			fb.statedNotes = map[model.ID]bool{}
+		}
+		fb.statedNotes[id] = true
+	}
 	// A @curve inside the handler is recorded on errBuilder, and applied by the
 	// builder that owns the flows once its graph is complete — this one, since
 	// the handler's flows (and the edge that rejoins the main flow) land here.

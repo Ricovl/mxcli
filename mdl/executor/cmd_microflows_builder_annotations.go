@@ -349,6 +349,19 @@ func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID
 	fb.linkAnnotation(fb.newAnnotation(note, pos, size).ID, activityID)
 }
 
+// recordStatedNote remembers a note whose position the script states. A
+// spliced fragment keeps such a note where it is instead of moving it with
+// the fragment (MicroflowFragment.Pinned).
+func (fb *flowBuilder) recordStatedNote(note ast.MicroflowAnnotation, id model.ID) {
+	if note.Position == nil {
+		return
+	}
+	if fb.statedNotes == nil {
+		fb.statedNotes = map[model.ID]bool{}
+	}
+	fb.statedNotes[id] = true
+}
+
 // attachFreeAnnotation creates a free-floating Annotation not connected to any
 // activity. A label on one is accepted and reused, so a note can be shared
 // between the canvas and an activity.
@@ -384,6 +397,7 @@ func (fb *flowBuilder) newAnnotation(note ast.MicroflowAnnotation, pos model.Poi
 		Caption: note.Text,
 	}
 	fb.objects = append(fb.objects, annotation)
+	fb.recordStatedNote(note, annotation.ID)
 	if note.Label != "" {
 		if fb.annotationsByLabel == nil {
 			fb.annotationsByLabel = map[string]*microflows.Annotation{}
