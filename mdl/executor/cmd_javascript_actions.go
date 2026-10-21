@@ -102,48 +102,8 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	sb.WriteString(describeFolderClause(ctx, jsa.ContainerID))
 	sb.WriteString("(")
 
-	// Parameters
-	hasParamDescriptions := false
-	for _, p := range jsa.Parameters {
-		if p.Description != "" {
-			hasParamDescriptions = true
-			break
-		}
-	}
-
-	for i, param := range jsa.Parameters {
-		if hasParamDescriptions {
-			sb.WriteString("\n    ")
-		}
-		sb.WriteString(param.Name)
-		sb.WriteString(": ")
-		if param.ParameterType != nil {
-			sb.WriteString(formatJavaScriptActionType(param.ParameterType))
-		} else {
-			sb.WriteString("Object")
-		}
-		if param.IsRequired {
-			sb.WriteString(" not null")
-		}
-		// The separator precedes any `--` doc comment: written after it, the
-		// comment swallows the comma and the next parameter fails to parse (#1412).
-		if i < len(jsa.Parameters)-1 {
-			sb.WriteString(",")
-			if !hasParamDescriptions {
-				sb.WriteString(" ")
-			}
-		}
-		if param.Description != "" {
-			paramDoc := strings.ReplaceAll(param.Description, "\r\n", "\n")
-			paramDoc = strings.ReplaceAll(paramDoc, "\r", "\n")
-			firstLine, _, _ := strings.Cut(paramDoc, "\n")
-			sb.WriteString("  -- ")
-			sb.WriteString(firstLine)
-		}
-	}
-	if hasParamDescriptions {
-		sb.WriteString("\n")
-	}
+	// Parameters, each description as the doc comment create reads (see the Java twin).
+	writeCodeActionParams(&sb, jsa.Parameters, formatJavaScriptActionType)
 	sb.WriteString(")")
 
 	// Clauses are emitted in grammar order (returns, exposed, platform, body) so
@@ -154,6 +114,7 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 		sb.WriteString("\n  returns ")
 		sb.WriteString(formatJavaActionReturnType(jsa.ReturnType))
 	}
+	sb.WriteString(describeCodeActionReturnName(jsa.ActionDefaultReturnName, jsa.ReturnType != nil))
 
 	// EXPOSED AS clause
 	if jsa.MicroflowActionInfo != nil && jsa.MicroflowActionInfo.Caption != "" {
@@ -197,9 +158,6 @@ func describeJavaScriptAction(ctx *ExecContext, name ast.QualifiedName) error {
 	fmt.Fprintln(ctx.Output, stmt)
 
 	// Additional info as comments.
-	if jsa.ActionDefaultReturnName != "" {
-		fmt.Fprintf(ctx.Output, "-- return NAME: '%s'\n", jsa.ActionDefaultReturnName)
-	}
 	if jsa.MicroflowActionInfo != nil && len(jsa.MicroflowActionInfo.IconData) > 0 {
 		fmt.Fprintf(ctx.Output, "-- icon: %d bytes\n", len(jsa.MicroflowActionInfo.IconData))
 	}

@@ -1442,6 +1442,7 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 | Describe Java action | `describe java action Module.Name;` | Full MDL output with signature |
 | Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID |
 | Create with type params | `create java action Module.Name(EntityType: entity <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Describe a parameter, name the return value | `create java action Module.Name(/** The text. */ Input: String) returns String as $Result as $$ ... $$;` | `/** … */` before a parameter is its description; `as $Name` the return value's name. Omitted on `or modify`, both keep what is stored |
 | Create exposed action | `... exposed as 'caption' in 'Category' as $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Exposed action with bitmaps | `... exposed as 'caption' in 'Category' icon 'i.png' icon dark 'id.png' image 'm.png' image dark 'md.png' as $$ ... $$;` | Icon 64x64 PNG, image 256x192; paths relative to the .mdl file's own directory. A wrong size warns and is written; a non-PNG is refused |
 | Remove a toolbox entry | `... not exposed as $$ ... $$;` | An **omitted** clause preserves the stored entry (bitmaps included), so removal is explicit |

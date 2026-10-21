@@ -11,6 +11,11 @@ type JavaActionParam struct {
 	Name       string   // Parameter name
 	Type       DataType // Parameter type
 	IsRequired bool     // NOT NULL constraint
+	// Description is the `/** … */` doc comment written before the parameter.
+	// DescriptionSet says one was written: an absent comment keeps the stored
+	// description, an empty one clears it (mendixlabs/mxcli#1588).
+	Description    string
+	DescriptionSet bool
 }
 
 // CreateJavaActionStmt represents:
@@ -18,7 +23,7 @@ type JavaActionParam struct {
 //	CREATE JAVA ACTION Module.Name(
 //	  EntityType: ENTITY <pEntity> NOT NULL,
 //	  Source: pEntity NOT NULL
-//	) RETURNS type
+//	) RETURNS type [AS $ReturnName]
 //	EXPOSED AS 'caption' IN 'category'
 //	AS $$ ... $$;
 type CreateJavaActionStmt struct {
@@ -27,6 +32,7 @@ type CreateJavaActionStmt struct {
 	Name             QualifiedName     // Qualified name (Module.ActionName)
 	Parameters       []JavaActionParam // Input parameters
 	ReturnType       DataType          // Return type (can be nil for void)
+	ReturnName       string            // `returns T as $Name`: the return value's name; "" keeps the stored one (mendixlabs/mxcli#1588)
 	JavaCode         string            // The executeAction() body
 	ExtraCode        string            // Optional extra code section
 	Imports          []string          // Optional additional imports
@@ -57,7 +63,7 @@ func (s *DropJavaActionStmt) isStatement() {}
 //
 //	CREATE JAVASCRIPT ACTION Module.Name(
 //	  Param: type NOT NULL
-//	) RETURNS type
+//	) RETURNS type [AS $ReturnName]
 //	EXPOSED AS 'caption' IN 'category'
 //	PLATFORM Web
 //	AS $$ ... $$;
@@ -70,6 +76,7 @@ type CreateJavaScriptActionStmt struct {
 	Name             QualifiedName     // Qualified name (Module.ActionName)
 	Parameters       []JavaActionParam // Input parameters
 	ReturnType       DataType          // Return type (can be nil for void)
+	ReturnName       string            // `returns T as $Name`; "" keeps the stored one (mendixlabs/mxcli#1588)
 	JavaScriptCode   string            // The exported function body (user code)
 	Documentation    string            // Optional documentation comment
 	DocumentationSet bool              // see mendixlabs/mxcli#1018: absent preserves, empty clears
