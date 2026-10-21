@@ -19,6 +19,7 @@ import (
 // statement in this table is refused by exec exactly when check reports it.
 func TestCheckVersionGates_ReportsEveryHandlerGate(t *testing.T) {
 	url := "item/{Id}"
+	api := "API"
 	cases := []struct {
 		name  string
 		stmt  ast.Statement
@@ -50,6 +51,15 @@ func TestCheckVersionGates_ReportsEveryHandlerGate(t *testing.T) {
 		{"event subprocess", &ast.CreateWorkflowStmt{EventSubProcesses: []ast.WorkflowEventSubProcessNode{{Name: "E"}}}, [3]int{11, 7, 0}, "event subprocess"},
 		{"timer event subprocess", &ast.CreateWorkflowStmt{EventSubProcesses: []ast.WorkflowEventSubProcessNode{{Name: "E", Timer: true}}}, [3]int{11, 12, 0}, "on … timer"},
 		{"notification", &ast.CreateWorkflowStmt{Activities: []ast.WorkflowActivityNode{&ast.WorkflowNotificationNode{}}}, [3]int{11, 10, 0}, "notification activities"},
+		// mendixlabs/mxcli#1498: a domain-model export level is 9.3+.
+		{"entity export level", &ast.CreateEntityStmt{ExportLevel: &api}, [3]int{9, 2, 0}, "export level on an entity"},
+		{"attribute export level", &ast.CreateEntityStmt{Attributes: []ast.Attribute{{Name: "A", ExportLevel: &api}}}, [3]int{9, 2, 0}, "or attribute"},
+		{"alter entity export level", &ast.AlterEntityStmt{Operation: ast.AlterEntitySetExportLevel, ExportLevel: "API"}, [3]int{9, 2, 0}, "export level on an entity"},
+		{"modify attribute export level", &ast.AlterEntityStmt{Operation: ast.AlterEntityModifyAttribute, ModifyExportLevel: &api}, [3]int{9, 2, 0}, "or attribute"},
+		{"association export level", &ast.CreateAssociationStmt{ExportLevel: &api}, [3]int{9, 2, 0}, "export level on an association"},
+		{"alter association export level", &ast.AlterAssociationStmt{Operation: ast.AlterAssociationSetExportLevel}, [3]int{9, 2, 0}, "export level on an association"},
+		{"enumeration export level", &ast.CreateEnumerationStmt{ExportLevel: &api}, [3]int{9, 2, 0}, "export level on an enumeration"},
+		{"alter enumeration export level", &ast.AlterEnumerationStmt{Operation: ast.AlterEnumSetExportLevel}, [3]int{9, 2, 0}, "export level on an enumeration"},
 		{"alter workflow", &ast.AlterWorkflowStmt{}, [3]int{8, 18, 0}, "alter workflow"},
 		{"alter workflow agent task", &ast.AlterWorkflowStmt{Operations: []ast.AlterWorkflowOp{
 			&ast.InsertAfterOp{NewActivities: []ast.WorkflowActivityNode{&ast.WorkflowCallMicroflowNode{Agent: true}}}}}, [3]int{11, 8, 0}, "call agent microflow"},
@@ -91,6 +101,11 @@ func TestCheckVersionGates_UngatedFormsPass(t *testing.T) {
 		&ast.CreatePageStmtV3{},
 		&ast.CreateODataServiceStmt{},
 		&ast.AlterSettingsStmt{Section: "MODEL"},
+		// No EXPORT LEVEL clause: the stored level is carried (#1498).
+		&ast.CreateEntityStmt{Attributes: []ast.Attribute{{Name: "A"}}},
+		&ast.CreateAssociationStmt{},
+		&ast.CreateEnumerationStmt{},
+		&ast.AlterEntityStmt{Operation: ast.AlterEntitySetDocumentation},
 	}}
 	if vs := versionGateViolations(versionCtx(t, 9, 0, 0), prog); len(vs) != 0 {
 		t.Errorf("ungated forms reported on 9.0: %+v", vs)

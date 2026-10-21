@@ -69,6 +69,9 @@ type CreateEnumerationStmt struct {
 	DocumentationSet bool
 	Folder           string // Module folder to place the enumeration in (Bug 12b)
 	CreateOrModify   bool   // True if CREATE OR MODIFY was used
+	// ExportLevel is "API" or "Hidden" from an EXPORT LEVEL clause; nil keeps
+	// the stored level (Hidden on a new element). mendixlabs/mxcli#1498.
+	ExportLevel *string
 }
 
 func (s *CreateEnumerationStmt) isStatement() {}
@@ -82,6 +85,8 @@ type AlterEnumerationStmt struct {
 	Caption   string // For ADD and MODIFY CAPTION
 	// Documentation is the text of SET DOCUMENTATION.
 	Documentation string
+	// ExportLevel is the "API" or "Hidden" of SET EXPORT LEVEL.
+	ExportLevel string
 
 	// Idempotency guards, so a script that adds an enumeration value is
 	// re-runnable. Without them the second run errors and exec STOPS THERE,
@@ -104,6 +109,7 @@ const (
 	// AlterEnumSetDocumentation is SET DOCUMENTATION '…' (SET COMMENT is its
 	// deprecated alias, MDL-DEPR135).
 	AlterEnumSetDocumentation
+	AlterEnumSetExportLevel // SET EXPORT LEVEL API | HIDDEN
 )
 
 // DropEnumerationStmt represents: DROP ENUMERATION Module.Name

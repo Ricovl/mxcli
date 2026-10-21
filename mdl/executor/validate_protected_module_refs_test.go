@@ -51,6 +51,12 @@ func protectedModuleFixture(t *testing.T, settingsErr error) *ExecContext {
 		app.ID:  mkDomainModel(app.ID),
 	}
 	pgs := []*pages.Page{mkPage(addOn.ID, "Home_Page"), mkPage(open.ID, "P"), mkPage(app.ID, "Home_Web")}
+	enum := func(mod *model.Module, name, level string) *model.Enumeration {
+		e := mkEnumeration(mod.ID, name, "A")
+		e.ExportLevel = level
+		return e
+	}
+	enums := []*model.Enumeration{enum(addOn, "Kind", "Hidden"), enum(addOn, "PubKind", "API"), enum(open, "Kind", "Hidden")}
 
 	mods := []*model.Module{app, addOn, open}
 	ctx, _ := newMockCtx(t, withBackend(&mock.MockBackend{
@@ -66,9 +72,10 @@ func protectedModuleFixture(t *testing.T, settingsErr error) *ExecContext {
 				{ContainerID: open.ID, ExportLevel: "Source"},
 			}, nil
 		},
-		ListMicroflowsFunc: func() ([]*microflows.Microflow, error) { return flows, nil },
-		ListPagesFunc:      func() ([]*pages.Page, error) { return pgs, nil },
-		GetDomainModelFunc: func(id model.ID) (*domainmodel.DomainModel, error) { return dms[id], nil },
+		ListMicroflowsFunc:   func() ([]*microflows.Microflow, error) { return flows, nil },
+		ListPagesFunc:        func() ([]*pages.Page, error) { return pgs, nil },
+		ListEnumerationsFunc: func() ([]*model.Enumeration, error) { return enums, nil },
+		GetDomainModelFunc:   func(id model.ID) (*domainmodel.DomainModel, error) { return dms[id], nil },
 	}), withHierarchy(mkHierarchy(mods...)))
 	return ctx
 }
@@ -138,6 +145,39 @@ func TestValidateProtectedModuleRefs(t *testing.T) {
 		{"script entity is hidden",
 			"create non-persistent entity MyAddOn.Fresh (X: String(10));\ncreate microflow MyAddOn.API_F ($f: MyAddOn.Fresh) returns Boolean export level api begin return true; end;",
 			[]string{"statement 2", "CE5400", "entity 'MyAddOn.Fresh'"}},
+
+		// --- mendixlabs/mxcli#1498 follow-up: the level MDL can now state ---
+		{"script entity with export level api",
+			"create non-persistent entity MyAddOn.Fresh (X: String(10)) export level api;\ncreate microflow MyAddOn.API_F ($f: MyAddOn.Fresh) returns Boolean export level api begin return true; end;", nil},
+		{"stored hidden entity rewritten with export level api",
+			"create or modify non-persistent entity MyAddOn.Request (Payload: String(200)) export level api;\ncreate microflow MyAddOn.API_R ($r: MyAddOn.Request) returns Boolean export level api begin return true; end;", nil},
+		{"stored hidden entity made usable by alter",
+			"alter entity MyAddOn.Request set export level api;\ncreate microflow MyAddOn.API_R ($r: MyAddOn.Request) returns Boolean export level api begin return true; end;", nil},
+		{"stored usable entity made hidden by alter",
+			"alter entity MyAddOn.Pub set export level hidden;\ncreate microflow MyAddOn.API_P ($p: MyAddOn.Pub) returns Boolean export level api begin return true; end;",
+			[]string{"statement 2", "CE5400", "entity 'MyAddOn.Pub'"}},
+		{"rewrite without the clause keeps the stored usable level",
+			"create or modify non-persistent entity MyAddOn.Pub (X: String(10));\ncreate microflow MyAddOn.API_P ($p: MyAddOn.Pub) returns Boolean export level api begin return true; end;", nil},
+		{"the hint names the MDL fix",
+			"create microflow MyAddOn.API_Request_Post ($body: MyAddOn.Request) returns Boolean export level api begin return true; end;",
+			[]string{"CE5400", "alter entity MyAddOn.Request set export level api"}},
+		{"api microflow, hidden enumeration parameter (measured 11.14.0)",
+			"create microflow MyAddOn.API_Kind ($k: enum MyAddOn.Kind) returns Boolean export level api begin return true; end;",
+			[]string{"CE5400", "enumeration 'MyAddOn.Kind' should be 'Usable' because parameter 'k' exposes it", "alter enumeration MyAddOn.Kind set export level api"}},
+		{"api microflow, hidden enumeration return type",
+			"create microflow MyAddOn.API_GetKind () returns enum MyAddOn.Kind export level api begin return empty; end;",
+			[]string{"CE5400", "enumeration 'MyAddOn.Kind'", "microflow 'MyAddOn.API_GetKind'"}},
+		{"api microflow, usable enumeration",
+			"create microflow MyAddOn.API_Kind ($k: enum MyAddOn.PubKind) returns Boolean export level api begin return true; end;", nil},
+		{"script enumeration is hidden",
+			"create enumeration MyAddOn.New (A 'A');\ncreate microflow MyAddOn.API_N ($k: enum MyAddOn.New) returns Boolean export level api begin return true; end;",
+			[]string{"statement 2", "CE5400", "enumeration 'MyAddOn.New'"}},
+		{"script enumeration with export level api",
+			"create enumeration MyAddOn.New (A 'A') export level api;\ncreate microflow MyAddOn.API_N ($k: enum MyAddOn.New) returns Boolean export level api begin return true; end;", nil},
+		{"stored hidden enumeration made usable by alter",
+			"alter enumeration MyAddOn.Kind set export level api;\ncreate microflow MyAddOn.API_K ($k: enum MyAddOn.Kind) returns Boolean export level api begin return true; end;", nil},
+		{"open module api microflow, hidden enumeration",
+			"create microflow Open.API_K ($k: enum Open.Kind) returns Boolean export level api begin return true; end;", nil},
 
 		// --- controls: an ordinary module hides nothing ---
 		{"open module page", "create or modify navigation Responsive home page Open.P;", nil},

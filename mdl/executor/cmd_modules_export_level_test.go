@@ -12,9 +12,9 @@ import (
 
 // mendixlabs/mxcli#1498: nothing mxcli printed said a module was Protected, nor
 // what an entity's export level was, so the reporter found both by a raw read.
-// MDL has no syntax for either, so they print as comments — the output still
-// re-runs, and a rewrite keeps the stored values. Only a Protected module's
-// output changes; Open is the control.
+// MDL has no syntax for a module's, so it prints as a comment — the output
+// still re-runs, and a rewrite keeps the stored value. Only a Protected
+// module's output changes; Open is the control.
 func TestDescribe_ProtectedModuleExportLevels(t *testing.T) {
 	ctx := protectedModuleFixture(t, nil)
 	buf := ctx.Output.(*bytes.Buffer)
@@ -39,18 +39,26 @@ func TestDescribe_ProtectedModuleExportLevels(t *testing.T) {
 		t.Errorf("describe module of an ordinary module mentions an export level:\n%s", out)
 	}
 
-	for _, c := range []struct{ entity, want string }{
-		{"Request", "-- export level: Hidden"},
-		{"Pub", "-- export level: Usable"},
+	// An entity's level is a clause since MDL can state it (the #1498
+	// follow-up): `export level api` when Usable, nothing for the default.
+	for _, c := range []struct {
+		entity string
+		want   bool
+	}{
+		{"Request", false},
+		{"Pub", true},
 	} {
 		out = describe(func() error { return describeEntity(ctx, ast.QualifiedName{Module: "MyAddOn", Name: c.entity}) })
-		if !strings.Contains(out, c.want) {
-			t.Errorf("describe entity MyAddOn.%s: want %q in\n%s", c.entity, c.want, out)
+		if got := strings.Contains(out, "export level api"); got != c.want {
+			t.Errorf("describe entity MyAddOn.%s: `export level api` printed = %v, want %v:\n%s", c.entity, got, c.want, out)
+		}
+		if strings.Contains(out, "set in Studio Pro") {
+			t.Errorf("describe entity MyAddOn.%s still says the level is set in Studio Pro:\n%s", c.entity, out)
 		}
 	}
 	out = describe(func() error { return describeEntity(ctx, ast.QualifiedName{Module: "Open", Name: "E"}) })
 	if strings.Contains(out, "export level") {
-		t.Errorf("describe entity in an ordinary module mentions an export level:\n%s", out)
+		t.Errorf("describe of a Hidden entity mentions an export level:\n%s", out)
 	}
 }
 
