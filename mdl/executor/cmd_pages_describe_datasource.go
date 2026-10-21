@@ -118,22 +118,23 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		if got := parseEntitySource(ds); got != nil {
 			return got
 		}
-		// A List View's database source reached over an association from a
-		// context object. It is still a database retrieve — XPath, sort bar and
-		// search bar included — so it must not fall through to the association
-		// reading below, whose spelling executes as a Forms$AssociationSource
-		// and drops all three (ako/mxcli#721 L5). Only the List View source is
-		// known to mean this; the pluggable XPath source keeps the #941 reading.
-		if dsType == dsTypeListViewXPath {
+		// A database source reached over an association from a context object.
+		// It is still a database retrieve — XPath and sort bar included, and a
+		// List View's search bar — so it must not fall through to the
+		// association reading below, whose spelling executes as a
+		// Forms$AssociationSource and drops all three: a List View's
+		// (ako/mxcli#721 L5), and a Gallery's or Data grid 2's "Database"
+		// source, stored as a CustomWidgetXPathSource with the same
+		// IndirectEntityRef (mendixlabs/mxcli#1599).
+		if dsType == dsTypeListViewXPath || dsType == dsTypeCustomWidgetXPath {
 			if got := parseEntityPathSource(ds); got != nil {
 				return got
 			}
 		}
-		// An entity-backed source with no entity is really a context source:
-		// Studio Pro stores a pluggable list bound over an association or to a
-		// page parameter as an XPath source whose EntityRef is empty and whose
-		// navigation lives in Steps / SourceVariable / EntityPath. Reading only
-		// EntityRef produced `database from ` with an empty slot (#941).
+		// A context source: an XPath source whose navigation lives in
+		// SourceVariable / EntityPath, or whose hops lack a stored destination
+		// and so cannot be spelled as a database path. Reading only EntityRef
+		// produced `database from ` with an empty slot (#941).
 		if got := parseContextSource(ds); got != nil {
 			return got
 		}

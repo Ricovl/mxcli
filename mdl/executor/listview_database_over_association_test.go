@@ -121,21 +121,16 @@ func TestAssociationSugarStillParsesAsAssociation(t *testing.T) {
 	}
 }
 
-// Only the List View writer stores the path. A gallery or grid would write the
-// entity alone — every row instead of the context's — so the builder refuses.
-func TestDatabaseOverAssociationRefusedOffAListView(t *testing.T) {
-	prog, errs := visitor.Build(`create page W.P ( Title: 'P' ) {
-  gallery g (DataSource: database from $currentObject/W.A_B/W.B) { dynamictext t (Content: 'x') }
-}`)
-	if len(errs) > 0 {
-		t.Fatalf("parse: %v", errs)
+// A list view and the pluggable engine store the path; any other caller of
+// buildDataSourceV3 (a chart series, a dynamic image) would write the entity
+// alone — every row instead of the context's — so it refuses.
+func TestDatabaseOverAssociationRefusedOutsideListViewAndPluggable(t *testing.T) {
+	pb := pluggableAssocPageBuilder(11, 12)
+	ds := &ast.DataSourceV3{Type: "database", ContextVariable: "currentObject", AssociationPath: "Probe.Item_Parent/Probe.Item"}
+	if _, _, err := pb.buildDataSourceV3(ds); err == nil {
+		t.Error("buildDataSourceV3 accepted `database from $currentObject/…`")
 	}
-	w := prog.Statements[0].(*ast.CreatePageStmtV3).Widgets[0]
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err == nil {
-		t.Error("a gallery accepted `database from $currentObject/…`")
-	}
-	w.Type = "listview"
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil {
-		t.Errorf("a list view was refused: %v", err)
+	if _, _, err := pb.buildPluggableDataSourceV3(ds); err != nil {
+		t.Errorf("a pluggable widget was refused: %v", err)
 	}
 }
