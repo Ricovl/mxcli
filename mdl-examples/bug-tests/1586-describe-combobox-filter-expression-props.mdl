@@ -1,0 +1,54 @@
+-- ============================================================================
+-- Bug test: mendixlabs/mxcli#1586 — DESCRIBE PAGE omits expression-type
+-- pluggable widget properties
+-- ============================================================================
+--
+-- A combo box and the data grid filters have their own DESCRIBE readers, which
+-- knew only the keys MDL has keywords for. Every other setting — written by
+-- exec's explicit-property pass — described back as nothing: a combo box's
+-- `customEditabilityExpression`, a text filter's `defaultValue` expression and
+-- `delay`. A describe -> edit -> exec cycle reset them to their defaults.
+--
+-- (A generic pluggable widget's top-level expression, the report's own
+-- `entitypicker … Placeholder:`, is covered by mendixlabs/mxcli#1578.)
+--
+-- To verify:
+--   1. mxcli exec this script, then: describe page Bug1586.Edit and
+--      describe page Bug1586.Grid
+--      -> combobox cb (…, customEditability: 'conditionally',
+--                      customEditabilityExpression: $currentObject/Locked)
+--      -> textfilter tf (defaultValue: '''abc''', delay: 300)
+--   2. exec each output -> "Unchanged page".
+--   3. mx check: 0 errors.
+-- ============================================================================
+
+mdl 1;
+
+create module Bug1586;
+
+create persistent entity Bug1586.Parent (Name: String(50));
+create persistent entity Bug1586.Rec (Code: String(20), Amount: Integer, Locked: Boolean);
+create association Bug1586.Rec_Parent from Bug1586.Rec to Bug1586.Parent;
+
+create page Bug1586.Edit (Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: ($Rec: Bug1586.Rec)) {
+  dataview dv (DataSource: $Rec) {
+    combobox cb (
+      Attribute: Bug1586.Rec_Parent,
+      DataSource: database from Bug1586.Parent,
+      CaptionAttribute: Name,
+      customEditability: conditionally,
+      customEditabilityExpression: '$currentObject/Locked'
+    )
+  }
+};
+
+create page Bug1586.Grid (Title: 'Grid', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Bug1586.Rec) {
+    column (Attribute: Code, Caption: 'Code') {
+      textfilter tf (defaultValue: '''abc''', delay: 300)
+    }
+    column (Attribute: Amount, Caption: 'Amount') {
+      numberfilter nf (defaultValue: 5)
+    }
+  }
+};
