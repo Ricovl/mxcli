@@ -884,7 +884,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			// twice (#721 C).
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
-		} else if (len(w.ExplicitProperties) > 0 || len(w.ObjectLists) > 0 || w.OnClick != "" ||
+		} else if ((len(w.ExplicitProperties) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.ObjectLists) > 0 || w.OnClick != "" ||
 			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
 			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
@@ -1021,7 +1021,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if w.FilterExpression != "" && w.FilterExpression != "contains" {
 				props = append(props, fmt.Sprintf("FilterType: %s", w.FilterExpression))
 			}
+			// The settings with no keyword, by the widget's own key
+			// (mendixlabs/mxcli#1586), and a note for those not reproduced.
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
+			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
@@ -1812,6 +1816,15 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
 			value = pageVariableArgValue(mappingMap["Variable"])
+		}
+		// A PageVariable naming only a widget is a control-bar button passing
+		// its grid's selection (mendixlabs/mxcli#122), written `$grid`.
+		if value == "" {
+			if v, ok := mappingMap["Variable"].(map[string]any); ok {
+				if w := extractString(v["Widget"]); w != "" {
+					value = "$" + w
+				}
+			}
 		}
 
 		if value != "" {

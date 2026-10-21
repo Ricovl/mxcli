@@ -49,6 +49,7 @@ func (b *Backend) GetDomainModelByID(id model.ID) (*domainmodel.DomainModel, err
 		if model.ID(u.Element.ID()) == id {
 			dm := domainModelFromGen(u.Element, u.ContainerID)
 			b.populateViewEntityOql([]*domainmodel.DomainModel{dm})
+			b.resolveInheritedPersistability(units, dm)
 			return dm, nil
 		}
 	}

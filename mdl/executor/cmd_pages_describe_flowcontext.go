@@ -26,6 +26,12 @@ import (
 // accounts for the direction travelled (owner to child or back, reference or
 // reference set) and for a specialization of the association's end; it is read
 // rather than re-derived. A source that stores none keeps the reference.
+//
+// For a page or snippet parameter the reference is the parameter's name
+// (`Entry`), which no consumer can compare with an entity: a pluggable
+// property bound to an attribute of another entity described back bare, and
+// re-exec bound it to the parameter's entity — CE1613 (mendixlabs/mxcli#1591).
+// The parameter's entity, stored beside the name, is used instead.
 func dataSourceEntityContext(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil || ds.Reference == "" {
 		return ""
@@ -35,7 +41,7 @@ func dataSourceEntityContext(ctx *ExecContext, ds *rawDataSource) string {
 		if entity := flowReturnEntity(ctx, ds.Type, ds.Reference); entity != "" {
 			return entity
 		}
-	case "association":
+	case "association", "parameter":
 		if ds.Destination != "" {
 			return ds.Destination
 		}

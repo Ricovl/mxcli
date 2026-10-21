@@ -257,14 +257,7 @@ func countRawWorkflowNodes(v any, marker string) int {
 func countAuthoredBoundaryEvents(activities []ast.WorkflowActivityNode) int {
 	n := 0
 	walkWorkflowActivities(activities, func(act ast.WorkflowActivityNode) {
-		switch a := act.(type) {
-		case *ast.WorkflowUserTaskNode:
-			n += len(a.BoundaryEvents)
-		case *ast.WorkflowCallMicroflowNode:
-			n += len(a.BoundaryEvents)
-		case *ast.WorkflowWaitForNotificationNode:
-			n += len(a.BoundaryEvents)
-		}
+		n += len(workflowActivityBoundaryEvents(act))
 	})
 	return n
 }

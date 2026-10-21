@@ -152,6 +152,7 @@ func collectJumpableNames(acts []workflows.WorkflowActivity, out map[string]bool
 			add(a.Name)
 		case *workflows.CallWorkflowActivity:
 			add(a.Name)
+			collectBoundaryEventNames(a.BoundaryEvents, out)
 		case *workflows.ExclusiveSplitActivity:
 			add(a.Name)
 			collectConditionOutcomeNames(a.Outcomes, out)

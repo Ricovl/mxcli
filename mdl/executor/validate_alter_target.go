@@ -55,8 +55,10 @@ func validateAlterTarget(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				buildPageQualifiedNames, func(qn string) bool { return sc.pages[qn] })
 		}
 	case *ast.AlterEntityStmt:
-		return checkAlterTarget(ctx, sc, "entity", s.Name,
-			buildEntityQualifiedNames, func(qn string) bool { return sc.entities[qn] })
+		// A MOVE or RENAME earlier in the script lands an entity under a name
+		// no CREATE declares (mendixlabs/mxcli#1601).
+		return checkAlterTarget(ctx, sc, "entity", s.Name, buildEntityQualifiedNames,
+			func(qn string) bool { return sc.entities[qn] || sc.indirectEntities[qn] })
 	}
 	return nil
 }

@@ -1717,6 +1717,11 @@ func buildLoopStatement(ctx parser.ILoopStatementContext) *ast.LoopStmt {
 	if len(vars) >= 2 {
 		stmt.ListVariable = strings.TrimPrefix(vars[1].GetText(), "$")
 	}
+	// `loop $c in $Parent/Mod.Assoc` — the grammar takes a path here, and
+	// dropping it wrote a loop with no list (CE0099). Kept for the validator.
+	if ap := loopCtx.AttributePath(); ap != nil {
+		stmt.ListPath = strings.TrimSpace(extractExpressionText(ap.(antlr.ParserRuleContext)))
+	}
 
 	// Get body
 	if body := loopCtx.MicroflowBody(); body != nil {

@@ -628,10 +628,15 @@ func (s *IfStmt) isMicroflowStatement() {}
 
 // LoopStmt represents: LOOP $Var IN $List BEGIN body END LOOP
 type LoopStmt struct {
-	LoopVariable string               // Iterator variable name
-	ListVariable string               // List variable name
-	Body         []MicroflowStatement // Loop body
-	Annotations  *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	LoopVariable string // Iterator variable name
+	ListVariable string // List variable name
+	// ListPath is the source of a list written as a path, `$Parent/Mod.Assoc`.
+	// The model's loop iterates over a variable, so no path can be stored;
+	// the validator refuses it (MDL094) rather than the builder writing a loop
+	// over nothing (mendixlabs/mxcli#199).
+	ListPath    string
+	Body        []MicroflowStatement // Loop body
+	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 }
 
 func (s *LoopStmt) isMicroflowStatement() {}

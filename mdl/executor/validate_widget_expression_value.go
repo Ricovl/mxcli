@@ -62,8 +62,17 @@ func validateWidgetExpressionValuesIn(w *ast.WidgetV3, def *WidgetDefinition, it
 			continue
 		}
 		op, known := expressionValueOperation(key, def, item)
-		if !known && def == nil && item == nil {
-			op, known = schema.operation(key)
+		if !known && item == nil {
+			if def == nil {
+				op, known = schema.operation(key)
+			} else {
+				// A key the definition knows but does not map — a combo box's
+				// `emptyOptionText` — is written by the explicit-property pass
+				// with the kind its template declares, and a kind other than
+				// Expression refuses the expression at exec. Decide it here
+				// from the same template (mendixlabs/mxcli#1586).
+				op, known = loadEmbeddedSchema(def.WidgetID, "").operation(key)
+			}
 		}
 		switch {
 		case op == "expression":
