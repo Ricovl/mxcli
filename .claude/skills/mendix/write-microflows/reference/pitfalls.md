@@ -672,9 +672,11 @@ end;
   another module or the navigation referencing a Hidden microflow, entity,
   attribute, association or any page there is **CE1406**, and an `api`
   microflow whose parameter or return type is a Hidden entity or enumeration of
-  that module is **CE5400**. `check -p --references` reports CE5400 and the
-  microflow / entity / page cases of CE1406 (mendixlabs/mxcli#1498) — not yet a
-  Hidden attribute or association used from another module. A page there cannot
+  that module is **CE5400**. `check -p --references` reports both
+  (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
+  association — a change / create member, an association retrieve, an XPath
+  step or a `$v/…` path — with the `alter` statement that makes it usable.
+  Page widgets binding a Hidden member are not checked yet. A page there cannot
   be made usable (mxbuild refuses it even when stored as API) — reach it through
   an `api` microflow in the module that shows it. Entities, attributes,
   associations and enumerations take the same clause: `alter entity M.E set

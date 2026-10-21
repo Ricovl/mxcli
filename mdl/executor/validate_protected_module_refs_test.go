@@ -42,13 +42,28 @@ func protectedModuleFixture(t *testing.T, settingsErr error) *ExecContext {
 		mf(addOn, "API_MF", "API"),
 		mf(open, "MF", "Hidden"),
 	}
+	// Members, for the CE1406 member cases: Pub and Pub2 are Usable entities
+	// with one Usable and one Hidden attribute each, joined by a Hidden and a
+	// Usable association. Open.E holds a Hidden attribute too — the control.
+	member := func(name, level string) *domainmodel.Attribute {
+		return &domainmodel.Attribute{BaseElement: model.BaseElement{ID: nextID("attr")}, Name: name,
+			Type: &domainmodel.StringAttributeType{Length: 10}, ExportLevel: level}
+	}
+	pub, pub2 := ent(addOn, "Pub", "API"), ent(addOn, "Pub2", "API")
+	pub.Attributes = []*domainmodel.Attribute{member("Shown", "API"), member("Inner", "Hidden")}
+	pub2.Attributes = []*domainmodel.Attribute{member("Visible", "API"), member("Hid", "Hidden")}
+	openE := ent(open, "E", "Hidden")
+	openE.Attributes = []*domainmodel.Attribute{member("Inner", "Hidden")}
+	addOnDM := mkDomainModel(addOn.ID, ent(addOn, "Request", "Hidden"), ent(addOn, "Secret", "Hidden"), pub, pub2)
+	hiddenAssoc := mkAssociation(addOn.ID, "Pub_Pub2", pub.ID, pub2.ID)
+	hiddenAssoc.ExportLevel = "Hidden"
+	apiAssoc := mkAssociation(addOn.ID, "Pub_Pub2Api", pub.ID, pub2.ID)
+	apiAssoc.ExportLevel = "API"
+	addOnDM.Associations = []*domainmodel.Association{hiddenAssoc, apiAssoc}
 	dms := map[model.ID]*domainmodel.DomainModel{
-		addOn.ID: mkDomainModel(addOn.ID,
-			ent(addOn, "Request", "Hidden"),
-			ent(addOn, "Secret", "Hidden"),
-			ent(addOn, "Pub", "API")),
-		open.ID: mkDomainModel(open.ID, ent(open, "E", "Hidden")),
-		app.ID:  mkDomainModel(app.ID),
+		addOn.ID: addOnDM,
+		open.ID:  mkDomainModel(open.ID, openE),
+		app.ID:   mkDomainModel(app.ID),
 	}
 	pgs := []*pages.Page{mkPage(addOn.ID, "Home_Page"), mkPage(open.ID, "P"), mkPage(app.ID, "Home_Web")}
 	enum := func(mod *model.Module, name, level string) *model.Enumeration {
@@ -76,6 +91,17 @@ func protectedModuleFixture(t *testing.T, settingsErr error) *ExecContext {
 		ListPagesFunc:        func() ([]*pages.Page, error) { return pgs, nil },
 		ListEnumerationsFunc: func() ([]*model.Enumeration, error) { return enums, nil },
 		GetDomainModelFunc:   func(id model.ID) (*domainmodel.DomainModel, error) { return dms[id], nil },
+		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) {
+			return []*domainmodel.DomainModel{dms[app.ID], dms[addOn.ID], dms[open.ID]}, nil
+		},
+		GetModuleByNameFunc: func(name string) (*model.Module, error) {
+			for _, m := range mods {
+				if m.Name == name {
+					return m, nil
+				}
+			}
+			return nil, nil
+		},
 	}), withHierarchy(mkHierarchy(mods...)))
 	return ctx
 }
@@ -178,6 +204,70 @@ func TestValidateProtectedModuleRefs(t *testing.T) {
 			"alter enumeration MyAddOn.Kind set export level api;\ncreate microflow MyAddOn.API_K ($k: enum MyAddOn.Kind) returns Boolean export level api begin return true; end;", nil},
 		{"open module api microflow, hidden enumeration",
 			"create microflow Open.API_K ($k: enum Open.Kind) returns Boolean export level api begin return true; end;", nil},
+
+		// --- CE1406 on a Hidden MEMBER, from an app module (measured 11.14.0,
+		// one microflow per shape; the Usable member beside each is the control)
+		{"change hidden attribute",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) begin change $p (Inner = 'x'); end;",
+			[]string{"CE1406", "change $p is not allowed to use attribute 'MyAddOn.Pub.Inner'", "app modules cannot reference hidden elements",
+				"alter entity MyAddOn.Pub modify attribute Inner: String(10) export level api"}},
+		{"change usable attribute", "create microflow MyFirstModule.C ($p: MyAddOn.Pub) begin change $p (Shown = 'x'); end;", nil},
+		{"create with hidden attribute",
+			"create microflow MyFirstModule.C () begin $n = create MyAddOn.Pub (Inner = 'x'); end;",
+			[]string{"CE1406", "create MyAddOn.Pub is not allowed to use attribute 'MyAddOn.Pub.Inner'"}},
+		{"change sets hidden association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub, $q: MyAddOn.Pub2) begin change $p (MyAddOn.Pub_Pub2 = $q); end;",
+			[]string{"CE1406", "association 'MyAddOn.Pub_Pub2'", "alter association MyAddOn.Pub_Pub2 set export level api"}},
+		{"change sets usable association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub, $q: MyAddOn.Pub2) begin change $p (MyAddOn.Pub_Pub2Api = $q); end;", nil},
+		{"retrieve over hidden association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) begin retrieve $q from $p/MyAddOn.Pub_Pub2; end;",
+			[]string{"CE1406", "retrieve $q is not allowed to use association 'MyAddOn.Pub_Pub2'"}},
+		{"retrieve over usable association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) begin retrieve $q from $p/MyAddOn.Pub_Pub2Api; end;", nil},
+		{"xpath on hidden attribute",
+			"create microflow MyFirstModule.C () begin retrieve $l from MyAddOn.Pub where Inner = 'x'; end;",
+			[]string{"CE1406", "attribute 'MyAddOn.Pub.Inner'"}},
+		{"xpath on usable attribute", "create microflow MyFirstModule.C () begin retrieve $l from MyAddOn.Pub where Shown = 'x'; end;", nil},
+		{"xpath on hidden association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) begin retrieve $l from MyAddOn.Pub2 where MyAddOn.Pub_Pub2 = $p; end;",
+			[]string{"CE1406", "association 'MyAddOn.Pub_Pub2'"}},
+		{"xpath path to hidden attribute over usable association",
+			"create microflow MyFirstModule.C () begin retrieve $l from MyAddOn.Pub where MyAddOn.Pub_Pub2Api/MyAddOn.Pub2/Hid = 'x'; end;",
+			[]string{"CE1406", "attribute 'MyAddOn.Pub2.Hid'"}},
+		{"expression reads hidden attribute",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) returns String begin return $p/Inner; end;",
+			[]string{"CE1406", "attribute 'MyAddOn.Pub.Inner'"}},
+		{"expression reads usable attribute",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) returns String begin return $p/Shown; end;", nil},
+		{"expression over usable association to hidden attribute",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) returns String begin return $p/MyAddOn.Pub_Pub2Api/Hid; end;",
+			[]string{"CE1406", "attribute 'MyAddOn.Pub2.Hid'"}},
+		{"expression over hidden association",
+			"create microflow MyFirstModule.C ($p: MyAddOn.Pub) returns Boolean begin return $p/MyAddOn.Pub_Pub2 != empty; end;",
+			[]string{"CE1406", "association 'MyAddOn.Pub_Pub2'"}},
+		{"member in a nested block and a loop",
+			"create microflow MyFirstModule.C () begin retrieve $all from MyAddOn.Pub; loop $x in $all begin if true then change $x (Inner = 'x'); end if; end loop; end;",
+			[]string{"CE1406", "attribute 'MyAddOn.Pub.Inner'"}},
+		{"script makes the attribute usable",
+			"alter entity MyAddOn.Pub modify attribute Inner: String(10) export level api;\ncreate microflow MyFirstModule.C ($p: MyAddOn.Pub) begin change $p (Inner = 'x'); end;", nil},
+		{"script makes the association usable",
+			"alter association MyAddOn.Pub_Pub2 set export level api;\ncreate microflow MyFirstModule.C ($p: MyAddOn.Pub) begin retrieve $q from $p/MyAddOn.Pub_Pub2; end;", nil},
+		{"script hides a usable attribute",
+			"alter entity MyAddOn.Pub modify attribute Shown: String(10) export level hidden;\ncreate microflow MyFirstModule.C ($p: MyAddOn.Pub) begin change $p (Shown = 'x'); end;",
+			[]string{"statement 2", "CE1406", "attribute 'MyAddOn.Pub.Shown'"}},
+		{"script-created attribute is hidden",
+			"create persistent entity MyAddOn.Fresh (X: String(10)) export level api;\ncreate microflow MyFirstModule.C ($f: MyAddOn.Fresh) begin change $f (X = 'x'); end;",
+			[]string{"statement 2", "CE1406", "attribute 'MyAddOn.Fresh.X'"}},
+		{"script-created attribute with export level api",
+			"create persistent entity MyAddOn.Fresh (X: String(10) export level api) export level api;\ncreate microflow MyFirstModule.C ($f: MyAddOn.Fresh) begin change $f (X = 'x'); end;", nil},
+		{"script-created association is hidden",
+			"create association MyAddOn.Pub_Fresh from MyAddOn.Pub to MyAddOn.Pub2;\ncreate microflow MyFirstModule.C ($p: MyAddOn.Pub, $q: MyAddOn.Pub2) begin change $p (MyAddOn.Pub_Fresh = $q); end;",
+			[]string{"statement 2", "CE1406", "association 'MyAddOn.Pub_Fresh'"}},
+		{"inside the add-on a hidden member is fine",
+			"create microflow MyAddOn.Inner ($p: MyAddOn.Pub) begin change $p (Inner = 'x'); retrieve $q from $p/MyAddOn.Pub_Pub2; end;", nil},
+		{"open module hidden attribute", "create microflow MyFirstModule.C ($e: Open.E) begin change $e (Inner = 'x'); end;", nil},
+		{"untyped variable is silent", "create microflow MyFirstModule.C () begin change $nobody (Inner = 'x'); end;", nil},
 
 		// --- controls: an ordinary module hides nothing ---
 		{"open module page", "create or modify navigation Responsive home page Open.P;", nil},

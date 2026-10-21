@@ -423,7 +423,8 @@ func init() {
 			"  CE1406  another module (or the navigation) using a Hidden entity, attribute,\n" +
 			"          association or microflow of it.\n" +
 			"In an ordinary module mxbuild accepts either level. `check -p --references`\n" +
-			"reports CE5400 and the entity / microflow / page cases of CE1406.\n\n" +
+			"reports both, a flow's attribute and association uses included (change /\n" +
+			"create members, association retrieves, XPath, `$v/…` expressions).\n\n" +
 			"An ABSENT clause keeps the stored level, so re-running describe output or a\n" +
 			"`create or modify` that says nothing about it never hides a usable element.\n" +
 			"`describe` prints `export level api` and omits the default. Needs Mendix 9.3+.",
