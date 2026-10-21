@@ -138,13 +138,14 @@ func (b *Builder) noteQuotedExpression(at antlr.ParserRuleContext, lit antlr.Tok
 func (b *Builder) widgetExpressionPropValue(key string, v antlr.ParserRuleContext) any {
 	if content, lit, ok := legacyQuotedExpression(v, IsLegacyWidgetExpressionText); ok {
 		b.noteQuotedExpression(v, lit, content, func() bool { return widgetExpressionReadsBack(key, content) })
-		return content
+		return stripExpressionIdentifierQuotes(content)
 	}
 	return widgetExpressionValue(v)
 }
 
 // widgetExpressionReadsBack reports whether `key: expr` in a widget's
-// properties stores exactly expr.
+// properties stores what the quoted spelling of expr stores: expr, with its
+// identifier quotes stripped as both spellings strip them.
 func widgetExpressionReadsBack(key, expr string) bool {
 	ctx, ok := parseRule(key+": "+expr, func(p *parser.MDLParser) antlr.ParserRuleContext {
 		return p.WidgetPropertyV3()
@@ -158,7 +159,7 @@ func widgetExpressionReadsBack(key, expr string) bool {
 	}
 	var none *Builder
 	got, isText := none.widgetExpressionPropValue(key, v).(string)
-	return isText && got == expr
+	return isText && got == stripExpressionIdentifierQuotes(expr)
 }
 
 // odataExpressionReadsBack reports whether `HttpUsername: expr` stores exactly
