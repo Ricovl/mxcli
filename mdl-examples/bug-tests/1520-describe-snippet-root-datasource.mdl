@@ -1,0 +1,28 @@
+-- ============================================================================
+-- Bug test: mendixlabs/mxcli#1520 — DESCRIBE SNIPPET omits the root data
+-- source of a snippet
+-- ============================================================================
+--
+-- A data view inside a snippet, sourced from a snippet parameter, stores the
+-- parameter in Forms$PageVariable.SnippetParameter with PageParameter empty.
+-- DESCRIBE read PageParameter alone and printed the data view with no
+-- DataSource, so exec of the described text failed with CE0488 (fixed with
+-- ako/mxcli#721 L3; this script keeps the shape the report names).
+--
+-- To verify:
+--   1. mxcli exec this script, then: describe snippet Bug1520S.S
+--      -> dataview dv (DataSource: $View, …)
+--   2. exec that output -> "Unchanged snippet Bug1520S.S".
+-- ============================================================================
+
+mdl 1;
+
+create module Bug1520S;
+
+create persistent entity Bug1520S.Rec (Label: String(50));
+
+create snippet Bug1520S.S (Params: ($View: Bug1520S.Rec)) {
+  dataview dv (DataSource: $View) {
+    textbox tb (Attribute: Label)
+  }
+};

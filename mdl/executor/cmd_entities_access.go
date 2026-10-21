@@ -54,8 +54,9 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 // string is (describeXPath, ako/mxcli#825).
 //
 // A long constraint is stored broken across lines so it can be read in Studio
-// Pro's editor (upstream #979); MDL keeps it on one line, and the executor
-// re-derives the stored layout on write.
+// Pro's editor (upstream #979); MDL keeps that layout on one line, and the
+// executor re-derives it on write. A layout its author gave it is written as
+// stored, which is what re-executing the grant stores (mendixlabs/mxcli#1542).
 //
 // A stored constraint the bracketed grammar does not read (one Studio Pro
 // stored without brackets, or with syntax the XPath rules do not cover) is
@@ -63,7 +64,7 @@ func outputEntityAccessGrants(ctx *ExecContext, entity *domainmodel.Entity, modu
 // describe must stay re-executable over whatever a project holds, and a
 // deprecation warning is better than output that does not parse.
 func entityGrantMDL(ctx *ExecContext, rights, entity string, roles []string, xpath string) string {
-	x := visitor.FlattenXPathConstraint(xpath)
+	x := visitor.DescribeXPathConstraintLayout(xpath)
 	if x == "" || visitor.IsBracketedXPath(x) {
 		line := fmt.Sprintf("grant %s on entity %s to %s", rights, entity, strings.Join(roles, ", "))
 		if x != "" {

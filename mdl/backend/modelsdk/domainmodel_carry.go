@@ -57,7 +57,9 @@ func carryStoredEntity(ge, orig *genDm.Entity, entity *domainmodel.Entity) {
 		ge.SetRaw(raw)
 	}
 	carryChildIdentity(ge, orig, entity)
-	if lvl := orig.ExportLevel(); lvl != "" {
+	// An authored level stands; only an unauthored one is carried
+	// (mendixlabs/mxcli#1498).
+	if lvl := orig.ExportLevel(); lvl != "" && entity.ExportLevel == "" {
 		ge.SetExportLevel(lvl)
 	}
 	carryAccessRules(ge, orig, entity)
@@ -155,6 +157,13 @@ func entityUnchanged(e *domainmodel.Entity, orig *genDm.Entity) bool {
 	if stored.OqlQuery == "" {
 		stored.OqlQuery = e.OqlQuery
 	}
+	// Nor is a specialization's Persistable: it is its root's, resolved by the
+	// domain-model read and stored nowhere on this element (#1600). Comparing it
+	// with entityFromGen's unresolved default would rebuild every specialization
+	// of a non-persistent entity on every write of its domain model.
+	if _, inherits := orig.Generalization().(*genDm.Generalization); inherits {
+		stored.Persistable = e.Persistable
+	}
 	return semanticEqual(e, stored)
 }
 
@@ -167,7 +176,7 @@ func assocUnchanged(a *domainmodel.Association, orig *genDm.Association) bool {
 }
 
 // carryStoredAssociation is carryStoredEntity for a rebuilt association: the raw
-// bytes (the GUID, #1169), the export level (#801), and the stored delete
+// bytes (the GUID, #1169), the export level when unauthored (#801, #1498), and the stored delete
 // behaviour element where the statement left the behaviour alone, so its $ID and
 // its refusal message's $IDs do not churn.
 func carryStoredAssociation(ga, orig *genDm.Association, a *domainmodel.Association) {
@@ -177,7 +186,7 @@ func carryStoredAssociation(ga, orig *genDm.Association, a *domainmodel.Associat
 	if raw := orig.Raw(); raw != nil {
 		ga.SetRaw(raw)
 	}
-	if lvl := orig.ExportLevel(); lvl != "" {
+	if lvl := orig.ExportLevel(); lvl != "" && a.ExportLevel == "" {
 		ga.SetExportLevel(lvl)
 	}
 	storedDB, ok := orig.DeleteBehavior().(*genDm.AssociationDeleteBehavior)

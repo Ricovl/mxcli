@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	mwidgets "github.com/mendixlabs/mxcli/modelsdk/widgets"
 	"github.com/mendixlabs/mxcli/modelsdk/widgets/mpk"
 )
 
@@ -70,29 +71,66 @@ func enrichKnownPropertiesFromMPK(r *WidgetRegistry, projectPath string) {
 		if !ok {
 			continue
 		}
-		allowed, _ := allowedWidgetProperties(def)
-		seen := make(map[string]bool, len(def.KnownProperties))
-		for _, k := range def.KnownProperties {
-			seen[strings.ToLower(k)] = true
-		}
-		var added []string
+		var keys []string
 		for _, p := range props {
-			if p.Key == "" || p.IsSystem {
-				continue
+			if !p.IsSystem {
+				keys = append(keys, p.Key)
 			}
-			l := strings.ToLower(p.Key)
-			if allowed[l] || seen[l] {
-				continue
-			}
-			seen[l] = true
-			added = append(added, p.Key)
 		}
-		if len(added) == 0 {
+		addKnownProperties(def, keys)
+	}
+}
+
+// enrichKnownPropertiesFromTemplates is enrichKnownPropertiesFromMPK for a
+// check with no project: the widget's embedded template stands in for its
+// installed package. Without it the hand-crafted definitions rejected, as
+// MDL-WIDGET01, the settings DESCRIBE prints for a combo box or a data grid
+// filter by the widget's own key — so the description failed a check that
+// the same check with -p passes.
+func enrichKnownPropertiesFromTemplates(r *WidgetRegistry) {
+	if r == nil {
+		return
+	}
+	for _, def := range r.byWidgetID {
+		tmpl, err := mwidgets.GetTemplate(def.WidgetID)
+		if err != nil || tmpl == nil {
 			continue
 		}
-		sort.Strings(added)
-		def.KnownProperties = append(def.KnownProperties, added...)
+		var keys []string
+		for _, p := range propsFromTemplate(tmpl.Type) {
+			if !strings.EqualFold(p.Type, "System") {
+				keys = append(keys, p.Key)
+			}
+		}
+		addKnownProperties(def, keys)
 	}
+}
+
+// addKnownProperties appends to def.KnownProperties each key it neither maps
+// nor already knows, in sorted order.
+func addKnownProperties(def *WidgetDefinition, keys []string) {
+	allowed, _ := allowedWidgetProperties(def)
+	seen := make(map[string]bool, len(def.KnownProperties))
+	for _, k := range def.KnownProperties {
+		seen[strings.ToLower(k)] = true
+	}
+	var added []string
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		l := strings.ToLower(key)
+		if allowed[l] || seen[l] {
+			continue
+		}
+		seen[l] = true
+		added = append(added, key)
+	}
+	if len(added) == 0 {
+		return
+	}
+	sort.Strings(added)
+	def.KnownProperties = append(def.KnownProperties, added...)
 }
 
 // mpkPropertiesByWidgetID parses every package in the project's widgets/ folder

@@ -1,0 +1,25 @@
+-- mendixlabs/mxcli#1600: `describe entity Probe.Child` printed
+-- `create or modify persistent entity Probe.Child extends Probe.Base (` for a
+-- specialization of the NON-persistent Probe.Base. A specialization stores no
+-- Persistable flag of its own; the reader defaulted it to true, so every
+-- specialization read as persistent whatever its root said — in describe, in
+-- `show entities where non-persistent`, the catalog, and the diagrams.
+-- After the fix each specialization reads its root's flag, across modules and
+-- into the System module (System.HttpResponse's root, HttpMessage, is
+-- non-persistent), and re-running the describe output is a no-op.
+mdl 1;
+
+create module BugTest1600;
+
+create non-persistent entity BugTest1600.Base (Code: String(20));
+create non-persistent entity BugTest1600.Child extends BugTest1600.Base (Status: String(20));
+create non-persistent entity BugTest1600.GrandChild extends BugTest1600.Child (Extra: String(20));
+create persistent entity BugTest1600.PBase (Code: String(20));
+create persistent entity BugTest1600.PChild extends BugTest1600.PBase (Amount: Integer);
+create non-persistent entity BugTest1600.Response extends System.HttpResponse (Note: String(20));
+
+-- Expect `non-persistent` for Child, GrandChild and Response; `persistent` for PChild.
+describe entity BugTest1600.Child;
+describe entity BugTest1600.GrandChild;
+describe entity BugTest1600.PChild;
+describe entity BugTest1600.Response;

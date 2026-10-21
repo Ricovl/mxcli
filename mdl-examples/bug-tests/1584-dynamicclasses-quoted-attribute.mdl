@@ -1,0 +1,28 @@
+mdl 1;
+-- mendixlabs/mxcli#1584 (ako/mxcli#1489) — a quoted attribute segment in a
+-- widget's DynamicClasses was stored with its quotes, `$currentObject/"Code"`,
+-- while ContentParams and Visible on the same page stored `$currentObject/Code`.
+-- check passed; mx check reported CE0117 "Error(s) in expression." at Text
+-- 'txtCode'.
+--
+--   mxcli exec mdl-examples/bug-tests/1584-dynamicclasses-quoted-attribute.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page BugTest1584.Child_Detail"
+--
+-- Expected: DynamicClasses describes as `if $currentObject/Code = empty …`,
+-- and `mxcli docker check` reports no CE0117 at txtCode.
+
+create module BugTest1584;
+create persistent entity BugTest1584.Child (Code: String(50), Name: String(100));
+
+create or modify page BugTest1584.Child_Detail (
+  Title: 'Child',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Child: BugTest1584.Child )
+) {
+  dataview dvChild (DataSource: $Child) {
+    dynamictext txtCode (Content: '{1}', ContentParams: ({1} = if $currentObject/"Code" = empty then '-' else $currentObject/"Code"), DynamicClasses: if $currentObject/"Code" = empty then 'x' else '')
+    container ctnVis (Visible: $currentObject/"Code" != empty) {
+      dynamictext txtName (Content: '{1}', ContentParams: ({1} = "Name"))
+    }
+  }
+};

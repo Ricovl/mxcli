@@ -64,7 +64,9 @@ type Entity struct {
 	// ExportLevel is "Hidden" or "API" (Studio Pro's "Usable"). It only means
 	// something in a Protected (add-on) module, where a Hidden entity may not be
 	// referenced from outside it (CE1406) nor exposed by a Usable microflow
-	// (CE5400). Read-only here: the writer carries the stored value.
+	// (CE5400). The writer writes a set level and, for "", keeps the stored one
+	// (Hidden on a new entity) — the same holds for Attribute, Association and
+	// CrossModuleAssociation (mendixlabs/mxcli#1498).
 	ExportLevel string `json:"exportLevel,omitempty"`
 
 	// Persistability
@@ -183,6 +185,8 @@ type Attribute struct {
 	Documentation string          `json:"documentation,omitempty"`
 	Type          AttributeType   `json:"type"`
 	Value         *AttributeValue `json:"value,omitempty"`
+	// ExportLevel: see Entity.ExportLevel.
+	ExportLevel string `json:"exportLevel,omitempty"`
 
 	// External entity attribute fields (for OData remote entities).
 	// When RemoteName is set on an attribute of an external entity, the writer
@@ -354,6 +358,8 @@ type Association struct {
 	Type          AssociationType          `json:"type"`
 	Owner         AssociationOwner         `json:"owner"`
 	StorageFormat AssociationStorageFormat `json:"storageFormat,omitempty"`
+	// ExportLevel: see Entity.ExportLevel.
+	ExportLevel string `json:"exportLevel,omitempty"`
 	// Line anchors in the domain model editor. Pointers because the zero Point
 	// is a legitimate anchor (top-left corner), so it cannot double as "unset";
 	// nil means nothing was stored and the writer uses DefaultParentConnection /
@@ -695,6 +701,8 @@ type CrossModuleAssociation struct {
 	StorageFormat        AssociationStorageFormat `json:"storageFormat,omitempty"`
 	ParentDeleteBehavior *DeleteBehavior          `json:"parentDeleteBehavior,omitempty"`
 	ChildDeleteBehavior  *DeleteBehavior          `json:"childDeleteBehavior,omitempty"`
+	// ExportLevel: see Entity.ExportLevel.
+	ExportLevel string `json:"exportLevel,omitempty"`
 
 	// Source / ViewSourceReference carry a view entity's OqlViewAssociationSource,
 	// exactly as on Association. A view entity's association is cross-module

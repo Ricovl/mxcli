@@ -4,7 +4,7 @@
 
 ```sql
 CREATE [ OR MODIFY ] JAVASCRIPT ACTION module.Name [ FOLDER 'folder_path' ] ( parameters )
-    RETURNS type
+    RETURNS type [ AS $return_name ]
     [ EXPOSED AS 'caption' IN 'category' ]
     [ PLATFORM Web | Native | Hybrid | All ]
     AS $$ javascript_code $$
@@ -41,6 +41,13 @@ nothing else. The body is written against that name. `ReadOnly` is `readOnly`,
 `_Lead`. mxcli writes the signature this way and does not rewrite the body, so a
 body that uses the declared spelling (`ReadOnly`) throws a `ReferenceError` when
 the action runs. `DESCRIBE` still prints the declared names.
+
+### Parameter Descriptions and the Return Value Name
+
+As for a Java action, a parameter's description is a `/** ... */` doc comment
+before it, and `RETURNS type AS $Name` names the return value. Leaving either out
+on `CREATE OR MODIFY` keeps what is stored. See
+[CREATE JAVA ACTION](create-java-action.md#parameter-descriptions-and-the-return-value-name).
 
 ### Platform
 

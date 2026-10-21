@@ -1,0 +1,64 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1498 (follow-up, point 2) — export levels on domain-model
+-- elements
+-- ============================================================================
+--
+-- Reported (v0.27.0): `check` reports CE5400 for an `export level api`
+-- microflow that exposes a Hidden entity of a Protected (add-on) module, but
+-- MDL had no way to make the entity Usable — `create persistent entity …
+-- export level api` failed with "extraneous input 'export' expecting the start
+-- of a statement", and the same for attributes, associations and enumerations.
+--
+-- Measured on blank Mendix 11.14.0 apps with BugAddOn1498Dm set to Protected
+-- (MDL cannot make a module Protected, so `make check-mdl` runs this as an
+-- ordinary module, where mxbuild accepts either level — also measured):
+--
+--   without the clauses  CE1406 four times: MyFirstModule.BugUser1498Dm's two
+--                        parameters (Hidden entities), its change of the Hidden
+--                        attribute and its retrieve over the Hidden association.
+--                        Without that microflow: CE5400 for the entity and for
+--                        the enumeration API_Request_Post exposes — mxbuild
+--                        reports CE5400 only once no CE1406 is left.
+--   with the clauses     0 errors
+--
+-- An absent clause keeps the stored level: re-running a `create or modify`
+-- without it never hides a Usable element. `describe` prints the clause for a
+-- Usable element and omits the default.
+-- ============================================================================
+
+CREATE MODULE BugAddOn1498Dm;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugAddOn1498Dm.Request (
+  Payload: String(200) EXPORT LEVEL api,
+  Internal: String(50)
+) EXPORT LEVEL api;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugAddOn1498Dm.Item ( Name: String(50) );
+ALTER ENTITY BugAddOn1498Dm.Item SET EXPORT LEVEL api;
+
+CREATE OR MODIFY ASSOCIATION BugAddOn1498Dm.Item_Request
+  FROM BugAddOn1498Dm.Item TO BugAddOn1498Dm.Request
+  EXPORT LEVEL api;
+
+CREATE OR MODIFY ENUMERATION BugAddOn1498Dm.Kind ( A 'A', B 'B' ) EXPORT LEVEL api;
+
+-- A Usable microflow may expose them now (CE5400 while they were Hidden).
+CREATE OR MODIFY MICROFLOW BugAddOn1498Dm.API_Request_Post ($body: BugAddOn1498Dm.Request, $k: ENUM BugAddOn1498Dm.Kind)
+RETURNS Boolean
+EXPORT LEVEL api
+BEGIN
+  RETURN true;
+END;
+
+-- Another module may use the Usable members (CE1406 while they were Hidden).
+CREATE OR MODIFY MICROFLOW MyFirstModule.BugUser1498Dm ($r: BugAddOn1498Dm.Request, $i: BugAddOn1498Dm.Item)
+BEGIN
+  CHANGE $r (Payload = 'x');
+  RETRIEVE $Req FROM $i/BugAddOn1498Dm.Item_Request;
+END;
+
+-- And back: the ALTER spellings set Hidden as well.
+ALTER ENTITY BugAddOn1498Dm.Request MODIFY ATTRIBUTE Internal: String(50) EXPORT LEVEL hidden;
+ALTER ASSOCIATION BugAddOn1498Dm.Item_Request SET EXPORT LEVEL api;
+ALTER ENUMERATION BugAddOn1498Dm.Kind SET EXPORT LEVEL api;
