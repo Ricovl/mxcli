@@ -18,18 +18,21 @@ const DefaultXPathWidth = 80
 // Studio Pro's constraint editor, breaking it across lines when it does not fit
 // in DefaultXPathWidth columns.
 //
-// The form is CANONICAL, not preserved. #979 was filed as "keep the whitespace I
-// typed", but the formatting that matters to the reporter is the formatting
-// Studio Pro's editor holds, and a constraint is rebuilt from its parse tree on
-// every write (see buildXPathString) — so by the time anything is stored there is
-// no original whitespace left to keep. Deriving the layout from the expression
-// instead means a constraint comes out readable however it went in, including one
-// a person formatted by hand in Studio Pro.
+// Only a FLAT constraint is laid out. One that already holds a line break was
+// laid out by its author — by hand in MDL, or in Studio Pro's editor, which keeps
+// the layout it is given — and is stored as written (mendixlabs/mxcli#1542: an
+// author's `and` leading the next line, flattened, was a layout rule's fixture
+// that MDL could not produce, and a describe/exec round trip changed the model).
+// The writers that keep the source text — retrieve and access rule — hand it
+// here with its line breaks; describe prints such a layout as stored
+// (DescribeXPathConstraintLayout).
 //
-// Two properties make it safe to apply on every write:
+// Three properties make it safe to apply on every write:
 //
 //   - A constraint that already fits comes back BYTE-IDENTICAL, so the common
 //     case is untouched and ADR-0008's write elision still skips the unit.
+//   - A constraint with a line break comes back byte-identical too, apart from
+//     its operator case, which is folded whatever the layout.
 //   - It is idempotent, so re-running it over its own output moves nothing.
 //
 // Anything the grammar cannot read is handed back unchanged. A formatter that
@@ -53,10 +56,14 @@ func FormatXPathConstraintWidth(constraint string, width int) string {
 	// which is exactly where it hid (mxcli-formula1 §80). See
 	// NormalizeXPathOperators.
 	constraint = NormalizeXPathOperators(constraint)
+	// Laid out by its author: kept as written (mendixlabs/mxcli#1542).
+	if strings.ContainsAny(constraint, "\r\n") {
+		return constraint
+	}
 	// Already short enough to read at a glance: leave it exactly as it is. This
 	// is the case for the overwhelming majority of constraints, and returning the
 	// caller's own bytes is what keeps this change from touching them.
-	if !strings.ContainsAny(constraint, "\r\n") && len(constraint) <= width {
+	if len(constraint) <= width {
 		return constraint
 	}
 	// Sibling predicate groups (`[a][b]`) are the author's own top-level
@@ -240,4 +247,17 @@ func flattenXPathBoolChain(expr ast.Expression) (string, []ast.Expression) {
 func isXPathBoolChain(expr ast.Expression) bool {
 	op, _ := flattenXPathBoolChain(expr)
 	return op != ""
+}
+
+// DescribeXPathConstraintLayout is the text describe prints for a stored
+// constraint: on one line when its layout is the one FormatXPathConstraint
+// derives from the flat form — the writer re-derives it on exec (upstream #979)
+// — and as stored otherwise, so that a layout its author chose is stored again
+// by re-executing the description (mendixlabs/mxcli#1542).
+func DescribeXPathConstraintLayout(constraint string) string {
+	flat := FlattenXPathConstraint(constraint)
+	if !strings.ContainsAny(constraint, "\r\n") || FormatXPathConstraint(flat) == constraint {
+		return flat
+	}
+	return constraint
 }
