@@ -2,7 +2,11 @@
 
 package executor
 
-import "strings"
+import (
+	"fmt"
+	"io"
+	"strings"
+)
 
 // carriedDocumentation returns the documentation a rewrite should store.
 //
@@ -53,4 +57,28 @@ func docCommentNormalForm(s string) string {
 		kept = kept[:len(kept)-1]
 	}
 	return strings.Join(kept, "\n")
+}
+
+// writeDocumentDocComment prints a document's documentation as the `/** … */`
+// doc comment its create reads (mendixlabs/mxcli#1510). A text holding `*/`
+// would end the comment early and the rest would not parse, so it is shown as
+// `--` lines instead: the statement then states none, and executing it keeps
+// the stored text (#1018) rather than truncating it.
+func writeDocumentDocComment(w io.Writer, doc string) {
+	if doc == "" {
+		return
+	}
+	doc = strings.ReplaceAll(doc, "\r\n", "\n")
+	if strings.Contains(doc, "*/") {
+		fmt.Fprintln(w, "-- Documentation (kept on execute; a doc comment cannot hold `*/`):")
+		for line := range strings.SplitSeq(doc, "\n") {
+			fmt.Fprintf(w, "--   %s\n", line)
+		}
+		return
+	}
+	fmt.Fprintln(w, "/**")
+	for line := range strings.SplitSeq(doc, "\n") {
+		fmt.Fprintln(w, strings.TrimRight(" * "+line, " "))
+	}
+	fmt.Fprintln(w, " */")
 }

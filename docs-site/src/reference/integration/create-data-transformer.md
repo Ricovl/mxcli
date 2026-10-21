@@ -3,6 +3,7 @@
 ## Synopsis
 
 ```sql
+[ /** description */ ]
 CREATE [ OR MODIFY ] DATA TRANSFORMER module.Name
     [ FOLDER 'folder_path' ]
     SOURCE { JSON | XML } 'sample'
@@ -40,6 +41,9 @@ The `SOURCE` clause provides a representative input document. Mendix uses it to 
 
 `FOLDER 'folder_path'`
 :   Optional. Places the document in the named module folder, creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
+
+`/** description */`
+:   Optional. The documentation of the data transformer, as a doc comment before the statement. `lint` QUAL002 reports a data transformer without it, and `DESCRIBE` prints it back. On `CREATE OR MODIFY`, no doc comment keeps the stored documentation and an empty `/** */` clears it.
 
 `SOURCE JSON 'sample'`
 :   A representative JSON input document. Multi-line samples can use `$$...$$` quoting.
