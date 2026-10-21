@@ -330,6 +330,7 @@ CREATE OR MODIFY NAVIGATION Responsive
 | Describe Java action | `DESCRIBE JAVA ACTION Module.Name;` | Full MDL output with signature |
 | Create Java action | `CREATE JAVA ACTION Module.Name(params) RETURNS type AS $$ ... $$;` | Inline Java code |
 | Create with type params | `CREATE JAVA ACTION Module.Name(EntityType: ENTITY <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Describe a parameter, name the return value | `CREATE JAVA ACTION Module.Name(/** The text. */ Input: String) RETURNS String AS $Result AS $$ ... $$;` | `/** … */` before a parameter is its description; `AS $Name` the return value's name |
 | Create exposed action | `... EXPOSED AS 'Caption' IN 'Category' AS $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Drop Java action | `DROP JAVA ACTION Module.Name;` | Delete a Java action |
 | Call from microflow | `$Result = CALL JAVA ACTION Module.Name(Param = value);` | Inside BEGIN...END |

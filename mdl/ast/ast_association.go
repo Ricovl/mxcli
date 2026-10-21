@@ -122,6 +122,10 @@ type CreateAssociationStmt struct {
 	// pixels). (issue #872)
 	FromAnchor *Position
 	ToAnchor   *Position
+
+	// ExportLevel is "API" or "Hidden" from an EXPORT LEVEL clause; nil keeps
+	// the stored level (Hidden on a new element). mendixlabs/mxcli#1498.
+	ExportLevel *string
 }
 
 func (s *CreateAssociationStmt) isStatement() {}
@@ -143,6 +147,7 @@ const (
 	AlterAssociationSetComment
 	AlterAssociationSetStorage
 	AlterAssociationSetAnchor
+	AlterAssociationSetExportLevel // SET EXPORT LEVEL API | HIDDEN
 )
 
 // AlterAssociationStmt represents: ALTER ASSOCIATION Module.Name SET ...
@@ -156,6 +161,7 @@ type AlterAssociationStmt struct {
 	Owner              OwnerType
 	Storage            StorageType
 	Comment            string
+	ExportLevel        string // For SET EXPORT LEVEL: "API" or "Hidden"
 
 	// SET ANCHOR FROM (x, y) TO (x, y) — both ends are always given together,
 	// because the pair is one visual decision.

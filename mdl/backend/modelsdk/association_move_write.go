@@ -55,7 +55,7 @@ func crossAssocToGen(ca *domainmodel.CrossModuleAssociation) *genDm.CrossAssocia
 	}
 	out.SetName(ca.Name)
 	out.SetDocumentation(ca.Documentation)
-	out.SetExportLevel("Hidden")
+	out.SetExportLevel(orDefault(ca.ExportLevel, "Hidden"))
 	out.SetParentID(element.ID(string(ca.ParentID)))
 	out.SetChildQualifiedName(ca.ChildRef)
 	out.SetType(string(ca.Type))

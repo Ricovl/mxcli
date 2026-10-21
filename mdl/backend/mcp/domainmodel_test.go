@@ -546,3 +546,37 @@ func TestCreateEntity_AttributeTypesAndLengthsOnTheWire(t *testing.T) {
 		t.Errorf("length set on a default-length or non-String attribute: %s", updates[1])
 	}
 }
+
+// PED is not sent an export level (mendixlabs/mxcli#1498), so an authored one
+// that would change what is stored is refused rather than reported as written.
+func TestGuardExportLevels_RefusesWhatPEDWouldDrop(t *testing.T) {
+	api := newPersistentEntity("Request", attr("Payload", &domainmodel.StringAttributeType{Length: 10}))
+	api.ExportLevel = "API"
+	if err := guardExportLevels(api, nil); err == nil || !strings.Contains(err.Error(), "export level api") {
+		t.Errorf("new API entity: err = %v, want a refusal naming the clause", err)
+	}
+	attrAPI := newPersistentEntity("Request", attr("Payload", &domainmodel.StringAttributeType{Length: 10}))
+	attrAPI.Attributes[0].ExportLevel = "API"
+	if err := guardExportLevels(attrAPI, nil); err == nil || !strings.Contains(err.Error(), "attribute Payload") {
+		t.Errorf("new API attribute: err = %v, want a refusal naming the attribute", err)
+	}
+	// Controls: no clause, the default, and a rewrite that keeps the stored
+	// level are all what PED leaves in place.
+	plain := newPersistentEntity("Request", attr("Payload", &domainmodel.StringAttributeType{Length: 10}))
+	if err := guardExportLevels(plain, nil); err != nil {
+		t.Errorf("no clause refused: %v", err)
+	}
+	plain.ExportLevel = "Hidden"
+	if err := guardExportLevels(plain, nil); err != nil {
+		t.Errorf("hidden on a new entity refused: %v", err)
+	}
+	if err := guardExportLevels(api, api); err != nil {
+		t.Errorf("rewrite keeping the stored API level refused: %v", err)
+	}
+	if err := guardExportLevels(plain, api); err == nil {
+		t.Error("rewrite changing API to Hidden accepted, which PED would drop")
+	}
+	if err := guardAssociationFeatures(&domainmodel.Association{Name: "A", ExportLevel: "API"}); err == nil {
+		t.Error("association with export level api accepted")
+	}
+}

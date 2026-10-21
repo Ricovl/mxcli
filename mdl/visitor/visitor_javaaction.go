@@ -22,22 +22,7 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 	}
 
 	// Get parameters
-	if paramList := ctx.JavaActionParameterList(); paramList != nil {
-		for _, paramCtx := range paramList.AllJavaActionParameter() {
-			param := ast.JavaActionParam{}
-			if pn := paramCtx.ParameterName(); pn != nil {
-				param.Name = parameterNameText(pn)
-			}
-			if dt := paramCtx.DataType(); dt != nil {
-				param.Type = buildDataType(dt)
-			}
-			// Check for NOT NULL constraint
-			if paramCtx.NOT_NULL() != nil {
-				param.IsRequired = true
-			}
-			stmt.Parameters = append(stmt.Parameters, param)
-		}
-	}
+	stmt.Parameters = buildJavaActionParams(ctx.JavaActionParameterList())
 
 	// Type parameters: those the `Name<T, U>` header declares, in its order,
 	// then any ENTITY <pEntity> parameter declares that the header did not
@@ -64,11 +49,7 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 	}
 
 	// Get return type
-	if retType := ctx.JavaActionReturnType(); retType != nil {
-		if dt := retType.DataType(); dt != nil {
-			stmt.ReturnType = buildJavaActionReturnType(dt)
-		}
-	}
+	stmt.ReturnType, stmt.ReturnName = buildJavaActionReturn(ctx.JavaActionReturnType())
 
 	// Get exposed clause (EXPOSED AS 'caption' IN 'category')
 	if exposed := ctx.JavaActionExposedClause(); exposed != nil {
@@ -134,21 +115,7 @@ func (b *Builder) ExitCreateJavaScriptActionStatement(ctx *parser.CreateJavaScri
 		stmt.Folder = unquoteStringLit(lit)
 	}
 
-	if paramList := ctx.JavaActionParameterList(); paramList != nil {
-		for _, paramCtx := range paramList.AllJavaActionParameter() {
-			param := ast.JavaActionParam{}
-			if pn := paramCtx.ParameterName(); pn != nil {
-				param.Name = parameterNameText(pn)
-			}
-			if dt := paramCtx.DataType(); dt != nil {
-				param.Type = buildDataType(dt)
-			}
-			if paramCtx.NOT_NULL() != nil {
-				param.IsRequired = true
-			}
-			stmt.Parameters = append(stmt.Parameters, param)
-		}
-	}
+	stmt.Parameters = buildJavaActionParams(ctx.JavaActionParameterList())
 
 	// Extract type parameters from ENTITY <pEntity> parameter declarations.
 	for _, param := range stmt.Parameters {
@@ -166,11 +133,7 @@ func (b *Builder) ExitCreateJavaScriptActionStatement(ctx *parser.CreateJavaScri
 		}
 	}
 
-	if retType := ctx.JavaActionReturnType(); retType != nil {
-		if dt := retType.DataType(); dt != nil {
-			stmt.ReturnType = buildJavaActionReturnType(dt)
-		}
-	}
+	stmt.ReturnType, stmt.ReturnName = buildJavaActionReturn(ctx.JavaActionReturnType())
 
 	if exposed := ctx.JavaActionExposedClause(); exposed != nil {
 		allStrings := exposed.AllSTRING_LITERAL()
@@ -284,4 +247,50 @@ func extractJavaImports(code string) (body string, imports []string) {
 		}
 	}
 	return strings.TrimSpace(strings.Join(bodyLines, "\n")), imports
+}
+
+// buildJavaActionParams reads a Java or JavaScript action's parameter list —
+// one helper for both, since they share the grammar rule and a field read by
+// one handler only is a silent drop in the other.
+func buildJavaActionParams(list parser.IJavaActionParameterListContext) []ast.JavaActionParam {
+	if list == nil {
+		return nil
+	}
+	var params []ast.JavaActionParam
+	for _, paramCtx := range list.AllJavaActionParameter() {
+		param := ast.JavaActionParam{}
+		if pn := paramCtx.ParameterName(); pn != nil {
+			param.Name = parameterNameText(pn)
+		}
+		if dt := paramCtx.DataType(); dt != nil {
+			param.Type = buildDataType(dt)
+		}
+		// Check for NOT NULL constraint
+		if paramCtx.NOT_NULL() != nil {
+			param.IsRequired = true
+		}
+		// The parameter's description (mendixlabs/mxcli#1588).
+		if doc := paramCtx.DocComment(); doc != nil {
+			param.Description, param.DescriptionSet = extractDocComment(doc.GetText()), true
+		}
+		params = append(params, param)
+	}
+	return params
+}
+
+// buildJavaActionReturn reads `returns T [as $Name]`: the return type, and the
+// return value's name without its `$` ("" when the clause names none).
+func buildJavaActionReturn(ret parser.IJavaActionReturnTypeContext) (ast.DataType, string) {
+	if ret == nil {
+		return ast.DataType{}, ""
+	}
+	var dt ast.DataType
+	if d := ret.DataType(); d != nil {
+		dt = buildJavaActionReturnType(d)
+	}
+	var name string
+	if v := ret.VARIABLE(); v != nil {
+		name = strings.TrimPrefix(v.GetText(), "$")
+	}
+	return dt, name
 }

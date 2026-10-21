@@ -1,0 +1,30 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1597 (case B, the refusal): `@annotation('text')` in an
+-- `alter microflow … insert` fragment
+-- ============================================================================
+--
+-- A positional parameter is not one the visitor reads, so the note is not
+-- written at all. `create or modify microflow` refused the line as MDL079;
+-- `alter` passed check and exec ("Altered microflow") and wrote the commit
+-- without the note. See the companion 1597-alter-annotation-forms.mdl for the
+-- two spellings that do write it.
+--
+-- This file is expected to FAIL `mxcli check` (MDL079).
+-- ============================================================================
+mdl 1;
+
+create module BugTest1597b;
+
+create persistent entity BugTest1597b.Item (Code: String(50));
+
+create microflow BugTest1597b.ACT_Do () returns Boolean begin
+  $Result = create BugTest1597b.Item (Code = 'a');
+  return true;
+end;
+
+alter microflow BugTest1597b.ACT_Do {
+  insert after $Result begin
+    @annotation('Why this commit is here.')
+    commit $Result;
+  end;
+};
