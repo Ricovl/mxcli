@@ -22,7 +22,7 @@ import (
 // carries no intent, so it is re-derived rather than pinned.
 func TestDerivedParameterPositionMatchesTheWriters(t *testing.T) {
 	for idx, want := range []model.Point{{X: 200, Y: 53}, {X: 300, Y: 53}, {X: 400, Y: 53}} {
-		if got := microflows.DerivedParameterPosition(idx); got != want {
+		if got := microflows.DerivedParameterPosition(idx, nil); got != want {
 			t.Errorf("DerivedParameterPosition(%d) = %v, want %v", idx, got, want)
 		}
 	}
@@ -33,14 +33,14 @@ func TestDerivedParameterPositionMatchesTheWriters(t *testing.T) {
 // over: inserting a parameter would leave the existing ones on the old grid
 // while the new one lands on top of them.
 func TestAuthoredParameterPositionIgnoresTheDerivedSpot(t *testing.T) {
-	if p := microflows.AuthoredParameterPosition(model.Point{X: 200, Y: 53}, 0); p != nil {
+	if p := microflows.AuthoredParameterPosition(model.Point{X: 200, Y: 53}, 0, nil); p != nil {
 		t.Errorf("index 0 at the derived spot: got %v, want nil", *p)
 	}
-	if p := microflows.AuthoredParameterPosition(model.Point{X: 300, Y: 53}, 1); p != nil {
+	if p := microflows.AuthoredParameterPosition(model.Point{X: 300, Y: 53}, 1, nil); p != nil {
 		t.Errorf("index 1 at the derived spot: got %v, want nil", *p)
 	}
 	// The same point at a DIFFERENT index is not the derived one, so it is intent.
-	got := microflows.AuthoredParameterPosition(model.Point{X: 200, Y: 53}, 1)
+	got := microflows.AuthoredParameterPosition(model.Point{X: 200, Y: 53}, 1, nil)
 	if got == nil || *got != (model.Point{X: 200, Y: 53}) {
 		t.Errorf("index 1 at index 0's spot: got %v, want 200;53 kept", got)
 	}
@@ -51,7 +51,7 @@ func TestAuthoredParameterPositionIgnoresTheDerivedSpot(t *testing.T) {
 // pointer, and the test exists because a bool-free `if p.Position != (Point{})`
 // would pass every other case here.
 func TestAuthoredParameterPositionKeepsOrigin(t *testing.T) {
-	got := microflows.AuthoredParameterPosition(model.Point{X: 0, Y: 0}, 0)
+	got := microflows.AuthoredParameterPosition(model.Point{X: 0, Y: 0}, 0, nil)
 	if got == nil {
 		t.Fatal("0;0 was dropped as if unset; it is a position a person can choose")
 	}
@@ -65,14 +65,14 @@ func TestAuthoredParameterPositionKeepsOrigin(t *testing.T) {
 // every rewritten flow — the round-trip failure startAnnotationLines documents.
 func TestParameterPositionAnnotation(t *testing.T) {
 	derived := &microflows.MicroflowParameter{Position: &model.Point{X: 200, Y: 53}}
-	if got := parameterPositionAnnotation(derived, 0, "  "); got != "" {
+	if got := parameterPositionAnnotation(derived, 0, nil, "  "); got != "" {
 		t.Errorf("derived position emitted %q, want no line", got)
 	}
 	authored := &microflows.MicroflowParameter{Position: &model.Point{X: -77, Y: 0}}
-	if got := parameterPositionAnnotation(authored, 0, "  "); got != "  @position(-77, 0)" {
+	if got := parameterPositionAnnotation(authored, 0, nil, "  "); got != "  @position(-77, 0)" {
 		t.Errorf("got %q, want \"  @position(-77, 0)\"", got)
 	}
-	if got := parameterPositionAnnotation(&microflows.MicroflowParameter{}, 0, "  "); got != "" {
+	if got := parameterPositionAnnotation(&microflows.MicroflowParameter{}, 0, nil, "  "); got != "" {
 		t.Errorf("unset position emitted %q, want no line", got)
 	}
 }

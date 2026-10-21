@@ -1,0 +1,37 @@
+mdl 1;
+-- ============================================================================
+-- Bug: a note's line always left the note's bottom edge (ako/mxcli#1508, case 2;
+-- mendixlabs/mxcli#1598)
+-- ============================================================================
+--
+-- Every Microflows$AnnotationFlow was written OriginConnectionIndex 2 ->
+-- DestinationConnectionIndex 0 (note bottom -> element top), wherever the note
+-- sat. A note BELOW its activity then drew its line out of its own bottom edge
+-- and round the outside of both boxes.
+--
+-- Fixed: the line leaves the side of the note that faces its element and enters
+-- the element's facing side. Studio Pro numbers a note's sides like an
+-- activity's (0 top, 1 right, 2 bottom, 3 left), measured on 523 distinct
+-- Studio Pro-drawn note lines.
+--
+-- Verify:
+--   mxcli exec mdl-examples/bug-tests/flow-geometry-1508-note-line-sides.mdl -p app.mpr
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_NoteSides \
+--     | grep -B2 -A2 AnnotationFlow
+-- Expected: 'Note above' 2 -> 0, 'Note below' 0 -> 2, 'Note left' 1 -> 3.
+-- ============================================================================
+
+create or modify microflow MyFirstModule.ACT_NoteSides () returns Boolean as $r
+begin
+  @position(400, 200)
+  @annotation(text: 'Note above', position: (400, 60), size: (200, 60))
+  log info node 'A' 'hello';
+  @position(800, 200)
+  @annotation(text: 'Note below', position: (800, 400), size: (200, 60))
+  log info node 'B' 'world';
+  @position(1300, 200)
+  @annotation(text: 'Note left', position: (1050, 200), size: (180, 60))
+  log info node 'C' 'again';
+  @position(1500, 200)
+  return true;
+end;

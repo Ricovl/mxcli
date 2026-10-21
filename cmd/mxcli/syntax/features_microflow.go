@@ -820,16 +820,26 @@ func init() {
 		Syntax: "@position(x, y)                       -- the activity's centre point\n" +
 			"@position(x, y)                       -- also on a PARAMETER, in the ( … ) list\n" +
 			"@start(x, y)                          -- the start event, on the FIRST statement\n" +
-			"@anchor(from: right, to: left)        -- which SIDE each end of the outgoing flow attaches to\n" +
+			"@anchor(from: bottom, to: top)        -- from = the side the flow LEAVING this statement\n" +
+			"                                      -- leaves by; to = the side the flow ARRIVING at\n" +
+			"                                      -- this statement enters by (not its far end)\n" +
 			"@curve(from: (40, -90), to: (-40, 90))  -- the flow's bezier control vectors\n" +
 			"@merge(x, y)                          -- the implicit merge that closes a split\n" +
 			"@anchor(from: bottom, to: top, true: (…), false: (…))  -- on an IF: to = its incoming flow,\n" +
 			"                                      -- from = the flow leaving its closing merge\n" +
 			"@anchor(true: (to: top))              -- one branch's edge; either side may be left out\n" +
+			"@anchor(Open: (from: right), (empty): (from: bottom))  -- on a CASE: one outcome's edge,\n" +
+			"                                      -- keyed by its WHEN value; from = its merge's exit\n" +
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +
 			"@annotation(id: n1)                   -- attaches THAT note to another activity\n\n" +
+			"An @anchor never reaches the far end of its own outgoing flow: that end is\n" +
+			"the NEXT statement's `to:`. A straight vertical edge from A down to B is\n" +
+			"@anchor(from: bottom) on A and @anchor(to: top) on B; `to: top` on A alone\n" +
+			"turns the edge INTO A, and the edge into B keeps entering on the left. A\n" +
+			"RETURN has no outgoing flow, so its `from:` does nothing — the edge into the\n" +
+			"end event leaves by the previous statement's `from:`. (#990)\n\n" +
 			"Inside ON ERROR ... BEGIN ... END ERROR the annotations mean what they mean\n" +
 			"outside it: @anchor(to:) on the handler's first statement is the side the\n" +
 			"error edge enters, @anchor(from:) and @curve shape the edge leaving a\n" +
@@ -870,7 +880,8 @@ func init() {
 			"A PARAMETER is a stored node with its own coordinates, so it takes\n" +
 			"@position too — written inside the parameter list, ahead of the parameter\n" +
 			"it places. It is the only annotation a parameter takes. Omit it and the\n" +
-			"parameters form a row along the top of the canvas at 200;53, 300;53, … ;\n" +
+			"parameters form a row along the top of the canvas from 200;53, spaced 100px\n" +
+			"apart or wider when a name needs it (about 7px a character, #1598);\n" +
 			"the same derived/authored rule as @start then applies, so a parameter on\n" +
 			"that row is re-derived and one anywhere else survives a rewrite and is\n" +
 			"emitted by DESCRIBE.\n\n" +
@@ -885,9 +896,9 @@ func init() {
 			"what a rewrite re-derives (100px above the activity, stacked 60px per extra\n" +
 			"note, 200x50), so an ordinary note keeps the short form. (#1077)",
 		Example: "create microflow MyModule.ACT_Flow (\n  @position(145, 0)\n  $In: String\n)\nreturns String as $Out\nbegin\n" +
-			"  @start(145, 100)\n  @position(200, 100)\n  @anchor(from: bottom, to: top)\n" +
+			"  @start(145, 100)\n  @position(200, 100)\n  @anchor(from: bottom)\n" +
 			"  @curve(from: (40, -90), to: (-40, 90))\n  declare $Tmp String = $In;\n" +
-			"  @position(200, 300)\n  declare $Out String = $Tmp;\n  return $Out;\nend;",
+			"  @position(200, 300)\n  @anchor(to: top)\n  declare $Out String = $Tmp;\n  return $Out;\nend;",
 		SeeAlso: []string{"microflow", "microflow.create"},
 	})
 

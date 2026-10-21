@@ -209,3 +209,27 @@ end;`
 		}
 	}
 }
+
+// `while true` with early returns, from saingge's re-test of mendixlabs/mxcli#923:
+// describe -> exec wrote nothing, yet describe printed three "NOT equivalent ...
+// must not be re-executed" warnings, one per decision, and lint raised
+// MDL-FLOW01 three times. The graph analysis walked each decision's false
+// branch round the loop's back edge into its own true branch.
+func TestDescribeIrreducible_WhileTrueWithEarlyReturnsHasNoWarning(t *testing.T) {
+	const src = `create microflow M.ACT_Loop ($Code: string) returns string as $R
+begin
+  declare $Status string = 'new';
+  while true
+  begin
+    if $Code = 'a' then return 'A'; end if;
+    if $Code = 'b' then return 'B'; end if;
+    if $Code = 'c' then return 'C'; end if;
+    set $Status = 'x';
+  end while;
+end;`
+	out, oc := describeBuilt(t, src)
+	if strings.Contains(out, "WARNING") {
+		t.Errorf("a while-true with early returns is described with a warning:\n%s", out)
+	}
+	assertDescriptionRebuildsGraph(t, out, oc)
+}

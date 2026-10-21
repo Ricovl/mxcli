@@ -34,11 +34,11 @@ func positionFromAST(p *ast.Position) *model.Point {
 // Readers already normalise, so Position is non-nil only when it is intent;
 // the derived comparison here is belt-and-braces for a model assembled in
 // memory rather than read from disk.
-func parameterPositionAnnotation(p *microflows.MicroflowParameter, idx int, indent string) string {
+func parameterPositionAnnotation(p *microflows.MicroflowParameter, idx int, params []*microflows.MicroflowParameter, indent string) string {
 	if p == nil || p.Position == nil {
 		return ""
 	}
-	if *p.Position == microflows.DerivedParameterPosition(idx) {
+	if *p.Position == microflows.DerivedParameterPosition(idx, params) {
 		return ""
 	}
 	return fmt.Sprintf("%s@position(%d, %d)", indent, p.Position.X, p.Position.Y)
@@ -56,7 +56,7 @@ func parameterPositionAnnotation(p *microflows.MicroflowParameter, idx int, inde
 func describeMicroflowParameters(params []*microflows.MicroflowParameter, formatType func(*microflows.MicroflowParameter) string) []string {
 	lines := make([]string, 0, len(params)*2)
 	for i, param := range params {
-		if ann := parameterPositionAnnotation(param, i, "  "); ann != "" {
+		if ann := parameterPositionAnnotation(param, i, params, "  "); ann != "" {
 			lines = append(lines, ann)
 		}
 		paramType := "Object"

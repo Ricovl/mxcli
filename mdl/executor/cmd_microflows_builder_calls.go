@@ -687,7 +687,7 @@ func (fb *flowBuilder) addCallWebServiceAction(s *ast.CallWebServiceStmt) model.
 	}
 
 	if s.ErrorHandling != nil && len(s.ErrorHandling.Body) > 0 {
-		errorY := fb.posY + VerticalSpacing
+		errorY := fb.posY + ErrorHandlerPitch
 		mergeID := fb.addErrorHandlerFlow(activity.ID, activityX, s.ErrorHandling.Body)
 		fb.handleErrorHandlerMerge(mergeID, activity.ID, errorY)
 	}

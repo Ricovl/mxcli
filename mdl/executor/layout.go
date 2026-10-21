@@ -31,9 +31,21 @@ const (
 
 	// Spacing
 	HorizontalSpacing = 160 // Space between activities horizontally (edge-to-edge ~40px)
-	VerticalSpacing   = 90  // Space between branches for error-handler flows
-	BranchGap         = 40  // Minimum edge-to-edge gap between parallel branches
-	LoopPadding       = 50  // Padding inside loop boxes
+	VerticalSpacing   = 90  // Space between the branches of a type split, and RowGap
+	// ErrorHandlerPitch is how far under its activity an error handler's row
+	// is centred. Studio Pro prints an activity's output variable and type
+	// under the box (about 35px, see RowGap), and at VerticalSpacing (90) the
+	// handler's top edge sat 30px below the activity, inside that text
+	// (mendixlabs/mxcli#1598, case 3). 130 is Studio Pro's own: the median of
+	// 160 distinct handler rows straight under their activity in ako/TestApp,
+	// PedApp and seven customer apps, quartiles 125..150.
+	ErrorHandlerPitch = 130
+	BranchGap         = 40 // Minimum edge-to-edge gap between parallel branches
+	LoopPadding       = 50 // Padding inside loop boxes
+	// LoopIteratorSpace is the column a foreach loop keeps on its left for the
+	// iterator icon and the list variable's label. A WHILE has no iterator and no
+	// column.
+	LoopIteratorSpace = 100
 	MinLoopWidth      = 200
 	MinLoopHeight     = 100
 )
@@ -206,7 +218,13 @@ func (m *layoutMeasurer) measureStatement(stmt ast.MicroflowStatement) Bounds {
 		// Return doesn't add visual element (handled by EndEvent)
 		return Bounds{Width: 0, Height: 0}
 	default:
-		// Simple activities have fixed size
+		// Simple activities have fixed size, but a custom error handler's row
+		// hangs under the activity. Heights are read as symmetric about the
+		// centre line, so the row's depth counts on both sides; without it an
+		// IF laid its ELSE row on top of a THEN activity's handler row.
+		if len(getErrorHandlerBody(stmt)) > 0 {
+			return Bounds{Width: ActivityWidth, Height: 2*ErrorHandlerPitch + ActivityHeight}
+		}
 		return Bounds{Width: ActivityWidth, Height: ActivityHeight}
 	}
 }
@@ -316,8 +334,11 @@ func (m *layoutMeasurer) measureLoopStatement(s *ast.LoopStmt) Bounds {
 	// Measure loop body
 	bodyBounds := m.measureStatements(s.Body)
 
-	// Loop box size: body + padding on all sides
-	width := max(bodyBounds.Width+2*LoopPadding, MinLoopWidth)
+	// Loop box size: body + padding on all sides, plus the iterator column the
+	// builder reserves on the left. Leaving the column out measured every foreach
+	// loop 100px short, so the merge of an IF holding one landed inside the
+	// loop's box (mendixlabs/mxcli#1598, case 4).
+	width := max(bodyBounds.Width+2*LoopPadding+LoopIteratorSpace, MinLoopWidth)
 	height := max(bodyBounds.Height+2*LoopPadding, MinLoopHeight)
 
 	return Bounds{Width: width, Height: height}

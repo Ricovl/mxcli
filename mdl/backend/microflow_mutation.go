@@ -30,6 +30,11 @@ type MicroflowFragment struct {
 	// nothing around it is moved to make room (ako/mxcli#818). Unset, the
 	// mutator translates it into the gap it is spliced into.
 	Placed bool
+	// Pinned are the objects whose position the script states on the canvas —
+	// a note's `position:` — rather than relative to the fragment. They stay
+	// where they are when the fragment is translated into place, and take no
+	// part in the room it needs (mendixlabs/mxcli#1598, case 1).
+	Pinned map[model.ID]bool
 }
 
 // MicroflowMutator splices into one stored microflow or nanoflow (ADR-0012
