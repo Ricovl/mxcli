@@ -845,12 +845,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	// builder that owns the flows once its graph is complete — this one, since
 	// the handler's flows (and the edge that rejoins the main flow) land here.
 	// Left on errBuilder it was never applied (mendixlabs/mxcli#991).
-	for id, c := range errBuilder.curveByOrigin {
-		if fb.curveByOrigin == nil {
-			fb.curveByOrigin = map[model.ID]*ast.FlowCurve{}
-		}
-		fb.curveByOrigin[id] = c
-	}
+	fb.adoptCurves(errBuilder)
 	if fb.annotationsByLabel == nil {
 		fb.annotationsByLabel = errBuilder.annotationsByLabel
 	}

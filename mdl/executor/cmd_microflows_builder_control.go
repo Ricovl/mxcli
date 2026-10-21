@@ -760,6 +760,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// Add the internal flows to the parent's flows (top-level), not inside loop
 	// This is how Mendix stores them - all flows at the microflow level
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	// The body's @curves belong on those flows, and are applied by whichever
+	// builder ends up owning them; left on loopBuilder they were never applied
+	// (mendixlabs/mxcli#1597).
+	fb.adoptCurves(loopBuilder)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently
@@ -1111,6 +1115,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 
 	fb.objects = append(fb.objects, loop)
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	fb.adoptCurves(loopBuilder) // see addLoopStatement (mendixlabs/mxcli#1597)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently
