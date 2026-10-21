@@ -405,6 +405,16 @@ type AnnotationFlow struct {
 	Sides *ConnectionSides `json:"sides,omitempty"`
 }
 
+// SidesOrDefault returns Sides, or — when nothing chose them — the drawing for
+// a note sitting above its object: out of the note's bottom edge, into the
+// object's top. Every writer uses it, so the engines agree on the default.
+func (f *AnnotationFlow) SidesOrDefault() ConnectionSides {
+	if f.Sides != nil {
+		return *f.Sides
+	}
+	return ConnectionSides{Origin: 2, Destination: 0}
+}
+
 // ConnectionSides is the pair of connection indexes a flow attaches at, in the
 // numbering a SequenceFlow uses for an activity — 0 top, 1 right, 2 bottom,
 // 3 left. Studio Pro numbers a note's sides the same way.
