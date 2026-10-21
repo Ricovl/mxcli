@@ -405,6 +405,10 @@ func (unimplemented) Disconnect() error {
 	return errUnimplemented("Disconnect")
 }
 
+func (unimplemented) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) error {
+	return errUnimplemented("EditConsumedRestService")
+}
+
 func (unimplemented) ExportJSON() ([]uint8, error) {
 	var r0 []uint8
 	return r0, errUnimplemented("ExportJSON")

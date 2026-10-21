@@ -59,38 +59,7 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 			}
 		case "authentication":
 			if pc.BASIC() != nil {
-				authDef := &ast.RestAuthDef{Scheme: "BASIC"}
-				for _, subProp := range pc.AllRestClientProperty() {
-					sp, spOk := subProp.(*parser.RestClientPropertyContext)
-					if !spOk || sp == nil || sp.IdentifierOrKeyword() == nil {
-						continue
-					}
-					rawSubKey := identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
-					b.checkProperty(sp, &restClientBasicAuthSchema, rawSubKey, restClientPropertyShape(sp))
-					subKey := strings.ToLower(rawSubKey)
-					var val string
-					if sl := sp.STRING_LITERAL(); sl != nil {
-						val = unquoteStringLit(sl)
-					} else if v := sp.VARIABLE(); v != nil {
-						// $Constant (MDL-DEPR083): a constant of the service's own
-						// module, stored qualified as `@Module.Const` stores it.
-						val = "$" + dollarConstantName(stmt.Name.Module, v.GetText())
-						b.recordDollarConstant(v, stmt.Name.Module)
-					} else if sp.AT() != nil {
-						// @Module.Constant reference (preferred Mendix convention)
-						// Store with $ prefix so the writer serializes as Rest$ConstantValue
-						if qn := sp.QualifiedName(); qn != nil {
-							val = "$" + getQualifiedNameText(qn)
-						}
-					}
-					switch subKey {
-					case "username":
-						authDef.Username = val
-					case "password":
-						authDef.Password = val
-					}
-				}
-				stmt.Authentication = authDef
+				stmt.Authentication = b.restClientBasicAuth(pc, stmt.Name.Module)
 			}
 			// NONE: leave Authentication nil
 		}
@@ -98,18 +67,9 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 
 	// Parse operations
 	for _, opCtx := range ctx.AllRestClientOperation() {
-		oc, ok := opCtx.(*parser.RestClientOperationContext)
-		if !ok || oc == nil {
-			continue
+		if opDef := b.restClientOperation(opCtx); opDef != nil {
+			stmt.Operations = append(stmt.Operations, opDef)
 		}
-		for _, p := range oc.AllRestClientOpProp() {
-			if pc, ok := p.(*parser.RestClientOpPropContext); ok && pc != nil && pc.IdentifierOrKeyword() != nil {
-				key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
-				b.checkProperty(pc, &restClientOperationSchema, key, restClientOpPropShape(pc))
-			}
-		}
-		opDef := parseRestClientOperation(oc)
-		stmt.Operations = append(stmt.Operations, opDef)
 	}
 
 	// Check for CREATE OR MODIFY
@@ -122,6 +82,58 @@ func (b *Builder) ExitCreateRestClientStatement(ctx *parser.CreateRestClientStat
 	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx)
 
 	b.statements = append(b.statements, stmt)
+}
+
+// restClientBasicAuth reads `Authentication: basic (Username: …, Password: …)`
+// for the service of module moduleName.
+func (b *Builder) restClientBasicAuth(pc *parser.RestClientPropertyContext, moduleName string) *ast.RestAuthDef {
+	authDef := &ast.RestAuthDef{Scheme: "BASIC"}
+	for _, subProp := range pc.AllRestClientProperty() {
+		sp, spOk := subProp.(*parser.RestClientPropertyContext)
+		if !spOk || sp == nil || sp.IdentifierOrKeyword() == nil {
+			continue
+		}
+		rawSubKey := identifierOrKeywordText(sp.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+		b.checkProperty(sp, &restClientBasicAuthSchema, rawSubKey, restClientPropertyShape(sp))
+		subKey := strings.ToLower(rawSubKey)
+		var val string
+		if sl := sp.STRING_LITERAL(); sl != nil {
+			val = unquoteStringLit(sl)
+		} else if v := sp.VARIABLE(); v != nil {
+			// $Constant (MDL-DEPR083): a constant of the service's own
+			// module, stored qualified as `@Module.Const` stores it.
+			val = "$" + dollarConstantName(moduleName, v.GetText())
+			b.recordDollarConstant(v, moduleName)
+		} else if sp.AT() != nil {
+			// @Module.Constant reference (preferred Mendix convention)
+			// Store with $ prefix so the writer serializes as Rest$ConstantValue
+			if qn := sp.QualifiedName(); qn != nil {
+				val = "$" + getQualifiedNameText(qn)
+			}
+		}
+		switch subKey {
+		case "username":
+			authDef.Username = val
+		case "password":
+			authDef.Password = val
+		}
+	}
+	return authDef
+}
+
+// restClientOperation checks and reads one `operation Name ( … )`.
+func (b *Builder) restClientOperation(opCtx parser.IRestClientOperationContext) *ast.RestOperationDef {
+	oc, ok := opCtx.(*parser.RestClientOperationContext)
+	if !ok || oc == nil {
+		return nil
+	}
+	for _, p := range oc.AllRestClientOpProp() {
+		if pc, ok := p.(*parser.RestClientOpPropContext); ok && pc != nil && pc.IdentifierOrKeyword() != nil {
+			key := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+			b.checkProperty(pc, &restClientOperationSchema, key, restClientOpPropShape(pc))
+		}
+	}
+	return parseRestClientOperation(oc)
 }
 
 // parseRestClientOperation parses a single OPERATION { Key: Value, ... } block.
@@ -147,6 +159,11 @@ func parseRestClientOperation(ctx *parser.RestClientOperationContext) *ast.RestO
 			continue
 		}
 		parseRestClientOpProp(pc, op)
+		if iok := pc.IdentifierOrKeyword(); iok != nil {
+			if k, ok := restClientOperationSchema.lookup(identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext))); ok {
+				op.Keys = append(op.Keys, k.name)
+			}
+		}
 	}
 
 	return op
@@ -223,6 +240,24 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 			op.ResponseVariable = varName
 		}
 		return
+	}
+
+	// Response: JSON (no variable — an operation stores none; mendixlabs/mxcli#1608)
+	if key == "response" {
+		switch {
+		case ctx.JSON() != nil:
+			op.ResponseType = "json"
+			return
+		case ctx.STRING_TYPE() != nil:
+			op.ResponseType = "string"
+			return
+		case ctx.FILE_KW() != nil:
+			op.ResponseType = "file"
+			return
+		case ctx.STATUS() != nil:
+			op.ResponseType = "status"
+			return
+		}
 	}
 
 	// NONE
@@ -550,6 +585,65 @@ func buildPublishedRestResourceDef(rc *parser.PublishedRestResourceContext) *ast
 	}
 
 	return resDef
+}
+
+// exitAlterRestClientStatement handles ALTER CONSUMED REST SERVICE
+// (mendixlabs/mxcli#1608).
+func (b *Builder) exitAlterRestClientStatement(ctx *parser.AlterStatementContext) {
+	qn := ctx.QualifiedName()
+	if qn == nil {
+		return
+	}
+	stmt := &ast.AlterRestClientStmt{Name: buildQualifiedName(qn)}
+	for _, actCtx := range ctx.AllAlterConsumedRestServiceAction() {
+		ac, ok := actCtx.(*parser.AlterConsumedRestServiceActionContext)
+		if !ok || ac == nil {
+			continue
+		}
+		switch {
+		case ac.SET() != nil:
+			set := &ast.RestClientSetAction{}
+			for _, propCtx := range ac.AllRestClientProperty() {
+				pc, ok := propCtx.(*parser.RestClientPropertyContext)
+				if !ok || pc == nil || pc.IdentifierOrKeyword() == nil {
+					continue
+				}
+				rawKey := identifierOrKeywordText(pc.IdentifierOrKeyword().(*parser.IdentifierOrKeywordContext))
+				b.checkProperty(pc, &restClientAlterSetSchema, rawKey, restClientPropertyShape(pc))
+				switch strings.ToLower(rawKey) {
+				case "baseurl":
+					if sl := pc.STRING_LITERAL(); sl != nil {
+						set.BaseUrl, set.BaseUrlSet = unquoteStringLit(sl), true
+					}
+				case "authentication":
+					switch {
+					case pc.BASIC() != nil:
+						set.Authentication, set.AuthenticationSet = b.restClientBasicAuth(pc, stmt.Name.Module), true
+					case pc.NONE() != nil:
+						set.AuthenticationSet = true
+					}
+				}
+			}
+			stmt.Actions = append(stmt.Actions, set)
+		case ac.ADD() != nil:
+			if op := b.restClientOperation(ac.RestClientOperation()); op != nil {
+				stmt.Actions = append(stmt.Actions, &ast.RestClientAddOperationAction{Operation: op})
+			}
+		case ac.MODIFY() != nil:
+			if op := b.restClientOperation(ac.RestClientOperation()); op != nil {
+				stmt.Actions = append(stmt.Actions, &ast.RestClientModifyOperationAction{Operation: op})
+			}
+		case ac.DROP() != nil:
+			name := ""
+			if iok := ac.IdentifierOrKeyword(); iok != nil {
+				name = identifierOrKeywordText(iok.(*parser.IdentifierOrKeywordContext))
+			} else if sl := ac.STRING_LITERAL(); sl != nil {
+				name = unquoteStringLit(sl)
+			}
+			stmt.Actions = append(stmt.Actions, &ast.RestClientDropOperationAction{Name: name})
+		}
+	}
+	b.statements = append(b.statements, stmt)
 }
 
 // exitAlterPublishedRestServiceStatement handles ALTER PUBLISHED REST SERVICE.

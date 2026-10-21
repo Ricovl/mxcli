@@ -184,6 +184,7 @@ func allKnownStatements() []ast.Statement {
 		&ast.AlterPagesStylingStmt{},
 		&ast.AlterProjectSecurityStmt{},
 		&ast.AlterPublishedRestServiceStmt{},
+		&ast.AlterRestClientStmt{},
 		&ast.AlterSettingsStmt{},
 		&ast.AlterStylingStmt{},
 		&ast.AlterUserRoleStmt{},

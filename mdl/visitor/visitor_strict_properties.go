@@ -67,6 +67,10 @@ const (
 	shapeStringAs    propShape = "string as $var"
 	shapeFileAs      propShape = "file as $var"
 	shapeStatusAs    propShape = "status as $var"
+	shapeJSON        propShape = "json"
+	shapeStringKind  propShape = "string"
+	shapeFileKind    propShape = "file"
+	shapeStatusKind  propShape = "status"
 	shapeOther       propShape = "some other value"
 )
 
@@ -164,6 +168,14 @@ var restClientSchema = propSchema{on: "a REST client", keys: []propKey{
 	{"Folder", []propShape{shapeString}},
 }}
 
+// What `alter consumed rest service … set ( … )` can change. The folder is
+// not a property of the document's contents, and the OpenAPI source is
+// CREATE's input, not something stored to set.
+var restClientAlterSetSchema = propSchema{on: "an ALTER of a REST client", keys: []propKey{
+	{"BaseUrl", []propShape{shapeString}},
+	{"Authentication", []propShape{shapeNone, shapeBasic}},
+}}
+
 var restClientBasicAuthSchema = propSchema{on: "REST client basic authentication", keys: []propKey{
 	{"Username", []propShape{shapeString, shapeConstant, shapeVariable}},
 	{"Password", []propShape{shapeString, shapeConstant, shapeVariable}},
@@ -177,7 +189,8 @@ var restClientOperationSchema = propSchema{on: "a REST client operation", keys: 
 	{"Headers", []propShape{shapeHeaderList}},
 	{"Body", []propShape{shapeJSONFrom, shapeFileFrom, shapeTemplate, shapeMapping}},
 	{"Timeout", []propShape{shapeNumber}},
-	{"Response", []propShape{shapeNone, shapeJSONAs, shapeStringAs, shapeFileAs, shapeStatusAs, shapeMapping}},
+	{"Response", []propShape{shapeNone, shapeJSON, shapeJSONAs, shapeStringKind, shapeStringAs,
+		shapeFileKind, shapeFileAs, shapeStatusKind, shapeStatusAs, shapeMapping}},
 }}
 
 var publishedRestSchema = propSchema{on: "a published REST service", keys: []propKey{
@@ -361,6 +374,14 @@ func restClientOpPropShape(pc *parser.RestClientOpPropContext) propShape {
 			return propShape(kind + " from $var")
 		}
 		return propShape(kind + " as $var")
+	case pc.JSON() != nil:
+		return shapeJSON
+	case pc.STRING_TYPE() != nil:
+		return shapeStringKind
+	case pc.FILE_KW() != nil:
+		return shapeFileKind
+	case pc.STATUS() != nil:
+		return shapeStatusKind
 	case pc.NONE() != nil:
 		return shapeNone
 	case len(pc.AllRestClientParamItem()) > 0:

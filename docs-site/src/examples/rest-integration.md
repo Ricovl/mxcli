@@ -281,7 +281,7 @@ CREATE CONSUMED REST SERVICE Integration.OrdersApi (
 
 A header value is a template, like the path: `{Token}` is the operation parameter `Token`, which the operation must declare (`Parameters: ($Token: String)`, else CE7056). An authorization header is `Headers: ('Authorization': 'Bearer {Token}')`. The expression spelling `'Bearer ' + $Token` is deprecated (MDL-DEPR711) and `mxcli fmt --upgrade` rewrites it; it used to store only `Bearer `.
 
-Use `CREATE OR MODIFY CONSUMED REST SERVICE` to update an existing client without dropping it first:
+Use `CREATE OR MODIFY CONSUMED REST SERVICE` to replace an existing client's definition without dropping it first. It declares the **whole** operation list: an operation it does not list is removed, and the output names it. The statement below keeps `GetOrder` and removes `CreateOrder`:
 
 ```sql
 CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
@@ -300,8 +300,23 @@ CREATE OR MODIFY CONSUMED REST SERVICE Integration.OrdersApi (
 };
 ```
 
+To add, change or remove one operation and leave the rest as stored — including operations made in Studio Pro, whose settings MDL cannot always express — use `ALTER CONSUMED REST SERVICE`. `MODIFY OPERATION` writes only the keys it lists:
+
+```sql
+ALTER CONSUMED REST SERVICE Integration.OrdersApi
+  ADD OPERATION CancelOrder (
+    Method: POST,
+    Path: '/orders/{id}/cancel',
+    Parameters: ($id: String),
+    Response: NONE
+  ),
+  MODIFY OPERATION GetOrder (Timeout: 60),
+  DROP OPERATION LegacyOrder,
+  SET (BaseUrl: 'https://api.example.com/v2');
+```
+
 **Body types:** `JSON FROM $var`, `TEMPLATE '...'`, `MAPPING Entity { jsonField = Attr, ... }`
-**Response types:** `JSON AS $var`, `STRING AS $var`, `FILE AS $var`, `STATUS AS $var`, `NONE`, `MAPPING Entity { Attr = jsonField, ... }`
+**Response types:** `JSON`, `STRING`, `FILE`, `STATUS` (each optionally `AS $var` — the variable is not stored; the call site binds it), `NONE`, `MAPPING Entity { Attr = jsonField, ... }`
 **Authentication:** `NONE`, `BASIC (Username: '...', Password: '...')`
 
 ## Publishing a REST API
