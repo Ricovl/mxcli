@@ -256,7 +256,7 @@ func (b *Backend) buildFlowDocContent(kind, name string, params []*microflows.Mi
 			"$Type":               "Microflows$MicroflowParameterObject",
 			"name":                p.Name,
 			"type":                typeName,
-			"relativeMiddlePoint": map[string]int{"x": 200 + i*100, "y": 53},
+			"relativeMiddlePoint": map[string]int{"x": microflows.DerivedParameterPosition(i, params).X, "y": microflows.DerivedParameterPosition(i, params).Y},
 		}
 		if entity != "" {
 			po["entity"] = entity

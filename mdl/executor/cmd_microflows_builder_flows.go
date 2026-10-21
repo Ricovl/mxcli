@@ -86,6 +86,40 @@ func (fb *flowBuilder) rejoinMergePosition(source model.ID, computed model.Point
 	return computed
 }
 
+// mergeOnEdge places a merge inserted into the normal edge from originID to
+// destinationID: midway between the right edge of the one and the left edge of
+// the other, on the line of the node it enters.
+//
+// The fallback — the layout cursor less half a spacing — is only right while
+// the cursor still points at the successor, and by the time a rejoin is wired
+// the successor has been placed and the cursor moved past it. The merge then
+// landed ON an end event (same centre, the end inside the 40px merge) and
+// RIGHT of an activity, so the edge into it ran backwards (mendixlabs/mxcli#884,
+// ako/mxcli#1273). The fallback still covers an edge that does not run left to
+// right, such as one that wraps onto the next row.
+func (fb *flowBuilder) mergeOnEdge(originID, destinationID model.ID, fallback model.Point) model.Point {
+	origin, dest := fb.objectByID(originID), fb.objectByID(destinationID)
+	if origin == nil || dest == nil {
+		return fallback
+	}
+	right := origin.GetPosition().X + objectSize(origin).Width/2
+	left := dest.GetPosition().X - objectSize(dest).Width/2
+	if left <= right {
+		return fallback
+	}
+	return model.Point{X: (right + left) / 2, Y: dest.GetPosition().Y}
+}
+
+// objectByID returns this builder's object with the given ID, or nil.
+func (fb *flowBuilder) objectByID(id model.ID) microflows.MicroflowObject {
+	for i := len(fb.objects) - 1; i >= 0; i-- {
+		if o := fb.objects[i]; o != nil && o.GetID() == id {
+			return o
+		}
+	}
+	return nil
+}
+
 func isEmptyCustomErrorHandler(eh *ast.ErrorHandlingClause) bool {
 	if eh == nil || len(eh.Body) != 0 {
 		return false
@@ -392,7 +426,7 @@ func (fb *flowBuilder) addEmptyErrorHandlerRejoinFlowFrom(normalOriginID, errorO
 	merge := &microflows.ExclusiveMerge{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    fb.rejoinMergePosition(errorOriginID, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY}),
+			Position:    fb.rejoinMergePosition(errorOriginID, fb.mergeOnEdge(normalOriginID, destinationID, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY})),
 			Size:        model.Size{Width: MergeSize, Height: MergeSize},
 		},
 	}
@@ -445,7 +479,7 @@ func (fb *flowBuilder) addErrorHandlerRejoinFlowForState(state pendingErrorHandl
 	merge := &microflows.ExclusiveMerge{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    fb.rejoinMergePosition(state.source, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY}),
+			Position:    fb.rejoinMergePosition(state.source, fb.mergeOnEdge(originID, destinationID, model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY})),
 			Size:        model.Size{Width: MergeSize, Height: MergeSize},
 		},
 	}
@@ -733,7 +767,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	}
 
 	// Position error handler below the main flow
-	errorY := fb.posY + VerticalSpacing
+	errorY := fb.posY + ErrorHandlerPitch
 	errorX := sourceX
 
 	// Build error handler activities
@@ -841,6 +875,14 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 	fb.flows = append(fb.flows, errBuilder.flows...)
 	fb.annotationFlows = append(fb.annotationFlows, errBuilder.annotationFlows...)
 	fb.errors = append(fb.errors, errBuilder.errors...)
+	// The handler's objects land in this collection, so its stated notes are
+	// this builder's to pin too.
+	for id := range errBuilder.statedNotes {
+		if fb.statedNotes == nil {
+			fb.statedNotes = map[model.ID]bool{}
+		}
+		fb.statedNotes[id] = true
+	}
 	// A @curve inside the handler is recorded on errBuilder, and applied by the
 	// builder that owns the flows once its graph is complete — this one, since
 	// the handler's flows (and the edge that rejoins the main flow) land here.
@@ -1196,10 +1238,21 @@ func (fb *flowBuilder) mergeOverConnectedEndEvents() {
 		if len(idxs) < 2 {
 			continue
 		}
+		// On the edge of the path that arrives along the end event's own line, so
+		// the merge does not land on the end event (see mergeOnEdge).
+		pos := model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY}
+		if end := fb.objectByID(endID); end != nil {
+			for _, i := range idxs {
+				if o := fb.objectByID(fb.flows[i].OriginID); o != nil && o.GetPosition().Y == end.GetPosition().Y {
+					pos = fb.mergeOnEdge(o.GetID(), endID, pos)
+					break
+				}
+			}
+		}
 		merge := &microflows.ExclusiveMerge{
 			BaseMicroflowObject: microflows.BaseMicroflowObject{
 				BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-				Position:    model.Point{X: fb.posX - HorizontalSpacing/2, Y: fb.baseY},
+				Position:    pos,
 				Size:        model.Size{Width: MergeSize, Height: MergeSize},
 			},
 		}

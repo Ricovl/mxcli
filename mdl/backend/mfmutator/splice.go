@@ -1028,6 +1028,13 @@ func fragmentGeometry(frag *backend.MicroflowFragment) (*fragmentBox, error) {
 	fb := &fragmentBox{frag: frag}
 	first := true
 	for _, obj := range frag.Objects {
+		// A note sits off the line it documents, so it takes no room on it.
+		// Counted, a note at a stated position 1300px away made the box that
+		// wide and shifted the rest of the row by 1180px; a note wider than its
+		// activity shifted it by the difference (mendixlabs/mxcli#1598).
+		if _, isNote := obj.(*microflows.Annotation); isNote {
+			continue
+		}
 		p, sz := obj.GetPosition(), objectSize(obj)
 		lo := point{p.X - sz.X/2, p.Y - sz.Y/2}
 		hi := point{p.X + sz.X/2, p.Y + sz.Y/2}
@@ -1056,6 +1063,11 @@ func (fb *fragmentBox) placeCentred(ax axis, c point) {
 	d = d.set(ax, c.get(ax)-(fb.min.get(ax)+fb.max.get(ax))/2)
 	d = d.set(ax.other(), c.get(ax.other())-entry.get(ax.other()))
 	for _, obj := range fb.frag.Objects {
+		// A stated canvas position is where the script wants the object, not a
+		// place relative to the fragment.
+		if fb.frag.Pinned[obj.GetID()] {
+			continue
+		}
 		p := obj.GetPosition()
 		obj.SetPosition(model.Point{X: p.X + d.X, Y: p.Y + d.Y})
 	}

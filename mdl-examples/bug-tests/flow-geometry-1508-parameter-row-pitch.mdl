@@ -1,0 +1,29 @@
+mdl 1;
+-- ============================================================================
+-- Bug: parameters with long names were written 100px apart and their labels
+-- overlapped (ako/mxcli#1508, case 5; mendixlabs/mxcli#1598)
+-- ============================================================================
+--
+-- Before: LongParameterNameOne / Two / Three at 200;53, 300;53, 400;53.
+--
+-- Fixed: the derived row is spaced by the widest name (about 7px a character,
+-- rounded up to 10px, never under 100px). Names under 15 characters keep the
+-- old 100px row, and the old row still reads as derived, so a flow an earlier
+-- mxcli wrote is re-spaced rather than pinned.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_LongParams
+-- Expected: parameters at 200;53, 360;53, 520;53.
+-- ============================================================================
+
+create entity MyFirstModule.ParamItem (Code: string(20));
+
+create or modify microflow MyFirstModule.ACT_LongParams (
+  $LongParameterNameOne: MyFirstModule.ParamItem,
+  $LongParameterNameTwo: MyFirstModule.ParamItem,
+  $LongParameterNameThree: MyFirstModule.ParamItem
+) returns Boolean as $Ok
+begin
+  declare $Ok Boolean = true;
+  return $Ok;
+end;

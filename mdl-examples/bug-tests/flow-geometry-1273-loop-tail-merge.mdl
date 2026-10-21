@@ -1,0 +1,51 @@
+mdl 1;
+-- ============================================================================
+-- Bug: an IF/ELSE ending a loop body got a merge with no way out
+-- (ako/mxcli#1273; mendixlabs/mxcli#884)
+-- ============================================================================
+--
+-- Both branches end the iteration, so there is nothing to join. Studio Pro
+-- authors delete the merge by hand; every re-run drew it again (describe
+-- printed the same MDL with and without it).
+--
+-- Fixed: no merge at a loop or while tail, including an IF/ELSE ending a
+-- branch of that IF. An explicit @merge still draws one, and DESCRIBE writes
+-- @merge for a stored one, so it survives a rebuild.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_LoopTail
+-- Expected: no ExclusiveMerge inside the LoopedActivity or the while loop;
+-- mx check reports nothing for these flows.
+-- ============================================================================
+
+create persistent entity MyFirstModule.TailItem (Code: string(50), Done: boolean);
+
+create or modify microflow MyFirstModule.ACT_LoopTail ($Flag: boolean)
+begin
+  retrieve $Items from MyFirstModule.TailItem;
+  loop $Item in $Items begin
+    log info node 'Tail' 'item';
+    if $Item/Done then
+      log info node 'Tail' 'done';
+    else
+      if $Flag then
+        log info node 'Tail' 'flagged';
+      else
+        log info node 'Tail' 'open';
+      end if;
+    end if;
+  end loop;
+end;
+
+create or modify microflow MyFirstModule.ACT_WhileTail ($Count: integer)
+begin
+  declare $I integer = 0;
+  while $I < $Count begin
+    set $I = $I + 1;
+    if $I > 3 then
+      log info node 'Tail' 'big';
+    else
+      log info node 'Tail' 'small';
+    end if;
+  end while;
+end;

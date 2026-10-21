@@ -1,0 +1,42 @@
+mdl 1;
+-- ============================================================================
+-- Bug: an error handler's row sat 90px under its activity, inside the output
+-- variable label Studio Pro prints under the box (ako/mxcli#1508, case 3;
+-- mendixlabs/mxcli#1598)
+-- ============================================================================
+--
+-- Before: retrieve at (360, 200), handler activity at (360, 290). A handler in
+-- a THEN branch also overlapped the ELSE row (+90 against +100), because the
+-- layout measured the THEN activity without its handler row.
+--
+-- Fixed: handler rows sit 130px under their activity (Studio Pro's median over
+-- 160 measured handler rows), and the measurer counts the row, so an ELSE row
+-- goes below it.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_HandlerRow
+-- Expected: the handler's log activity 130px below the retrieve; in
+-- ACT_HandlerInThen no two activity boxes overlap.
+-- ============================================================================
+
+create persistent entity MyFirstModule.RowItem (Code: string(50));
+
+create or modify microflow MyFirstModule.ACT_HandlerRow ()
+begin
+  retrieve $List from MyFirstModule.RowItem on error begin
+    log error node 'x' 'failed';
+  end error;
+  log info node 'x' 'done';
+end;
+
+create or modify microflow MyFirstModule.ACT_HandlerInThen ($Flag: boolean)
+begin
+  if $Flag then
+    retrieve $List from MyFirstModule.RowItem on error begin
+      log error node 'x' 'failed';
+    end error;
+    log info node 'x' 'then';
+  else
+    log info node 'x' 'else';
+  end if;
+end;

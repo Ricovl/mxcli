@@ -263,7 +263,11 @@ func (m *flowAnalysisMemo) splitMergePoints(oc *microflows.MicroflowObjectCollec
 
 // mergeLabels is the labelling of a flow's merges through the memo.
 func (m *flowAnalysisMemo) mergeLabels(oc *microflows.MicroflowObjectCollection) mergeLabels {
-	compute := func() mergeLabels { return mergeAllLabels(labelRejoinMerges(oc), labelCrossedMerges(oc)) }
+	compute := func() mergeLabels {
+		l := mergeAllLabels(labelRejoinMerges(oc), labelCrossedMerges(oc))
+		l.inline = newInlineMerges(oc)
+		return l
+	}
 	if m == nil {
 		return compute()
 	}

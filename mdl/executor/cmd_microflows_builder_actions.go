@@ -557,11 +557,15 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 	}
 
 	origins := enumSplitOriginAnchors(branchYs, centerY)
+	var caseAnchors []ast.CaseAnchor
+	if s.Annotations != nil {
+		caseAnchors = s.Annotations.CaseAnchors
+	}
 	slot := func(i int) splitCaseSlot {
 		if origins == nil {
-			return splitCaseSlot{order: i, origin: -1}
+			return splitCaseSlot{order: i, origin: -1, anchors: caseAnchors}
 		}
-		return splitCaseSlot{order: i, origin: origins[i]}
+		return splitCaseSlot{order: i, origin: origins[i], anchors: caseAnchors}
 	}
 
 	savedEndsWithReturn := fb.endsWithReturn
@@ -609,6 +613,11 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				// through describe → exec without silently dropping.
 				if thisAnchor != nil && len(fb.flows) > 0 {
 					applyUserAnchors(fb.flows[len(fb.flows)-1], nil, thisAnchor)
+					// The outcome's own `to:` on the CASE is the more specific
+					// of the two, so it wins over the first statement's.
+					if len(br.values) == 1 {
+						slot(i).applyCaseAnchor(fb.flows[len(fb.flows)-1], br.values[0])
+					}
 				}
 			} else {
 				var flow *microflows.SequenceFlow
@@ -665,6 +674,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 		fb.endsWithReturn = true
 	} else {
 		fb.nextConnectionPoint = ensureMerge().ID
+		// `@anchor(from: X)` on a CASE is the flow leaving it — out of its
+		// merge — as on an IF (#767). It was accepted and dropped (#1587).
+		fb.nextFlowAnchor = mergeExitFlowAnchor(s)
 	}
 	return splitID
 }
@@ -918,6 +930,7 @@ func (fb *flowBuilder) addEnumSplitFlows(originID, destinationID model.ID, value
 	for _, value := range values {
 		flow := newHorizontalFlowWithEnumCase(originID, destinationID, value)
 		slot.apply(flow, split, target)
+		slot.applyCaseAnchor(flow, value)
 		fb.flows = append(fb.flows, flow)
 	}
 }
@@ -928,12 +941,43 @@ func (fb *flowBuilder) addEnumSplitFlows(originID, destinationID model.ID, value
 type splitCaseSlot struct {
 	order  int
 	origin int
+	// anchors are the CASE's `@anchor(A: (from: …, to: …))` entries.
+	anchors []ast.CaseAnchor
+}
+
+// applyCaseAnchor sets the sides the CASE's @anchor names for this value's
+// flow, over the defaults apply chose (mendixlabs/mxcli#1587).
+func (slot splitCaseSlot) applyCaseAnchor(flow *microflows.SequenceFlow, value string) {
+	if fa := caseAnchorFor(slot.anchors, value); fa != nil {
+		applyUserAnchors(flow, fa, fa)
+	}
+}
+
+// caseAnchorFor returns the anchors written for value, matched as WHEN values
+// are: case-insensitively, quotes ignored.
+func caseAnchorFor(anchors []ast.CaseAnchor, value string) *ast.FlowAnchors {
+	for _, ca := range anchors {
+		if sameCaseValue(ca.Value, value) {
+			return ca.Anchors
+		}
+	}
+	return nil
+}
+
+func sameCaseValue(a, b string) bool {
+	return strings.EqualFold(strings.Trim(a, "\"`"), strings.Trim(b, "\"`"))
 }
 
 // apply sets the flow's sides. split and target are where the two ends actually are,
 // which is not where the stack was planned once a branch carries @position: a line is
 // only sent out of the top corner towards something above the split, and out of the
 // bottom towards something below, whatever third the case was counted into.
+//
+// Up to three cases keep the pair table's side whatever the geometry, because that
+// side is how DESCRIBE reads the WHEN order back (splitCaseOrder), and the order has
+// to survive a branch moved anywhere with @position. Holding them to the geometry
+// rule reordered a CASE whose branches were placed out of order. A side that
+// differs is written explicitly, `@anchor(A: (from: right))` (mendixlabs/mxcli#1587).
 func (slot splitCaseSlot) apply(flow *microflows.SequenceFlow, split, target model.Point) {
 	if flow == nil {
 		return

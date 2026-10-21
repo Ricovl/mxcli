@@ -86,6 +86,9 @@ func (fb *flowBuilder) mergeStatementAnnotations(stmt ast.MicroflowStatement) {
 	if ann.BodyTailAnchor != nil {
 		fb.pendingAnnotations.BodyTailAnchor = ann.BodyTailAnchor
 	}
+	if len(ann.CaseAnchors) > 0 {
+		fb.pendingAnnotations.CaseAnchors = ann.CaseAnchors
+	}
 }
 
 // applyAnnotations applies pending annotations to the activity identified by activityID.
@@ -361,6 +364,19 @@ func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID
 	fb.linkAnnotation(fb.newAnnotation(note, pos, size).ID, activityID)
 }
 
+// recordStatedNote remembers a note whose position the script states. A
+// spliced fragment keeps such a note where it is instead of moving it with
+// the fragment (MicroflowFragment.Pinned).
+func (fb *flowBuilder) recordStatedNote(note ast.MicroflowAnnotation, id model.ID) {
+	if note.Position == nil {
+		return
+	}
+	if fb.statedNotes == nil {
+		fb.statedNotes = map[model.ID]bool{}
+	}
+	fb.statedNotes[id] = true
+}
+
 // attachFreeAnnotation creates a free-floating Annotation not connected to any
 // activity. A label on one is accepted and reused, so a note can be shared
 // between the canvas and an activity.
@@ -396,6 +412,7 @@ func (fb *flowBuilder) newAnnotation(note ast.MicroflowAnnotation, pos model.Poi
 		Caption: note.Text,
 	}
 	fb.objects = append(fb.objects, annotation)
+	fb.recordStatedNote(note, annotation.ID)
 	if note.Label != "" {
 		if fb.annotationsByLabel == nil {
 			fb.annotationsByLabel = map[string]*microflows.Annotation{}
@@ -403,6 +420,71 @@ func (fb *flowBuilder) newAnnotation(note ast.MicroflowAnnotation, pos model.Poi
 		fb.annotationsByLabel[note.Label] = annotation
 	}
 	return annotation
+}
+
+// orientAnnotationFlows picks, for every note line that has no sides yet, the
+// side of the note that faces its element and the side of the element that
+// faces the note (mendixlabs/mxcli#1598, case 2). It runs once every object has
+// its final position, since a note is placed before rows and containers settle.
+//
+// Studio Pro's own drawings are the rule: of 523 distinct note lines in
+// Studio Pro-authored apps, the element's side is top or bottom whenever the
+// two boxes are vertically clear of each other, and left or right only when
+// they overlap vertically — 98% agreement. Writing 2 -> 0 for every note drew
+// a note below its activity with a line that leaves its own bottom edge.
+func orientAnnotationFlows(objects []microflows.MicroflowObject, flows []*microflows.AnnotationFlow) {
+	boxes := map[model.ID]canvasBox{}
+	collectCanvasBoxes(objects, model.Point{}, boxes)
+	for _, af := range flows {
+		if af.Sides != nil {
+			continue
+		}
+		note, ok1 := boxes[af.OriginID]
+		target, ok2 := boxes[af.DestinationID]
+		if !ok1 || !ok2 {
+			continue
+		}
+		af.Sides = facingSides(note, target)
+	}
+}
+
+// canvasBox is an object's box in absolute canvas coordinates.
+type canvasBox struct{ left, top, right, bottom int }
+
+// collectCanvasBoxes records the absolute box of every object, descending into
+// loop bodies. A loop's children are positioned relative to the loop box's
+// top-left corner, and a note outside a loop may be wired to an activity
+// inside it, so comparing raw positions would mix two planes.
+func collectCanvasBoxes(objects []microflows.MicroflowObject, origin model.Point, out map[model.ID]canvasBox) {
+	for _, o := range objects {
+		if o == nil {
+			continue
+		}
+		p, sz := o.GetPosition(), objectSize(o)
+		x, y := origin.X+p.X, origin.Y+p.Y
+		out[o.GetID()] = canvasBox{x - sz.Width/2, y - sz.Height/2, x + sz.Width/2, y + sz.Height/2}
+		if loop, ok := o.(*microflows.LoopedActivity); ok && loop.ObjectCollection != nil {
+			collectCanvasBoxes(loop.ObjectCollection.Objects,
+				model.Point{X: x - sz.Width/2, Y: y - sz.Height/2}, out)
+		}
+	}
+}
+
+// facingSides returns the sides at which a line from note to target attaches.
+// Vertical separation wins over horizontal; boxes that overlap fall back to the
+// note-above drawing the writer has always used.
+func facingSides(note, target canvasBox) *microflows.ConnectionSides {
+	switch {
+	case note.bottom < target.top:
+		return &microflows.ConnectionSides{Origin: AnchorBottom, Destination: AnchorTop}
+	case note.top > target.bottom:
+		return &microflows.ConnectionSides{Origin: AnchorTop, Destination: AnchorBottom}
+	case note.right < target.left:
+		return &microflows.ConnectionSides{Origin: AnchorRight, Destination: AnchorLeft}
+	case note.left > target.right:
+		return &microflows.ConnectionSides{Origin: AnchorLeft, Destination: AnchorRight}
+	}
+	return &microflows.ConnectionSides{Origin: AnchorBottom, Destination: AnchorTop}
 }
 
 func (fb *flowBuilder) linkAnnotation(annotationID, activityID model.ID) {
