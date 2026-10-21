@@ -521,6 +521,20 @@ Embeds a snippet (reusable page fragment) into the page:
 SNIPPETCALL scNav (Snippet: MyModule.NavigationMenu)
 ```
 
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: MyModule.NavigationMenu)
+}
+```
+
 ## Navigation Widgets
 
 ### NAVIGATIONLIST

@@ -280,6 +280,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
+		// #1511: a snippet call renders no element, so its Class / Style /
+		// DynamicClasses / design properties never reach the page.
+		out = append(out, validateSnippetCallAppearance(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
 		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).
