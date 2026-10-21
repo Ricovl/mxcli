@@ -132,7 +132,10 @@ restClientOpProp
     | identifierOrKeyword COLON NONE                                 // Response: NONE
     | identifierOrKeyword COLON LPAREN restClientParamItem (COMMA restClientParamItem)* RPAREN  // Parameters/Query
     | identifierOrKeyword COLON LPAREN restClientHeaderItem (COMMA restClientHeaderItem)* RPAREN  // Headers
-    | identifierOrKeyword COLON (JSON | FILE_KW | STRING_TYPE | STATUS) (FROM | AS) VARIABLE  // Body: JSON FROM $v, Response: JSON AS $v
+    // Body: JSON FROM $v, Response: JSON AS $v. A response's variable is optional:
+    // an operation stores none (the call activity names it), so describe prints
+    // `Response: json` and that has to run again (mendixlabs/mxcli#1608).
+    | identifierOrKeyword COLON (JSON | FILE_KW | STRING_TYPE | STATUS) ((FROM | AS) VARIABLE)?
     | identifierOrKeyword COLON TEMPLATE STRING_LITERAL              // Body: TEMPLATE '...'
     | identifierOrKeyword COLON MAPPING qualifiedName (LBRACE restClientMappingEntry* RBRACE)?  // Body/Response: MAPPING Entity { ... }
     ;

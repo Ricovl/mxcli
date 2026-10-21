@@ -212,22 +212,18 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintf(w, "    Timeout: %d,\n", op.Timeout)
 	}
 
-	// Response
-	switch strings.ToLower(op.ResponseType) {
+	// Response. An operation stores no response variable (the call activity
+	// names it), so the reader never fills one in and the bare kind is what
+	// describe prints (mendixlabs/mxcli#1608).
+	switch kind := strings.ToLower(op.ResponseType); kind {
 	case "none":
 		fmt.Fprintln(w, "    Response: none")
-	case "json":
+	case "json", "string", "file", "status":
 		if op.ResponseVariable != "" {
-			fmt.Fprintf(w, "    Response: json as %s\n", op.ResponseVariable)
+			fmt.Fprintf(w, "    Response: %s as %s\n", kind, op.ResponseVariable)
 		} else {
-			fmt.Fprintln(w, "    Response: json")
+			fmt.Fprintf(w, "    Response: %s\n", kind)
 		}
-	case "string":
-		fmt.Fprintf(w, "    Response: string as %s\n", op.ResponseVariable)
-	case "file":
-		fmt.Fprintf(w, "    Response: file as %s\n", op.ResponseVariable)
-	case "status":
-		fmt.Fprintf(w, "    Response: status as %s\n", op.ResponseVariable)
 	case "mapping":
 		if op.ResponseEntity != "" && len(op.ResponseMappings) > 0 {
 			fmt.Fprintf(w, "    Response: mapping %s {\n", op.ResponseEntity)

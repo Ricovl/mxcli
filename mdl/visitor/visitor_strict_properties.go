@@ -67,6 +67,10 @@ const (
 	shapeStringAs    propShape = "string as $var"
 	shapeFileAs      propShape = "file as $var"
 	shapeStatusAs    propShape = "status as $var"
+	shapeJSON        propShape = "json"
+	shapeStringKind  propShape = "string"
+	shapeFileKind    propShape = "file"
+	shapeStatusKind  propShape = "status"
 	shapeOther       propShape = "some other value"
 )
 
@@ -177,7 +181,8 @@ var restClientOperationSchema = propSchema{on: "a REST client operation", keys: 
 	{"Headers", []propShape{shapeHeaderList}},
 	{"Body", []propShape{shapeJSONFrom, shapeFileFrom, shapeTemplate, shapeMapping}},
 	{"Timeout", []propShape{shapeNumber}},
-	{"Response", []propShape{shapeNone, shapeJSONAs, shapeStringAs, shapeFileAs, shapeStatusAs, shapeMapping}},
+	{"Response", []propShape{shapeNone, shapeJSON, shapeJSONAs, shapeStringKind, shapeStringAs,
+		shapeFileKind, shapeFileAs, shapeStatusKind, shapeStatusAs, shapeMapping}},
 }}
 
 var publishedRestSchema = propSchema{on: "a published REST service", keys: []propKey{
@@ -361,6 +366,14 @@ func restClientOpPropShape(pc *parser.RestClientOpPropContext) propShape {
 			return propShape(kind + " from $var")
 		}
 		return propShape(kind + " as $var")
+	case pc.JSON() != nil:
+		return shapeJSON
+	case pc.STRING_TYPE() != nil:
+		return shapeStringKind
+	case pc.FILE_KW() != nil:
+		return shapeFileKind
+	case pc.STATUS() != nil:
+		return shapeStatusKind
 	case pc.NONE() != nil:
 		return shapeNone
 	case len(pc.AllRestClientParamItem()) > 0:

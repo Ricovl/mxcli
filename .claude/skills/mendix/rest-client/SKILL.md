@@ -12,14 +12,14 @@ description: "Call external REST APIs from Mendix — the three approaches (inli
 |---|---|
 | 29-44 | Three Approaches |
 | 45-91 | Approach 0: OpenAPI Import (Fastest) |
-| 92-288 | Approach 1: REST Client (Manual) |
-| 289-334 | Approach 2: REST CALL (Inline HTTP) |
-| 335-367 | Data Transformers (JSLT — Mendix 11.9+) |
-| 368-405 | JSON Structures & Mappings |
-| 406-477 | Complete Pipeline Example |
-| 478-508 | Published REST: Authentication Parameters |
-| 509-518 | Mendix Validation Rules |
-| 519-539 | BSON Types Reference |
+| 92-291 | Approach 1: REST Client (Manual) |
+| 292-337 | Approach 2: REST CALL (Inline HTTP) |
+| 338-370 | Data Transformers (JSLT — Mendix 11.9+) |
+| 371-408 | JSON Structures & Mappings |
+| 409-480 | Complete Pipeline Example |
+| 481-511 | Published REST: Authentication Parameters |
+| 512-521 | Mendix Validation Rules |
+| 522-542 | BSON Types Reference |
 
 <!-- /skill-index -->
 # REST Integration Skill
@@ -178,7 +178,10 @@ call rest service post 'https://api.example.com/upload' (
 ### Response Types
 
 ```sql
--- Simple types (variable binding is at the call site, not stored on the operation)
+-- Simple types. The variable is optional and is NOT stored — the call site
+-- binds it — so `describe` prints the bare kind (`response: json`), and that
+-- form runs again as written.
+response: json
 response: json as $Result
 response: string as $text
 response: file as $Document

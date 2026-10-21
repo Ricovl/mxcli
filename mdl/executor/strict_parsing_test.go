@@ -24,7 +24,7 @@ var strictParsingCases = []struct {
 	{"missing semicolon", "show modules\nshow entities;", "MDL-V1-SEMI", "no terminating `;`"},
 	{"slash terminator", "show modules;\n/\nshow entities;", "MDL-V1-SLASH", "`/` is not a statement terminator"},
 	{"unknown property key", "show modules;\ncreate published rest service M.S (Path: 'rest/s', Verison: '1.0') { };", "MDL-V1-PROP", "did you mean 'Version'"},
-	{"mis-shaped property value", "show modules;\ncreate rest client M.Api (BaseUrl: 'https://x', Authentication: none) { operation Post { Method: post, Path: '/u', Response: json from $X } };", "MDL-V1-PROPVALUE", "takes none or json as $var"},
+	{"mis-shaped property value", "show modules;\ncreate rest client M.Api (BaseUrl: 'https://x', Authentication: none) { operation Post { Method: post, Path: '/u', Response: json from $X } };", "MDL-V1-PROPVALUE", "takes none or json or json as $var"},
 	// A change of meaning, not a rejection: see TestStringEscapeUnderEachVersion.
 	// R7 (ako/mxcli#755): a session command belongs at the REPL or on the
 	// command line; under mdl 0 the script still sets the format.

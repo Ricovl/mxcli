@@ -225,6 +225,24 @@ func parseRestClientOpProp(ctx *parser.RestClientOpPropContext, op *ast.RestOper
 		return
 	}
 
+	// Response: JSON (no variable — an operation stores none; mendixlabs/mxcli#1608)
+	if key == "response" {
+		switch {
+		case ctx.JSON() != nil:
+			op.ResponseType = "json"
+			return
+		case ctx.STRING_TYPE() != nil:
+			op.ResponseType = "string"
+			return
+		case ctx.FILE_KW() != nil:
+			op.ResponseType = "file"
+			return
+		case ctx.STATUS() != nil:
+			op.ResponseType = "status"
+			return
+		}
+	}
+
 	// NONE
 	if ctx.NONE() != nil {
 		switch key {
