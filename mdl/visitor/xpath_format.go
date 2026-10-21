@@ -253,8 +253,11 @@ func isXPathBoolChain(expr ast.Expression) bool {
 // constraint: on one line when its layout is the one FormatXPathConstraint
 // derives from the flat form — the writer re-derives it on exec (upstream #979)
 // — and as stored otherwise, so that a layout its author chose is stored again
-// by re-executing the description (mendixlabs/mxcli#1542).
+// by re-executing the description (mendixlabs/mxcli#1542). Whitespace outside
+// the brackets is not layout a bracketed constraint can carry — Studio Pro can
+// store a trailing line break — and is dropped, as flattening always did.
 func DescribeXPathConstraintLayout(constraint string) string {
+	constraint = strings.TrimSpace(constraint)
 	flat := FlattenXPathConstraint(constraint)
 	if !strings.ContainsAny(constraint, "\r\n") || FormatXPathConstraint(flat) == constraint {
 		return flat

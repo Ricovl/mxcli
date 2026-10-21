@@ -101,3 +101,26 @@ func TestAccessRuleXPath_AuthoredLayoutSurvivesDescribeAndExec(t *testing.T) {
 		}
 	}
 }
+
+// A Studio Pro constraint can end in a line break (WorkflowCommons'
+// WorkflowUserTaskView rule does). Described as stored, the trailing newline
+// made it fail IsBracketedXPath and fall back to the deprecated quoted form —
+// which flattening used to hide by trimming. The layout inside the brackets
+// is the author's; the whitespace outside them is nothing a bracketed
+// constraint can say, and is dropped as before.
+func TestAccessRuleXPath_TrailingLineBreakStaysBracketed(t *testing.T) {
+	ctx := &ExecContext{LanguageVersion: langver.V1}
+	stored := "[M.Note_Owner/M.Owner[Active = true()]]\n[IsOpen = true()\n\tor Count > 0]\n"
+	described := entityGrantMDL(ctx, "read *", "M.Note", []string{"M.R"}, stored)
+	if !strings.Contains(described, " where [") {
+		t.Fatalf("described in the quoted form, want brackets:\n%s", described)
+	}
+	prog, errs := visitor.Build("mdl 1;\n" + described)
+	if len(errs) > 0 {
+		t.Fatalf("description does not parse: %v\n%s", errs, described)
+	}
+	written := prog.Statements[0].(*ast.GrantEntityAccessStmt).XPathConstraint
+	if got, want := accessRuleXPathConstraint(nil, written, "M.Note"), strings.TrimSpace(stored); got != want {
+		t.Errorf("re-executed it stores %q, want %q", got, want)
+	}
+}
