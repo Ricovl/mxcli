@@ -78,6 +78,7 @@ var categoryMapping = map[string]string{
 	"CONV015": "Quality",
 	"CONV018": "Quality",
 	"CONV019": "Quality",
+	"CONV020": "Quality",
 
 	// Architecture
 	"ARCH001": "Architecture",
