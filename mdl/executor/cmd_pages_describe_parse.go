@@ -614,7 +614,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// For generic pluggable widgets (not handled by dedicated extractors above),
 		// extract all non-default properties as explicit key-value pairs.
 		if !isKnownCustomWidgetType(widget.RenderMode) {
-			widget.ExplicitProperties = extractExplicitProperties(ctx, w)
+			widget.ExplicitProperties = extractExplicitProperties(ctx, w, inheritedCtx)
 			widget.ObjectLists = extractObjectLists(ctx, w)
 			widget.ChildSlots = extractChildSlots(ctx, w, widget.EntityContext)
 			widget.OmittedContainers = unreconstructedContainers(w, widget.ObjectLists, widget.ChildSlots)
