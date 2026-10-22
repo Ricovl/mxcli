@@ -295,6 +295,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var ops []*ast.AlterFlowOperation
 	var targets []mfmutator.Candidate
 	var moves []flowMove
+	var freeNotes *[]ast.MicroflowAnnotation
 	// A body that states what describe prints for the stored one — the
 	// statement re-run unchanged, or a describe executed back — has nothing to
 	// patch, and needs no build to say so (ako/mxcli#870): every statement
@@ -314,7 +315,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 			}
 		}
 		body := describedMemberSpellings(ctx, d.params, d.body, varTypes)
-		if ops, targets, moves, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
+		if ops, targets, moves, freeNotes, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
 			return nil, asNotSpliceable(err)
 		}
 	}
@@ -327,7 +328,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	a.declaredVarTypes = varTypes
 
 	p := &flowPlan{a: a, ops: ops, moves: moves, storedFolder: storedFolderOf(stored)}
-	if len(ops) > 0 || len(moves) > 0 || headerChanged {
+	if len(ops) > 0 || len(moves) > 0 || headerChanged || freeNotes != nil {
 		if p.mut, err = patch(ctx, a, ops, targets, moves); err != nil {
 			return nil, cannotSplice("%v", err)
 		}
@@ -335,6 +336,12 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 			if p.set, err = p.mut.SetHeader(declared); err != nil {
 				return nil, cannotSplice("%v", err)
 			}
+		}
+		if freeNotes != nil {
+			if err := a.setFreeNotes(ctx, p.mut, *freeNotes); err != nil {
+				return nil, cannotSplice("%v", err)
+			}
+			p.set = append(p.set, "free notes")
 		}
 	}
 	return p, nil
@@ -742,7 +749,7 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 // Targets are the stored activities, located by the @position describe printed
 // for each statement. A run whose stored end cannot be located, or that the
 // splice cannot express, is a notSpliceable error.
-func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, []flowMove, error) {
+func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, []flowMove, *[]ast.MicroflowAnnotation, error) {
 	// Free annotations — notes wired to nothing — belong to the flow, not to
 	// the statement describe happens to print them above (the first one), so
 	// they are compared as a whole and kept out of the statement match: an
@@ -750,11 +757,22 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	// write them a second time.
 	declared, declaredFree := withoutFreeNotes(declared)
 	stored, storedFree := withoutFreeNotes(stored)
+	// Changed, they are replaced as a whole: a free note is no part of any
+	// activity, so nothing else moves (mendixlabs/mxcli#1517). A note restated
+	// above its own activity's @position reads as a free one; the stored flow
+	// says it is attached, so that is refused with the spelling that works.
+	var freeNotes *[]ast.MicroflowAnnotation
 	if !declaredMatches(declaredFree, storedFree) {
 		if hint := misplacedNote(declaredFree, storedFree, stored); hint != "" {
-			return nil, nil, nil, cannotSplice("%s", hint)
+			return nil, nil, nil, nil, cannotSplice("%s", hint)
 		}
-		return nil, nil, nil, cannotSplice("the free annotations change (%s); the splice edits activities only", freeNoteChange(declaredFree, storedFree))
+		for _, n := range declaredFree {
+			if n.Label != "" {
+				return nil, nil, nil, nil, cannotSplice("the free annotations change (%s), and one of them has an id (%s); "+
+					"the splice sets free notes that are attached to nothing", freeNoteChange(declaredFree, storedFree), n.Label)
+			}
+		}
+		freeNotes = &declaredFree
 	}
 
 	// @start is where the start event is drawn, which describe prints on the
@@ -772,11 +790,11 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 
 	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	pd.startEvent(a, declared, declaredStart)
 	if err := pd.followingEnd(declared, stored); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	// Drops go last. Each operation's scope check runs against the flow as the
 	// earlier operations left it, so a stored activity whose output only a
@@ -793,7 +811,7 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 			}
 		}
 	}
-	return ops, targets, pd.moves, nil
+	return ops, targets, pd.moves, freeNotes, nil
 }
 
 // withImplicitEnd states the end a declared body falls through to as the

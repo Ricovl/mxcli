@@ -31,3 +31,22 @@ func (a *alterFlowContext) setNodeNotes(ctx *ExecContext, mut backend.MicroflowM
 	}
 	return mut.AddNotes(target.ID, frag)
 }
+
+// setFreeNotes replaces the stored flow's free notes by notes
+// (mendixlabs/mxcli#1517), built as a full build draws them: a stand-in
+// activity carries them as free notes, and the mutator keeps the notes alone.
+func (a *alterFlowContext) setFreeNotes(ctx *ExecContext, mut backend.MicroflowMutator, notes []ast.MicroflowAnnotation) error {
+	if len(notes) == 0 {
+		return mut.SetFreeNotes(nil)
+	}
+	standIn := &ast.LogStmt{
+		Level:       ast.LogInfo,
+		Message:     &ast.LiteralExpr{Value: "", Kind: ast.LiteralString},
+		Annotations: &ast.ActivityAnnotations{FreeNotes: notes},
+	}
+	frag, err := a.buildFragment(ctx, []ast.MicroflowStatement{standIn})
+	if err != nil {
+		return err
+	}
+	return mut.SetFreeNotes(frag)
+}

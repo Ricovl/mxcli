@@ -45,15 +45,16 @@ func TestCreateOrModify_NoteBeforePositionNamesTheOrder(t *testing.T) {
 		t.Fatalf("want the refusal to name the note's order, got %v", err)
 	}
 
-	// Control: a note that is new to the flow gets the plain refusal, with no
-	// claim about an attached note it would be.
+	// Control: a note that is new to the flow is a free note, and is written
+	// as one (free notes change in place) — not refused as a misplaced
+	// attached note.
 	added := strings.Replace(noteOrderFlow, "  @position(300, 200)\n",
 		"  @annotation(text: 'brand new', position: (100, 50), size: (150, 60))\n  @position(300, 200)\n", 1)
-	err = agreeExec(t, exec, added)
-	if err == nil || !strings.Contains(err.Error(), `note "brand new" is not in the stored flow`) {
-		t.Fatalf("want the free-note refusal, got %v", err)
+	if err := agreeExec(t, exec, added); err != nil {
+		t.Fatalf("a new free note is refused: %v", err)
 	}
-	if strings.Contains(err.Error(), want) {
-		t.Errorf("a genuinely new free note is reported as a misplaced attached one: %v", err)
+	if desc := describeFlow(t, exec, "NoteOrder"); !strings.Contains(desc, "@annotation(text: 'brand new'") ||
+		!strings.Contains(desc, "@annotation(text: 'hello note'") {
+		t.Errorf("want the free note added and the attached one kept:\n%s", desc)
 	}
 }

@@ -88,6 +88,11 @@ func (m *mcpFlowMutator) AddNotes(model.ID, *backend.MicroflowFragment) error {
 	return fmt.Errorf("changing notes is not supported by the MCP backend yet; run without --mcp to alter %s in the .mpr", m.qn)
 }
 
+// SetFreeNotes is refused like RemoveNotes: it removes the stored free notes.
+func (m *mcpFlowMutator) SetFreeNotes(*backend.MicroflowFragment) error {
+	return fmt.Errorf("changing notes is not supported by the MCP backend yet; run without --mcp to alter %s in the .mpr", m.qn)
+}
+
 // SetReturnValue is refused like a replace: the patch Save sends carries
 // positions, pointers and added or removed elements only, so a changed value
 // would not reach Studio Pro and the edit would be lost without a word.

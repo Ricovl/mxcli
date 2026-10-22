@@ -103,3 +103,39 @@ func TestSplice_AddNotesRefusesAnActivity(t *testing.T) {
 		t.Error("a refused AddNotes changed the document")
 	}
 }
+
+// A free note is attached to nothing, so SetFreeNotes swaps the free notes and
+// leaves every other element — an attached note and its line included — as
+// stored.
+func TestSplice_SetFreeNotesReplacesOnlyTheFreeNotes(t *testing.T) {
+	objs := append(line(), obj("free", "Microflows$Annotation", 100, 50), obj("att", "Microflows$Annotation", 250, 100))
+	flows := append(lineFlows(), annotationFlow("al", "att", "a"))
+	m, deps := newMutator(t, unit(objs, flows))
+	frag, n1, _ := notesFor()
+	// Only the notes no line attaches are free: n1 and n2 both have lines in
+	// notesFor, so give the fragment one more, unattached.
+	free := model.ID(types.GenerateID())
+	frag.Objects = append(frag.Objects, &microflows.Annotation{BaseMicroflowObject: microflows.BaseMicroflowObject{
+		BaseElement: model.BaseElement{ID: free}, Position: model.Point{X: 700, Y: 40},
+		Size: model.Size{Width: 200, Height: 50}}, Caption: "new free"})
+	if err := m.SetFreeNotes(frag); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Save(); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if bytes.Contains(deps.saved, types.UUIDToBlob(uid("free"))) {
+		t.Error("the stored free note is still there")
+	}
+	for _, kept := range []string{"att", "al", "a", "b"} {
+		if !bytes.Contains(deps.saved, types.UUIDToBlob(uid(kept))) {
+			t.Errorf("%s was removed", kept)
+		}
+	}
+	if !bytes.Contains(deps.saved, types.UUIDToBlob(string(free))) {
+		t.Error("the new free note was not written")
+	}
+	if bytes.Contains(deps.saved, types.UUIDToBlob(string(n1))) || bytes.Contains(deps.saved, types.UUIDToBlob(string(frag.Entry))) {
+		t.Error("an attached note of the fragment, or its stand-in, was written")
+	}
+}

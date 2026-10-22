@@ -777,6 +777,40 @@ func (m *Mutator) AddNotes(target model.ID, frag *backend.MicroflowFragment) err
 	return m.addFragment(notes.frag)
 }
 
+// SetFreeNotes replaces the flow's free notes — top-level annotations no line
+// attaches to anything — by the free notes frag holds, written where the
+// builder drew them. Every other element stays.
+func (m *Mutator) SetFreeNotes(frag *backend.MicroflowFragment) error {
+	g := m.graph()
+	wired := map[string]bool{}
+	for _, f := range g.flows {
+		if !f.isSequence() {
+			wired[f.origin], wired[f.dest] = true, true
+		}
+	}
+	for _, n := range g.order {
+		if n.typ == "Microflows$Annotation" && n.loop == "" && !wired[n.id] {
+			if err := m.removeObject(n); err != nil {
+				return err
+			}
+		}
+	}
+	if frag == nil {
+		return nil
+	}
+	attached := map[model.ID]bool{}
+	for _, af := range frag.AnnotationFlows {
+		attached[af.OriginID], attached[af.DestinationID] = true, true
+	}
+	notes := &backend.MicroflowFragment{}
+	for _, obj := range frag.Objects {
+		if _, ok := obj.(*microflows.Annotation); ok && !attached[obj.GetID()] {
+			notes.Objects = append(notes.Objects, obj)
+		}
+	}
+	return m.addFragment(notes)
+}
+
 // Drop removes target and joins the flows that entered it to the object it
 // led to. Annotation lines attached to it go with it; the annotations stay.
 func (m *Mutator) Drop(target model.ID) error {

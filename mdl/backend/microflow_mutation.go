@@ -63,6 +63,11 @@ type MicroflowMutator interface {
 	// relative to the stand-in, but relative to target, and its line runs to
 	// target.
 	AddNotes(target model.ID, frag *MicroflowFragment) error
+	// SetFreeNotes replaces the flow's free notes — notes on the canvas,
+	// attached to nothing — by the ones frag holds (its Annotation objects
+	// that no line in it attaches; its other objects are ignored). Nothing
+	// else changes (mendixlabs/mxcli#1517).
+	SetFreeNotes(frag *MicroflowFragment) error
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error
