@@ -42,3 +42,23 @@ func WidgetSlotKeyword(widgetID, propertyKey string) string {
 	}
 	return strings.ToUpper(propertyKey)
 }
+
+// BodyItemSlotKey picks an object-list item's BODY among its widget slots
+// (property keys, in schema order): `content` when the item has one, else the
+// first. CREATE routes an item's loose children there; DESCRIBE prints that
+// slot as the item's children and every other slot as a `<keyword> { … }`
+// block; ALTER PAGE writes there for a bare item address (`acc1 item@1`). One
+// function, so the three cannot disagree about which slot loose widgets belong
+// to — two of them did, and an Accordion group's headerContent round-tripped
+// into its content (mendixlabs/mxcli#1453).
+func BodyItemSlotKey(keys []string) string {
+	for _, k := range keys {
+		if k == "content" {
+			return k
+		}
+	}
+	if len(keys) == 0 {
+		return ""
+	}
+	return keys[0]
+}

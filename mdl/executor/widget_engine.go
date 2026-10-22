@@ -2393,24 +2393,8 @@ func defaultItemSlotKey(mapping *ObjectListMapping) string {
 	return bodyItemSlotKey(keys)
 }
 
-// bodyItemSlotKey picks an object-list item's BODY among its widget slots
-// (property keys, in schema order): `content` when the item has one, else the
-// first. CREATE routes an item's loose children there; DESCRIBE prints that
-// slot as the item's children and every other slot as a `<keyword> { … }`
-// block. One function, so the two cannot disagree about which slot loose
-// widgets belong to — they did, and an Accordion group's headerContent
-// round-tripped into its content (mendixlabs/mxcli#1453).
-func bodyItemSlotKey(keys []string) string {
-	for _, k := range keys {
-		if k == "content" {
-			return k
-		}
-	}
-	if len(keys) == 0 {
-		return ""
-	}
-	return keys[0]
-}
+// bodyItemSlotKey is types.BodyItemSlotKey, which the page mutator reads too.
+func bodyItemSlotKey(keys []string) string { return types.BodyItemSlotKey(keys) }
 
 // lookupProperty does a case-insensitive lookup against an AST property map.
 // MDL property names ignore case (e.g. `HeaderText` and `headerText` both match).
