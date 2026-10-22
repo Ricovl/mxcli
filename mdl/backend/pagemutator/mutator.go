@@ -38,6 +38,10 @@ type Deps interface {
 	SerializeClientAction(a pages.ClientAction) bson.D
 	// SerializeCustomWidgetDataSource converts a pluggable-widget data source to raw bson.D.
 	SerializeCustomWidgetDataSource(ds pages.DataSource) bson.D
+	// SerializeClientTemplate builds an empty Forms$ClientTemplate, for a
+	// text-template property that is stored null and has to hold text — the
+	// codec's shape, not one assembled here.
+	SerializeClientTemplate() bson.D
 	// BuildDataGrid2Column builds a DataGrid2 column object (raw bson.D) from a
 	// column spec, given the column object's type ID and per-property type IDs.
 	// Returns an error if the engine does not support DataGrid2 column ALTER (so
@@ -121,6 +125,9 @@ func (m *Mutator) SetWidgetProperty(widgetRef string, prop string, value any) er
 	if len(result.colPropKeys) > 0 {
 		if n := m.columnMatchCount(widgetRef); n > 1 {
 			return columnAmbiguityError(widgetRef, n)
+		}
+		if result.item != nil {
+			m.ensureItemTemplate(result, prop)
 		}
 		return setColumnPropertyMut(result.widget, result.colPropKeys, result.colPropKinds, prop, value)
 	}

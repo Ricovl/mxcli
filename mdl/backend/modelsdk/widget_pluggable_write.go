@@ -240,6 +240,12 @@ func (codecChildSerializer) SerializeCustomWidgetDataSource(ds pages.DataSource)
 	return genToV1BSON(el)
 }
 
+// SerializeClientTemplate builds an empty Forms$ClientTemplate through the
+// codec, for a pluggable text-template property ALTER has to fill.
+func (codecChildSerializer) SerializeClientTemplate() bson.D {
+	return genToV1BSON(clientTemplateToGen(nil))
+}
+
 // genToV1BSON encodes a gen element with the codec (bson v2 bytes) and decodes it
 // back into a v1 bson.D for the shared (v1) builder.
 func genToV1BSON(el element.Element) bson.D {

@@ -285,3 +285,73 @@ func objectListItemHint(owner *bsonWidgetResult, name string) string {
 	return fmt.Sprintf("its widgets live in its %s: `insert into %s item@1 { … }` fills the first one, "+
 		"`%s item('<text>')` addresses one by its text", lists[0].key, name, name)
 }
+
+// ObjectListItemValues reports a stored item's values for visibility rules.
+// ok is false when itemRef does not resolve to an object-list item.
+func (m *Mutator) ObjectListItemValues(itemRef string) (backend.ObjectListItemValues, bool) {
+	result := m.widgetFinder(m.rawData, itemRef)
+	if result == nil || result.item == nil {
+		return backend.ObjectListItemValues{}, false
+	}
+	ownerKeys := buildPropKeyMap(result.item.owner)
+	return backend.ObjectListItemValues{
+		WidgetID: pluggableWidgetID(result.item.owner),
+		ListKey:  result.item.listKey,
+		BodySlot: types.BodyItemSlotKey(result.item.slotKeys),
+		Item:     storedScalarValues(result.widget, result.colPropKeys),
+		Widget:   storedScalarValues(bsonnav.DGetDoc(result.item.owner, "Object"), ownerKeys),
+	}, true
+}
+
+// storedScalarValues maps each property of a WidgetObject (keys: TypePointer
+// id -> property key) to its stored PrimitiveValue, or its Expression when it
+// has no primitive one.
+func storedScalarValues(obj bson.D, keys map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, p := range bsonnav.DGetArrayElements(bsonnav.DGet(obj, "Properties")) {
+		pd, ok := p.(bson.D)
+		if !ok {
+			continue
+		}
+		key := keys[bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(pd, "TypePointer"))]
+		val := bsonnav.DGetDoc(pd, "Value")
+		if key == "" || val == nil {
+			continue
+		}
+		v := bsonnav.DGetString(val, "PrimitiveValue")
+		if v == "" {
+			v = bsonnav.DGetString(val, "Expression")
+		}
+		if v != "" {
+			out[strings.ToLower(key)] = v
+		}
+	}
+	return out
+}
+
+// newTemplate returns an empty client template from the engine, or nil when
+// the engine has none to give.
+func (m *Mutator) newTemplate() bson.D {
+	if m.deps == nil {
+		return nil
+	}
+	return m.deps.SerializeClientTemplate()
+}
+
+// ensureItemTemplate gives an item's text-template property a template when
+// it is stored null, so `set (headerText: 'Two') on acc1 item@2` can write a
+// group CREATE made in custom mode. Whether the text may be set at all — it
+// may be hidden — is the reset pass's to say afterwards, with the refusal it
+// gives a hidden property the statement named.
+func (m *Mutator) ensureItemTemplate(result *bsonWidgetResult, prop string) {
+	key := resolveColumnPropertyKey(prop, result.colPropKeys)
+	if key == "" || keyKind(result.colPropKeys, result.colPropKinds, key) != "TextTemplate" ||
+		templateFilled(result.widget, result.colPropKeys, key) {
+		return
+	}
+	if tmpl := m.newTemplate(); tmpl != nil {
+		if val := itemPropValue(result.widget, result.colPropKeys, key); val != nil {
+			bsonnav.DSet(val, "TextTemplate", tmpl)
+		}
+	}
+}

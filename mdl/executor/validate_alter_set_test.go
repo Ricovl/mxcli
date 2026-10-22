@@ -72,6 +72,8 @@ type countingDeps struct{ saves int }
 
 func (d *countingDeps) SerializeWidget(pages.Widget) bson.D             { return nil }
 func (d *countingDeps) SerializeClientAction(pages.ClientAction) bson.D { return nil }
+func (d *countingDeps) SerializeClientTemplate() bson.D { return nil }
+
 func (d *countingDeps) SerializeCustomWidgetDataSource(pages.DataSource) bson.D {
 	return nil
 }

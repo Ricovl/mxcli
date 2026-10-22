@@ -10,6 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -99,7 +100,8 @@ func accordionWithGroups(groups ...bson.D) bson.D {
 					{Key: "IsList", Value: true},
 					{Key: "ObjectType", Value: bson.D{{Key: "PropertyTypes", Value: bson.A{int32(2),
 						pt(tpRenderMode, "headerRenderMode", "Enumeration"),
-						pt(tpHeaderText, "headerText", "TextTemplate"),
+						append(pt(tpHeaderText, "headerText", "TextTemplate")[:2], bson.E{Key: "ValueType", Value: bson.D{
+							{Key: "Type", Value: "TextTemplate"}, {Key: "DefaultValue", Value: "Header"}}}),
 						pt(tpHeaderSlot, "headerContent", "Widgets"),
 						pt(tpContent, "content", "Widgets"),
 					}}}},
@@ -288,5 +290,168 @@ func TestInsertBesideItemIsRefused(t *testing.T) {
 	}
 	if n := len(groupsOf(t, m)); n != 2 {
 		t.Errorf("a refused insert changed the group count to %d", n)
+	}
+}
+
+// The values the hidden-slot refusal evaluates come from the stored item.
+func TestObjectListItemValues(t *testing.T) {
+	m := twoGroupMutator()
+	v, ok := m.ObjectListItemValues("acc1 item@1")
+	if !ok {
+		t.Fatal("ObjectListItemValues(acc1 item@1) found nothing")
+	}
+	if v.WidgetID != "com.mendix.widget.web.accordion.Accordion" || v.ListKey != "groups" || v.BodySlot != "content" {
+		t.Errorf("got %+v", v)
+	}
+	if v.Item["headerrendermode"] != "custom" {
+		t.Errorf("item values = %v, want headerrendermode=custom", v.Item)
+	}
+	if _, ok := m.ObjectListItemValues("acc1"); ok {
+		t.Error("a widget that is not an item must report ok=false")
+	}
+}
+
+// accordionHeaderRules is the Accordion's own rule pair: headerContent hidden
+// while headerRenderMode is "text", headerText hidden while it is not.
+func accordionHeaderRules() []types.WidgetVisibilityRule {
+	cond := func(op string) *types.WidgetVisibilityCondition {
+		return &types.WidgetVisibilityCondition{PropertyKey: "headerRenderMode", Operator: op, Value: "text", Scope: types.ConditionScopeItem}
+	}
+	return []types.WidgetVisibilityRule{
+		{PropertyKey: "headerContent", ListPropertyKey: "groups", HiddenWhen: cond("eq")},
+		{PropertyKey: "headerText", ListPropertyKey: "groups", HiddenWhen: cond("ne")},
+	}
+}
+
+// headerTextTemplate returns group g's stored headerText template, or nil.
+func headerTextTemplate(t *testing.T, m *Mutator, g int) any {
+	t.Helper()
+	group := groupsOf(t, m)[g].(bson.D)
+	for _, p := range bsonnav.DGetArrayElements(bsonnav.DGet(group, "Properties")) {
+		pd := p.(bson.D)
+		if bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(pd, "TypePointer")) == bsonnav.ExtractBinaryIDFromDoc(tpHeaderText) {
+			return bsonnav.DGet(bsonnav.DGetDoc(pd, "Value"), "TextTemplate")
+		}
+	}
+	t.Fatal("no headerText property")
+	return nil
+}
+
+// `set (headerRenderMode: 'custom') on acc1 item@1` hides headerText. A hidden
+// template must be null — what CREATE stores for a custom-mode group (#1198);
+// leaving it filled was CE0463 at the Accordion on 11.13.0 (project as stored).
+func TestSetItemPropertyNullsTheTemplateItHides(t *testing.T) {
+	m := New(makeRawPage(accordionWithGroups(accordionGroup("One", nil, nil))), model.ID("u"), &stubWidgetDeps{})
+	// Start in text mode, as a group created with headerText is.
+	if err := m.SetWidgetProperty("acc1 item@1", "headerRenderMode", "text"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetWidgetProperty("acc1 item@1", "headerRenderMode", "custom"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.ResetHiddenItemProperties("acc1 item@1", accordionHeaderRules(), []string{"headerRenderMode"}); err != nil {
+		t.Fatalf("ResetHiddenItemProperties: %v", err)
+	}
+	if tmpl := headerTextTemplate(t, m, 0); tmpl != nil {
+		t.Errorf("headerText is hidden in custom mode and must be null, got %v", tmpl)
+	}
+}
+
+// Naming the hidden property in the same SET is refused, as on create.
+func TestSetItemPropertyRefusesAHiddenTemplateItNames(t *testing.T) {
+	m := New(makeRawPage(accordionWithGroups(accordionGroup("One", nil, nil))), model.ID("u"), &stubWidgetDeps{})
+	_, err := m.ResetHiddenItemProperties("acc1 item@1", accordionHeaderRules(), []string{"headerRenderMode", "headerText"})
+	if err == nil || !strings.Contains(err.Error(), "headerText") {
+		t.Fatalf("want a refusal naming headerText, got %v", err)
+	}
+}
+
+// templateDeps builds an empty Forms$ClientTemplate, as the codec does.
+type templateDeps struct{ stubWidgetDeps }
+
+func (templateDeps) SerializeClientTemplate() bson.D {
+	return bson.D{
+		{Key: "$Type", Value: "Forms$ClientTemplate"},
+		{Key: "Fallback", Value: bson.D{{Key: "$Type", Value: "Texts$Text"}, {Key: "Items", Value: bson.A{int32(3)}}}},
+		{Key: "Parameters", Value: bson.A{int32(2)}},
+		{Key: "Template", Value: bson.D{{Key: "$Type", Value: "Texts$Text"}, {Key: "Items", Value: bson.A{int32(3)}}}},
+	}
+}
+
+// customGroup is a group as CREATE stores one in custom mode: headerText null.
+func customGroup() bson.D {
+	g := accordionGroup("unused", nil, nil)
+	for _, p := range bsonnav.DGetArrayElements(bsonnav.DGet(g, "Properties")) {
+		pd := p.(bson.D)
+		if bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(pd, "TypePointer")) == bsonnav.ExtractBinaryIDFromDoc(tpHeaderText) {
+			bsonnav.DSet(bsonnav.DGetDoc(pd, "Value"), "TextTemplate", nil)
+		}
+	}
+	return g
+}
+
+// Switching a custom-mode group back to 'text' makes headerText visible with
+// a null template — CE0463 the other way round. With a declared default the
+// reset fills it with that, as CREATE writes a visible headerText.
+func TestSetItemPropertyFillsTheTemplateItReveals(t *testing.T) {
+	m := New(makeRawPage(accordionWithGroups(customGroup())), model.ID("u"), &templateDeps{})
+	if err := m.SetWidgetProperty("acc1 item@1", "headerRenderMode", "text"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.ResetHiddenItemProperties("acc1 item@1", accordionHeaderRules(), []string{"headerRenderMode"}); err != nil {
+		t.Fatalf("ResetHiddenItemProperties: %v", err)
+	}
+	if headerTextTemplate(t, m, 0) == nil {
+		t.Fatal("a visible headerText must not stay null")
+	}
+	if err := m.InsertWidget("acc1 item('Header')", "", into, itemButton("b")); err != nil {
+		t.Errorf("the revealed headerText should hold the schema default 'Header': %v", err)
+	}
+}
+
+// Setting the text of an item whose template is null creates the template.
+func TestSetItemTextCreatesANullTemplate(t *testing.T) {
+	m := New(makeRawPage(accordionWithGroups(customGroup())), model.ID("u"), &templateDeps{})
+	if err := m.SetWidgetProperty("acc1 item@1", "headerRenderMode", "text"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetWidgetProperty("acc1 item@1", "headerText", "Two"); err != nil {
+		t.Fatalf("set headerText on a null template: %v", err)
+	}
+	if err := m.InsertWidget("acc1 item('Two')", "", into, itemButton("b")); err != nil {
+		t.Errorf("headerText 'Two' was not written: %v", err)
+	}
+}
+
+// The real Accordion declares DefaultValue "" for headerText, so there is no
+// text to fill in, and an empty required text is CE4899. The SET that reveals
+// it must say so rather than write an empty template.
+func TestSetItemPropertyRefusesARevealedTemplateWithNoText(t *testing.T) {
+	acc := accordionWithGroups(customGroup())
+	// Blank out the fixture's declared default.
+	var clear func(v any)
+	clear = func(v any) {
+		switch d := v.(type) {
+		case bson.D:
+			for i := range d {
+				if d[i].Key == "DefaultValue" {
+					d[i].Value = ""
+				}
+				clear(d[i].Value)
+			}
+		case bson.A:
+			for _, e := range d {
+				clear(e)
+			}
+		}
+	}
+	clear(acc)
+	m := New(makeRawPage(acc), model.ID("u"), &templateDeps{})
+	if err := m.SetWidgetProperty("acc1 item@1", "headerRenderMode", "text"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := m.ResetHiddenItemProperties("acc1 item@1", accordionHeaderRules(), []string{"headerRenderMode"})
+	if err == nil || !strings.Contains(err.Error(), "headerText") {
+		t.Fatalf("want a refusal asking for headerText, got %v", err)
 	}
 }
