@@ -20,6 +20,11 @@ import (
 //
 // It lives only for one derivation, which writes nothing, so nothing it caches
 // can go stale. Everything it does not override is the real backend.
+//
+// One `create microflow` build is the same kind of span (flowBuildBackend):
+// the builder only reads, and asked for a module and its domain model once per
+// member assignment of every `create` action, each a project listing
+// (mendixlabs/mxcli#1616).
 type layoutCheckBackend struct {
 	backend.FullBackend
 
@@ -39,6 +44,20 @@ type layoutCheckBackend struct {
 type memoResult[T any] struct {
 	value T
 	err   error
+}
+
+// flowBuildBackend is the backend one flow build reads through: memoised for
+// that build, which writes nothing (the flow is stored after the builder is
+// done). A nil backend stays nil — the builder checks for it — and one that is
+// already memoised is not wrapped again.
+func flowBuildBackend(b backend.FullBackend) backend.FullBackend {
+	if b == nil {
+		return nil
+	}
+	if _, ok := b.(*layoutCheckBackend); ok {
+		return b
+	}
+	return newLayoutCheckBackend(b)
 }
 
 func newLayoutCheckBackend(b backend.FullBackend) *layoutCheckBackend {
