@@ -88,7 +88,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	work, err := os.MkdirTemp("", "mxupdate")
+	work, err := marketplace.NewWorkDir("mxu")
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 				"  downloadable. It is not, and --force does not help: there is nothing to compare against.\n"+
 				"  hint: re-run with --no-baseline to update without that check (local edits are lost silently)", berr)
 		}
-		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "base")
+		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "b")
 		if rerr != nil {
 			return rerr
 		}
@@ -167,7 +167,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "target")
+	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "t")
 	if err != nil {
 		return err
 	}

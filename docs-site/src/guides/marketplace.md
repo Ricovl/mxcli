@@ -356,6 +356,24 @@ Note that `--force` still builds the baseline. It is not wasted work — under
 replace, and that list is the whole point of the check. Use `--no-baseline` when
 you genuinely want to skip it.
 
+### Where references are built: the 260-character limit
+
+`mx` refuses to write any file whose path is 260 characters or longer — on every
+platform, not only Windows: the check is in `mx` itself. A reference project holds
+the blank template plus the imported package, and their deepest files are bundled
+`node_modules` trees: 181 characters for the 11.12.1 blank app, about 202 for
+NanoflowCommons 7.x. That leaves under 60 characters for the directory they are
+built in, and the default Windows `%TEMP%` (`C:\Users\<user>\AppData\Local\Temp`)
+used most of it, so `diff` and `update` failed with *"The specified file name or
+path is too long"*.
+
+References are therefore built under the shortest directory the user owns:
+`%USERPROFILE%\.mxcli\t` on Windows, `/tmp` on Linux and macOS, or `TMP` /
+`TMPDIR` when that is shorter still. It is never a folder at a drive root such as
+`C:\mxt`, which every local account may modify; point `TMP` there yourself if you
+accept that. If a package is deep enough to hit the limit anyway, the error names
+the directory, its length, and what is left for the package.
+
 ## Repairing the model (`mxcli fix`)
 
 `mx update-widgets` and `mx rename-design-properties` each fix something only Mendix can fix, and each rewrites an MPR v2 project into the single-file v1 format while doing it. Measured on 11.12.1: `update-widgets` took 369 `.mxunit` files to 0 and a 69,632-byte index to 14,405,632 bytes; `rename-design-properties` took 1,865 files to 0 and a 249,856-byte index to 39,895,040 bytes, having renamed 149 design properties across 41 documents. The conversion is one-way.
