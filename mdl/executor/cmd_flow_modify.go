@@ -1054,21 +1054,58 @@ func sameIfShell(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfS
 }
 
 // ifConditionChanged reports whether two statements are the same `if` but for
-// its condition — the same annotations, the same else — differing besides at
-// most inside its branches and in where the split is drawn (ako/mxcli#888).
+// its condition or its caption — the same notes, the same else — differing
+// besides at most inside its branches and in where the split is drawn
+// (ako/mxcli#888). Both are properties of the decision, set on it in place; a
+// caption change was refused as a change of where the paths end or meet
+// (mendixlabs/mxcli#1610).
 func ifConditionChanged(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *ast.IfStmt, bool) {
 	d, ok1 := declared.(*ast.IfStmt)
 	s, ok2 := stored.(*ast.IfStmt)
-	if !ok1 || !ok2 || declaredMatches(d.Condition, s.Condition) {
+	if !ok1 || !ok2 {
+		return nil, nil, false
+	}
+	if declaredMatches(d.Condition, s.Condition) && !decisionCaptionChanged(d, s) {
 		return nil, nil, false
 	}
 	dShell, sShell := *d, *s
 	dShell.ThenBody, dShell.ElseBody, sShell.ThenBody, sShell.ElseBody = nil, nil, nil, nil
 	dShell.Condition = s.Condition
+	dShell.Annotations, sShell.Annotations = withoutCaption(d.Annotations), withoutCaption(s.Annotations)
 	if !sameExceptPositions(&dShell, &sShell) {
 		return nil, nil, false
 	}
 	return d, s, true
+}
+
+// decisionCaptionChanged reports whether the declared `if` states another
+// caption than the stored one: one added, reworded or taken off.
+func decisionCaptionChanged(declared, stored *ast.IfStmt) bool {
+	dc, ds := decisionCaption(declared)
+	sc, ss := decisionCaption(stored)
+	return dc != sc || ds != ss
+}
+
+// decisionCaption is the @caption an `if` states, and whether it states one.
+func decisionCaption(st *ast.IfStmt) (string, bool) {
+	if st.Annotations == nil || !st.Annotations.CaptionSet {
+		return "", false
+	}
+	return st.Annotations.Caption, true
+}
+
+// withoutCaption is a copy of ann with no @caption, nil when nothing else is
+// stated, so two shells that differ only in their caption compare equal.
+func withoutCaption(ann *ast.ActivityAnnotations) *ast.ActivityAnnotations {
+	if ann == nil {
+		return nil
+	}
+	c := *ann
+	c.Caption, c.CaptionSet = "", false
+	if declaredMatches(&c, &ast.ActivityAnnotations{}) {
+		return nil
+	}
+	return &c
 }
 
 // conditionEdit diffs an `if` whose condition changes against the stored
@@ -1084,7 +1121,14 @@ func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
 	if _, ok := c.Object.(*microflows.ExclusiveSplit); !ok {
 		return cannotSplice("the stored %s is not drawn as a decision", describeAt(stored))
 	}
-	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.IfStmt{Condition: declared.Condition}})
+	// A caption the script changes is stated on the operation's `if`;
+	// otherwise the stored caption is kept, or follows the condition.
+	edit := &ast.IfStmt{Condition: declared.Condition}
+	if decisionCaptionChanged(declared, stored) {
+		caption, set := decisionCaption(declared)
+		edit.Annotations = &ast.ActivityAnnotations{Caption: caption, CaptionSet: set}
+	}
+	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{edit})
 	pd.ops[len(pd.ops)-1].SetCondition = true
 	if err := pd.movedNode(declared, stored); err != nil {
 		return err

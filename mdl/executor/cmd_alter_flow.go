@@ -529,6 +529,15 @@ func (a *alterFlowContext) splitCondition(ctx *ExecContext, op *ast.AlterFlowOpe
 	if caption == old.Expression {
 		caption = expr
 	}
+	// A caption the statement changes (mendixlabs/mxcli#1610): the stated
+	// one, or — taken off — the condition, as the builder captions a
+	// decision with no @caption.
+	if ann := ifs.Annotations; ann != nil {
+		caption = expr
+		if ann.CaptionSet {
+			caption = ann.Caption
+		}
+	}
 	return expr, caption, nil
 }
 
