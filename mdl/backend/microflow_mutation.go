@@ -56,6 +56,13 @@ type MicroflowMutator interface {
 	// (ako/mxcli#859: a `create or modify` states an activity's notes). A
 	// note also attached to another object is refused.
 	RemoveNotes(target model.ID) error
+	// AddNotes attaches notes to target, which stays as it is — a decision or
+	// an end event, whose notes change without the node being replaced
+	// (mendixlabs/mxcli#1517). frag holds one stand-in object, frag.Entry, and
+	// the notes the builder attached to it: each note is drawn where it is
+	// relative to the stand-in, but relative to target, and its line runs to
+	// target.
+	AddNotes(target model.ID, frag *MicroflowFragment) error
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error

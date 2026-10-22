@@ -91,8 +91,11 @@ type fakeDeps struct{ saved []byte }
 
 func (d *fakeDeps) SerializeObject(o microflows.MicroflowObject) (bson.D, error) {
 	typ := "Microflows$ActionActivity"
-	if _, ok := o.(*microflows.ExclusiveMerge); ok {
+	switch o.(type) {
+	case *microflows.ExclusiveMerge:
 		typ = "Microflows$ExclusiveMerge"
+	case *microflows.Annotation:
+		typ = "Microflows$Annotation"
 	}
 	p := o.GetPosition()
 	sz := objectSize(o)

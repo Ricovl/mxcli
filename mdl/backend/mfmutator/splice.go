@@ -745,6 +745,38 @@ func (m *Mutator) RemoveNotes(target model.ID) error {
 	return nil
 }
 
+// AddNotes attaches the notes frag holds to target, in place: target, its
+// flows and every other element stay. frag is one stand-in object — what the
+// builder drew the notes against — and the notes and their lines to it; each
+// unpinned note is moved by the stand-in's offset from target, a pinned one
+// stays where the script put it, and each line is pointed at target.
+func (m *Mutator) AddNotes(target model.ID, frag *backend.MicroflowFragment) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	rest, notes := withoutNotes(frag)
+	if notes == nil || len(rest.Objects) != 1 || rest.Objects[0].GetID() != frag.Entry || len(rest.Flows) > 0 {
+		return fmt.Errorf("the notes for %s are not a set of notes attached to one object", describeNode(x))
+	}
+	for _, n := range notes.frag.Objects {
+		if !notes.frag.Pinned[n.GetID()] {
+			p := n.GetPosition()
+			n.SetPosition(model.Point{X: p.X + x.pos.X - notes.entryAt.X, Y: p.Y + x.pos.Y - notes.entryAt.Y})
+		}
+	}
+	for _, af := range notes.frag.AnnotationFlows {
+		if af.OriginID == frag.Entry {
+			af.OriginID = model.ID(x.id)
+		}
+		if af.DestinationID == frag.Entry {
+			af.DestinationID = model.ID(x.id)
+		}
+	}
+	return m.addFragment(notes.frag)
+}
+
 // Drop removes target and joins the flows that entered it to the object it
 // led to. Annotation lines attached to it go with it; the annotations stay.
 func (m *Mutator) Drop(target model.ID) error {

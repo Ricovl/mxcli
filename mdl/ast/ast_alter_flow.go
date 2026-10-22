@@ -71,4 +71,10 @@ type AlterFlowOperation struct {
 	// handler's body by operations of its own; an `alter` replace that restates
 	// the stored handler is recognised when it is applied.
 	KeepHandler bool
+	// SetNotes, on a replace of a decision or an end event, says Body is one
+	// statement whose notes are the node's new notes: the stored notes are
+	// taken off and these attached, and the node itself stays — it is changed
+	// in place, never replaced (mendixlabs/mxcli#1517). Set only by
+	// `create or modify`.
+	SetNotes bool
 }

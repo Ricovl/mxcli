@@ -106,7 +106,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				"but to replace one activity by one of the same kind. %s",
 				target.Statement, loop.Statement, replaceLoopAdvice(s.Kind(), s.Name.String(), loop.Statement)))
 		}
-		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.ReplaceNotes || len(op.Body) != 1) {
+		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.SetNotes || op.ReplaceNotes || len(op.Body) != 1) {
 			return inLoop()
 		}
 		if op.ReplaceNotes {
@@ -127,6 +127,14 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 			a.noteRemoved(target, nil)
+			continue
+		}
+		if op.SetNotes {
+			// A decision's or an end event's notes, set in place
+			// (mendixlabs/mxcli#1517).
+			if err := a.setNodeNotes(ctx, mut, op, target); err != nil {
+				return fail(err)
+			}
 			continue
 		}
 		if op.SetCondition {

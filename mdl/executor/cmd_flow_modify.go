@@ -1028,17 +1028,69 @@ func (pd *patchDiff) endEvent(declared, stored *ast.ReturnStmt) error {
 	if _, ok := c.Object.(*microflows.EndEvent); !ok {
 		return cannotSplice("the stored %s is not drawn as an end event", describeAt(stored))
 	}
-	shell := *declared
+	// The notes are set on the end event in place, like its value
+	// (mendixlabs/mxcli#1517); anything else about it is its geometry.
+	shell, sShell := *declared, *stored
 	shell.Value = stored.Value
-	if !sameIgnoringLayout(&shell, stored) {
-		return cannotSplice("the annotations on the %s change; the splice changes a return's value only", describeAt(stored))
+	shell.Annotations, sShell.Annotations = withoutNotes(declared.Annotations), withoutNotes(stored.Annotations)
+	if !sameIgnoringLayout(&shell, &sShell) {
+		return cannotSplice("the annotations on the %s change; the splice changes a return's value and notes only", describeAt(stored))
 	}
-	if !declaredMatches(&shell, stored) {
-		if err := pd.moved(&shell, stored); err != nil {
+	if !declaredMatches(&shell, &sShell) {
+		if err := pd.moved(&shell, &sShell); err != nil {
 			return err
 		}
 	}
-	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.ReturnStmt{Value: declared.Value}})
+	if !declaredMatches(declared.Value, stored.Value) {
+		pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{&ast.ReturnStmt{Value: declared.Value}})
+	}
+	return pd.nodeNotes(c, declared, stored)
+}
+
+// nodeNotesChanged reports whether the declared statement states other notes
+// than the stored one: one added, reworded or taken off.
+func nodeNotesChanged(declared, stored ast.MicroflowStatement) bool {
+	return !declaredMatches(statementNotes(declared), statementNotes(stored))
+}
+
+// statementNotes are the notes attached to a statement.
+func statementNotes(st ast.MicroflowStatement) []ast.MicroflowAnnotation {
+	if ann := statementAnnotations(st); ann != nil {
+		return ann.Notes
+	}
+	return nil
+}
+
+// withoutNotes is a copy of ann with no notes, nil when nothing else is
+// stated.
+func withoutNotes(ann *ast.ActivityAnnotations) *ast.ActivityAnnotations {
+	if ann == nil {
+		return nil
+	}
+	c := *ann
+	c.Notes = nil
+	if declaredMatches(&c, &ast.ActivityAnnotations{}) {
+		return nil
+	}
+	return &c
+}
+
+// nodeNotes adds the operation that gives the stored node c — a decision or
+// an end event, changed in place — the declared statement's notes, when they
+// differ from the stored ones. A note shared with another activity is refused:
+// changing it here would change it there too.
+func (pd *patchDiff) nodeNotes(c mfmutator.Candidate, declared, stored ast.MicroflowStatement) error {
+	if !nodeNotesChanged(declared, stored) {
+		return nil
+	}
+	for _, n := range append(append([]ast.MicroflowAnnotation(nil), statementNotes(stored)...), statementNotes(declared)...) {
+		if n.Label != "" {
+			return cannotSplice("the annotations on the %s change, and one of them is shared with another activity "+
+				"(id: %s); the splice changes the notes of one node only", describeAt(stored), n.Label)
+		}
+	}
+	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{declared})
+	pd.ops[len(pd.ops)-1].SetNotes = true
 	return nil
 }
 
@@ -1071,7 +1123,7 @@ func ifConditionChanged(declared, stored ast.MicroflowStatement) (*ast.IfStmt, *
 	if !ok1 || !ok2 {
 		return nil, nil, false
 	}
-	if declaredMatches(d.Condition, s.Condition) && !decisionCaptionChanged(d, s) {
+	if declaredMatches(d.Condition, s.Condition) && !decisionCaptionChanged(d, s) && !nodeNotesChanged(d, s) {
 		return nil, nil, false
 	}
 	dShell, sShell := *d, *s
@@ -1100,14 +1152,15 @@ func decisionCaption(st *ast.IfStmt) (string, bool) {
 	return st.Annotations.Caption, true
 }
 
-// withoutCaption is a copy of ann with no @caption, nil when nothing else is
-// stated, so two shells that differ only in their caption compare equal.
+// withoutCaption is a copy of ann with no @caption and no notes, nil when
+// nothing else is stated, so two shells that differ only in those compare
+// equal: both are set on the stored decision in place.
 func withoutCaption(ann *ast.ActivityAnnotations) *ast.ActivityAnnotations {
 	if ann == nil {
 		return nil
 	}
 	c := *ann
-	c.Caption, c.CaptionSet = "", false
+	c.Caption, c.CaptionSet, c.Notes = "", false, nil
 	if declaredMatches(&c, &ast.ActivityAnnotations{}) {
 		return nil
 	}
@@ -1127,15 +1180,20 @@ func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
 	if _, ok := c.Object.(*microflows.ExclusiveSplit); !ok {
 		return cannotSplice("the stored %s is not drawn as a decision", describeAt(stored))
 	}
-	// A caption the script changes is stated on the operation's `if`;
-	// otherwise the stored caption is kept, or follows the condition.
-	edit := &ast.IfStmt{Condition: declared.Condition}
-	if decisionCaptionChanged(declared, stored) {
-		caption, set := decisionCaption(declared)
-		edit.Annotations = &ast.ActivityAnnotations{Caption: caption, CaptionSet: set}
+	if !declaredMatches(declared.Condition, stored.Condition) || decisionCaptionChanged(declared, stored) {
+		// A caption the script changes is stated on the operation's `if`;
+		// otherwise the stored caption is kept, or follows the condition.
+		edit := &ast.IfStmt{Condition: declared.Condition}
+		if decisionCaptionChanged(declared, stored) {
+			caption, set := decisionCaption(declared)
+			edit.Annotations = &ast.ActivityAnnotations{Caption: caption, CaptionSet: set}
+		}
+		pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{edit})
+		pd.ops[len(pd.ops)-1].SetCondition = true
 	}
-	pd.add(ast.AlterFlowReplace, c, []ast.MicroflowStatement{edit})
-	pd.ops[len(pd.ops)-1].SetCondition = true
+	if err := pd.nodeNotes(c, declared, stored); err != nil {
+		return err
+	}
 	if err := pd.movedNode(declared, stored); err != nil {
 		return err
 	}

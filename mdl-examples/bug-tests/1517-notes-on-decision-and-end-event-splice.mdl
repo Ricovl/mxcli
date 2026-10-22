@@ -1,0 +1,29 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1517 (ako/mxcli#1399), item 3 — a note on a decision or
+-- on the final return cannot be added or reworded
+-- ============================================================================
+--
+-- Under `mdl 1;`, re-running `create or modify` with only a note added before
+-- an `if` was refused as "the If at (…) changes where its paths end or meet",
+-- and one before the final `return` as "the annotations on the Return at (…)
+-- change; the splice changes a return's value only".
+--
+-- To reproduce: exec this file, then add `@annotation 'guard'` on the line
+-- before `if` (or `@annotation 'the end'` before `return 'done';`) and exec it
+-- again. The second run reports `Modified microflow: BugTest1517.F (spliced:
+-- 1 replaced)`; the decision and the end event keep their $IDs and flows, and
+-- the note is drawn where a full build would draw it. A third run writes
+-- nothing. A note shared with another activity (`id:`) is still refused.
+
+mdl 1;
+
+create module BugTest1517;
+
+create or modify microflow BugTest1517.F ($L: String) returns String
+begin
+  if $L = empty then
+    return 'e';
+  end if;
+  log info node 'BugTest1517' 'plain';
+  return 'done';
+end;
