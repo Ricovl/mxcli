@@ -516,6 +516,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
 	}
+	if result.item != nil {
+		return m.insertIntoObjectListItem(result, widgetRef, position, widgets)
+	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
 	}
@@ -543,6 +546,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if strings.EqualFold(string(position), "into") {
 		newContainer, err := appendChildrenToContainer(result.widget, widgetRef, newBsonWidgets)
 		if err != nil {
+			if hint := objectListItemHint(result, widgetRef); hint != "" {
+				return fmt.Errorf("cannot INSERT INTO %q: %s", widgetRef, hint)
+			}
 			if hint := pluggableSlotHint(result, widgetRef); hint != "" {
 				return fmt.Errorf("cannot INSERT INTO %q: a pluggable widget keeps its child widgets in named slots, "+
 					"not in a list of its own — use %s", widgetRef, hint)
@@ -703,6 +709,15 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
+	}
+	if result.item != nil {
+		// Widgets in place of an item would be written into the item list,
+		// which the loader cannot read (the #935 shape). The item's content is
+		// a slot, and replacing that is what was meant.
+		body := strings.ToLower(types.BodyItemSlotKey(result.item.slotKeys))
+		return fmt.Errorf("cannot replace %q with widgets: it is a %s item, not a widget — replace its "+
+			"content with `replace %s.%s with { … }`, or remove the item with `drop %s`",
+			widgetRef, result.item.listKey, widgetRef, body, widgetRef)
 	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
@@ -1460,6 +1475,10 @@ type bsonWidgetResult struct {
 	// declares (Expression, TextTemplate, Boolean, …). Without it a setter
 	// cannot tell which field of a WidgetValue to write — see columnValueField.
 	colPropKinds map[string]string
+	// item is set when the result is a pluggable widget's object-list item
+	// addressed as `owner item…` (an Accordion group): its slots are reached
+	// through it, and it is never a widget to insert beside or replace.
+	item *objectListItemInfo
 }
 
 // widgetFinder is a function type for locating widgets in a raw BSON tree.

@@ -45,7 +45,7 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if result == nil {
 		return backend.AlterTargetMatch{}, m.widgetNotFoundError(name)
 	}
-	if widgetTypeName(result.widget) == navListItemType {
+	if widgetTypeName(result.widget) == navListItemType || result.item != nil {
 		return backend.AlterTargetMatch{Kind: "item", Name: name}, nil
 	}
 	if bsonnav.DGetString(result.widget, "$Type") != objectListItemType && len(result.colPropKeys) == 0 {
