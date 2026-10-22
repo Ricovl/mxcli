@@ -710,6 +710,18 @@ custom attribute (Studio Pro's "Attribute config: Custom"); listing two is refus
 attribute of the Data grid 2 column it sits in ("Auto"), so in a **gallery's**
 `filter { … }` bar, which has no column, the attribute must be named.
 
+`defaultValue:` preselects an option. It is an **expression returning a String**, and a
+quoted MDL value is the expression's text, so the option goes in as a String literal
+inside the quotes, even for a Boolean column:
+
+```sql
+column (Attribute: IsActive) { dropdownfilter ddfActive (defaultValue: '''true''') }
+```
+
+`defaultValue: 'true'` stores the Boolean expression `true`, and `'1'` or a bare name
+like `'Open'` fail the same way: mxbuild reports CE0117 "Error(s) in expression." `check`
+reports it as MDL-WIDGET49. `'empty'` (no preselection) is fine.
+
 Filter by an **association** instead of an attribute — the options are the
 associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:
