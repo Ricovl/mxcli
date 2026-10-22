@@ -26,7 +26,7 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 577-593 | Validation Checklist |
 | 594-605 | Tips for Success |
 | 606-612 | Related Documentation |
-| 613-732 | Quick Reference |
+| 613-725 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -663,20 +663,13 @@ commit $Order;
 commit $Invoice;
 ```
 
-`id:` is scoped to the flow you are writing and is not stored in the model; it
-exists only so a second mention can point at the first. **Without it, two lines
-with identical text are two separate notes** — mxcli never merges on text.
-
-A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
-`@annotation(text: 'note', position: (175, -40), size: (260, 70))`. Omit them
-and the note goes 100px above the activity at 200×50, stacking 60px per extra
-note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
-the short `@annotation 'text'` form.
-
-**Order matters: an `@annotation` written *before* a statement's `@position`
-(or `@caption`, `@color`, `@anchor`, `@excluded`) is a free note** — on the
-canvas, attached to nothing — which is where DESCRIBE prints one. Write a note
-that belongs to the activity *after* those annotations, as DESCRIBE does.
+`id:` is flow-scoped and not stored; it lets a second mention point at the
+first. **Without it, identical text is two notes** — mxcli never merges on text.
+Geometry is `position: (x, y)` and `size: (w, h)`; omitted, the note goes 100px
+above the activity at 200×50 (60px per extra), and DESCRIBE omits it again.
+**An `@annotation` before a statement's `@position`/`@caption`/`@color`/`@anchor`
+is a free note**, attached to nothing (where DESCRIBE prints one): put an
+activity's own notes after them.
 
 ### Page Navigation Pattern
 ```mdl
