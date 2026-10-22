@@ -2127,16 +2127,20 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 	if err := m.navItemAddressError(name); err != nil {
 		return err
 	}
+	msg := fmt.Sprintf("widget %q not found", name)
+	if hint := objectListItemMissHint(m.rawData); hint != "" {
+		msg += ". " + hint
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
 		return fmt.Errorf(
-			"widget %q not found. DataGrid2 columns are addressed by a derived name "+
+			"%s. DataGrid2 columns are addressed by a derived name "+
 				"(the bound attribute, or the caption), not the name written in MDL — "+
 				"available columns: %s (run DESCRIBE PAGE to confirm)",
-			name, formatColumnNameList(cols))
+			msg, formatColumnNameList(cols))
 	}
-	return fmt.Errorf("widget %q not found%s", name, m.dataViewFooterHint())
+	return fmt.Errorf("%s%s", msg, m.dataViewFooterHint())
 }
 
 // formatColumnNameList renders derived column names for an error message: each

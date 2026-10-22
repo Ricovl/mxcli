@@ -127,7 +127,10 @@ resolver for every selector form; INSERT INTO an item's body or slot,
 REPLACE / DROP of a slot, DROP of an item, SET of an item property; the
 hidden-slot refusal, Open Question 2 answered as "refuse"). Measuring the SET
 path found that a mode switch must also keep the texts it hides or shows as
-CREATE stores them, and does.
+CREATE stores them, and does. A widget-name miss lists the item addresses on
+the page (`acc1 item@1 = acc1 item('One')`), since CREATE accepts a name on an
+item and drops it — the reporter's `insert into grp1` had been answered with
+the DataGrid 2 column hint alone.
 
 Not done: inserting a NEW item (`insert after acc1 item@1 { group … }`) is
 refused; step 4's selector rename was not needed; legacy table cells stay
