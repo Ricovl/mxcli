@@ -747,6 +747,12 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 			cfg.ServerPortNumber = v
 		case "ApplicationRootUrl":
 			cfg.ApplicationRootUrl = valStr
+		case "ExtraJvmParameters":
+			// Studio Pro's Configuration ▸ Server ▸ "Extra JVM parameters", e.g. a
+			// proxy: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'. Stored
+			// verbatim; every supported Mendix version carries the property
+			// (mendixlabs/mxcli#131).
+			cfg.ExtraJvmParameters = valStr
 		default:
 			return mdlerrors.NewUnsupported("unknown configuration setting: " + key)
 		}
@@ -943,6 +949,8 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 			newCfg.ServerPortNumber = v
 		case "ApplicationRootUrl":
 			newCfg.ApplicationRootUrl = valStr
+		case "ExtraJvmParameters":
+			newCfg.ExtraJvmParameters = valStr
 		default:
 			return mdlerrors.NewUnsupported("unknown configuration property: " + key)
 		}
@@ -1082,6 +1090,9 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 	parts = append(parts, fmt.Sprintf("  ServerPortNumber: %d", cfg.ServerPortNumber))
 	if cfg.ApplicationRootUrl != "" {
 		parts = append(parts, "  ApplicationRootUrl: "+mdlQuoted(cfg.ApplicationRootUrl))
+	}
+	if cfg.ExtraJvmParameters != "" {
+		parts = append(parts, "  ExtraJvmParameters: "+mdlQuoted(cfg.ExtraJvmParameters))
 	}
 	if cfg.DatabasePassword != "" {
 		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+

@@ -11,10 +11,10 @@ description: "Read and change project settings in MDL — database configuration
 | lines | section |
 |---|---|
 | 22-31 | When to Use This Skill |
-| 32-308 | Commands |
-| 309-336 | Common Patterns |
-| 337-345 | Checklist |
-| 346-350 | AfterStartupMicroflow Must Return Boolean |
+| 32-319 | Commands |
+| 320-347 | Common Patterns |
+| 348-356 | Checklist |
+| 357-361 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -131,7 +131,18 @@ alter settings configuration 'Default' (
 alter settings configuration 'Default' (
   DatabaseUrl: 'newhost:5432'
 );
+
+-- Server tab ▸ Extra JVM parameters, e.g. route the runtime through a proxy
+alter settings configuration 'Default' (
+  ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'
+);
 ```
+
+The configuration keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`,
+`DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`,
+`ApplicationRootUrl` and `ExtraJvmParameters`; `create configuration` takes the same.
+`ExtraJvmParameters` is what Studio Pro passes to the JVM when it runs the app —
+`mxcli run --local` starts the runtime itself and does not apply it.
 
 `HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism` and
 `WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;

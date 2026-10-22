@@ -30,7 +30,7 @@ Modifies project settings by category. Each category has its own syntax and avai
 
 **MODEL** settings control application-level behavior such as the after-startup microflow, hashing algorithm, and Java version.
 
-**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). Settings include database type, database URL, HTTP port number, and other runtime parameters. The configuration name must be enclosed in single quotes.
+**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). The keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`, `DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`, `ApplicationRootUrl` and `ExtraJvmParameters` (Studio Pro's Server ▸ Extra JVM parameters). The configuration name must be enclosed in single quotes.
 
 **CONSTANT** settings override the default value of a project constant within a specific runtime configuration. The constant is named as MDL names a constant everywhere, `@Module.Name`; the configuration name is enclosed in single quotes. The older quoted constant name (`CONSTANT 'Module.Name'`) still parses and warns `MDL-DEPR085`; `mxcli fmt --upgrade` rewrites it.
 
@@ -82,6 +82,16 @@ ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
 ```sql
 ALTER SETTINGS CONFIGURATION 'production' ( DatabaseUrl: 'jdbc:postgresql://dbhost:5432/myapp' );
 ```
+
+### Pass extra JVM parameters
+
+```sql
+ALTER SETTINGS CONFIGURATION 'default' ( ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888' );
+```
+
+The value is stored as written and is what Studio Pro passes to the JVM when it
+runs the app. `mxcli run --local` starts the runtime JVM itself and does not
+apply it.
 
 ### Override a constant in a configuration
 
