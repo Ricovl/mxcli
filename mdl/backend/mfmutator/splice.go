@@ -511,6 +511,9 @@ func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragme
 // to a custom handler of the same kind — would leave the stored handler with
 // no activity, and is refused.
 func (m *Mutator) replaceKeepingHandler(g *graph, x *node, frag *backend.MicroflowFragment) error {
+	// The notes the replacement states come with it (a create or modify
+	// states every activity's notes; the stored ones were removed first).
+	frag, notes := withoutNotes(frag)
 	if !singleActivity(frag) {
 		return fmt.Errorf("cannot replace %s: it has an error handler, which the splice keeps only when the activity "+
 			"is replaced by one activity handling errors the same way (the handler's own activities are changed by "+
@@ -537,7 +540,63 @@ func (m *Mutator) replaceKeepingHandler(g *graph, x *node, frag *backend.Microfl
 		return fmt.Errorf("cannot replace %s by a %s: it has an error handler, which the splice keeps only on an "+
 			"activity", describeNode(x), t)
 	}
-	return m.swapInPlace(g, x, dDoc(m.doc, "ObjectCollection"), d, frag.Entry)
+	if err := m.swapInPlace(g, x, dDoc(m.doc, "ObjectCollection"), d, frag.Entry); err != nil {
+		return err
+	}
+	if notes == nil {
+		return nil
+	}
+	// A note drawn relative to the activity moves with it, from where the
+	// builder drew the activity to where the stored one is; one whose canvas
+	// position the script states stays there (mendixlabs/mxcli#1598).
+	for _, n := range notes.frag.Objects {
+		if !notes.frag.Pinned[n.GetID()] {
+			p := n.GetPosition()
+			n.SetPosition(model.Point{X: p.X + x.pos.X - notes.entryAt.X, Y: p.Y + x.pos.Y - notes.entryAt.Y})
+		}
+	}
+	return m.addFragment(notes.frag)
+}
+
+// fragmentNotes are the notes a one-activity fragment attaches to its
+// activity: the note objects and their lines, as a fragment of their own.
+type fragmentNotes struct {
+	frag *backend.MicroflowFragment
+	// entryAt is where the builder drew the activity the notes are placed
+	// relative to.
+	entryAt model.Point
+}
+
+// withoutNotes splits frag into the fragment without its notes and the notes,
+// when every object but the entry is a note and every note line runs between
+// a note and the entry. Any other fragment is returned whole, with no notes.
+func withoutNotes(frag *backend.MicroflowFragment) (*backend.MicroflowFragment, *fragmentNotes) {
+	if frag == nil || len(frag.AnnotationFlows) == 0 {
+		return frag, nil
+	}
+	rest := *frag
+	rest.Objects, rest.AnnotationFlows = nil, nil
+	notes := &backend.MicroflowFragment{Pinned: frag.Pinned}
+	var entryAt model.Point
+	isNote := map[model.ID]bool{}
+	for _, obj := range frag.Objects {
+		if _, ok := obj.(*microflows.Annotation); ok {
+			notes.Objects = append(notes.Objects, obj)
+			isNote[obj.GetID()] = true
+			continue
+		}
+		if obj.GetID() == frag.Entry {
+			entryAt = obj.GetPosition()
+		}
+		rest.Objects = append(rest.Objects, obj)
+	}
+	for _, af := range frag.AnnotationFlows {
+		if !(isNote[af.OriginID] && af.DestinationID == frag.Entry) && !(isNote[af.DestinationID] && af.OriginID == frag.Entry) {
+			return frag, nil
+		}
+		notes.AnnotationFlows = append(notes.AnnotationFlows, af)
+	}
+	return &rest, &fragmentNotes{frag: notes, entryAt: entryAt}
 }
 
 // singleActivity reports whether frag is one object and nothing else: no

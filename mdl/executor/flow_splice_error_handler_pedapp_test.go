@@ -70,9 +70,10 @@ func handlerObjects(t *testing.T, exec *Executor, name string) (map[model.ID]mod
 }
 
 // spliceStep runs src — check first, then exec — and asserts it is spliced
-// with exactly `changed` objects replaced and nothing else rebuilt or moved,
-// that describe shows want, and that a second run is Unchanged.
-func spliceStep(t *testing.T, exec *Executor, out *bytes.Buffer, name, src string, changed int, want ...string) {
+// with exactly `changed` objects replaced and `added` new ones, nothing else
+// rebuilt or moved, that describe shows want, and that a second run is
+// Unchanged.
+func spliceStep(t *testing.T, exec *Executor, out *bytes.Buffer, name, src string, changed, added int, want ...string) {
 	t.Helper()
 	before, _ := handlerObjects(t, exec, name)
 	prog, errs := visitor.Build(src)
@@ -101,8 +102,8 @@ func spliceStep(t *testing.T, exec *Executor, out *bytes.Buffer, name, src strin
 			t.Errorf("object %s moved from %v to %v", id, p, q)
 		}
 	}
-	if gone != changed || len(after) != len(before) {
-		t.Errorf("%d objects replaced (%d -> %d objects), want %d replaced in place", gone, len(before), len(after), changed)
+	if gone != changed || len(after) != len(before)+added {
+		t.Errorf("%d objects replaced (%d -> %d objects), want %d replaced and %d added", gone, len(before), len(after), changed, added)
 	}
 	desc := describeFlow(t, exec, name)
 	for _, w := range want {
@@ -134,7 +135,7 @@ func TestCreateOrModify_ActivityWithErrorHandlerIsSplicedInPlace(t *testing.T) {
 
 	t.Run("T1 call argument changed, handler unchanged", func(t *testing.T) {
 		_, call := handlerObjects(t, exec, "HFlow")
-		spliceStep(t, exec, out, "HFlow", flow(strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'x') on", 1)), 1,
+		spliceStep(t, exec, out, "HFlow", flow(strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'x') on", 1)), 1, 0,
 			"HSub(P = 'x') on error without rollback begin", "log warning node 'Repro' 'failed';")
 		if _, now := handlerObjects(t, exec, "HFlow"); now == call {
 			t.Error("the call kept its $ID: the change was not written")
@@ -144,7 +145,7 @@ func TestCreateOrModify_ActivityWithErrorHandlerIsSplicedInPlace(t *testing.T) {
 		_, call := handlerObjects(t, exec, "HFlow")
 		src := strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'x') on", 1)
 		src = strings.Replace(src, "'failed';", "'failed again';", 1)
-		spliceStep(t, exec, out, "HFlow", flow(src), 1, "'failed again'", "HSub(P = 'x') on error")
+		spliceStep(t, exec, out, "HFlow", flow(src), 1, 0, "'failed again'", "HSub(P = 'x') on error")
 		if _, now := handlerObjects(t, exec, "HFlow"); now != call {
 			t.Error("the call was replaced for a change inside its handler")
 		}
@@ -152,10 +153,30 @@ func TestCreateOrModify_ActivityWithErrorHandlerIsSplicedInPlace(t *testing.T) {
 	t.Run("call and handler changed together", func(t *testing.T) {
 		src := strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'y') on", 1)
 		src = strings.Replace(src, "'failed';", "'failed twice';", 1)
-		spliceStep(t, exec, out, "HFlow", flow(src), 2, "HSub(P = 'y') on error", "'failed twice'")
+		spliceStep(t, exec, out, "HFlow", flow(src), 2, 0, "HSub(P = 'y') on error", "'failed twice'")
+	})
+	// A note on the activity is part of it: added or reworded with the
+	// activity unchanged otherwise, it is written, not dropped with the
+	// handler's objects the fragment leaves out.
+	t.Run("note added to the call", func(t *testing.T) {
+		src := strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'y') on", 1)
+		src = strings.Replace(src, "'failed';", "'failed twice';", 1)
+		src = strings.Replace(src, "  call microflow MyFirstModule.HSub(", "  @annotation 'calls the sub'\n  call microflow MyFirstModule.HSub(", 1)
+		spliceStep(t, exec, out, "HFlow", flow(src), 1, 1, "@annotation 'calls the sub'", "HSub(P = 'y') on error")
+	})
+	t.Run("note on the call reworded", func(t *testing.T) {
+		src := strings.Replace(handlerFlowSrc, "HSub(P = $P) on", "HSub(P = 'y') on", 1)
+		src = strings.Replace(src, "'failed';", "'failed twice';", 1)
+		src = strings.Replace(src, "  call microflow MyFirstModule.HSub(", "  @annotation 'calls the sub, once'\n  call microflow MyFirstModule.HSub(", 1)
+		// The stored note goes out with the activity, the reworded one comes
+		// in: two objects replaced.
+		spliceStep(t, exec, out, "HFlow", flow(src), 2, 0, "@annotation 'calls the sub, once'")
+		if desc := describeFlow(t, exec, "HFlow"); strings.Contains(desc, "'calls the sub'") {
+			t.Errorf("the old note is still there:\n%s", desc)
+		}
 	})
 	t.Run("T4 handler that returns", func(t *testing.T) {
-		spliceStep(t, exec, out, "HRet", strings.Replace(handlerRetSrc, "HSub(P = $P) on", "HSub(P = 'x') on", 1), 1,
+		spliceStep(t, exec, out, "HRet", strings.Replace(handlerRetSrc, "HSub(P = $P) on", "HSub(P = 'x') on", 1), 1, 0,
 			"HSub(P = 'x') on error without rollback begin")
 	})
 

@@ -93,12 +93,9 @@ func (pd *patchDiff) handlerEdit(declared, stored ast.MicroflowStatement) error 
 			if err != nil {
 				return err
 			}
-			if replaceNotes {
-				return cannotSplice("the notes on the %s change with the activity; the splice keeps an error handler "+
-					"only on an activity replaced by itself, so change the notes and the activity in two runs", describeAt(stored))
-			}
 			pd.add(ast.AlterFlowReplace, c, body)
 			pd.ops[len(pd.ops)-1].KeepHandler = true
+			pd.ops[len(pd.ops)-1].ReplaceNotes = replaceNotes
 		}
 	}
 	return pd.statements(errorHandling(declared).Body, sBody)
@@ -129,12 +126,32 @@ func (a *alterFlowContext) keepStoredHandler(ctx *ExecContext, op *ast.AlterFlow
 				a.stmt.Kind(), a.stmt.Name)
 		}
 	}
+	// The activity and the notes the statement attaches to it; the handler's
+	// objects and flows are the stored ones'.
+	kept := &backend.MicroflowFragment{Entry: frag.Entry, Exit: frag.Entry, Pinned: frag.Pinned}
+	notes := map[model.ID]bool{}
+	for _, af := range frag.AnnotationFlows {
+		switch frag.Entry {
+		case af.DestinationID:
+			notes[af.OriginID] = true
+		case af.OriginID:
+			notes[af.DestinationID] = true
+		default:
+			continue
+		}
+		kept.AnnotationFlows = append(kept.AnnotationFlows, af)
+	}
 	for _, obj := range frag.Objects {
 		if obj.GetID() == frag.Entry {
-			return &backend.MicroflowFragment{Objects: []microflows.MicroflowObject{obj}, Entry: frag.Entry, Exit: frag.Entry}, nil
+			kept.Objects = append([]microflows.MicroflowObject{obj}, kept.Objects...)
+		} else if _, isNote := obj.(*microflows.Annotation); isNote && notes[obj.GetID()] {
+			kept.Objects = append(kept.Objects, obj)
 		}
 	}
-	return nil, fmt.Errorf("the replacement's activity is not in its fragment")
+	if len(kept.Objects) == 0 || kept.Objects[0].GetID() != frag.Entry {
+		return nil, fmt.Errorf("the replacement's activity is not in its fragment")
+	}
+	return kept, nil
 }
 
 // storedStatementAt returns the stored statement drawn as target: the one
