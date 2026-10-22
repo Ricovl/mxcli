@@ -881,10 +881,11 @@ func (m *Mutator) markRemoved(v any) {
 }
 
 // shift moves every top-level node past the cut (along axis ax, in the
-// direction of s) by delta. The sweep keeps everything on either side of the
-// cut exactly as it was relative to its neighbours, so only the flows that
-// cross the cut get longer; a flow's control vectors are relative to its ends,
-// so no curve changes. skip is a node that is about to be removed.
+// direction of s) by delta, but the parameters (shifted). The sweep keeps
+// everything on either side of the cut exactly as it was relative to its
+// neighbours, so only the flows that cross the cut get longer; a flow's
+// control vectors are relative to its ends, so no curve changes. skip is a
+// node that is about to be removed.
 func (m *Mutator) shift(g *graph, ax axis, s int, cut float64, delta int, skip string) {
 	for _, n := range g.order {
 		if !shifted(n, ax, s, cut, skip) {
@@ -895,9 +896,15 @@ func (m *Mutator) shift(g *graph, ax axis, s int, cut float64, delta int, skip s
 	}
 }
 
-// shifted reports whether shift moves n: a top-level node past the cut.
+// shifted reports whether shift moves n: a top-level node past the cut that
+// is not a parameter. A parameter is not on the line the room is made on: it
+// belongs to the flow as a whole, and Studio Pro authors draw it above the
+// start event (63 of 71 in PedApp and JTSBootLogboek at the start's x, none
+// within 60px of the line). Moved, it drifted right with every insert and
+// describe printed a @position the script never stated (ako/mxcli#1547).
 func shifted(n *node, ax axis, s int, cut float64, skip string) bool {
-	return n.loop == "" && n.id != skip && float64(s)*(float64(n.pos.get(ax))-cut) > 0
+	return n.loop == "" && n.id != skip && n.typ != "Microflows$MicroflowParameter" &&
+		float64(s)*(float64(n.pos.get(ax))-cut) > 0
 }
 
 // pinnedPast returns the first node shift would move that is drawn at a point

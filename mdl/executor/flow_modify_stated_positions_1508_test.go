@@ -160,6 +160,15 @@ func TestCreateOrModify_InsertDoesNotMoveStatedNodes1508(t *testing.T) {
 		if v.objectAt(t, -500, 200, "Microflows$ActionActivity") == "" {
 			t.Errorf("the declare the script draws at (-500, 200) moved:\n%s", describe())
 		}
+		// The parameter is not on the line the room was made on: it stays on
+		// its derived row (ako/mxcli#1547), where it moved to (539, 53).
+		for _, id := range v.order {
+			if o := v.objs[id]; afGet(o, "$Type") == "Microflows$MicroflowParameter" {
+				if x, y := afPoint(o); x != 200 || y != 53 {
+					t.Errorf("$Flag moved to (%d, %d), want it left at (200, 53):\n%s", x, y, describe())
+				}
+			}
+		}
 		split, merge, branch := nf1508Branch(t, v, "$Flag")
 		if len(branch) != 2 {
 			t.Fatalf("`if $Flag` has %d activities in its branch, want 2:\n%s", len(branch), describe())
