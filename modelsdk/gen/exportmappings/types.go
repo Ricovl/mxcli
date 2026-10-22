@@ -863,7 +863,12 @@ func initExportMapping() *ExportMapping {
 	o.xmlSchema.Bind(&o.Base, 5)
 	o.jsonStructure = property.NewByNameRef[element.Element]("JsonStructure", "JsonStructures$JsonStructure")
 	o.jsonStructure.Bind(&o.Base, 6)
-	o.rootElementName = property.NewPrimitive[string]("RootElementName", property.DecodeString)
+	// STORAGE-NAME OVERRIDE: BSON key is "XsdRootElementName", not the SDK name
+	// "RootElementName" — mxbuild's own metadata pairs StorageName
+	// XsdRootElementName with SdkName rootElementName. Read under the SDK name, an
+	// XML-schema mapping's root was invisible, so nothing could notice a rewrite
+	// deleting it (CE0270, mendixlabs/mxcli#1623).
+	o.rootElementName = property.NewPrimitive[string]("XsdRootElementName", property.DecodeString)
 	o.rootElementName.Bind(&o.Base, 7)
 	o.importedWebService = property.NewByNameRef[element.Element]("ImportedWebService", "WebServices$ImportedWebService")
 	o.importedWebService.Bind(&o.Base, 8)

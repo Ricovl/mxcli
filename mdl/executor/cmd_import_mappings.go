@@ -394,6 +394,19 @@ func execCreateImportMapping(ctx *ExecContext, s *ast.CreateImportMappingStmt) e
 		if err := checkNoWebServiceSource("import", s.Name.String(), existing.WebServiceSource); err != nil {
 			return err
 		}
+		// Nor are an XML-schema mapping's root element and element paths: its
+		// own description replays as Unchanged, and any other rewrite is refused
+		// rather than written without them (mendixlabs/mxcli#1623).
+		unchanged, err := importMappingXmlSchemaRewrite(ctx, s, existing)
+		if err != nil {
+			return err
+		}
+		if unchanged {
+			if !ctx.Quiet {
+				reportUnchanged(ctx, "import mapping "+s.Name.String())
+			}
+			return nil
+		}
 	}
 
 	module, err := findModule(ctx, s.Name.Module)
