@@ -77,7 +77,7 @@ func TestValidateWidgetKind_ContainerNotDeclaredByTheParentIsReported(t *testing
 		},
 	}
 	got := validateWidgetKind(&ast.WidgetV3{Type: "group", Name: "g1"},
-		registry, parent, objectListMappingSet(parent), "page X")
+		registry, parent, objectListMappingSet(parent), nil, "page X")
 
 	if len(got) == 0 || got[0].RuleID != "MDL-WIDGET26" {
 		t.Fatalf("an undeclared container was not reported; got %v", got)
@@ -102,7 +102,7 @@ func TestValidateWidgetKind_ContainerDeclaredByTheParentIsSilent(t *testing.T) {
 		},
 	}
 	if got := validateWidgetKind(&ast.WidgetV3{Type: "group", Name: "g1"},
-		registry, parent, objectListMappingSet(parent), "page X"); len(got) != 0 {
+		registry, parent, objectListMappingSet(parent), nil, "page X"); len(got) != 0 {
 		t.Errorf("the parent declares `group`, so it must not be reported: %v", got)
 	}
 }
@@ -116,7 +116,7 @@ func TestValidateWidgetKind_DeclaredChildSlotIsSilent(t *testing.T) {
 		ChildSlots: []ChildSlotMapping{{MDLContainer: "GROUP", PropertyKey: "groups"}},
 	}
 	if got := validateWidgetKind(&ast.WidgetV3{Type: "group", Name: "g1"},
-		registry, parent, nil, "page X"); len(got) != 0 {
+		registry, parent, nil, nil, "page X"); len(got) != 0 {
 		t.Errorf("a declared child slot must not be reported: %v", got)
 	}
 }
@@ -127,7 +127,7 @@ func TestValidateWidgetKind_DeclaredChildSlotIsSilent(t *testing.T) {
 func TestValidateWidgetKind_UnresolvableParentSilencesTheContainerRule(t *testing.T) {
 	registry := LoadWidgetRegistry("")
 	if got := validateWidgetKind(&ast.WidgetV3{Type: "group", Name: "g1"},
-		registry, nil, nil, "page X"); len(got) != 0 {
+		registry, nil, nil, nil, "page X"); len(got) != 0 {
 		t.Errorf("with no resolvable parent the rule must stay silent: %v", got)
 	}
 }

@@ -195,7 +195,7 @@ func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locat
 // validateDocumentWidgetTree is validateWidgetTree for a document whose
 // entity-typed parameters are known (a CREATE PAGE / SNIPPET's `Params:`).
 func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, params []string) []linter.Violation {
-	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot().withDocumentParameters(params))
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, nil, atDocumentRoot().withDocumentParameters(params))
 	// Only a whole document: an ALTER fragment's parent is out of sight, and
 	// whether a row or column stores a name depends on it (#749).
 	for _, msg := range checkMissingWidgetNames(widgets) {
@@ -214,7 +214,7 @@ func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistr
 // encloses them is unknown, so rules that depend on the enclosing context stand
 // down rather than guess.
 func validateWidgetSubtree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, pageArgContext{})
+	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, nil, pageArgContext{})
 }
 
 // validateWidgetTreeIn is validateWidgetTree with the *parent* widget's
@@ -225,7 +225,11 @@ func validateWidgetSubtree(widgets []*ast.WidgetV3, registry *WidgetRegistry, lo
 // must be exempt from the MDL-WIDGET07 "unrecognized property, silently dropped"
 // warning. When the parent mapping is known, the child's enumeration
 // sub-properties are validated against their member keys (MDL-WIDGET08). (9a)
-func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, parentObjectLists map[string]*ObjectListMapping, parent *ast.WidgetV3, argCtx pageArgContext) []linter.Violation {
+//
+// parentItem is the object-list mapping of the parent when the parent is an
+// object-list ITEM (an Accordion group): its widget slots (`headercontent`)
+// are containers of that item, not widgets (#1453).
+func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, parentObjectLists map[string]*ObjectListMapping, parent *ast.WidgetV3, parentItem *ObjectListMapping, argCtx pageArgContext) []linter.Violation {
 	var out []linter.Violation
 	for _, w := range widgets {
 		if w == nil {
@@ -235,7 +239,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		isObjectListItem := mapping != nil || isUniversalObjectListKeyword(w.Type)
 		// Slice 0: is this a widget at all, and does the parent declare this
 		// container? Both were previously left to `exec`.
-		out = append(out, validateWidgetKind(w, registry, lookupWidgetDef(parent, registry), parentObjectLists, locationPrefix)...)
+		out = append(out, validateWidgetKind(w, registry, lookupWidgetDef(parent, registry), parentObjectLists, parentItem, locationPrefix)...)
 		// A keyword whose stored $Type Mendix no longer has. Unlike MDL-WIDGET25
 		// this needs no project: the type is unknown to every Mendix version.
 		out = append(out, validateRetiredWidgetKind(w, locationPrefix)...)
@@ -370,7 +374,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validateWidgetItemVisibility(parent, w, mapping, registry, locationPrefix)...)
 		}
 		if len(w.Children) > 0 {
-			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, argContextForChildren(w, argCtx))...)
+			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, mapping, argContextForChildren(w, argCtx))...)
 		}
 	}
 	out = append(out, validateConsecutiveDynamicText(widgets, locationPrefix)...)

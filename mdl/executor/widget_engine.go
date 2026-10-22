@@ -2386,15 +2386,30 @@ func applyColumnSortableFallback(spec *backend.ObjectListItemSpec, sortableExpli
 }
 
 func defaultItemSlotKey(mapping *ObjectListMapping) string {
-	if len(mapping.ItemSlots) == 0 {
-		return ""
-	}
+	keys := make([]string, 0, len(mapping.ItemSlots))
 	for _, s := range mapping.ItemSlots {
-		if s.PropertyKey == "content" {
-			return s.PropertyKey
+		keys = append(keys, s.PropertyKey)
+	}
+	return bodyItemSlotKey(keys)
+}
+
+// bodyItemSlotKey picks an object-list item's BODY among its widget slots
+// (property keys, in schema order): `content` when the item has one, else the
+// first. CREATE routes an item's loose children there; DESCRIBE prints that
+// slot as the item's children and every other slot as a `<keyword> { … }`
+// block. One function, so the two cannot disagree about which slot loose
+// widgets belong to — they did, and an Accordion group's headerContent
+// round-tripped into its content (mendixlabs/mxcli#1453).
+func bodyItemSlotKey(keys []string) string {
+	for _, k := range keys {
+		if k == "content" {
+			return k
 		}
 	}
-	return mapping.ItemSlots[0].PropertyKey
+	if len(keys) == 0 {
+		return ""
+	}
+	return keys[0]
 }
 
 // lookupProperty does a case-insensitive lookup against an AST property map.
