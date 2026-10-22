@@ -1,0 +1,32 @@
+mdl 1;
+-- mendixlabs/mxcli#1453 (prerequisite of
+-- PROPOSAL_alter_object_list_item_address.md): an Accordion group has two
+-- widget slots, headerContent and content. DESCRIBE folded both into the
+-- group's body, so a page regenerated from the description stored the header
+-- widget in content (blank 11.13.0: headerContent -> [txtHead],
+-- content -> [txtBody] became content -> [txtHead, txtBody]). And `check`
+-- refused the block form CREATE builds from — `headercontent { … }` inside a
+-- group was MDL-WIDGET25 "not a widget in this project".
+--
+-- Expected: the describe below prints
+--   group (headerRenderMode: 'custom', …) {
+--     headercontent {
+--       dynamictext txtHead (Content: 'Header')
+--     }
+--     dynamictext txtBody (Content: 'Body')
+--   }
+-- and executing that description on a fresh app stores txtHead in
+-- headerContent and txtBody in content (`mxcli bson dump --format json`).
+
+create module Bug1453;
+
+create page Bug1453.P (title: 'P', layout: Atlas_Core.Atlas_Default) {
+  accordion acc1 (advancedMode: false, collapsible: true, expandBehavior: 'singleExpanded', animate: true, showIcon: 'right', animateIcon: true) {
+    group (headerRenderMode: 'custom') {
+      headercontent { dynamictext txtHead (Content: 'Header') }
+      dynamictext txtBody (Content: 'Body')
+    }
+  }
+};
+
+describe page Bug1453.P;

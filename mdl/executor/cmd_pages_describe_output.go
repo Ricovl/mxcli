@@ -960,8 +960,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 						// An item holding child widgets (an Accordion group's `content`
 						// slot) needs a body, or the children have nowhere to go and the
 						// description silently drops them on re-exec (#891).
-						if len(item.Children) > 0 {
+						if len(item.Children) > 0 || len(item.Slots) > 0 {
 							formatWidgetProps(ctx.Output, childPrefix, itemHeader, itemProps, " {\n")
+							// The item's other slots as blocks (headercontent { … }),
+							// then its body — CREATE routes each by keyword (#1453).
+							outputChildSlots(ctx, item.Slots, childPrefix+"  ", indent+2)
 							for _, child := range item.Children {
 								outputWidgetMDLV3(ctx, child, indent+2)
 							}
