@@ -349,6 +349,12 @@ retrieve $u from System.User where [id = $task/System.owner] first;
 retrieve $u from System.User where [id = $task/System.changedBy] first;
 ```
 
+That constraint reads the member off `$task`, so it builds only when `$task`'s entity stores
+it — `owner: AutoOwner` / `changedBy: AutoChangedBy` on the root of its generalization chain
+(a `System.FileDocument` specialization stores both). On an entity that does not, mxbuild
+rejects it with CE0161 "Error(s) in XPath constraint." (measured on 11.12.5, ako/mxcli#1306),
+and `check -p` and `exec` refuse it, naming the `alter entity` that stores the member.
+
 ### MDL-RETRIEVE03: `change` over a list retrieve
 
 ```

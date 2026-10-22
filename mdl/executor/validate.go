@@ -780,6 +780,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("microflow", s.Name.String(), refErrors)
@@ -846,6 +847,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
@@ -1524,7 +1526,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 	}
 
 	if len(refs.retrieves) > 0 {
-		errors = append(errors, validateRetrieveConstraints(ctx, refs.retrieves)...)
+		errors = append(errors, validateRetrieveConstraints(ctx, refs.retrieves, sc)...)
 		errors = append(errors, validateXPathAssociations(ctx, refs.retrieves, sc)...)
 		errors = append(errors, validateRetrieveMembers(ctx, refs.retrieves, sc)...)
 	}
@@ -1552,27 +1554,30 @@ var baseSystemMemberRe = regexp.MustCompile(`(^|[^/\w.])System\.(owner|changedBy
 // changedBy / changedDate / createdDate member referenced on an entity that
 // doesn't store it. This is the legitimate "owned by current user" pattern that
 // silently fails when owner isn't enabled (issue #641).
-func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstraintRef) []string {
+//
+// An entity the same script declares is judged from its declaration: judging
+// only stored entities let the ordinary shape — one script creating the entity
+// and the microflow — pass check and exec and fail the build (ako/mxcli#1306).
+func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstraintRef, sc *scriptContext) []string {
 	entities := buildEntityIndex(ctx)
 	if entities == nil {
 		return nil
 	}
 	var errors []string
 	for _, r := range retrieves {
-		ent := entities[r.entity]
-		if ent == nil {
+		if entities[r.entity] == nil && (sc == nil || sc.entityDecls[r.entity] == nil) {
 			continue // entity-not-found is reported separately
 		}
 		for _, m := range baseSystemMemberRe.FindAllStringSubmatch(r.constraint, -1) {
 			member := m[2]
-			stores, known := systemMemberStoredOnChain(entities, r.entity, systemMemberStore[member])
+			stores, root, known := scriptSystemMemberRoot(entities, sc, r.entity, systemMemberStore[member])
 			if stores || !known {
 				continue
 			}
 			errors = append(errors, fmt.Sprintf(
 				"constraint references System.%s on %s, but the entity does not store %s — Studio Pro rejects this with CE0161. "+
-					"Enable it first: alter entity %s add attribute %s: auto%s",
-				member, r.entity, member, r.entity, member, strings.ToLower(member)))
+					"Enable it first: %s",
+				member, r.entity, member, systemMemberStoreFix(root, member)))
 		}
 	}
 	return errors
@@ -1630,6 +1635,48 @@ func systemMemberRoot(index map[string]*domainmodel.Entity, entityQN, member str
 		qn = e.GeneralizationRef
 	}
 	return false, "", false
+}
+
+// scriptSystemMemberRoot is systemMemberRoot over the project AND the entities
+// the script declares. A declared entity stores a member when its declaration
+// carries the member's Auto* pseudo-type, and its generalization is the
+// declaration's. An entity the script alters is not judged: the alter may be
+// what adds the member, and what it leaves is not worked out here.
+func scriptSystemMemberRoot(index map[string]*domainmodel.Entity, sc *scriptContext, entityQN, member string) (stores bool, rootQN string, known bool) {
+	seen := map[string]bool{}
+	for qn := entityQN; qn != "" && !seen[qn]; {
+		seen[qn] = true
+		if sc == nil {
+			return systemMemberRoot(index, qn, member)
+		}
+		if sc.alteredEntities[qn] {
+			return false, "", false
+		}
+		decl := sc.entityDecls[qn]
+		if decl == nil {
+			return systemMemberRoot(index, qn, member)
+		}
+		if decl.Generalization == nil {
+			for _, a := range decl.Attributes {
+				if systemMemberOfPseudoType(a.Type.Kind) == member {
+					return true, qn, true
+				}
+			}
+			return false, qn, true
+		}
+		qn = decl.Generalization.String()
+	}
+	return false, "", false
+}
+
+// systemMemberStoreFix is the statement that makes rootQN store member — the
+// root, because Mendix keeps the system members there and refuses them on a
+// specialization — or why there is none for a System root.
+func systemMemberStoreFix(rootQN, member string) string {
+	if strings.HasPrefix(rootQN, "System.") {
+		return "System entities cannot be changed, so nothing in the project can make " + rootQN + " store it"
+	}
+	return fmt.Sprintf("alter entity %s add attribute %s: %s", rootQN, member, autoTypeName(member))
 }
 
 // systemChainRoot names the root of a System entity's generalization chain.
