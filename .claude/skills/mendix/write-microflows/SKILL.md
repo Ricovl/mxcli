@@ -26,7 +26,7 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 577-593 | Validation Checklist |
 | 594-605 | Tips for Success |
 | 606-612 | Related Documentation |
-| 613-727 | Quick Reference |
+| 613-732 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -672,6 +672,11 @@ A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
 and the note goes 100px above the activity at 200×50, stacking 60px per extra
 note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
 the short `@annotation 'text'` form.
+
+**Order matters: an `@annotation` written *before* a statement's `@position`
+(or `@caption`, `@color`, `@anchor`, `@excluded`) is a free note** — on the
+canvas, attached to nothing — which is where DESCRIBE prints one. Write a note
+that belongs to the activity *after* those annotations, as DESCRIBE does.
 
 ### Page Navigation Pattern
 ```mdl

@@ -751,6 +751,9 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	declared, declaredFree := withoutFreeNotes(declared)
 	stored, storedFree := withoutFreeNotes(stored)
 	if !declaredMatches(declaredFree, storedFree) {
+		if hint := misplacedNote(declaredFree, storedFree, stored); hint != "" {
+			return nil, nil, nil, cannotSplice("%s", hint)
+		}
 		return nil, nil, nil, cannotSplice("the free annotations change (%s); the splice edits activities only", freeNoteChange(declaredFree, storedFree))
 	}
 
@@ -1423,6 +1426,54 @@ func freeNoteChange(declared, stored []ast.MicroflowAnnotation) string {
 // withoutFreeNotes returns the statements with their free annotations taken
 // off (as copies; the script's own statements are not modified, since the
 // rebuild may still need them), and the free annotations in order.
+// misplacedNote explains a free note the script adds that is a note the
+// stored flow attaches to an activity: an @annotation written before a
+// statement's @position (or @caption, @color, @anchor, @excluded) is a free
+// note, attached to nothing, because that is where describe prints one — so a
+// note restated above its activity's @position reads as a new note on the
+// canvas and the activity's own note as taken off (mendixlabs/mxcli#1517).
+// stored is the stored body with its free notes still on it; "" when no added
+// free note is attached in the stored flow.
+func misplacedNote(declared, stored []ast.MicroflowAnnotation, storedBody []ast.MicroflowStatement) string {
+	isFree := map[string]bool{}
+	for _, n := range stored {
+		isFree[n.Text] = true
+	}
+	attached := map[string]ast.MicroflowStatement{}
+	var walk func([]ast.MicroflowStatement)
+	walk = func(stmts []ast.MicroflowStatement) {
+		for _, st := range stmts {
+			if ann := statementAnnotations(st); ann != nil {
+				for _, n := range ann.Notes {
+					if _, seen := attached[n.Text]; !seen && n.Text != "" {
+						attached[n.Text] = st
+					}
+				}
+			}
+			if ifs, ok := st.(*ast.IfStmt); ok {
+				walk(ifs.ThenBody)
+				walk(ifs.ElseBody)
+			}
+			if eh := errorHandling(st); eh != nil {
+				walk(eh.Body)
+			}
+			walk(loopStatements(st))
+		}
+	}
+	walk(storedBody)
+	for _, n := range declared {
+		if isFree[n.Text] {
+			continue
+		}
+		if st, ok := attached[n.Text]; ok {
+			return fmt.Sprintf("note %s is written before @position on its statement, which makes it a free note on the "+
+				"canvas, attached to nothing (where describe prints one); the stored note is attached to the %s — to keep "+
+				"it attached, write it after @position", strconv.Quote(n.Text), describeAt(st))
+		}
+	}
+	return ""
+}
+
 func withoutFreeNotes(stmts []ast.MicroflowStatement) ([]ast.MicroflowStatement, []ast.MicroflowAnnotation) {
 	var free []ast.MicroflowAnnotation
 	out := make([]ast.MicroflowStatement, len(stmts))
