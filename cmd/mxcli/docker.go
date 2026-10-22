@@ -29,7 +29,8 @@ Subcommands:
   shell    Open a shell in the Mendix container
 
 Requirements:
-  - Mendix 11.6.1 or later
+  - Mendix 11.6.1 or later for build, run and reload, which produce a Portable
+    App Distribution; check has no floor (Mendix 10 works, tested on 10.24)
   - MxBuild (auto-downloaded from CDN if not found)
   - A JDK matching the project's JavaVersion (21 up to Mendix 11.13, 25 from
     11.14; devcontainers created by 'mxcli init' ship 21)
@@ -189,6 +190,16 @@ A CE0463 that normalisation clears is then not reported, although it still
 fails MxBuild and 'mxcli run --local' on the stored project. Use
 --no-update-widgets to check the project as stored, and 'mxcli fix widgets'
 to apply the normalisation to the project.
+
+If update-widgets fails, the check still runs, without the normalisation, and
+says so. update-widgets refuses a project whose Mendix version is not exactly
+mx's own ("Project is in different Mendix version", exit status 4) where mx
+check accepts it, so an mx of the project's minor but another patch checks the
+project and only skips the normalisation. 'mxcli setup mxbuild -p app.mpr'
+fetches the project's exact version.
+
+There is no Mendix version floor for check: Mendix 10 works (tested on 10.24).
+The 11.6.1 requirement is docker build's, for the Portable App Distribution.
 
 The mx binary is located from the same directory as mxbuild.
 
