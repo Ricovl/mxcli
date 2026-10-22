@@ -1,12 +1,12 @@
 ---
 title: ALTER PAGE Addressing of Pluggable Object-List Items
-status: proposed
+status: partial
 date: 2026-10-17
 ---
 
 # Proposal: ALTER PAGE Addressing of Pluggable Object-List Items
 
-**Status:** Proposed
+**Status:** Partial
 **Date:** 2026-10-17
 
 Refs ako/mxcli#1326, mendixlabs/mxcli#1453.
@@ -119,6 +119,19 @@ Shared with the existing forms, so nothing new to learn:
 - BEFORE/AFTER a **slot** is refused (as for `grid.controlbar`); BEFORE/AFTER an
   **item** inserts an item (`insert after acc1 item@1 { group (…) { … } }`),
   mirroring navigation-list items.
+
+## Implementation Status
+
+Done: steps 1–3, 5–7 (describe slots #1565; shared body rule; grammar; the
+resolver for every selector form; INSERT INTO an item's body or slot,
+REPLACE / DROP of a slot, DROP of an item, SET of an item property; the
+hidden-slot refusal, Open Question 2 answered as "refuse"). Measuring the SET
+path found that a mode switch must also keep the texts it hides or shows as
+CREATE stores them, and does.
+
+Not done: inserting a NEW item (`insert after acc1 item@1 { group … }`) is
+refused; step 4's selector rename was not needed; legacy table cells stay
+deferred.
 
 ## Implementation Plan
 

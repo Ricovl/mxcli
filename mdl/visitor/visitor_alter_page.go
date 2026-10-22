@@ -281,6 +281,14 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 		// the item's, so it moves off the target, where it would mean a choice
 		// among widgets.
 		ids := tc.AllIdentifierOrKeyword()
+		// `acc1 item@1.headercontent` names a slot of the item. It is carried
+		// as Column, the way `grid.controlbar` carries a widget's slot, and is
+		// taken off the identifiers first: `item@1.slot` has two of them, the
+		// shape `item(t1)` is otherwise recognised by.
+		if slot := tc.GetItemSlot(); slot != nil {
+			ref.Column = identifierOrKeywordText(slot)
+			ids = ids[:len(ids)-1]
+		}
 		item := &ast.NavItemRef{List: identifierOrKeywordText(ids[0]), Ordinal: ref.Ordinal}
 		if sl := tc.STRING_LITERAL(); sl != nil {
 			item.Text = unquoteStringLit(sl)

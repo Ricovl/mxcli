@@ -30,11 +30,12 @@ for display in this README):
 ## Active Proposals (118)
 
 
-### In Progress (partial) (15)
+### In Progress (partial) (16)
 
 | Proposal | Status | Summary |
 |----------|--------|---------|
 | [Add Styling Support to MDL Pages](page-styling-support.md) | Partial | Mendix has four styling mechanisms on every widget, all stored in a BSON Forms$Appearance object: |
+| [ALTER PAGE Addressing of Pluggable Object-List Items](PROPOSAL_alter_object_list_item_address.md) | Partial | Refs ako/mxcli#1326, mendixlabs/mxcli#1453. |
 | [Atlas Design System — a skill for visually appealing Mendix apps](PROPOSAL_atlas_design_system.md) | Partial | mxcli can generate a fully-functional Mendix app, but the default output looks bland — it leans |
 | [Default styling — generated apps that look designed on first boot](PROPOSAL_default_styling.md) | Partial | mxcli new produces a blank Atlas app. |
 | [Eval Framework for mxcli + Claude Code](proposal-eval-framework.md) | Partial | An evaluation framework that systematically tests how well Claude Code + mxcli handles real-world Mendix app generation tasks. |
@@ -59,11 +60,10 @@ for display in this README):
 | [MDL Language Critique and Beta Syntax Freeze](PROPOSAL_mdl_beta_syntax_freeze.md) | Accepted | Related: ADR-0003; resulting decisions ADR-0010, ADR-0011, ADR-0012; design-mdl-syntax skill, PROPOSAL_workflow_microflow_syntax_alignment.m |
 | [Size containers from their contents, not from a statement count](PROPOSAL_container_autosize.md) | Accepted | Closes the last open item of upstream #884 — |
 
-### Proposed (41)
+### Proposed (40)
 
 | Proposal | Status | Summary |
 |----------|--------|---------|
-| [ALTER PAGE Addressing of Pluggable Object-List Items](PROPOSAL_alter_object_list_item_address.md) | Proposed | Refs ako/mxcli#1326, mendixlabs/mxcli#1453. |
 | [Bootstrap hooks that fetch the mxcli the project was built with](PROPOSAL_bootstrap_source.md) | Proposed | mxcli init writes .claude/bootstrap-mxcli.sh with a hard-coded download of |
 | [Built-in file database for run --local (HSQLDB)](PROPOSAL_run_local_builtin_database.md) | Proposed | Depends on: the Windows process-helper fix (PR #1147) — this builds on that branch. |
 | [Comprehensive MDL Syntax and Grammar Improvements (v2)](PROPOSAL_mdl_syntax_improvements_v2.md) | Proposed | This document consolidates and expands upon previous proposals, offering a unified set of syntax and grammar improvements for all major Mend |

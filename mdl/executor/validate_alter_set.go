@@ -171,7 +171,7 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 	// fine one property at a time and refused as a whole, since the width hides
 	// the size, and `ColumnWidth: manual, Size: 220` is the reverse — judged
 	// one at a time, Size alone would be hidden (mendixlabs/mxcli#1519).
-	if len(errs) == 0 && op.Target.IsColumn() {
+	if len(errs) == 0 && (op.Target.IsColumn() || op.Target.Item != nil) {
 		if probe, err := p.Probe(); err == nil {
 			if err := applySetPropertyMutator(ctx, probe, op, modName, modID); err != nil && !scriptDeclaresMissing(sc, err, modName) {
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %v", label, err)))

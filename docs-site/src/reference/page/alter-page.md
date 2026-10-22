@@ -159,6 +159,46 @@ alter snippet Shop.Menu {
 Only items go next to an item or in its place: `INSERT BEFORE` / `AFTER` an item
 and `REPLACE` of one take `item` blocks, and widgets go `INTO` an item.
 
+### Pluggable Widget Item Operations
+
+A pluggable widget's object-list item — an Accordion group, a Pop-up menu
+item — stores no name either (a name written on `group g1` is not kept), and is
+addressed the same way, on the widget that owns the list:
+
+| Address | Means |
+|---------|-------|
+| `acc1 item@2` | the second group — `INSERT INTO` fills its body |
+| `acc1 item('One')` | the group whose text (`headerText`) is `One` |
+| `acc1 item(btnIn)` | the group holding the widget `btnIn` |
+| `acc1 item@1.headercontent` | another slot of the group, by its keyword |
+
+The body is the slot `describe` prints as the item's children (`content`, or
+the item's first widget slot); any other slot is named with `.slot`, spelled as
+`describe` prints its block.
+
+```sql
+mdl 1;
+alter page Shop.Faq {
+  insert into acc1 item@2 { dynamictext txtAnswer (Content: 'Yes.') };
+  set (headerRenderMode: 'custom') on acc1 item@1;
+  insert into acc1 item@1.headercontent { dynamictext txtHead (Content: 'Shipping') };
+  replace acc1 item('Returns').content with { dynamictext txtRet (Content: '30 days') };
+  drop acc1 item@3;
+};
+```
+
+- A slot the widget's configuration hides is refused, naming the property that
+  shows it: an Accordion hides a group's `headercontent` while
+  `headerRenderMode` is `'text'` (the default). Widgets written there are not
+  rendered and fail the build with CE0463. Set the property first — in the same
+  statement is fine, as above.
+- A SET that switches a group's mode keeps the texts it hides or shows as
+  CREATE stores them. Switching back to `'text'` needs the text in the same
+  statement — `set (headerRenderMode: 'text', headerText: 'Shipping') on acc1 item@1`
+  — since the stored schema has no default to fill in.
+- `INSERT BEFORE` / `AFTER` an item (adding a new group) and `REPLACE` of a
+  whole item are not supported; use `drop` and `create or modify page`.
+
 ### DROP
 
 Removes one or more widgets by name. The widget and all its children are removed from the tree.

@@ -62,7 +62,7 @@ func widthRules() []types.WidgetVisibilityRule {
 
 func TestResetHiddenColumnProps1519_SizeGoesBackToDefault(t *testing.T) {
 	col, keys, kinds := widthColumn("autoFill", "auto")
-	got, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), map[string]bool{"width": true})
+	got, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), map[string]bool{"width": true}, nil)
 	if err != nil {
 		t.Fatalf("reset: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestResetHiddenColumnProps1519_SizeGoesBackToDefault(t *testing.T) {
 // minWidth, and minWidth back at "auto" hides minWidthLimit.
 func TestResetHiddenColumnProps1519_CascadesThroughDependentRules(t *testing.T) {
 	col, keys, kinds := widthColumn("autoFill", "manual")
-	if _, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), nil); err != nil {
+	if _, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), nil, nil); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 	if v := fieldOf(t, col, idMinWidth, "PrimitiveValue"); v != "auto" {
@@ -92,7 +92,7 @@ func TestResetHiddenColumnProps1519_CascadesThroughDependentRules(t *testing.T) 
 // CONTROL: under "manual" size is visible and keeps the author's value.
 func TestResetHiddenColumnProps1519_VisibleSizeIsKept(t *testing.T) {
 	col, keys, kinds := widthColumn("manual", "auto")
-	if _, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), nil); err != nil {
+	if _, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), nil, nil); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 	if v := fieldOf(t, col, idSize, "PrimitiveValue"); v != "220" {
@@ -105,7 +105,7 @@ func TestResetHiddenColumnProps1519_VisibleSizeIsKept(t *testing.T) {
 // refuses it on create. Its default is still accepted.
 func TestResetHiddenColumnProps1519_NamedHiddenPropertyIsRefused(t *testing.T) {
 	col, keys, kinds := widthColumn("autoFill", "auto")
-	_, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), map[string]bool{"size": true})
+	_, err := resetHiddenItemProps(col, keys, kinds, columnDefaults, nil, "columns", widthRules(), map[string]bool{"size": true}, nil)
 	if err == nil || !strings.Contains(err.Error(), "CE0463") || !strings.Contains(err.Error(), `"size"`) {
 		t.Fatalf("want a refusal naming size and CE0463, got %v", err)
 	}

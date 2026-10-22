@@ -53,14 +53,38 @@ func (m *Mutator) ResetHiddenColumnProperties(gridRef, columnRef string, rules [
 		}
 	}
 	return resetHiddenItemProps(col.widget, col.colPropKeys, col.colPropKinds, defaults,
-		primitiveValuesByKey(grid.widget, buildPropKeyMap(grid.widget)), listKey, rules, explicit)
+		primitiveValuesByKey(grid.widget, buildPropKeyMap(grid.widget)), listKey, rules, explicit, nil)
+}
+
+// ResetHiddenItemProperties is ResetHiddenColumnProperties for an object-list
+// item addressed as `owner item…` (an Accordion group). It also nulls a
+// TextTemplate the SET now hides, because that is how CREATE stores one
+// (#1198): `set (headerRenderMode: 'custom') on acc1 item@1` hid headerText,
+// left its template filled, and the project as stored failed with CE0463 at
+// the Accordion (11.13.0). Column templates are left as they were — that case
+// is not measured.
+func (m *Mutator) ResetHiddenItemProperties(itemRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error) {
+	item := m.widgetFinder(m.rawData, itemRef)
+	if item == nil || item.item == nil {
+		return nil, fmt.Errorf("%q is not an object-list item", itemRef)
+	}
+	owner := item.item.owner
+	explicit := make(map[string]bool, len(setProps))
+	for _, p := range setProps {
+		if key := resolveColumnPropertyKey(p, item.colPropKeys); key != "" {
+			explicit[key] = true
+		}
+	}
+	return resetHiddenItemProps(item.widget, item.colPropKeys, item.colPropKinds,
+		columnPropDefaults(owner, item.item.listKey),
+		primitiveValuesByKey(owner, buildPropKeyMap(owner)), item.item.listKey, rules, explicit, m.newTemplate)
 }
 
 // resetHiddenItemProps is the document-level half, separate so it can be tested
 // without a page. itemKeys/itemKinds map TypePointer ids to schema keys and
 // value kinds; defaults and widgetValues are keyed by schema key.
 func resetHiddenItemProps(item bson.D, itemKeys, itemKinds, defaults, widgetValues map[string]string,
-	listKey string, rules []types.WidgetVisibilityRule, explicit map[string]bool) ([]string, error) {
+	listKey string, rules []types.WidgetVisibilityRule, explicit map[string]bool, newTemplate func() bson.D) ([]string, error) {
 	reset := map[string]bool{}
 	// A reset can hide another property in turn (`minWidth` back to "auto"
 	// hides `minWidthLimit`), so repeat until nothing changes. Each pass only
@@ -80,10 +104,48 @@ func resetHiddenItemProps(item bson.D, itemKeys, itemKinds, defaults, widgetValu
 				v, ok := src[c.PropertyKey]
 				return v, ok
 			})
+			key := rule.PropertyKey
+			isTemplate := newTemplate != nil && keyKind(itemKeys, itemKinds, key) == "TextTemplate"
+			if isTemplate && determinable && !fires && !templateFilled(item, itemKeys, key) {
+				// Visible, stored null. With a declared default it gets a
+				// template holding that; without one there is no text to
+				// write — an empty required text is CE4899, measured on
+				// 11.13.0 ("Property 'Groups/2/Text' is required") — and the
+				// default CREATE writes ('Header') lives in the widget
+				// package, not in the stored schema. So the author is asked
+				// for it, in the statement that reveals it.
+				if defaults[key] == "" {
+					return nil, fmt.Errorf(
+						"property %q is shown under this item's new configuration but holds no text — set it in the "+
+							"same statement, e.g. `set (…, %s: '…') on <item>`", key, key)
+				}
+				if tmpl := newTemplate(); tmpl != nil {
+					if val := itemPropValue(item, itemKeys, key); val != nil {
+						updateClientTemplateText(tmpl, defaults[key])
+						bsonnav.DSet(val, "TextTemplate", tmpl)
+						reset[key] = true
+						changed = true
+					}
+				}
+				continue
+			}
 			if !determinable || !fires {
 				continue
 			}
-			key := rule.PropertyKey
+			if isTemplate {
+				if !templateFilled(item, itemKeys, key) {
+					continue
+				}
+				if explicit[key] {
+					return nil, fmt.Errorf(
+						"property %q is hidden under this item's configuration (%s), so it cannot be set — "+
+							"a hidden text with a value fails the build with CE0463", key, describeConditions(rule))
+				}
+				nullTemplate(item, itemKeys, key)
+				reset[key] = true
+				changed = true
+				continue
+			}
 			def, hasDefault := defaults[key]
 			cur, isPrimitive := values[key]
 			if !hasDefault || !isPrimitive || cur == def {
@@ -203,4 +265,36 @@ func columnPropDefaults(widgetDoc bson.D, listKey string) map[string]string {
 		}
 	}
 	return out
+}
+
+// keyKind returns the value kind of the item property with schema key key.
+func keyKind(keys, kinds map[string]string, key string) string {
+	for id, k := range keys {
+		if k == key {
+			return kinds[id]
+		}
+	}
+	return ""
+}
+
+// itemPropValue returns the Value document of the item property key.
+func itemPropValue(item bson.D, keys map[string]string, key string) bson.D {
+	for _, p := range bsonnav.DGetArrayElements(bsonnav.DGet(item, "Properties")) {
+		if pd, ok := p.(bson.D); ok && keys[bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(pd, "TypePointer"))] == key {
+			return bsonnav.DGetDoc(pd, "Value")
+		}
+	}
+	return nil
+}
+
+// templateFilled reports whether the item property key holds a TextTemplate.
+func templateFilled(item bson.D, keys map[string]string, key string) bool {
+	return bsonnav.DGetDoc(itemPropValue(item, keys, key), "TextTemplate") != nil
+}
+
+// nullTemplate stores the item property key's TextTemplate as null.
+func nullTemplate(item bson.D, keys map[string]string, key string) {
+	if val := itemPropValue(item, keys, key); val != nil {
+		bsonnav.DSet(val, "TextTemplate", nil)
+	}
 }
