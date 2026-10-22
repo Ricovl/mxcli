@@ -1,0 +1,39 @@
+mdl 1;
+-- mendixlabs/mxcli#1453 / ako/mxcli#1326: an Accordion group stores no Name,
+-- so `insert into grp1 { … }` never resolved and an empty group could not be
+-- filled. Groups are now addressed on their widget, like navigation list
+-- items: `acc1 item@n`, `acc1 item('<headerText>')`, `acc1 item(<widget>)`,
+-- with `.headercontent` for the header slot
+-- (PROPOSAL_alter_object_list_item_address.md).
+--
+-- Expected (describe below): the first group's body holds txtOne and
+-- txtOne2, its header slot txtHead; the second group holds tbName; and
+-- `mxcli docker check --no-update-widgets` reports 0 errors.
+--
+-- The header slot is hidden while headerRenderMode is 'text', so the SET
+-- comes first; inserting into it without that SET is refused.
+
+create module Bug1453b;
+
+create persistent entity Bug1453b.Item (Name: string(50));
+
+create page Bug1453b.P (title: 'P', layout: Atlas_Core.Atlas_Default, params: ( $Item: Bug1453b.Item )) {
+  dataview dv (DataSource: $Item) {
+    accordion acc1 (advancedMode: false, collapsible: true, expandBehavior: 'singleExpanded', animate: true, showIcon: 'right', animateIcon: true) {
+      group (headerRenderMode: 'text', headerText: 'One') {
+        dynamictext txtOne (Content: 'one')
+      }
+      group (headerRenderMode: 'custom') {
+      }
+    }
+  }
+};
+
+alter page Bug1453b.P {
+  insert into acc1 item@2 { textbox tbName (Label: 'Name', Attribute: Name) };
+  insert into acc1 item('One') { dynamictext txtOne2 (Content: 'one more') };
+  set (headerRenderMode: 'custom') on acc1 item@1;
+  insert into acc1 item@1.headercontent { dynamictext txtHead (Content: 'Header') }
+};
+
+describe page Bug1453b.P;

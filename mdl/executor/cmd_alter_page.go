@@ -350,13 +350,51 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 	if err := applySetProperties(ctx, mutator, op, moduleName, moduleID); err != nil {
 		return err
 	}
-	if op.Target.IsColumn() {
+	if op.Target.IsColumn() || op.Target.Item != nil {
 		names := make([]string, 0, len(op.Properties))
 		for k := range op.Properties {
 			names = append(names, k)
 		}
 		sort.Strings(names)
+		if op.Target.Item != nil {
+			return resetHiddenItemProperties(ctx, mutator, op.Target, names)
+		}
 		return resetHiddenColumnProperties(ctx, mutator, op.Target, names)
+	}
+	return nil
+}
+
+// itemHiddenPropertyResetter is the page mutator capability behind
+// resetHiddenItemProperties; engines without it are left as they were.
+type itemHiddenPropertyResetter interface {
+	ResetHiddenItemProperties(itemRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
+}
+
+// resetHiddenItemProperties is resetHiddenColumnProperties for an object-list
+// item (`acc1 item@1`): after the SET, every item property the widget's
+// editorConfig now hides goes back to how CREATE stores a hidden one.
+// `set (headerRenderMode: 'custom')` hid the group's headerText and left its
+// template filled: CE0463 at the Accordion. The rules are the installed
+// package's, found from the item's own widget id.
+func resetHiddenItemProperties(ctx *ExecContext, mutator backend.PageMutator, target ast.WidgetRef, setProps []string) error {
+	resetter, ok := mutator.(itemHiddenPropertyResetter)
+	if !ok {
+		return nil
+	}
+	valuer, ok := mutator.(objectListItemValuer)
+	if !ok {
+		return nil
+	}
+	vals, ok := valuer.ObjectListItemValues(target.Widget)
+	if !ok {
+		return nil
+	}
+	rules := resolveWidgetVisibilityRules(ctx.MprPath, vals.WidgetID)
+	if len(rules) == 0 {
+		return nil
+	}
+	if _, err := resetter.ResetHiddenItemProperties(target.Widget, rules, setProps); err != nil {
+		return mdlerrors.NewBackend("set on "+target.Name(), err)
 	}
 	return nil
 }
@@ -545,6 +583,11 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 // ============================================================================
 
 func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.InsertWidgetOp, moduleName string, moduleID model.ID) error {
+	if strings.EqualFold(op.Position, "INTO") {
+		if err := refuseHiddenItemSlot(ctx, mutator, op.Target); err != nil {
+			return err
+		}
+	}
 	opWidgets, err := expandAlterFragments(ctx, op.Widgets, moduleName, moduleID)
 	if err != nil {
 		return err
@@ -686,6 +729,11 @@ func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) e
 // ============================================================================
 
 func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
+	if op.Target.Item != nil && op.Target.Column != "" {
+		if err := refuseHiddenItemSlot(ctx, mutator, op.Target); err != nil {
+			return err
+		}
+	}
 	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
 	if err != nil {
 		return err

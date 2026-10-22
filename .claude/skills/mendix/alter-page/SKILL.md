@@ -17,10 +17,10 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 482-560 | Examples |
 | 561-651 | DataGrid 2 columns: how to address them, and what you can set |
 | 652-663 | Common Mistakes |
-| 664-692 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 693-700 | Validation Checklist |
-| 701-710 | Related Commands |
-| 711-715 | Related Skills |
+| 664-696 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 697-704 | Validation Checklist |
+| 705-714 | Related Commands |
+| 715-719 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -677,6 +677,10 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
+
+**An Accordion group has no name either** (`group g1` keeps no `g1`): use
+   `acc1 item@2`, `acc1 item('One')` or `acc1 item(btnIn)`; `.headercontent` is its
+   header slot, refused until `set (headerRenderMode: 'custom') on acc1 item@1`.
 
 **A pluggable widget's slot has no name either.** A Data grid 2's control bar
    (`controlbar { … }` in describe) is a property of the grid, so address it by

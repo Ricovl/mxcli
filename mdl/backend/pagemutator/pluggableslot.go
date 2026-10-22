@@ -39,6 +39,9 @@ type pluggableSlot struct {
 // pluggableSlots lists the widget's own widgets-typed properties (not those of
 // its object-list items — an Accordion group's content is not the Accordion's).
 func pluggableSlots(owner *bsonWidgetResult) []pluggableSlot {
+	if owner.item != nil {
+		return itemSlots(owner) // `acc1 item@1.headercontent`
+	}
 	if bsonnav.DGetString(owner.widget, "$Type") != "CustomWidgets$CustomWidget" {
 		return nil
 	}

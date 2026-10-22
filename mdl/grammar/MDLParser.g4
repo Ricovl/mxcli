@@ -441,10 +441,16 @@ alterFragment
 // holding the widget named t1, `nav item('Home')` for the one whose text is
 // Home, and `nav item@2` for the second item. With a selector, @n chooses among
 // the items that match it.
+//
+// The same address reaches a pluggable widget's object-list item — an
+// Accordion group, a Pop-up menu item — which stores no name either
+// (PROPOSAL_alter_object_list_item_address.md): `acc1 item@1` is the group,
+// INSERT INTO it fills its body slot, and `acc1 item@1.headercontent` names
+// another of its slots, as `grid.controlbar` names a widget's.
 alterTarget
     : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
-    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
-    | identifierOrKeyword ITEM AT NUMBER_LITERAL
+    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)? (DOT itemSlot=identifierOrKeyword)?
+    | identifierOrKeyword ITEM AT NUMBER_LITERAL (DOT itemSlot=identifierOrKeyword)?
     | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;
