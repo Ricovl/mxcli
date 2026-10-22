@@ -54,7 +54,9 @@ LAYOUT` rebuilds the document from your MDL, which means it can only reproduce
 what MDL can express; `ALTER LAYOUT` edits what is stored and leaves everything
 it was not asked about untouched — including widgets MDL has no syntax for,
 which a describe → rename → run copy drops (`describe` names each one in a
-`-- NOT re-executable` comment). An `ALTER LAYOUT` against it does not.
+`-- NOT re-executable` comment). An `ALTER LAYOUT` against it does not, and a
+`CREATE OR REPLACE LAYOUT` of the stored layout itself is refused while it
+holds one.
 
 Like `CREATE LAYOUT`, it refuses a Marketplace target and names the
 copy-then-repoint route in the error.

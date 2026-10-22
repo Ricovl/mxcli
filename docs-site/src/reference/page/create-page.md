@@ -21,6 +21,8 @@ Creates a new page in the specified module. A page defines a user interface scre
 
 If `OR REPLACE` is specified and a page with the same qualified name already exists, it is replaced. Otherwise, creating a page with an existing name is an error.
 
+A replace (`OR REPLACE` or `OR MODIFY`) is refused when the stored page holds a widget MDL cannot author — a classic data grid, a reference selector, a drop-down, a reference set selector — that the statement does not declare by name, because the rebuilt page would not contain it. `DESCRIBE PAGE` marks each such widget with a `-- NOT re-executable` comment, and the error lists them. Change the page with [ALTER PAGE](alter-page.md), which keeps them, or remove them on purpose first (`ALTER PAGE M.P { DROP grid1; };`). The same applies to snippets and layouts, and `mxcli check -p` reports it before anything is written.
+
 ### Page Properties
 
 The page declaration block `( ... )` contains comma-separated key-value properties:

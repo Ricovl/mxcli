@@ -435,6 +435,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 		}
 	}
 	errors = append(errors, validateForwardPageRefs(ctx, prog)...)
+	// A rewrite exec would refuse for the widgets MDL cannot author that it
+	// deletes (mendixlabs/mxcli#1622).
+	errors = append(errors, validateUnauthorableRewrites(ctx, prog)...)
 	// The same for the other references exec resolves in statement order, where
 	// the later definition is a `create or modify` (mendixlabs/mxcli#1211, #1212).
 	errors = append(errors, validateForwardDefRefs(ctx, prog)...)

@@ -377,8 +377,12 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
-	outputLayoutBodyMDL(ctx, rawData)
-	outputNativeLayoutPartsMDL(ctx, rawData)
+	// Through describeWidgetBody like a page's body, so a widget MDL cannot
+	// author is known to the rewrite guard (mendixlabs/mxcli#1622).
+	describeWidgetBody(ctx, func(c *ExecContext) {
+		outputLayoutBodyMDL(c, rawData)
+		outputNativeLayoutPartsMDL(c, rawData)
+	})
 
 	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
