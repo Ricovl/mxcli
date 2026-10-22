@@ -1,0 +1,50 @@
+mdl 1;
+-- ============================================================================
+-- Combo box in enumeration mode bound to a Boolean — CE7247
+-- (the gap left open by ako/mxcli#1390, found while measuring mendixlabs/mxcli#1466)
+-- ============================================================================
+--
+-- `combobox cb (Attribute: Flag)` with no data source is enumeration mode: the
+-- attribute is written to the widget's `attributeEnumeration`, which takes an
+-- Enumeration only. `check --references` and `exec` passed it; on fresh 11.14.0
+-- and 11.13.0 projects mxbuild reported
+--
+--   [error] [CE7247] "Only attributes of type Enumeration are allowed here." at Combo box 'cbFlag'
+--
+-- and the same for String, Integer, Long, Decimal, AutoNumber, DateTime and
+-- Binary. Enumeration builds clean.
+--
+--   mxcli check this-file -p app.mpr --references
+--     before: no error
+--     after:  MDL-WIDGET39 on cbFlag, naming CE7247 and `checkbox` / `radiobuttons`
+--
+-- Plain .mdl, not .fail.mdl: the rule needs the project (it runs in the
+-- --references walk with the built-in inputs' CE2421 matrix), and `make
+-- check-mdl` runs without one. The unit tests in
+-- mdl/executor/validate_widget_attribute_type_test.go cover the guard.
+-- ============================================================================
+
+create module BugCbBool;
+create enumeration BugCbBool.Kind (Small 'Small', Large 'Large');
+
+@position(100, 100)
+create persistent entity BugCbBool.Thing (
+  Flag: boolean default false,
+  Size: enumeration(BugCbBool.Kind)
+);
+
+create page BugCbBool.Thing_Edit (title: 'Thing', layout: Atlas_Core.Atlas_Default, params: ($Thing: BugCbBool.Thing)) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvThing (datasource: $Thing) {
+          -- The bug: enumeration mode on a Boolean. CE7247.
+          combobox cbFlag (label: 'Flag', attribute: Flag)
+          -- Controls, both build clean.
+          combobox cbSize (label: 'Size', attribute: Size)
+          checkbox chkFlag (label: 'Flag', attribute: Flag)
+        }
+      }
+    }
+  }
+};
