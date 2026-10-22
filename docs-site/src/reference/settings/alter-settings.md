@@ -24,6 +24,8 @@
     ALTER SETTINGS WORKFLOWS MODIFY GROUP 'name' ( Description: 'text' )
     ALTER SETTINGS WORKFLOWS DROP GROUP 'name'
 
+    ALTER SETTINGS WEBUI ( OptimizedClient: 'Yes' | 'No' | 'MigrationMode' )
+
 ## Description
 
 Modifies project settings by category. Each category has its own syntax and available keys. Properties are written `Key: value` in a parenthesised list, as in every other MDL statement; the older `key = value, ...` without parentheses still runs and warns `MDL-DEPR060`, and `mxcli fmt --upgrade` rewrites it.
@@ -41,6 +43,11 @@ list of **enabled** languages — the only ones a build emits translations for.
 used for workflow tasks and default task parallelism, and the **workflow
 groups** — the named buckets under App Settings ▸ Workflows ▸ Groups that a user
 task's group targeting selects from. Groups need Mendix **11.2** or later.
+
+**WEBUI** settings choose the client the app runs on: `OptimizedClient: 'Yes'` is
+the React client, `'No'` the classic (Dojo) client, `'MigrationMode'` Mendix's
+mixed mode. The value is matched case-insensitively; anything else is rejected by
+`mxcli check` (MDL-SET03) and by the executor.
 
 ## Parameters
 
@@ -187,6 +194,16 @@ List the groups with [`LIST WORKFLOW GROUPS`](list-describe-settings.md).
 ```sql
 ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
 ```
+
+### Switch to the classic web client
+
+```sql
+ALTER SETTINGS WEBUI ( OptimizedClient: 'No' );
+```
+
+Stored as `UseOptimizedClient` on the Web UI settings part (Mendix 9.10 and
+later). `DESCRIBE SETTINGS` emits the statement, and `LIST SETTINGS` shows the
+value as `OptimizedClient`.
 
 ### Remove a constant override from a configuration
 

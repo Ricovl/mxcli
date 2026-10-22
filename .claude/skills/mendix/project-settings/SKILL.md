@@ -10,11 +10,11 @@ description: "Read and change project settings in MDL — database configuration
 
 | lines | section |
 |---|---|
-| 22-31 | When to Use This Skill |
-| 32-319 | Commands |
-| 320-347 | Common Patterns |
-| 348-356 | Checklist |
-| 357-361 | AfterStartupMicroflow Must Return Boolean |
+| 22-32 | When to Use This Skill |
+| 33-337 | Commands |
+| 338-365 | Common Patterns |
+| 366-374 | Checklist |
+| 375-379 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -28,6 +28,7 @@ Use this skill when the user wants to:
 - Modify hash algorithms, Java versions, or rounding modes
 - View or modify language settings
 - Configure workflow settings (user entity, parallelism, groups)
+- Switch between the React and the classic web client (Web UI settings)
 
 ## Commands
 
@@ -316,6 +317,23 @@ Four things worth knowing:
   reference to the settings entry, so REMOVE has no dangling reference to check
   for. What it does mean is that the removed group's runtime row stops being
   maintained while the user tasks already assigned to it keep their association.
+
+### Web UI Settings (which client the app runs on)
+
+```sql
+mdl 1;
+alter settings webui (OptimizedClient: 'Yes');   -- the React client
+alter settings webui (OptimizedClient: 'No');    -- the classic (Dojo) client
+```
+
+- **Values:** `Yes`, `No`, `MigrationMode`, matched case-insensitively. Anything
+  else is refused by `mxcli check` (MDL-SET03) and by exec — measured on a blank
+  11.14.0 app, `mx check` reports **0 errors** for an out-of-range value, so the
+  refusal is the only thing that catches it.
+- Stored as `Forms$WebUIProjectSettingsPart.UseOptimizedClient` (Mendix 9.10+); a
+  project that does not store it is refused rather than told "Updated".
+- Widgets differ per client — check `list settings` → `OptimizedClient` before
+  choosing one. `describe settings` emits this statement, so it round-trips.
 
 ## Common Patterns
 

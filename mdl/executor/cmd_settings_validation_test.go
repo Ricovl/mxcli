@@ -36,8 +36,12 @@ func settingsBackend(wrote *bool) *mock.MockBackend {
 						ServerPortNumber: 8090,
 					}},
 				},
+				WebUI: &model.WebUISettings{UseOptimizedClient: "Yes"},
 			}
-			ps.RawParts = []map[string]any{{"$Type": "Settings$ConfigurationSettings"}}
+			ps.RawParts = []map[string]any{
+				{"$Type": "Settings$ConfigurationSettings"},
+				{"$Type": "Forms$WebUIProjectSettingsPart", "UseOptimizedClient": "Yes"},
+			}
 			return ps, nil
 		},
 		UpdateProjectSettingsFunc: func(*model.ProjectSettings) error {

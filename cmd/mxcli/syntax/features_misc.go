@@ -571,7 +571,7 @@ ALTER NAVIGATION Responsive {
 
 	Register(SyntaxFeature{
 		Path:    "settings",
-		Summary: "Project settings — model, configuration, constants, language, workflows",
+		Summary: "Project settings — model, configuration, constants, language, workflows, web UI",
 		Keywords: []string{
 			"settings", "project settings", "configuration",
 			"startup", "shutdown", "hash algorithm", "java version",
@@ -667,7 +667,7 @@ create or modify translations in Administration for nl_NL (
 
 	Register(SyntaxFeature{
 		Path:    "settings.alter",
-		Summary: "Modify project settings — model, configuration, constants, language, workflows",
+		Summary: "Modify project settings — model, configuration, constants, language, workflows, web UI",
 		Keywords: []string{
 			"alter settings", "modify settings", "change settings",
 			"after startup", "before shutdown", "hash algorithm",
@@ -675,7 +675,7 @@ create or modify translations in Administration for nl_NL (
 			"add language", "remove language", "enable language", "translations",
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
-			"jvm parameters", "proxy",
+			"web ui", "webui", "react client", "optimized client", "classic client", "jvm parameters", "proxy",
 		},
 		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
 ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
@@ -690,6 +690,7 @@ ALTER SETTINGS WORKFLOWS (UserEntity: '<qualifiedName>');
 ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP '<name>' [(Description: '<text>')];
 ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
 ALTER SETTINGS WORKFLOWS DROP GROUP '<name>';
+ALTER SETTINGS WEBUI (OptimizedClient: 'Yes' | 'No' | 'MigrationMode');
 CREATE [OR MODIFY] CONFIGURATION '<name>' [(<key>: <value>, ...)];
 DROP CONFIGURATION '<name>';
 
@@ -713,6 +714,11 @@ CREATE CONFIGURATION 'Production' (
 ALTER SETTINGS CONFIGURATION 'Default' (
   ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'
 );
+
+-- WEBUI picks the client the app runs on: Yes is the React client, No the
+-- classic (Dojo) one, MigrationMode Mendix's mixed mode. Widgets differ per
+-- client, so check it (LIST SETTINGS) before choosing one.
+ALTER SETTINGS WEBUI (OptimizedClient: 'Yes');
 
 -- LANGUAGE ADD/REMOVE change the ENABLED languages — the list under App
 -- Settings > Languages, and the only languages a build emits anything for. A

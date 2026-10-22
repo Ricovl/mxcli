@@ -48,6 +48,9 @@ var typedSettingsKeys = map[string]map[string]settingsValueKind{
 		"ServerPortNumber": settingsKindInt,
 		"DatabaseType":     settingsKindDatabaseType,
 	},
+	"webui": {
+		"OptimizedClient": settingsKindEnum,
+	},
 }
 
 // ValidateSettings reports ALTER SETTINGS values that will not parse as their

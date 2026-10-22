@@ -269,6 +269,15 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		}
 	}
 
+	// Web UI settings: which client the app runs on. Emitted only when the
+	// project stores the property, so the output replays (ALTER refuses one the
+	// part does not carry).
+	if ps.WebUI != nil && ps.WebUI.UseOptimizedClient != "" {
+		if stored := storedWebUISettings(ps); stored == nil || settingsoverlay.Has(stored, "UseOptimizedClient") {
+			fmt.Fprintf(ctx.Output, "alter settings webui (\n  OptimizedClient: %s\n);\n\n", mdlQuoted(ps.WebUI.UseOptimizedClient))
+		}
+	}
+
 	return nil
 }
 
@@ -343,11 +352,27 @@ var sslCertificateAlgorithmValues = []string{
 	string(metamodel.SettingsSslCertificateAlgorithmSunX509),
 }
 
+// useOptimizedClientValues are the members of Settings.UseOptimizedClient, the
+// Web UI setting that picks the client the app runs on: Yes is the React client,
+// No the classic (Dojo) one, MigrationMode Mendix's mixed mode. In the Model SDK's
+// declaration order; no member carries a version gate of its own.
+var useOptimizedClientValues = []string{
+	string(metamodel.SettingsUseOptimizedClientNo),
+	string(metamodel.SettingsUseOptimizedClientYes),
+	string(metamodel.SettingsUseOptimizedClientMigrationMode),
+}
+
+// webUISettingKeys names every property ALTER SETTINGS WEBUI assigns.
+// OptimizedClient is the spelling `show settings` prints and the skills point to;
+// it is stored as UseOptimizedClient.
+var webUISettingKeys = []string{"OptimizedClient"}
+
 // settingsEnumValues maps "<section>/<key>" to the enumeration members accepted for
 // it, for the properties validated as settingsKindEnum.
 var settingsEnumValues = map[string][]string{
 	"model/FirstDayOfWeek":          firstDayOfWeekValues,
 	"model/SslCertificateAlgorithm": sslCertificateAlgorithmValues,
+	"webui/OptimizedClient":         useOptimizedClientValues,
 }
 
 // settingsEnum canonicalises an enumeration-typed settings value to the member
@@ -370,6 +395,17 @@ func settingsEnum(key, valStr string, members []string) (string, error) {
 func storedModelSettings(ps *model.ProjectSettings) map[string]any {
 	for _, part := range ps.RawParts {
 		if t, _ := part["$Type"].(string); t == "Settings$ModelSettings" {
+			return part
+		}
+	}
+	return nil
+}
+
+// storedWebUISettings returns the raw Web UI settings part, or nil when it is not
+// in RawParts — the same contract as storedModelSettings.
+func storedWebUISettings(ps *model.ProjectSettings) map[string]any {
+	for _, part := range ps.RawParts {
+		if t, _ := part["$Type"].(string); settingsoverlay.IsWebUIPart(t) {
 			return part
 		}
 	}
@@ -634,6 +670,34 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 			}
 		}
 
+	case "webui":
+		if ps.WebUI == nil {
+			return mdlerrors.NewNotFound("settings section", "webui")
+		}
+		storedWebUI := storedWebUISettings(ps)
+		for key, val := range stmt.Properties {
+			valStr := settingsValueToString(val)
+			switch key {
+			case "OptimizedClient":
+				// The overlay is presence-gated (the property arrived in 9.10), so
+				// refuse rather than report a success that changes nothing.
+				if storedWebUI != nil && !settingsoverlay.Has(storedWebUI, "UseOptimizedClient") {
+					return mdlerrors.NewUnsupported(
+						"this project does not store the Web UI setting UseOptimizedClient\n" +
+							"  Mendix added it in 9.10; mxcli will not introduce a property the project's " +
+							"Mendix version does not define.")
+				}
+				v, err := settingsEnum(key, valStr, useOptimizedClientValues)
+				if err != nil {
+					return err
+				}
+				ps.WebUI.UseOptimizedClient = v
+			default:
+				return mdlerrors.NewUnsupported(fmt.Sprintf(
+					"unknown webui setting: %s\n  valid keys: %s", key, strings.Join(webUISettingKeys, ", ")))
+			}
+		}
+
 	case "configuration":
 		return alterSettingsConfiguration(ctx, ps, stmt)
 
@@ -641,7 +705,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 		return alterSettingsConstant(ctx, ps, stmt)
 
 	default:
-		return mdlerrors.NewUnsupported(fmt.Sprintf("unknown settings section: %s (expected model, configuration, constant, LANGUAGE, or workflows)", section))
+		return mdlerrors.NewUnsupported(fmt.Sprintf("unknown settings section: %s (expected model, configuration, constant, LANGUAGE, workflows, or webui)", section))
 	}
 
 	// Write updated settings
