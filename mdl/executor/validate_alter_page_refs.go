@@ -124,7 +124,11 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 
 		// The targets, against the stored document, in the order exec
 		// resolves them.
+		itemSetEarlier := map[string]bool{}
 		for _, op := range s.Operations {
+			if set, ok := op.(*ast.SetPropertyOp); ok && set.Target.Item != nil {
+				itemSetEarlier[set.Target.Widget] = true
+			}
 			// A SET's target is validateAlterSetProperties' finding.
 			if _, isSet := op.(*ast.SetPropertyOp); mutator != nil && !isSet {
 				for _, ref := range alterPageOperationTargets(op) {
@@ -136,6 +140,15 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 					}
 					if _, err := mutator.ResolveAlterTarget(alterTargetOf(ref)); err != nil {
 						errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
+					} else if !itemSetEarlier[ref.Widget] {
+						// An earlier SET on the item in this statement may be what
+						// makes the slot visible (`set (headerRenderMode: 'custom')`,
+						// the very step the refusal recommends). This pass reads the
+						// stored document, so it cannot see that; exec checks again
+						// against the values after the SET.
+						if err := refuseHiddenItemSlotFor(ctx, mutator, op, ref); err != nil {
+							errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
+						}
 					}
 				}
 			}
