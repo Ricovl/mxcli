@@ -2,7 +2,7 @@
 
 // `run --local --watch` on Mendix 11.12.5: the first hot reload after any change
 // leaves deployment/web/dist holding only index.js and chunks/, so every page
-// 404s until the loop is restarted (#1485, mendixlabs/mxcli#1580).
+// 404s until the loop is restarted (mendixlabs/mxcli#1580).
 //
 // The defect is in mxbuild --serve, and the measurements that place it there
 // were taken by driving its /build API directly, no watch loop involved, on a
@@ -235,7 +235,7 @@ func themeCompileFailure() *BuildResult {
 }
 
 // staleThemeFailure is every later build in that process, after the SCSS is
-// fixed: CE6093 quoting the FIRST error (#1482, mendixlabs/mxcli#1577).
+// fixed: CE6093 quoting the FIRST error (mendixlabs/mxcli#1577).
 func staleThemeFailure() *BuildResult {
 	return &BuildResult{Status: "Failure", Message: "The project cannot be deployed, because it contains errors.",
 		Problems: BuildProblems{Problems: []BuildProblem{{Severity: "Error", ErrorCode: "CE6093",

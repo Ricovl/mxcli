@@ -16,23 +16,23 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 119-131 | How apply is chosen |
 | 132-201 | Prerequisites |
 | 202-219 | The intended loop |
-| 220-244 | Editing themes (SCSS) — rebuild, never clear caches |
-| 245-271 | `--watch` waits for a write to finish before it builds |
-| 272-300 | "My edit didn't show up" — stale process, not stale cache |
-| 301-331 | Flags |
-| 332-385 | Metrics and OpenTelemetry |
-| 386-443 | Pages render in the browser |
-| 444-461 | Pixel-perfect page loop |
-| 462-482 | Debugging a server-side error |
-| 483-503 | "Sign in failed" that is not about the password |
-| 504-536 | The same licence also stops the app after a few hours |
-| 537-616 | External browser preview (`--hub`) |
-| 617-625 | Validation checklist |
-| 626-665 | Constant values come from a configuration |
-| 666-669 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 670-673 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 674-677 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 678-680 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 220-247 | Editing themes (SCSS) — rebuild, never clear caches |
+| 248-274 | `--watch` waits for a write to finish before it builds |
+| 275-303 | "My edit didn't show up" — stale process, not stale cache |
+| 304-334 | Flags |
+| 335-388 | Metrics and OpenTelemetry |
+| 389-446 | Pages render in the browser |
+| 447-464 | Pixel-perfect page loop |
+| 465-485 | Debugging a server-side error |
+| 486-506 | "Sign in failed" that is not about the password |
+| 507-539 | The same licence also stops the app after a few hours |
+| 540-619 | External browser preview (`--hub`) |
+| 620-628 | Validation checklist |
+| 629-668 | Constant values come from a configuration |
+| 669-672 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 673-676 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 677-680 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 681-683 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`

@@ -628,7 +628,7 @@ func waitTCP(hostPort string, timeout time.Duration) error {
 // dbAdmin is a PostgreSQL superuser login supplied by the user
 // (--db-admin-user/--db-admin-password). A server whose superuser has a password
 // — every Windows install, where the installer always sets one, and there is no
-// sudo either — can be provisioned no other way (#1342).
+// sudo either — can be provisioned no other way (mendixlabs/mxcli#1485).
 type dbAdmin struct{ User, Password string }
 
 func (a dbAdmin) given() bool { return a.User != "" || a.Password != "" }

@@ -1017,8 +1017,8 @@ exit 1`)
 }
 
 // The Windows PostgreSQL installer always gives `postgres` a password, and
-// there is no sudo, so none of the passwordless paths can work (#1342,
-// mendixlabs/mxcli#1485). Explicit admin credentials must be used — over TCP,
+// there is no sudo, so none of the passwordless paths can work
+// (mendixlabs/mxcli#1485). Explicit admin credentials must be used — over TCP,
 // as the named user, with the password in the environment rather than argv.
 func TestResolveSuperuser_UsesAdminCredentials(t *testing.T) {
 	dir, logPath := newStubPATH(t)

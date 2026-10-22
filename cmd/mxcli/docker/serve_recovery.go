@@ -25,7 +25,7 @@ import (
 //   - SUCCEEDS with an incomplete bundle, for every other change and for no
 //     change at all: dist/ is replaced by a monolithic index.js and one chunk,
 //     with no pages/ and no widgets.css, so the browser 404s on every page while
-//     the loop reports "applied via reload" (#1485, mendixlabs/mxcli#1580).
+//     the loop reports "applied via reload" (mendixlabs/mxcli#1580).
 //
 // Measured by driving mxbuild 11.12.5's /build API directly on a blank app:
 //
@@ -41,7 +41,7 @@ import (
 // against a 4s reload that serves no pages — correct beats fast.
 //
 // The same process also keeps a theme error past its fix, in every shape
-// (#1482, mendixlabs/mxcli#1577). Measured on 11.12.5 over the same API:
+// (mendixlabs/mxcli#1577). Measured on 11.12.5 over the same API:
 //
 //	broken scss                 Failure  An error occurred while compiling Theme files
 //	fixed scss, same process    Failure  CE6093 The theme could not be compiled, quoting the OLD error

@@ -1488,7 +1488,7 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			// starts a fresh one on the new web/ (#1342).
 			// The build goes through serveRecovery, which restarts mxbuild --serve
 			// when a build leaves state only a fresh process clears — e.g. an
-			// "applied" reload whose dist/ lost every page (#1485).
+			// "applied" reload whose dist/ lost every page (mendixlabs/mxcli#1580).
 			build, freshBundle, err := bundler.BuildReleasingWebDir(func() (*BuildResult, error) {
 				return builds.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 			})
