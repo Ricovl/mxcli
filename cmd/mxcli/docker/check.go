@@ -120,11 +120,14 @@ func Check(opts CheckOptions) error {
 	// Normalize pluggable widget definitions so `mx check` does not report
 	// CE0463 ("widget definition changed") for definitions that only need a
 	// resync. On the copy, so neither the model nor its storage format changes.
+	normalised := false
 	if !opts.SkipUpdateWidgets {
 		fmt.Fprintln(w, "Normalising widget definitions on the temporary copy...")
 		if err := updateWidgetsCmd(mxPath, workMpr, out, errOut); err != nil {
 			out.Flush()
 			fmt.Fprintf(w, "Warning: update-widgets failed (continuing): %v\n", err)
+		} else {
+			normalised = true
 		}
 	}
 
@@ -134,13 +137,22 @@ func Check(opts CheckOptions) error {
 	out.Flush()
 	errOut.Flush()
 
-	if !opts.SkipUpdateWidgets {
+	switch {
+	case normalised:
 		// #568 / #646: the normalisation can hide a CE0463 the stored project
 		// still has, which then fails `run --local` and MxBuild.
 		fmt.Fprintln(w, "Note: widget definitions were normalised on a temporary copy before checking, so a")
 		fmt.Fprintln(w, "  CE0463 the stored project still has is not reported here; it fails MxBuild and")
 		fmt.Fprintln(w, "  `mxcli run --local`. Use --no-update-widgets to check the project as stored, and")
 		fmt.Fprintln(w, "  `mxcli fix widgets` to apply the normalisation to the project.")
+	case !opts.SkipUpdateWidgets:
+		// mendixlabs/mxcli#1629: update-widgets refuses a project of another
+		// Mendix version than mx's own (exit status 4) where mx check accepts it.
+		fmt.Fprintln(w, "Note: widget definitions were not normalised (update-widgets failed above), so this")
+		fmt.Fprintln(w, "  checked the project as stored, and a CE0463 may be one normalisation would clear.")
+		fmt.Fprintln(w, "  If mx said \"Project is in different Mendix version\", update-widgets needs an mx of")
+		fmt.Fprintln(w, "  the project's exact version, which mx check does not: `mxcli setup mxbuild -p")
+		fmt.Fprintln(w, "  <app>.mpr` fetches it, and --mxbuild-path ~/.mxcli/mxbuild/<version> selects it.")
 	}
 	if checkErr != nil {
 		return fmt.Errorf("project check failed: %w", checkErr)
