@@ -367,6 +367,15 @@ clear (verified: one `/build` after an `main.scss` content edit changes
 
 - **With `--watch`** — just save the `.scss`; the theme source is watched and the loop
   rebuilds and hot-applies automatically.
+  One exception, in `mxbuild --serve` itself: after a theme **error**, the same serve
+  process keeps reporting that first Sass error — as `[CE6093] The theme could not be
+  compiled`, quoting a line no longer in the file — on every later build, even once the
+  SCSS compiles (measured on 11.12.5; the bundled Dart Sass compiles the same source
+  cleanly). So when a theme failure follows another one, the loop restarts
+  `mxbuild --serve` and builds once more, printing *"the theme error may be stale …
+  restarting mxbuild --serve"*. A theme error that survives the restart is the source's
+  own, and is the one reported. The fresh build cannot tell a theme-only change from a
+  model change, so that apply restarts the runtime.
 - **Without `--watch`** — nothing watches anything, so a save changes nothing in the
   running app. Trigger a rebuild: restart `run --local`, or use `--watch`.
 

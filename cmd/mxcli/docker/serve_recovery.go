@@ -39,6 +39,17 @@ import (
 // So nothing done to the deployment from outside helps, and a fresh process
 // always does. The cost of one is a ~5s start plus a cold ~18s build per change,
 // against a 4s reload that serves no pages — correct beats fast.
+//
+// The same process also keeps a theme error past its fix, in every shape
+// (#1482, mendixlabs/mxcli#1577). Measured on 11.12.5 over the same API:
+//
+//	broken scss                 Failure  An error occurred while compiling Theme files
+//	fixed scss, same process    Failure  CE6093 The theme could not be compiled, quoting the OLD error
+//	again, same process         Failure  the same
+//	fresh process               Success
+//
+// Running the bundled Dart Sass on the generated entry point at the second step
+// compiles cleanly, so the project is fine and the error is process state.
 
 // serveProcess is the part of *ServeServer the watch loop's recovery drives — a
 // seam so the recovery is testable without an mxbuild.
@@ -58,6 +69,11 @@ type serveRecovery struct {
 	// replace is gone, so the next build starts one first instead of failing
 	// against nothing on every later change.
 	restartPending bool
+
+	// themeFailed is set while the CURRENT serve process's last theme compile
+	// failed. A theme failure then is not trustworthy: the process may be
+	// reporting the earlier error rather than the source on disk.
+	themeFailed bool
 }
 
 func (r *serveRecovery) Build(req BuildRequest) (*BuildResult, error) {
@@ -72,6 +88,16 @@ func (r *serveRecovery) Build(req BuildRequest) (*BuildResult, error) {
 	res, err := r.serve.Build(req)
 	if err != nil {
 		return res, err
+	}
+	staleTheme := r.themeFailed && isThemeFailure(res)
+	r.observe(res)
+
+	if staleTheme {
+		fmt.Fprintln(r.out, "  the theme error may be stale — mxbuild --serve keeps reporting its first Sass error "+
+			"(CE6093) after the SCSS is fixed; restarting mxbuild --serve to compile the theme afresh...")
+		// The fresh process's answer stands either way: a theme error it
+		// reports is the source's own, and current.
+		return r.rebuildFresh(req)
 	}
 
 	if res.OK() {
@@ -115,16 +141,54 @@ func (r *serveRecovery) rebuildFresh(req BuildRequest) (*BuildResult, error) {
 	if err := r.restart(); err != nil {
 		return nil, err
 	}
-	return r.serve.Build(req)
+	res, err := r.serve.Build(req)
+	if err == nil {
+		r.observe(res)
+	}
+	return res, err
 }
 
 func (r *serveRecovery) restart() error {
+	r.themeFailed = false // whatever the old process held went with it
 	if err := r.serve.Restart(); err != nil {
 		r.restartPending = true
 		return fmt.Errorf("restarting mxbuild --serve: %w", err)
 	}
 	r.restartPending = false
 	return nil
+}
+
+// observe records what a build says about the current process's theme state.
+// A non-theme failure leaves it as it was: the process still holds whatever it
+// held.
+func (r *serveRecovery) observe(res *BuildResult) {
+	switch {
+	case res == nil:
+	case res.OK():
+		r.themeFailed = false
+	case isThemeFailure(res):
+		r.themeFailed = true
+	}
+}
+
+// themeCompileMessage is mxbuild's message for a theme that failed to compile
+// in this build; CE6093 is the consistency error a later build reports for it.
+const themeCompileMessage = "An error occurred while compiling Theme files"
+
+// isThemeFailure reports whether a failed build failed on the theme.
+func isThemeFailure(res *BuildResult) bool {
+	if res == nil || res.OK() {
+		return false
+	}
+	if strings.Contains(res.Message, themeCompileMessage) {
+		return true
+	}
+	for _, p := range res.Errors() {
+		if p.ErrorCode == "CE6093" || strings.Contains(p.Message, themeCompileMessage) {
+			return true
+		}
+	}
+	return false
 }
 
 // prebuiltBundle is what a prebuilt-shape web/dist holds that the incremental

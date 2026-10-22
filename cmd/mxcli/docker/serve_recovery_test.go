@@ -226,3 +226,102 @@ func TestServeRecovery_FailedRestartIsRetriedOnNextBuild(t *testing.T) {
 		t.Fatalf("the next build must start a serve process first, restarts %d -> %d", before, f.restarts)
 	}
 }
+
+// themeCompileFailure is the first Sass failure in a serve process, as
+// mxbuild 11.12.5 reports it.
+func themeCompileFailure() *BuildResult {
+	return &BuildResult{Status: "Failure", Message: "An error occurred while compiling Theme files",
+		Raw: []byte(`{"problems":{"errors":[{"message":"An error occurred while compiling Theme files","details":"Error: Undefined variable.\n  .probe2 { color: $does-not-exist; }"}],"problems":[]}}`)}
+}
+
+// staleThemeFailure is every later build in that process, after the SCSS is
+// fixed: CE6093 quoting the FIRST error (#1482, mendixlabs/mxcli#1577).
+func staleThemeFailure() *BuildResult {
+	return &BuildResult{Status: "Failure", Message: "The project cannot be deployed, because it contains errors.",
+		Problems: BuildProblems{Problems: []BuildProblem{{Severity: "Error", ErrorCode: "CE6093",
+			Message: "The theme could not be compiled:\nError: Undefined variable.\n  .probe2 { color: $does-not-exist; }"}}}}
+}
+
+// The reported symptom, measured on 11.12.5 over mxbuild's /build API:
+//
+//	B  broken scss                 Failure  An error occurred while compiling Theme files
+//	C  fixed scss, same process    Failure  CE6093, quoting B's error
+//	D  again, same process         Failure  CE6093, quoting B's error
+//	E  fresh process               Success
+func TestServeRecovery_StaleThemeErrorRestartsServe(t *testing.T) {
+	deploy := prebuiltDeployment(t)
+	f := &scriptedServe{build: func(proc, nth int) (*BuildResult, error) {
+		switch {
+		case proc == 0 && nth == 1:
+			return themeCompileFailure(), nil // the user broke the SCSS
+		case proc == 0:
+			return staleThemeFailure(), nil // ...and fixed it; the process still says no
+		}
+		return buildOK(true), nil
+	}}
+	var out strings.Builder
+	r := &serveRecovery{serve: f, deployDir: deploy, out: &out}
+
+	res, err := r.Build(BuildRequest{})
+	if err != nil || res.OK() {
+		t.Fatalf("the first theme failure is genuine and must be reported, got %+v, %v", res, err)
+	}
+	if f.restarts != 0 {
+		t.Fatalf("a first theme failure must not restart the serve process (restarts = %d)", f.restarts)
+	}
+
+	res, err = r.Build(BuildRequest{})
+	if err != nil || !res.OK() {
+		t.Fatalf("after the SCSS is fixed the build must succeed on a fresh serve process, got %+v, %v", res, err)
+	}
+	if f.restarts != 1 {
+		t.Fatalf("restarts = %d, want 1", f.restarts)
+	}
+	if got := out.String(); !strings.Contains(got, "theme") || !strings.Contains(got, "mxbuild --serve") {
+		t.Fatalf("the restart must be reported in one line, got:\n%s", got)
+	}
+}
+
+// A theme error that is still there after the restart is the user's, and is
+// reported from the fresh process — whose message is current, unlike the stale
+// one. One restart per build, never a loop.
+func TestServeRecovery_GenuineThemeErrorSurvivesOneRestart(t *testing.T) {
+	deploy := prebuiltDeployment(t)
+	f := &scriptedServe{build: func(proc, nth int) (*BuildResult, error) {
+		if proc == 0 && nth > 1 {
+			return staleThemeFailure(), nil
+		}
+		return themeCompileFailure(), nil
+	}}
+	r := &serveRecovery{serve: f, deployDir: deploy, out: io.Discard}
+	_, _ = r.Build(BuildRequest{})
+	res, err := r.Build(BuildRequest{})
+	if err != nil || res.OK() || res.Message != themeCompileFailure().Message {
+		t.Fatalf("the fresh process's own theme failure must be returned, got %+v, %v", res, err)
+	}
+	if f.restarts != 1 {
+		t.Fatalf("restarts = %d, want exactly 1", f.restarts)
+	}
+}
+
+// Control: a theme failure after a SUCCESSFUL build is a fresh error, not a
+// stale one — the process compiled the theme in between.
+func TestServeRecovery_ThemeFailureAfterSuccessIsNotStale(t *testing.T) {
+	deploy := prebuiltDeployment(t)
+	f := &scriptedServe{build: func(_, nth int) (*BuildResult, error) {
+		switch nth {
+		case 1:
+			return themeCompileFailure(), nil
+		case 2:
+			return buildOK(false), nil
+		}
+		return themeCompileFailure(), nil
+	}}
+	r := &serveRecovery{serve: f, deployDir: deploy, out: io.Discard}
+	for i := 0; i < 3; i++ {
+		_, _ = r.Build(BuildRequest{})
+	}
+	if f.restarts != 0 {
+		t.Fatalf("restarts = %d, want 0: no build here followed a theme failure in the same process", f.restarts)
+	}
+}

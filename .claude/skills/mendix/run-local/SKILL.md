@@ -12,27 +12,27 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 |---|---|
 | 40-47 | Overview |
 | 48-60 | When to Use This Skill |
-| 61-116 | Usage |
-| 117-129 | How apply is chosen |
-| 130-199 | Prerequisites |
-| 200-217 | The intended loop |
-| 218-242 | Editing themes (SCSS) — rebuild, never clear caches |
-| 243-269 | `--watch` waits for a write to finish before it builds |
-| 270-298 | "My edit didn't show up" — stale process, not stale cache |
-| 299-329 | Flags |
-| 330-383 | Metrics and OpenTelemetry |
-| 384-441 | Pages render in the browser |
-| 442-459 | Pixel-perfect page loop |
-| 460-480 | Debugging a server-side error |
-| 481-501 | "Sign in failed" that is not about the password |
-| 502-534 | The same licence also stops the app after a few hours |
-| 535-614 | External browser preview (`--hub`) |
-| 615-623 | Validation checklist |
-| 624-663 | Constant values come from a configuration |
-| 664-667 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 668-671 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 672-675 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 676-678 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 61-118 | Usage |
+| 119-131 | How apply is chosen |
+| 132-201 | Prerequisites |
+| 202-219 | The intended loop |
+| 220-244 | Editing themes (SCSS) — rebuild, never clear caches |
+| 245-271 | `--watch` waits for a write to finish before it builds |
+| 272-300 | "My edit didn't show up" — stale process, not stale cache |
+| 301-331 | Flags |
+| 332-385 | Metrics and OpenTelemetry |
+| 386-443 | Pages render in the browser |
+| 444-461 | Pixel-perfect page loop |
+| 462-482 | Debugging a server-side error |
+| 483-503 | "Sign in failed" that is not about the password |
+| 504-536 | The same licence also stops the app after a few hours |
+| 537-616 | External browser preview (`--hub`) |
+| 617-625 | Validation checklist |
+| 626-665 | Constant values come from a configuration |
+| 666-669 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 670-673 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 674-677 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 678-680 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -225,7 +225,10 @@ the loop rebuilds and hot-applies. Without `--watch`, nothing is watched, so the
 does nothing until you restart `run --local` (or re-run with `--watch`). `mxbuild
 --serve` recompiles the theme on its next build and correctly picks up SCSS content
 changes, so **never** `rm -rf theme-cache/ .mendix-cache/ deployment/` — clearing
-caches is a red herring.
+caches is a red herring. The one stale state is the serve process's own: after a
+Sass error it reports `[CE6093]` with that *first* error on every later build, even
+once fixed. `--watch` restarts `mxbuild --serve` when a theme failure follows
+another (one line says so), so the error you see after that is the current one.
 
 A **theme compile error fails the build step, before the runtime starts** — the
 error text is in the serve `/build` output (printed by `run --local`), not a
