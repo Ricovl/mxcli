@@ -678,6 +678,15 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
 
+**An Accordion group (any pluggable object-list item) has no name either.**
+   `group g1 (…)` keeps no `g1`, so address the group on its widget:
+   `insert into acc1 item@2 { … }` fills its body, `acc1 item('One')` finds it
+   by its headerText, `acc1 item(btnIn)` by a widget inside it, and
+   `acc1 item@1.headercontent` names its header slot. The header slot is hidden
+   — and refused — while `headerRenderMode` is `'text'`: write
+   `set (headerRenderMode: 'custom') on acc1 item@1;` first. Adding a new group
+   with `insert after acc1 item@1` is not supported.
+
 **A pluggable widget's slot has no name either.** A Data grid 2's control bar
    (`controlbar { … }` in describe) is a property of the grid, so address it by
    the grid: `insert into dataGrid1.controlbar { actionbutton … }`, `replace
