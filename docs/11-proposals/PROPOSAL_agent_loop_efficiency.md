@@ -26,6 +26,12 @@ bill, with one adverse shape it appears to have induced; the comparison is n = 1
 per side and is recorded as unsettled (§"Run 2, measured"); a third run
 makes the post-change side n = 2 and tight, and shows the skills' share of the
 bill halved with `syntax` sweeps taking the freed share (§"Run 3").
+Revised 2026-10-22 — a fourth project, a 1,771-call build measured end to end,
+confirms `N x S` across three orders of magnitude and resizes the document: tool
+output is 21% of a real build's bill against 35% in the benchmark, and the
+costliest single skill read is 0.26% of it, so BENCH-001 over-weights every
+lever aimed at what a tool returns. The conversation itself is ~79%, which
+promotes phase splitting above all of them (§"A fourth project").
 
 ## The report
 
@@ -80,6 +86,11 @@ away, because the way each assumption survived is the reusable part.
 | mxcli-ledger | — | 5 days | 301 | `check` 250 (83%) |
 | CapTrackV6 | 11.14.0 | 2 h 45 | 585 | `exec` 180, `-c` 111, `check` 90 |
 | mxcli-demo-2 | 11.13.0 | 5 h 07 | 408 | `-c` 120, `exec` 85, `check` 63 |
+| chess (2026-10-21) | — | 20 h 44 | 931 | `exec` 201, `run wait` 95, `check` 86, `docker check` 84 |
+
+The fourth row is `diag session-report`, not `loop-report`, and postdates
+ako/mxcli#629, so its counts are not inflated by mxcli's own child processes.
+It is analysed in §"A fourth project".
 
 **Overturned 1: `check` is not the dominant call.** The ledger's 83% was read
 as the shape of an mxcli loop, and the obvious follow-up — "why so many checks?"
@@ -166,6 +177,11 @@ with unmeasured variance. Treat the ordering as the finding and the percentages
 as approximate.
 
 ### The dominant cost is reading the skills, not running mxcli
+
+> **Read this subsection as benchmark-local.** Its shares are true of a 59-call
+> run and not of a real build: §"A fourth project" measures the same shape at
+> 0.26% of a 1,771-call session's bill, because tool output is a minority input
+> once a conversation is long.
 
 The top ten results carry ~1.34 M of the 1.7 M re-read cost, and they split:
 
@@ -440,6 +456,125 @@ so the verb counts cannot settle it. `diag loop-report`'s
 `check_then_exec_pairs`, run in the same container, is what decides it; if it is
 high, the answer is to **state the chain better**, which is item 3, not to wrap
 it in a command.
+
+## A fourth project, 30× the benchmark — and what scale does to the shares
+
+A complete chess-game build, measured with `diag session-report` on its own
+transcript (2026-10-21/22). It is the largest session measured, and it does not
+overturn the direction of this document so much as resize almost every item in
+it.
+
+| | |
+|---|---:|
+| elapsed / active | 20 h 44 / 9 h 02 |
+| model calls | 1,771 (1,179 main, rest across 10 subagents) |
+| tool calls | 1,868 (Bash 1,644) |
+| mxcli invocations | 931: `exec` 201, `run wait` 95, `check` 86, `docker check` 84, `syntax` 77, `oql` 61 |
+| cache reads | 653.5 M |
+| cache writes / output / uncached in | 5.8 M / 1.2 M / 3.6 k |
+| avg context per call | 372 k (main-thread median 438 k; 325 calls over 600 k) |
+| tool output | 958 k, re-read cost **134 M (21% of cache reads)** |
+| categories | orientation 52%, writing 17%, applying 7%, validating 7%, verifying 5%, retries 4% |
+| failures / retry chains | 125 / 64, 61 resolved |
+| compactions | 2 |
+
+### The N × S law now holds across three orders of magnitude
+
+| session | calls | avg context | N × S | measured |
+|---|---:|---:|---:|---:|
+| BENCH-001 run 3 | 59 | 108 k | 6 M | 6.2 M |
+| the original report | 523 | 435 k | 228 M | 228 M |
+| chess | 1,771 | 372 k | 659 M | 653.5 M |
+
+Three sessions, 100× apart, each within a few per cent of the product of its two
+numbers. Nothing else in this document is as well established as this, and
+everything below is a consequence of it.
+
+### The benchmark systematically overstates every lever aimed at tool output
+
+This is the correction that matters, and it is unwelcome.
+
+**Tool output is 21% of the bill here, against 35% in BENCH-001 run 3.** The
+remaining ~79% is the conversation itself — the model's own messages and
+reasoning, plus the system prompt and CLAUDE.md re-read on every one of 1,771
+calls. Tool results are a *minority* input at scale, and a shrinking one, because
+the conversation grows with every call while a tool result is written once.
+
+Worse for item 3b specifically. The costliest single result in the chess session
+is the same shape as BENCH-001's — a bootstrap skill file read early, ~6.5 k
+tokens re-read ~260 times. In the benchmark that shape is **5.3% of all cache
+reads** and the obvious thing to attack. Here the same shape is **1.69 M of
+653.5 M — 0.26%.** Not 0.26% of the top ten; 0.26% of the bill.
+
+So a 59-call benchmark is not a scale model of a 1,771-call build. It
+over-weights exactly the levers this document has spent its last three
+revisions on, because in a short session tool results are most of what there is.
+That does not make BENCH-001 wrong — the runs measured what they measured — it
+makes it the wrong instrument for *sizing* 3b, 4 and 4b, and the numbers in
+§"The dominant cost is reading the skills" should be read as benchmark-local
+from here on. BENCH-002 at 2× the surface does not fix this; it would take a
+brief two orders of magnitude larger, which is a different instrument, not a
+bigger brief.
+
+### What that promotes
+
+If 79% of the bill is the conversation, then the lever is **not having a 440 k
+conversation**, and there is only one way to get one: don't let a single session
+carry every phase.
+
+Splitting a session of N calls across k phases that each start near-empty gives
+`k × (N/k) × (S/k)/2 = N × S / 2k` — a **factor-of-k cut**, not a percentage.
+The chess session's own write-up proposed this and sized it at ~30%, but that
+estimate assumed only that average context fell from ~440 k to 150–250 k, i.e.
+k ≈ 2. Four phases is a 4× cut on the same arithmetic.
+
+Two things keep that from being free, and both are already in this table:
+
+1. **Every phase boundary pays a re-orientation.** That is exactly what
+   `brain brief` and `brain plan` are for, and the chess session says it had
+   them and did not use them this way. The cost of splitting is the cost of
+   orientation — so items 3b, 4 and 4b are not *competing* with phase splitting,
+   they are what sets its price. They were mis-sized as token levers; they are
+   better justified as the thing that makes the big lever cheap.
+2. **Orientation is 52% of calls**, up from 37% in run 3. Calls are N, the term
+   that enters quadratically, so cutting orientation *round-trips* (item 3, item
+   4b) reduces the bill in a way that cutting orientation *bytes* does not.
+
+### Two items resized downward, honestly
+
+- **Retries are smaller at scale than the benchmark says.** 84 retry calls of
+  1,868 is 4.5%, against 13.6% in run 3. Item 4c stays worth doing — each failure
+  is also text re-read forever — but it is not the 14% lever BENCH-001 implied.
+- **`check` is not dominant, for the fourth time.** 86 of 931 invocations, 9%.
+  The ledger's 83% remains the outlier.
+
+### One shipped lever shows up as adopted
+
+`run wait` is the second most frequent mxcli command in the session, 95 calls.
+That is item 2e working as intended: those were hand-rolled `nohup`/poll/`pkill`
+loops in the three earlier projects.
+
+### Wall time, and a named root cause this document did not have
+
+Of ~9 active hours, roughly 6 were spent waiting on commands, not on the model:
+app restarts and waits ≥74 min (150 restarts, 189 waits), browser end-to-end
+suites ~70 min (101 runs), `docker check` ~25–35 min (84 runs), microflow tests
+~34 min (35 runs), widget fixes and marketplace installs ~12 min.
+
+The chess session attributes most of the restarts to **the development licence's
+session cap** — "Sign in failed" until a restart — and to watch-reload glitches.
+If that holds, items 2c/2d/2e have been measuring and commanding a restart whose
+*cause* is a licence limit, not an mxcli defect. That attribution is the other
+session's, not reproduced here, so it is recorded as a lead to verify rather
+than as a finding.
+
+### Caveats on this whole section
+
+The figures are one session's `diag session-report` plus its own transcript
+split, and the time attributions and savings estimates in it are that session's
+estimates, not measurements. It is also a different kind of work from a Mendix
+app build. What travels is the arithmetic and the shares, both of which agree
+with the three earlier projects where they overlap.
 
 ## What is actually asymmetric — and how little of it is irreducible
 
@@ -1014,10 +1149,11 @@ baseline is the first thing to record wherever it does.
 | 2d | **Count a killed `run` in `diag loop-report` rather than dropping it** — **shipped** | S | was: the restart bill is invisible, `run`'s reported wall time a floor built from 4 of 30 invocations. Now a 30 s `session_alive` heartbeat bounds every unclosed run from below, whatever killed it, and the report separates the measured total, the measured floor and an explicitly-labelled estimate |
 | 2e | **App lifecycle as commands** — `run --local --detach`, `run status`, `run wait`, `run stop`, `run restart`, taught in the run-local/run-app skills and the generated gate list — **shipped** | M | ~25–28% of all tool calls in measured sessions were hand-rolled `nohup`/poll/`pkill` loops; each becomes one call, and `exec … && run wait` is the per-change chain |
 | 3 | Publish the canonical `&&` chain in `projectGates` + skills (lever 1) | XS | the 5–8 → 1–2 collapse, with nothing built |
-| 3b | **Make consuming the skills cheap** — **first pass shipped 2026-10-10**: the generated CLAUDE.md now routes `syntax` before any skill, and `scripts/skill-index.py` puts a verified line-numbered section index at the head of all 74 (`make check-skill-index` in CI). Not yet done: moving the syntax that skills restate into `syntax` itself — code blocks are only 28% of skill bytes, so that is a smaller prize than it looked | M | the largest measured token item, and it displaces item 4. **Measured, leaning negative**: across runs 2 and 3 the skills' share of the re-read bill halved (68% -> 37%) and `syntax` sweeps took the freed share (23%), leaving the total 26% worse at a reproducible 59-61 calls against one pre-change point at 47. Missing datum is the control: two runs of `9ce90f32`. The identified surgical fix is to narrow the routing line against speculative sweeps, keeping the index (§"Run 3") |
+| 3c | **One session per phase, each resumed from `brain brief` / `brain plan`** — taught in the generated CLAUDE.md and the bootstrap skill, not built | S | **the largest lever measured.** 79% of a 1,771-call build's bill is the conversation, not tool output, and splitting N calls across k near-empty phases is `N × S / 2k` — a factor of k, not a percentage. Its price is one re-orientation per boundary, which is what items 3b/4/4b actually buy (§"A fourth project") |
+| 3b | **Make consuming the skills cheap** — **first pass shipped 2026-10-10**: the generated CLAUDE.md now routes `syntax` before any skill, and `scripts/skill-index.py` puts a verified line-numbered section index at the head of all 74 (`make check-skill-index` in CI). Not yet done: moving the syntax that skills restate into `syntax` itself — code blocks are only 28% of skill bytes, so that is a smaller prize than it looked | M | the largest measured token item, and it displaces item 4. **Measured, leaning negative**: across runs 2 and 3 the skills' share of the re-read bill halved (68% -> 37%) and `syntax` sweeps took the freed share (23%), leaving the total 26% worse at a reproducible 59-61 calls against one pre-change point at 47. Missing datum is the control: two runs of `9ce90f32`. The identified surgical fix is to narrow the routing line against speculative sweeps, keeping the index (§"Run 3"). **Resized 2026-10-22**: the shape it targets is 5.3% of the benchmark's bill and 0.26% of a real build's, so its value is no longer as a token lever but as what makes a phase boundary cheap (item 3c) |
 | 4 | Terse/delta output for `exec`, `syntax` and the noisy listings (lever 2) | M | **promoted back to co-equal with 3b**: run 1's ~15% was the one run where that was true. Runs 2-3 put mxcli's own stdout at ~39% of the re-read cost (`syntax` 23%, the two `DESCRIBE`s 16%) against skill reads' 37%, because the agent substitutes between the two sources (§"Item 4 is no longer the junior partner") |
 | 4b | **`syntax --digest <doctype>`** — every signature for a doctype, no prose, one call | S | both post-change runs show the agent assembling exactly this by hand (`for t in …; do mxcli syntax $t; done`, 195 k + 105 k in run 3, plus a 90 k `syntax --json` dump). A cheaper sweep, rather than a rule against sweeping |
-| 4c | **Remove the recurring retry chains** — the unspliceable `create or modify`, the CE1613 association-attribute page reference, `injecting test microflows`, the `brain init` routing gap | M | 14% of run 3's model calls were retries, all resolved in one, most of them mxcli's fault. The only listed lever that removes *calls* rather than bytes |
+| 4c | **Remove the recurring retry chains** — the unspliceable `create or modify`, the CE1613 association-attribute page reference, `injecting test microflows`, the `brain init` routing gap | M | 14% of run 3's model calls were retries, all resolved in one, most of them mxcli's fault. The only listed lever that removes *calls* rather than bytes — though the chess build puts retries at 4.5%, so the benchmark oversizes this one too |
 | 5 | Tiered verification rule in the skills (lever 3) | S | stops the default path at the cheapest sufficient gate |
 | 6 | Subagent trigger in the skills (lever 4) | XS | caps the worst tail |
 | 7 | Workarounds → diagnostics and skills (lever 5) | M, ongoing | compounds across all future sessions |
