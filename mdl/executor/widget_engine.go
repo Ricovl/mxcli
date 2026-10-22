@@ -96,7 +96,11 @@ const defaultSlotContainer = "template"
 //	    spelling of a column's `Visible:` is lowered to VisibleIf, so without it
 //	    the column was written always visible. Bump forces existing projects to
 //	    regenerate so the alias reaches their datagrid def.
-const WidgetDefGeneratorVersion = 18
+//	19 — a top-level `expression` property gets a mapping, by its own key (and
+//	    `editable:` when the package declares no Editability); before, it was
+//	    known-but-unmapped and the Calendar's `editable` could not be written
+//	    (mendixlabs/mxcli#1578).
+const WidgetDefGeneratorVersion = 19
 
 // WidgetDefinition describes how to construct a pluggable widget from MDL syntax.
 // Loaded from embedded JSON definition files (*.def.json).
@@ -476,7 +480,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 				e.recordDataSourceEntity(propKey, entityName)
 				if entityName != "" {
 					e.pageBuilder.entityContext = entityName
-					e.pageBuilder.argCtx = enteringDataWidget(ds, entityName)
+					e.pageBuilder.argCtx = enteringDataWidget(ds, entityName).inDataWidget(w.Name)
 				}
 			}
 		}
@@ -936,6 +940,11 @@ func (e *PluggableWidgetEngine) applyOperation(builder backend.WidgetObjectBuild
 			builder.SetImage(propKey, ctx.PrimitiveVal)
 		}
 	case "expression":
+		// No MDL value: keep the template's default expression rather than
+		// writing an empty one over it — an empty required expression is CE0642.
+		if ctx.PrimitiveVal == "" {
+			return nil
+		}
 		builder.SetExpression(propKey, ctx.PrimitiveVal)
 	case "datasource":
 		builder.SetDataSource(propKey, ctx.DataSource)
@@ -1153,6 +1162,20 @@ func namedPropValue(mapping PropertyMapping, w *ast.WidgetV3) string {
 		}
 	}
 	return ""
+}
+
+// namedPropRaw is the unstringified value of a mapping's property, under its
+// key or an alias, with the name it was found under.
+func namedPropRaw(mapping PropertyMapping, w *ast.WidgetV3) (any, string, bool) {
+	if v, ok := lookupProperty(w.Properties, mapping.PropertyKey); ok {
+		return v, mapping.PropertyKey, true
+	}
+	for _, alias := range mapping.MdlAliases {
+		if v, ok := lookupProperty(w.Properties, alias); ok {
+			return v, alias, true
+		}
+	}
+	return nil, "", false
 }
 
 // namedPropValueWithKey is namedPropValue plus the NAME the value was found
@@ -1455,6 +1478,18 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 				ctx.Action = built
 			}
 		}
+		// A top-level expression property, by its own key or an alias
+		// (mendixlabs/mxcli#1578). The value's shape decides nothing here: a
+		// quoted, a bare and a bracketed expression are all its text.
+		if mapping.Operation == "expression" {
+			if raw, key, ok := namedPropRaw(mapping, w); ok {
+				text, err := scalarPropertyText(w, key, raw, "expression")
+				if err != nil {
+					return nil, err
+				}
+				ctx.PrimitiveVal = text
+			}
+		}
 		return ctx, nil
 	}
 
@@ -1580,7 +1615,7 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 			e.recordDataSourceEntity(mapping.PropertyKey, entityName)
 			if entityName != "" {
 				e.pageBuilder.entityContext = entityName
-				e.pageBuilder.argCtx = enteringDataWidget(ds, entityName)
+				e.pageBuilder.argCtx = enteringDataWidget(ds, entityName).inDataWidget(w.Name)
 				if w.Name != "" {
 					e.pageBuilder.paramEntityNames[w.Name] = entityName
 				}
@@ -2427,15 +2462,25 @@ func (e *PluggableWidgetEngine) applyChildSlots(builder backend.WidgetObjectBuil
 			slot, ok = slotContainers[strings.ToLower(child.Name)]
 		}
 		if ok {
+			// The slot's children are built here, not through the slot's own
+			// node, so the context it gives them is applied here: a control
+			// bar holds its grid's selection (mendixlabs/mxcli#122), the same
+			// rule the check-time walk applies.
+			outerArgCtx := e.pageBuilder.argCtx
+			if lowerType == "controlbar" {
+				e.pageBuilder.argCtx = argContextForChildren(child, outerArgCtx)
+			}
 			for _, slotChild := range child.Children {
 				widget, err := e.pageBuilder.buildWidgetV3(slotChild)
 				if err != nil {
+					e.pageBuilder.argCtx = outerArgCtx
 					return err
 				}
 				if widget != nil {
 					slotWidgets[slot.PropertyKey] = append(slotWidgets[slot.PropertyKey], widget)
 				}
 			}
+			e.pageBuilder.argCtx = outerArgCtx
 		} else {
 			widget, err := e.pageBuilder.buildWidgetV3(child)
 			if err != nil {

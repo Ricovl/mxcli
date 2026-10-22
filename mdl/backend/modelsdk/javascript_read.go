@@ -4,11 +4,11 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // Codec-native JavaScript-action read (SHOW JAVASCRIPT ACTIONS / DESCRIBE
@@ -78,7 +78,7 @@ func (b *Backend) ReadJavaScriptActionByName(qualifiedName string) (*types.JavaS
 
 // jsActionFromRaw builds the semantic JavaScript action from a normalised raw
 // unit map (the v1 shape GetRawUnit produces: map[string]any / []any /
-// primitive.Binary). Inverse of the JS-action write path; mirrors the legacy
+// bson.Binary). Inverse of the JS-action write path; mirrors the legacy
 // parseJavaScriptAction so DESCRIBE output matches the legacy engine.
 func jsActionFromRaw(raw map[string]any, id, containerID model.ID) *types.JavaScriptAction {
 	jsa := &types.JavaScriptAction{
@@ -312,7 +312,7 @@ func jsExtractString(v any) string {
 // field is absent/null/non-binary (tolerating the legacy MicroflowActionInfo
 // shape on read). See issue #656.
 func jsExtractBinary(v any) []byte {
-	if b, ok := v.(primitive.Binary); ok {
+	if b, ok := v.(bson.Binary); ok {
 		return b.Data
 	}
 	return nil
@@ -324,12 +324,12 @@ func jsExtractBool(v any) bool {
 }
 
 // jsToMap normalises a BSON sub-document to map[string]any (GetRawUnit already
-// converts bson.D → map, but keep the primitive.D fallback for robustness).
+// converts bson.D → map, but keep the bson.D fallback for robustness).
 func jsToMap(v any) map[string]any {
 	switch m := v.(type) {
 	case map[string]any:
 		return m
-	case primitive.D:
+	case bson.D:
 		out := make(map[string]any, len(m))
 		for _, e := range m {
 			out[e.Key] = e.Value
@@ -344,21 +344,21 @@ func jsAsSlice(v any) []any {
 	switch a := v.(type) {
 	case []any:
 		return a
-	case primitive.A:
+	case bson.A:
 		return []any(a)
 	}
 	return nil
 }
 
 // jsExtractBsonID converts a BSON id/pointer (string, []byte, or 16-byte
-// primitive.Binary UUID) to its canonical string form.
+// bson.Binary UUID) to its canonical string form.
 func jsExtractBsonID(v any) string {
 	switch val := v.(type) {
 	case string:
 		return val
 	case []byte:
 		return jsBlobToUUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return jsBlobToUUID(val.Data)
 	}
 	return ""

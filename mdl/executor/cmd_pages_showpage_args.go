@@ -55,6 +55,26 @@ type pageArgContext struct {
 	// argument naming one is bound by name and needs no context object
 	// (mendixlabs/mxcli#1403); the executor asks classifyFlowArgValue instead.
 	docParams *documentParams
+	// dataWidget is the name of the data widget whose context this is, so a
+	// control bar below it knows whose selection it holds.
+	dataWidget string
+	// selectionOf is set inside a control bar: the name of its grid, whose
+	// selection `$<grid>` passes to a page as an explicit mapping naming the
+	// grid (mendixlabs/mxcli#122). The row object is not the control bar's.
+	selectionOf string
+}
+
+// inDataWidget names the data widget whose context c is.
+func (c pageArgContext) inDataWidget(name string) pageArgContext {
+	c.dataWidget = name
+	return c
+}
+
+// namesSelection reports whether value is `$<grid>` written in that grid's
+// control bar: the grid's selection, bound by name like a page parameter.
+func (c pageArgContext) namesSelection(value string) bool {
+	name, ok := strings.CutPrefix(value, "$")
+	return ok && c.selectionOf != "" && strings.EqualFold(name, c.selectionOf)
 }
 
 // enteringDataWidget is the context below a data-bound widget bound to ds and
@@ -106,8 +126,13 @@ func argContextForChildren(w *ast.WidgetV3, parent pageArgContext) pageArgContex
 	if ds := w.GetDataSource(); ds != nil {
 		// The entity is only used to word the refusal; the executor's builder
 		// overwrites this with one that carries it.
-		c := enteringDataWidget(ds, "")
+		c := enteringDataWidget(ds, "").inDataWidget(w.Name)
 		c.docParams = parent.docParams
+		return c
+	}
+	if strings.EqualFold(w.Type, "controlbar") && parent.dataWidget != "" {
+		c := parent
+		c.selectionOf = parent.dataWidget
 		return c
 	}
 	if parent.known && !parent.present && !contextFreeContainers[strings.ToLower(w.Type)] {
@@ -135,7 +160,7 @@ func argContextForOwnAction(w *ast.WidgetV3, parent pageArgContext) pageArgConte
 	if ds := w.GetDataSource(); ds != nil {
 		// The entity is only used to word a refusal; the executor's builder
 		// overwrites this with one that carries it.
-		c := enteringDataWidget(ds, "")
+		c := enteringDataWidget(ds, "").inDataWidget(w.Name)
 		c.docParams = parent.docParams
 		return c
 	}
@@ -252,6 +277,12 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 				"parameter of this page or snippet (bound by name), or call a microflow that shows the page with it",
 			target, argName, argValue, where, argName)
 	}
+	if c.selectionOf != "" {
+		return fmt.Sprintf(
+			"show page %s: argument %s: %s cannot be stored — in the control bar of `%s` a page argument is the "+
+				"grid's selection, $%s, or a parameter of this page or snippet; %s names neither",
+			target, argName, argValue, c.selectionOf, c.selectionOf, argValue)
+	}
 	return fmt.Sprintf(
 		"show page %s: argument %s: %s cannot be stored — a widget's page argument is always the enclosing context "+
 			"object, which mxcli records by leaving the mapping empty (an explicit one is rejected as CE0115). "+
@@ -262,15 +293,21 @@ func refuseShowPageArgument(widgetName, target, argName, argValue string, c page
 
 // namedParameterArgument reports whether a show page argument is a page or
 // snippet parameter of the document being built, which Mendix binds by name
-// rather than from a context object (mendixlabs/mxcli#1403). It returns the
-// variable and its PageVariable kind, or "" when the argument is anything else
+// rather than from a context object (mendixlabs/mxcli#1403) — or, in a grid's
+// control bar, the grid's selection, kind "widget" (mendixlabs/mxcli#122). It
+// returns the variable and its PageVariable kind, or "" when the argument is
+// anything else
 // — including a page variable, which is never an object and so never a page
 // argument, and any project older than 9.7, whose page settings have no
 // ParameterMappings to hold the binding.
 func (pb *pageBuilder) namedParameterArgument(value string) (variable, kind string) {
 	variable, kind = pb.classifyFlowArgValue(value)
 	if kind != "parameter" && kind != "snippet" {
-		return "", ""
+		if pb.argCtx.namesSelection(value) {
+			variable, kind = value, "widget"
+		} else {
+			return "", ""
+		}
 	}
 	if pb.backend != nil {
 		if pv := pb.backend.ProjectVersion(); pv != nil && pv.MajorVersion > 0 && !pv.IsAtLeast(9, 7) {
@@ -324,7 +361,7 @@ func validateShowPageArguments(w *ast.WidgetV3, c pageArgContext, locationPrefix
 	var out []linter.Violation
 	for _, arg := range action.Args {
 		strVal, ok := arg.Value.(string)
-		if !ok || c.binds(strVal) || c.namesDocumentParameter(strVal) {
+		if !ok || c.binds(strVal) || c.namesDocumentParameter(strVal) || c.namesSelection(strVal) {
 			continue
 		}
 		out = append(out, linter.Violation{

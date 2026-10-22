@@ -12,8 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
@@ -140,7 +139,7 @@ func afList(v any) []any {
 }
 
 func afIDOf(v any) string {
-	b, _ := v.(primitive.Binary)
+	b, _ := v.(bson.Binary)
 	return types.BlobToUUID(b.Data)
 }
 

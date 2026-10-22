@@ -1,0 +1,37 @@
+-- mendixlabs/mxcli#1608 (ako/mxcli#1536): DESCRIBE of a consumed REST service
+-- did not re-parse.
+--
+-- Symptom: an operation created with `Response: json as $Result` describes as
+-- `Response: json`, and running that output back failed:
+--   line 14:2 missing VARIABLE at ')'
+-- A consumed REST operation stores no response variable (the call activity
+-- names it), so there is nothing else describe could print.
+--
+-- Fix: `Response: json | string | file | status` takes the variable as
+-- optional, and describe prints the bare kind. Every form below must pass
+-- `mxcli check`.
+
+mdl 1;
+
+create or modify consumed rest service MyFirstModule.BookingApi (
+  BaseUrl: 'https://api.example.com',
+  Authentication: none
+)
+{
+  operation PostBooking (
+    Method: post,
+    Path: '/bookings',
+    Headers: ('Accept': '*/*'),
+    Body: json from $Payload,
+    Timeout: 300,
+    Response: json
+  )
+
+  operation GetNote (Method: get, Path: '/notes/{id}', Parameters: ($id: String), Response: string)
+
+  operation GetScan (Method: get, Path: '/scans/{id}', Parameters: ($id: String), Response: file)
+
+  operation Ping (Method: get, Path: '/ping', Response: status)
+
+  operation GetBooking (Method: get, Path: '/bookings/{id}', Parameters: ($id: String), Response: json as $Result)
+};

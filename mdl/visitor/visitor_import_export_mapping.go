@@ -16,6 +16,7 @@ func (b *Builder) ExitCreateImportMappingStatement(ctx *parser.CreateImportMappi
 	stmt := &ast.CreateImportMappingStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
@@ -156,6 +157,7 @@ func (b *Builder) ExitCreateExportMappingStatement(ctx *parser.CreateExportMappi
 	stmt := &ast.CreateExportMappingStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}

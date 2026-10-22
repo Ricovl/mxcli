@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -29,8 +28,8 @@ func uid(name string) string {
 	return types.BlobToUUID(b)
 }
 
-func bin(name string) primitive.Binary {
-	return primitive.Binary{Subtype: 0, Data: types.UUIDToBlob(uid(name))}
+func bin(name string) bson.Binary {
+	return bson.Binary{Subtype: 0, Data: types.UUIDToBlob(uid(name))}
 }
 
 func obj(name, typ string, x, y int) bson.D {
@@ -98,7 +97,7 @@ func (d *fakeDeps) SerializeObject(o microflows.MicroflowObject) (bson.D, error)
 	p := o.GetPosition()
 	sz := objectSize(o)
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(o.GetID()))}},
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(o.GetID()))}},
 		{Key: "$Type", Value: typ},
 		{Key: "RelativeMiddlePoint", Value: fmt.Sprintf("%d;%d", p.X, p.Y)},
 		{Key: "Size", Value: fmt.Sprintf("%d;%d", sz.X, sz.Y)},
@@ -107,26 +106,26 @@ func (d *fakeDeps) SerializeObject(o microflows.MicroflowObject) (bson.D, error)
 
 func (d *fakeDeps) SerializeSequenceFlow(f *microflows.SequenceFlow) (bson.D, error) {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.ID))}},
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(f.ID))}},
 		{Key: "$Type", Value: "Microflows$SequenceFlow"},
 		{Key: "DestinationConnectionIndex", Value: int32(f.DestinationConnectionIndex)},
-		{Key: "DestinationPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
+		{Key: "DestinationPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
 		{Key: "IsErrorHandler", Value: f.IsErrorHandler},
 		{Key: "Line", Value: bson.D{
 			{Key: "DestinationControlVector", Value: f.DestinationControlVector},
 			{Key: "OriginControlVector", Value: f.OriginControlVector},
 		}},
 		{Key: "OriginConnectionIndex", Value: int32(f.OriginConnectionIndex)},
-		{Key: "OriginPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
+		{Key: "OriginPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
 	}, nil
 }
 
 func (d *fakeDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bson.D, error) {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.ID))}},
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(f.ID))}},
 		{Key: "$Type", Value: "Microflows$AnnotationFlow"},
-		{Key: "DestinationPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
-		{Key: "OriginPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
+		{Key: "DestinationPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
+		{Key: "OriginPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
 	}, nil
 }
 
@@ -548,7 +547,7 @@ func TestSplice_ReplaceInsideALoopIsInPlace(t *testing.T) {
 			}
 			// What the replace should leave: the stored unit with the
 			// target's document swapped, and the body flow repointed.
-			newID := primitive.Binary{Data: types.UUIDToBlob(string(frag.Entry))}
+			newID := bson.Binary{Data: types.UUIDToBlob(string(frag.Entry))}
 			wantObjs, wantFlows := build()
 			oc := dDoc(wantObjs[2], "ObjectCollection")
 			body := arrayElements(dGet(oc, "Objects"))

@@ -216,6 +216,7 @@ workflowUserTaskClause
     | DESCRIPTION STRING_LITERAL
     | OUTCOMES workflowUserTaskOutcome+
     | BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*
+    | AUTO ASSIGN SINGLE USER   // "Auto-assign when targeting results in one user"
     ;
 
 /** The above, plus the three clauses only a multi user task has. */
@@ -305,9 +306,14 @@ workflowParameterMapping
     : qualifiedName EQUALS STRING_LITERAL
     ;
 
+// A call-workflow activity owns boundary events like a call-microflow one
+// (Workflows$CallWorkflowActivity.boundaryEvents, 10.14+). The reader, writer,
+// describer and ALTER all handled them; only this rule did not, so describe
+// output of such a workflow did not re-parse (mendixlabs/mxcli#1532).
 workflowCallWorkflowStmt
     : CALL WORKFLOW qualifiedName workflowCallArguments? (AS workflowActivityName)? workflowCaption?
       (WITH /* @alias MDL-DEPR008 */ LPAREN workflowParameterMapping (COMMA workflowParameterMapping)* RPAREN)?
+      (BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*)?
     ;
 
 workflowDecisionStmt

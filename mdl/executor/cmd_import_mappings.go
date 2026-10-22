@@ -94,9 +94,7 @@ func describeImportMapping(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("get import mapping", err)
 	}
 
-	if im.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(im.Documentation, "\n", "\n * "))
-	}
+	writeDocumentDocComment(ctx.Output, im.Documentation)
 	// The same prefix a microflow or page carries: without it an excluded
 	// mapping reads as live, and beside a live twin of the same name the two
 	// are indistinguishable (#1185).
@@ -421,11 +419,15 @@ func execCreateImportMapping(ctx *ExecContext, s *ast.CreateImportMappingStmt) e
 		ExportLevel: "Hidden",
 		// @excluded, which DESCRIBE prints for an excluded mapping (#1185).
 		Excluded: s.Excluded,
+		// The doc comment (mendixlabs/mxcli#1510).
+		Documentation: s.Documentation,
 	}
 	if existing != nil {
 		// Excluded is model state, not script state: an absent @excluded must
 		// not clear a stored exclusion (#914).
 		im.Excluded = s.Excluded || existing.Excluded
+		// A rewrite that carried no doc comment keeps the stored one (#1018).
+		im.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
 	}
 
 	// The mapping's input object (#265), which `Param: parameter` binds.

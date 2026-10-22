@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -29,7 +29,7 @@ func TestLayoutGridRow_WritesConditionalVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := subDocs(t, encodeElement(t, el), "Rows")
-	field := func(doc bsonv1.D, key string) (any, bool) {
+	field := func(doc bson.D, key string) (any, bool) {
 		for _, e := range doc {
 			if e.Key == key {
 				return e.Value, true
@@ -41,7 +41,7 @@ func TestLayoutGridRow_WritesConditionalVisibility(t *testing.T) {
 		t.Errorf("row 1: ConditionalVisibilitySettings = %v (present %v), want Studio Pro's null", v, ok)
 	}
 	v, _ := field(rows[1], "ConditionalVisibilitySettings")
-	cvs, ok := v.(bsonv1.D)
+	cvs, ok := v.(bson.D)
 	if !ok {
 		t.Fatalf("row 2: ConditionalVisibilitySettings = %v, want the settings — the condition was dropped (row always visible)", v)
 	}

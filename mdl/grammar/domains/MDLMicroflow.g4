@@ -73,12 +73,18 @@ javaActionTypeParameters
     : LESS_THAN identifierOrKeyword (COMMA identifierOrKeyword)* GREATER_THAN
     ;
 
+// A parameter's description is a `/** … */` doc comment before it, as on an
+// entity attribute. DESCRIBE printed it as a trailing `--` comment, which the
+// lexer discards, so a script copying that form lost it (mendixlabs/mxcli#1588).
 javaActionParameter
-    : parameterName COLON dataType NOT_NULL?
+    : docComment? parameterName COLON dataType NOT_NULL?
     ;
 
+// `returns T as $Name` names the return value — the default name of the
+// variable a microflow call stores it in — with the spelling a microflow's
+// return variable uses (mendixlabs/mxcli#1588).
 javaActionReturnType
-    : RETURNS dataType
+    : RETURNS dataType (AS VARIABLE)?
     ;
 
 // EXPOSED AS 'Caption' IN 'Category'  — appear in Studio Pro's toolbox

@@ -265,6 +265,8 @@ func TestKeywordStorageTypesMatchBuilder(t *testing.T) {
   navigationtree k_navigationtree (profile: 'Responsive')
   menubar k_menubar (profile: 'Responsive')
   simplemenubar k_simplemenubar (profile: 'Responsive')
+  sidebartoggle k_sidebartoggle
+  layoutheader k_layoutheader
   placeholder k_placeholder
 }`
 	prog, errs := visitor.Build(src)
@@ -365,7 +367,9 @@ func buildWidgetV3Cases(t *testing.T) []string {
 // Studio Pro applies too (Atlas declares "Button"; a probe "ActionButton" group
 // was accepted as well).
 func TestDesignPropsKeysAreMetamodelClassNames(t *testing.T) {
-	ancestor := map[string]string{"ActionButton": "Button"}
+	// SidebarToggleButton is a Button too: Studio Pro stores Atlas's "Button"
+	// group property Size: Large on Atlas_Core.Atlas_Default's toggle (11.13.0).
+	ancestor := map[string]string{"ActionButton": "Button", "SidebarToggleButton": "Button"}
 	// Keyed by the Forms$ spelling: the generated metamodel registers only that
 	// prefix. The Pages$ twins in bsonTypeToDesignPropsKey are the same classes.
 	for suffix, key := range storageTypeThemeKeys {

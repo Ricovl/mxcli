@@ -141,9 +141,16 @@ func classify(
 
 	// Each branch's body: what it reaches before the join. The join itself and
 	// everything beyond it is the shared continuation and is not part of a body.
+	//
+	// Nor is anything past the split itself. A branch that comes back round to
+	// its own split has gone round a loop, and what it reaches from there is the
+	// split's other branches, not overlap. Walking on through it made every
+	// decision with an early return inside `while true` report its own return
+	// as shared with its sibling (mendixlabs/mxcli#923): the returns are separate
+	// end events, so the join is the virtual exit and nothing else stopped the walk.
 	bodies := make([]map[model.ID]bool, 0, len(branches))
 	for _, b := range branches {
-		bodies = append(bodies, reachableBefore(b, join, succ))
+		bodies = append(bodies, reachableBefore(b, join, splitID, succ))
 	}
 
 	// Overlap: nodes some pair of branches can both reach before the join.
@@ -297,18 +304,18 @@ func immediatePostDominator(id model.ID, pdom map[model.ID]map[model.ID]bool) mo
 }
 
 // reachableBefore returns the nodes reachable from start without passing
-// through stop. stop itself is excluded: it is the shared continuation, not part
-// of any branch body.
-func reachableBefore(start, stop model.ID, succ map[model.ID][]model.ID) map[model.ID]bool {
+// through stop or split. stop itself is excluded: it is the shared continuation,
+// not part of any branch body. split is the decision whose branch this is.
+func reachableBefore(start, stop, split model.ID, succ map[model.ID][]model.ID) map[model.ID]bool {
 	seen := map[model.ID]bool{}
-	if start == stop || start == exitID {
+	if start == stop || start == split || start == exitID {
 		return seen
 	}
 	queue := []model.ID{start}
 	for len(queue) > 0 {
 		n := queue[0]
 		queue = queue[1:]
-		if n == stop || n == exitID || seen[n] {
+		if n == stop || n == split || n == exitID || seen[n] {
 			continue
 		}
 		seen[n] = true

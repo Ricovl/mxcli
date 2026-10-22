@@ -1,0 +1,26 @@
+-- mendixlabs/mxcli#1597 (case B, the control): the two spellings of a note that
+-- an `alter microflow … insert` fragment writes. The positional
+-- `@annotation('text')` is refused as MDL079 — see
+-- 1597-alter-annotation-positional.fail.mdl.
+mdl 1;
+
+create module BugTest1597c;
+
+create persistent entity BugTest1597c.Item (Code: String(50));
+
+create microflow BugTest1597c.ACT_Do () returns Boolean begin
+  $Result = create BugTest1597c.Item (Code = 'a');
+  return true;
+end;
+
+alter microflow BugTest1597c.ACT_Do {
+  insert after $Result begin
+    @annotation 'Why this commit is here.'
+    commit $Result;
+    @annotation(text: 'And why this log is.')
+    log info node 'n' 'committed';
+  end;
+};
+
+-- Expect: both notes, attached to the commit and the log.
+describe microflow BugTest1597c.ACT_Do;

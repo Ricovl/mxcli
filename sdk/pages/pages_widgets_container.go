@@ -3,6 +3,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -69,9 +71,26 @@ type Container struct {
 type ContainerRenderMode string
 
 const (
-	ContainerRenderModeDiv  ContainerRenderMode = "Div"
-	ContainerRenderModeForm ContainerRenderMode = "Form"
+	ContainerRenderModeDiv ContainerRenderMode = "Div"
 )
+
+// ContainerRenderModes are the members of Forms$DivContainer.RenderMode — the
+// HTML element the container renders as (modelsdk/gen/pages ContainerRenderMode).
+var ContainerRenderModes = []ContainerRenderMode{
+	"Div", "Section", "Article", "Header", "Footer", "Main", "Nav", "Aside", "Hgroup", "Address",
+}
+
+// CanonicalContainerRenderMode returns the stored spelling of a container's
+// RenderMode, matched case-insensitively. A value outside the enumeration is
+// not one Studio Pro can open, so callers refuse it rather than store it.
+func CanonicalContainerRenderMode(s string) (ContainerRenderMode, bool) {
+	for _, m := range ContainerRenderModes {
+		if strings.EqualFold(s, string(m)) {
+			return m, true
+		}
+	}
+	return "", false
+}
 
 // GroupBox represents a group box container.
 type GroupBox struct {
@@ -130,8 +149,13 @@ type ScrollContainerRegion struct {
 	Slot     ScrollContainerSlot `json:"slot"`
 	Size     int                 `json:"size,omitempty"`
 	SizeMode string              `json:"sizeMode,omitempty"`
-	Class    string              `json:"class,omitempty"`
-	Widgets  []Widget            `json:"widgets,omitempty"`
+	// ToggleMode is how a sidebar toggle button opens and closes the region:
+	// None, PushContentAside, SlideOverContent, ShrinkContentInitiallyOpen or
+	// ShrinkContentInitiallyClosed. Empty writes None. A layout with a toggle
+	// and no toggleable region is CE0628 (mendixlabs/mxcli#1220).
+	ToggleMode string   `json:"toggleMode,omitempty"`
+	Class      string   `json:"class,omitempty"`
+	Widgets    []Widget `json:"widgets,omitempty"`
 }
 
 // ScrollContainerSlot names one of the five regions.

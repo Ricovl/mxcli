@@ -1,0 +1,28 @@
+mdl 1;
+-- ============================================================================
+-- Bug: `while true` with early returns was described with three "NOT
+-- equivalent ... must not be re-executed" warnings and three MDL-FLOW01 lint
+-- findings, although describe -> exec wrote nothing (ako/mxcli#1277;
+-- mendixlabs/mxcli#923, saingge's re-test)
+-- ============================================================================
+--
+-- The graph analysis walked each decision's false branch round the loop's back
+-- edge into its own true branch and counted that branch's return as shared.
+--
+-- Verify: exec, then
+--   mxcli -p app.mpr -c "describe microflow MyFirstModule.ACT_LoopReturns"
+--   mxcli lint -p app.mpr
+-- Expected: no WARNING lines in the description, no MDL-FLOW01 for this flow.
+-- ============================================================================
+
+create or modify microflow MyFirstModule.ACT_LoopReturns ($Code: string) returns string as $R
+begin
+  declare $Status string = 'new';
+  while true
+  begin
+    if $Code = 'a' then return 'A'; end if;
+    if $Code = 'b' then return 'B'; end if;
+    if $Code = 'c' then return 'C'; end if;
+    set $Status = 'x';
+  end while;
+end;

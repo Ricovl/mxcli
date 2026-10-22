@@ -13,6 +13,11 @@ type CreateDataTransformerStmt struct {
 	SourceJSON     string // the source content
 	Steps          []DataTransformerStepDef
 	CreateOrModify bool // true for CREATE OR MODIFY / CREATE OR REPLACE
+	// Documentation is the `/** … */` doc comment before the statement
+	// (mendixlabs/mxcli#1510). DocumentationSet says one was written: absent
+	// keeps the stored documentation on a rewrite, empty clears it (#1018).
+	Documentation    string
+	DocumentationSet bool
 }
 
 func (s *CreateDataTransformerStmt) isStatement() {}

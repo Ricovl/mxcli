@@ -4,9 +4,10 @@ package regularexpressions
 
 import (
 	"encoding/hex"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -46,7 +47,7 @@ func mustDecode(t *testing.T, h string) bson.M {
 		t.Fatalf("hex: %v", err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	return doc
@@ -149,7 +150,7 @@ func TestSerialize_Defaults(t *testing.T) {
 		t.Fatalf("Serialize: %v", err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(out, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(out, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if doc["ExportLevel"] != "Hidden" {

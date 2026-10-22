@@ -24,6 +24,9 @@ func (b *Builder) ExitCreateEnumerationStatement(ctx *parser.CreateEnumerationSt
 			if optCtx.FOLDER() != nil && optCtx.STRING_LITERAL() != nil {
 				stmt.Folder = unquoteStringLit(optCtx.STRING_LITERAL())
 			}
+			if el := optCtx.MicroflowExportLevelClause(); el != nil {
+				stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 	}
 
@@ -82,6 +85,12 @@ func (b *Builder) ExitAlterEnumerationAction(ctx *parser.AlterEnumerationActionC
 						Operation: ast.AlterEnumRename,
 						ValueName: ids[0],
 						NewName:   ids[1],
+					})
+				} else if el := ctx.MicroflowExportLevelClause(); ctx.SET() != nil && el != nil {
+					b.statements = append(b.statements, &ast.AlterEnumerationStmt{
+						Name:        name,
+						Operation:   ast.AlterEnumSetExportLevel,
+						ExportLevel: *exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext)),
 					})
 				} else if ctx.SET() != nil && ctx.STRING_LITERAL() != nil && (ctx.DOCUMENTATION() != nil || ctx.COMMENT() != nil) {
 					// SET DOCUMENTATION; SET COMMENT is its deprecated spelling

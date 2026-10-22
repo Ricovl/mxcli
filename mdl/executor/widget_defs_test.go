@@ -147,14 +147,18 @@ func TestGenerateDefJSON_SkipsComplexTypes(t *testing.T) {
 	// textTemplate always yields a mapping (so captions like Badge `value` are
 	// authorable), and so does every action property — one whose key is not
 	// onClick/onChange becomes a NAMED slot, mapped with no Source and addressed
-	// by its own key (#956). expression/icon/non-list object remain skipped.
-	if len(def.PropertyMappings) != 2 {
-		t.Fatalf("PropertyMappings count = %d, want 2 (texttemplate + the named action slot; expression/icon/object skipped): %+v",
+	// by its own key (#956) — and every expression, the same way
+	// (mendixlabs/mxcli#1578). icon/non-list object remain skipped.
+	if len(def.PropertyMappings) != 3 {
+		t.Fatalf("PropertyMappings count = %d, want 3 (texttemplate + the named action slot + the expression; icon/object skipped): %+v",
 			len(def.PropertyMappings), def.PropertyMappings)
 	}
 	byKey := map[string]PropertyMapping{}
 	for _, m := range def.PropertyMappings {
 		byKey[m.PropertyKey] = m
+	}
+	if ex := byKey["myExpr"]; ex.Operation != "expression" || ex.Source != "" {
+		t.Errorf("myExpr = {op=%q src=%q}, want {op=expression src=\"\"}", ex.Operation, ex.Source)
 	}
 	if tt := byKey["myTemplate"]; tt.Operation != "texttemplate" {
 		t.Errorf("myTemplate operation = %q, want texttemplate", tt.Operation)
@@ -241,7 +245,8 @@ func TestGenerateDefJSON_KnownPropertiesUnmapped(t *testing.T) {
 			{Key: "onClick", Type: "action"},           // mapped (action → OnClick)
 			{Key: "pageSize", Type: "integer"},         // mapped (primitive)
 			{Key: "onSelectionChange", Type: "action"}, // mapped as a named slot (#956)
-			{Key: "rowClass", Type: "expression"},      // unmapped (expression not handled)
+			{Key: "rowClass", Type: "expression"},      // mapped by its own key (mendixlabs/mxcli#1578)
+			{Key: "rowIcon", Type: "icon"},             // unmapped (icon not handled)
 		},
 	}
 	def := GenerateDefJSON(mpkDef, "DATAGRID")
@@ -249,14 +254,14 @@ func TestGenerateDefJSON_KnownPropertiesUnmapped(t *testing.T) {
 	for _, k := range def.KnownProperties {
 		known[k] = true
 	}
-	for _, want := range []string{"rowClass"} {
+	for _, want := range []string{"rowIcon"} {
 		if !known[want] {
 			t.Errorf("KnownProperties missing unmapped property %q — the checker can't warn it will be dropped", want)
 		}
 	}
 	// onSelectionChange is now mapped as a named slot, so listing it would make
 	// MDL-WIDGET06 warn that a value mxcli writes is going to be dropped (#956).
-	for _, notWant := range []string{"onClick", "pageSize", "onSelectionChange"} {
+	for _, notWant := range []string{"onClick", "pageSize", "onSelectionChange", "rowClass"} {
 		if known[notWant] {
 			t.Errorf("KnownProperties should not list mapped property %q", notWant)
 		}

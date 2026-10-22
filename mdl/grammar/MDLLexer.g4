@@ -362,6 +362,8 @@ SCROLLCONTAINER: S C R O L L C O N T A I N E R;
 SCROLLREGION: R E G I O N;
 MENUBAR: M E N U B A R;
 SIMPLEMENUBAR: S I M P L E M E N U B A R;
+SIDEBARTOGGLE: S I D E B A R T O G G L E;
+LAYOUTHEADER: L A Y O U T H E A D E R;
 NAVIGATIONTREE: N A V I G A T I O N T R E E;
 SNIPPETCALL: S N I P P E T C A L L;
 
@@ -915,6 +917,9 @@ VETO: V E T O;
 FALLBACK: F A L L B A C K;
 PARTICIPANTS: P A R T I C I P A N T S;
 AWAIT: A W A I T;
+// `auto assign single user` on a user task (AutoAssignSingleTargetUser).
+AUTO: A U T O;
+ASSIGN: A S S I G N;
 
 // Data transformer tokens
 DATA: D A T A;

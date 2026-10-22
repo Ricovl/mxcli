@@ -3,7 +3,7 @@ package mpr
 import (
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 )
 
 // UnitInfo contains basic information about a unit.
@@ -40,7 +40,7 @@ func (r *Reader) ListModules() ([]*ModuleInfo, error) {
 			continue
 		}
 		var raw map[string]any
-		if err := bson.Unmarshal(contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 			continue
 		}
 		name, _ := raw["Name"].(string)
@@ -107,7 +107,7 @@ func (r *Reader) ListFolders() ([]*FolderInfo, error) {
 		name := ""
 		if len(u.Contents) > 0 {
 			var raw map[string]any
-			if err := bson.Unmarshal(u.Contents, &raw); err == nil {
+			if err := bsoncompat.UnmarshalDocMap(u.Contents, &raw); err == nil {
 				if n, ok := raw["Name"].(string); ok {
 					name = n
 				}

@@ -379,7 +379,9 @@ DISCONNECT;`,
 -- role home pages, the login page and the not-found page (mendixlabs/mxcli#1522).
 -- A stated clause replaces what it names: { } the whole menu, SYNC ( ) the
 -- whole list, HOME ... FOR R the home page of role R only (other roles keep
--- theirs). There is no clause that clears a home, login or not-found page.
+-- theirs). To change ONE menu item, or to clear a role's home page, the login
+-- page or the not-found page, use ALTER NAVIGATION (mxcli syntax
+-- navigation.alter): it edits the stored profile and touches nothing else.
 --
 -- The menu items are the profile's CHILDREN, in { } after its clauses, like a
 -- page's widgets: no ; between them, since a child ends in ) or }. An item's
@@ -491,14 +493,78 @@ CREATE OR MODIFY NAVIGATION TabletOffline
 
 	Register(SyntaxFeature{
 		Path:    "navigation.alter",
-		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR MODIFY",
+		Summary: "Edit one navigation profile's menu items and page clauses in place (ALTER NAVIGATION)",
 		Keywords: []string{
-			"alter navigation", "modify navigation", "update navigation",
-			"round-trip", "edit menu",
+			"alter navigation", "modify navigation", "update navigation", "edit menu",
+			"add menu item", "insert menu item", "remove menu item", "drop menu item",
+			"move menu item", "rename menu item", "menu item caption", "drop login page",
+			"drop not found page", "clear login page", "drop home page", "role home page",
 		},
-		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR MODIFY NAVIGATION ...",
-		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR MODIFY",
-		SeeAlso: []string{"navigation.create", "navigation.show"},
+		Syntax: `ALTER NAVIGATION <profile> {
+  INSERT BEFORE | AFTER | INTO <item> { <menu items> }
+  INSERT { <menu items> }                    -- append to the top level
+  REPLACE <item> WITH { <menu items> }
+  MOVE <item> BEFORE | AFTER | INTO <item>
+  DROP <item> [, <item> ...]
+  SET ( Caption: '...', OnClick: <action> | NOTHING,
+        Icon: Module.Collection.name | GLYPH <n> | IMAGE Module.Images.name | NONE ) ON <item>
+
+  SET HOME PAGE | MICROFLOW Module.Name [FOR <UserRole>]
+  DROP HOME PAGE FOR <UserRole>
+  SET LOGIN PAGE Module.Page          DROP LOGIN PAGE
+  SET NOT FOUND PAGE Module.Page      DROP NOT FOUND PAGE
+};
+
+<item> is the caption DESCRIBE prints, as a path written outer to inner:
+  'Users'               the item captioned Users, anywhere in the menu
+  'Admin' > 'Users'     Users directly under Admin (one level per >)
+  'Admin' > 'Users'@2   the 2nd Users under Admin; @n picks among same captions
+  ''@2                  the 2nd item with an empty caption (icon-only)
+LIST NAVIGATION MENU <profile> prints every item's shortest address.
+
+-- The operations apply in order to the stored profile, each target found in
+-- the menu as the operations before it left it, and are written once: a
+-- refusal anywhere writes nothing. Items the statement does not name keep
+-- their stored bytes ($ID, translations, actions MDL cannot spell); MOVE
+-- carries the item itself, sub-items included. Fragment items are written
+-- exactly as in CREATE NAVIGATION, so DESCRIBE output pastes in.
+--
+-- mxcli never guesses: an address that matches nothing or several items is
+-- refused, listing the address of each candidate. Positional addresses do
+-- not exist.
+--
+-- Refused: INSERT/MOVE INTO an item that has an action, and an OnClick other
+-- than NOTHING on an item with sub-items (CE0548) -- SET ( OnClick: NOTHING )
+-- first; DROP HOME PAGE without FOR (a web profile needs one, CE0527) -- SET
+-- HOME PAGE changes it; a native profile (its bottom bar is not written by
+-- mxcli); a profile the project lacks (CREATE OR MODIFY NAVIGATION adds one).
+--
+-- Caption: writes the project's default language and keeps the others, as
+-- ALTER PAGE does; an address matches the caption DESCRIBE prints, which is
+-- the default-language one.
+--
+-- Only what the statement says is checked (references, icons, roles): a
+-- stored item it does not name is not re-validated. CHECK -p --references
+-- runs the same resolution as exec against the stored menu.`,
+		Example: `mdl 1;
+ALTER NAVIGATION Responsive {
+  INSERT AFTER 'Home' {
+    MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview, Icon: Atlas_Core.Atlas."list-bullets" )
+  }
+  INSERT INTO 'Admin' { MENU ITEM 'Audit log' ( OnClick: SHOW PAGE Shop.AuditLog_Overview ) }
+  SET ( Caption: 'User accounts' ) ON 'Admin' > 'Users';
+  REPLACE 'Help' WITH {
+    MENU 'Help' {
+      MENU ITEM 'Documentation' ( OnClick: OPEN LINK 'https://example.com/docs' )
+    }
+  }
+  MOVE 'Log out' AFTER 'Help';
+  DROP 'Old import';
+  SET LOGIN PAGE Shop.CustomLogin;
+  DROP NOT FOUND PAGE;
+  DROP HOME PAGE FOR Administrator;
+};`,
+		SeeAlso: []string{"navigation.create", "navigation.show", "navigation.menu-document.alter"},
 	})
 
 	// ── Settings ────────────────────────────────────────────────────────
@@ -1193,7 +1259,7 @@ mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 		Syntax: `SEARCH '<query>';
 
 -- CLI
-mxcli search -p app.mpr "<query>" [--format table|names|json] [-q] [--fail-on-match]
+mxcli search -p app.mpr "<query>" [--format table|names|json] [-q] [--fail-on-match] [--exclude-marketplace]
 
 -- Raw FTS queries
 SELECT * FROM CATALOG.STRINGS WHERE strings MATCH '<query>';
@@ -1206,6 +1272,9 @@ mxcli search -p app.mpr "validation" -q --format names
 
 -- Gate: exit 1 on a hit, 0 on none (2 when the search cannot run)
 mxcli search -p app.mpr "TODO" --fail-on-match
+
+-- Leave out hits inside Marketplace modules
+mxcli search -p app.mpr "TODO" --exclude-marketplace
 
 -- FTS5 operators
 SEARCH 'word1 OR word2';

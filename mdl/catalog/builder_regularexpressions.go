@@ -3,7 +3,8 @@
 package catalog
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	regex "github.com/mendixlabs/mxcli/mdl/regularexpressions"
 	"github.com/mendixlabs/mxcli/model"
@@ -36,7 +37,7 @@ func (b *Builder) buildRegularExpressions() error {
 	count := 0
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
 		}
 		re := regex.Parse(doc, model.ID(u.ID), model.ID(u.ContainerID))
@@ -83,7 +84,7 @@ func (b *Builder) collectRegexRuleRefs() error {
 	}
 	for _, u := range units {
 		var doc bson.M
-		if bson.Unmarshal(u.Contents, &doc) != nil {
+		if bsoncompat.UnmarshalDocM(u.Contents, &doc) != nil {
 			continue
 		}
 		moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(u.ContainerID))

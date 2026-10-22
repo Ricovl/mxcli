@@ -18,7 +18,7 @@ import (
 // CreateNanoflow inserts a new Microflows$Nanoflow document unit. A nanoflow
 // shares the microflow flow model (parameters + object collection + sequence
 // flows), so it reuses the microflow object/flow converters; only the top-level
-// field set differs (no ExportLevel / concurrency / URL fields).
+// field set differs (no concurrency / URL fields).
 func (b *Backend) CreateNanoflow(nf *microflows.Nanoflow) error {
 	if nf == nil {
 		return fmt.Errorf("CreateNanoflow: nil nanoflow")
@@ -92,10 +92,17 @@ func nanoflowToGen(nf *microflows.Nanoflow, v flowVersion) *genMf.Nanoflow {
 	if nf.ReturnVariableName != "" && v.hasReturnVariableName() {
 		out.SetReturnVariableName(nf.ReturnVariableName)
 	}
+	// Only when authored (`export level api | hidden`, mendixlabs/mxcli#1498);
+	// UpdateNanoflow carries a stored one otherwise. The metamodel's version
+	// data records no introduction for MicroflowBase.exportLevel, so it is
+	// declared at every version the writer supports.
+	if nf.ExportLevel != "" {
+		out.SetExportLevel(nf.ExportLevel)
+	}
 
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range nf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, nf.Parameters, v))
 	}
 	if nf.ObjectCollection != nil {
 		for _, obj := range nf.ObjectCollection.Objects {
@@ -122,9 +129,9 @@ func nanoflowToGen(nf *microflows.Nanoflow, v flowVersion) *genMf.Nanoflow {
 }
 
 // carryStoredNanoflowHeader copies onto a rebuilt nanoflow the header keys the
-// statement did not author: ExportLevel and UseListParameterByReference, which
-// MDL has no spelling for, and ReturnVariableName unless the statement gave
-// `returns T as $Var`. A rebuild used to omit all three, so describe -> exec
+// statement did not author: UseListParameterByReference, which MDL has no
+// spelling for, ExportLevel unless the statement gave `export level …`, and
+// ReturnVariableName unless it gave `returns T as $Var`. A rebuild used to omit all three, so describe -> exec
 // deleted them (ako/mxcli#705).
 //
 // Only a key the stored document carries is written. The nanoflow writer has
@@ -146,7 +153,7 @@ func (b *Backend) carryStoredNanoflowHeader(nf *microflows.Nanoflow, g *genMf.Na
 	for _, e := range stored {
 		switch e.Key {
 		case "ExportLevel":
-			if v, ok := e.Value.(string); ok && v != "" {
+			if v, ok := e.Value.(string); ok && v != "" && nf.ExportLevel == "" {
 				g.SetExportLevel(v)
 			}
 		case "UseListParameterByReference":

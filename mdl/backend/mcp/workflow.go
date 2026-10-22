@@ -73,11 +73,11 @@ func (b *Backend) CreateWorkflow(wf *workflows.Workflow) error {
 // stable. exportLevel and overviewPage are not reapplied (no settable PED path, as
 // in ALTER WORKFLOW).
 func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
-	mod, err := b.GetModule(wf.ContainerID)
+	modName, err := b.moduleNameForContainer(wf.ContainerID)
 	if err != nil {
 		return fmt.Errorf("resolve module for workflow %q: %w", wf.Name, err)
 	}
-	qn := mod.Name + "." + wf.Name
+	qn := modName + "." + wf.Name
 
 	flowVal, err := b.mapWorkflowFlow(wf.Flow)
 	if err != nil {
@@ -192,7 +192,7 @@ func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
 	if err := b.applyTimerBoundaryEvents(qn, wf, order); err != nil {
 		return err
 	}
-	b.markDirty(mod.Name)
+	b.markDirty(modName)
 	b.upsertSessionWorkflow(wf)
 	return b.pedCheckDocument(workflowDocType, qn)
 }
@@ -1131,6 +1131,10 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"outcomes":          vals,
 			}
 			mapMultiUserTaskCompletion(m, act, vals)
+			// Sent only when on, like awaitAllUsers: off is the constructor's default.
+			if act.AutoAssignSingleTargetUser {
+				m["autoAssignSingleTargetUser"] = true
+			}
 		} else {
 			outcomes, err := mapUserTaskOutcomes(act.Outcomes)
 			if err != nil {
@@ -1147,7 +1151,7 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"userTargeting":              mapUserTargeting(act.UserSource),
 				"onCreatedEvent":             mapOnCreatedEvent(act.OnCreated),
 				"outcomes":                   outcomes,
-				"autoAssignSingleTargetUser": false,
+				"autoAssignSingleTargetUser": act.AutoAssignSingleTargetUser,
 			}
 		}
 		if bevents != nil {

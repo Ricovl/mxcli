@@ -1,0 +1,27 @@
+-- mendixlabs/mxcli#177: `column (Attribute: Name, Filterable: true)` was
+-- accepted by check and exec and silently dropped — a Data grid 2 column has no
+-- Filterable property. Its filter is the column's `filter` widgets slot.
+-- check now refuses `Filterable:` (MDL-WIDGET01 with -p, MDL-WIDGET07 without)
+-- and the message names the slot and the filter widgets it takes, instead of
+-- listing the column's properties or suggesting `FilterType`.
+-- This script is the form the message points at; it builds with 0 errors.
+mdl 1;
+
+create module BugTest177;
+
+create persistent entity BugTest177.Order (
+  OrderNumber: String(20),
+  Amount: Decimal,
+  PlacedOn: DateTime
+);
+
+create or modify page BugTest177.Order_Overview (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgOrders (DataSource: database BugTest177.Order) {
+    column (Attribute: OrderNumber) { textfilter tfNumber }
+    column (Attribute: Amount) { numberfilter nfAmount }
+    column (Attribute: PlacedOn) { datefilter dfPlacedOn }
+  }
+};
+
+-- Expect: each column describes back with its filter widget in its braces.
+describe page BugTest177.Order_Overview;

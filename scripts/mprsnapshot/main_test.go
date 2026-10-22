@@ -6,17 +6,16 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // binID builds the 16-byte binary form Mendix stores a $ID / GUID in.
-func binID(b byte) primitive.Binary {
+func binID(b byte) bson.Binary {
 	data := make([]byte, 16)
 	for i := range data {
 		data[i] = b
 	}
-	return primitive.Binary{Subtype: 0, Data: data}
+	return bson.Binary{Subtype: 0, Data: data}
 }
 
 // TestElementIDReadsBinary is the regression that matters most: $ID is a
@@ -32,7 +31,7 @@ func TestElementIDReadsBinary(t *testing.T) {
 		t.Errorf("elementID = %q, want a UUID rendering of the binary", id)
 	}
 
-	if _, ok := elementID(map[string]any{"$ID": primitive.Binary{Data: []byte{1, 2, 3}}}); ok {
+	if _, ok := elementID(map[string]any{"$ID": bson.Binary{Data: []byte{1, 2, 3}}}); ok {
 		t.Error("elementID accepted a binary that is not 16 bytes")
 	}
 	if _, ok := elementID(map[string]any{}); ok {
@@ -47,14 +46,14 @@ func TestNestedElementsSkipsListMarker(t *testing.T) {
 	domainModel := map[string]any{
 		"$ID":   binID(0x01),
 		"$Type": "DomainModels$DomainModel",
-		"Entities": primitive.A{
+		"Entities": bson.A{
 			int32(3), // the list marker
 			map[string]any{
 				"$ID":   binID(0x02),
 				"$Type": "DomainModels$EntityImpl",
 				"Name":  "Account",
 				"GUID":  binID(0x03),
-				"Attributes": primitive.A{
+				"Attributes": bson.A{
 					int32(1),
 					map[string]any{
 						"$ID":   binID(0x04),
@@ -109,7 +108,7 @@ func TestNestedElementsHandlesDriverTypes(t *testing.T) {
 // reordering, so unnamed elements stay out of the default snapshot.
 func TestUnnamedElementsAreOptional(t *testing.T) {
 	doc := map[string]any{
-		"Rows": primitive.A{
+		"Rows": bson.A{
 			int32(1),
 			map[string]any{"$ID": binID(0x06), "$Type": "Forms$LayoutGridRow"},
 		},
@@ -131,7 +130,7 @@ func TestHashIgnoresIDsButNotContent(t *testing.T) {
 		return map[string]any{
 			"$ID":  binID(id),
 			"Name": name,
-			"Kids": primitive.A{int32(1), map[string]any{"$ID": binID(id + 1), "Name": name + "-kid"}},
+			"Kids": bson.A{int32(1), map[string]any{"$ID": binID(id + 1), "Name": name + "-kid"}},
 		}
 	}
 
@@ -168,7 +167,7 @@ func TestReferencesReportPointersNotOwnID(t *testing.T) {
 		"ParentPointer":  binID(0x31),
 		"Name":           "Assoc",
 		"NotAPointer":    "Administration.Account",
-		"ShortBinary":    primitive.Binary{Data: []byte{9}},
+		"ShortBinary":    bson.Binary{Data: []byte{9}},
 		"ChildContainer": map[string]any{"ChildPointer": binID(0x32)},
 	}
 

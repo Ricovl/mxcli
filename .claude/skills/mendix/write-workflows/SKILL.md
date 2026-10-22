@@ -20,9 +20,9 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 | 409-429 | Rewriting an existing workflow |
 | 430-517 | Microflow statements for workflow tasks |
 | 518-538 | System-module enumerations are synthesized, not stored |
-| 539-656 | Platform rules |
-| 657-687 | Observing a running workflow |
-| 688-697 | Validate before presenting |
+| 539-663 | Platform rules |
+| 664-694 | Observing a running workflow |
+| 695-704 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -218,7 +218,7 @@ end workflow;
 > the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
 > at check and exec time. Attach the note to an activity with `@annotation`.
 
-**Boundary events** attach a timer to a user task / call-microflow / wait:
+**Boundary events** attach a timer to a user task, call microflow, call workflow or wait:
 
 ```sql
 mdl 1;
@@ -564,6 +564,13 @@ values. The full list and the System **entities** are in `system-module`.
   - The main flow needs none: the body's closing `end workflow` is its End.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
   `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
+
+- **`auto assign single user` assigns a task when its targeting yields exactly one user**
+  (Studio Pro's "Auto-assign when targeting results in one user"), on either task kind.
+  Without it that user cannot complete the task from a microflow (`set task outcome`)
+  until it is assigned — the runtime refuses with "it is not assigned to you". Omitted
+  it is off, as Studio Pro creates a task; `describe` prints it when set, and a
+  `create or modify` that drops a stored one is refused.
 
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,

@@ -4,8 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -24,7 +25,7 @@ func (b *Backend) ListIconCollections() ([]*types.IconCollection, error) {
 	out := make([]*types.IconCollection, 0, len(units))
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			return nil, fmt.Errorf("unmarshal icon collection %s: %w", u.ID, err)
 		}
 		ic := &types.IconCollection{ContainerID: model.ID(u.ContainerID)}

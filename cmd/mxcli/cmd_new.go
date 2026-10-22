@@ -48,6 +48,7 @@ Examples:
   mxcli new MyApp --version 10.24.0 --output-dir ./projects/my-app
   mxcli new MyApp --version 11.8.0 --theme none
   mxcli new MyApp --version 11.8.0 --layout none
+  mxcli new MyApp --version 11.8.0 --container-runtime podman
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -58,6 +59,7 @@ Examples:
 		themeName, _ := cmd.Flags().GetString("theme")
 		skipBuild, _ := cmd.Flags().GetBool("skip-build")
 		layoutMode, _ := cmd.Flags().GetString("layout")
+		containerRuntime, _ := cmd.Flags().GetString("container-runtime")
 
 		if mendixVersion == "" {
 			fmt.Fprintln(os.Stderr, "Error: --version is required (e.g., --version 11.8.0)")
@@ -255,6 +257,7 @@ Examples:
 		// Step 5: Initialize tooling
 		if !skipInit {
 			fmt.Printf("\nStep 5/7: Initializing AI tooling...\n")
+			initContainerRuntime = containerRuntime
 			initCmd.Run(initCmd, []string{absDir})
 		} else {
 			fmt.Printf("\nStep 5/7: Skipped (--skip-init)\n")
@@ -475,6 +478,7 @@ func init() {
 		"Default styling to apply ('none' to keep plain Atlas; see 'mxcli theme list')")
 	newCmd.Flags().String("layout", "app-default",
 		"Create a layout the project owns and move its pages onto it ('none' to keep Atlas's)")
+	newCmd.Flags().String("container-runtime", "docker", "Container runtime for devcontainer (docker or podman)")
 
 	rootCmd.AddCommand(newCmd)
 }

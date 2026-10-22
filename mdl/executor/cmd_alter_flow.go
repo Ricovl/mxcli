@@ -31,6 +31,10 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// An annotation the fragment's builder would drop (mendixlabs/mxcli#1597).
+	if err := validateAlterFlowRules(s); err != nil {
+		return err
+	}
 	a, err := loadAlterFlow(ctx, s)
 	if err != nil {
 		return err
@@ -575,7 +579,12 @@ func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowS
 		return nil, fmt.Errorf("every path through the fragment ends the flow with a return, so nothing would lead on " +
 			"to the rest of it; a return can be inserted only on a path that branches off the rest (a guard clause)")
 	}
-	return cutFragment(oc, fb.fallThroughEndID, fb.returnEndIDs)
+	frag, err := cutFragment(oc, fb.fallThroughEndID, fb.returnEndIDs)
+	if err != nil {
+		return nil, err
+	}
+	frag.Pinned = fb.statedNotes
+	return frag, nil
 }
 
 // cutFragment removes the builder's start event and the end event the body

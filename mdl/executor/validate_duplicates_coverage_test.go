@@ -209,6 +209,8 @@ var createStmtsNotClassified = map[string]string{
 		"CheckExecRefusals' (ako/mxcli#906)",
 	"CreateExternalEntitiesStmt": "a bulk import with no name of its own: each entity it would create is looked up " +
 		"in the service contract, which a script-level name check cannot see",
+	"CreateNavigationStmt": "a navigation profile is one of Mendix's fixed set, and exec never refuses a plain " +
+		"CREATE of one that exists: it writes the clauses the statement states into it (execCreateNavigation)",
 	"CreateAnnotationStmt": "KNOWN GAP (ako/mxcli#557 follow-up): an annotation has no name — exec refuses a plain " +
 		"CREATE whose caption's first line matches an existing note in the module, which a qualified-name set " +
 		"cannot express",

@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/sdk/workflows"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -20,7 +19,7 @@ type testWfDeps struct{}
 
 func (testWfDeps) SerializeWorkflowActivity(a workflows.WorkflowActivity) bson.D {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$SingleUserTaskActivity"},
 		{Key: "Caption", Value: a.GetCaption()},
 		{Key: "Name", Value: a.GetName()},
@@ -36,21 +35,21 @@ func makeWorkflowDoc(activities ...bson.D) bson.D {
 		actArr = append(actArr, a)
 	}
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$Workflow"},
 		{Key: "Title", Value: "Test Workflow"},
 		{Key: "WorkflowName", Value: bson.D{
-			{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+			{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 			{Key: "$Type", Value: "Texts$Text"},
 			{Key: "Text", Value: "Test Workflow"},
 		}},
 		{Key: "WorkflowDescription", Value: bson.D{
-			{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+			{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 			{Key: "$Type", Value: "Texts$Text"},
 			{Key: "Text", Value: "Original description"},
 		}},
 		{Key: "Flow", Value: bson.D{
-			{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+			{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 			{Key: "$Type", Value: "Workflows$Flow"},
 			{Key: "Activities", Value: actArr},
 		}},
@@ -59,7 +58,7 @@ func makeWorkflowDoc(activities ...bson.D) bson.D {
 
 func makeWfActivity(typeName, caption, name string) bson.D {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: typeName},
 		{Key: "Caption", Value: caption},
 		{Key: "Name", Value: name},
@@ -72,7 +71,7 @@ func makeWfActivityWithBoundaryEvents(caption string, events ...bson.D) bson.D {
 		evtArr = append(evtArr, e)
 	}
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$UserTask"},
 		{Key: "Caption", Value: caption},
 		{Key: "Name", Value: "task1"},
@@ -82,7 +81,7 @@ func makeWfActivityWithBoundaryEvents(caption string, events ...bson.D) bson.D {
 
 func makeWfBoundaryEvent(typeName string) bson.D {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: typeName},
 		{Key: "Caption", Value: ""},
 	}
@@ -117,7 +116,7 @@ func TestWorkflowMutator_SetProperty_Display(t *testing.T) {
 
 func TestWorkflowMutator_SetProperty_Display_NilSubDoc(t *testing.T) {
 	doc := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$Workflow"},
 		{Key: "Title", Value: "Old"},
 		{Key: "Flow", Value: bson.D{
@@ -161,7 +160,7 @@ func TestWorkflowMutator_SetProperty_Description(t *testing.T) {
 
 func TestWorkflowMutator_SetProperty_Description_NilSubDoc(t *testing.T) {
 	doc := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$Workflow"},
 		{Key: "Title", Value: "Test"},
 		{Key: "Flow", Value: bson.D{
@@ -560,7 +559,7 @@ func makeWfActivityWithOutcomes(caption, name string, outcomes ...bson.D) bson.D
 		arr = append(arr, o)
 	}
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$UserTask"},
 		{Key: "Caption", Value: caption},
 		{Key: "Name", Value: name},
@@ -570,7 +569,7 @@ func makeWfActivityWithOutcomes(caption, name string, outcomes ...bson.D) bson.D
 
 func makeOutcome(typeName, value string) bson.D {
 	d := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: typeName},
 	}
 	if value != "" {
@@ -581,7 +580,7 @@ func makeOutcome(typeName, value string) bson.D {
 
 func makeBoolOutcome(val bool) bson.D {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$BooleanConditionOutcome"},
 		{Key: "Value", Value: val},
 	}
@@ -589,7 +588,7 @@ func makeBoolOutcome(val bool) bson.D {
 
 func makeVoidConditionOutcome() bson.D {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$VoidConditionOutcome"},
 	}
 }
@@ -839,11 +838,11 @@ func TestWorkflowMutator_InsertPath_WithActivities(t *testing.T) {
 
 func TestWorkflowMutator_DropPath_ByCaption(t *testing.T) {
 	path1 := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$ParallelSplitOutcome"},
 	}
 	path2 := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$ParallelSplitOutcome"},
 	}
 	act := makeWfActivityWithOutcomes("Split", "split1", path1, path2)
@@ -1236,8 +1235,8 @@ func TestWorkflowMutator_SetActivityProperty_Page_MissingKey_NestedSubFlow(t *te
 	// Exercises the recursive replaceActivity path: the target activity lives
 	// inside an outcome's sub-flow, not at the top level.
 	// Use distinct $IDs so replaceActivity cannot accidentally match the parent.
-	parentID := primitive.Binary{Subtype: 0x04, Data: []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
-	nestedID := primitive.Binary{Subtype: 0x04, Data: []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
+	parentID := bson.Binary{Subtype: 0x04, Data: []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
+	nestedID := bson.Binary{Subtype: 0x04, Data: []byte{2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 
 	nestedAct := bson.D{
 		{Key: "$ID", Value: nestedID},
@@ -1248,10 +1247,10 @@ func TestWorkflowMutator_SetActivityProperty_Page_MissingKey_NestedSubFlow(t *te
 	// No TaskPage field at all on the nested activity.
 
 	outcome := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$BooleanOutcome"},
 		{Key: "Flow", Value: bson.D{
-			{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+			{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 			{Key: "$Type", Value: "Workflows$Flow"},
 			{Key: "Activities", Value: bson.A{int32(3), nestedAct}},
 		}},
@@ -1291,7 +1290,7 @@ func TestWorkflowMutator_SetActivityProperty_Page_MissingKey_NestedSubFlow(t *te
 func TestWorkflowMutator_SetActivityProperty_Page_Existing(t *testing.T) {
 	act := makeWfActivity("Workflows$UserTask", "Review", "task1")
 	act = append(act, bson.E{Key: "TaskPage", Value: bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$PageReference"},
 		{Key: "Page", Value: "OldModule.OldPage"},
 	}})
@@ -1311,7 +1310,7 @@ func TestWorkflowMutator_SetActivityProperty_Page_Existing(t *testing.T) {
 func TestWorkflowMutator_SetActivityProperty_Description(t *testing.T) {
 	act := makeWfActivity("Workflows$UserTask", "Review", "task1")
 	act = append(act, bson.E{Key: "TaskDescription", Value: bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Texts$Text"},
 		{Key: "Text", Value: "old"},
 	}})
@@ -1428,7 +1427,7 @@ func TestWorkflowMutator_SetPropertyWithEntity_Parameter_New(t *testing.T) {
 func TestWorkflowMutator_SetPropertyWithEntity_Parameter_Update(t *testing.T) {
 	doc := makeWorkflowDoc()
 	doc = append(doc, bson.E{Key: "Parameter", Value: bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Workflows$Parameter"},
 		{Key: "Entity", Value: "OldModule.OldEntity"},
 		{Key: "Name", Value: "WorkflowContext"},

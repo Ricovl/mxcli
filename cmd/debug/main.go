@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"path/filepath"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	_ "modernc.org/sqlite"
 )
 
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	var doc bson.M
-	if err := bson.Unmarshal(content, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(content, &doc); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to unmarshal BSON: %v\n", err)
 		os.Exit(1)
 	}

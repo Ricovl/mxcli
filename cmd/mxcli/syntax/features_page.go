@@ -166,6 +166,9 @@ LIST IMPACT OF htmlelement;
 			"-- written (name attributes as $currentObject/Attr). A plain value is static.\n" +
 			"TEXTBOX name (Attribute: Attr, Visible: $currentObject/IsActive, Editable: $currentObject/Status != 'Closed')\n" +
 			"TEXTBOX name (Attribute: Attr, Visible: false, Editable: Never)\n" +
+			"--   A condition may also be a quoted string holding the same expression; Editable:\n" +
+			"--   false / true mean Never / Always.\n" +
+			"TEXTBOX name (Attribute: Attr, Editable: '$currentObject/Status != ''Closed''')\n" +
 			"--   The bracketed Visible: [IsActive] (attributes rooted for you) is the deprecated\n" +
 			"--   spelling, MDL-DEPR081.\n\n" +
 			"-- Actions\nACTIONBUTTON name (Caption: 'C', Action: SAVE CHANGES, ButtonStyle: Primary)\nLINKBUTTON name (Caption: 'C', Action: ...)\n\n" +
@@ -424,7 +427,7 @@ LIST IMPACT OF htmlelement;
 			"snippet", "snippets", "reusable", "snippetcall",
 			"page fragment", "component",
 		},
-		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: ( $P: Module.Entity ) )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)",
+		Syntax:  "CREATE SNIPPET Module.Name [FOLDER 'path']\n  [( Params: ( $P: Module.Entity ) )]   -- parameters are entities only\n  {\n    -- widgets (same as page)\n  }\n\n-- Embed in a page:\nSNIPPETCALL scName (Snippet: Module.SnippetName)\n-- A snippet call renders no element: Class / Style / DynamicClasses /\n-- DesignProperties on it never reach the page (MDL-WIDGET48). Style a\n-- container around the call, or inside the snippet, instead.",
 		Example: "CREATE SNIPPET MyModule.CustomerInfo (\n  Params: ( $Customer: MyModule.Customer )\n)\n{\n  DATAVIEW dv (DataSource: $Customer) {\n    TEXTBOX txtName (Label: 'Name', Attribute: Name)\n    TEXTBOX txtEmail (Label: 'Email', Attribute: Email)\n  }\n};",
 		SeeAlso: []string{"snippet.create", "snippet.alter", "page"},
 	})
@@ -478,6 +481,8 @@ LIST IMPACT OF htmlelement;
 			"layout", "layouts", "create layout", "scrollcontainer", "region",
 			"placeholder", "navigationtree", "topbar", "sidebar", "frame",
 			"menubar", "simplemenubar", "bottom bar", "phone layout", "menu document",
+			"sidebartoggle", "sidebar toggle", "toggle button", "layoutheader", "header bar",
+			"native layout", "showbottombar", "native sidebar",
 		},
 		Syntax: "CREATE [OR MODIFY] LAYOUT Module.Name (\n" +
 			"  layouttype: 'Responsive' | 'Phone' | 'Tablet' | 'ModalPopup'   -- web\n" +
@@ -494,11 +499,23 @@ LIST IMPACT OF htmlelement;
 			"      MENUBAR name (Profile: 'Responsive')          -- horizontal, for a topbar\n" +
 			"      SIMPLEMENUBAR name (Menu: Module.Menu        -- a phone layout's bottom bar\n" +
 			"                    [, Orientation: Horizontal | Vertical])\n" +
+			"      SIDEBARTOGGLE name ([Caption: '…', Tooltip: '…', ButtonStyle: Primary,\n" +
+			"                    Icon: 'Mod.Collection.icon', RenderMode: Button | Link])\n" +
+			"      -- the button that opens and closes the sidebar on phones and tablets\n" +
+			"      LAYOUTHEADER name { REGION left { … } REGION right { … } }\n" +
+			"      -- a phone/tablet layout's header bar (Atlas: HeaderLeft / HeaderRight)\n" +
 			"      -- Every menu widget renders EITHER a navigation profile (Profile: '…')\n" +
 			"      -- OR a menu document (Menu: Module.Menu, see CREATE MENU) — not both.\n" +
 			"      PLACEHOLDER Main\n" +
 			"    }\n" +
 			"  }\n" +
+			"}\n" +
+			"-- A native layout (Default | Popup) has no scroll container; beside its\n" +
+			"-- content it keeps a header placeholder, a bottom bar and a sidebar:\n" +
+			"CREATE LAYOUT Module.Name (layouttype: 'Default' [, showbottombar: true]) {\n" +
+			"  PLACEHOLDER Main\n" +
+			"  [REGION header { PLACEHOLDER Header }]     -- the header's right side\n" +
+			"  [REGION sidebar { … }]                     -- present = the layout has a sidebar\n" +
 			"}",
 		Example: "mdl 1;\n" +
 			"-- Mendix's own guidance is not to edit the supplied Atlas layouts:\n" +
@@ -706,6 +723,7 @@ LIST IMPACT OF htmlelement;
 			"  MENU '<caption>' [( Icon: Module.Collection.name )] { <nested items> }\n" +
 			"};\n" +
 			"DESCRIBE MENU Module.Name;\n" +
+			"ALTER MENU Module.Name { <item operations> };   -- one item at a time: mxcli syntax navigation.menu-document.alter\n" +
 			"DROP MENU Module.Name;",
 		Example: "CREATE OR MODIFY MENU MyModule.Main_Menu {\n" +
 			"  menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )\n" +
@@ -720,7 +738,8 @@ LIST IMPACT OF htmlelement;
 			"--     NOT the menu inside a navigation profile — for that use\n" +
 			"--     LIST NAVIGATION MENU and ALTER NAVIGATION. Both use these same items.\n" +
 			"--   * OR MODIFY replaces the item list wholesale; an omitted item is removed.\n" +
-			"--     The document's identity and export level are preserved.\n" +
+			"--     The document's identity and export level are preserved. To add, move,\n" +
+			"--     rename or drop one item, use ALTER MENU, which keeps the rest as stored.\n" +
 			"--   * SIGN OUT is the log-out menu item. It needs no target and stores the\n" +
 			"--     same Forms$SignOutClientAction a sign-out BUTTON carries. Works both\n" +
 			"--     here and in a navigation profile's menu.\n" +
@@ -731,7 +750,35 @@ LIST IMPACT OF htmlelement;
 			"--     write the other two icon kinds.\n" +
 			"--   * A page with required parameters cannot be opened from a menu item\n" +
 			"--     without an argument — Mendix reports CE1571.",
-		SeeAlso: []string{"navigation.create", "navigation.show", "page.show"},
+		SeeAlso: []string{"navigation.create", "navigation.show", "navigation.menu-document.alter", "page.show"},
+	})
+
+	Register(SyntaxFeature{
+		Path:    "navigation.menu-document.alter",
+		Summary: "Edit a menu document's items in place (ALTER MENU)",
+		Keywords: []string{
+			"alter menu", "edit menu document", "add menu item", "insert menu item",
+			"drop menu item", "move menu item", "rename menu item",
+		},
+		Syntax: "ALTER MENU Module.Name {\n" +
+			"  INSERT BEFORE | AFTER | INTO <item> { <menu items> }\n" +
+			"  INSERT { <menu items> }\n" +
+			"  REPLACE <item> WITH { <menu items> }\n" +
+			"  MOVE <item> BEFORE | AFTER | INTO <item>\n" +
+			"  DROP <item> [, <item> ...]\n" +
+			"  SET ( Caption: '...', OnClick: <action> | NOTHING, Icon: <icon> | NONE ) ON <item>\n" +
+			"};\n\n" +
+			"-- The item operations of ALTER NAVIGATION (mxcli syntax navigation.alter) on a\n" +
+			"-- Menus$MenuDocument, which holds the same items; there are no page clauses.\n" +
+			"-- <item> is a caption path: 'Group' > 'Item', @n among equal captions.",
+		Example: "mdl 1;\n" +
+			"ALTER MENU MyModule.Main_Menu {\n" +
+			"  INSERT AFTER 'Home' { MENU ITEM 'Orders' ( OnClick: SHOW PAGE MyModule.Order_Overview ) }\n" +
+			"  MOVE 'Run' INTO 'Admin';\n" +
+			"  SET ( Caption: 'Accounts and roles' ) ON 'Admin' > 'Accounts';\n" +
+			"  DROP 'Plain';\n" +
+			"};",
+		SeeAlso: []string{"navigation.menu-document", "navigation.alter"},
 	})
 
 	// ── Fragment ──────────────────────────────────────────────────────────

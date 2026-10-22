@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 
@@ -1588,6 +1588,15 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// Legacy table: Cells[].Widgets[] (mendixlabs/mxcli#1453). A cell has no
+	// Name, so findInWidgetArray descends straight into its Widgets. Keyed on
+	// the list, not the $Type: Mendix 11 stores a cell as Forms$DbTableCell,
+	// which gen does not model, and Forms$Table is the only page type with a
+	// Cells list.
+	if result := findInWidgetArray(wDoc, "Cells", widgetName); result != nil {
+		return result
+	}
+
 	// NavigationList: Items[] hold no Name, but the widgets inside each one do
 	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
 	if isNavigationList(wDoc) {
@@ -2368,6 +2377,9 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
 		return ds, true
 	}
+	if ds, found := findNearestDSInWidgets(wDoc, "Cells", widgetName, curDS); found {
+		return ds, true
+	}
 	if isNavigationList(wDoc) {
 		if ds, found := findNearestDSInWidgets(wDoc, "Items", widgetName, curDS); found {
 			return ds, true
@@ -2570,6 +2582,7 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	collectWidgetScope(wDoc, "Cells", scope) // legacy table cells (#1453)
 	if isNavigationList(wDoc) {
 		collectWidgetScope(wDoc, "Items", scope)
 	}
@@ -2776,63 +2789,14 @@ func setColumnPropertyMut(colDoc bson.D, propKeyMap map[string]string, propKindM
 }
 
 // updateClientTemplateText writes the literal text of a Forms$ClientTemplate's
-// Template in the authoring language (see setTextsTextTranslation). Returns false
+// Template in the authoring language (see bsonnav.SetTextsTextTranslation). Returns false
 // when the template has no Texts$Text to write into.
 func updateClientTemplateText(clientTemplate bson.D, text string) bool {
 	template := bsonnav.DGetDoc(clientTemplate, "Template")
 	if template == nil {
 		return false
 	}
-	return setTextsTextTranslation(template, text)
-}
-
-// setTextsTextTranslation writes text into a Texts$Text as the translation for
-// model.AuthoringLanguage() — the project's default language, the one DESCRIBE
-// shows — updating that entry in place, or appending one when the text has no
-// translation in that language yet. Every other language's translation is kept.
-//
-// This is the one rule for every text ALTER PAGE sets. Before it there were
-// four: a page Title and a column caption overwrote EVERY translation with the
-// same string (English text written into nl_NL); a button caption or content
-// overwrote whichever translation was listed first, whatever its language; and
-// a Caption/Label stored as a Texts$Text looked for a `Translations` key no
-// Mendix document has, then tried to set a stray `Text` field that DSet could
-// not add — reporting success with nothing written. The case that surfaced it:
-// a project switched to de_DE, a tab caption with only en_US → mxbuild CE4899
-// "Empty caption. [German, Germany]", and `set Caption` had to fill de_DE
-// without discarding the en_US text.
-//
-// Returns false when doc carries no Items list (not a Texts$Text).
-func setTextsTextTranslation(doc bson.D, text string) bool {
-	raw := bsonnav.ToBsonA(bsonnav.DGet(doc, "Items"))
-	if raw == nil && !hasKey(doc, "Items") {
-		return false
-	}
-	lang := model.AuthoringLanguage()
-	for _, item := range bsonnav.DGetArrayElements(raw) {
-		itemDoc, ok := item.(bson.D)
-		if !ok || bsonnav.DGetString(itemDoc, "LanguageCode") != lang {
-			continue
-		}
-		if bsonnav.DSet(itemDoc, "Text", text) {
-			return true
-		}
-	}
-	newItem := bson.D{
-		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
-		{Key: "$Type", Value: "Texts$Translation"},
-		{Key: "LanguageCode", Value: lang},
-		{Key: "Text", Value: text},
-	}
-	var newArr bson.A
-	if len(raw) > 0 && isListMarker(raw[0]) {
-		newArr = append(newArr, raw...)
-	} else {
-		// Texts$Text.Items is a marker-3 list in every document Studio Pro writes.
-		newArr = append(append(newArr, int32(3)), raw...)
-	}
-	newArr = append(newArr, newItem)
-	return bsonnav.DSet(doc, "Items", newArr)
+	return bsonnav.SetTextsTextTranslation(template, text)
 }
 
 // hasKey reports whether doc has the key at all, null value included.
@@ -2863,7 +2827,7 @@ func applyPageLevelSetMut(rawData bson.D, prop string, value any) (bson.D, error
 		if titleDoc == nil {
 			return rawData, fmt.Errorf("page has no Title field")
 		}
-		if !setTextsTextTranslation(titleDoc, strVal) {
+		if !bsonnav.SetTextsTextTranslation(titleDoc, strVal) {
 			return rawData, fmt.Errorf("could not update Title text")
 		}
 	case "Url":
@@ -3251,6 +3215,9 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		if isDynamicTextWidget(widget) {
 			return setDynamicTextRenderModeMut(widget, value)
 		}
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$DivContainer" || typ == "Pages$DivContainer" {
+			return setContainerRenderModeMut(widget, value)
+		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
@@ -3305,6 +3272,27 @@ func setDynamicTextRenderModeMut(widget bson.D, value any) error {
 	}
 	return fmt.Errorf("invalid RenderMode %q for dynamic text %q: expected one of %s",
 		fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+}
+
+// setContainerRenderModeMut writes a container's RenderMode — the HTML element
+// it renders as — in place, canonically spelled; an unknown member is refused
+// before the document is touched (mendixlabs/mxcli#1582).
+func setContainerRenderModeMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	mode, ok := pages.CanonicalContainerRenderMode(s)
+	if !ok {
+		names := make([]string, len(pages.ContainerRenderModes))
+		for i, m := range pages.ContainerRenderModes {
+			names[i] = string(m)
+		}
+		return fmt.Errorf("invalid RenderMode %q for container %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+	}
+	if !bsonnav.DSet(widget, "RenderMode", string(mode)) {
+		return fmt.Errorf("container %q has no stored RenderMode property to set",
+			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
 }
 
 // setLegacyImageRefMut writes a static image's Image or a dynamic image's
@@ -3983,7 +3971,7 @@ func noPluggableObjectError(widget bson.D, propName string) error {
 // Forms$Label's Caption) or a Forms$ClientTemplate (a button's CaptionTemplate,
 // a text's Content, an input's LabelTemplate). Either way the translation for
 // the authoring language is written and the others are kept — see
-// setTextsTextTranslation. Any other shape is refused: writing nothing and
+// bsonnav.SetTextsTextTranslation. Any other shape is refused: writing nothing and
 // returning nil is how `set Caption` on a tab page reported success unchanged.
 func setTranslatableText(text bson.D, label string, value any) error {
 	strVal, ok := value.(string)
@@ -3992,7 +3980,7 @@ func setTranslatableText(text bson.D, label string, value any) error {
 	}
 	switch typ := bsonnav.DGetString(text, "$Type"); typ {
 	case "Texts$Text":
-		if setTextsTextTranslation(text, strVal) {
+		if bsonnav.SetTextsTextTranslation(text, strVal) {
 			return nil
 		}
 		return fmt.Errorf("%s is a Texts$Text without an Items list", label)

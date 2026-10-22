@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // formatActivity formats a single microflow activity as an MDL statement.
@@ -628,10 +629,12 @@ func formatAction(
 
 			if dbSource.XPathConstraint != "" {
 				// A stored constraint may be broken across lines — mxcli formats a
-				// long one that way so it can be read in Studio Pro's editor, and a
-				// person may have done the same by hand (upstream #979). MDL keeps it
-				// on one line; the executor re-derives the stored layout on write.
-				constraint := visitor.FlattenXPathConstraint(strings.TrimSpace(dbSource.XPathConstraint))
+				// long one that way so it can be read in Studio Pro's editor
+				// (upstream #979), and that layout is described on one line: the
+				// executor re-derives it on write. A layout a person gave it is
+				// described as stored, which is what re-executing it stores
+				// (mendixlabs/mxcli#1542).
+				constraint := visitor.DescribeXPathConstraintLayout(strings.TrimSpace(dbSource.XPathConstraint))
 				// Enrich string literals for enum attributes to qualified names
 				// (e.g. Status = 'Open' → Status = Module.OrderStatus.Open) when
 				// the entity is known and we are connected to a project.
@@ -1284,7 +1287,7 @@ func isBareIdentifier(part string) bool {
 
 func rawUnitName(contents []byte) string {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return ""
 	}
 	name, _ := raw["Name"].(string)

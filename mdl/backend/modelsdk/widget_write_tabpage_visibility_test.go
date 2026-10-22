@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -28,7 +28,7 @@ func TestTabPage_WritesConditionalVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	tps := subDocs(t, encodeElement(t, el), "TabPages")
-	field := func(doc bsonv1.D, key string) (any, bool) {
+	field := func(doc bson.D, key string) (any, bool) {
 		for _, e := range doc {
 			if e.Key == key {
 				return e.Value, true
@@ -41,7 +41,7 @@ func TestTabPage_WritesConditionalVisibility(t *testing.T) {
 		t.Errorf("tpA: ConditionalVisibilitySettings = %v, want none", v)
 	}
 	v, _ := field(tps[1], "ConditionalVisibilitySettings")
-	cvs, ok := v.(bsonv1.D)
+	cvs, ok := v.(bson.D)
 	if !ok {
 		t.Fatalf("tpB: ConditionalVisibilitySettings = %v, want the settings — the condition was dropped (tab always visible)", v)
 	}

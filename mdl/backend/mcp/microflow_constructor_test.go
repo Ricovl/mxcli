@@ -3,6 +3,8 @@
 package mcp
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/model"
@@ -273,5 +275,196 @@ func TestShiftObjectRef(t *testing.T) {
 		if got := shiftObjectRef(c.ref, c.shift); got != c.want {
 			t.Errorf("shiftObjectRef(%q, %d) = %q, want %q", c.ref, c.shift, got, c.want)
 		}
+	}
+}
+
+// notedMicroflow is a parameter, start -> activity -> end with sides that are
+// not PED's default right -> left, and two notes on the activity: one below it
+// whose line the builder oriented (top of the note, bottom of the activity), and
+// one nothing oriented, which is drawn as for a note above its element.
+func notedMicroflow(containerID model.ID) *microflows.Microflow {
+	obj := func(id string, x, y int) microflows.BaseMicroflowObject {
+		return microflows.BaseMicroflowObject{BaseElement: model.BaseElement{ID: model.ID(id)}, Position: model.Point{X: x, Y: y}}
+	}
+	act := &microflows.ActionActivity{
+		BaseActivity: microflows.BaseActivity{BaseMicroflowObject: obj("act", 250, 150)},
+		Action: &microflows.LogMessageAction{
+			LogLevel: microflows.LogLevelInfo, LogNodeName: "'Probe'",
+			MessageTemplate: &model.Text{Translations: map[string]string{"en_US": "hello"}},
+		},
+	}
+	below := &microflows.Annotation{BaseMicroflowObject: obj("below", 250, 300), Caption: "Explains the log"}
+	below.Size = model.Size{Width: 220, Height: 60}
+	above := &microflows.Annotation{BaseMicroflowObject: obj("above", 250, 30), Caption: "Unoriented"}
+	above.Size = model.Size{Width: 200, Height: 50}
+	return &microflows.Microflow{
+		ContainerID: containerID,
+		Name:        "ZzNoted",
+		Parameters:  []*microflows.MicroflowParameter{{Name: "N", Type: &microflows.IntegerType{}}},
+		ObjectCollection: &microflows.MicroflowObjectCollection{
+			Objects: []microflows.MicroflowObject{
+				&microflows.StartEvent{BaseMicroflowObject: obj("start", 100, 150)},
+				act,
+				&microflows.EndEvent{BaseMicroflowObject: obj("end", 400, 300)},
+				below, above,
+			},
+			Flows: []*microflows.SequenceFlow{
+				{OriginID: "start", DestinationID: "act", OriginConnectionIndex: 1, DestinationConnectionIndex: 3},
+				{OriginID: "act", DestinationID: "end", OriginConnectionIndex: 2, DestinationConnectionIndex: 0},
+			},
+			AnnotationFlows: []*microflows.AnnotationFlow{
+				{OriginID: "below", DestinationID: "act", Sides: &microflows.ConnectionSides{Origin: 0, Destination: 2}},
+				{OriginID: "above", DestinationID: "act"},
+			},
+		},
+		ReturnType: &microflows.VoidType{},
+	}
+}
+
+// createdContent creates mf against a fake Studio Pro whose microflow
+// constructor schema is ctorSchema ("" for the full, pre-11.14 shape) and
+// returns the ped_create_document content it was sent.
+func createdContent(t *testing.T, ctorSchema string, mf func(model.ID) *microflows.Microflow) (map[string]any, *fakePED, error) {
+	t.Helper()
+	ped := newFakePED(t, func(name string, _ map[string]any) (string, bool) {
+		switch name {
+		case "ped_get_schema":
+			if ctorSchema != "" {
+				return ctorSchema, false
+			}
+		case "ped_create_document":
+			return "SUCCESS: Creating documents (1)", false
+		case "ped_update_document":
+			return "SUCCESS: All operations have been performed successfully.", false
+		case "ped_check_errors":
+			return "No errors found.", false
+		}
+		return "{}", false
+	})
+	b := backendFor(ped)
+	if err := b.Connect(localProject(t)); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+	mod, err := b.GetModuleByName("MyFirstModule")
+	if err != nil {
+		t.Fatalf("GetModuleByName: %v", err)
+	}
+	if err := b.CreateMicroflow(mf(mod.ID)); err != nil {
+		return nil, ped, err
+	}
+	create, ok := ped.callByName("ped_create_document")
+	if !ok {
+		t.Fatal("no ped_create_document")
+	}
+	return create.Args["documents"].([]any)[0].(map[string]any)["documentContent"].(map[string]any), ped, nil
+}
+
+// A flow's sides are the builder's (and @anchor's) to choose. Measured against
+// 11.15.0-rc.4: a create that names none gets Studio Pro's right -> left on
+// every flow, so a CASE built with `@anchor(from: bottom, …)` read back 1 -> 3
+// throughout. The constructor takes them as originConnectionSide /
+// destinationConnectionSide, as the splice already sends them.
+func TestCreateMicroflow_FlowSides(t *testing.T) {
+	for _, shape := range []struct{ name, schema string }{{"skeleton", microflowCtorSchema1114}, {"full", ""}} {
+		t.Run(shape.name, func(t *testing.T) {
+			mf := func(id model.ID) *microflows.Microflow {
+				m := notedMicroflow(id)
+				m.ObjectCollection.Objects = m.ObjectCollection.Objects[:3]
+				m.ObjectCollection.AnnotationFlows = nil
+				return m
+			}
+			content, _, err := createdContent(t, shape.schema, mf)
+			if err != nil {
+				t.Fatalf("CreateMicroflow: %v", err)
+			}
+			flows, _ := content["flows"].([]any)
+			want := [][2]string{{"Right", "Left"}, {"Bottom", "Top"}}
+			if len(flows) != len(want) {
+				t.Fatalf("flows = %v, want %d", flows, len(want))
+			}
+			for i, f := range flows {
+				fm, _ := f.(map[string]any)
+				if fm["originConnectionSide"] != want[i][0] || fm["destinationConnectionSide"] != want[i][1] {
+					t.Errorf("flows[%d] sides = %v -> %v, want %s -> %s", i, fm["originConnectionSide"], fm["destinationConnectionSide"], want[i][0], want[i][1])
+				}
+			}
+		})
+	}
+}
+
+// A note is a canvas object and its line a typed flow; the skeleton constructor
+// takes both in the create. Before, the create path mapped neither: an
+// Annotation reached mapObjectTree's default case.
+func TestCreateMicroflow_Notes(t *testing.T) {
+	content, ped, err := createdContent(t, microflowCtorSchema1114, notedMicroflow)
+	if err != nil {
+		t.Fatalf("CreateMicroflow: %v", err)
+	}
+	objects, _ := content["objects"].([]any)
+	if len(objects) != 5 {
+		t.Fatalf("objects = %d, want 5 (the parameter is not one of them)", len(objects))
+	}
+	for i, want := range []struct {
+		caption    string
+		x, y, w, h int
+	}{{"Explains the log", 250, 300, 220, 60}, {"Unoriented", 250, 30, 200, 50}} {
+		note, _ := objects[3+i].(map[string]any)
+		if note["$Type"] != "Microflows$Annotation" || note["caption"] != want.caption {
+			t.Errorf("objects[%d] = %v, want the note %q", 3+i, note, want.caption)
+		}
+		if fmt.Sprint(note["x"], note["y"]) != fmt.Sprint(want.x, want.y) {
+			t.Errorf("note %q at %v,%v, want %d,%d", want.caption, note["x"], note["y"], want.x, want.y)
+		}
+		if size, _ := note["size"].(map[string]any); fmt.Sprint(size["width"], size["height"]) != fmt.Sprint(want.w, want.h) {
+			t.Errorf("note %q size = %v, want %dx%d", want.caption, note["size"], want.w, want.h)
+		}
+		if _, ok := note["relativeMiddlePoint"]; ok {
+			t.Errorf("note %q still carries relativeMiddlePoint, which the skeleton drops silently", want.caption)
+		}
+	}
+
+	flows, _ := content["flows"].([]any)
+	if len(flows) != 4 {
+		t.Fatalf("flows = %d, want 2 sequence flows and 2 note lines: %v", len(flows), flows)
+	}
+	for i, want := range []struct {
+		origin string
+		sides  [2]int
+	}{{"$id(/objects/3)", [2]int{0, 2}}, {"$id(/objects/4)", [2]int{2, 0}}} {
+		af, _ := flows[2+i].(map[string]any)
+		if af["$Type"] != "Microflows$AnnotationFlow" {
+			t.Errorf("flows[%d] $Type = %v, want Microflows$AnnotationFlow", 2+i, af["$Type"])
+		}
+		// References shift past the parameter like a sequence flow's.
+		if af["origin"] != want.origin || af["destination"] != "$id(/objects/1)" {
+			t.Errorf("flows[%d] = %v -> %v, want %s -> $id(/objects/1)", 2+i, af["origin"], af["destination"], want.origin)
+		}
+		if fmt.Sprint(af["originConnectionIndex"], af["destinationConnectionIndex"]) != fmt.Sprint(want.sides[0], want.sides[1]) {
+			t.Errorf("flows[%d] sides = %v -> %v, want %d -> %d", 2+i, af["originConnectionIndex"], af["destinationConnectionIndex"], want.sides[0], want.sides[1])
+		}
+	}
+
+	// The caption and size are constructor properties: nothing about a note is
+	// left for the update.
+	update, _ := ped.callByName("ped_update_document")
+	ops, _ := update.Args["operations"].([]any)
+	for _, o := range ops {
+		if p, _ := o.(map[string]any)["path"].(string); strings.HasPrefix(p, "/objectCollection/objects/4") || strings.HasPrefix(p, "/objectCollection/objects/5") {
+			t.Errorf("update touches a note: %v", o)
+		}
+	}
+}
+
+// The full constructor's flows carry no $Type, so a note's line could only be
+// read as a sequence flow — an execution edge from the note. It is refused, not
+// sent.
+func TestCreateMicroflow_NotesRefusedOnFullConstructor(t *testing.T) {
+	_, ped, err := createdContent(t, "", notedMicroflow)
+	if err == nil || !strings.Contains(err.Error(), "note") {
+		t.Fatalf("err = %v, want a refusal naming the note", err)
+	}
+	if _, ok := ped.callByName("ped_create_document"); ok {
+		t.Error("a refused create must send nothing")
 	}
 }

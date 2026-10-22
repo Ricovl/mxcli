@@ -76,7 +76,7 @@ var (
 var geometryFields = map[reflect.Type]map[string]bool{
 	annotationsStructType: {
 		"Position": true, "Anchor": true, "TrueBranchAnchor": true, "FalseBranchAnchor": true,
-		"IteratorAnchor": true, "BodyTailAnchor": true, "Curve": true, "Merge": true, "Start": true,
+		"IteratorAnchor": true, "BodyTailAnchor": true, "CaseAnchors": true, "Curve": true, "Merge": true, "Start": true,
 	},
 	noteStructType:  {"Position": true, "Size": true},
 	paramStructType: {"Position": true},

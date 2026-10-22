@@ -1,0 +1,31 @@
+mdl 1;
+-- mendixlabs/mxcli#1542 (ako/mxcli#1440) — a retrieve's XPath lost its line
+-- breaks: the constraint below was stored as `[IsOpen = true() and Count > 0]`,
+-- the line break and tab dropped, while every other expression slot keeps its
+-- layout. Studio Pro keeps the layout an author gives a constraint, so a
+-- describe/exec round trip changed the model.
+--
+--   mxcli exec mdl-examples/bug-tests/1542-retrieve-xpath-keeps-line-breaks.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe microflow BugTest1542.GetOpenNotes"
+--
+-- Expected: the stored constraint is `[IsOpen = true() and\n\tCount > 0]`, and
+-- describe prints it over the same two lines. GetFlatNotes is the control: a
+-- constraint written on one line is stored on one line, as before.
+
+create module BugTest1542;
+create persistent entity BugTest1542.Note (IsOpen: Boolean default false, Count: Integer);
+
+create microflow BugTest1542.GetOpenNotes ()
+returns list of BugTest1542.Note as $Notes
+begin
+  retrieve $Notes from BugTest1542.Note where [IsOpen = true() and
+	Count > 0];
+  return $Notes;
+end;
+
+create microflow BugTest1542.GetFlatNotes ()
+returns list of BugTest1542.Note as $Notes
+begin
+  retrieve $Notes from BugTest1542.Note where [IsOpen = true() and Count > 0];
+  return $Notes;
+end;

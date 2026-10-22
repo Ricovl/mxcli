@@ -1,0 +1,30 @@
+mdl 1;
+-- ============================================================================
+-- Bug: the merge after an IF whose branch holds a LOOP landed inside the loop
+-- box (ako/mxcli#1508, case 4; mendixlabs/mxcli#1598)
+-- ============================================================================
+--
+-- Stored before the fix: LoopedActivity 950;200 320x160 (x 790..1110) and the
+-- ExclusiveMerge at 1070;200 (x 1050..1090), so the loop's outgoing line ran
+-- right to left. The layout measurer sized a foreach loop without the 100px
+-- iterator column the builder reserves on its left.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_MergeAfterLoop
+-- Expected: the merge's left edge (x - 20) is at or right of the loop's right
+-- edge (x + width/2).
+-- ============================================================================
+
+create persistent entity MyFirstModule.LoopItem (Code: string(50), Amount: integer);
+
+create or modify microflow MyFirstModule.ACT_MergeAfterLoop ($Flag: boolean) returns boolean as $r
+begin
+  declare $r boolean = false;
+  retrieve $L from MyFirstModule.LoopItem;
+  if $Flag then
+    loop $i in $L begin set $r = true; end loop;
+  else
+    set $r = false;
+  end if;
+  return $r;
+end;

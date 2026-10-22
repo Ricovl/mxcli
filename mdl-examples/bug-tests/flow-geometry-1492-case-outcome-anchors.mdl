@@ -1,0 +1,36 @@
+mdl 1;
+-- ============================================================================
+-- Bug: a CASE's outcome sides could not be chosen (ako/mxcli#1492;
+-- mendixlabs/mxcli#1587)
+-- ============================================================================
+--
+-- Each outcome flow's OriginConnectionIndex came from WHEN order alone (1st
+-- top, 2nd right, 3rd bottom). `@anchor(A: (from: right))` was refused with
+-- MDL092 and `@anchor(from: right)` on the CASE was accepted and ignored.
+--
+-- Fixed: `@anchor(<value>: (from: …, to: …), (empty): (…))` on a CASE sets one
+-- outcome's edge; the CASE's own `from:` is the flow leaving its merge, as on
+-- an IF. DESCRIBE writes an outcome only where it differs from the default, so
+-- describe -> exec keeps Studio Pro-drawn sides.
+--
+-- Verify: exec, then
+--   mxcli bson dump -p app.mpr --type microflow --object MyFirstModule.ACT_CaseSides
+-- Expected: the Open flow leaves side 1 (right), the (empty) flow side 2 -> 0,
+-- and the flow out of the merge leaves side 2 (bottom).
+-- ============================================================================
+
+create enumeration MyFirstModule.CaseState (Open 'Open', Closed 'Closed');
+
+create or modify microflow MyFirstModule.ACT_CaseSides ($State: MyFirstModule.CaseState)
+begin
+  @anchor(from: bottom, Open: (from: right), (empty): (from: bottom, to: top))
+  case $State
+    when Open then
+      log info node 'T' 'open';
+    when Closed then
+      log info node 'T' 'closed';
+    when (empty) then
+      log info node 'T' 'empty';
+  end case;
+  log info node 'T' 'after';
+end;

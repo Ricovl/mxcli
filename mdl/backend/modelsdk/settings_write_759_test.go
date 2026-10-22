@@ -3,9 +3,10 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/settingsoverlay"
@@ -181,7 +182,7 @@ func mutateSettingsPart(t *testing.T, proj, typeName string, fn func(map[string]
 		t.Fatalf("GetRawUnitBytes: %v", err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	found := false
@@ -220,7 +221,7 @@ func readModelSettings(t *testing.T, proj string) map[string]any {
 		t.Fatalf("GetRawUnitBytes: %v", err)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	for _, part := range settingsoverlay.ArrayElements(doc["Settings"]) {

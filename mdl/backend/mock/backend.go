@@ -183,6 +183,11 @@ type MockBackend struct {
 	ListNavigationDocumentsFunc func() ([]*types.NavigationDocument, error)
 	GetNavigationFunc           func() (*types.NavigationDocument, error)
 	UpdateNavigationProfileFunc func(navDocID model.ID, profileName string, spec types.NavigationProfileSpec) error
+	// OpenNavigationProfileForMutationFunc / OpenMenuDocumentForMutationFunc
+	// back ALTER NAVIGATION / ALTER MENU; MenuMutator in this package is an
+	// in-memory mutator for them.
+	OpenNavigationProfileForMutationFunc func(profileName string) (backend.NavigationProfileMutator, error)
+	OpenMenuDocumentForMutationFunc      func(id model.ID) (backend.MenuMutator, error)
 
 	// ServiceBackend
 	ListConsumedODataServicesFunc   func() ([]*model.ConsumedODataService, error)
@@ -197,6 +202,7 @@ type MockBackend struct {
 	ListPublishedRestServicesFunc   func() ([]*model.PublishedRestService, error)
 	CreateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
 	UpdateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
+	EditConsumedRestServiceFunc     func(id model.ID, edit *backend.ConsumedRestServiceEdit) error
 	DeleteConsumedRestServiceFunc   func(id model.ID) error
 	CreatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error
 	UpdatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error

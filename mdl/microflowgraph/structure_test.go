@@ -327,3 +327,61 @@ func TestAnalyze_GroupedCaseValuesAreOneBranch(t *testing.T) {
 		t.Errorf("grouped case values reported as overlapping branches: %+v", found)
 	}
 }
+
+// `while true` with early returns (mendixlabs/mxcli#923, saingge's re-test):
+//
+//	declare; while true begin
+//	  if a then return 'A'; end if;
+//	  if b then return 'B'; end if;
+//	  if c then return 'C'; end if;
+//	  set $Status = 'x';
+//	end while;
+//
+// is stored as a header merge with a back edge, and every return is its own end
+// event, so each decision's join is the virtual exit. The false branch of d1
+// then walked set -> header -> d1 -> e1 and "reached" d1's own true branch:
+// three Recombinable findings, three describe warnings saying the description
+// must not be re-executed, and three MDL-FLOW01 lint hits — for a flow whose
+// describe -> exec writes nothing. A branch that re-enters its own split has
+// gone round the loop; what it reaches from there is not its body.
+func TestAnalyze_WhileTrueWithEarlyReturnsIsNotFlagged(t *testing.T) {
+	objects := []microflows.MicroflowObject{
+		act("declare"), merge("header"),
+		split("d1"), split("d2"), split("d3"), act("set"),
+		&microflows.EndEvent{BaseMicroflowObject: obj("e1")},
+		&microflows.EndEvent{BaseMicroflowObject: obj("e2")},
+		&microflows.EndEvent{BaseMicroflowObject: obj("e3")},
+	}
+	flows := []*microflows.SequenceFlow{
+		flow("declare", "header"), flow("header", "d1"),
+		flow("d1", "e1"), flow("d1", "d2"),
+		flow("d2", "e2"), flow("d2", "d3"),
+		flow("d3", "e3"), flow("d3", "set"),
+		flow("set", "header"), // back edge
+	}
+	if found := Analyze(objects, flows); len(found) != 0 {
+		t.Errorf("while-true with early returns reported as irreducible: %+v", found)
+	}
+}
+
+// The fix must not hide a crossing that happens inside a loop: the crossing
+// diamond, wrapped in a while-true, is still interleaved.
+func TestAnalyze_CrossingDiamondInsideALoopIsStillInterleaved(t *testing.T) {
+	objects := []microflows.MicroflowObject{
+		merge("header"), split("s"), act("a"), act("b"), act("d"), act("e"),
+		&microflows.EndEvent{BaseMicroflowObject: obj("end")},
+		split("again"),
+	}
+	flows := []*microflows.SequenceFlow{
+		flow("header", "s"),
+		flow("s", "a"), flow("s", "b"),
+		flow("a", "d"), flow("a", "e"),
+		flow("b", "d"), flow("b", "e"),
+		flow("d", "again"), flow("e", "again"),
+		flow("again", "end"), flow("again", "header"), // back edge
+	}
+	f := findingFor(t, Analyze(objects, flows), "s")
+	if f.Class != Interleaved {
+		t.Errorf("Class = %q, want %q", f.Class, Interleaved)
+	}
+}

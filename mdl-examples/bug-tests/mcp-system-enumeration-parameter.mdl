@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- A System enumeration named bare in a flow signature is an enumeration
+-- ============================================================================
+--
+-- `$T: System.UserType` used to be written as DataTypes$ObjectType with Entity
+-- "System.UserType" on every engine. The visitor types every bare qualified
+-- name in a parameter or return position as an entity; the executor's
+-- entity-then-enumeration fallback was skipped for the System module, whose
+-- entities are not in the project to look up. The local engines wrote the
+-- object type without complaint, and DESCRIBE rendered it as a plausible bare
+-- `System.UserType` (an enumeration renders as `enum System.UserType`).
+-- Studio Pro's PED refused it over --mcp:
+--
+--   {"/parameters/0/entity":"Reference with qualified name System.UserType
+--    of type DomainModels$Entity not found."}
+--
+-- The explicit `enum System.UserType` spelling — what DESCRIBE emits — was
+-- refused outright ("enumeration 'System.UserType' not found"), because the
+-- System module's enumerations are not in ListEnumerations.
+--
+-- Verified over --mcp against Studio Pro 11.15.0-rc.4: both microflows create,
+-- and ped_read_document reads back DataTypes$EnumerationType for the
+-- parameters and the return type. The System.User parameter is the control: it
+-- must stay an object type.
+-- ============================================================================
+
+CREATE MODULE BugSysEnumParam;
+
+CREATE OR MODIFY MICROFLOW BugSysEnumParam.ACT_ByUserType ($T: System.UserType)
+RETURNS System.DeviceType
+BEGIN
+  IF $T = System.UserType.Internal THEN
+    RETURN System.DeviceType.Desktop;
+  ELSE
+    RETURN System.DeviceType.Phone;
+  END IF;
+END;
+
+CREATE OR MODIFY MICROFLOW BugSysEnumParam.ACT_ExplicitEnum ($T: enum System.UserType)
+BEGIN
+  LOG INFO NODE 'BugSysEnumParam' 'explicit enum parameter';
+END;
+
+CREATE OR MODIFY MICROFLOW BugSysEnumParam.ACT_SystemEntity ($U: System.User)
+BEGIN
+  LOG INFO NODE 'BugSysEnumParam' 'System entity parameter stays an object';
+END;

@@ -115,6 +115,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("microflow '"+mfStmt.Name.String()+"'", mfStmt.Parameters)...)
 		}
+		// An alter fragment is a body too: an annotation its builder drops was
+		// refused in create and passed here (mendixlabs/mxcli#1597).
+		if afStmt, ok := stmt.(*ast.AlterFlowStmt); ok {
+			violations = append(violations, ValidateAlterFlow(afStmt)...)
+		}
 		// Parameter annotations for the two flow flavours that do not go through
 		// ValidateMicroflow but share the parameter grammar.
 		if nfStmt, ok := stmt.(*ast.CreateNanoflowStmt); ok {

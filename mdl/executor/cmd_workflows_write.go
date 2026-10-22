@@ -503,6 +503,7 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 	task.DueDate = n.DueDate
 	task.TaskDescription = n.TaskDescription
 	task.IsMulti = n.IsMultiUser
+	task.AutoAssignSingleTargetUser = n.AutoAssign
 	if n.IsMultiUser {
 		task.AwaitAllUsers = n.AwaitAllUsers
 		task.TargetUserInput = buildTargetUserInput(n.Participants)
@@ -648,6 +649,9 @@ func buildCallWorkflowActivity(n *ast.WorkflowCallWorkflowNode) *workflows.CallW
 		mapping.BaseElement.ID = model.ID(types.GenerateID())
 		act.ParameterMappings = append(act.ParameterMappings, mapping)
 	}
+
+	// BoundaryEvents (mendixlabs/mxcli#1532)
+	act.BoundaryEvents = buildBoundaryEvents(n.BoundaryEvents)
 
 	return act
 }

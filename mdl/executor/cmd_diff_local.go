@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,8 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ============================================================================
@@ -250,7 +250,7 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 // getTypeFromBSON extracts the $Type field from BSON content
 func getTypeFromBSON(content []byte) string {
 	var raw map[string]any
-	if err := bson.Unmarshal(content, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(content, &raw); err != nil {
 		return "Unknown"
 	}
 	if typeName, ok := raw["$Type"].(string); ok {
@@ -284,7 +284,7 @@ func unmarshalUnit(content []byte) map[string]any {
 		return nil
 	}
 	var raw map[string]any
-	if err := bson.Unmarshal(content, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(content, &raw); err != nil {
 		return nil
 	}
 	return raw
@@ -344,7 +344,7 @@ func unitQualifiedName(ctx *ExecContext, raw map[string]any, unitID string) stri
 // bsonToMDL converts BSON content to MDL representation based on type
 func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string) string {
 	var raw map[string]any
-	if err := bson.Unmarshal(content, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(content, &raw); err != nil {
 		return fmt.Sprintf("-- Error parsing BSON: %v", err)
 	}
 	if qualifiedName == "" {
@@ -944,7 +944,7 @@ func extractBsonID(v any) string {
 		return val
 	case []byte:
 		return blobToUUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return blobToUUID(val.Data)
 	case map[string]any:
 		// Binary UUID stored as {Subtype: 0, Data: "base64..."}
@@ -969,7 +969,7 @@ func extractBsonArray(v any) []any {
 		return nil
 	}
 
-	arr, ok := v.(primitive.A)
+	arr, ok := v.(bson.A)
 	if !ok {
 		// Try regular slice
 		if slice, ok := v.([]any); ok {

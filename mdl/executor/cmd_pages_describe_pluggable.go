@@ -244,12 +244,14 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 			entCtx = entityContext[0]
 		}
 		var columns []rawDataGridColumn
+		colSchemas := objectListPropertySchemas(w, "columns")
 		for _, colObj := range objects {
 			colMap, ok := colObj.(map[string]any)
 			if !ok {
 				continue
 			}
 			col := extractDataGrid2Column(ctx, colMap, colPropKeyMap, entCtx)
+			col.ExtraProps, col.OmittedProps = extractDataGrid2ColumnByKeyProps(ctx, colMap, colSchemas, entCtx)
 			// Every object of the resolved `columns` list is a column. The
 			// actions column has no attribute and an empty header, and keeping
 			// only columns with one of those dropped it with all its widgets,
@@ -1257,7 +1259,12 @@ func isKnownCustomWidgetType(widgetType string) bool {
 
 // extractExplicitProperties extracts non-default property values from a CustomWidget BSON.
 // Returns attribute references and primitive values for properties that differ from defaults.
-func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicitProp {
+//
+// enclosingEntity is the entity of the data container the widget sits in. An
+// attribute property linked to no datasource binds to that object, so one of
+// another entity keeps its qualified name: shortened, re-exec bound it to the
+// container's entity (mendixlabs/mxcli#1591, CE1613).
+func extractExplicitProperties(ctx *ExecContext, w map[string]any, enclosingEntity ...string) []rawExplicitProp {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
 		return nil
@@ -1268,6 +1275,11 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		return nil
 	}
 	valueTypes := buildPropertyValueTypeMap(w)
+	schemas := widgetPropertySchemas(w)
+	enclosing := ""
+	if len(enclosingEntity) > 0 {
+		enclosing = enclosingEntity[0]
+	}
 
 	var result []rawExplicitProp
 	props := getBsonArrayElements(obj["Properties"])
@@ -1289,9 +1301,14 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		// Check for AttributeRef (attribute binding)
 		if attrRef, ok := value["AttributeRef"].(map[string]any); ok && attrRef != nil {
 			if attr := extractString(attrRef["Attribute"]); attr != "" {
+				value := describeAttr(ctx, attr)
+				if schemas[typePointerID].DataSourceProperty == "" && strings.Contains(enclosing, ".") &&
+					!strings.EqualFold(attributeEntity(attr), enclosing) {
+					value = attr
+				}
 				result = append(result, rawExplicitProp{
 					Key:   propKey,
-					Value: describeAttr(ctx, attr),
+					Value: value,
 					IsRef: true,
 				})
 				continue
@@ -1308,6 +1325,22 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 				ValueType: valueTypes[typePointerID],
 				Params:    extractTextTemplateParameters(ctx, tt),
 			})
+			continue
+		}
+
+		// An expression property: its text, quoted. This path had no branch for
+		// one, so a stored expression was described as absent — the Calendar's
+		// `editable` and `showEventDate` (mendixlabs/mxcli#1578). Only an
+		// Expression-typed property is read: a value of another type keeps
+		// whatever its PrimitiveValue says below.
+		if valueTypes[typePointerID] == "Expression" {
+			if expr := extractString(value["Expression"]); expr != "" {
+				result = append(result, rawExplicitProp{
+					Key:       propKey,
+					Value:     expr,
+					ValueType: "Expression",
+				})
+			}
 			continue
 		}
 

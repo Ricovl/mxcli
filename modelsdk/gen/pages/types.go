@@ -23076,7 +23076,7 @@ func (o *SidebarToggleButton) InitFromRaw(raw bson.Raw) {
 	if child, err := codec.DecodeChild(raw, "AccessibilitySettings"); err == nil {
 		o.accessibilitySettings.SetFromDecode(child)
 	}
-	if child, err := codec.DecodeChild(raw, "Caption"); err == nil {
+	if child, err := codec.DecodeChild(raw, "CaptionTemplate"); err == nil {
 		o.caption.SetFromDecode(child)
 	}
 	if child, err := codec.DecodeChild(raw, "Tooltip"); err == nil {
@@ -32772,7 +32772,10 @@ func initSidebarToggleButton() *SidebarToggleButton {
 	o.conditionalVisibilitySettings.Bind(&o.Base, 5)
 	o.accessibilitySettings = property.NewPart[element.Element]("AccessibilitySettings")
 	o.accessibilitySettings.Bind(&o.Base, 6)
-	o.caption = property.NewPart[element.Element]("Caption")
+	// STORAGE-NAME OVERRIDE: Studio Pro stores the caption as CaptionTemplate
+	// (Atlas_Core.Atlas_Default, 11.13.0); "Caption" is the SDK name
+	// (mendixlabs/mxcli#1220).
+	o.caption = property.NewPart[element.Element]("CaptionTemplate")
 	o.caption.Bind(&o.Base, 7)
 	o.tooltip = property.NewPart[element.Element]("Tooltip")
 	o.tooltip.Bind(&o.Base, 8)

@@ -67,7 +67,8 @@ func TestMergeStatementAnnotationsCopiesEveryField(t *testing.T) {
 		Excluded:  true, Anchor: anchors,
 		TrueBranchAnchor: anchors, FalseBranchAnchor: anchors,
 		IteratorAnchor: anchors, BodyTailAnchor: anchors,
-		Curve: &ast.FlowCurve{From: pos, To: pos}, Merge: pos, Start: pos,
+		CaseAnchors: []ast.CaseAnchor{{Value: "A", Anchors: anchors}},
+		Curve:       &ast.FlowCurve{From: pos, To: pos}, Merge: pos, Start: pos,
 		InvalidCurves: []string{"x"}, InvalidAnchors: []string{"x"},
 		InvalidNotes: []string{"x"}, UnknownNames: []string{"x"},
 	}

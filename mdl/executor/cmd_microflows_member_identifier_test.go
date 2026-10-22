@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -129,3 +130,77 @@ func TestResolveMemberChange_RejectsUnknownAssociation(t *testing.T) {
 		t.Errorf("unexpected error: %q", fb.errors[0])
 	}
 }
+
+// TestResolveMemberChange_RejectsAssociationMemberPath guards the through-
+// association change member (`Assoc.Attr` — the pre-dot segment is an
+// association name, not a module): it is neither `Module.Assoc` (that shape
+// needs a real module qualifier) nor an attribute of the changed entity, and
+// Mendix's ChangeActionItem cannot represent it at all — mxbuild rejects the
+// written form with CE1613, after check and exec both reported success
+// (docs/12-bug-reports/2026-10-16-change-member-through-association.md).
+func TestResolveMemberChange_RejectsAssociationMemberPath(t *testing.T) {
+	backend := &mock.MockBackend{
+		// The module list answers the qualifier question: "A_B" is not in it,
+		// so the pre-dot segment is confidently not a module.
+		ListModulesFunc: func() ([]*model.Module, error) {
+			return []*model.Module{{BaseElement: model.BaseElement{ID: model.ID("hop")}, Name: "Hop"}}, nil
+		},
+	}
+	fb := &flowBuilder{backend: backend}
+	mc := &microflows.MemberChange{}
+	fb.resolveMemberChange(mc, "A_B.Title", "Hop.A")
+
+	if mc.AttributeQualifiedName != "" || mc.AssociationQualifiedName != "" {
+		t.Errorf("association member path must not serialize: attr=%q assoc=%q",
+			mc.AttributeQualifiedName, mc.AssociationQualifiedName)
+	}
+	if len(fb.errors) == 0 {
+		t.Fatal("expected a validation error for the association member path, got none")
+	}
+	for _, want := range []string{"A_B.Title", "retrieve"} {
+		if !strings.Contains(fb.errors[0], want) {
+			t.Errorf("error should mention %q: %s", want, fb.errors[0])
+		}
+	}
+}
+
+// The production reader answers GetModuleByName for a missing module with an
+// ERROR ("module not found"), not (nil, nil) as the mock does by default, so
+// the module list is what decides there. The test above never reaches that
+// branch. These three cover it: a list without the qualifier refuses, an
+// unreadable list keeps the old silent fallback, and a real module qualifier
+// (`Module.Assoc`) is never read as a member reached through an association.
+func TestResolveMemberChange_AssociationMemberPathOnTheReadersErrorPath(t *testing.T) {
+	notFound := func(name string) (*model.Module, error) {
+		if name == "Hop" {
+			return &model.Module{BaseElement: model.BaseElement{ID: model.ID("hop")}, Name: "Hop"}, nil
+		}
+		return nil, errModuleNotFound
+	}
+	hopOnly := func() ([]*model.Module, error) {
+		return []*model.Module{{BaseElement: model.BaseElement{ID: model.ID("hop")}, Name: "Hop"}}, nil
+	}
+	const refusal = "is not a module"
+	cases := []struct {
+		name, member string
+		list         func() ([]*model.Module, error)
+		wantRefusal  bool
+	}{
+		{"qualifier missing from a readable list", "A_B.Title", hopOnly, true},
+		{"unreadable list stays silent", "A_B.Title",
+			func() ([]*model.Module, error) { return nil, errModuleNotFound }, false},
+		{"a real module qualifier is an association-set", "Hop.A_B", hopOnly, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fb := &flowBuilder{backend: &mock.MockBackend{GetModuleByNameFunc: notFound, ListModulesFunc: c.list}}
+			fb.resolveMemberChange(&microflows.MemberChange{}, c.member, "Hop.A")
+			got := strings.Join(fb.errors, "\n")
+			if c.wantRefusal != strings.Contains(got, refusal) {
+				t.Errorf("refusal = %v, want %v; errors:\n%s", !c.wantRefusal, c.wantRefusal, got)
+			}
+		})
+	}
+}
+
+var errModuleNotFound = errors.New("module not found")

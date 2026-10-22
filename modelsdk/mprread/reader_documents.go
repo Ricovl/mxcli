@@ -14,6 +14,7 @@ package mprread
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -381,7 +382,7 @@ type customBlobWrapper struct {
 // parseCustomBlobWrapper decodes the outer CustomBlobDocument BSON.
 func parseCustomBlobWrapper(contents []byte) (*customBlobWrapper, error) {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal CustomBlobDocument BSON: %w", err)
 	}
 	out := &customBlobWrapper{}

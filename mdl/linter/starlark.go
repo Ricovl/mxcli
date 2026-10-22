@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+	"go.starlark.net/syntax"
 
 	"github.com/mendixlabs/mxcli/mdl/exprcheck"
 )
@@ -30,6 +32,9 @@ type StarlarkRule struct {
 	globals      starlark.StringDict
 	options      map[string]any
 	requiredMode CatalogMode
+	// optionWarnings collects lint-config.yaml values this run could not use;
+	// Check reports each as a warning after the rule has run on its default.
+	optionWarnings []string
 }
 
 // RequiredCatalogMode reports the catalog depth this rule needs (CatalogRequirer).
@@ -58,6 +63,7 @@ func (r *StarlarkRule) Category() string { return r.category }
 // Check executes the Starlark check function and returns violations.
 func (r *StarlarkRule) Check(ctx *LintContext) []Violation {
 	r.ctx = ctx
+	r.optionWarnings = nil
 
 	// Create a new thread for execution
 	thread := &starlark.Thread{
@@ -70,11 +76,28 @@ func (r *StarlarkRule) Check(ctx *LintContext) []Violation {
 	// Call the check function
 	result, err := starlark.Call(thread, r.checkFn, nil, nil)
 	if err != nil {
-		return []Violation{ruleFailureViolation(r.id, err)}
+		return append(r.optionWarningViolations(), ruleFailureViolation(r.id, err))
 	}
 
 	// Convert result to violations
-	return r.convertViolations(result)
+	return append(r.convertViolations(result), r.optionWarningViolations()...)
+}
+
+// optionWarningViolations reports the configured option values the rule could
+// not use. They are RuleFailure findings: a misconfigured lint-config.yaml says
+// nothing about the project, so it must not move the score.
+func (r *StarlarkRule) optionWarningViolations() []Violation {
+	var out []Violation
+	for _, msg := range r.optionWarnings {
+		out = append(out, Violation{
+			RuleID:      r.id,
+			Severity:    SeverityWarning,
+			Message:     msg,
+			Suggestion:  "Fix the value in lint-config.yaml; until then the rule runs with its built-in default.",
+			RuleFailure: true,
+		})
+	}
+	return out
 }
 
 // missingStructAttrRe matches the evaluator's message for reading a field a
@@ -295,7 +318,14 @@ func LoadStarlarkRule(path string) (*StarlarkRule, error) {
 		Name: filepath.Base(path),
 	}
 
-	globals, err := starlark.ExecFile(thread, path, data, predeclared)
+	// Recursion is on: an expression tree from parse_xpath is walked
+	// recursively — the write-lint-rules skill's own example does — and with
+	// Starlark's default that failed as "function called recursively"
+	// (ako/mxcli#1439). The interpreter still stops a runaway rule at 100,000
+	// frames with "Starlark stack overflow", which is a rule failure, not a crash.
+	opts := syntax.LegacyFileOptions()
+	opts.Recursion = true
+	globals, err := starlark.ExecFileOptions(opts, thread, path, data, predeclared)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute Starlark file: %w", err)
 	}
@@ -431,12 +461,16 @@ func (r *StarlarkRule) buildPredeclared() starlark.StringDict {
 		"is_pascal_case": starlark.NewBuiltin("is_pascal_case", builtinIsPascalCase),
 		"is_camel_case":  starlark.NewBuiltin("is_camel_case", builtinIsCamelCase),
 		"matches":        starlark.NewBuiltin("matches", builtinMatches),
+		"find_all":       starlark.NewBuiltin("find_all", builtinFindAll),
 
 		// Struct constructor (from starlarkstruct)
 		"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
 
 		// Options access: get_option("key") or get_option("key", default)
 		"get_option": starlark.NewBuiltin("get_option", r.builtinGetOption),
+		// get_list_option("key", default): a list of strings, given in YAML
+		// as a list or as comma-separated text
+		"get_list_option": starlark.NewBuiltin("get_list_option", r.builtinGetListOption),
 	}
 }
 
@@ -767,6 +801,9 @@ func (r *StarlarkRule) builtinScheduledEvents(_ *starlark.Thread, _ *starlark.Bu
 
 // builtinGetOption returns a rule option value from the lint config file.
 // Signature: get_option(key, default=None)
+//
+// A value that cannot be represented in Starlark is reported as a warning and
+// the default is returned — never a silent None (mendixlabs/mxcli#1509).
 func (r *StarlarkRule) builtinGetOption(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var key starlark.String
 	var defaultVal starlark.Value = starlark.None
@@ -776,27 +813,118 @@ func (r *StarlarkRule) builtinGetOption(_ *starlark.Thread, _ *starlark.Builtin,
 	); err != nil {
 		return nil, err
 	}
-	if r.options != nil {
-		if v, ok := r.options[string(key)]; ok {
-			return goValueToStarlark(v), nil
-		}
+	v, ok := r.options[string(key)]
+	if !ok || v == nil {
+		return defaultVal, nil
 	}
-	return defaultVal, nil
+	sv, err := goValueToStarlark(v)
+	if err != nil {
+		r.warnOption(string(key), v, err.Error())
+		return defaultVal, nil
+	}
+	return sv, nil
 }
 
-// goValueToStarlark converts a Go value (from YAML unmarshaling) to a Starlark value.
-func goValueToStarlark(v any) starlark.Value {
+// builtinGetListOption returns a rule option as a list of strings. The option
+// may be a YAML list of strings or one comma-separated string; parts are
+// trimmed and empty parts dropped. An unset option returns the default; any
+// other value is reported as a warning and also returns the default.
+// Signature: get_list_option(key, default=None)
+func (r *StarlarkRule) builtinGetListOption(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var key starlark.String
+	var defaultVal starlark.Value = starlark.None
+	if err := starlark.UnpackArgs("get_list_option", args, kwargs,
+		"key", &key,
+		"default?", &defaultVal,
+	); err != nil {
+		return nil, err
+	}
+	v, ok := r.options[string(key)]
+	if !ok || v == nil {
+		return defaultVal, nil
+	}
+	var items []starlark.Value
 	switch val := v.(type) {
-	case bool:
-		return starlark.Bool(val)
-	case int:
-		return starlark.MakeInt(val)
-	case float64:
-		return starlark.Float(val)
 	case string:
-		return starlark.String(val)
+		for _, part := range strings.Split(val, ",") {
+			if part = strings.TrimSpace(part); part != "" {
+				items = append(items, starlark.String(part))
+			}
+		}
+	case []any:
+		for _, e := range val {
+			s, isStr := e.(string)
+			if !isStr {
+				r.warnOption(string(key), v, "must be a list of strings or a comma-separated string")
+				return defaultVal, nil
+			}
+			if s = strings.TrimSpace(s); s != "" {
+				items = append(items, starlark.String(s))
+			}
+		}
 	default:
-		return starlark.None
+		r.warnOption(string(key), v, "must be a list of strings or a comma-separated string")
+		return defaultVal, nil
+	}
+	return starlark.NewList(items), nil
+}
+
+// warnOption records a configured option value the rule cannot use.
+func (r *StarlarkRule) warnOption(key string, v any, problem string) {
+	r.optionWarnings = append(r.optionWarnings, fmt.Sprintf(
+		"lint-config.yaml: rules.%s.options.%s %s (got %T %v); the rule ran with its default",
+		r.id, key, problem, v, v))
+}
+
+// goValueToStarlark converts a Go value (from YAML unmarshaling) to a Starlark
+// value. Lists and string-keyed maps convert recursively; anything else is an
+// error, so the caller can say which option was dropped instead of handing
+// the rule a None it cannot tell from "unset".
+func goValueToStarlark(v any) (starlark.Value, error) {
+	switch val := v.(type) {
+	case nil:
+		return starlark.None, nil
+	case bool:
+		return starlark.Bool(val), nil
+	case int:
+		return starlark.MakeInt(val), nil
+	case int64:
+		return starlark.MakeInt64(val), nil
+	case uint64:
+		return starlark.MakeUint64(val), nil
+	case float64:
+		return starlark.Float(val), nil
+	case string:
+		return starlark.String(val), nil
+	case []any:
+		items := make([]starlark.Value, 0, len(val))
+		for _, e := range val {
+			sv, err := goValueToStarlark(e)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, sv)
+		}
+		return starlark.NewList(items), nil
+	case map[string]any:
+		keys := make([]string, 0, len(val))
+		for k := range val {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		d := starlark.NewDict(len(val))
+		for _, k := range keys {
+			sv, err := goValueToStarlark(val[k])
+			if err != nil {
+				return nil, err
+			}
+			if err := d.SetKey(starlark.String(k), sv); err != nil {
+				return nil, err
+			}
+		}
+		return d, nil
+	default:
+		return nil, fmt.Errorf("has a value of a type rules cannot read")
 	}
 }
 
@@ -1166,10 +1294,19 @@ func userRoleToStarlark(ur UserRoleInfo) starlark.Value {
 	for _, mr := range ur.ModuleRoles {
 		moduleRoles = append(moduleRoles, starlark.String(mr))
 	}
+	var manageableRoles []starlark.Value
+	for _, mr := range ur.ManageableRoles {
+		manageableRoles = append(manageableRoles, starlark.String(mr))
+	}
 	return starlarkstruct.FromStringDict(starlark.String("user_role"), starlark.StringDict{
-		"name":         starlark.String(ur.Name),
-		"is_anonymous": starlark.Bool(ur.IsAnonymous),
-		"module_roles": starlark.NewList(moduleRoles),
+		"name":                       starlark.String(ur.Name),
+		"description":                starlark.String(ur.Description),
+		"is_anonymous":               starlark.Bool(ur.IsAnonymous),
+		"module_roles":               starlark.NewList(moduleRoles),
+		"check_security":             starlark.Bool(ur.CheckSecurity),
+		"manage_all_roles":           starlark.Bool(ur.ManageAllRoles),
+		"manage_users_without_roles": starlark.Bool(ur.ManageUsersWithoutRoles),
+		"manageable_roles":           starlark.NewList(manageableRoles),
 	})
 }
 
@@ -1344,7 +1481,9 @@ func (r *StarlarkRule) builtinParseXPath(_ *starlark.Thread, _ *starlark.Builtin
 
 	inner := stripXPathBrackets(string(s))
 	parser := exprcheck.NewParser()
-	ast, _ := parser.Parse(inner, exprcheck.NewSyntaxContext("", ""))
+	ctx := exprcheck.NewSyntaxContext("", "")
+	ctx.XPath = true
+	ast, _ := parser.Parse(inner, ctx)
 	return robustExprToStarlark(ast), nil
 }
 
@@ -1458,6 +1597,36 @@ func builtinMatches(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple
 		return starlark.True, nil
 	}
 	return starlark.False, nil
+}
+
+// builtinFindAll returns every match of pattern in s: per match, a tuple of
+// its capture groups, or the matched text when the pattern has none — the
+// shape of Python's re.findall. matches() answers only yes or no, so a rule
+// could not read the part of a name it had matched (ako/mxcli#1439).
+func builtinFindAll(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var s, pattern starlark.String
+	if err := starlark.UnpackArgs("find_all", args, kwargs, "s", &s, "pattern", &pattern); err != nil {
+		return nil, err
+	}
+
+	re, err := regexp.Compile(string(pattern))
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
+	}
+
+	var out []starlark.Value
+	for _, m := range re.FindAllStringSubmatch(string(s), -1) {
+		if len(m) == 1 {
+			out = append(out, starlark.String(m[0]))
+			continue
+		}
+		groups := make(starlark.Tuple, len(m)-1)
+		for i, g := range m[1:] {
+			groups[i] = starlark.String(g)
+		}
+		out = append(out, groups)
+	}
+	return starlark.NewList(out), nil
 }
 
 // RuleLoadFailure is a .star file that was found but produced no rule.

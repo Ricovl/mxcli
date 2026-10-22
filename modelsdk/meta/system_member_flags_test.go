@@ -16,10 +16,11 @@ package meta
 
 import (
 	"encoding/binary"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestSystemEntityStoresMember(t *testing.T) {
@@ -114,7 +115,7 @@ func systemMemberFlagsFromMDP(raw []byte) map[string][4]bool {
 			break
 		}
 		var doc bson.M
-		if err := bson.Unmarshal(raw[off:off+size], &doc); err == nil {
+		if err := bsoncompat.UnmarshalDocM(raw[off:off+size], &doc); err == nil {
 			switch ty, _ := doc["$Type"].(string); ty {
 			case "Projects$ModuleImpl":
 				name, _ := doc["Name"].(string)

@@ -228,6 +228,8 @@ Definitions are loaded in priority order. Higher-priority definitions override l
 
 Definitions are looked up by MDL name (case-insensitive): `COMBOBOX`, `GALLERY`, or any custom name.
 
+**DATAGRID has no embedded definition, on purpose.** Its `.def.json` is generated from the project's own package, and an embedded one would sit ahead of that package for every write (`RefreshWidgetDefinitions` skips a widget id the registry already holds). So without a project the registry has no definition for it, and `mxcli check` reads the property list of the template mxcli embeds for the widget (`sdk/widgets/templates/`, via `embeddedSchemaFor`): a key the template declares is accepted and its declared type decides whether an expression is allowed (MDL-WIDGET42). The template is the oldest-supported baseline, so a key it does not declare is reported as one that cannot be verified without a project (MDL-WIDGET07), not as one that is dropped.
+
 ### Validation at Load Time
 
 When a definition is loaded, it is validated:

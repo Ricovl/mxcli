@@ -117,6 +117,17 @@ RETURN $Order;
 RETURN $FilteredOrders;
 ```
 
+### Returning an Enumeration
+
+Declare the type in the signature with `returns enum Module.Name`; `returns Enumeration(Module.Name)` is the same. A bare `returns Module.Name` is also accepted when no entity has that name and an enumeration does. If an entity and an enumeration share the name, the entity wins, so write `enum` when a name could be either. Nanoflows and rules take the same spellings, and a rule must return a Boolean or an enumeration.
+
+```sql
+CREATE MICROFLOW Shop.SUB_Pick () RETURNS enum Shop.Variant AS $Variant
+BEGIN
+  RETURN Shop.Variant.Original;
+END;
+```
+
 ### Returning Nothing
 
 If the microflow returns nothing (void), you can omit the `RETURN` or use:
@@ -190,6 +201,32 @@ end;
 ```
 
 This is how `DESCRIBE` writes a decision whose merge drops onto the next row.
+
+An annotation never reaches the far end of its own outgoing flow: that end is
+the next statement's `to:`. A straight vertical edge from A down to B is
+`@anchor(from: bottom)` on A **and** `@anchor(to: top)` on B.
+
+A `case` names each outcome's edge by its `when` value, `(empty)` included, and
+its own `from:` is the flow leaving its merge, as on an `if`:
+
+```sql
+create microflow Sales.ACT_RouteOrder ($Order: Sales.Order)
+begin
+  @anchor(Open: (from: right), (empty): (from: bottom, to: top))
+  case $Order/Status
+    when Open then
+      log info node 'Order' 'open';
+    when Closed then
+      log info node 'Order' 'closed';
+    when (empty) then
+      log warning node 'Order' 'no status';
+  end case;
+end;
+```
+
+An outcome not named keeps its default side (with up to three outcomes: the
+first leaves the top corner, the second the right, the third the bottom).
+`DESCRIBE` writes an outcome only where its stored side differs from that.
 
 ### Layout in `DESCRIBE` output
 

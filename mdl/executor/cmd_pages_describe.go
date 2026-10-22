@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strconv"
 	"strings"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ============================================================================
@@ -370,10 +369,16 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// output cannot be fed back in.
 	rawData, _ := ctx.Backend.GetRawUnit(foundLayout.ID)
 	header := layoutHeaderMDL(ctx, layoutTypeStr, foundLayout.Class, layoutOuterName(rawData))
+	if native := nativeLayoutContent(rawData); native != nil {
+		if on, _ := native["ShowBottomBar"].(bool); on {
+			header += ",\n  showbottombar: true"
+		}
+	}
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
 	outputLayoutBodyMDL(ctx, rawData)
+	outputNativeLayoutPartsMDL(ctx, rawData)
 
 	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
@@ -391,6 +396,52 @@ func layoutHeaderMDL(ctx *ExecContext, layoutType, class, outer string) string {
 		header += fmt.Sprintf(",\n  Layout: %s", outer)
 	}
 	return header
+}
+
+// nativeLayoutContent returns a native layout's Forms$NativeLayoutContent, or
+// nil for a web layout.
+func nativeLayoutContent(rawData map[string]any) map[string]any {
+	content, _ := rawData["Content"].(map[string]any)
+	if t, _ := content["$Type"].(string); t != "Forms$NativeLayoutContent" {
+		return nil
+	}
+	return content
+}
+
+// outputNativeLayoutPartsMDL writes what a native layout keeps beside its
+// content tree: the placeholder on the header's right as `region header`, and
+// the sidebar — Sidebar plus SidebarWidgets — as `region sidebar`. A copy that
+// left them out lost a page's header and side menu with nothing printed.
+func outputNativeLayoutPartsMDL(ctx *ExecContext, rawData map[string]any) {
+	content := nativeLayoutContent(rawData)
+	if content == nil {
+		return
+	}
+	if ph, ok := content["RightHeaderPlaceholder"].(map[string]any); ok {
+		fmt.Fprint(ctx.Output, "  region header {\n")
+		for _, w := range parseRawWidget(ctx, ph) {
+			outputWidgetMDLV3(ctx, w, 2)
+		}
+		fmt.Fprint(ctx.Output, "  }\n")
+	}
+	if on, _ := content["Sidebar"].(bool); !on {
+		return
+	}
+	var widgets []rawWidget
+	for _, w := range getBsonArrayElements(content["SidebarWidgets"]) {
+		if wMap, ok := w.(map[string]any); ok {
+			widgets = append(widgets, parseRawWidget(ctx, wMap)...)
+		}
+	}
+	if len(widgets) == 0 {
+		fmt.Fprint(ctx.Output, "  region sidebar\n")
+		return
+	}
+	fmt.Fprint(ctx.Output, "  region sidebar {\n")
+	for _, w := range widgets {
+		outputWidgetMDLV3(ctx, w, 2)
+	}
+	fmt.Fprint(ctx.Output, "  }\n")
 }
 
 // layoutCallOf returns the call a layout built on another layout stores under
@@ -559,7 +610,7 @@ func getBsonArrayMaps(v any) []map[string]any {
 			}
 		}
 		return result
-	case primitive.A:
+	case bson.A:
 		var result []map[string]any
 		for _, item := range arr {
 			if m, ok := item.(map[string]any); ok {
@@ -612,6 +663,13 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// Destination is the entity an association source's last hop arrives at, as
+	// stored (EntityRef.Steps[last].DestinationEntity). Reference is the
+	// association there, so this is the entity the source puts in scope. A
+	// parameter source sets it to the parameter's entity (EntityRef.Entity),
+	// Reference being the parameter's name. Empty when the model does not
+	// store it.
+	Destination string
 	// EntitySteps is set on a database source reached over associations from a
 	// context object: a Forms$ListViewXPathSource whose EntityRef is an
 	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
@@ -643,6 +701,26 @@ type rawEntityStep struct {
 type rawDataSourceArg struct {
 	Name  string
 	Value string
+}
+
+// associationSourceDestination returns the entity the last hop of an association
+// source arrives at, as stored — "" when there is no hop or none is stored.
+// associationSourcePath keeps only the association of a single hop, so this
+// reads the same steps for the entity.
+func associationSourceDestination(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return ""
+	}
+	steps := getBsonArrayElements(entityRef["Steps"])
+	if len(steps) == 0 {
+		return ""
+	}
+	last, ok := steps[len(steps)-1].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return extractString(last["DestinationEntity"])
 }
 
 // associationSourcePath reconstructs the association navigation of a
@@ -720,6 +798,11 @@ type rawDataGridColumn struct {
 	Visible           string      // expression, e.g. "true"
 	DynamicCellClass  string      // expression
 	Tooltip           string      // text
+	// ExtraProps are the column settings MDL has no keyword for (minWidth,
+	// allowEventPropagation, …) that differ from their defaults, printed under
+	// the key the widget declares. OmittedProps names those that could not be.
+	ExtraProps   []rawExplicitProp
+	OmittedProps []string
 }
 
 // rawWidget represents a widget from raw BSON data for MDL output.
@@ -826,6 +909,9 @@ type rawWidget struct {
 	// TabCaption: a nameless container whose identity DESCRIBE has to put back.
 	RegionSize     int
 	RegionSizeMode string
+	// RegionToggleMode is a scroll container region's ToggleMode — how a
+	// sidebar toggle opens it. None (the default) is not printed.
+	RegionToggleMode string
 	// NavigationProfile is a Forms$NavigationTree's profile, which the document
 	// keeps one level down in MenuSource rather than on the tree.
 	NavigationProfile string
@@ -870,6 +956,12 @@ type rawWidget struct {
 	// describe -> exec round trip cannot silently delete a widget's body.
 	// See unreconstructedContainers.
 	OmittedContainers []string
+
+	// OmittedProps names properties whose stored value differs from the default
+	// and that DESCRIBE has no spelling for (an attribute reached over
+	// associations, …). Emitted as a comment, like OmittedContainers, so a
+	// describe -> exec round trip cannot reset them without saying so.
+	OmittedProps []string
 	// Data container context: entity qualified name provided by this container
 	EntityContext string
 	// Full widget ID (e.g. "com.mendix.widget.custom.switch.Switch")
@@ -981,8 +1073,8 @@ func toBsonArray(v any) []any {
 	switch arr := v.(type) {
 	case []any:
 		return arr
-	case primitive.A:
-		// primitive.A is already []interface{} under the hood
+	case bson.A:
+		// bson.A is already []interface{} under the hood
 		return []any(arr)
 	default:
 		return nil
@@ -1021,7 +1113,7 @@ func getPageWidgetsFromRaw(ctx *ExecContext, pageID model.ID) []rawWidget {
 		return nil
 	}
 
-	// Handle both []interface{} and primitive.A types
+	// Handle both []interface{} and bson.A types
 	args := getBsonArrayElements(formCall["Arguments"])
 	if args == nil {
 		return nil
@@ -1150,7 +1242,7 @@ func extractBinaryID(v any) string {
 		return val
 	case []byte:
 		return formatGUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return formatGUID(val.Data)
 	default:
 		return ""

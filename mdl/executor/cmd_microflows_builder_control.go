@@ -37,6 +37,20 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	thenNeedsErrorMerge := thenReturns && bodyHasContinuingCustomErrorHandler(s.ThenBody)
 	elseNeedsErrorMerge := elseReturns && bodyHasContinuingCustomErrorHandler(s.ElseBody)
 
+	// The last statement of a loop body: an IF/ELSE whose branches both carry
+	// on there joins nothing, since both end the iteration, and a loop-body
+	// activity with no outgoing flow is how Mendix ends one. Its merge had no
+	// way out, Studio Pro authors delete it by hand, and every re-run drew it
+	// again (mendixlabs/mxcli#884). Both branches must hold something — a split
+	// needs a flow per case — and an explicit @merge keeps the merge, which is
+	// how DESCRIBE carries a stored one through a rebuild.
+	atTail := fb.atBodyTail
+	fb.atBodyTail = false
+	tailWithoutMerge := atTail && hasElseBody && len(s.ThenBody) > 0 && len(s.ElseBody) > 0 &&
+		!thenReturns && !elseReturns &&
+		!bodyHasContinuingCustomErrorHandler(s.ThenBody) && !bodyHasContinuingCustomErrorHandler(s.ElseBody) &&
+		(s.Annotations == nil || s.Annotations.Merge == nil)
+
 	// Save/restore endsWithReturn around branch processing to avoid
 	// a branch's RETURN affecting the parent flow state prematurely
 	savedEndsWithReturn := fb.endsWithReturn
@@ -120,7 +134,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	// Determine if the merge would have 2+ incoming edges (non-redundant).
 	// Skip merge when only one branch flows into it (the other returns).
 	needMerge := false
-	if !bothReturn {
+	if !bothReturn && !tailWithoutMerge {
 		if hasElseBody {
 			needMerge = (!thenReturns && !elseReturns) || thenNeedsErrorMerge || elseNeedsErrorMerge
 		} else {
@@ -159,7 +173,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var pendingThenAnchor *ast.FlowAnchors
 		for i, stmt := range s.ThenBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ThenBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastThenID, splitID, "true", pendingThenCase, prevThenAnchor, trueBranchAnchor) {
 				pendingThenCase, pendingThenAnchor = "", nil
 				continue
@@ -255,7 +271,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var pendingElseAnchor *ast.FlowAnchors
 		for i, stmt := range s.ElseBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ElseBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastElseID, splitID, "false", pendingElseCase, prevElseAnchor, falseBranchAnchor) {
 				pendingElseCase, pendingElseAnchor = "", nil
 				continue
@@ -533,9 +551,10 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	return splitID
 }
 
-// mergeExitFlowAnchor is the origin anchor an if's own `@anchor(from: X)` gives
-// the flow leaving its closing merge, or nil when it sets none.
-func mergeExitFlowAnchor(s *ast.IfStmt) *ast.FlowAnchors {
+// mergeExitFlowAnchor is the origin anchor an if's or a case's own
+// `@anchor(from: X)` gives the flow leaving its closing merge, or nil when it
+// sets none.
+func mergeExitFlowAnchor(s ast.MicroflowStatement) *ast.FlowAnchors {
 	own := stmtOwnAnchor(s)
 	if own == nil || own.From == ast.AnchorSideUnset {
 		return nil
@@ -606,10 +625,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// First, measure the loop body to determine size
 	bodyBounds := fb.measurer.measureStatementsSpan(s.Body)
 
-	// Calculate loop box size with padding
-	// Extra width for iterator icon and its label (100 pixels)
-	iteratorSpace := 100
-	loopWidth := max(bodyBounds.Width+2*LoopPadding+iteratorSpace, MinLoopWidth)
+	// Calculate loop box size with padding, plus the iterator column. The
+	// measurer uses the same constant, so an IF holding this loop measures it at
+	// the width it is built at.
+	loopWidth := max(bodyBounds.Width+2*LoopPadding+LoopIteratorSpace, MinLoopWidth)
 	loopHeight := max(bodyBounds.Height+2*LoopPadding, MinLoopHeight)
 
 	// Inner positioning: activities start after the iterator icon on the left,
@@ -617,10 +636,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// (IF/CASE) centred on innerStartY stays within [0, loopHeight].
 	//
 	// A position is a CENTRE, so the first activity has to start half its own
-	// width past the iterator column; at LoopPadding+iteratorSpace its left edge
+	// width past the iterator column; at LoopPadding+LoopIteratorSpace its left edge
 	// landed 60px inside that column, on top of the iterator's icon and the list
 	// variable's label.
-	innerStartX := LoopPadding + iteratorSpace + ActivityWidth/2
+	innerStartX := LoopPadding + LoopIteratorSpace + ActivityWidth/2
 	innerStartY := loopHeight / 2
 
 	// posX is where the builder would CENTRE the next element. A loop box placed
@@ -683,8 +702,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// its false flow entirely and mx check reports CE0079 (ledger #52).
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
@@ -760,6 +781,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// Add the internal flows to the parent's flows (top-level), not inside loop
 	// This is how Mendix stores them - all flows at the microflow level
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	// The body's @curves belong on those flows, and are applied by whichever
+	// builder ends up owning them; left on loopBuilder they were never applied
+	// (mendixlabs/mxcli#1597).
+	fb.adoptCurves(loopBuilder)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently
@@ -1045,8 +1070,10 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 	// since ledger #52 and this one did not, so the two disagreed on the same body.
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
@@ -1111,6 +1138,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 
 	fb.objects = append(fb.objects, loop)
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	fb.adoptCurves(loopBuilder) // see addLoopStatement (mendixlabs/mxcli#1597)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently

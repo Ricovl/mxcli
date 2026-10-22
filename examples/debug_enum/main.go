@@ -5,11 +5,12 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"path/filepath"
 	"reflect"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	_ "modernc.org/sqlite"
 )
 
@@ -47,7 +48,7 @@ func main() {
 		}
 
 		var raw map[string]any
-		if err := bson.Unmarshal(data, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(data, &raw); err != nil {
 			continue
 		}
 

@@ -1,0 +1,52 @@
+mdl 1;
+-- ============================================================================
+-- Bug #1232 — regenerating an import with mapping gives a model error.
+--
+-- `import from mapping` was always written with ImportMappingCall.ContentType
+-- "Json". Re-executing a microflow whose import uses a mapping sourced from a
+-- web service operation (or an XML schema) then failed mx check with
+--
+--   The selected import mapping cannot handle content type JSON.
+--
+-- until the activity was opened in Studio Pro ("This action now imports XML").
+-- The content type now follows the mapping's source, and a stored one is kept
+-- when the microflow is rewritten.
+--
+-- The reported script, against an app whose ExamplesModule.Import_mapping is
+-- built on a web service operation (MDL cannot create one — a WSDL import is
+-- Studio Pro's):
+--
+--   create or modify microflow ExamplesModule.ACT_test_import ()
+--   folder 'Input'
+--   begin
+--     @start(100, 200)
+--     @position(291, 200)
+--     $Variable_2 = import from mapping ExamplesModule.Import_mapping($latestHttpResponse);
+--     @position(700, 200)
+--     return;
+--   end;
+--
+-- What this file runs is the JSON control, which must keep writing "Json".
+-- ============================================================================
+
+create module Issue1232;
+
+create json structure Issue1232.JSON_Order sample '{"orderNumber": 1}';
+
+@position(100, 100)
+create non-persistent entity Issue1232.Order (
+  OrderNumber: integer
+);
+
+create import mapping Issue1232.IMM_Order
+  with json structure Issue1232.JSON_Order {
+  create Issue1232.Order {
+    OrderNumber = orderNumber
+  }
+};
+
+create microflow Issue1232.ACT_Import ($Payload: string)
+begin
+  $Order = import from mapping Issue1232.IMM_Order($Payload);
+  return;
+end;

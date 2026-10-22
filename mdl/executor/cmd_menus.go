@@ -24,6 +24,7 @@ func describeMenu(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewNotConnected()
 	}
 
+	describeDefaultLanguage(ctx) // captions are read in it, as a page's texts are
 	md, err := ctx.Backend.GetMenuDocumentByQualifiedName(name.Module, name.Name)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -65,9 +66,21 @@ func execCreateMenu(ctx *ExecContext, s *ast.CreateMenuStmt) error {
 		return mdlerrors.NewNotFound("module", s.Name.Module)
 	}
 
+	// Captions are read (to pair items) and written in the project's default
+	// language, as a page's texts are.
+	authoringLanguage(ctx)
 	existing, _ := ctx.Backend.GetMenuDocumentByQualifiedName(s.Name.Module, s.Name.Name)
 	if existing != nil && !s.CreateOrModify {
 		return mdlerrors.NewAlreadyExists("menu", s.Name.String())
+	}
+
+	// Resolve the pages and flows its items name before anything is written, a
+	// folder included. An excluded document is not validated by Mendix and keeps
+	// its dangling targets, as an excluded page does.
+	if existing == nil || !existing.Excluded {
+		if err := validateNavigationTargetsForExec(ctx, s); err != nil {
+			return err
+		}
 	}
 
 	var existingContainer model.ID

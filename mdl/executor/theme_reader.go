@@ -216,6 +216,8 @@ var mdlKeywordStorageType = map[string]string{
 	"navigationtree":  "Forms$NavigationTree",
 	"menubar":         "Forms$MenuBar",
 	"simplemenubar":   "Forms$SimpleMenuBar",
+	"sidebartoggle":   "Forms$SidebarToggleButton",
+	"layoutheader":    "Forms$Header",
 	"placeholder":     "Forms$Placeholder",
 }
 
@@ -326,8 +328,12 @@ var storageTypeThemeKeys = map[string]string{
 	"NavigationTree":     "NavigationTree",
 	"MenuBar":            "MenuBar",
 	"SimpleMenuBar":      "SimpleMenuBar",
-	"Placeholder":        "Placeholder",
-	"SnippetCallWidget":  "SnippetCallWidget",
+	// A Button subclass, so Studio Pro applies Atlas's "Button" group — the
+	// Size: Large Atlas_Default's toggle carries comes from it.
+	"SidebarToggleButton": "Button",
+	"Header":              "Header",
+	"Placeholder":         "Placeholder",
+	"SnippetCallWidget":   "SnippetCallWidget",
 }
 
 // bsonTypeToDesignPropsKey maps BSON $Type values to design-properties.json keys:

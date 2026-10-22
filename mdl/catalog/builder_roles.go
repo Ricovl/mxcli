@@ -2,7 +2,11 @@
 
 package catalog
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/sdk/security"
+)
 
 // buildRoleMappings populates the role_mappings table from project security.
 // This maps user roles to their assigned module roles.
@@ -42,5 +46,33 @@ func (b *Builder) buildRoleMappings() error {
 	}
 
 	b.report("RoleMappings", count)
+
+	return b.buildUserRoles(ps)
+}
+
+// buildUserRoles writes one user_roles row per project user role, with the
+// documentation a "every user role is documented" rule needs (ako/mxcli#1442).
+func (b *Builder) buildUserRoles(ps *security.ProjectSecurity) error {
+	stmt, err := b.tx.Prepare(`
+		INSERT INTO user_roles (Name, Description, IsAnonymous, ModuleRoleCount, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, ur := range ps.UserRoles {
+		isAnonymous := 0
+		if ur.Name == ps.GuestUserRole {
+			isAnonymous = 1
+		}
+		if _, err := stmt.Exec(ur.Name, ur.Description, isAnonymous, len(ur.ModuleRoles),
+			b.catalog.projectID, b.snapshot.ID); err != nil {
+			return err
+		}
+	}
+
+	b.report("User Roles", len(ps.UserRoles))
 	return nil
 }

@@ -304,7 +304,7 @@ func microflowToGen(mf *microflows.Microflow, v flowVersion) *genMf.Microflow {
 	// Object collection (parameters merged first, then objects).
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range mf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, mf.Parameters, v))
 	}
 	if mf.ObjectCollection != nil {
 		for _, obj := range mf.ObjectCollection.Objects {
@@ -494,11 +494,14 @@ func annotationFlowToGen(af *microflows.AnnotationFlow, v flowVersion) element.E
 	g.SetID(element.ID(af.ID))
 	g.SetOriginID(element.ID(af.OriginID))
 	g.SetDestinationID(element.ID(af.DestinationID))
-	// A note sits ABOVE the element it documents, so its line leaves the note's
-	// bottom edge and enters the element's top. Both indexes were 0 (top), which
-	// drew the line out of the top of the note and back down around it.
-	g.SetOriginConnectionIndex(2)
-	g.SetDestinationConnectionIndex(0)
+	// The builder picks the sides that face each other (orientAnnotationFlows);
+	// a flow nothing oriented is drawn as for a note ABOVE its element — out of
+	// the note's bottom edge, into the element's top. Both indexes were once 0
+	// (top), which drew the line out of the top of the note and back down
+	// around it.
+	sides := af.SidesOrDefault()
+	g.SetOriginConnectionIndex(int32(sides.Origin))
+	g.SetDestinationConnectionIndex(int32(sides.Destination))
 	// An annotation flow is a Flow like a sequence flow, with the same floors:
 	// the Line was written from 10.0 on, six minors before it existed.
 	if v.hasLine() {
@@ -1031,7 +1034,7 @@ func importXmlActionToGen(a *microflows.ImportXmlAction) element.Element {
 
 	imc := newElem("Microflows$ImportMappingCall", "")
 	addStr(imc, "Commit", "YesWithoutEvents")
-	addStr(imc, "ContentType", "Json")
+	addStr(imc, "ContentType", orDefault(rh.ContentType, "Json"))
 	addBool(imc, "ForceSingleOccurrence", forceSingle)
 	addStr(imc, "ObjectHandlingBackup", "Create")
 	addStr(imc, "ParameterVariableName", "")
@@ -1515,15 +1518,15 @@ func memberChangeToGen(m *microflows.MemberChange) element.Element {
 }
 
 // microflowParameterToGen builds a gen MicroflowParameter. An authored position
-// is written as given; without one the position derives from the index, matching
-// the legacy serializer.
-func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, v flowVersion) element.Element {
+// is written as given; without one the position derives from the index and the
+// names of all the flow's parameters (params), which space the row.
+func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, params []*microflows.MicroflowParameter, v flowVersion) element.Element {
 	g := genMf.NewMicroflowParameter()
 	g.SetID(element.ID(p.ID))
 	g.SetDocumentation(p.Documentation)
 	g.SetHasVariableNameBeenChanged(false)
 	g.SetName(p.Name)
-	pos := microflows.DerivedParameterPosition(idx)
+	pos := microflows.DerivedParameterPosition(idx, params)
 	if p.Position != nil {
 		pos = *p.Position
 	}
@@ -1847,7 +1850,7 @@ func restResultHandlingToGen(rh microflows.ResultHandling, outputVar string) ele
 		}
 		imc := newElem("Microflows$ImportMappingCall", "")
 		addStr(imc, "Commit", "YesWithoutEvents")
-		addStr(imc, "ContentType", "Json")
+		addStr(imc, "ContentType", orDefault(h.ContentType, "Json"))
 		addBool(imc, "ForceSingleOccurrence", forceSingle)
 		addStr(imc, "ObjectHandlingBackup", "Create")
 		addStr(imc, "ParameterVariableName", "")

@@ -599,6 +599,13 @@ annotationParamName
     | POSITION    // the note's own place on the canvas, distinct from the
                   // @position of the activity it documents
     | TEXT
+    // @anchor(A: (from: right), (empty): (from: bottom)) on a CASE: one outcome,
+    // keyed by its WHEN value. A value can be a lexer keyword (`Open`) or the
+    // empty value, so both are keys here; without them the parameter fell
+    // through to the positional form and was refused (mendixlabs/mxcli#1587).
+    | LPAREN EMPTY RPAREN
+    | QUOTED_IDENTIFIER
+    | keyword
     ;
 
 annotationValue
@@ -658,9 +665,9 @@ keyword
     // Agent editor
     | AGENT | AGENTS | KNOWLEDGE | BASES | CONSUMED | MCP | TOOL
 
-    // Workflow multi-user task completion — words, so still usable as names
+    // Workflow user task settings — words, so still usable as names
     | DECIDE | CONSENSUS | MAJORITY | MORE_KW | THAN | HALF | MOST | CHOSEN | THRESHOLD
-    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT
+    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT | AUTO | ASSIGN
 
     // Microflow / Nanoflow
     | MICROFLOW | MICROFLOWS | NANOFLOW | NANOFLOWS
@@ -714,7 +721,7 @@ keyword
     // Layout structure. SCROLLREGION is spelled `region`, an ordinary enough
     // word that leaving it out of this rule would make `region` unusable as an
     // attribute or widget name anywhere in MDL.
-    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR
+    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR | SIDEBARTOGGLE | LAYOUTHEADER
     // Object-list container keywords for pluggable widgets (#538)
     | GROUP | CUSTOMITEM | MARKER | DYNAMICMARKER | SERIES | LINE | SCALECOLOR
     | CUSTOMBUTTON | ALLOWEDFILEFORMAT

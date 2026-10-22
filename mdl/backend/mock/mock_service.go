@@ -5,6 +5,7 @@ package mock
 import (
 	"errors"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
@@ -89,6 +90,13 @@ func (m *MockBackend) CreateConsumedRestService(svc *model.ConsumedRestService) 
 func (m *MockBackend) UpdateConsumedRestService(svc *model.ConsumedRestService) error {
 	if m.UpdateConsumedRestServiceFunc != nil {
 		return m.UpdateConsumedRestServiceFunc(svc)
+	}
+	return nil
+}
+
+func (m *MockBackend) EditConsumedRestService(id model.ID, edit *backend.ConsumedRestServiceEdit) error {
+	if m.EditConsumedRestServiceFunc != nil {
+		return m.EditConsumedRestServiceFunc(id, edit)
 	}
 	return nil
 }

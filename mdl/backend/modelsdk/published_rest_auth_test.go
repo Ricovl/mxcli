@@ -8,8 +8,7 @@ import (
 	"sort"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -120,7 +119,7 @@ func storedServiceParameters(t *testing.T, b *Backend, id model.ID) (marker int3
 			for _, f := range ed {
 				ks = append(ks, f.Key)
 				if f.Key == "$ID" {
-					if bin, ok := f.Value.(primitive.Binary); ok {
+					if bin, ok := f.Value.(bson.Binary); ok {
 						ids = append(ids, fmt.Sprintf("%x", bin.Data))
 					}
 				}

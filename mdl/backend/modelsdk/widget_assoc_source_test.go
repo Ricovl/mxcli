@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -16,7 +16,7 @@ import (
 // Both now emit a Forms$AssociationSource with an IndirectEntityRef of steps,
 // matching the canonical legacy serializeAssociationSource.
 
-func assertAssociationSource(t *testing.T, src bsonv1.D, wantAssoc, wantDest string, wantSourceVar bool) {
+func assertAssociationSource(t *testing.T, src bson.D, wantAssoc, wantDest string, wantSourceVar bool) {
 	t.Helper()
 	assertAssociationSourceTyped(t, src, "Forms$AssociationSource", wantAssoc, wantDest, wantSourceVar)
 }
@@ -24,7 +24,7 @@ func assertAssociationSource(t *testing.T, src bsonv1.D, wantAssoc, wantDest str
 // assertAssociationSourceTyped checks the shared IndirectEntityRef structure under
 // a given wrapper $Type — Forms$AssociationSource (list widgets) or
 // Forms$DataViewSource (a DataView's "data from context over association").
-func assertAssociationSourceTyped(t *testing.T, src bsonv1.D, wantType, wantAssoc, wantDest string, wantSourceVar bool) {
+func assertAssociationSourceTyped(t *testing.T, src bson.D, wantType, wantAssoc, wantDest string, wantSourceVar bool) {
 	t.Helper()
 	if got := docGet(src, "$Type"); got != wantType {
 		t.Fatalf("$Type = %v, want %v", got, wantType)
@@ -39,7 +39,7 @@ func assertAssociationSourceTyped(t *testing.T, src bsonv1.D, wantType, wantAsso
 	} else if got := docGet(src, "SourceVariable"); got != nil {
 		t.Errorf("SourceVariable = %v, want nil ($currentObject)", got)
 	}
-	entityRef, ok := docGet(src, "EntityRef").(bsonv1.D)
+	entityRef, ok := docGet(src, "EntityRef").(bson.D)
 	if !ok {
 		t.Fatalf("EntityRef not a document (got %T) — this is the legacy null-EntityRef bug", docGet(src, "EntityRef"))
 	}
@@ -68,7 +68,7 @@ func TestDataViewAssociationSource_Serialized(t *testing.T) {
 	}
 	dv.Name = "dvCust"
 	doc := encodeWidget(t, dv)
-	src, ok := docGet(doc, "DataSource").(bsonv1.D)
+	src, ok := docGet(doc, "DataSource").(bson.D)
 	if !ok {
 		t.Fatalf("DataSource not serialized (got %T)", docGet(doc, "DataSource"))
 	}
@@ -85,7 +85,7 @@ func TestListViewAssociationSource_Serialized(t *testing.T) {
 	}
 	lv.Name = "lvLines"
 	doc := encodeWidget(t, lv)
-	src, ok := docGet(doc, "DataSource").(bsonv1.D)
+	src, ok := docGet(doc, "DataSource").(bson.D)
 	if !ok {
 		t.Fatalf("DataSource not serialized (got %T)", docGet(doc, "DataSource"))
 	}

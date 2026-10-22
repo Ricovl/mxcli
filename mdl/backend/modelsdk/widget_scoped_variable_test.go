@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -26,7 +26,7 @@ import (
 
 func pageVariableSlots(t *testing.T, pv any) map[string]any {
 	t.Helper()
-	d, ok := pv.(bsonv1.D)
+	d, ok := pv.(bson.D)
 	if !ok {
 		t.Fatalf("SourceVariable = %#v, want a Forms$PageVariable document", pv)
 	}
@@ -80,14 +80,14 @@ func TestInputWidgetScopedSourceVariable(t *testing.T) {
 }
 
 func TestTemplateParameterWidgetSlot(t *testing.T) {
-	encode := func(p *pages.ClientTemplateParameter) bsonv1.D {
+	encode := func(p *pages.ClientTemplateParameter) bson.D {
 		t.Helper()
 		out, err := (&codec.Encoder{}).Encode(clientTemplateParameterToGen(p))
 		if err != nil {
 			t.Fatalf("encode: %v", err)
 		}
-		var doc bsonv1.D
-		if err := bsonv1.Unmarshal(out, &doc); err != nil {
+		var doc bson.D
+		if err := bson.Unmarshal(out, &doc); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		return doc
@@ -131,8 +131,8 @@ func TestSnippetCallMappingLocalVariableSlot(t *testing.T) {
 		},
 	}
 	sc.Name = "sc1"
-	call, _ := docGet(encodeWidget(t, sc), "FormCall").(bsonv1.D)
-	mappings, _ := docGet(call, "ParameterMappings").(bsonv1.A)
+	call, _ := docGet(encodeWidget(t, sc), "FormCall").(bson.D)
+	mappings, _ := docGet(call, "ParameterMappings").(bson.A)
 	if len(mappings) != 3 {
 		t.Fatalf("ParameterMappings = %#v, want [marker, 2 mappings]", mappings)
 	}
@@ -140,7 +140,7 @@ func TestSnippetCallMappingLocalVariableSlot(t *testing.T) {
 		{"LocalVariable": "Caption", "PageParameter": ""},
 		{"LocalVariable": "", "PageParameter": "Car"}, // control
 	} {
-		m, _ := mappings[i+1].(bsonv1.D)
+		m, _ := mappings[i+1].(bson.D)
 		got := pageVariableSlots(t, docGet(m, "Variable"))
 		for k, v := range want {
 			if got[k] != v {

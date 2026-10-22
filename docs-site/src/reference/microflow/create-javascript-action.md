@@ -4,7 +4,7 @@
 
 ```sql
 CREATE [ OR MODIFY ] JAVASCRIPT ACTION module.Name [ FOLDER 'folder_path' ] ( parameters )
-    RETURNS type
+    RETURNS type [ AS $return_name ]
     [ EXPOSED AS 'caption' IN 'category' ]
     [ PLATFORM Web | Native | Hybrid | All ]
     AS $$ javascript_code $$
@@ -31,6 +31,23 @@ between the `BEGIN USER CODE` / `END USER CODE` markers.
 If `OR MODIFY` is specified and the action already exists, its parameters, return
 type, exposed-as settings, platform, and body are updated in place; the UUID is
 preserved.
+
+### Parameter names in the body
+
+The model keeps a parameter's name as declared, but the generated `.js` file uses
+the name Studio Pro and mxbuild generate: the **first character lower-cased**,
+nothing else. The body is written against that name. `ReadOnly` is `readOnly`,
+`Url` is `url`, `URL` is `uRL` (not `url`), `MyID` is `myID`, `_Lead` stays
+`_Lead`. mxcli writes the signature this way and does not rewrite the body, so a
+body that uses the declared spelling (`ReadOnly`) throws a `ReferenceError` when
+the action runs. `DESCRIBE` still prints the declared names.
+
+### Parameter Descriptions and the Return Value Name
+
+As for a Java action, a parameter's description is a `/** ... */` doc comment
+before it, and `RETURNS type AS $Name` names the return value. Leaving either out
+on `CREATE OR MODIFY` keeps what is stored. See
+[CREATE JAVA ACTION](create-java-action.md#parameter-descriptions-and-the-return-value-name).
 
 ### Platform
 
@@ -96,7 +113,7 @@ CREATE JAVASCRIPT ACTION MyModule.JSA_Add (
     B: Integer NOT NULL
 ) RETURNS Integer
 AS $$
-    return Promise.resolve(A + B);
+    return Promise.resolve(a + b);
 $$;
 ```
 
@@ -110,7 +127,7 @@ CREATE JAVASCRIPT ACTION MyModule.JSA_ShowToast (
 EXPOSED AS 'Show Toast' IN 'UI'
 PLATFORM Native
 AS $$
-    console.log(Message);
+    console.log(message);
     return Promise.resolve(true);
 $$;
 ```
@@ -124,7 +141,7 @@ CREATE OR MODIFY JAVASCRIPT ACTION MyModule.JSA_Add (
     C: Integer
 ) RETURNS Integer
 AS $$
-    return Promise.resolve(A + B + (C || 0));
+    return Promise.resolve(a + b + (c || 0));
 $$;
 ```
 

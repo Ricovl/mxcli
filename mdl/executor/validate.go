@@ -450,6 +450,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// worse than the two above: a module-qualified role here makes the project
 	// unloadable rather than merely failing the build (mendixlabs/mxcli#1001).
 	errors = append(errors, validateNavigationRoles(ctx, prog)...)
+	// Resolve the pages and flows a navigation profile or menu document names:
+	// home, login and not-found pages and every menu item. Written by name and
+	// unchecked, so a typo was CE1613 at build time, after the whole menu had
+	// been rewritten.
+	errors = append(errors, validateNavigationTargets(ctx, prog, sc)...)
 	// Resolve what a GRANT / REVOKE, a user role and a demo user name: the
 	// entity, document or member, and the module and user roles. exec refuses
 	// the grants after the statements before them are written, and writes the
@@ -482,6 +487,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// widget that is already stored, so its property can only be resolved
 	// against the document — which is why it passed check and failed exec.
 	errors = append(errors, validateAlterSetProperties(ctx, prog, sc)...)
+	// A SET or ALTER STYLING that styles a stored snippet call: valid, and
+	// useless — a snippet call renders no element (mendixlabs/mxcli#1511).
+	// What the target IS lives only in the document. Warns, never blocks.
+	validateStoredSnippetCallAppearance(ctx, prog, sc)
 	// The entity an ALTER's INSERT / REPLACE binds against is in the stored
 	// document, not the statement. Where it has none (a missing flow source, or
 	// no data container at all) a bare binding is written bare and the project
@@ -491,6 +500,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// inserted widgets carry: only the document was resolved, so a typo in
 	// either passed check and stopped exec (mendixlabs/mxcli#1472).
 	errors = append(errors, validateAlterPageReferences(ctx, prog, sc)...)
+	// The same for ALTER NAVIGATION / ALTER MENU: the function exec runs, on a
+	// copy of the stored menu that is never saved.
+	errors = append(errors, validateAlterNavigationReferences(ctx, prog)...)
 	// `Module.Enum.Key` in any expression: the key must be one of the
 	// enumeration's values (mendixlabs/mxcli#1472).
 	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
@@ -782,9 +794,21 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+		// A bare `returns Module.Name` that names an enumeration is one: exec
+		// retypes it the same way before it validates the rule. One that names
+		// nothing is reported as that, not as "not a Boolean or an enumeration".
+		ruleReturn := s.ReturnType
+		if ruleReturn != nil && ctx.Connected() {
+			r := newDeclaredTypeResolver(ctx, sc)
+			if retyped, ok := r.bareEnumeration(ruleReturn.Type); ok {
+				ruleReturn = &ast.MicroflowReturnType{Type: retyped, Variable: ruleReturn.Variable}
+			} else if msg := r.check(ruleReturn.Type, "return type of rule "+s.Name.String()); msg != "" {
+				return mdlerrors.NewValidationf("rule '%s' has reference errors:\n  - %s", s.Name.String(), msg)
+			}
+		}
 		// The same validateRule the executor calls, so `check` and `exec` cannot
 		// disagree about what a rule may contain.
-		if errMsg := validateRule(s.Name.String(), s.Body, s.ReturnType); errMsg != "" {
+		if errMsg := validateRule(s.Name.String(), s.Body, ruleReturn); errMsg != "" {
 			return mdlerrors.NewValidationf("%s", strings.TrimRight(errMsg, "\n"))
 		}
 		if validationErrors := ValidateRuleBody(s); len(validationErrors) > 0 {
@@ -1935,6 +1959,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// MDL092: an @anchor parameter the visitor cannot use is dropped, the edge
 	// keeping its default sides — the same class as MDL060 (mendixlabs/mxcli#992).
 	"MDL092": true,
+	// MDL094: a loop over a path, `loop $c in $Parent/Mod.Assoc`. The model's
+	// loop holds a list VARIABLE, so the builder has nowhere to put the path and
+	// writes a loop over nothing — CE0099 on 11.12.1 (mendixlabs/mxcli#199).
+	"MDL094": true,
 	// MDL076: `on error continue` on an activity that rejects it is CE6035 at
 	// build time — every row of continueUnsupportedOn was measured on 11.14.0.
 	// check reported it; exec without the pre-check (-c, the REPL, --no-check)

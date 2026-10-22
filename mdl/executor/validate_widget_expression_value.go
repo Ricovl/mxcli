@@ -26,6 +26,16 @@ import (
 // built-in widget or an item.
 func validateWidgetExpressionValues(w *ast.WidgetV3, def *WidgetDefinition, item *ObjectListMapping,
 	isObjectListItem bool, locationPrefix string) []linter.Violation {
+	return validateWidgetExpressionValuesIn(w, def, item, isObjectListItem, nil, locationPrefix)
+}
+
+// validateWidgetExpressionValuesIn is validateWidgetExpressionValues for a
+// widget that may have an embedded schema (embeddedSchemaFor), which stands in
+// for the definition a check without a project does not have: the kind it
+// declares for a key decides, and a key it does not declare is left to
+// MDL-WIDGET07 rather than called a plain-value property.
+func validateWidgetExpressionValuesIn(w *ast.WidgetV3, def *WidgetDefinition, item *ObjectListMapping,
+	isObjectListItem bool, schema *embeddedWidgetSchema, locationPrefix string) []linter.Violation {
 	if w == nil || len(w.Properties) == 0 {
 		return nil
 	}
@@ -52,13 +62,25 @@ func validateWidgetExpressionValues(w *ast.WidgetV3, def *WidgetDefinition, item
 			continue
 		}
 		op, known := expressionValueOperation(key, def, item)
+		if !known && item == nil {
+			if def == nil {
+				op, known = schema.operation(key)
+			} else {
+				// A key the definition knows but does not map — a combo box's
+				// `emptyOptionText` — is written by the explicit-property pass
+				// with the kind its template declares, and a kind other than
+				// Expression refuses the expression at exec. Decide it here
+				// from the same template (mendixlabs/mxcli#1586).
+				op, known = loadEmbeddedSchema(def.WidgetID, "").operation(key)
+			}
+		}
 		switch {
 		case op == "expression":
 			continue
 		case op == "image" && isImageObjectVariable(text):
 			// `Image: $currentObject` binds the object in context (#1476).
 			continue
-		case isExpr && !known && (def != nil || item != nil):
+		case isExpr && !known && (def != nil || item != nil || schema != nil):
 			// A key the definition does not map: MDL-WIDGET01 (unknown) or
 			// MDL-WIDGET06 (known, unmapped) already speaks for it, and the
 			// builder resolves its kind from the template.

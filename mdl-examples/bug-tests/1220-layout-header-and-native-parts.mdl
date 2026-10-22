@@ -1,0 +1,60 @@
+mdl 1;
+-- ============================================================================
+-- Copying Atlas layouts with `describe layout` → `create layout` (follow-up to
+-- #1220). Three things a copy lost:
+--
+--   1. Phone_ / Tablet_ layouts: their Forms$Header, printed as
+--      `-- Forms$Header (header1)  -- NOT re-executable`, with the HeaderLeft /
+--      HeaderRight placeholders (pages bound to them: CE1613) and, on the
+--      Sidebar ones, the sidebar toggle (copy: CE0611 "A sidebar toggle button
+--      is required if a region can toggle").
+--   2. Native layouts: the header placeholder, ShowBottomBar and the sidebar,
+--      dropped with no warning at all (pages: CE1613 "The selected placeholder
+--      '…Header' no longer exists").
+--
+-- Measured on a new 11.13.0 app: all 22 Atlas_Core layouts copied, plus pages
+-- bound to the copied placeholders, build with 0 errors.
+--
+--   mxcli exec this-file -p app.mpr && mxcli docker check -p app.mpr
+-- ============================================================================
+
+create or modify layout MyFirstModule.Copy_Phone_Sidebar (
+  layouttype: 'Phone',
+  class: 'layout-atlas layout-atlas-phone'
+) {
+  scrollcontainer scrollContainer1 {
+    region top (Class: 'region-topbar') {
+      layoutheader header1 {
+        region left {
+          sidebartoggle sidebarToggle2 (
+            RenderMode: Link,
+            Tooltip: 'Toggle Menu',
+            Icon: 'Atlas_Core.Atlas_Filled.navigation-menu',
+            Class: 'toggle-btn'
+          )
+        }
+        region right {
+          placeholder HeaderRight
+        }
+      }
+    }
+    region left (Size: 80, SizeMode: 'Percentage', ToggleMode: 'PushContentAside', Class: 'region-sidebar') {
+      navigationtree navigationTree1 (Menu: Atlas_Core.Phone_Menu, Class: 'sidebar-menu')
+    }
+    region center (Class: 'region-content') {
+      placeholder Main
+    }
+  }
+};
+
+create or modify layout MyFirstModule.Copy_NativePhone_SideMenu (
+  layouttype: 'Default'
+) {
+  placeholder Main
+  region header {
+    placeholder Header
+  }
+  region sidebar {
+    placeholder Placeholder1
+  }
+};

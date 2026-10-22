@@ -31,6 +31,7 @@ for display in this README):
 |--------|---------|--------|
 | Draft | Early design, not finalised | active |
 | Proposed | Design complete, not yet started | active |
+| Accepted | Design approved by the maintainer, implementation pending or under way | active |
 | Partial | Some phases/features implemented | active |
 | Done | Fully implemented | `archive/` |
 | Superseded | Replaced by a newer proposal | `archive/` |
@@ -103,13 +104,14 @@ def table(items, link_prefix=""):
 def main():
     active = collect(P)
     archived = collect(ARCHIVE)
-    by_status = {"partial": [], "proposed": [], "draft": []}
+    by_status = {"partial": [], "accepted": [], "proposed": [], "draft": []}
     for it in active:
         by_status.setdefault(it[2], []).append(it)
 
     parts = [HEADER]
     parts.append(f"\n## Active Proposals ({len(active)})\n")
     for st, label in (("partial", "In Progress (partial)"),
+                      ("accepted", "Accepted"),
                       ("proposed", "Proposed"),
                       ("draft", "Draft")):
         group = sorted(by_status.get(st, []), key=lambda x: x[1].lower())

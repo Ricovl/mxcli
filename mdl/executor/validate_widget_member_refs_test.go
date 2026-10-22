@@ -244,3 +244,67 @@ func TestValidateXPathMembers_SkipsAnUnparseableConstraint(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// mendixlabs/mxcli#1271 — members the SAME script adds to a stored entity
+// ---------------------------------------------------------------------------
+
+// The microflow retrieve learned to see the members a script adds; the page
+// data source did not. `alter entity Shop.Order add attribute IsPaid …` and a
+// grid `database from Shop.Order where [IsPaid = true]` in one script was
+// "names \"IsPaid\", which is neither an attribute nor an association of it",
+// and exec refused a script mxbuild builds clean. Same for an attribute added by
+// restating the entity, and for an association the script creates.
+func TestValidateXPathMembers_SeesMembersTheScriptAdds(t *testing.T) {
+	ctx := memberFixture(t)
+	for _, tc := range []struct{ name, src string }{
+		{"alter entity … add attribute", `alter entity Shop.Order add attribute IsPaid: Boolean default false;
+create page Shop.P (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Shop.Order where [IsPaid = true]) {
+    column (Attribute: OrderNo, Caption: 'No')
+  }
+};`},
+		{"create or modify restating the entity", `create or modify persistent entity Shop.Customer (Name: String(200), Vip: Boolean default false);
+create page Shop.P (Title: 'Customers', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Shop.Customer where [Vip = true]) {
+    column (Attribute: Name, Caption: 'Name')
+  }
+};`},
+		{"an association the script creates", `create association Shop.Order_Home from Shop.Order to Shop.Region type Reference;
+create page Shop.P (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Shop.Order where [Shop.Order_Home/Shop.Region/RegionName = 'x']) {
+    column (Attribute: OrderNo, Caption: 'No')
+  }
+};`},
+	} {
+		if errs := validateXPathMembers(ctx, parseMDL(t, tc.src)); len(errs) != 0 {
+			t.Errorf("%s: a member the script adds was reported missing: %v", tc.name, errs)
+		}
+	}
+}
+
+// CONTROL: seeing the script is not a blanket pass. A restated entity's members
+// are the ones the statement lists, so a name it does not list is still missing;
+// and altering one entity vouches for nothing on another.
+func TestValidateXPathMembers_ScriptMembersDoNotHideATypo(t *testing.T) {
+	ctx := memberFixture(t)
+	for _, tc := range []struct{ name, src, want string }{
+		{"restated entity, unlisted member", `create or modify persistent entity Shop.Customer (Name: String(200), Vip: Boolean default false);
+create page Shop.P (Title: 'Customers', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Shop.Customer where [Vipp = true]) {
+    column (Attribute: Name, Caption: 'Name')
+  }
+};`, "Vipp"},
+		{"another entity altered", `alter entity Shop.Order add attribute IsPaid: Boolean default false;
+create page Shop.P (Title: 'Customers', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dg (DataSource: database from Shop.Customer where [IsPaid = true]) {
+    column (Attribute: Name, Caption: 'Name')
+  }
+};`, "IsPaid"},
+	} {
+		errs := validateXPathMembers(ctx, parseMDL(t, tc.src))
+		if len(errs) != 1 || !strings.Contains(errs[0].Error(), tc.want) {
+			t.Errorf("%s: want one error naming %q, got %v", tc.name, tc.want, errs)
+		}
+	}
+}

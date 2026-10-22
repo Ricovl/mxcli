@@ -184,6 +184,10 @@ DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
 }
 ```
 
+A `SHOW PAGE` in the control bar takes the selection the same way —
+`Action: SHOW PAGE Sales.Order_Detail(Order = $dgOrders)` opens the page with
+the selected row, and the button is disabled until a row is selected.
+
 `mxcli check -p <app.mpr>` reports a missing argument before mxbuild does.
 
 ### ButtonStyle Values
@@ -218,7 +222,7 @@ These properties are available on most widget types:
 | `Class` | CSS class names | `Class: 'card mx-spacing-top-large'` |
 | `Style` | Inline CSS | `Style: 'padding: 16px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `Editable` | Edit control | `Editable: NEVER` or `Editable: ALWAYS` |
+| `Editable` | Edit control: `Always`, `Never`, or a condition expression (bare or quoted) | `Editable: NEVER` or `Editable: $currentObject/Locked = false` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
 | `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large')` |
 

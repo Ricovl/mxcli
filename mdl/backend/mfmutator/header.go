@@ -20,8 +20,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
 )
@@ -199,7 +198,7 @@ func collectIDs(v any, into map[string]bool) {
 	case bson.D:
 		for _, e := range t {
 			if e.Key == "$ID" {
-				if b, ok := e.Value.(primitive.Binary); ok {
+				if b, ok := e.Value.(bson.Binary); ok {
 					into[string(b.Data)] = true
 				}
 				continue

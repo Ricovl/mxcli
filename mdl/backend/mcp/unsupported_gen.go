@@ -494,6 +494,11 @@ func (unsupportedBackend) Disconnect() (err0 error) {
 	return
 }
 
+func (unsupportedBackend) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) (err0 error) {
+	err0 = errUnsupported("EditConsumedRestService")
+	return
+}
+
 func (unsupportedBackend) ExportJSON() (r0 []uint8, err1 error) {
 	err1 = errUnsupported("ExportJSON")
 	return
@@ -1007,8 +1012,18 @@ func (unsupportedBackend) MoveViewEntitySourceDocument(_ string, _ model.ID, _ s
 	return
 }
 
+func (unsupportedBackend) OpenMenuDocumentForMutation(_ model.ID) (r0 backend.MenuMutator, err1 error) {
+	err1 = errUnsupported("OpenMenuDocumentForMutation")
+	return
+}
+
 func (unsupportedBackend) OpenMicroflowForMutation(_ model.ID) (r0 backend.MicroflowMutator, err1 error) {
 	err1 = errUnsupported("OpenMicroflowForMutation")
+	return
+}
+
+func (unsupportedBackend) OpenNavigationProfileForMutation(_ string) (r0 backend.NavigationProfileMutator, err1 error) {
+	err1 = errUnsupported("OpenNavigationProfileForMutation")
 	return
 }
 

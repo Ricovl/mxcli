@@ -121,6 +121,27 @@ func resolveMemberOnEntity(ctx *ExecContext, entityQN, memberName string) member
 	return memberMissing
 }
 
+// backendRefusesModule reports whether the project's module list answers,
+// confidently, that no module of this name exists. A list that cannot be read
+// is NOT absence — this file's rule is silence over a guess
+// (TestResolveMemberOnEntity_SilentWhenTheModelCannotBeRead).
+func backendRefusesModule(ctx *ExecContext, qualifier string) bool {
+	b, ok := ctx.Backend.(entityLookupBackend)
+	if !ok {
+		return false
+	}
+	mods, err := b.ListModules()
+	if err != nil {
+		return false
+	}
+	for _, m := range mods {
+		if m != nil && m.Name == qualifier {
+			return false
+		}
+	}
+	return true
+}
+
 // associationNamedInModule reports whether the domain model has an association
 // of this bare name. A qualified member is handled by the caller; this covers
 // the unqualified spelling, which resolves in the entity's own module.
@@ -324,6 +345,37 @@ func validateMemberReferences(ctx *ExecContext, prog *ast.Program, sc *scriptCon
 func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 	flowQN string, params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
 
+	var out []string
+	walkTypedFlow(ctx, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+		switch s := st.(type) {
+		case *ast.CreateObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("create %s", s.EntityType.String()),
+				s.EntityType.String(), s.Changes)...)
+		case *ast.ChangeObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("change $%s", s.Variable), vars[s.Variable], s.Changes)...)
+		case *ast.RetrieveStmt:
+			if s.Variable != "" && s.Source.Name != "" && s.StartVariable == "" {
+				out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
+			}
+		}
+	})
+	return out
+}
+
+// walkTypedFlow calls visit for every statement of a flow body — nested blocks,
+// loop bodies and custom error handlers included — with the entity each
+// variable is known to hold at that point. visit runs before the statement's
+// own output variable is typed, so a statement sees the variables it reads.
+//
+// It is the one variable-typing walk the --references checks share
+// (checkFlowMembers, the Protected-module member check): two copies of it would
+// drift on which statements type a variable, and a check that loses a variable
+// goes silent rather than wrong.
+func walkTypedFlow(ctx *ExecContext, params []ast.MicroflowParam, body []ast.MicroflowStatement,
+	visit func(st ast.MicroflowStatement, vars map[string]string)) {
+
 	vars := map[string]string{}
 	for _, p := range params {
 		if p.Name == "" {
@@ -341,22 +393,15 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 
-	var out []string
 	var walk func(stmts []ast.MicroflowStatement)
 	walk = func(stmts []ast.MicroflowStatement) {
 		for _, st := range stmts {
+			visit(st, vars)
 			switch s := st.(type) {
 			case *ast.CreateObjectStmt:
 				if s.Variable != "" {
 					vars[s.Variable] = s.EntityType.String()
 				}
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("create %s", s.EntityType.String()),
-					s.EntityType.String(), s.Changes)...)
-			case *ast.ChangeObjectStmt:
-				entityQN := vars[s.Variable]
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("change $%s", s.Variable), entityQN, s.Changes)...)
 			case *ast.RetrieveStmt:
 				// Source is the ENTITY for a database retrieve and the
 				// ASSOCIATION for an association retrieve (StartVariable set).
@@ -367,7 +412,6 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 				case s.Variable == "" || s.Source.Name == "":
 				case s.StartVariable == "":
 					vars[s.Variable] = s.Source.String()
-					out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
 				default:
 					if from, ok := vars[strings.TrimPrefix(s.StartVariable, "$")]; ok {
 						if to, ok := associationTargetFrom(ctx, s.Source.String(), from); ok {
@@ -396,7 +440,6 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 	walk(body)
-	return out
 }
 
 // checkMembers resolves each member of one CREATE / CHANGE.
@@ -426,10 +469,27 @@ func checkMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 		if name == "" {
 			continue
 		}
-		// A qualified member is a different question with a different answer,
-		// and exec already refuses the one-qualifier form that cannot be an
-		// attribute (FINDINGS #51). Left alone here rather than second-guessed.
-		if strings.Contains(name, ".") {
+		// Qualified members are a different question with a different answer.
+		// `Module.Assoc` (one dot over a real module) is a legal association-set
+		// — exec's #51 refusal covers the association-less case — and
+		// `Module.Entity.Attribute` (two dots) a legal qualified attribute. But
+		// one dot over a NON-module qualifier (`Assoc.Attr`) is a member reached
+		// through an association, which Mendix's ChangeActionItem cannot
+		// represent: exec writes the name verbatim and mxbuild rejects the
+		// project with CE1613. Report it here so check and build agree; the
+		// writer refuses the same shape.
+		// (docs/12-bug-reports/2026-10-16-change-member-through-association.md)
+		if dot := strings.Index(name, "."); dot >= 0 {
+			// A module the script creates further up is a module, even though
+			// the project does not have it yet.
+			if strings.Count(name, ".") == 1 && !(sc != nil && sc.modules[name[:dot]]) &&
+				backendRefusesModule(ctx, name[:dot]) {
+				out = append(out, fmt.Sprintf(
+					"%s: %q on %s is a member reached through an association — a change item cannot set it. "+
+						"Retrieve the associated object and change that instead (`retrieve $obj from $var/%s;` then `change $obj (%s = ...)`); "+
+						"mxbuild rejects this form with CE1613",
+					flowQN, name, entityQN, name[:dot], name[dot+1:]))
+			}
 			continue
 		}
 		if authored[strings.ToLower(entityQN+"."+name)] {

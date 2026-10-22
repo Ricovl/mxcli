@@ -68,6 +68,11 @@ func LoadWidgetRegistry(projectPath string) *WidgetRegistry {
 		// from the same .mpk DESCRIBE parses. See
 		// widget_known_props_from_mpk.go for why this is not a list of nine.
 		enrichKnownPropertiesFromMPK(registry, projectPath)
+	} else {
+		// No project to read packages from: the embedded template is the
+		// widget's schema, so check without -p accepts what DESCRIBE prints
+		// by key (mendixlabs/mxcli#1586).
+		enrichKnownPropertiesFromTemplates(registry)
 	}
 	return registry
 }
@@ -280,6 +285,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
+		// #1511: a snippet call renders no element, so its Class / Style /
+		// DynamicClasses / design properties never reach the page.
+		out = append(out, validateSnippetCallAppearance(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
 		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).
@@ -311,12 +319,20 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// A keyword widget the registry has no definition for (DATAGRID: its
+		// definition is generated from the project's package) is judged by the
+		// property list of the template mxcli embeds for it, not by the
+		// vocabulary of the built-in widgets.
+		var embedded *embeddedWidgetSchema
+		if def == nil && !isObjectListItem {
+			embedded = embeddedSchemaFor(w, parent)
+		}
 		// An expression on a generic key whose schema kind takes none — which
 		// used to be written as an empty value (MDL-WIDGET42).
 		if mapping != nil {
 			out = append(out, validateWidgetExpressionValues(w, nil, mapping, true, locationPrefix)...)
 		} else {
-			out = append(out, validateWidgetExpressionValues(w, def, nil, isObjectListItem, locationPrefix)...)
+			out = append(out, validateWidgetExpressionValuesIn(w, def, nil, isObjectListItem, embedded, locationPrefix)...)
 		}
 		// A generic widget type that resolved to nothing is already reported as
 		// MDL-WIDGET25 (the kind is wrong). Validating its properties on top of
@@ -330,7 +346,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// no definition for the project's own widget — the built-in allow-list
 		// would report every property it has.
 		if def == nil && !isObjectListItem && !w.TypeIsGeneric && explicitWidgetID(w) == "" {
-			out = append(out, validateStaticWidgetUnknownProps(w, locationPrefix)...)
+			out = append(out, validateStaticWidgetUnknownPropsIn(w, locationPrefix, embedded, registryProjectPath(registry) != "")...)
 			// #1465: the vocabulary above is a cross-widget union, so a key a
 			// tab page cannot store (CaptionParams, Class, Style) passes it.
 			out = append(out, validateTabPageProps(w, locationPrefix)...)
@@ -913,7 +929,13 @@ func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapp
 			continue
 		}
 		hint := ""
-		if ext := extensionsOf(key, names); len(ext) > 0 {
+		var slots []itemSlotHint
+		for _, s := range mapping.ItemSlots {
+			slots = append(slots, itemSlotHint{Key: s.PropertyKey, Accepts: s.AcceptedChildTypes})
+		}
+		if h := widgetSlotHint(key, strings.ToLower(mapping.MDLContainer), slots); h != "" {
+			hint = h
+		} else if ext := extensionsOf(key, names); len(ext) > 0 {
 			// `attributeValue` on an HTMLElement attribute: the value lives under
 			// attributeValueTemplate / attributeValueExpression, and edit
 			// distance picks attributeName, the one key that is certainly wrong.
@@ -933,6 +955,38 @@ func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapp
 		})
 	}
 	return out
+}
+
+// itemSlotHint is one widgets slot of a widget or object-list item: its key
+// and the widget types it routes, when known.
+type itemSlotHint struct {
+	Key     string
+	Accepts []string
+}
+
+// widgetSlotHint explains a key that names one of the item's widgets slots —
+// `Filterable: true` on a column, whose filter is the `filter` slot. A slot
+// takes child widgets, written in the item's braces, never a property value;
+// the generic "did you mean" picked an unrelated key there (`FilterType`), and
+// the property list did not mention the slot at all (mendixlabs/mxcli#177).
+func widgetSlotHint(key, kind string, slots []itemSlotHint) string {
+	lower := strings.ToLower(key)
+	for _, s := range slots {
+		if s.Key == "" || !strings.HasPrefix(lower, strings.ToLower(s.Key)) {
+			continue
+		}
+		child := "<widget>"
+		if len(s.Accepts) > 0 {
+			child = s.Accepts[0]
+		}
+		hint := fmt.Sprintf(" — `%s` is a slot for child widgets, not a property: put the widget in the %s's braces, "+
+			"e.g. `%s (…) { %s w1 (…) }`", s.Key, kind, kind, child)
+		if len(s.Accepts) > 1 {
+			hint += fmt.Sprintf(" (it takes %s)", strings.Join(s.Accepts, ", "))
+		}
+		return hint
+	}
+	return ""
 }
 
 // extensionsOf returns the candidates that extend key (case-insensitively),
@@ -1048,6 +1102,9 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// menu source and orientation of navigationtree / menubar /
 		// simplemenubar, and a scroll-container region's size mode.
 		"ShowFooter", "Menu", "Profile", "Orientation", "SizeMode",
+		// a scroll-container region's toggle mode, which a sidebartoggle opens
+		// (mendixlabs/mxcli#1220).
+		"ToggleMode",
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
@@ -1085,7 +1142,7 @@ var staticWidgetKnownPropList = func() []string {
 		"Editable", "Tooltip", "DynamicClasses", "WidthUnit", "HeightUnit",
 		"DesktopColumns", "TabletColumns", "PhoneColumns", "PageSize", "Pagination",
 		"Image", "DefaultImage", "DisplayAs", "OnClickType", "ShowFooter", "Menu",
-		"Profile", "Orientation", "SizeMode")
+		"Profile", "Orientation", "SizeMode", "ToggleMode")
 	return list
 }()
 
@@ -1106,9 +1163,19 @@ func isKnownStaticWidgetProp(key string) bool {
 // could false-positive on a valid property. Pluggable widgets are validated
 // separately (MDL-WIDGET01) and must not reach here.
 func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	return validateStaticWidgetUnknownPropsIn(w, locationPrefix, nil, false)
+}
+
+// validateStaticWidgetUnknownPropsIn is validateStaticWidgetUnknownProps for a
+// widget that may have an embedded schema (embeddedSchemaFor): Data grid 2,
+// whose definition only a project can supply. A key that schema declares is
+// known. A key it does not is reported as one that cannot be verified, not as
+// one that is dropped — the schema is the baseline template, and a newer
+// widget version can declare more.
+func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, schema *embeddedWidgetSchema, projectOpen bool) []linter.Violation {
 	var out []linter.Violation
 	for _, key := range sortedPropertyKeys(w) {
-		if isKnownStaticWidgetProp(key) {
+		if isKnownStaticWidgetProp(key) || schema.declares(key) {
 			continue
 		}
 		// Dynamic-text format keys placed at the widget level are reported by
@@ -1130,18 +1197,39 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
+		candidates := staticWidgetKnownPropList
+		if schema != nil {
+			// The widget's own names first: they are what the key was meant to be.
+			candidates = append(append([]string(nil), schema.Names...), staticWidgetKnownPropList...)
+		}
 		hint := ""
-		if suggestion := nearestKey(key, staticWidgetKnownPropList); suggestion != "" {
+		if h := widgetSlotHint(key, strings.ToLower(w.Type), schema.widgetSlots()); h != "" {
+			hint = h
+		} else if suggestion := nearestKey(key, candidates); suggestion != "" {
 			hint = fmt.Sprintf(" — did you mean `%s`?", suggestion)
 		}
-		out = append(out, linter.Violation{
+		message := fmt.Sprintf(
+			"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
+			locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
+		)
+		if schema != nil {
+			// Not "will be dropped": the template is the oldest supported version,
+			// and the installed widget may declare more.
+			message = fmt.Sprintf(
+				"%s: %s property `%s` is not declared by the embedded %s definition (%s), so it cannot be verified without a project — "+
+					"it is silently dropped on write unless the installed widget declares it%s",
+				locationPrefix, widgetLabel(w.Name, w.Type), key, schema.Title, schema.Version, hint,
+			)
+		}
+		v := linter.Violation{
 			RuleID:   "MDL-WIDGET07",
 			Severity: linter.SeverityWarning,
-			Message: fmt.Sprintf(
-				"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
-				locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
-			),
-		})
+			Message:  message,
+		}
+		if schema != nil && !projectOpen {
+			v.Suggestion = "Run check with -p <project.mpr> to look the key up in the installed widget."
+		}
+		out = append(out, v)
 	}
 	return out
 }
@@ -1298,7 +1386,24 @@ func validateConsumableConditional(w *ast.WidgetV3, locationPrefix string) []lin
 		}
 		switch v.(type) {
 		case bool, string:
-			continue // a static form StaticVisibleExpression consumes
+			// A static form StaticVisibleExpression / StaticEditability consumes.
+			// Visible takes any string as its condition; Editable takes an enum
+			// word, a boolean or a condition, and refuses what is none of them
+			// here, because the writer has nowhere to put it.
+			if p.plain == "Editable" {
+				if problem := editableValueProblem(w); problem != "" {
+					out = append(out, linter.Violation{
+						RuleID:   "MDL-WIDGET19",
+						Severity: linter.SeverityError,
+						Message: fmt.Sprintf(
+							"%s: %s: %s — Editable takes Always, Never (or true / false), or a condition "+
+								"expression such as `Editable: $currentObject/Locked = false`, bare or in quotes; "+
+								"anything else cannot be stored and would leave the widget editable",
+							locationPrefix, widgetLabel(w.Name, w.Type), problem),
+					})
+				}
+			}
+			continue
 		}
 		out = append(out, linter.Violation{
 			RuleID:   "MDL-WIDGET19",
@@ -1414,6 +1519,13 @@ func validateWidgetExpressionAssociations(w *ast.WidgetV3, locationPrefix string
 	var out []linter.Violation
 	for _, key := range expressionWidgetProps {
 		expr, ok := lookupWidgetProp(w, key)
+		shown := key
+		if key == "EditableIf" && (!ok || expr == "") {
+			// A quoted `Editable: '<expr>'` is the same condition.
+			if e, quoted := editableCondition(w); quoted {
+				expr, ok, shown = e, true, "Editable"
+			}
+		}
 		if !ok || expr == "" {
 			continue
 		}
@@ -1423,7 +1535,7 @@ func validateWidgetExpressionAssociations(w *ast.WidgetV3, locationPrefix string
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
 					"%s: widget `%s` property `%s` expression traverses association `%s` — Mendix expressions cannot follow associations (CE0117). Bind the value via a data binding (contentparams/attribute) or precompute it onto the bound entity (e.g. a calculated attribute).",
-					locationPrefix, w.Name, key, m[1],
+					locationPrefix, w.Name, shown, m[1],
 				),
 			})
 		}

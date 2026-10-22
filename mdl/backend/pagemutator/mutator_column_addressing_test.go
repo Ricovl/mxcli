@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -26,10 +25,10 @@ func plainWidgets() []pages.Widget {
 // real (derived) column names on a miss instead of a bare "not found".
 // ---------------------------------------------------------------------------
 
-func idBin(b byte) primitive.Binary {
+func idBin(b byte) bson.Binary {
 	data := make([]byte, 16)
 	data[0] = b
-	return primitive.Binary{Subtype: 0x04, Data: data}
+	return bson.Binary{Subtype: 0x04, Data: data}
 }
 
 // buildGridWithColumns constructs the minimal DataGrid2 BSON that findBsonColumn

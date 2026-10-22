@@ -57,3 +57,51 @@ func SetAuthoringLanguage(code string) {
 	}
 	textLang = code
 }
+
+// TranslationEntry is one Texts$Translation as stored: its language and its
+// text. A Texts$Text is read as a slice of them, in document order.
+type TranslationEntry struct {
+	LanguageCode string
+	Text         string
+}
+
+// FallbackTextLanguage is the language a text is read in when it has no
+// translation in the preferred one.
+const FallbackTextLanguage = "en_US"
+
+// SelectTranslation is the one rule for reading a translatable text: the one
+// DESCRIBE prints for a page's or widget's text (issue #702), a navigation or
+// menu item's caption, and the caption an ALTER NAVIGATION / ALTER MENU
+// address is compared with — so an address copied from describe output is the
+// string the resolver matches, by construction.
+//
+// It returns the preferred language's translation, else en_US's, else the
+// first non-empty translation in document order.
+//
+// A preferred-language translation that is present but EMPTY is returned as
+// the empty string. DESCRIBE output is re-executed, and whatever it prints is
+// written back into the preferred language — so falling back to another
+// language here turned a caption stored as en_US "" + nl_NL "Knop" into en_US
+// "Knop" (ako/mxcli#705). The fallbacks are for a text with no entry in that
+// language. When a language occurs twice, its first entry counts.
+func SelectTranslation(entries []TranslationEntry, preferredLang string) string {
+	byLang := make(map[string]string)
+	firstNonEmpty := ""
+	for _, e := range entries {
+		if e.LanguageCode != "" {
+			if _, exists := byLang[e.LanguageCode]; !exists {
+				byLang[e.LanguageCode] = e.Text
+			}
+		}
+		if firstNonEmpty == "" && e.Text != "" {
+			firstNonEmpty = e.Text
+		}
+	}
+	if v, ok := byLang[preferredLang]; ok && preferredLang != "" {
+		return v
+	}
+	if byLang[FallbackTextLanguage] != "" {
+		return byLang[FallbackTextLanguage]
+	}
+	return firstNonEmpty
+}

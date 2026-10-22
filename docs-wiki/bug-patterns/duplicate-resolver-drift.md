@@ -57,7 +57,12 @@ one reader, one renderer, one resolver — and taking the type set from
 *Per-doctype copies.* A behaviour implemented per document type drifts by
 construction. The folder clause is the clean example: every doctype's `FOLDER`
 handling had the same bug, and the report that named one of them read as a
-doctype-specific defect.
+doctype-specific defect. Its inverse — *which module owns this document?* — has
+been answered by `GetModule(doc.ContainerID)` in one engine after another, which
+is right only at the module root: the executor's reference checker (#1071), then
+the MCP backend's page mutator and constant/workflow updates (#1593), each beside
+a folder-aware resolver it did not call. The error names the folder's ID as a
+"module not found", which is the tell.
 
 *Two walks over one tree.* The duplication does not need two *resolvers* — two
 traversals of the same structure drift the same way, and faster, because each

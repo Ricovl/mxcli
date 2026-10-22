@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -26,8 +26,8 @@ func TestAttributeRefWithSteps_Serialized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
@@ -38,7 +38,7 @@ func TestAttributeRefWithSteps_Serialized(t *testing.T) {
 		t.Errorf("Attribute = %v, want MyFirstModule.Employee.Name", got)
 	}
 
-	entityRef, ok := docGet(doc, "EntityRef").(bsonv1.D)
+	entityRef, ok := docGet(doc, "EntityRef").(bson.D)
 	if !ok {
 		t.Fatalf("EntityRef not a document (got %T)", docGet(doc, "EntityRef"))
 	}
@@ -60,23 +60,23 @@ func TestAttributeRefWithSteps_Serialized(t *testing.T) {
 
 // firstListItem unwraps the codec's marker-prefixed list encoding
 // ([marker, [item, ...]]) and returns the first item as a document.
-func firstListItem(t *testing.T, v any) bsonv1.D {
+func firstListItem(t *testing.T, v any) bson.D {
 	t.Helper()
-	arr, ok := v.(bsonv1.A)
+	arr, ok := v.(bson.A)
 	if !ok {
 		t.Fatalf("Steps not a list (got %T)", v)
 	}
 	// Find the inner list of items (the element that is itself an array).
 	for _, e := range arr {
-		if inner, ok := e.(bsonv1.A); ok {
+		if inner, ok := e.(bson.A); ok {
 			if len(inner) == 0 {
 				t.Fatal("Steps list is empty")
 			}
-			if d, ok := inner[0].(bsonv1.D); ok {
+			if d, ok := inner[0].(bson.D); ok {
 				return d
 			}
 		}
-		if d, ok := e.(bsonv1.D); ok {
+		if d, ok := e.(bson.D); ok {
 			return d
 		}
 	}

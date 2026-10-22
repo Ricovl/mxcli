@@ -108,6 +108,7 @@ create persistent entity Module.Photo (
 | Association line anchors | `@anchor(from: (0, 54), to: (100, 54))` above `create association …` | Where the connector attaches to each entity box, as a **percentage** of the box (0..100, whole numbers). `from` = the FROM entity's box, `to` = the TO entity's. Omitting an end preserves what is stored, so a `create or modify` about something else never flattens a hand-tuned line. Cross-module associations have no anchors — Mendix stores none |
 | Set documentation | `alter entity\|association\|enumeration Module.Name set documentation 'text';` | `set comment` is the deprecated spelling (MDL-DEPR135) |
 | Retune anchors in place | `alter association Module.Name set anchor from (50, 100) to (50, 0);` | `(0, 50)` left-middle, `(100, 50)` right-middle, `(50, 100)` bottom-centre. `describe association` re-emits a non-default pair as the same `@anchor(...)`, so describe → edit → exec round-trips |
+| Export level | `create … entity M.E (A: String(50) export level api) export level api;` · `create association … export level api;` · `create enumeration … export level api;` · `alter entity\|association\|enumeration M.X set export level api\|hidden;` | Studio Pro's **Usable** (`api`) / Hidden. Matters in a **Protected (add-on)** module: CE5400 when an `api` microflow exposes a Hidden entity or enumeration, CE1406 when another module uses a Hidden element. An absent clause keeps the stored level; Mendix 9.3+. `mxcli syntax domain-model.export-level` |
 
 ## ALTER ENTITY
 
@@ -607,7 +608,7 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
-| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)`; on a `case` one entry per outcome, `Open: (from: right)`, `(empty): (…)` | `to` = the flow arriving at the statement, `from` = the flow leaving it — never the far end of its own outgoing flow, which is the next statement's `to:`. On an `if` or a `case`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
@@ -745,8 +746,9 @@ mandatory and a misplaced clause failed with a token error
 (`mismatched input 'ON' expecting ';'`) that named neither the clause nor the rule.
 
 **Workflow Activity Types:**
-- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [on created microflow Mod.MF] [entity Mod.Entity] [due date <expr>] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
+- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [auto assign single user] [on created microflow Mod.MF] [entity Mod.Entity] [due date <expr>] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
   - **Multi-user only:** `decide by consensus|majority more than half|majority most chosen|threshold <n> percent|votes fallback '<outcome>'`, `decide by veto '<outcome>'`, `decide by microflow Mod.MF`. A fallback is required for consensus, majority and threshold (CE1866), a veto needs its outcome (CE1867), and a decision microflow returns String (CE5012) — all `MDL-WF13` / check. Omitted: all participants, consensus on the first outcome, not waiting.
+  - `auto assign single user` is Studio Pro's "Auto-assign when targeting results in one user" (either task kind). Omitted it is off, as Studio Pro creates a task; `create or modify` refuses to drop a stored one that is not restated.
   - The **task page** must take a `System.WorkflowUserTask` parameter — none at all is CE7410, none of that type is CE7412; extra parameters are allowed.
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
   - An **on-created microflow** takes exactly `System.WorkflowUserTask` + the context entity, in either order (CE6683), and returns nothing (CE5012).
@@ -910,15 +912,16 @@ alter workflow Module.OrderApproval {
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
 | Show navigation | `list navigation;` | Summary of all profiles |
-| Show menu tree | `list navigation menu [Profile];` | Menu tree for profile or all |
+| Show menu tree | `list navigation menu [Profile];` | One row per item, with the **Address** `alter navigation` takes (`'Admin' > 'Users'`, `'Home'@2`) |
 | Show home pages | `list navigation homes;` | Home page assignments across profiles |
 | Describe navigation | `describe navigation [Profile];` | Full MDL output (round-trippable) |
 | Native home | `home nanoflow Mod.Flow` | A native profile's flow home; mxcli writes a native profile's home pages and sync only |
-| Create/replace navigation | `create or replace navigation Profile ...;` | Full replacement — and **creates** the profile if the project does not have it |
+| Create/modify navigation | `create or modify navigation Profile ...;` | Writes the clauses it states (a `{ }` block replaces the whole menu) — and **creates** the profile if the project does not have it |
+| Alter navigation | `alter navigation Profile { insert after 'Home' { menu item … } drop 'Old'; … };` | Edits one profile in place: `insert before\|after\|into <item> { … }`, `insert { … }`, `replace <item> with { … }`, `move <item> before\|after\|into <item>`, `drop <item>, …`, `set ( Caption:, OnClick:, Icon: \| none ) on <item>`, `set home page\|microflow M.X [for Role]`, `drop home page for Role`, `set/drop login page`, `set/drop not found page`. `<item>` is a caption path `'Admin' > 'Users'` (`@n` among equal captions). Untouched items stay as stored; a refusal writes nothing |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
 | Progressive web app | `progressive web app ( Precaching: true )` / `progressive web app off` | A clause of CREATE NAVIGATION: Studio Pro's *Progressive web app* settings. An offline profile without them gets no service worker, so no page opens offline (mendixlabs/mxcli#1377). Keys: `Precaching` (default false), `InstallPrompt` (default true); omitted, the stored settings stay |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
-| Offline profiles | `create or replace navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
+| Offline profiles | `create or modify navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
 
 Menu items are the profile's children, in `{ }` after its clauses, with no `;`
 between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
@@ -1181,7 +1184,11 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 | Show clients | `list consumed rest services [in module];` | List all or filter by module |
 | Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing — an operation it omits is removed (and named in the output) |
+| Add operation | `alter consumed rest service Module.Name add operation Name ( ... );` | Operation body uses CREATE syntax; other operations stay as stored |
+| Modify operation | `alter consumed rest service Module.Name modify operation Name ( Timeout: 60 );` | Writes only the keys listed |
+| Drop operation | `alter consumed rest service Module.Name drop operation Name;` | |
+| Set service properties | `alter consumed rest service Module.Name set ( BaseUrl: '...', Authentication: none );` | BaseUrl, Authentication |
 | Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
@@ -1219,7 +1226,7 @@ create consumed rest service Module.Api (
 ```
 
 **Body types:** `json from $var`, `template '...'`, `mapping entity { jsonField = attr, ... }`
-**Response types:** `json as $var`, `string as $var`, `file as $var`, `status as $var`, `none`, `mapping entity { attr = jsonField, ... }`
+**Response types:** `json`, `string`, `file`, `status` (each optionally `as $var` — the variable is not stored), `none`, `mapping entity { attr = jsonField, ... }`
 **Authentication:** `none`, `basic (username: '...', password: '...')`
 
 ### OpenAPI Import
@@ -1440,6 +1447,7 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 | Describe Java action | `describe java action Module.Name;` | Full MDL output with signature |
 | Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID |
 | Create with type params | `create java action Module.Name(EntityType: entity <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Describe a parameter, name the return value | `create java action Module.Name(/** The text. */ Input: String) returns String as $Result as $$ ... $$;` | `/** … */` before a parameter is its description; `as $Name` the return value's name. Omitted on `or modify`, both keep what is stored |
 | Create exposed action | `... exposed as 'caption' in 'Category' as $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Exposed action with bitmaps | `... exposed as 'caption' in 'Category' icon 'i.png' icon dark 'id.png' image 'm.png' image dark 'md.png' as $$ ... $$;` | Icon 64x64 PNG, image 256x192; paths relative to the .mdl file's own directory. A wrong size warns and is written; a non-PNG is refused |
 | Remove a toolbox entry | `... not exposed as $$ ... $$;` | An **omitted** clause preserves the stored entry (bitmaps included), so removal is explicit |
@@ -1563,9 +1571,11 @@ MDL uses explicit property declarations for pages:
 | Describe building block | `describe building block Module.Name;` | Informational (header comment + widget tree), not a `create` statement |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 
 **DataGrid Column Properties:**

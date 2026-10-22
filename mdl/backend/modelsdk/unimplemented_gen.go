@@ -405,6 +405,10 @@ func (unimplemented) Disconnect() error {
 	return errUnimplemented("Disconnect")
 }
 
+func (unimplemented) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) error {
+	return errUnimplemented("EditConsumedRestService")
+}
+
 func (unimplemented) ExportJSON() ([]uint8, error) {
 	var r0 []uint8
 	return r0, errUnimplemented("ExportJSON")
@@ -904,9 +908,19 @@ func (unimplemented) MoveViewEntitySourceDocument(_ string, _ model.ID, _ string
 	return errUnimplemented("MoveViewEntitySourceDocument")
 }
 
+func (unimplemented) OpenMenuDocumentForMutation(_ model.ID) (backend.MenuMutator, error) {
+	var r0 backend.MenuMutator
+	return r0, errUnimplemented("OpenMenuDocumentForMutation")
+}
+
 func (unimplemented) OpenMicroflowForMutation(_ model.ID) (backend.MicroflowMutator, error) {
 	var r0 backend.MicroflowMutator
 	return r0, errUnimplemented("OpenMicroflowForMutation")
+}
+
+func (unimplemented) OpenNavigationProfileForMutation(_ string) (backend.NavigationProfileMutator, error) {
+	var r0 backend.NavigationProfileMutator
+	return r0, errUnimplemented("OpenNavigationProfileForMutation")
 }
 
 func (unimplemented) OpenPageForMutation(_ model.ID) (backend.PageMutator, error) {

@@ -127,6 +127,7 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkListOperationSource(body)
 	v.checkMergeJoinLabels(body)
 	v.checkAnnotationLabels(body)
+	v.checkAssociationPathValues(body)
 
 	// Walk the body for per-statement checks (validation feedback, return value checks)
 	v.emptyListVars = make(map[string]bool)
@@ -182,6 +183,10 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	// CONV011 all along, but only after the write and only project-wide. See
 	// validate_commit_in_loop.go.
 	v.checkCommitInLoop(body)
+
+	// mendixlabs/mxcli#1491: a statement after one that ends the path is
+	// written anyway and refused by the build. See validate_microflow_unreachable.go.
+	v.checkUnreachableStatements(body)
 }
 
 // checkDuplicateLoopVariables flags a loop iterator name used by more than one
@@ -1791,6 +1796,51 @@ var knownActivityAnnotations = map[string]bool{
 // invalidAnchorRule refuses an @anchor parameter the visitor could not use.
 const invalidAnchorRule = "MDL092"
 
+// checkCaseAnchors refuses an @anchor outcome key that names no outcome: on a
+// CASE, a key that is none of its WHEN values, or `true:`/`false:`, which only
+// an IF has; anywhere else, any value key. Each parsed and left its edge on the
+// default sides, which is what made `@anchor(from: right)` on a CASE look
+// accepted while it did nothing (mendixlabs/mxcli#1587).
+func (v *microflowValidator) checkCaseAnchors(s ast.MicroflowStatement, ann *ast.ActivityAnnotations) {
+	const hint = "A CASE names each outcome's edge by its WHEN value: " +
+		"`@anchor(A: (from: right), (empty): (from: bottom, to: top))`. An IF's branches are " +
+		"`true: (…)` and `false: (…)`."
+	cs, isCase := s.(*ast.EnumSplitStmt)
+	if !isCase {
+		for _, ca := range ann.CaseAnchors {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names a CASE outcome, but it is not on a CASE, "+
+					"so the edge it names keeps its default sides", ca.Value), hint)
+		}
+		return
+	}
+	for _, key := range []struct {
+		name string
+		set  bool
+	}{{"true", ann.TrueBranchAnchor != nil}, {"false", ann.FalseBranchAnchor != nil}} {
+		if key.set {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names an IF branch; a CASE has none, "+
+					"so the edge it names keeps its default sides", key.name), hint)
+		}
+	}
+	for _, ca := range ann.CaseAnchors {
+		known := false
+		for _, c := range cs.Cases {
+			for _, value := range enumSplitCaseValues(c) {
+				if sameCaseValue(value, ca.Value) {
+					known = true
+				}
+			}
+		}
+		if !known {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names no WHEN value of this CASE, "+
+					"so it does nothing", ca.Value), hint)
+		}
+	}
+}
+
 // checkUnknownAnnotations rejects an @annotation name the visitor does not
 // implement.
 //
@@ -1820,9 +1870,10 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 				"names keeps its default sides", bad),
 			"A side is top, right, bottom or left. The flow leaving a statement is "+
 				"`@anchor(from: right, to: left)`; an IF's branches are `@anchor(true: (from: …, to: …), "+
-				"false: (…))`, a loop's `@anchor(iterator: (…), tail: (…))` — either side of a pair may be "+
-				"left out (mendixlabs/mxcli#992).")
+				"false: (…))`, a CASE's outcomes `@anchor(Open: (from: right), (empty): (…))`, a loop's "+
+				"`@anchor(iterator: (…), tail: (…))` — either side of a pair may be left out (mendixlabs/mxcli#992).")
 	}
+	v.checkCaseAnchors(s, ann)
 	for _, name := range ann.UnknownNames {
 		v.addViolation("MDL059", linter.SeverityError,
 			fmt.Sprintf("unknown annotation `@%s` — it parses but does nothing, so whatever it was "+

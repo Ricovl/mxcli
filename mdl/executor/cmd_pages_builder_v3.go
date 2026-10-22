@@ -368,12 +368,10 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
-	// On a 9.x project a pluggable widget stores this form too, as a
-	// CustomWidgetDatabaseSource (mendixlabs/mxcli#1399); a widget with its
-	// own builder still refuses it there, in buildDataSourceV3.
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil && !pb.customWidgetDatabaseSourceSupported() {
-		return nil, err
-	}
+	// `database from $ctx/Assoc/Entity` needs no check here: a list view and
+	// every widget the pluggable engine writes store it (buildPluggableDataSourceV3,
+	// mendixlabs/mxcli#1399, #1599), and a widget with its own builder refuses
+	// it in buildDataSourceV3.
 	if err := checkWidgetHasName(w); err != nil {
 		return nil, err
 	}
@@ -450,6 +448,10 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		widget, err = pb.buildMenuBarV3(w)
 	case "simplemenubar":
 		widget, err = pb.buildSimpleMenuBarV3(w)
+	case "sidebartoggle":
+		widget, err = pb.buildSidebarToggleV3(w)
+	case "layoutheader":
+		widget, err = pb.buildLayoutHeaderV3(w)
 	case "placeholder":
 		widget, err = pb.buildPlaceholderV3(w)
 	case "radiobuttons":
@@ -560,7 +562,7 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err
 	}
-	if err := applyPluggableSystemSettings(widget, w); err != nil {
+	if err := applyPluggableSystemSettings(widget, w, def); err != nil {
 		return nil, err
 	}
 	if err := pb.applyVisibleWhen(widget, w); err != nil {
@@ -589,22 +591,25 @@ func applyConditionalSettings(widget pages.Widget, w *ast.WidgetV3) {
 	}
 
 	if editableIf := w.GetStringProp("EditableIf"); editableIf != "" {
-		bw.ConditionalEditability = &pages.ConditionalEditabilitySettings{
-			BaseElement: model.BaseElement{
-				ID:       model.ID(types.GenerateID()),
-				TypeName: "Forms$ConditionalEditabilitySettings",
-			},
-			Expression: editableIf,
-		}
-	} else if editable, ok := pages.CanonicalEditability(w.GetStringProp("Editable")); ok {
+		bw.ConditionalEditability = newConditionalEditability(editableIf)
+	} else if enum, expr, ok := staticEditability(w); ok {
 		// `Editable: Never` — parsed and validated (MDL-WIDGET20 checks the widget
 		// TYPE) and then dropped, because nothing carried it to the writers, which
 		// hardcoded "Always". Same shape as the `Visible: false` case above.
 		//
+		// A string that is not an enum word is the condition, exactly as for
+		// Visible: `Editable: '$currentObject/Locked = false'` is the quoted
+		// spelling of the bare expression. It used to be skipped here, so the
+		// widget stayed Always.
+		//
 		// EDITABLE IF wins when both are given: the conditional settings element is
 		// what makes the enum "Conditional", so honouring a plain `Editable` too
 		// would write an enum contradicting the element beside it.
-		bw.Editable = editable
+		if expr != "" {
+			bw.ConditionalEditability = newConditionalEditability(expr)
+		} else {
+			bw.Editable = enum
+		}
 	}
 }
 
@@ -857,27 +862,6 @@ func checkSearchByIsOnAListView(w *ast.WidgetV3) error {
 		w.Name, strings.ToLower(w.Type), strings.ToLower(w.Type)))
 }
 
-// checkDatabaseOverAssociationIsOnAListView refuses `database from $ctx/Assoc/…`
-// on a widget other than a list view. Only the List View writer stores a
-// database source reached over an association (a Forms$ListViewXPathSource with
-// an IndirectEntityRef); every other writer would store the entity alone and
-// drop the path — a retrieve of every row instead of the context's
-// (ako/mxcli#721 L5). A data view is refused by MDL-WIDGET09 whatever the form.
-func checkDatabaseOverAssociationIsOnAListView(w *ast.WidgetV3) error {
-	if w == nil || strings.EqualFold(w.Type, "listview") || strings.EqualFold(w.Type, "dataview") {
-		return nil
-	}
-	ds := w.GetDataSource()
-	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
-		return nil
-	}
-	return mdlerrors.NewValidation(fmt.Sprintf(
-		"widget %q (%s): `database from $%s/%s` is a LIST VIEW source reached over an association, "+
-			"and %s cannot store one — use the association source `$%s/%s`, or a `listview`.",
-		w.Name, strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath,
-		strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath))
-}
-
 // buildDataSourceV3 converts a V3 DataSource AST to a pages.DataSource.
 // Returns the datasource, the entity name for context, and any error.
 func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
@@ -922,14 +906,15 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 
 	case "database":
 		if ds.AssociationPath != "" {
-			// Only buildListViewDataSourceV3 may build this form. Every other
-			// caller — a widget-engine datasource under its own key, a chart
-			// series, a dynamic image — hands the result to a writer that stores
-			// the entity alone, a retrieve of every row instead of the context's
+			// Only buildListViewDataSourceV3 and buildPluggableDataSourceV3 may
+			// build this form. Every other caller — a chart series, a dynamic
+			// image — hands the result to a writer that stores the entity
+			// alone, a retrieve of every row instead of the context's
 			// (ako/mxcli#721 L5).
 			return nil, "", mdlerrors.NewValidationf(
-				"`database from $%s/%s` is a LIST VIEW source reached over an association; "+
-					"only a `listview` DataSource can store one — use the association source `$%s/%s` here",
+				"`database from $%s/%s` is a database source reached over an association; "+
+					"only a `listview` or a pluggable widget's DataSource (gallery, datagrid, …) can store one "+
+					"— use the association source `$%s/%s` here",
 				ds.ContextVariable, ds.AssociationPath, ds.ContextVariable, ds.AssociationPath)
 		}
 		// Database source: DATABASE Entity
@@ -3307,12 +3292,19 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 		}
 		seen[slot] = true
 
+		toggleMode, ok := canonicalRegionToggleMode(child.GetStringProp("ToggleMode"))
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"scrollcontainer %q: region %q: unknown ToggleMode %q (want %s)",
+				w.Name, slot, child.GetStringProp("ToggleMode"), strings.Join(regionToggleModes, ", ")))
+		}
 		region := &pages.ScrollContainerRegion{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID()), TypeName: "Forms$ScrollContainerRegion"},
 			Slot:        slot,
 			Class:       child.GetStringProp("Class"),
 			SizeMode:    child.GetStringProp("SizeMode"),
 			Size:        child.GetIntProp("Size"),
+			ToggleMode:  toggleMode,
 		}
 		for _, gc := range child.Children {
 			cw, err := pb.buildWidgetV3(gc)
@@ -3324,6 +3316,69 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 		sc.Regions = append(sc.Regions, region)
 	}
 	return sc, nil
+}
+
+// buildLayoutHeaderV3 builds a phone or tablet layout's header bar
+// (Forms$Header). Its children are its two sides, spelled like a scroll
+// container's regions: `region left { … }` and `region right { … }`.
+func (pb *pageBuilder) buildLayoutHeaderV3(w *ast.WidgetV3) (pages.Widget, error) {
+	h := &pages.LayoutHeader{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$Header",
+			},
+			Name: w.Name,
+		},
+	}
+	seen := map[string]bool{}
+	for _, child := range w.Children {
+		side := strings.ToLower(child.Name)
+		if strings.ToLower(child.Type) != "region" || (side != "left" && side != "right") {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layoutheader %q: its children are its two sides, `region left { … }` and `region right { … }`", w.Name))
+		}
+		if seen[side] {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("layoutheader %q: region %q given twice", w.Name, side))
+		}
+		seen[side] = true
+		for _, gc := range child.Children {
+			cw, err := pb.buildWidgetV3(gc)
+			if err != nil {
+				return nil, err
+			}
+			if side == "left" {
+				h.LeftWidgets = append(h.LeftWidgets, cw)
+			} else {
+				h.RightWidgets = append(h.RightWidgets, cw)
+			}
+		}
+	}
+	if err := pb.registerWidgetName(w.Name, h.ID); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+// regionToggleModes are the values of Forms$ScrollContainerRegion.ToggleMode:
+// how a sidebar toggle button opens and closes the region.
+var regionToggleModes = []string{
+	"None", "PushContentAside", "SlideOverContent",
+	"ShrinkContentInitiallyOpen", "ShrinkContentInitiallyClosed",
+}
+
+// canonicalRegionToggleMode spells a region's ToggleMode as Mendix stores it,
+// case-insensitively; "" (not said) stays "", which writes None.
+func canonicalRegionToggleMode(mode string) (string, bool) {
+	if mode == "" {
+		return "", true
+	}
+	for _, m := range regionToggleModes {
+		if strings.EqualFold(m, mode) {
+			return m, true
+		}
+	}
+	return "", false
 }
 
 // buildNavigationTreeV3 builds the sidebar menu. The profile is stored inside a

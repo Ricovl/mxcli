@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -113,6 +113,24 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 		for _, w := range widgets {
 			c.AddWidgets(w)
 		}
+		// Every native Atlas layout stores all four, false and empty
+		// included (11.13.0); RightHeaderPlaceholder is null when unset.
+		c.SetShowBottomBar(l.ShowBottomBar)
+		c.SetSidebar(l.Sidebar)
+		for _, w := range l.SidebarWidgets {
+			wg, err := widgetToGen(w)
+			if err != nil {
+				return nil, err
+			}
+			c.AddSidebarWidgets(wg)
+		}
+		if l.HeaderPlaceholder != nil {
+			ph, err := widgetToGen(l.HeaderPlaceholder)
+			if err != nil {
+				return nil, err
+			}
+			c.SetRightHeaderPlaceholder(ph)
+		}
 		return c, nil
 	}
 	c := genPg.NewWebLayoutContent()
@@ -145,6 +163,10 @@ func layoutContentToGen(l *pages.Layout) (element.Element, error) {
 // DROP LAYOUT existed, with no way to undo the document mxcli had just written.
 func checkLayoutPlaceholders(l *pages.Layout) error {
 	names := layoutPlaceholderNames(l.Widgets, nil)
+	if l.HeaderPlaceholder != nil {
+		names = append(names, l.HeaderPlaceholder.Name)
+	}
+	names = layoutPlaceholderNames(l.SidebarWidgets, names)
 	// A layout built on another one declares its placeholders inside the
 	// arguments it passes (mendixlabs/mxcli#1411).
 	if l.LayoutCall != nil {
@@ -199,6 +221,9 @@ func layoutPlaceholderNames(widgets []pages.Widget, acc []string) []string {
 			acc = layoutPlaceholderNames(x.Widgets, acc)
 		case *pages.GroupBox:
 			acc = layoutPlaceholderNames(x.Widgets, acc)
+		case *pages.LayoutHeader:
+			acc = layoutPlaceholderNames(x.LeftWidgets, acc)
+			acc = layoutPlaceholderNames(x.RightWidgets, acc)
 		}
 	}
 	return acc

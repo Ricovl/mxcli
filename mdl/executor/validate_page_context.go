@@ -238,7 +238,7 @@ var alwaysNamedKinds = map[string]bool{
 	"container": true, "customcontainer": true, "groupbox": true, "tabcontainer": true,
 	"layoutgrid": true, "navigationlist": true, "staticimage": true, "dynamicimage": true,
 	"image": true, "scrollcontainer": true, "navigationtree": true, "menubar": true,
-	"simplemenubar": true, "textfilter": true, "numberfilter": true, "dropdownfilter": true,
+	"simplemenubar": true, "sidebartoggle": true, "layoutheader": true, "textfilter": true, "numberfilter": true, "dropdownfilter": true,
 	"datefilter": true, "dropdownsort": true,
 }
 

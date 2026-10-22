@@ -12,14 +12,14 @@ description: "Create, call and drop JavaScript actions — client-side logic cal
 |---|---|
 | 31-39 | When to Use This Skill |
 | 40-51 | Overview |
-| 52-85 | Syntax |
-| 86-147 | Examples |
-| 148-159 | Calling from a nanoflow |
-| 160-184 | The generated .js file |
-| 185-193 | Inspecting |
-| 194-202 | Validation Checklist |
-| 203-211 | Common Errors |
-| 212-216 | Related Documentation |
+| 52-97 | Syntax |
+| 98-159 | Examples |
+| 160-171 | Calling from a nanoflow |
+| 172-196 | The generated .js file |
+| 197-205 | Inspecting |
+| 206-214 | Validation Checklist |
+| 215-224 | Common Errors |
+| 225-229 | Related Documentation |
 
 <!-- /skill-index -->
 # Mendix JavaScript Actions Skill
@@ -53,7 +53,7 @@ normally returns a `Promise`.
 
 ```sql
 CREATE [OR MODIFY] JAVASCRIPT ACTION Module.Name ( parameters )
-    RETURNS type
+    RETURNS type [AS $ReturnName]
     [EXPOSED AS 'caption' IN 'category']
     [PLATFORM Web | Native | Hybrid | All]   -- default Web
 AS $$
@@ -82,6 +82,18 @@ Same type system as Java actions:
 - Type parameter (generics): declare `EntityType: ENTITY <pEntity>`, then use the
   bare `pEntity` for instance parameters
 - Append `NOT NULL` to mark a parameter required.
+- A `/** … */` doc comment **before** a parameter is its description; a trailing
+  `-- text` is an ordinary comment and is not stored. `RETURNS type AS $Name`
+  names the return value. Left out on `OR MODIFY`, both keep what is stored.
+
+### Parameter names in the body
+
+The body sees each parameter with its **first character lower-cased**: `A` is
+`a`, `ReadOnly` is `readOnly`, `URL` is `uRL` (only the first character changes),
+`_Lead` stays `_Lead`. That is the signature Studio Pro and mxbuild generate, and
+mxcli writes it. The model keeps the declared name and `describe` prints it as
+declared. A body that uses the declared spelling throws `ReferenceError` at run
+time and nothing in `check` or the build reports it.
 
 ## Examples
 
@@ -104,7 +116,7 @@ CREATE JAVASCRIPT ACTION MyFirstModule.JSA_Add (
     B: Integer NOT NULL
 ) RETURNS Integer
 AS $$
-    return Promise.resolve(A + B);
+    return Promise.resolve(a + b);
 $$;
 ```
 
@@ -119,7 +131,7 @@ CREATE JAVASCRIPT ACTION MyFirstModule.JSA_ShowToast (
 EXPOSED AS 'Show Toast' IN 'UI'
 PLATFORM Native
 AS $$
-    console.log(Message);
+    console.log(message);
     return Promise.resolve(true);
 $$;
 ```
@@ -134,7 +146,7 @@ CREATE OR MODIFY JAVASCRIPT ACTION MyFirstModule.JSA_Add (
     C: Integer
 ) RETURNS Integer
 AS $$
-    return Promise.resolve(A + B + (C || 0));
+    return Promise.resolve(a + b + (c || 0));
 $$;
 ```
 
@@ -168,13 +180,13 @@ This is the nanoflow counterpart of `CALL JAVA ACTION` (microflows). Use it in a
 // END EXTRA CODE
 
 /**
- * @param {number} A
- * @param {number} B
+ * @param {number} a
+ * @param {number} b
  * @returns {Promise.<number>}
  */
-export async function JSA_Add(A, B) {
+export async function JSA_Add(a, b) {
     // BEGIN USER CODE
-    return Promise.resolve(A + B);
+    return Promise.resolve(a + b);
     // END USER CODE
 }
 ```
@@ -208,6 +220,7 @@ DESCRIBE JAVASCRIPT ACTION Module.Name;   -- re-executable MDL (signature + body
 | `already exists — use create or modify to overwrite` | Duplicate name without `OR MODIFY` | Add `OR MODIFY` |
 | Action runs nowhere / wrong client | `PLATFORM` too narrow | Set `PLATFORM All` (or the right target) |
 | `mismatched input 'platform'` | Clause out of order | Put `platform` after `exposed as`, before `as` |
+| `ReferenceError: Url is not defined` when the action runs | The body uses the declared parameter name; the `.js` signature has the first character lower-cased | Write `url`, not `Url` |
 
 ## Related Documentation
 

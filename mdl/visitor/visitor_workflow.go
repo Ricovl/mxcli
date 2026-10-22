@@ -704,6 +704,8 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		for _, beCtx := range c.AllWorkflowBoundaryEventClause() {
 			node.BoundaryEvents = append(node.BoundaryEvents, buildBoundaryEventNode(beCtx))
 		}
+	case c.AUTO() != nil:
+		node.AutoAssign = true
 	}
 }
 
@@ -822,6 +824,11 @@ func buildWorkflowCallWorkflow(ctx parser.IWorkflowCallWorkflowStmtContext) *ast
 	node.ParameterMappings = buildWorkflowCallArguments(cwCtx.WorkflowCallArguments())
 	if len(node.ParameterMappings) == 0 {
 		node.ParameterMappings = buildWorkflowParameterMappings(cwCtx.AllWorkflowParameterMapping())
+	}
+
+	// BoundaryEvents (mendixlabs/mxcli#1532)
+	for _, beCtx := range cwCtx.AllWorkflowBoundaryEventClause() {
+		node.BoundaryEvents = append(node.BoundaryEvents, buildBoundaryEventNode(beCtx))
 	}
 
 	return node

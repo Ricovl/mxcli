@@ -11,14 +11,27 @@ import (
 // dataSourceEntityContext returns the entity a datasource puts in scope for the
 // widgets inside it.
 //
-// For a database or association source the datasource reference *is* the entity.
-// For a microflow or nanoflow source it is the flow's own qualified name, so using
-// it directly named the flow as the context entity — `-- Context: $currentObject
+// For a database source the datasource reference *is* the entity. For a
+// microflow or nanoflow source it is the flow's own qualified name, so using it
+// directly named the flow as the context entity — `-- Context: $currentObject
 // (Module.GetOrders)` instead of `(Module.Order)` — and any consumer that resolves
 // attributes against the context was looking up the wrong element. The flow's
 // return type is resolved instead, falling back to the reference when the flow
 // cannot be found or does not return an object/list, which is what the caller
 // used before.
+//
+// For an association source the reference is the association's own qualified
+// name (`Module.Order_Customer`), the same mistake with a different element. The
+// entity it reaches is the destination stored on its last hop, which already
+// accounts for the direction travelled (owner to child or back, reference or
+// reference set) and for a specialization of the association's end; it is read
+// rather than re-derived. A source that stores none keeps the reference.
+//
+// For a page or snippet parameter the reference is the parameter's name
+// (`Entry`), which no consumer can compare with an entity: a pluggable
+// property bound to an attribute of another entity described back bare, and
+// re-exec bound it to the parameter's entity — CE1613 (mendixlabs/mxcli#1591).
+// The parameter's entity, stored beside the name, is used instead.
 func dataSourceEntityContext(ctx *ExecContext, ds *rawDataSource) string {
 	if ds == nil || ds.Reference == "" {
 		return ""
@@ -27,6 +40,10 @@ func dataSourceEntityContext(ctx *ExecContext, ds *rawDataSource) string {
 	case "microflow", "nanoflow":
 		if entity := flowReturnEntity(ctx, ds.Type, ds.Reference); entity != "" {
 			return entity
+		}
+	case "association", "parameter":
+		if ds.Destination != "" {
+			return ds.Destination
 		}
 	}
 	return ds.Reference

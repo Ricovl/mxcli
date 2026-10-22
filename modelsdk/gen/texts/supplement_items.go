@@ -8,6 +8,7 @@
 package texts
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -29,7 +30,7 @@ func ReadTranslationPairs(raw []byte) []TranslationPair {
 		return nil
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
 	itemsRaw, ok := doc["Items"]
