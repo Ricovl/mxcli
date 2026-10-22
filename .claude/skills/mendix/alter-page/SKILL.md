@@ -17,10 +17,10 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 482-560 | Examples |
 | 561-651 | DataGrid 2 columns: how to address them, and what you can set |
 | 652-663 | Common Mistakes |
-| 664-701 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 702-709 | Validation Checklist |
-| 710-719 | Related Commands |
-| 720-724 | Related Skills |
+| 664-696 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 697-704 | Validation Checklist |
+| 705-714 | Related Commands |
+| 715-719 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -678,14 +678,9 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
 
-**An Accordion group (any pluggable object-list item) has no name either.**
-   `group g1 (…)` keeps no `g1`, so address the group on its widget:
-   `insert into acc1 item@2 { … }` fills its body, `acc1 item('One')` finds it
-   by its headerText, `acc1 item(btnIn)` by a widget inside it, and
-   `acc1 item@1.headercontent` names its header slot. The header slot is hidden
-   — and refused — while `headerRenderMode` is `'text'`: write
-   `set (headerRenderMode: 'custom') on acc1 item@1;` first. Adding a new group
-   with `insert after acc1 item@1` is not supported.
+**An Accordion group has no name either** (`group g1` keeps no `g1`): use
+   `acc1 item@2`, `acc1 item('One')` or `acc1 item(btnIn)`; `.headercontent` is its
+   header slot, refused until `set (headerRenderMode: 'custom') on acc1 item@1`.
 
 **A pluggable widget's slot has no name either.** A Data grid 2's control bar
    (`controlbar { … }` in describe) is a property of the grid, so address it by
