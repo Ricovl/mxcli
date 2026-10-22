@@ -4,6 +4,7 @@ package marketplace
 
 import (
 	"archive/zip"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
@@ -348,14 +349,23 @@ func setBoolField(doc bson.D, key string, value bool) {
 //     3.5.0 copy.
 //
 // The second looked like a cross-module dependency on a newer Atlas. It was not.
-// Copying everything the package ships, rather than enumerating the directories
-// that seem to matter, is what stops there being a third instance.
-// Two entries are deliberately not installed, both measured on real packages —
-// see widgetversion.go: a bundled widget older than the copy the project already
-// has (it would silently roll the project back), and the unpacked twin of a
-// widget the same package also ships as a .mpk. Both are returned in skipped
-// rather than dropped quietly, because "the package wanted a different version"
-// is exactly the thing that was invisible before.
+// Copying everything the package declares, rather than enumerating the
+// directories that seem to matter, is what stops there being a third instance.
+//
+// "Declares" is package.xml's <files> list, and it is the line between payload
+// and the package's own metadata: License.txt, manifest.json, a READMEOSS
+// report and "Mendix EULA.docx" sit at the root of published packages, are not
+// listed, and landed in the app root as untracked files (mendixlabs/mxcli#1487).
+// `mx module-import` writes exactly the listed files and passes over a listed
+// one the archive lacks — measured on 11.12.1 — so this does the same.
+//
+// Three kinds of entry are deliberately not installed, all measured on real
+// packages: one package.xml does not list; a bundled widget older than the copy
+// the project already has (it would silently roll the project back, see
+// widgetversion.go); and the unpacked twin of a widget the same package also
+// ships as a .mpk. All are returned in skipped rather than dropped quietly,
+// because "the package wanted a different version" is exactly the thing that
+// was invisible before.
 func InstallPackageFiles(mpkPath, projectDir string) (written []string, skipped []SkippedFile, err error) {
 	// Anchor the project first. A relative projectDir ("." from `-p app.mpr`)
 	// made filepath.Join drop the dot, so "manifest.json" was compared against
@@ -369,6 +379,8 @@ func InstallPackageFiles(mpkPath, projectDir string) (written []string, skipped 
 		return nil, nil, fmt.Errorf("open package %s: %w", filepath.Base(mpkPath), err)
 	}
 	defer zr.Close()
+
+	declared, listed := declaredProjectFiles(zr.File)
 
 	// Which unpacked trees duplicate a .mpk in this same package.
 	twins := map[string]string{}
@@ -410,6 +422,10 @@ func InstallPackageFiles(mpkPath, projectDir string) (written []string, skipped 
 		dst := filepath.Join(projectDir, clean)
 		if !strings.HasPrefix(filepath.Clean(dst), filepath.Clean(projectDir)+string(os.PathSeparator)) {
 			return written, skipped, fmt.Errorf("package entry %q would write outside the project", f.Name)
+		}
+		if !isProjectFile(f.Name, declared, listed) {
+			skipped = append(skipped, SkippedFile{Path: f.Name, Reason: ReasonNotAProjectFile})
+			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return written, skipped, fmt.Errorf("create %s: %w", filepath.Dir(dst), err)
@@ -455,6 +471,61 @@ func duplicateOfPackagedWidget(name string, twins map[string]string) (string, bo
 		}
 	}
 	return "", false
+}
+
+// ReasonNotAProjectFile is the SkippedFile reason for an entry package.xml does
+// not list: the package's own metadata (License.txt, manifest.json, ...), which
+// Studio Pro does not install either.
+const ReasonNotAProjectFile = "package metadata: package.xml does not list it as a project file"
+
+// declaredProjectFiles reads the project files a module package's package.xml
+// lists under <files>. listed is false when there is no such list at all — no
+// package.xml, or one without <files> — which is not the same as an empty list.
+func declaredProjectFiles(entries []*zip.File) (declared map[string]bool, listed bool) {
+	for _, f := range entries {
+		if f.Name != "package.xml" {
+			continue
+		}
+		rc, err := zipentry.Open(f)
+		if err != nil {
+			return nil, false
+		}
+		defer rc.Close()
+		var manifest struct {
+			Files *struct {
+				File []struct {
+					Path string `xml:"path,attr"`
+				} `xml:"file"`
+			} `xml:"modelerProject>files"`
+		}
+		if xml.NewDecoder(rc).Decode(&manifest) != nil || manifest.Files == nil {
+			return nil, false
+		}
+		declared = make(map[string]bool, len(manifest.Files.File))
+		for _, d := range manifest.Files.File {
+			declared[packagePath(d.Path)] = true
+		}
+		return declared, true
+	}
+	return nil, false
+}
+
+// isProjectFile reports whether a package entry belongs in the project. With a
+// <files> list that list decides. Without one, only an entry at the package
+// root is left out: every root entry in the packages measured was metadata, and
+// every project file sits under a folder (javasource/, themesource/, widgets/).
+func isProjectFile(name string, declared map[string]bool, listed bool) bool {
+	name = packagePath(name)
+	if listed {
+		return declared[name]
+	}
+	return strings.Contains(name, "/")
+}
+
+// packagePath puts a package path in one spelling, so a package.xml entry
+// written with Windows separators still matches the archive's.
+func packagePath(p string) string {
+	return strings.TrimPrefix(strings.ReplaceAll(p, `\`, "/"), "./")
 }
 
 // PerformInstall adds a module that is not yet in the project, copying it from
