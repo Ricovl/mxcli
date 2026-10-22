@@ -5,6 +5,8 @@ package mpr
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -213,7 +215,7 @@ func (r *Reader) buildUnitCache() error {
 			}
 			opened++
 			typeName = getTypeFromContents(contents)
-			r.learnUnitType(hash, typeName)
+			r.learnUnitType(contentsHash(contents), typeName)
 		}
 		if hash != "" {
 			hashes[hash] = struct{}{}
@@ -350,6 +352,13 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 		r.contentMu.Unlock()
 	}
 	return data, nil
+}
+
+// contentsHash is a unit's ContentsHash as Studio Pro and the writer compute
+// it: base64(SHA-256(contents)).
+func contentsHash(contents []byte) string {
+	sum := sha256.Sum256(contents)
+	return base64.StdEncoding.EncodeToString(sum[:])
 }
 
 // getTypeFromContents extracts the $Type field from BSON contents.

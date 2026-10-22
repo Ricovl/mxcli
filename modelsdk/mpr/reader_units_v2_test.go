@@ -224,3 +224,30 @@ func TestListUnitsV2_CorruptIndexIsIgnored(t *testing.T) {
 		t.Errorf("listed %d modules with a corrupt index, want 1", got)
 	}
 }
+
+// A reader that catches a unit between a writer's file rename and its hash
+// update sees new bytes under the old hash. Learning that pair would list the
+// unit under the wrong type once the old bytes are back — a rolled-back write,
+// a checkout — so the index learns the hash of what it read.
+func TestListUnitsV2_FileAheadOfItsHashTeachesNothingWrong(t *testing.T) {
+	p, _ := seedProject(t, 3)
+	unit := p.add(t, 10, "Microflows$Microflow")
+	stored, err := os.ReadFile(p.unitPath(unit))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The window: the file is a module now, the row still hashes the microflow.
+	if err := os.WriteFile(p.unitPath(unit), typedDoc(t, "Projects$ModuleImpl", "Midway"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(listModules(t, p.reader())); got != 2 {
+		t.Fatalf("listed %d modules mid-write, want 2 (the file is what is read)", got)
+	}
+	// The write is undone: file and row agree again on the microflow.
+	if err := os.WriteFile(p.unitPath(unit), stored, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(listModules(t, p.reader())); got != 1 {
+		t.Errorf("listed %d modules after the write was undone, want 1: the index learnt the stale hash with the new type", got)
+	}
+}

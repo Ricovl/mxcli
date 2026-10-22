@@ -31,10 +31,13 @@ import (
 // or unwritable all mean "type from the file", never a wrong answer. A unit
 // with no ContentsHash cannot be keyed and is read every time, as before.
 //
-// The one input it trusts is ContentsHash itself. A .mxunit edited behind the
-// table's back is already a broken project (`mxcli mpr verify-hashes` finds
-// it, ako/mxcli#972), and this index would list such a unit under the type
-// its stored hash was last seen with.
+// An entry is learnt under the hash of the bytes actually read, not the hash
+// the row claims, so a file caught between a writer's rename and its hash
+// update — or one edited behind the table's back — cannot teach the index a
+// wrong pair. What the index does trust is that a row's ContentsHash describes
+// its file: where it does not, the project is already broken (`mxcli mpr
+// verify-hashes` finds it, ako/mxcli#972), and a lookup by that stale hash
+// returns the type of the bytes it was last true of.
 
 const unitTypeIndexName = "unit-types.idx"
 
