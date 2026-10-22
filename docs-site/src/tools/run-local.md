@@ -100,6 +100,12 @@ again` when it happens, so a browser test knows to sign in before its next step.
     `~/.mxcli/postgres/server.log`. Stop it with
     `pg_ctl -D "$HOME/.mxcli/postgres/data" stop`. To remove it, stop it first and
     then delete `~/.mxcli/postgres` (this permanently deletes its databases).
+    A server whose `postgres` superuser has a password — **every Windows install**,
+    where the installer always sets one — needs that login:
+    `--ensure-db --db-admin-user postgres --db-admin-password <password>`, or set
+    `PGPASSWORD` (or a `.pgpass` entry) for `postgres`, which keeps the password off
+    the command line. The admin login only creates the role and database; the app
+    still connects as `--db-user`.
   - Otherwise create it once yourself; without `--ensure-db`, `run --local` stops with
     an actionable message if the DB is unreachable:
 
@@ -127,6 +133,7 @@ would make Studio Pro 11.13 fail to open it — a branch with no upstream, or
 | `--watch` | off | Rebuild + hot-apply on every project change |
 | `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build (e.g. `10m`); on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + the app database if missing (fresh-session bootstrap) |
+| `--db-admin-user` / `--db-admin-password` | postgres / — | Superuser login `--ensure-db` creates the role and database with when it has a password (Windows). Only with `--ensure-db`; never passed to the runtime |
 | `--setup` | off | Prepare prerequisites (cache MxBuild+runtime, ensure DB) and exit without booting — for a SessionStart hook |
 | `--app-port` | 8080 | App HTTP port |
 | `--admin-port` | 8090 | M2EE admin API port |

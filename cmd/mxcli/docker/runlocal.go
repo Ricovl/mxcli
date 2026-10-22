@@ -231,6 +231,12 @@ func (o *LocalRunOptions) applyDatabaseDefaults() error {
 	if o.DB.Name == "" {
 		o.DB.Name = deriveDBName(o.ProjectPath)
 	}
+	// The admin login only provisions; nothing else would use it, so accepting
+	// it alone would suggest it had been applied.
+	if (o.DB.AdminUser != "" || o.DB.AdminPassword != "") && !o.EnsureDB {
+		return fmt.Errorf("--db-admin-user/--db-admin-password are used only by --ensure-db, " +
+			"to create the role and database — add --ensure-db")
+	}
 	if IsFileBasedDBType(kind) {
 		// The built-in database is a file: it has no host or credentials, and
 		// accepting them would imply a connection that never happens.
