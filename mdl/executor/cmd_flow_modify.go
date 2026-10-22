@@ -920,6 +920,9 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 			}
 			return pd.statements(d.ElseBody, s.ElseBody)
 		}
+		if sameHandlerShell(ins[0], del[0]) {
+			return pd.handlerEdit(ins[0], del[0])
+		}
 		if sameLoopShell(ins[0], del[0]) {
 			return pd.loopBody(ins[0], del[0])
 		}
@@ -1506,6 +1509,12 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 			case sameExceptPositions(declared[i], stored[j]):
 				w[i][j] = 1
 			case sameBlockShell(declared[i], stored[j]):
+				w[i][j] = 1
+			case sameHandlerShell(declared[i], stored[j]):
+				// An activity with the same custom error handler kind is that
+				// activity, changed itself or inside its handler
+				// (mendixlabs/mxcli#1489): a change beside it must not merge
+				// with it into a replace, which would take the handler out.
 				w[i][j] = 1
 			case editableLoopBody(declared[i], stored[j]):
 				// A loop edited in place inside is that loop: a change beside

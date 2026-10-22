@@ -159,6 +159,13 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		if err != nil {
 			return fail(err)
 		}
+		if op.Op == ast.AlterFlowReplace {
+			// An activity with a custom error handler, replaced by one that
+			// states the same handler, keeps the stored one (mendixlabs/mxcli#1489).
+			if frag, err = a.keepStoredHandler(ctx, op, target, frag); err != nil {
+				return fail(err)
+			}
+		}
 		if loop != nil && (len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0) {
 			return inLoop()
 		}
@@ -236,6 +243,11 @@ type alterFlowContext struct {
 	// the members a full build of the same statement writes (ako/mxcli#885):
 	// the stored flow alone does not say what every variable holds.
 	declaredVarTypes map[string]string
+
+	// storedDesc is the stored flow as describe prints it with full layout,
+	// read once when an operation needs the stored statement behind a target
+	// (storedStatementAt).
+	storedDesc ast.Statement
 }
 
 // enclosingLoop returns the top-level loop whose body holds the stored
