@@ -3,6 +3,8 @@
 package modelsdkbackend
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -62,6 +64,7 @@ func TestGetDomainModel_AgreesWithTheFullListing(t *testing.T) {
 	}{
 		{"pedapp", copyPedApp},
 		{"expr-checker", copyFixture},
+		{"v1", copyV1Project}, // the container filter on MPR v1's listing
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			b := New()
@@ -72,6 +75,9 @@ func TestGetDomainModel_AgreesWithTheFullListing(t *testing.T) {
 			all, err := b.ListDomainModels()
 			if err != nil {
 				t.Fatalf("list domain models: %v", err)
+			}
+			if len(all) < 2 {
+				t.Fatalf("control: the fixture has no stored domain model, only System's")
 			}
 			specializations := 0
 			for _, want := range all {
@@ -93,6 +99,15 @@ func TestGetDomainModel_AgreesWithTheFullListing(t *testing.T) {
 			}
 		})
 	}
+}
+
+func copyV1Project(t *testing.T) string {
+	t.Helper()
+	dst := t.TempDir()
+	if err := os.CopyFS(dst, os.DirFS("../../../modelsdk/mpr/testdata/v1-project")); err != nil {
+		t.Fatalf("copy v1 fixture: %v", err)
+	}
+	return filepath.Join(dst, "App.mpr")
 }
 
 // A generalization chain into another stored module is the one case where the

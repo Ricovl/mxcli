@@ -93,21 +93,23 @@ func (r *Reader) listUnitsByTypeV1In(typeName, containerID string) ([]rawUnit, e
 		}
 	}()
 	var units []rawUnit
+	// Formatting a UUID costs more than the rest of the row, so the container
+	// is compared only for units of the wanted type.
+	inContainer := func(m v1UnitMeta) bool {
+		return containerID == "" || blobToUUID(m.containerBlob) == containerID
+	}
 	for _, m := range metas {
-		if containerID != "" && blobToUUID(m.containerBlob) != containerID {
-			continue
-		}
 		var contents []byte
 		var unitType string
 		if m.overlaid {
 			contents = m.held
 			unitType = getTypeFromContents(contents)
-			if unitType != typeName {
+			if unitType != typeName || !inContainer(m) {
 				continue
 			}
 		} else {
 			unitType = r.v1Types[m.key].typ
-			if unitType != typeName {
+			if unitType != typeName || !inContainer(m) {
 				continue
 			}
 			if stmt == nil {
