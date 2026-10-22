@@ -675,6 +675,7 @@ create or modify translations in Administration for nl_NL (
 			"add language", "remove language", "enable language", "translations",
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
+			"jvm parameters", "proxy",
 		},
 		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
 ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
@@ -707,6 +708,10 @@ ALTER SETTINGS CONSTANT @BusinessEvents.ServerUrl VALUE 'kafka:9092'
 CREATE CONFIGURATION 'Production' (
   DatabaseType: 'PostgreSql',
   HttpPortNumber: 8080
+);
+-- Server tab > Extra JVM parameters, e.g. a proxy for the runtime JVM.
+ALTER SETTINGS CONFIGURATION 'Default' (
+  ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'
 );
 
 -- LANGUAGE ADD/REMOVE change the ENABLED languages — the list under App
