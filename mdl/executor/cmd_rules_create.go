@@ -163,6 +163,8 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 
 	// Validate and add parameters
 	for i, p := range s.Parameters {
+		p.Type = settleSystemEnumeration(p.Type)
+		s.Parameters[i].Type = p.Type
 		if p.Type.EntityRef != nil && !isBuiltinModuleEntity(p.Type.EntityRef.Module) {
 			entityID := entityResolver(*p.Type.EntityRef)
 			if entityID == "" {
@@ -178,7 +180,7 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 			}
 		}
 		if p.Type.Kind == ast.TypeEnumeration && p.Type.EnumRef != nil {
-			if found := findEnumeration(ctx, p.Type.EnumRef.Module, p.Type.EnumRef.Name); found == nil {
+			if !isKnownEnumeration(ctx, p.Type.EnumRef.Module, p.Type.EnumRef.Name) {
 				return mdlerrors.NewNotFoundMsg("enumeration", p.Type.EnumRef.Module+"."+p.Type.EnumRef.Name,
 					fmt.Sprintf("enumeration '%s.%s' not found for parameter '%s'", p.Type.EnumRef.Module, p.Type.EnumRef.Name, p.Name))
 			}
@@ -197,6 +199,7 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 
 	// Validate and set return type
 	if s.ReturnType != nil {
+		s.ReturnType.Type = settleSystemEnumeration(s.ReturnType.Type)
 		if s.ReturnType.Type.EntityRef != nil && !isBuiltinModuleEntity(s.ReturnType.Type.EntityRef.Module) {
 			entityID := entityResolver(*s.ReturnType.Type.EntityRef)
 			if entityID == "" {
@@ -210,7 +213,7 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 			}
 		}
 		if s.ReturnType.Type.Kind == ast.TypeEnumeration && s.ReturnType.Type.EnumRef != nil {
-			if found := findEnumeration(ctx, s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name); found == nil {
+			if !isKnownEnumeration(ctx, s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name) {
 				return mdlerrors.NewNotFoundMsg("enumeration", s.ReturnType.Type.EnumRef.Module+"."+s.ReturnType.Type.EnumRef.Name,
 					fmt.Sprintf("enumeration '%s.%s' not found for return type", s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name))
 			}

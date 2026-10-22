@@ -25,7 +25,8 @@ import (
 // takes no unit bytes, so Save diffs the spliced document against the stored
 // one and sends the difference as ped_update_document path operations on the
 // live document: positions set, new objects and flows added, rewired flow ends
-// set, removed elements removed. PED addresses list entries by index, and those
+// set, removed elements removed — and, in a second update, the new elements
+// filled in (flowPatchOps says why). PED addresses list entries by index, and those
 // indexes are the stored order — so before anything is sent, the live document
 // is read back and compared with the local one, and a mismatch (the .mpr is
 // behind Studio Pro) refuses the write rather than patching the wrong element.
@@ -203,7 +204,7 @@ func (d *mcpFlowDeps) SaveUnit(_ string, contents []byte) error {
 	if err := bson.Unmarshal(contents, &spliced); err != nil {
 		return err
 	}
-	ops, err := d.b.flowPatchOps(d, spliced)
+	ops, fill, err := d.b.flowPatchOps(d, spliced)
 	if err != nil {
 		return err
 	}
@@ -221,9 +222,20 @@ func (d *mcpFlowDeps) SaveUnit(_ string, contents []byte) error {
 			return fmt.Errorf("%s: refusing to send a removal over MCP", d.qn)
 		}
 	}
-	// One update: PED applies it all or, on a failure, nothing.
+	// Two updates, because PED cannot address an element in the update that
+	// adds it (see flowPatchOps). The first is all or nothing: the new
+	// elements, wired in, and the stored ones moved to make room. The second
+	// fills in the new elements. If it fails, the first is not rolled back:
+	// the insert is left in Studio Pro without what the second carried, as a
+	// create is when setting its activities fails (CreateMicroflow), and
+	// ped_check_errors names what is missing.
 	if err := d.b.pedUpdateDoc(d.docType, d.qn, ops...); err != nil {
 		return err
+	}
+	if len(fill) > 0 {
+		if err := d.b.pedUpdateDoc(d.docType, d.qn, fill...); err != nil {
+			return fmt.Errorf("the insert into %s was added in Studio Pro, but setting up its new activities and flows failed (the insert is left in Studio Pro without them): %w", d.qn, err)
+		}
 	}
 	return d.b.pedCheckDocument(d.docType, d.qn)
 }
@@ -280,7 +292,21 @@ func pedVector(s string) map[string]int {
 	return map[string]int{"width": p["x"], "height": p["y"]}
 }
 
-var pedSides = []string{"Top", "Right", "Bottom", "Left"}
+// newFlowLineOps sets the control vectors of a sequence flow the insert added,
+// at fp. A 0;0 vector is the line's schema default and is left out.
+func newFlowLineOps(fp string, f *microflows.SequenceFlow) []pedOpEntry {
+	var ops []pedOpEntry
+	for _, v := range []struct{ key, vec string }{
+		{"originControlVector", f.OriginControlVector},
+		{"destinationControlVector", f.DestinationControlVector},
+	} {
+		if v.vec == "" || v.vec == "0;0" {
+			continue
+		}
+		ops = append(ops, pedOpEntry{Path: fp + "/line/" + v.key, Operation: pedOperation{Type: "set", Value: pedVector(v.vec)}})
+	}
+	return ops
+}
 
 // pedQualifiedFlowType maps the storage $Type of a flow object to the
 // qualified name PED reports for it, where the two differ (CLAUDE.md, "BSON
@@ -294,8 +320,26 @@ var pedQualifiedFlowType = map[string]string{
 // everything that uses a stored index (positions, rewired flows) and every
 // append goes first, while indexes are still the stored ones; removals go
 // last, highest index first.
-func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, error) {
-	var ops []pedOpEntry
+//
+// They come in two updates. PED resolves a path against the document as it
+// was before the update — its own rule for indexes — so an element the update
+// adds cannot be addressed in it (measured on 11.15.0-rc.4). A set below a new
+// flow's line fails the whole update with `undefined is not an object
+// (evaluating 'u.$Type')`; any other set on a new element — an activity's
+// action, its position, a flow's isErrorHandler or whole line — is accepted
+// and then missing on read-back, and so is the same property put in the
+// constructor value. The same sets land in a later update. So ops adds the new
+// elements (constructor properties only, references as $id(), which do
+// resolve) and changes the stored ones; fill sets the rest on the new elements,
+// for SaveUnit to send once they exist.
+//
+// Every add carries the array's stored length as its index. Appended without
+// one, several elements added to the same array in one update are stored in
+// reverse (measured on 11.15.0-rc.4: three objects, two flows), and $id()
+// resolves against that final order — so an insert of more than one element
+// was wired to the wrong objects. Added at one shared index they are stored as
+// listed, which is PED's own rule for adding several elements at a position.
+func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) (ops, fill []pedOpEntry, err error) {
 	set := func(path string, v any) {
 		ops = append(ops, pedOpEntry{Path: path, Operation: pedOperation{Type: "set", Value: v}})
 	}
@@ -327,25 +371,25 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 	for j, id := range added {
 		path[id] = fmt.Sprintf("/objectCollection/objects/%d", len(oldObjIDs)+j)
 	}
+	objectsEnd, flowsEnd := len(oldObjIDs), len(oldFlowIDs)
 	for _, id := range added {
 		obj, ok := d.objects[id]
 		if !ok {
-			return nil, fmt.Errorf("internal: spliced object %s was not serialized", id)
+			return nil, nil, fmt.Errorf("internal: spliced object %s was not serialized", id)
 		}
 		idPath := map[model.ID]string{}
 		m, err := b.mapObjectTree(obj, path[id], idPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		var sets []pedOpEntry
 		skeletonObject(m, path[id], func(p string, v any) {
-			sets = append(sets, pedOpEntry{Path: p, Operation: pedOperation{Type: "set", Value: v}})
+			fill = append(fill, pedOpEntry{Path: p, Operation: pedOperation{Type: "set", Value: v}})
 		})
-		ops = append(ops, pedOpEntry{Path: "/objectCollection/objects", Operation: pedOperation{Type: "add", Value: m}})
-		ops = append(ops, sets...)
-		// The skeleton constructor ignores a position; set it on the stored element.
+		ops = append(ops, pedOpEntry{Path: "/objectCollection/objects", Operation: pedOperation{Type: "add", Value: m, Index: &objectsEnd}})
+		// The constructor's x/y place it on 11.15; the set is for a server
+		// whose skeleton constructor ignores them.
 		p := obj.GetPosition()
-		set(path[id]+"/relativeMiddlePoint", map[string]int{"x": p.X, "y": p.Y})
+		fill = append(fill, pedOpEntry{Path: path[id] + "/relativeMiddlePoint", Operation: pedOperation{Type: "set", Value: map[string]int{"x": p.X, "y": p.Y}}})
 		for nested, np := range idPath {
 			path[string(nested)] = np
 		}
@@ -378,7 +422,7 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 			if pointerID(o, end+"Pointer") != pointerID(n, end+"Pointer") {
 				r, err := ref(pointerID(n, end+"Pointer"))
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 				set(fp+"/"+key, r)
 			}
@@ -392,57 +436,55 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 			}
 		}
 	}
-	for j, id := range addedFlows {
-		fp := fmt.Sprintf("/flows/%d", len(oldFlowIDs)+j)
+	// Sequence flows are added before note lines, the order a stored document
+	// has them in, so fill addresses the new sequence flows from the stored
+	// length up.
+	var addedNotes []*microflows.AnnotationFlow
+	next := len(oldFlowIDs)
+	for _, id := range addedFlows {
 		if af, ok := d.annotations[id]; ok {
-			o, err := ref(string(af.OriginID))
-			if err != nil {
-				return nil, err
-			}
-			dst, err := ref(string(af.DestinationID))
-			if err != nil {
-				return nil, err
-			}
-			ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: map[string]any{
-				"$Type": "Microflows$AnnotationFlow", "originId": o, "destinationId": dst}}})
+			addedNotes = append(addedNotes, af)
 			continue
 		}
+		fp := fmt.Sprintf("/flows/%d", next)
+		next++
 		f, ok := d.flows[id]
 		if !ok {
-			return nil, fmt.Errorf("internal: spliced flow %s was not serialized", id)
+			return nil, nil, fmt.Errorf("internal: spliced flow %s was not serialized", id)
 		}
 		o, err := ref(string(f.OriginID))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		dst, err := ref(string(f.DestinationID))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		v := map[string]any{"$Type": "Microflows$SequenceFlow", "originId": o, "destinationId": dst}
-		if f.OriginConnectionIndex >= 0 && f.OriginConnectionIndex < 4 {
-			v["originConnectionSide"] = pedSides[f.OriginConnectionIndex]
-		}
-		if f.DestinationConnectionIndex >= 0 && f.DestinationConnectionIndex < 4 {
-			v["destinationConnectionSide"] = pedSides[f.DestinationConnectionIndex]
-		}
+		setPEDSides(v, f)
 		cv, err := mapCaseValue(f.CaseValue)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if cv != nil {
 			v["caseValue"] = cv
 		}
-		ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: v}})
+		ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: v, Index: &flowsEnd}})
 		if f.IsErrorHandler {
-			set(fp+"/isErrorHandler", true)
+			fill = append(fill, pedOpEntry{Path: fp + "/isErrorHandler", Operation: pedOperation{Type: "set", Value: true}})
 		}
-		if f.OriginControlVector != "" {
-			set(fp+"/line/originControlVector", pedVector(f.OriginControlVector))
+		fill = append(fill, newFlowLineOps(fp, f)...)
+	}
+	for _, af := range addedNotes {
+		o, err := ref(string(af.OriginID))
+		if err != nil {
+			return nil, nil, err
 		}
-		if f.DestinationControlVector != "" {
-			set(fp+"/line/destinationControlVector", pedVector(f.DestinationControlVector))
+		dst, err := ref(string(af.DestinationID))
+		if err != nil {
+			return nil, nil, err
 		}
+		ops = append(ops, pedOpEntry{Path: "/flows", Operation: pedOperation{Type: "add", Value: pedAnnotationFlow(af, o, dst), Index: &flowsEnd}})
 	}
 
 	for i := len(oldFlowIDs) - 1; i >= 0; i-- {
@@ -457,7 +499,7 @@ func (b *Backend) flowPatchOps(d *mcpFlowDeps, spliced bson.D) ([]pedOpEntry, er
 			ops = append(ops, pedOpEntry{Path: "/objectCollection/objects", Operation: pedOperation{Type: "remove", Index: &idx}})
 		}
 	}
-	return ops, nil
+	return ops, fill, nil
 }
 
 // checkLiveFlowMatches compares the live document's objects and flows with the

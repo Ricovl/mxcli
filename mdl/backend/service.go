@@ -37,6 +37,10 @@ type RESTBackend interface {
 	ListPublishedRestServices() ([]*model.PublishedRestService, error)
 	CreateConsumedRestService(svc *model.ConsumedRestService) error
 	UpdateConsumedRestService(svc *model.ConsumedRestService) error
+	// EditConsumedRestService edits a stored consumed REST service in place
+	// (`alter consumed rest service`): what the edit does not name is written
+	// back as stored.
+	EditConsumedRestService(id model.ID, edit *ConsumedRestServiceEdit) error
 	DeleteConsumedRestService(id model.ID) error
 	CreatePublishedRestService(svc *model.PublishedRestService) error
 	UpdatePublishedRestService(svc *model.PublishedRestService) error
@@ -66,4 +70,35 @@ type DataTransformerBackend interface {
 	CreateDataTransformer(dt *model.DataTransformer) error
 	UpdateDataTransformer(dt *model.DataTransformer) error
 	DeleteDataTransformer(id model.ID) error
+}
+
+// ConsumedRestServiceEdit is an in-place edit of a stored consumed REST
+// service. Every operation it does not drop or modify is written back as its
+// stored bytes, keeping whatever Studio Pro gave it that MDL has no words for
+// (mendixlabs/mxcli#1608).
+type ConsumedRestServiceEdit struct {
+	// BaseUrl, when non-nil, replaces the service's base URL.
+	BaseUrl *string
+	// SetAuthentication replaces the authentication scheme with
+	// Authentication; nil is none.
+	SetAuthentication bool
+	Authentication    *model.RestAuthentication
+	// Drop names the stored operations to remove.
+	Drop []string
+	// Modify rewrites some properties of stored operations.
+	Modify []ConsumedRestOperationEdit
+	// Add appends new operations after the stored ones, in order.
+	Add []*model.RestClientOperation
+}
+
+// ConsumedRestOperationEdit rewrites some properties of one stored operation.
+type ConsumedRestOperationEdit struct {
+	// Name is the stored operation's name.
+	Name string
+	// Operation is the operation as it reads after the edit.
+	Operation *model.RestClientOperation
+	// Keys are the MDL properties to write from Operation — Method, Path,
+	// Parameters, Query, Headers, Body, Timeout, Response. Every other stored
+	// property of the operation is kept.
+	Keys []string
 }

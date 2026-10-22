@@ -7,8 +7,8 @@
 #   VAL_ - Validation microflows
 #   SCH_ - Scheduled event microflows
 #
-# Customize the prefixes in lint-config.yaml rather than here (`mxcli init`
-# rewrites this file):
+# Customize the prefixes in lint-config.yaml rather than here (an edited copy
+# of this file is kept, and no longer receives mxcli's updates to the rule):
 #
 #   rules:
 #     CUSTOM002:

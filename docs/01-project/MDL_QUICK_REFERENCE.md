@@ -1184,7 +1184,11 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 | Show clients | `list consumed rest services [in module];` | List all or filter by module |
 | Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing — an operation it omits is removed (and named in the output) |
+| Add operation | `alter consumed rest service Module.Name add operation Name ( ... );` | Operation body uses CREATE syntax; other operations stay as stored |
+| Modify operation | `alter consumed rest service Module.Name modify operation Name ( Timeout: 60 );` | Writes only the keys listed |
+| Drop operation | `alter consumed rest service Module.Name drop operation Name;` | |
+| Set service properties | `alter consumed rest service Module.Name set ( BaseUrl: '...', Authentication: none );` | BaseUrl, Authentication |
 | Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
@@ -1222,7 +1226,7 @@ create consumed rest service Module.Api (
 ```
 
 **Body types:** `json from $var`, `template '...'`, `mapping entity { jsonField = attr, ... }`
-**Response types:** `json as $var`, `string as $var`, `file as $var`, `status as $var`, `none`, `mapping entity { attr = jsonField, ... }`
+**Response types:** `json`, `string`, `file`, `status` (each optionally `as $var` — the variable is not stored), `none`, `mapping entity { attr = jsonField, ... }`
 **Authentication:** `none`, `basic (username: '...', password: '...')`
 
 ### OpenAPI Import
@@ -1967,7 +1971,9 @@ Name the widget the way you write it in a page body. The target is stored as the
 | Setup mxcli | `mxcli setup mxcli [--os linux]` | Download platform-specific mxcli binary |
 | LSP server | `mxcli lsp --stdio` | Language server for VS Code |
 
-Set `MXCLI_EXEC_TIMEOUT` to override the per-statement execution timeout (default 5m) used by `mxcli exec` (for example `MXCLI_EXEC_TIMEOUT=12m` or `MXCLI_EXEC_TIMEOUT=900`). `REFRESH CATALOG` is exempt from the default guard — it runs without a wall-clock limit on large projects — unless you set `MXCLI_EXEC_TIMEOUT` explicitly (which then applies to it too, letting you cap it).
+Set `MXCLI_EXEC_TIMEOUT` to override the per-statement execution timeout (default 5m) used by `mxcli exec` (for example `MXCLI_EXEC_TIMEOUT=12m` or `MXCLI_EXEC_TIMEOUT=900`). `REFRESH CATALOG` and `DESCRIBE MODULE … WITH ALL` are exempt from the default guard — they run without a wall-clock limit on large projects and modules — unless you set `MXCLI_EXEC_TIMEOUT` explicitly (which then applies to them too, letting you cap them).
+
+Set `MXCLI_OUTPUT_LINE_LIMIT` to override the per-statement output limit (default 10,000 lines; `0` for none). A statement that passes it is aborted with its output truncated. `DESCRIBE MODULE … WITH ALL` is exempt from the default limit — its output is bounded by the module — unless you set `MXCLI_OUTPUT_LINE_LIMIT` explicitly.
 
 ## ANTLR4 Parser Architecture
 

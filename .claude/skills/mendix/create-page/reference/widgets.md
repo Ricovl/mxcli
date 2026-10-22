@@ -544,6 +544,9 @@ A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned 
 ```sql
 -- Enumeration mode (attribute is an enum type):
 combobox cbCountry (label: 'Country', attribute: Country)
+-- WRONG: enumeration mode on any other type — a Boolean included — is CE7247
+-- "Only attributes of type Enumeration are allowed here." (MDL-WIDGET39 with -p).
+-- For a Boolean use `checkbox` or `radiobuttons`.
 
 -- Association mode: bind a reference. Requires the option DataSource (the target
 -- entity whose objects fill the dropdown) AND a CaptionAttribute (display value).

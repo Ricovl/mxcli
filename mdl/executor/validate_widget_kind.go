@@ -39,7 +39,7 @@ func explicitWidgetID(w *ast.WidgetV3) string {
 // validateWidgetKind reports a widget whose kind mxcli cannot resolve, and a
 // container keyword the parent's definition does not declare.
 func validateWidgetKind(w *ast.WidgetV3, registry *WidgetRegistry, parentDef *WidgetDefinition,
-	parentObjectLists map[string]*ObjectListMapping, locationPrefix string) []linter.Violation {
+	parentObjectLists map[string]*ObjectListMapping, parentItem *ObjectListMapping, locationPrefix string) []linter.Violation {
 	if w == nil || registry == nil {
 		return nil
 	}
@@ -88,6 +88,13 @@ func validateWidgetKind(w *ast.WidgetV3, registry *WidgetRegistry, parentDef *Wi
 	// real one would be reported.
 	if w.TypeIsGeneric && registryProjectPath(registry) != "" {
 		if _, known := registry.Get(strings.ToUpper(w.Type)); known {
+			return nil
+		}
+		// A slot of the enclosing object-list item — `headercontent { … }` in an
+		// Accordion group — is a container the item declares, routed by the
+		// item builder's slot pass. Refusing it as "not a widget" made the very
+		// block DESCRIBE prints for that slot impossible to run (#1453).
+		if itemDeclaresSlot(parentItem, w.Type) {
 			return nil
 		}
 		// A container the parent declares is not a widget and never resolves in
@@ -286,4 +293,18 @@ func nearestWidgetNames(registry *WidgetRegistry, name string) string {
 		return " — did you mean `" + best + "`?"
 	}
 	return ""
+}
+
+// itemDeclaresSlot reports whether an object-list item mapping has a widget
+// slot whose container keyword is kw (case-insensitive).
+func itemDeclaresSlot(item *ObjectListMapping, kw string) bool {
+	if item == nil {
+		return false
+	}
+	for _, s := range item.ItemSlots {
+		if strings.EqualFold(s.MDLContainer, kw) || strings.EqualFold(s.PropertyKey, kw) {
+			return true
+		}
+	}
+	return false
 }

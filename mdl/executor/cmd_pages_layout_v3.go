@@ -233,6 +233,15 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		duplicates = append(duplicates, l.ID)
 	}
 
+	// A rewrite must not delete widgets MDL cannot author (mendixlabs/mxcli#1622).
+	// describe finds a layout by name, so only a name with one stored layout
+	// can be described.
+	if stored != nil && len(duplicates) == 0 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "layout", s.Name, stored.ID, s.AllWidgets()); err != nil {
+			return err
+		}
+	}
+
 	pb := &pageBuilder{
 		ctx:              ctx,
 		backend:          ctx.Backend,

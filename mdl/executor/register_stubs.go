@@ -415,6 +415,9 @@ func registerRESTHandlers(r *Registry) {
 	r.Register(&ast.DropRestClientStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return dropRestClient(ctx, stmt.(*ast.DropRestClientStmt))
 	})
+	r.Register(&ast.AlterRestClientStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
+		return alterRestClient(ctx, stmt.(*ast.AlterRestClientStmt))
+	})
 	r.Register(&ast.DescribeContractFromOpenAPIStmt{}, func(ctx *ExecContext, stmt ast.Statement) error {
 		return withDescribeHeader(ctx, func() error { return describeContractFromOpenAPI(ctx, stmt.(*ast.DescribeContractFromOpenAPIStmt)) })
 	})

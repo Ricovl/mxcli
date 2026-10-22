@@ -53,6 +53,11 @@ type ExecContext struct {
 	// outside a describe body.
 	describeBody *describeBodyState
 
+	// unauthorableSink, when set, receives every widget a describe body could
+	// only print as a comment because MDL cannot author it: what a rewrite of
+	// the document from its description would delete (mendixlabs/mxcli#1622).
+	unauthorableSink *[]unauthorableWidget
+
 	// scriptFlows are the flows earlier statements of a script declare,
 	// keyed by scriptFlowKey, set only while check predicts a script's flow
 	// verdicts (CheckFlowVerdicts): exec builds a flow after those statements

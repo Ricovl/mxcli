@@ -494,6 +494,11 @@ func (unsupportedBackend) Disconnect() (err0 error) {
 	return
 }
 
+func (unsupportedBackend) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) (err0 error) {
+	err0 = errUnsupported("EditConsumedRestService")
+	return
+}
+
 func (unsupportedBackend) ExportJSON() (r0 []uint8, err1 error) {
 	err1 = errUnsupported("ExportJSON")
 	return

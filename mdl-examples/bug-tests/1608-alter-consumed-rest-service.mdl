@@ -1,0 +1,50 @@
+-- mendixlabs/mxcli#1608 (ako/mxcli#1536): no way to add an operation to an
+-- existing consumed REST service.
+--
+-- Symptom: `alter consumed rest service … add operation` did not parse
+--   line 2:15 no viable alternative at input 'alterconsumedrest'
+-- and the only alternative, CREATE OR MODIFY naming the new operations,
+-- deleted every operation it did not list — often ones made in Studio Pro —
+-- reporting only "Modified rest client: … (2 operations)".
+--
+-- Fix: ALTER CONSUMED REST SERVICE with ADD / MODIFY / DROP OPERATION and
+-- SET ( … ). It splices the stored document: an operation no action names is
+-- written back as stored, and MODIFY rewrites only the keys it lists.
+-- (The CREATE OR MODIFY first puts the service back to two operations, so the
+-- script runs again; on its own, a second ADD of GetBooking is refused.)
+
+mdl 1;
+
+create or modify consumed rest service MyFirstModule.BookingApi (
+  BaseUrl: 'https://api.example.com',
+  Authentication: none
+)
+{
+  operation PostBooking (
+    Method: post,
+    Path: '/bookings',
+    Body: json from $Payload,
+    Response: json as $Result
+  )
+
+  operation LegacyBooking (Method: get, Path: '/legacy', Response: none)
+};
+
+alter consumed rest service MyFirstModule.BookingApi add operation GetBooking (
+  Method: get,
+  Path: '/bookings/{id}',
+  Parameters: ($id: String),
+  Response: json as $Result
+);
+
+alter consumed rest service MyFirstModule.BookingApi
+  add operation PutBooking (
+    Method: put,
+    Path: '/bookings/{id}',
+    Parameters: ($id: String),
+    Body: json from $Payload,
+    Response: json
+  ),
+  modify operation PostBooking (Timeout: 60),
+  drop operation LegacyBooking,
+  set (BaseUrl: 'https://api.example.com/v2');

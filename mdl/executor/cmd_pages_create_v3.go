@@ -93,6 +93,13 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 		pagesToDelete = append(pagesToDelete, p.ID)
 	}
 
+	// A rewrite must not delete widgets MDL cannot author (mendixlabs/mxcli#1622).
+	if len(pagesToDelete) > 0 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "page", s.Name, pagesToDelete[0], allPageWidgets(s)); err != nil {
+			return err
+		}
+	}
+
 	// Build the page BEFORE deleting the old one (atomic: if build fails, old page is preserved)
 	pb := &pageBuilder{
 		ctx:              ctx,
@@ -268,6 +275,14 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 		// A snippet has no @excluded of its own; it stays excluded through the
 		// carry, and an excluded one may name documents that do not exist.
 		tolerateDanglingRefs: existingExcluded,
+	}
+
+	// As for pages (mendixlabs/mxcli#1622). describe finds a snippet by name,
+	// so only a name with a single stored document can be described.
+	if matches == 1 && len(snippetsToDelete) == 1 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "snippet", s.Name, snippetsToDelete[0], s.Widgets); err != nil {
+			return err
+		}
 	}
 
 	// As for pages (#721 L4). describe finds a snippet by name, so only a name

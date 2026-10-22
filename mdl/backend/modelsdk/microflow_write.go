@@ -499,12 +499,9 @@ func annotationFlowToGen(af *microflows.AnnotationFlow, v flowVersion) element.E
 	// the note's bottom edge, into the element's top. Both indexes were once 0
 	// (top), which drew the line out of the top of the note and back down
 	// around it.
-	origin, destination := int32(2), int32(0)
-	if af.Sides != nil {
-		origin, destination = int32(af.Sides.Origin), int32(af.Sides.Destination)
-	}
-	g.SetOriginConnectionIndex(origin)
-	g.SetDestinationConnectionIndex(destination)
+	sides := af.SidesOrDefault()
+	g.SetOriginConnectionIndex(int32(sides.Origin))
+	g.SetDestinationConnectionIndex(int32(sides.Destination))
 	// An annotation flow is a Flow like a sequence flow, with the same floors:
 	// the Line was written from 10.0 on, six minors before it existed.
 	if v.hasLine() {

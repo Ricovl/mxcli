@@ -34,6 +34,15 @@ type describeBodyState struct {
 	// inComment is set while a commented-out widget's subtree is rendered:
 	// every widget in it is dropped too.
 	inComment bool
+	// unauthorable are the widgets of this pass MDL cannot author at all.
+	unauthorable []unauthorableWidget
+}
+
+// unauthorableWidget is a stored widget describe can only print as a comment
+// because MDL has no way to write it.
+type unauthorableWidget struct {
+	Type string // its $Type, e.g. Forms$DataGrid
+	Name string // "" when the stored widget has none
 }
 
 // describeWidgetBody renders a document's widget body through render. A data
@@ -51,10 +60,14 @@ func describeWidgetBody(ctx *ExecContext, render func(c *ExecContext)) {
 		c.Output = &buf
 		state.selected = map[string]bool{}
 		state.inComment = false
+		state.unauthorable = nil
 		render(&c)
 		if !state.selectsADroppedWidget() {
 			break
 		}
+	}
+	if ctx.unauthorableSink != nil {
+		*ctx.unauthorableSink = append(*ctx.unauthorableSink, state.unauthorable...)
 	}
 	_, _ = ctx.Output.Write(buf.Bytes())
 }
@@ -132,8 +145,15 @@ func describeDanglingSelection(ctx *ExecContext, w rawWidget, indent int) bool {
 }
 
 // describeDroppedWidget records that w is emitted only as a comment.
+//
+// It is called for exactly the widgets MDL cannot author, so it is also where
+// the rewrite guard learns what a rewrite would delete (unauthorableSink).
 func describeDroppedWidget(ctx *ExecContext, w rawWidget) {
-	if ctx.describeBody != nil && w.Name != "" {
+	if ctx.describeBody == nil {
+		return
+	}
+	if w.Name != "" {
 		ctx.describeBody.dropped[w.Name] = true
 	}
+	ctx.describeBody.unauthorable = append(ctx.describeBody.unauthorable, unauthorableWidget{Type: w.Type, Name: w.Name})
 }

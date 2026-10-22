@@ -1,0 +1,43 @@
+mdl 1;
+-- ============================================================================
+-- A microflow created over --mcp keeps its flow sides and its notes
+-- ============================================================================
+--
+-- Run it twice: once with the default engine, once against Studio Pro's MCP
+-- server (`--mcp http://localhost/mcp --mcp-dial <host>:<port>`). Then compare
+-- each flow's connection sides (the default engine's .mpr via
+-- `mxcli bson dump`, Studio Pro's document via ped_read_document). They must
+-- be the same.
+--
+-- Before the fix, the MCP create sent no sides, so Studio Pro drew every flow
+-- right -> left (1 -> 3): the three outcome anchors and the merge's bottom exit
+-- were lost. Any @annotation failed the create outright. Measured on
+-- 11.15.0-rc.4: after the fix, all 10 flows match the default engine, both
+-- note lines included (2 -> 0 for the note above, 0 -> 2 for the one placed
+-- below).
+--
+-- Studio Pro's MCP server has no delete, so the documents stay in the open
+-- project after a run.
+-- ============================================================================
+
+CREATE MODULE BugMcpSides;
+
+CREATE OR MODIFY ENUMERATION BugMcpSides.Verdict (
+  Approved 'Approved',
+  Rejected 'Rejected'
+);
+
+CREATE MICROFLOW BugMcpSides.MCPS_CaseNotes ($T: BugMcpSides.Verdict)
+BEGIN
+  @anchor(from: bottom, Approved: (from: right), (empty): (from: bottom, to: top))
+  CASE $T
+    WHEN Approved THEN
+      @annotation 'Approved takes this branch'
+      LOG INFO NODE 'MCPS' 'approved';
+    WHEN Rejected THEN
+      @annotation(text: 'Below the rejected log', position: (600, 420))
+      LOG INFO NODE 'MCPS' 'rejected';
+    WHEN (empty) THEN
+      LOG WARNING NODE 'MCPS' 'no verdict';
+  END CASE;
+END;

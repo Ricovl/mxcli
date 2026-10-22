@@ -18,11 +18,14 @@ type rawObjectList struct {
 type rawObjectListItem struct {
 	Props      []rawExplicitProp
 	DataSource *rawDataSource
-	// Children are the widgets nested in a Widgets-typed sub-property of the
-	// item — an Accordion group's `content` / `headerContent` slot. Without
-	// these an accordion described as an empty group, and re-executing that
-	// description deleted whatever was inside it (#891).
+	// Children are the widgets in the item's BODY slot (bodyItemSlotKey — an
+	// Accordion group's `content`). Without these an accordion described as an
+	// empty group, and re-executing that description deleted whatever was
+	// inside it (#891).
 	Children []rawWidget
+	// Slots are the item's other non-empty widget slots — an Accordion group's
+	// `headerContent` — printed as `<keyword> { … }` blocks inside the item.
+	Slots []rawChildSlot
 }
 
 // extractObjectLists reconstructs every object-list property of a pluggable
@@ -72,7 +75,8 @@ func extractObjectLists(ctx *ExecContext, w map[string]any) []rawObjectList {
 				continue
 			}
 			item := extractObjectListItem(ctx, om, nestedMap)
-			if len(item.Props) > 0 || item.DataSource != nil || len(item.Children) > 0 {
+			item.promoteBodySlot(bodyItemSlotKey(objectListItemWidgetSlotKeys(w, listKey)))
+			if len(item.Props) > 0 || item.DataSource != nil || len(item.Children) > 0 || len(item.Slots) > 0 {
 				items = append(items, item)
 			}
 		}
@@ -179,17 +183,22 @@ func extractObjectListItem(ctx *ExecContext, itemObj map[string]any, nestedMap m
 			// change: an EMPTY map means the field is simply unset.
 			continue
 		}
-		// Child widgets (an Accordion group's `content` slot). A Widgets-typed
-		// sub-property holds a widget tree, not a scalar, so it is parsed with the
-		// same recursion the rest of DESCRIBE uses rather than stringified (#891).
+		// Child widgets. A Widgets-typed sub-property holds a widget tree, not a
+		// scalar, so it is parsed with the same recursion the rest of DESCRIBE
+		// uses rather than stringified (#891). Each slot is kept apart: folding
+		// them all into one body put an Accordion group's headerContent widgets
+		// into its content on re-exec (#1453). promoteBodySlot then moves the
+		// body slot's widgets into Children.
 		if childElems := getBsonArrayElements(value["Widgets"]); len(childElems) > 0 {
+			slot := rawChildSlot{Keyword: strings.ToLower(key), PropertyKey: key}
 			for _, ce := range childElems {
 				cm, ok := ce.(map[string]any)
 				if !ok {
 					continue
 				}
-				item.Children = append(item.Children, parseRawWidget(ctx, cm)...)
+				slot.Widgets = append(slot.Widgets, parseRawWidget(ctx, cm)...)
 			}
+			item.Slots = append(item.Slots, slot)
 			continue
 		}
 		// Action sub-property (a chart series' staticOnClickAction, a popupmenu
@@ -271,4 +280,48 @@ func extractObjectListItem(ctx *ExecContext, itemObj map[string]any, nestedMap m
 // alike.
 func objectListMDLKey(schemaKey string) string {
 	return schemaKey
+}
+
+// promoteBodySlot moves the widgets of the item's body slot (bodyKey) into
+// Children, leaving its other slots as named blocks. With no body key — a
+// schema that cannot be read — every slot stays a block, which CREATE routes by
+// its keyword just as well.
+func (item *rawObjectListItem) promoteBodySlot(bodyKey string) {
+	if bodyKey == "" {
+		return
+	}
+	for i, s := range item.Slots {
+		if s.PropertyKey == bodyKey {
+			item.Children = append(item.Children, s.Widgets...)
+			item.Slots = append(item.Slots[:i:i], item.Slots[i+1:]...)
+			return
+		}
+	}
+}
+
+// objectListItemWidgetSlotKeys lists the Widgets-typed property keys of one
+// object-list's item type, in schema order — the input bodyItemSlotKey needs.
+func objectListItemWidgetSlotKeys(w map[string]any, listKey string) []string {
+	widgetType, _ := w["Type"].(map[string]any)
+	objType, _ := widgetType["ObjectType"].(map[string]any)
+	for _, pt := range getBsonArrayElements(objType["PropertyTypes"]) {
+		ptMap, ok := pt.(map[string]any)
+		if !ok || extractString(ptMap["PropertyKey"]) != listKey {
+			continue
+		}
+		valueType, _ := ptMap["ValueType"].(map[string]any)
+		itemObjType, _ := valueType["ObjectType"].(map[string]any)
+		var keys []string
+		for _, ipt := range getBsonArrayElements(itemObjType["PropertyTypes"]) {
+			iptMap, ok := ipt.(map[string]any)
+			if !ok {
+				continue
+			}
+			if vt, _ := iptMap["ValueType"].(map[string]any); extractString(vt["Type"]) == "Widgets" {
+				keys = append(keys, extractString(iptMap["PropertyKey"]))
+			}
+		}
+		return keys
+	}
+	return nil
 }
