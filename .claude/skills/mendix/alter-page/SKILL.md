@@ -11,16 +11,16 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | lines | section |
 |---|---|
 | 28-31 | Overview |
-| 32-56 | When to Use |
-| 57-107 | Syntax |
-| 108-473 | Operations |
-| 474-552 | Examples |
-| 553-643 | DataGrid 2 columns: how to address them, and what you can set |
-| 644-655 | Common Mistakes |
-| 656-684 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 685-692 | Validation Checklist |
-| 693-702 | Related Commands |
-| 703-707 | Related Skills |
+| 32-64 | When to Use |
+| 65-115 | Syntax |
+| 116-481 | Operations |
+| 482-560 | Examples |
+| 561-651 | DataGrid 2 columns: how to address them, and what you can set |
+| 652-663 | Common Mistakes |
+| 664-692 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 693-700 | Validation Checklist |
+| 701-710 | Related Commands |
+| 711-715 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -53,6 +53,14 @@ change. `describe` → edit → `create or modify` is only for pages your
 MDL scripts created and nobody has changed in Studio Pro since: on a Studio Pro page that
 round trip has dropped translations and filled an empty English caption from another
 language, and on a snippet it has dropped the snippet's type.
+
+**A page holding a widget MDL cannot author refuses the rewrite.** `describe` prints a
+classic data grid, a reference selector, a drop-down or a reference set selector as a
+`-- NOT re-executable` comment, so `create or modify page` (also `create or replace`, and
+the same for snippets and layouts) would delete it. The statement is refused, naming each
+widget; `mxcli check -p` reports the same. Use `alter page` — it leaves those widgets in
+place — or, to rebuild the page without them, drop them first on purpose:
+`alter page M.P { drop grid1, referenceSelector1; };`.
 
 ## Syntax
 
