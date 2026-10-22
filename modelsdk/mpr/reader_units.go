@@ -91,8 +91,10 @@ func (r *Reader) listUnitsByType(typeName string) ([]rawUnit, error) {
 }
 
 // listUnitTypes returns every unit's metadata and $Type without reading the
-// contents of any unit whose type is already indexed (Contents is nil). For
-// callers that need the project's shape, not its documents.
+// contents of any unit whose type is already indexed (Contents is nil): on v2
+// the index is keyed by ContentsHash and persisted (reader_units_v2.go), on v1
+// by blob length (reader_units_v1.go). For callers that need the project's
+// shape, not its documents.
 func (r *Reader) listUnitTypes() ([]rawUnit, error) {
 	if r.version != MPRVersionV2 {
 		return r.listUnitTypesV1()
@@ -138,10 +140,12 @@ func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
 	return units, nil
 }
 
-// buildUnitCache reads all unit metadata once and caches it.
+// buildUnitCache reads all unit metadata once and caches it. A unit's $Type
+// comes from the type index when its ContentsHash is known there, so only new
+// and changed units are opened (reader_units_v2.go, mendixlabs/mxcli#1603).
 func (r *Reader) buildUnitCache() error {
 	rows, err := r.db.Query(`
-		SELECT UnitID, ContainerID, ContainmentName
+		SELECT UnitID, ContainerID, ContainmentName, COALESCE(ContentsHash, '')
 		FROM Unit
 	`)
 	if err != nil {
@@ -149,30 +153,56 @@ func (r *Reader) buildUnitCache() error {
 	}
 	defer rows.Close()
 
+	r.v2TypesMu.Lock()
+	defer r.v2TypesMu.Unlock()
+
 	r.unitCache = nil
+	hashes := make(map[string]struct{})
+	opened := 0
 	for rows.Next() {
 		var unitID, containerID []byte
-		var containmentName string
+		var containmentName, hash string
 
-		if err := rows.Scan(&unitID, &containerID, &containmentName); err != nil {
+		if err := rows.Scan(&unitID, &containerID, &containmentName, &hash); err != nil {
 			return fmt.Errorf("failed to scan unit row: %w", err)
 		}
 
 		unitUUID := blobToUUID(unitID)
-		contents, err := r.readMprContents(unitUUID)
-		if err != nil {
-			continue
+		var typeName string
+		if held, ok := r.overlaid(unitUUID); ok {
+			// Bytes held in memory are what the unit is now; its stored hash
+			// describes the file it will replace.
+			typeName = getTypeFromContents(held)
+		} else if known, ok := r.knownUnitType(hash); ok {
+			typeName = known
+		} else {
+			contents, err := r.readMprContents(unitUUID)
+			if err != nil {
+				continue
+			}
+			opened++
+			typeName = getTypeFromContents(contents)
+			r.learnUnitType(hash, typeName)
 		}
-
-		typeName := getTypeFromContents(contents)
+		if hash != "" {
+			hashes[hash] = struct{}{}
+		}
 		r.unitCache = append(r.unitCache, cachedUnit{
-			ID:              blobToUUID(unitID),
+			ID:              unitUUID,
 			ContainerID:     blobToUUID(containerID),
 			ContainmentName: containmentName,
 			Type:            typeName,
 		})
 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("failed to scan units: %w", err)
+	}
 
+	first := r.v2Hashes == nil
+	r.v2Hashes = hashes
+	if first || opened >= unitTypeIndexPersistAfter {
+		r.persistUnitTypeIndex()
+	}
 	r.unitCacheValid = true
 	return nil
 }
