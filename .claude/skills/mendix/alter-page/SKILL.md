@@ -17,10 +17,10 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 482-560 | Examples |
 | 561-651 | DataGrid 2 columns: how to address them, and what you can set |
 | 652-663 | Common Mistakes |
-| 664-692 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 693-700 | Validation Checklist |
-| 701-710 | Related Commands |
-| 711-715 | Related Skills |
+| 664-701 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 702-709 | Validation Checklist |
+| 710-719 | Related Commands |
+| 720-724 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
