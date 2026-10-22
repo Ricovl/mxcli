@@ -49,6 +49,10 @@ the React client, `'No'` the classic (Dojo) client, `'MigrationMode'` Mendix's
 mixed mode. The value is matched case-insensitively; anything else is rejected by
 `mxcli check` (MDL-SET03) and by the executor.
 
+A section or key that does not exist is rejected by `mxcli check` (MDL-SET04) with
+the message the executor gives, so a script that cannot run does not pass the
+check.
+
 ## Parameters
 
 **key**

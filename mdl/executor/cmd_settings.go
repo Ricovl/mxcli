@@ -362,6 +362,22 @@ var useOptimizedClientValues = []string{
 	string(metamodel.SettingsUseOptimizedClientMigrationMode),
 }
 
+// configurationSettingKeys names every property ALTER SETTINGS CONFIGURATION and
+// CREATE CONFIGURATION assign. DatabaseUseIntegratedSecurity, MaxJavaHeapSize and
+// the Open*Port flags are read and written back as stored, but no statement sets
+// them.
+var configurationSettingKeys = []string{
+	"DatabaseType",
+	"DatabaseUrl",
+	"DatabaseName",
+	"DatabaseUserName",
+	"DatabasePassword",
+	"HttpPortNumber",
+	"ServerPortNumber",
+	"ApplicationRootUrl",
+	"ExtraJvmParameters",
+}
+
 // webUISettingKeys names every property ALTER SETTINGS WEBUI assigns.
 // OptimizedClient is the spelling `show settings` prints and the skills point to;
 // it is stored as UseOptimizedClient.
@@ -452,6 +468,13 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// The refusals that need no project — an unknown section or key, a verb the
+	// section does not define. `mxcli check` reports the same errors from the
+	// same function, so a script that cannot run does not pass the check
+	// (mendixlabs/mxcli#1549).
+	if errs := settingsStatementErrors(stmt); len(errs) > 0 {
+		return errs[0]
+	}
 
 	ps, err := ctx.Backend.GetProjectSettings()
 	if err != nil {
@@ -494,20 +517,12 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	// on it, so they are dispatched before the key/value sections — as the
 	// language forms below are, and for the same reason.
 	if stmt.AddGroup || stmt.ModifyGroup || stmt.UpsertGroup || stmt.RemoveGroup {
-		if section != "workflows" {
-			return mdlerrors.NewUnsupported(fmt.Sprintf(
-				"GROUP is only defined for the WORKFLOWS section, not %s", stmt.Section))
-		}
 		return alterSettingsWorkflowGroup(ctx, ps, stmt)
 	}
 
 	// ADD/REMOVE change the list of ENABLED languages rather than a key on the
 	// settings part, so they are dispatched before the key/value sections.
 	if stmt.AddLanguage || stmt.ModifyLanguage || stmt.UpsertLanguage || stmt.RemoveLanguage {
-		if section != "language" {
-			return mdlerrors.NewUnsupported(fmt.Sprintf(
-				"add/remove is only defined for the LANGUAGE section, not %s", stmt.Section))
-		}
 		switch {
 		case stmt.UpsertLanguage:
 			return alterSettingsLanguageUpsert(ctx, ps, stmt)
@@ -533,9 +548,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 			// project", sending the reader after a version problem that does not
 			// exist instead of at the misspelling in front of them.
 			if !isKnownModelSetting(key) {
-				return mdlerrors.NewUnsupported(fmt.Sprintf(
-					"unknown model setting: %s\n  valid keys: %s",
-					key, strings.Join(modelSettingKeys, ", ")))
+				return unknownSettingsKey("model", key)
 			}
 			// The overlay will not introduce a property the stored document does
 			// not carry, so refuse here rather than reporting a success that
@@ -617,9 +630,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				}
 				ps.Model.UseOQLVersion2 = v
 			default:
-				return mdlerrors.NewUnsupported(fmt.Sprintf(
-					"unknown model setting: %s\n  valid keys: %s",
-					key, strings.Join(modelSettingKeys, ", ")))
+				return unknownSettingsKey("model", key)
 			}
 		}
 
@@ -640,7 +651,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				ps.Language.DefaultLanguageCode = valStr
 
 			default:
-				return mdlerrors.NewUnsupported("unknown language setting: " + key)
+				return unknownSettingsKey("language", key)
 			}
 		}
 
@@ -666,7 +677,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				}
 				ps.Workflows.WorkflowEngineParallelism = v
 			default:
-				return mdlerrors.NewUnsupported("unknown workflow setting: " + key)
+				return unknownSettingsKey("workflows", key)
 			}
 		}
 
@@ -693,8 +704,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				}
 				ps.WebUI.UseOptimizedClient = v
 			default:
-				return mdlerrors.NewUnsupported(fmt.Sprintf(
-					"unknown webui setting: %s\n  valid keys: %s", key, strings.Join(webUISettingKeys, ", ")))
+				return unknownSettingsKey("webui", key)
 			}
 		}
 
@@ -705,7 +715,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 		return alterSettingsConstant(ctx, ps, stmt)
 
 	default:
-		return mdlerrors.NewUnsupported(fmt.Sprintf("unknown settings section: %s (expected model, configuration, constant, LANGUAGE, workflows, or webui)", section))
+		return unknownSettingsSection(section)
 	}
 
 	// Write updated settings
@@ -818,7 +828,7 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 			// (mendixlabs/mxcli#131).
 			cfg.ExtraJvmParameters = valStr
 		default:
-			return mdlerrors.NewUnsupported("unknown configuration setting: " + key)
+			return unknownSettingsKey("configuration", key)
 		}
 	}
 
@@ -945,6 +955,9 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	if errs := unknownSettingsKeys("configuration", stmt.Properties); len(errs) > 0 {
+		return errs[0]
+	}
 
 	ps, err := ctx.Backend.GetProjectSettings()
 	if err != nil {
@@ -1016,7 +1029,7 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 		case "ExtraJvmParameters":
 			newCfg.ExtraJvmParameters = valStr
 		default:
-			return mdlerrors.NewUnsupported("unknown configuration property: " + key)
+			return unknownSettingsKey("configuration", key)
 		}
 	}
 

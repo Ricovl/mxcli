@@ -11,10 +11,10 @@ description: "Read and change project settings in MDL — database configuration
 | lines | section |
 |---|---|
 | 22-32 | When to Use This Skill |
-| 33-337 | Commands |
-| 338-365 | Common Patterns |
-| 366-374 | Checklist |
-| 375-379 | AfterStartupMicroflow Must Return Boolean |
+| 33-339 | Commands |
+| 340-367 | Common Patterns |
+| 368-376 | Checklist |
+| 377-381 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -154,7 +154,9 @@ stored in Mendix's own spelling (MDL-SET03 rejects a non-member rather than writ
 it through — an unresolvable enum value is what makes Studio Pro throw
 "Sequence contains no matching element").
 An unparseable value is rejected by `mxcli check` (MDL-SET01 / MDL-SET02)
-and by the write itself — it is no longer silently ignored. Quoted numbers are
+and by the write itself — it is no longer silently ignored. A section or key that
+does not exist is rejected by `mxcli check` too (MDL-SET04), with exec's message
+and the list of valid keys. Quoted numbers are
 fine: `HttpPortNumber = '8080'` and `HttpPortNumber = 8080` are equivalent.
 
 ### Constant Overrides

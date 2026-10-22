@@ -330,7 +330,8 @@ func TestValidateSettings_AcceptsValidAndUnknownSections(t *testing.T) {
 	if len(valid) != 0 {
 		t.Errorf("valid properties reported as violations: %+v", valid)
 	}
-	// A section with no typed properties (or an unknown one) is not this rule's business.
+	// A known section with no typed properties reports nothing for a known key. (An
+	// unknown section or key is MDL-SET04: check_exec_agreement_settings_pedapp_test.go.)
 	if got := ValidateSettings(&ast.AlterSettingsStmt{
 		Section:    "language",
 		Properties: map[string]any{"DefaultLanguageCode": "en_US"},
@@ -418,6 +419,36 @@ func TestTypedSettingsKeys_MatchExecutor(t *testing.T) {
 					Properties: map[string]any{key: good},
 				}); err != nil {
 					t.Errorf("executor rejected a valid %s.%s=%q: %v", section, key, good, err)
+				}
+			})
+		}
+	}
+}
+
+// TestSettingsSectionKeys_AllAccepted is the drift guard for settingsSectionKeys,
+// the list that decides which keys exist for check and exec alike: a listed key
+// the executor's switch has no case for would pass check and be refused by exec,
+// the mendixlabs/mxcli#1549 shape in the other direction.
+func TestSettingsSectionKeys_AllAccepted(t *testing.T) {
+	for section, keys := range settingsSectionKeys {
+		for _, key := range keys {
+			t.Run(section+"/"+key, func(t *testing.T) {
+				val := "1" // a string property takes any text
+				switch typedSettingsKeys[section][key] {
+				case settingsKindBool:
+					val = "true"
+				case settingsKindDatabaseType:
+					val = "PostgreSql"
+				case settingsKindEnum:
+					val = settingsEnumValues[section+"/"+key][0]
+				}
+				wrote := false
+				ctx, _ := newMockCtx(t, withBackend(settingsBackend(&wrote)))
+				err := alterSettings(ctx, &ast.AlterSettingsStmt{
+					Section: section, ConfigName: "Default", Properties: map[string]any{key: val},
+				})
+				if err != nil && strings.Contains(err.Error(), "unknown") {
+					t.Errorf("%s is listed for %s but the executor refuses it: %v", key, section, err)
 				}
 			})
 		}
