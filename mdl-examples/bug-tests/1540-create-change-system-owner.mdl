@@ -1,0 +1,27 @@
+mdl 1;
+-- ============================================================================
+-- Upstream #1612 (the form that builds): record a user on seeded data
+-- ============================================================================
+--
+-- A create or change object cannot set System.owner (CE1050, MDL-CHANGE01 — see
+-- the .fail.mdl companion). To make data an after-startup microflow seeds
+-- belong to a seeded user, model the association and set that; constrain on it
+-- where System.owner would have been used. Measured clean with mx check on
+-- 11.12.5. A list operation over System.owner is a different case and builds.
+-- ============================================================================
+
+create module B1540;
+create persistent entity B1540.Entity ("Name": String(50), "owner": AutoOwner);
+create association B1540.Entity_User from B1540.Entity to System.User;
+
+create or modify microflow B1540.Seed ($User: System.User) returns Boolean
+begin
+  $S = create B1540.Entity (Name = 'x', B1540.Entity_User = $User);
+  commit $S;
+  return true;
+end;
+
+create or modify microflow B1540.MineOnly ($User: System.User) returns List of B1540.Entity as $Mine
+begin
+  retrieve $Mine from B1540.Entity where [B1540.Entity_User = $User];
+end;

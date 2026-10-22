@@ -2035,6 +2035,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// member, measured on 11.6.6 (mendixlabs/mxcli#1422). The builder refuses
 	// it too, for the flows this AST walk cannot type.
 	"MDL-RETRIEVE03": true,
+	// MDL-CHANGE01: a create or change object member naming System.owner /
+	// System.changedBy is CE1050 "Unknown association", measured on 11.12.5
+	// for every entity shape, microflow and nanoflow (mendixlabs/mxcli#1612).
+	"MDL-CHANGE01": true,
 }
 
 // validateMicroflowRules runs the MDL0xx microflow rule set (ValidateMicroflow)

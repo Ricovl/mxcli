@@ -1,0 +1,26 @@
+mdl 1;
+-- ============================================================================
+-- Upstream #1612 (the refusal): create / change object setting System.owner
+-- ============================================================================
+--
+-- `System.owner` and `System.changedBy` are kept by the runtime. Written as a
+-- create or change object member they are
+--   [CE1050] "Unknown association 'System.owner'."
+-- for every entity — one storing its owner (as here), one that does not, a
+-- System.FileDocument specialization — in a microflow and a nanoflow alike
+-- (measured on 11.12.5). exec used to refuse it with advice to create a System
+-- association, which no project can do, while `check -p` passed it.
+-- `mxcli check` must refuse it as MDL-CHANGE01. See the companion
+-- 1540-create-change-system-owner.mdl for the form that builds.
+--
+-- This file is expected to FAIL `mxcli check`.
+-- ============================================================================
+
+create module F1540F;
+create persistent entity F1540F.Entity ("Name": String(50), "owner": AutoOwner);
+
+create or modify microflow F1540F.Seed ($User: System.User) returns Boolean
+begin
+  $S = create F1540F.Entity (Name = 'x', System.owner = $User);
+  return true;
+end;
