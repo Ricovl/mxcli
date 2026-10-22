@@ -1403,6 +1403,8 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 		DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: opts.Stdout,
 	})
 
+	builds := &serveRecovery{serve: serve, deployDir: opts.DeployDir, out: w}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
@@ -1484,8 +1486,11 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			// change that makes mxbuild recreate web/ (a domain model change) fails
 			// until the bundler lets go; the supervisor stops it, rebuilds, and
 			// starts a fresh one on the new web/ (#1342).
+			// The build goes through serveRecovery, which restarts mxbuild --serve
+			// when a build leaves state only a fresh process clears — e.g. an
+			// "applied" reload whose dist/ lost every page (#1485).
 			build, freshBundle, err := bundler.BuildReleasingWebDir(func() (*BuildResult, error) {
-				return serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
+				return builds.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 			})
 			if err != nil {
 				fmt.Fprintf(opts.Stderr, "  build error: %v\n", err)

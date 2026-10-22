@@ -104,8 +104,10 @@ What each one does, precisely:
   returns the first build made from that source or newer. A change the loop applied
   **before** you called `wait` is reported at once — it never waits for a "next"
   change that already happened. With nothing changed it reports the last build.
-  A failure prints the CE codes / SCSS error lines; on 11.14 the second-build defect
-  is reported as a failure with its explanation, never as a hang. A run started
+  A failure prints the CE codes / SCSS error lines, never a hang. Where mxbuild
+  writes the client itself (11.12.5, 11.14) its serve process only builds
+  completely once, so the loop restarts it per change (one line says so; ~25–30 s
+  instead of ~5 s, still a hot reload). A run started
   without `--watch` never applies a change: `wait` says so and exits 1.
 - **`run stop`** asks the run to shut down (it removes `--test-endpoint`, turns the
   debugger off), waits until it is gone, then sweeps the run's process session, so an
