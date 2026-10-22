@@ -84,7 +84,7 @@ Everything mxcli can do, organized by use case.
 | Capability | Command | Status |
 |---|---|---|
 | REST clients | `CREATE CONSUMED REST SERVICE` | Consumed REST services |
-| OpenAPI import | `CREATE CONSUMED REST SERVICE (OpenAPI: '...')` | Generate REST client from OpenAPI 3.0 spec |
+| OpenAPI import | `CREATE CONSUMED REST SERVICE (OpenAPI: '...')` | Generate REST client from an OpenAPI 3.x spec (Swagger 2.0 refused; responses imported as JSON, no entities yet) |
 | Business events | `CREATE BUSINESS EVENT SERVICE` | Event definitions |
 | Database connections | `CREATE DATABASE CONNECTION` | External SQL |
 | OData services | `LIST CONSUMED ODATA SERVICES/SERVICES` | Read-only browsing |

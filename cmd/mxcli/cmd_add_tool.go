@@ -173,29 +173,7 @@ Supported Tools:
 				fmt.Printf("  Created %d command files in .opencode/commands/\n", cmdCount)
 			}
 
-			lintCount := 0
-			if err := fs.WalkDir(lintRulesFS, "lint-rules", func(path string, d fs.DirEntry, err error) error {
-				if err != nil || d.IsDir() {
-					return err
-				}
-				content, err := lintRulesFS.ReadFile(path)
-				if err != nil {
-					return err
-				}
-				targetPath := filepath.Join(lintRulesDir, d.Name())
-				if _, statErr := os.Stat(targetPath); statErr == nil {
-					return nil // skip existing
-				}
-				if err := os.WriteFile(targetPath, content, 0644); err != nil {
-					return err
-				}
-				lintCount++
-				return nil
-			}); err != nil {
-				fmt.Fprintf(os.Stderr, "  Error writing lint rules: %v\n", err)
-			} else if lintCount > 0 {
-				fmt.Printf("  Created %d lint rule files in .claude/lint-rules/\n", lintCount)
-			}
+			initBundledLintRules(lintRulesDir)
 
 			skillCount := 0
 			if err := fs.WalkDir(skillsFS, "skills", func(path string, d fs.DirEntry, err error) error {

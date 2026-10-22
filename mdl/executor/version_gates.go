@@ -36,6 +36,9 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateRestClientStmt:
 		return []versionGate{{"integration", "rest_client_basic", "create rest client",
 			"upgrade your project to 10.1+"}}
+	case *ast.AlterRestClientStmt:
+		return []versionGate{{"integration", "rest_client_basic", "alter consumed rest service",
+			"upgrade your project to 10.1+"}}
 	case *ast.CreateDataTransformerStmt:
 		return []versionGate{{"integration", "data_transformer", "create data transformer",
 			"upgrade your project to 11.9+"}}
