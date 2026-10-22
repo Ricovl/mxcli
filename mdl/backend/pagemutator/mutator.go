@@ -258,22 +258,38 @@ func (m *Mutator) SetWidgetAction(widgetRef string, action pages.ClientAction) e
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
 	}
-	// Refuse rather than write an Action onto something that has no such
-	// property: Studio Pro resolves every stored property against the type's
+	// The key is the one the stored widget holds: a container keeps its click
+	// action in OnClickAction, a list view or an image in ClickAction
+	// (ako/mxcli#1503). Refuse rather than write a key the widget does not
+	// have: Studio Pro resolves every stored property against the type's
 	// property list and throws on one it does not know, while mxbuild's
 	// deserializer tolerates it — so a silent write here builds clean and fails
 	// to open.
-	if bsonnav.DGet(result.widget, "Action") == nil {
-		return fmt.Errorf("widget %q (%s) has no Action property — Action can only be set on a widget that "+
-			"performs an on-click action, such as a button or a clickable container",
+	key := clickActionKey(result.widget)
+	if key == "" {
+		return fmt.Errorf("widget %q (%s) has no on-click action — Action can only be set on a widget that "+
+			"has one: a button, a container, a list view or an image",
 			widgetRef, widgetTypeName(result.widget))
 	}
 	serialized := m.deps.SerializeClientAction(action)
 	if serialized == nil {
 		return fmt.Errorf("unsupported action type %T", action)
 	}
-	bsonnav.DSet(result.widget, "Action", serialized)
+	bsonnav.DSet(result.widget, key, serialized)
 	return nil
+}
+
+// clickActionKey returns the key under which a stored widget keeps its
+// on-click action, or "" when it has none.
+func clickActionKey(widget bson.D) string {
+	for _, key := range types.WidgetClickActionKeys {
+		for _, e := range widget {
+			if e.Key == key {
+				return key
+			}
+		}
+	}
+	return ""
 }
 
 // SetWidgetNamedAction writes an action into a pluggable widget's action slot
