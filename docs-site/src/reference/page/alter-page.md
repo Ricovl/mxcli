@@ -16,8 +16,8 @@ ALTER SNIPPET module.Name {
 generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
 every document type shares; a page's targets are widget names, DataGrid 2
 columns `grid column(Attr)` / `grid column('Caption')`, navigation list items
-`nav item(widget)` / `nav item('Text')` / `nav item@n`, or a layout region
-`container.top`.
+`nav item(widget)` / `nav item('Text')` / `nav item@n`, a legacy table cell
+`table1 cell(row, col)`, or a layout region `container.top`.
 
 The older spellings still run and warn with a deprecation code:
 
@@ -198,6 +198,36 @@ alter page Shop.Faq {
   — since the stored schema has no default to fill in.
 - `INSERT BEFORE` / `AFTER` an item (adding a new group) and `REPLACE` of a
   whole item are not supported; use `drop` and `create or modify page`.
+
+### Legacy Table Cell Operations
+
+A legacy (Studio Pro) table's cell stores no name, only its position, so it is
+addressed as `table1 cell(row, column)`, 1-based from the top-left. `describe`
+lists the cells under the table's line, with what each holds:
+
+```
+-- Forms$Table (table1)  -- NOT re-executable: …
+--   cell(1,1): txtName
+--   cell(1,2): (empty)
+```
+
+```sql
+mdl 1;
+alter page Shop.Customer_Edit {
+  insert into table1 cell(1,2) { textbox tbName (Attribute: Name) };
+  replace table1 cell(1,1) with { dynamictext txtLabel (Content: 'Name') };
+  drop table1 cell(2,1);
+};
+```
+
+- `insert into` appends to the cell; `replace` swaps its content; `drop`
+  empties it — the cell itself stays, the table's grid needs it.
+- Widgets in a cell bind in the data context around the table, as anywhere else.
+- A position covered by a spanning cell is refused, naming the cell to address.
+- `INSERT BEFORE` / `AFTER` a cell is refused: rows and columns cannot be added.
+  A widget already in a cell is reachable by its own name.
+- MDL cannot create a table, so these statements work only on a page that
+  already has one.
 
 ### DROP
 

@@ -17,10 +17,10 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 482-560 | Examples |
 | 561-651 | DataGrid 2 columns: how to address them, and what you can set |
 | 652-663 | Common Mistakes |
-| 664-696 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 697-704 | Validation Checklist |
-| 705-714 | Related Commands |
-| 715-719 | Related Skills |
+| 664-698 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 699-706 | Validation Checklist |
+| 707-716 | Related Commands |
+| 717-721 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -92,7 +92,7 @@ alter page Module.PageName {
 
 A `<target>` on a page is a widget name, a DataGrid 2 column `grid column(Attr)`
 (or `grid column('Caption')`), a navigation list item `nav item(t1)` /
-`nav item('Text')` / `nav item@n`, or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+`nav item('Text')` / `nav item@n`, a table cell `table1 cell(1,2)`, or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
 `create page`. The older spellings `set Key = value on w`, `set Key: value`
 (no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
 MDL-DEPR102 and MDL-DEPR103 — write the form above.
@@ -681,6 +681,8 @@ page and bind the buttons at creation time instead of rewiring afterwards:
 **An Accordion group has no name either** (`group g1` keeps no `g1`): use
    `acc1 item@2`, `acc1 item('One')` or `acc1 item(btnIn)`; `.headercontent` is its
    header slot, refused until `set (headerRenderMode: 'custom') on acc1 item@1`.
+
+**Nor a legacy table cell**: `insert into table1 cell(1,2) { … }` (1-based, as describe lists them) appends; `replace` swaps, `drop` empties.
 
 **A pluggable widget's slot has no name either.** A Data grid 2's control bar
    (`controlbar { … }` in describe) is a property of the grid, so address it by
