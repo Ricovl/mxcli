@@ -1,0 +1,73 @@
+mdl 1;
+-- ============================================================================
+-- ALTER MICROFLOW insert over --mcp lands on Studio Pro 11.15
+-- ============================================================================
+--
+-- The insert reads the stored flow from the local project, so the local .mpr
+-- must hold the same base document as Studio Pro. Run part 1 over --mcp
+-- (`--mcp http://localhost/mcp --mcp-dial <host>:<port>`, with -p pointing at
+-- the local project) BEFORE running it locally: the MCP create checks the
+-- local project for an existing document. Then run part 2 the same two ways
+-- and compare every flow's ends, connection sides and control vectors (the
+-- local .mpr via `mxcli bson dump`, Studio Pro's document via
+-- ped_read_document). They must match, and ped_check_errors must be clean.
+--
+-- Before the fix, on 11.15.0-rc.4:
+--   * every insert failed with `undefined is not an object (evaluating
+--     'u.$Type')` — the update set a control vector on a flow it added itself;
+--   * without that set, the new activity had "No action defined": PED drops a
+--     set on an element added in the same update;
+--   * the IF/ELSE was wired to the wrong objects, because several adds to one
+--     array in one update are stored in reverse.
+-- After the fix, all 4 + 9 + 6 flows below match the default engine.
+--
+-- Studio Pro's MCP server has no delete, so the documents stay in the open
+-- project after a run.
+-- ============================================================================
+
+-- Part 1: the base documents.
+
+create microflow MyFirstModule.MCPA_XPlain ()
+begin
+  log info node 'MCPA' 'one';
+  log info node 'MCPA' 'two';
+end;
+
+create microflow MyFirstModule.MCPA_XIf ()
+begin
+  log info node 'MCPA' 'one';
+  log info node 'MCPA' 'two';
+end;
+
+create microflow MyFirstModule.MCPA_XNote ()
+begin
+  log info node 'MCPA' 'one';
+  log info node 'MCPA' 'two';
+end;
+
+-- Part 2: the inserts.
+
+alter microflow MyFirstModule.MCPA_XPlain {
+  insert after log node 'MCPA' 'one' begin
+    log info node 'MCPA' 'inserted';
+  end;
+};
+
+alter microflow MyFirstModule.MCPA_XIf {
+  insert after log node 'MCPA' 'one' begin
+    declare $N INTEGER = 1;
+    if $N > 0 then
+      log info node 'MCPA' 'positive';
+    else
+      log info node 'MCPA' 'not positive';
+    end if;
+  end;
+};
+
+alter microflow MyFirstModule.MCPA_XNote {
+  insert after log node 'MCPA' 'one' begin
+    @annotation 'Inserted with a note'
+    log info node 'MCPA' 'inserted';
+    log info node 'MCPA' 'and another';
+  end;
+};
