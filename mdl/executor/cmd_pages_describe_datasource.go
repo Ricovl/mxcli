@@ -691,7 +691,7 @@ func flowSourceArgs(ds map[string]any, settingsKey, flowName string) []rawDataSo
 		}
 		value := strings.TrimSpace(extractString(mapping["Expression"]))
 		if value == "" {
-			value = pageVariableArgValue(mapping["Variable"])
+			value = flowArgVariableValue(mapping["Variable"])
 		}
 		if value == "" {
 			// A pre-#1140 document, or another writer, may have put the bare

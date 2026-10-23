@@ -256,7 +256,8 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		widgetBackend:    ctx.Backend,
 		// The root of a document that this pass walks in full: there is no
 		// enclosing data widget, so there is no context object. #1029.
-		argCtx: atDocumentRoot(),
+		argCtx:           atDocumentRoot(),
+		isDocumentWidget: widgetNameSet(s.AllWidgets()),
 	}
 
 	// Built before the old one is deleted: a build failure must leave the

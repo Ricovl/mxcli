@@ -102,6 +102,13 @@ type pageBuilder struct {
 	// Forms$PageVariable.LocalVariable in BSON, not as a literal Expression.
 	localVariables map[string]bool
 
+	// isDocumentWidget reports whether a name is a widget of the document being
+	// built. A flow argument `$name` naming one passes that widget's selection,
+	// which Studio Pro binds through the PageVariable's Widget slot
+	// (ako/mxcli#1560). nil where the document's widgets are not known: nothing
+	// is then a widget, and the argument binds as it always did.
+	isDocumentWidget func(name string) bool
+
 	// storedPluggables are the pluggable widgets of the stored document a
 	// `create or replace`/`create or modify` rewrites; nil for a new document.
 	// A widget the statement did not change keeps its stored Type and Object

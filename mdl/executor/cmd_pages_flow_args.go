@@ -2,7 +2,11 @@
 
 package executor
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+)
 
 // classifyFlowArgValue decides how an action or data-source argument binds.
 //
@@ -55,6 +59,12 @@ func (pb *pageBuilder) classifyFlowArgValue(value string) (variable, kind string
 		}
 		return value, "parameter"
 	}
+	// A widget of the document: its selection, bound by naming the widget
+	// (ako/mxcli#1560). After the parameters and variables, because that is
+	// what `$name` means when both exist.
+	if pb.isDocumentWidget != nil && pb.isDocumentWidget(name) {
+		return value, "widget"
+	}
 	return "", ""
 }
 
@@ -73,9 +83,9 @@ func (pb *pageBuilder) classifyFlowArgValue(value string) (variable, kind string
 // for a button whose stored mapping binds $ConflictedWorkflowHelper — the same
 // describe → exec loss as #835, one storage form over.
 //
-// Widget is deliberately not read. It names the grid whose SELECTION supplies a
-// list argument, which MDL has no syntax for; rendering it as `$widgetName` would
-// emit a statement that re-executes into a different binding.
+// Widget is not read here. It names the widget whose SELECTION supplies the
+// argument; a flow call reads it through flowArgVariableValue, and a snippet
+// call, where no Studio Pro-authored mapping has one, not at all.
 func pageVariableArgValue(raw any) string {
 	v, ok := raw.(map[string]any)
 	if !ok || v == nil {
@@ -87,4 +97,34 @@ func pageVariableArgValue(raw any) string {
 		}
 	}
 	return ""
+}
+
+// flowArgVariableValue is pageVariableArgValue for a flow call's argument — an
+// action's or a data source's — which may also be a widget's selection: a
+// PageVariable naming only the widget, written `$widget`. Studio Pro stores it
+// for a control-bar button passing its grid (TestApp UserTask_Assign: grid2)
+// and for a button passing a combo box's selection (User_WorkflowGroup_Select:
+// comboBox1). describe printed the call with the argument gone, so check
+// reported CE1571 on a page that builds and exec wrote the call unbound
+// (ako/mxcli#1560); the builder binds `$widget` back to the same slot.
+func flowArgVariableValue(raw any) string {
+	if value := pageVariableArgValue(raw); value != "" {
+		return value
+	}
+	if v, ok := raw.(map[string]any); ok {
+		if w := extractString(v["Widget"]); w != "" {
+			return "$" + w
+		}
+	}
+	return ""
+}
+
+// widgetNameSet is isDocumentWidget for a statement that declares the whole
+// widget tree, as CREATE PAGE, SNIPPET and LAYOUT do: every name in it, wherever
+// it sits — a combo box's selection is passed from a sibling's footer, not only
+// from a grid's control bar.
+func widgetNameSet(widgets []*ast.WidgetV3) func(name string) bool {
+	names := map[string]bool{}
+	collectWidgetNames(widgets, names)
+	return func(name string) bool { return names[name] }
 }

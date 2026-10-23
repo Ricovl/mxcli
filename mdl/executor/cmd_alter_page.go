@@ -573,6 +573,7 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, nil),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 	return pb.buildClientActionV3(action)
@@ -1052,6 +1053,7 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, widgets),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 
@@ -1128,6 +1130,7 @@ func resolveDataSourceFlowEntity(ctx *ExecContext, moduleName string, moduleID m
 // used when replacing a widget so the new one may reuse the target's name.
 func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]pages.Widget, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, widgets)
 
 	var result []pages.Widget
 	for _, w := range widgets {
@@ -1147,6 +1150,7 @@ func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName s
 // with the same builder CREATE PAGE uses for a tab container's children.
 func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator) ([]*pages.TabPage, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, nodes)
 	out := make([]*pages.TabPage, 0, len(nodes))
 	for _, node := range nodes {
 		tp, err := pb.buildTabPageV3(node)
@@ -1162,6 +1166,7 @@ func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName st
 // navigation list, with the same builder CREATE uses for a list's children.
 func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]*pages.NavigationListItem, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, nodes)
 	out := make([]*pages.NavigationListItem, 0, len(nodes))
 	for _, node := range nodes {
 		item, err := pb.buildNavigationListItemV3(node)
@@ -1222,6 +1227,14 @@ func hasTabPage(widgets []*ast.WidgetV3) bool {
 	return false
 }
 
+// alterDocumentWidgets is isDocumentWidget for an ALTER: a widget the stored
+// page already has, or one the statement adds with it (ako/mxcli#1560).
+func alterDocumentWidgets(mutator backend.PageMutator, added []*ast.WidgetV3) func(name string) bool {
+	names := map[string]bool{}
+	collectWidgetNames(added, names)
+	return func(name string) bool { return names[name] || mutator.FindWidget(name) }
+}
+
 // newAlterPageBuilder returns a page builder scoped to the stored page an ALTER
 // edits: its parameters, its widget names and its local variables.
 func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) *pageBuilder {
@@ -1245,6 +1258,7 @@ func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID,
 		themeRegistry:    ctx.GetThemeRegistry(),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, nil),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 }
