@@ -163,7 +163,9 @@ func importMappingToGen(im *model.ImportMapping) element.Element {
 
 	addBool(g, "UseSubtransactionsForMicroflows", false)
 	addStr(g, "PublicName", "")
-	addStr(g, "XsdRootElementName", "")
+	// The XML schema root is carried, never derived: writing "" deleted it
+	// from every rewritten XML-schema mapping (CE0270, mendixlabs/mxcli#1623).
+	addStr(g, "XsdRootElementName", im.RootElementName)
 	// ParameterType is a required sub-document even when unused; without it Studio
 	// Pro fails to render the schema source and mapping elements correctly. A
 	// mapping declaring an input object stores a DataTypes$ObjectType naming it
@@ -380,7 +382,9 @@ func exportMappingToGen(em *model.ExportMapping) element.Element {
 	addPartList(g, "Elements", elems)
 
 	addStr(g, "PublicName", "")
-	addStr(g, "XsdRootElementName", "")
+	// The XML schema root is carried, never derived: writing "" deleted it
+	// from every rewritten XML-schema mapping (CE0270, mendixlabs/mxcli#1623).
+	addStr(g, "XsdRootElementName", em.RootElementName)
 	addBool(g, "IsHeaderParameter", false)
 	addStr(g, "ParameterName", "")
 	addStr(g, "OperationName", "")

@@ -145,6 +145,18 @@ wired into `create or modify` alone was missed by `alter … modify attribute`
 rebuilding the same element through the same converter. Grep the **converter's**
 call sites, not the reported statement.
 
+**Where a field-by-field carry cannot be trusted, make replaying the description
+a no-op.** If the statement parses to exactly what the stored document's own
+description parses to, it denotes the stored document — keep the stored bytes
+and report `Unchanged` — and refuse any other rewrite that would have to invent
+what the language cannot say. An XML-schema mapping's root element and element
+paths (no XSD reader to rebuild them) and a view query's whitespace outside its
+token span both take this form. Compute "what the description parses to" with
+the real describer and parser, never a model of them, or the two drift. And a
+member another statement *declares* — a view entity's association, declared by
+its OQL column — must be skipped by every describer of its kind, or the
+description re-declares it in a form the platform refuses.
+
 **Present-but-empty is a stored value, and a readability fallback is a write.**
 A describer that falls back to another language when the preferred one is present
 but empty prints the Dutch caption into the English slot, and `exec` writes

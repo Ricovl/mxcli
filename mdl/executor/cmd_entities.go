@@ -1048,6 +1048,15 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		return mdlerrors.NewAlreadyExistsMsg("entity", s.Name.Module+"."+s.Name.Name, fmt.Sprintf("entity already exists: %s.%s (use create or modify to update, or create or replace to drop and recreate)", s.Name.Module, s.Name.Name))
 	}
 
+	// The query to store. A statement whose query is what the stored one
+	// describes to keeps the stored bytes: describe cannot carry whitespace or
+	// comments outside the query's tokens, and replaying it re-indented the
+	// stored OQL (mendixlabs/mxcli#1627).
+	query := s.Query.RawQuery
+	if existingEntity != nil {
+		query = carriedViewQuery(query, existingEntity.OqlQuery)
+	}
+
 	// CREATE OR REPLACE: delete existing entity and source doc, then recreate
 	if existingEntity != nil && s.CreateOrReplace {
 		// Preserve location from old entity if no explicit position
@@ -1091,7 +1100,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		module.ID,
 		s.Name.Module,
 		s.Name.Name,
-		s.Query.RawQuery,
+		query,
 		s.Documentation,
 	)
 	if err != nil {
@@ -1108,7 +1117,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 	}
 	// A DateTime column's LocalizeDate is the source attribute's, not Mendix's
 	// default: a mismatch is CE6770 (#1297).
-	localize := viewDateTimeLocalize(ctx, s.Query.RawQuery, s.Attributes)
+	localize := viewDateTimeLocalize(ctx, query, s.Attributes)
 	var attrs []*domainmodel.Attribute
 	for _, a := range s.Attributes {
 		attr := &domainmodel.Attribute{
@@ -1148,7 +1157,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		Attributes:        attrs,
 		Source:            "DomainModels$OqlViewEntitySource",
 		SourceDocumentRef: sourceDocRef,
-		OqlQuery:          s.Query.RawQuery,
+		OqlQuery:          query,
 		ExportLevel:       authoredExportLevel(s.ExportLevel),
 	}
 	if autoPlace {
@@ -1214,11 +1223,11 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			created = stored
 		}
 	}
-	if nameErrors := validateViewAssociationNames(ctx, s.Name.Module, s.Name.Name, s.Query.RawQuery, nil); len(nameErrors) > 0 {
+	if nameErrors := validateViewAssociationNames(ctx, s.Name.Module, s.Name.Name, query, nil); len(nameErrors) > 0 {
 		return mdlerrors.NewValidationf("view entity '%s':\n  - %s",
 			s.Name.String(), strings.Join(nameErrors, "\n  - "))
 	}
-	if err := syncViewEntityAssociations(ctx, module.ID, s.Name.Module, created, s.Query.RawQuery); err != nil {
+	if err := syncViewEntityAssociations(ctx, module.ID, s.Name.Module, created, query); err != nil {
 		return err
 	}
 	invalidateHierarchy(ctx)
