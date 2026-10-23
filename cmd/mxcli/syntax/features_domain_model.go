@@ -196,9 +196,11 @@ func init() {
 			"   consuming the view sorts and pages as it needs; use `ORDER BY … LIMIT n`\n" +
 			"   only for a view that is intrinsically top-N (MDL030; CE0174).\n" +
 			"3. A DERIVED string column is String(200), always — a CAST to string, a\n" +
-			"   string-returning CASE, any string expression. Declare it `String(200)`\n" +
-			"   or mxbuild rejects the view with CE6770. Only a pass-through column\n" +
-			"   inherits its source attribute's length (MDL031).\n" +
+			"   string literal, any string expression. Declare it `String(200)` or\n" +
+			"   mxbuild rejects the view with CE6770. A pass-through column inherits\n" +
+			"   its source attribute's length, and a string CASE its FIRST branch's:\n" +
+			"   `then l.Code else '0000'` is Code's length, `then '0000' else l.Code`\n" +
+			"   String(200). A numeric CASE widens over all branches (MDL031).\n" +
 			"4. A SOURCE may be double-quoted like SQL (`s.\"Month\"`), an ALIAS may not\n" +
 			"   (MDL072). So a view attribute can never be called `Month` or `Year` —\n" +
 			"   that one is renamed, not quoted. An MDL keyword that is NOT an OQL one\n" +
