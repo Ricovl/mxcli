@@ -508,6 +508,9 @@ type ShowPageAction struct {
 	PassedObject          string                  `json:"passedObject,omitempty"`
 	OverridePageTitle     *model.Text             `json:"overridePageTitle,omitempty"`
 	PageParameterMappings []*PageParameterMapping `json:"pageParameterMappings,omitempty"`
+	// NumberOfPagesToClose is the expression for how many pages to close before
+	// the page opens; "" (Studio Pro's default) closes none (mendixlabs/mxcli#1617).
+	NumberOfPagesToClose string `json:"numberOfPagesToClose,omitempty"`
 }
 
 func (ShowPageAction) isMicroflowAction() {}

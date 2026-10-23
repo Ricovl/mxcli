@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package executor
+
+import (
+	"strings"
+
+	"github.com/mendixlabs/mxcli/mdl/ast"
+)
+
+// validateShowPageParams checks that each argument of a show page names a
+// parameter of the page. One that does not is CE1613 "The selected page
+// parameter 'M.P.X' no longer exists" (mxbuild 11.12.5), and exec writes it as
+// given. The reported case was `show page M.P (NumberOfPagesToClose: 1)`,
+// which reads as an argument for a page parameter of that name rather than as
+// the action's setting (mendixlabs/mxcli#1617). A page that does not resolve is
+// the not-found check's to report.
+func validateShowPageParams(ctx *ExecContext, calls []codeActionCallRef, sc *scriptContext) []string {
+	var stored map[string][]string
+	var errs []string
+	for _, call := range calls {
+		key := strings.ToLower(call.name)
+		declared, ok := sc.pageParamNames[key]
+		if !ok {
+			if stored == nil {
+				stored = buildPageParamNames(ctx)
+			}
+			declared, ok = stored[key]
+		}
+		if !ok {
+			continue
+		}
+		for _, msg := range validateCodeActionParams("page", call, declared) {
+			for _, written := range call.argNames {
+				if strings.EqualFold(written, "NumberOfPagesToClose") && strings.Contains(msg, `"`+written+`"`) {
+					msg += " NumberOfPagesToClose is the action's setting, not a page parameter: " +
+						"write `show page " + call.name + " with NumberOfPagesToClose = 1`."
+				}
+			}
+			errs = append(errs, msg)
+		}
+	}
+	return errs
+}
+
+// showPageArgNames is the parameter names a show page's arguments name.
+func showPageArgNames(args []ast.ShowPageArg) []string {
+	var names []string
+	for _, a := range args {
+		if a.ParamName != "" {
+			names = append(names, a.ParamName)
+		}
+	}
+	return names
+}
+
+// buildPageParamNames maps each stored page (lower-cased qualified name) to
+// its parameter names. A page with no parameters is present with an empty,
+// non-nil list: known to take none, so any argument is the CE1613.
+func buildPageParamNames(ctx *ExecContext) map[string][]string {
+	out := map[string][]string{}
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return out
+	}
+	all, err := ctx.Backend.ListPages()
+	if err != nil {
+		return out
+	}
+	for _, p := range all {
+		if p == nil {
+			continue
+		}
+		names := []string{}
+		for _, param := range p.Parameters {
+			if param != nil {
+				names = append(names, param.Name)
+			}
+		}
+		out[strings.ToLower(h.GetQualifiedName(p.ContainerID, p.Name))] = names
+	}
+	return out
+}
+
+// recordPageParamNames stores a script-declared page's parameter names, for
+// the show page argument check: the page and the flow opening it are usually
+// one script.
+func (sc *scriptContext) recordPageParamNames(qualifiedName string, params []ast.PageParameter) {
+	names := make([]string, 0, len(params))
+	for _, p := range params {
+		names = append(names, p.Name)
+	}
+	sc.pageParamNames[strings.ToLower(qualifiedName)] = names
+}

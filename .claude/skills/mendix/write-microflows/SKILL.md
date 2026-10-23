@@ -22,11 +22,11 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 420-445 | Special Values |
 | 446-492 | Complete Example |
 | 493-549 | Calling Microflows |
-| 550-576 | Page Navigation |
-| 577-593 | Validation Checklist |
-| 594-605 | Tips for Success |
-| 606-612 | Related Documentation |
-| 613-725 | Quick Reference |
+| 550-578 | Page Navigation |
+| 579-595 | Validation Checklist |
+| 596-607 | Tips for Success |
+| 608-614 | Related Documentation |
+| 615-727 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -561,6 +561,8 @@ parameter name: `call microflow`, `show page`, and widget actions
 (`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
 `Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
 --upgrade` rewrites them.
+Settings follow in a `with` list — `show page M.P with NumberOfPagesToClose = 1;` closes the current page
+first (Integer expression; unstated closes none). As an argument, `(NumberOfPagesToClose: 1)` is CE1613.
 
 ### CLOSE PAGE
 

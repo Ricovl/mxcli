@@ -639,10 +639,16 @@ func init() {
 		Summary: "Open and close pages from microflows",
 		Keywords: []string{
 			"show page", "open page", "close page", "display page",
-			"navigate", "page action",
+			"navigate", "page action", "number of pages to close", "title override",
 		},
-		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE [n];",
-		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
+		Syntax: "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value) [WITH title = 'Title', NumberOfPagesToClose = n];\nCLOSE PAGE [n];",
+		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\n\n" +
+			"-- Close the current page, then open the overview (Studio Pro: \"Number of\n" +
+			"-- pages to close\"; an Integer expression, unstated closes none). A setting,\n" +
+			"-- not an argument: (NumberOfPagesToClose: 1) is a page parameter (CE1613).\n" +
+			"SHOW PAGE MyModule.OrderOverview WITH NumberOfPagesToClose = 1;\n" +
+			"SHOW PAGE MyModule.OrderDetail (Order = $NewOrder) WITH title = 'Edit order';\n\n" +
+			"CLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
 		SeeAlso: []string{"page"},
 	})
 

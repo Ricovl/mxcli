@@ -281,7 +281,12 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 	case *genMf.ShowPageAction:
 		// Storage $Type Microflows$ShowFormAction. The FormSettings tree is written
 		// raw (Form / ParameterMappings with legacy keys), so read it from raw.
-		out := &microflows.ShowPageAction{ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType())}
+		out := &microflows.ShowPageAction{
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
+			// Unread, an action that closes a page described as one that closes
+			// none (mendixlabs/mxcli#1617).
+			NumberOfPagesToClose: a.NumberOfPagesToClose(),
+		}
 		out.ID = model.ID(a.ID())
 		if fs, ok := a.Raw().Lookup("FormSettings").DocumentOK(); ok {
 			out.FormSettingsID = model.ID(rawStr(fs, "$ID"))

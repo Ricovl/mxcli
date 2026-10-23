@@ -1282,6 +1282,8 @@ func buildShowPageStatement(ctx parser.IShowPageStatementContext) *ast.ShowPageS
 							stmt.ModalForm = b
 						}
 					}
+				case "numberofpagestoclose":
+					stmt.NumberOfPagesToClose = change.Value
 				}
 			}
 		}

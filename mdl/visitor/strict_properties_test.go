@@ -91,6 +91,21 @@ var strictPropertyCases = []struct {
 		"MDL-V1-PROPVALUE", []string{"'Model'", "a qualified name"},
 	},
 	{
+		"show page with key",
+		"create microflow M.F () begin show page M.P with NumberOfPagesToClos = 1; end;",
+		"MDL-V1-PROP", []string{"unknown property 'NumberOfPagesToClos'", "show page", "did you mean 'NumberOfPagesToClose'"},
+	},
+	{
+		"show page location",
+		"create microflow M.F () begin show page M.P with location = 'Popup'; end;",
+		"MDL-V1-PROP", []string{"'location'", "show page", "not stored"},
+	},
+	{
+		"show page title as a variable",
+		"create microflow M.F () begin show page M.P with title = $T; end;",
+		"MDL-V1-PROPVALUE", []string{"'title'", "a string"},
+	},
+	{
 		"agent tool block key",
 		"create agent M.A (UsageType: Task, Model: M.GPT) { tool T { Enabeld: true } };",
 		"MDL-V1-PROP", []string{"unknown property 'Enabeld'", "tool", "did you mean 'Enabled'"},
@@ -156,6 +171,7 @@ func TestStrictPropertiesAcceptWhatDescribeWrites(t *testing.T) {
   operation Del { Method: delete, Path: '/x', Response: file as $F }
 };`,
 		"create rest client M.Open (OpenApi: 'spec.json', BaseUrl: 'https://x', Authentication: none);",
+		"create microflow M.F () begin show page M.P(Order = $O) with title = 'T', NumberOfPagesToClose = 1; show page M.P with NumberOfPagesToClose = $N + 1; end;",
 		"create published rest service M.S (Path: 'rest/s', Version: '1.0', ServiceName: 'S', Folder: 'F') { };",
 		"create business event service M.BE (ServiceName: 'S', EventNamePrefix: '', Folder: 'F') { message Changed (Id: Long) publish; };",
 		"create model M.GPT (Provider: MxCloudGenAI, Key: M.Key, DisplayName: 'GPT', KeyName: 'k', KeyId: 'i', Environment: 'e', ResourceName: 'r', DeepLinkURL: 'u');",
@@ -221,5 +237,50 @@ func TestStrictPropertiesKeepTheOldReadingUnderMdl0(t *testing.T) {
 	op := prog.Statements[0].(*ast.CreateRestClientStmt).Operations[0]
 	if op.BodyType != "json" || op.BodyVariable != "$X" || op.ResponseType != "" {
 		t.Fatalf("mdl 0 changed what `Response: json from $X` builds: %+v", op)
+	}
+}
+
+// mendixlabs/mxcli#1617: a show page's "Number of pages to close" has a
+// spelling, and it reaches the statement. Before, the `with` list ignored any
+// key but title, location and modal, so it vanished with check clean.
+func TestShowPageWithNumberOfPagesToClose(t *testing.T) {
+	prog, errs := Build("mdl 1;\ncreate microflow M.F () begin show page M.P with title = 'T', NumberOfPagesToClose = 1; end;")
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	sp := prog.Statements[0].(*ast.CreateMicroflowStmt).Body[0].(*ast.ShowPageStmt)
+	lit, ok := sp.NumberOfPagesToClose.(*ast.LiteralExpr)
+	if !ok || lit.Kind != ast.LiteralInteger {
+		t.Fatalf("NumberOfPagesToClose = %#v, want the literal 1", sp.NumberOfPagesToClose)
+	}
+	if sp.Title != "T" {
+		t.Errorf("the title beside it was lost: %q", sp.Title)
+	}
+	// CONTROL: without the key there is no expression.
+	prog, _ = Build("create microflow M.F () begin show page M.P with title = 'T'; end;")
+	if sp := prog.Statements[0].(*ast.CreateMicroflowStmt).Body[0].(*ast.ShowPageStmt); sp.NumberOfPagesToClose != nil {
+		t.Errorf("no key, yet NumberOfPagesToClose = %#v", sp.NumberOfPagesToClose)
+	}
+}
+
+// A NumberOfPagesToClose literal that is not a whole number is refused under
+// every version: mxbuild fails it with CE0117, and the key never worked
+// before, so no script depends on it being accepted.
+func TestShowPageNumberOfPagesToCloseRefusesNonInteger(t *testing.T) {
+	for _, v := range []string{"1.5", "'1'", "true", "empty"} {
+		src := "create microflow M.F () begin show page M.P with NumberOfPagesToClose = " + v + "; end;"
+		for _, header := range []string{"", "mdl 1;\n"} {
+			_, errs := Build(header + src)
+			if len(errs) != 1 || !strings.Contains(errs[0].Error(), "Integer expression") {
+				t.Errorf("%q (header %q): want one Integer-expression error, got %v", v, header, errs)
+			}
+		}
+	}
+	// CONTROL: whole numbers, including the 0 and -1 mxbuild accepts, and
+	// expressions it cannot judge without types.
+	for _, v := range []string{"0", "1", "-1", "$Count", "$Count + 1", "length($S)"} {
+		if _, errs := Build("mdl 1;\ncreate microflow M.F () begin show page M.P with NumberOfPagesToClose = " + v + "; end;"); len(errs) > 0 {
+			t.Errorf("%q refused: %v", v, errs)
+		}
 	}
 }
