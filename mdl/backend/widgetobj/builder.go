@@ -1865,13 +1865,17 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 		paramID = bsonutil.IDToBsonBinary(string(param.ID))
 	}
 
+	// An attribute reached over associations carries its hops in EntityRef. Left
+	// null, mxbuild reads the attribute against the widget's context entity:
+	// CE1365 "Attribute 'M.Child.Label' is not an attribute of entity 'M.Parent'"
+	// (mendixlabs/mxcli#1494). The executor resolved the steps all along.
 	var attrRefBSON any
 	if param.AttributeRef != "" {
 		attrRefBSON = bson.D{
 			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 			{Key: "$Type", Value: "DomainModels$AttributeRef"},
 			{Key: "Attribute", Value: param.AttributeRef},
-			{Key: "EntityRef", Value: nil},
+			{Key: "EntityRef", Value: attributeEntityRefBSON(param.AttributeRefSteps)},
 		}
 	}
 

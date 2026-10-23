@@ -1,0 +1,18 @@
+mdl 1;
+-- ako/mxcli#1294 — the negative half: a numeric CASE widens across its
+-- branches, so `then 1 else 2.5` is Decimal. mxcli used to type it from the
+-- first branch alone, accepting Integer (CE6770 in mx check 11.12.5) and
+-- refusing Decimal, the one declaration that builds, with "Fix: change to
+-- 'Score: Integer'". `mxcli check` must refuse this file as MDL031 and
+-- suggest Decimal.
+
+create module Bt1294f;
+
+create persistent entity Bt1294f.Lane (Points: Integer);
+
+create view entity Bt1294f.LaneScore (
+  Score: Integer
+) as (
+  select case when l.Points > 4 then 1 else 2.5 end as Score
+  from Bt1294f.Lane as l
+);
