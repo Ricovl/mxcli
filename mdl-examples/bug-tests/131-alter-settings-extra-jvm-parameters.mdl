@@ -19,8 +19,8 @@ mdl 1;
 --   mxcli -p app.mpr -c "describe settings configuration 'Default'"
 --     → ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=29758'
 --
--- Note: this sets what Studio Pro passes when it runs the app. `mxcli run --local`
--- starts the runtime JVM itself and does not apply the configuration's parameters.
+-- This sets what Studio Pro passes to the runtime JVM when it runs the app;
+-- `mxcli run --local` and `mxcli test --local` pass it too.
 
 alter settings configuration 'Default' (
   ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=29758'

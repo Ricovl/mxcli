@@ -155,7 +155,6 @@
 4	syntax	docs-site/src/reference/security/grant.md
 5	syntax	docs-site/src/reference/security/revoke.md
 1	syntax	docs-site/src/reference/security/update-security.md
-3	syntax	docs-site/src/reference/settings/list-describe-settings.md
 11	syntax	docs-site/src/reference/workflow/create-workflow.md
 2	syntax	docs-site/src/tools/callers-callees.md
 1	syntax	docs-site/src/tools/catalog-sql.md

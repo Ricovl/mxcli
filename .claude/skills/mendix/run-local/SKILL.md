@@ -28,11 +28,11 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 507-539 | The same licence also stops the app after a few hours |
 | 540-619 | External browser preview (`--hub`) |
 | 620-628 | Validation checklist |
-| 629-668 | Constant values come from a configuration |
-| 669-672 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 673-676 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 677-680 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 681-683 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 629-685 | Constant values come from a configuration |
+| 686-689 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 690-693 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 694-697 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 698-700 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -655,6 +655,23 @@ encryption key while the model said otherwise.
   constant the project does not declare is refused before the app boots: the
   runtime ignores a value for a constant that does not exist, so a typo would
   otherwise be reported as applied and do nothing.
+
+The same configuration's **JVM options** reach the runtime JVM too, as they do when
+Studio Pro runs the app: `MaxJavaHeapSize` (Java heap ▸ Maximum size, in MB) as
+`-Xmx<n>m`, then the **Extra JVM parameters**, split like a shell would split them
+(a quoted run stays one argument). Set them with
+`alter settings configuration 'Default' (ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888')`.
+
+```text
+Passing 3 JVM option(s) from configuration "Default": -Xmx768m -Dhttps.proxyHost=… -Dhttps.proxyPort=…
+```
+
+- A `-D` value is not printed (the parameters are also where a trust-store password
+  goes); `describe settings` shows them. Nothing set, nothing printed.
+- They go after mxcli's own `-D` flags, so a property the configuration sets wins.
+- An unbalanced quote is refused before the boot, naming the configuration —
+  passed on, it would cut a property in half or stop the JVM starting.
+- `mxcli test --local` boots with the same options.
 
 Setting a constant on an app that is *already running* is a different mechanism
 again: `MicroflowConstants` over the M2EE admin port, which is how Mendix Cloud

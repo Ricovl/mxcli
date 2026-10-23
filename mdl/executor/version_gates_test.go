@@ -35,6 +35,11 @@ func TestCheckVersionGates_ReportsEveryHandlerGate(t *testing.T) {
 		{"message definition document", &ast.CreateMessageDefinitionStmt{}, [3]int{11, 14, 0}, "create message definition"},
 		{"workflow group", &ast.AlterSettingsStmt{Section: "WORKFLOWS", AddGroup: true, GroupName: "G"}, [3]int{11, 1, 0}, "add group"},
 		{"view entity", &ast.CreateViewEntityStmt{}, [3]int{10, 17, 0}, "create view entity"},
+		// ako/mxcli#1632: an OQL comment is CE0174 below 11.7 (measured 10.24.25,
+		// 11.6.6), so now that the query keeps one, a version that rejects it
+		// refuses the statement instead of writing an unbuildable model.
+		{"view query comment", &ast.CreateViewEntityStmt{Query: ast.OQLQuery{
+			RawQuery: "-- totals\nselect sum(s.Amount) as Total\nfrom M.Sale as s"}}, [3]int{11, 6, 6}, "a comment in a view entity's OQL query"},
 		{"agent model", &ast.CreateModelStmt{}, [3]int{11, 8, 0}, "create model"},
 		{"consumed mcp", &ast.CreateConsumedMCPServiceStmt{}, [3]int{11, 8, 0}, "create consumed mcp service"},
 		{"knowledge base", &ast.CreateKnowledgeBaseStmt{}, [3]int{11, 8, 0}, "create knowledge base"},
@@ -135,5 +140,19 @@ func TestCheckFeatureIsOnlyCalledFromTheGateTable(t *testing.T) {
 				t.Errorf("%s:%d calls checkFeature directly; add the gate to statementVersionGates so `check -p` applies it too", f, i+1)
 			}
 		}
+	}
+}
+
+// The comment gate fires on a COMMENT, not on the characters: a query with
+// none, or with `--` and `/*` inside a string literal, passes on 10.24.25 — the
+// view-entity floor is 10.18, so nothing else gates these.
+func TestCheckVersionGates_ViewQueryWithoutCommentPasses(t *testing.T) {
+	prog := &ast.Program{Statements: []ast.Statement{
+		&ast.CreateModuleStmt{Name: "M"},
+		&ast.CreateViewEntityStmt{Query: ast.OQLQuery{RawQuery: "select s.Code as Code\nfrom M.Sale as s"}},
+		&ast.CreateViewEntityStmt{Query: ast.OQLQuery{RawQuery: "select s.Code as Code\nfrom M.Sale as s\nwhere s.Code != '--' and s.Code != '/* x */'"}},
+	}}
+	if vs := versionGateViolations(versionCtx(t, 10, 24, 25), prog); len(vs) != 0 {
+		t.Errorf("a view query without a comment was gated on 10.24.25: %+v", vs)
 	}
 }

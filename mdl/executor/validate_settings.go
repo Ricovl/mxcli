@@ -48,6 +48,7 @@ var typedSettingsKeys = map[string]map[string]settingsValueKind{
 	"configuration": {
 		"HttpPortNumber":   settingsKindInt,
 		"ServerPortNumber": settingsKindInt,
+		"MaxJavaHeapSize":  settingsKindInt,
 		"DatabaseType":     settingsKindDatabaseType,
 	},
 	"webui": {

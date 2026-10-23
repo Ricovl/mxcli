@@ -55,6 +55,10 @@ package roundtrip
 // the view's OQL column declares them, so describe now gives them no statement —
 // and WorkflowCommons.ConflictedWorkflowDefinitionView, whose only loss was the
 // stored OQL text describe → exec re-indented.
+// ako/mxcli#1631 struck the three Clients.Soap* mappings: gen read their
+// imported web service under the SDK name instead of WsdlFile, so the #365
+// refusal could not see it and the rewrite dropped the binding (GetPut). Read
+// under the storage key, the rewrite is refused and nothing is written.
 var testAppKnownFailures = map[string]knownFailure{
 	"building block Atlas_Web_Content.Alert":                                        {laws: []law{lawParse}, issue: "#721", why: "building block: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"building block Atlas_Web_Content.AlertIcon":                                    {laws: []law{lawParse}, issue: "#721", why: "building block: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -105,10 +109,7 @@ var testAppKnownFailures = map[string]knownFailure{
 	"entity WorkflowCommons.WorkflowUserTaskView":                                   {laws: []law{lawExec}, issue: "#721", why: "entity: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"entity WorkflowCommons.WorkflowView":                                           {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "entity: executes since a Studio Pro index keeps its GUID on CREATE OR MODIFY (mendixlabs/mxcli#1470); re-executing adds a fourth access rule (the XPath-scoped grant is not matched to its stored rule) and the documentation's trailing whitespace drifts — not yet triaged into #721's classes"},
 	"enumeration WorkflowCommons.Enum_NotificationArea_RenderAs":                    {laws: []law{lawGetPut}, issue: "#721", why: "enumeration: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"export mapping Clients.SoapOrderExportMapping":                                 {laws: []law{lawGetPut}, issue: "#721", why: "export mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"export mapping Services.OrdersExportMapping":                                   {laws: []law{lawGetPut}, issue: "#721", why: "export mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"import mapping Clients.SoapCustomerOrdersImportMapping":                        {laws: []law{lawGetPut}, issue: "#721", why: "import mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"import mapping Clients.SoapOrdersImportMapping":                                {laws: []law{lawGetPut}, issue: "#721", why: "import mapping: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page Administration.Account_Overview":                                          {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page FeedbackModule.PopupFailure":                                              {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page FeedbackModule.PopupSuccess":                                              {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},

@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1632 — a comment before a view query's first token or after its
+-- last was dropped, because the stored query was the token span and the lexer
+-- skips comments. A describe → exec into another project lost it every time.
+--
+-- The query now keeps those comments. They are only legal from Mendix 11.7.0:
+-- measured, 10.24.25 and 11.6.6 report CE0174 "Error(s) in OQL query: The '-'
+-- part is incomplete or incorrect" for a comment ANYWHERE in the query (with
+-- UseOQLVersion2 on), while 11.7.0 and 11.13.0 build at 0 errors. So on an
+-- older project `check -p` and `exec` refuse a commented query (MDL-VERSION01)
+-- — which also catches the comment between clauses mxcli always stored and
+-- mxbuild then rejected.
+--
+-- Run against an 11.7+ project. Measured on 11.7.0: all four comments are
+-- stored, `describe module VqC with all` → exec into a fresh project keeps 4 of
+-- 4 (the pre-fix binary kept 0), mx check 0 errors.
+-- ============================================================================
+
+create module VqC;
+
+create persistent entity VqC.Item (
+  Code: String(20),
+  Amount: Integer
+);
+
+create view entity VqC.VLead (
+  Code: String(20)
+) as (
+  -- view over items
+  select i.Code as Code
+  from VqC.Item as i
+);
+
+create view entity VqC.VTrail (
+  Code: String(20)
+) as (
+  select i.Code as Code
+  from VqC.Item as i -- all of them
+);
+
+create view entity VqC.VBlock (
+  Total: Integer
+) as (
+  /* header */
+  select sum(i.Amount) as Total
+  from VqC.Item as i
+  /* footer */
+);
