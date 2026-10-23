@@ -204,15 +204,16 @@ func comboBoxHiddenContent(w map[string]any) []rawHiddenContent {
 
 // writeHiddenContentNote names a combo box's custom content. Executed against
 // this page the content is kept while the combo box is left as stored — the
-// pluggable passthrough — and lost when the statement changes it or runs
-// anywhere else; `alter page … set` changes the combo box and keeps it.
+// pluggable passthrough — and a statement that changes the combo box is refused
+// rather than delete it (ako/mxcli#1648); run anywhere else, it is left out.
+// `alter page … set` changes the combo box and keeps it.
 func writeHiddenContentNote(out io.Writer, prefix, widget string, hidden []rawHiddenContent) {
 	for _, hc := range hidden {
 		fmt.Fprintf(out, "%s-- NOT SHOWN: %s's %s holds %s, custom content MDL cannot author.\n",
 			prefix, widget, hc.Property, strings.Join(hc.Widgets, ", "))
-		fmt.Fprintf(out, "%s-- Executed on this page it is kept while %s is unchanged; a changed %s, or a run\n",
+		fmt.Fprintf(out, "%s-- Executed on this page it is kept while %s is unchanged, and a change to %s is\n",
 			prefix, widget, widget)
-		fmt.Fprintf(out, "%s-- anywhere else, loses it. Change %s with `alter page … set (…) on %s` instead.\n",
+		fmt.Fprintf(out, "%s-- refused; run anywhere else, it is left out. Change %s with `alter page … set (…) on %s`.\n",
 			prefix, widget, widget)
 	}
 }
