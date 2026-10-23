@@ -1,0 +1,56 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1629 — find / filter by System.owner, and describing it back
+-- ============================================================================
+--
+-- `find $l by System.owner = $u` was refused at exec ("… is not a known
+-- association … create the association first"), though mxbuild builds it, and
+-- describe printed a stored one as `by owner` — which re-executes as an
+-- attribute. A System association inherited by a specialization of System.User
+-- had the same describe drift: `by User_Language` re-executed as the attribute
+-- Administration.Account.User_Language, CE1613.
+--
+-- Measured with mx check on 11.12.5:
+--   find/filter by System.owner | System.changedBy, the root stores it   0 problems
+--   the same on an entity that does not store it                          CE0091 "No member selected."
+--   find by System.Owner                                                  CE1613
+-- `check -p` / exec refuse the last two (they need the entity's flags, so plain
+-- `check` — what `make check-mdl` runs — cannot see them). This file holds the
+-- forms that build; describe prints each back as written.
+-- ============================================================================
+
+create module B1629;
+
+create persistent entity B1629.Task (
+  "Title": String(200),
+  "owner": AutoOwner,
+  "changedBy": AutoChangedBy
+);
+
+-- A System.FileDocument specialization stores both members.
+create persistent entity B1629.Attachment extends System.FileDocument ("Caption": String(200));
+
+create or modify microflow B1629.Task_FirstOwnedBy ($Tasks: List of B1629.Task, $User: System.User)
+returns B1629.Task as $Task
+begin
+  $Task = find $Tasks by System.owner = $User;
+end;
+
+create or modify microflow B1629.Task_EditedBy ($Tasks: List of B1629.Task, $User: System.User)
+returns List of B1629.Task as $Edited
+begin
+  $Edited = filter $Tasks by System.changedBy = $User;
+end;
+
+create or modify microflow B1629.Attachment_UploadedBy ($Files: List of B1629.Attachment, $User: System.User)
+returns List of B1629.Attachment as $Mine
+begin
+  $Mine = filter $Files by System.owner = $User;
+end;
+
+-- A System association inherited from System.User, by its qualified name.
+create or modify microflow B1629.Account_SpeakingLanguage ($Accounts: List of Administration.Account, $Lang: System.Language)
+returns Administration.Account as $Account
+begin
+  $Account = find $Accounts by System.User_Language = $Lang;
+end;

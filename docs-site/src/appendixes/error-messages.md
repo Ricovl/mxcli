@@ -368,7 +368,10 @@ project models. Written as a create or change object member, `System.owner` and
 `System.changedBy` are CE1050 for every entity — one that stores its owner, one that does not,
 a `System.FileDocument` specialization — in a microflow and a nanoflow alike (measured on
 11.12.5, mendixlabs/mxcli#1612). `check` needs no project to know it; `check` and `exec` both
-refuse it. A list operation is different: `find $l by System.owner = $u` builds.
+refuse it. A list operation is different: `find $l by System.owner = $u` (and `filter`, and
+`System.changedBy`) builds when the list's entity stores the member — on one that does not it
+is CE0091 "No member selected.", which `check -p` and `exec` report with the `alter entity`
+that stores it (ako/mxcli#1629).
 
 **Solution:** To record a user on an object — for example to own seeded data — model the
 association and set that:
