@@ -164,6 +164,7 @@ CREATE PUBLISHED ODATA SERVICE MyModule.CustomerAPI (
 | Close page | `CLOSE PAGE [n];` | `n` pages, default 1 |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` | Requires attribute path + MESSAGE |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'message';` | |
+| Log with stack trace | `LOG ERROR 'message' [WITH ({1} = $v)] WITH STACKTRACE;` | "Include latest stack trace" |
 | Position | `@position(x, y)` | Canvas position (before activity) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
 | Caption | `@caption 'text'` | Custom caption (before activity) |

@@ -434,7 +434,9 @@ begin
   -- The call output establishes $response — objects are never declared
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
     on error without rollback begin
-      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
+      -- `with stacktrace` ticks "Include latest stack trace" (after any
+      -- `with ({1} = …)` template parameters)
+      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData with stacktrace;
       -- Not `$response = create …`: a variable name is unique flow-wide,
       -- handler included (MDL063, CE0111). The fallback gets its own name
       -- and the handler returns it.

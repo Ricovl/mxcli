@@ -414,7 +414,7 @@ log warning node 'ValidationService' 'Invalid data detected';
 
 -- With variables (use concatenation)
 log info node 'OrderService' 'Order processed: ' + $OrderNumber;
-log error node 'Service' 'Error: ' + $ErrorMessage;
+log error node 'Service' 'Error: ' + $ErrorMessage with stacktrace;  -- ticks "Include latest stack trace"
 ```
 
 ## Special Values

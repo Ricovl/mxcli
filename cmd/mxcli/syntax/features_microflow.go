@@ -592,9 +592,10 @@ func init() {
 		Keywords: []string{
 			"log", "logging", "info", "warning", "error", "debug",
 			"trace", "critical", "node", "message template",
+			"stacktrace", "stack trace", "include latest stack trace",
 		},
-		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
-		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
+		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);\nLOG ERROR NODE 'OrderService' 'Failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;",
 	})
 
 	Register(SyntaxFeature{

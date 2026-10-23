@@ -543,8 +543,16 @@ raiseErrorStatement
     ;
 
 // LOG INFO NODE 'TEST' 'Message'; or LOG INFO 'Message'; or LOG WARNING 'Message' WITH ({1} = $var);
+// LOG ERROR 'Failed' WITH STACKTRACE; ticks "Include latest stack trace".
 logStatement
-    : LOG logLevel? (NODE expression)? expression logTemplateParams? onErrorClause?
+    : LOG logLevel? (NODE expression)? expression logTemplateParams? logStackTrace? onErrorClause?
+    ;
+
+/** Studio Pro's "Include latest stack trace" (IncludeLatestStackTrace). After
+ *  the template parameters, which also open with WITH: `WITH (` is the one and
+ *  `WITH STACKTRACE` the other. */
+logStackTrace
+    : WITH STACKTRACE
     ;
 
 logLevel

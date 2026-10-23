@@ -756,6 +756,11 @@ func formatAction(
 			}
 			withClause = fmt.Sprintf(" with (%s)", strings.Join(params, ", "))
 		}
+		// "Include latest stack trace" (mendixlabs/mxcli#1543). Unticked is what
+		// an absent clause builds, so only a ticked box is printed.
+		if a.IncludeLastStackTrace {
+			withClause += " with stacktrace"
+		}
 
 		// Level info and node 'Application' are what an unstated level and node
 		// build (addLogMessageAction), so neither is printed (R12, #748).
