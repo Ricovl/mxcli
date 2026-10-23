@@ -242,7 +242,7 @@ Administration updated 4.3.2 → 4.5.0
 
 - **Element identity.** The runtime keys entities and their attributes on the model's `GUID`, so a module whose documents are replaced without carrying the old GUIDs is a *different* module to the database and its tables are dropped on the next deploy. Studio Pro transplants them; so does this.
 - **Access.** A user role's grant of a module role lives in the project's security document, not the module, so removing the module takes the grants with it and putting it back does not return them.
-- **Everything else the package ships.** A module is not only its model: the `.mpk` carries widget binaries under `widgets/`, styling and design-property declarations under `themesource/`, and whatever else it needs. All of it is replaced — only `project.mpr` and `package.xml` are manifest rather than payload. DataWidgets 3.11.3 replaces 49 such files, and skipping them leaves the app running old widget code and reporting `CE6083` for design properties the module itself declares.
+- **Everything else the package ships.** A module is not only its model: the `.mpk` carries widget binaries under `widgets/`, styling and design-property declarations under `themesource/`, and whatever else it needs. All of it is replaced: every file the package's `package.xml` lists under `<files>`, which is exactly what `mx module-import` installs. What it does not list is the package's own metadata — `License.txt`, `manifest.json`, the `READMEOSS` report, `Mendix EULA.docx` — and is left out, named on one line of the output. DataWidgets 3.11.3 replaces 49 such files, and skipping them leaves the app running old widget code and reporting `CE6083` for design properties the module itself declares.
 
 It does not use `mx module-import`, which would rewrite an MPR v2 project as v1 and refuses theme modules. Units are copied with mxcli's own writer, so the project keeps its format.
 
@@ -355,6 +355,24 @@ Note that `--force` still builds the baseline. It is not wasted work — under
 `--force` the command prints the locally changed elements it is about to
 replace, and that list is the whole point of the check. Use `--no-baseline` when
 you genuinely want to skip it.
+
+### Where references are built: the 260-character limit
+
+`mx` refuses to write any file whose path is 260 characters or longer — on every
+platform, not only Windows: the check is in `mx` itself. A reference project holds
+the blank template plus the imported package, and their deepest files are bundled
+`node_modules` trees: 181 characters for the 11.12.1 blank app, about 202 for
+NanoflowCommons 7.x. That leaves under 60 characters for the directory they are
+built in, and the default Windows `%TEMP%` (`C:\Users\<user>\AppData\Local\Temp`)
+used most of it, so `diff` and `update` failed with *"The specified file name or
+path is too long"*.
+
+References are therefore built under the shortest directory the user owns:
+`%USERPROFILE%\.mxcli\t` on Windows, `/tmp` on Linux and macOS, or `TMP` /
+`TMPDIR` when that is shorter still. It is never a folder at a drive root such as
+`C:\mxt`, which every local account may modify; point `TMP` there yourself if you
+accept that. If a package is deep enough to hit the limit anyway, the error names
+the directory, its length, and what is left for the package.
 
 ## Repairing the model (`mxcli fix`)
 
