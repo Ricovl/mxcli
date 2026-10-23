@@ -1,0 +1,33 @@
+mdl 1;
+-- Bug: `create configuration` refused on Mendix 11.12+ projects
+--
+-- Symptom (testdata/testapp-views, Mendix 11.14.0):
+--   $ mxcli -p TestApp.mpr -c "create configuration 'Staging'"
+--   Error: failed to update project settings: refusing to write unit …: 3 element id(s)
+--   are used more than once, which produces a project that cannot be opened
+--     … held by [Settings$OpenTelemetryConfiguration Settings$OpenTelemetryConfiguration]
+--     … held by [Settings$OpenTelemetryLogsConfiguration …]
+--     … held by [Settings$OpenTelemetryTracesConfiguration …]
+--
+-- A new configuration copies an existing one as its shape template. From 11.12 a
+-- configuration Studio Pro has saved carries a nested OpenTelemetry part whose
+-- elements — the part and its Logs / Traces children — have $IDs of their own, and
+-- the copy kept them. The duplicate-id guard refused the write (correctly: Studio
+-- Pro refuses a unit holding one id twice).
+--
+-- Fix: the template is deep-copied with a fresh $ID for every nested storage
+-- object (settingsoverlay.cloneWithFreshIDs); the values are still inherited.
+--
+-- Check the subject: a blank `mxcli new` 11.14 app stores OpenTelemetry = null, so
+-- it creates a configuration fine even without the fix. Only a configuration Studio
+-- Pro has saved reproduces it. Measured on testapp-views: `mx check` reports the
+-- same errors after this script as before it.
+--
+-- Manual verification:
+--   mxcli exec create-configuration-nested-ids-1112.mdl -p app.mpr   (an 11.12+ app
+--   whose Default configuration was saved by Studio Pro)
+
+create configuration 'Staging' (
+  DatabaseType: 'PostgreSql',
+  HttpPortNumber: 8081
+);
