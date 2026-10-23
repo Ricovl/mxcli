@@ -1128,6 +1128,9 @@ type ShowPageStmt struct {
 	ModalForm     bool                 // Whether to show as modal
 	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
+	// NumberOfPagesToClose is `with NumberOfPagesToClose = <expr>`: how many
+	// pages to close before the page opens; nil closes none (mendixlabs/mxcli#1617).
+	NumberOfPagesToClose Expression
 }
 
 func (s *ShowPageStmt) isMicroflowStatement() {}

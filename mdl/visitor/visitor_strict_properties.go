@@ -417,3 +417,81 @@ func odataPropertyShape(pc *parser.OdataPropertyAssignmentContext) propShape {
 	}
 	return shapeOther
 }
+
+// showPageWithSchema is what a show page's `with` list reads. The list
+// ignored every other key, so `with NumberOfPagesToClose = 1` was dropped
+// with check and exec clean before the key existed (mendixlabs/mxcli#1617).
+var showPageWithSchema = propSchema{on: "a show page action", keys: []propKey{
+	{"title", []propShape{shapeString}},
+	{"NumberOfPagesToClose", nil}, // any expression: refusePagesToCloseLiteral
+}}
+
+// ExitShowPageStatement checks the `with` list against showPageWithSchema.
+// location and modal are read and never written: Mendix deleted a Show page
+// action's location in 8.0 — the page's own layout decides how it opens —
+// and the action never had a modal flag.
+func (b *Builder) ExitShowPageStatement(ctx *parser.ShowPageStatementContext) {
+	list, ok := ctx.MemberAssignmentList().(*parser.MemberAssignmentListContext)
+	if !ok || list == nil {
+		return
+	}
+	for _, m := range list.AllMemberAssignment() {
+		assign, ok := m.(*parser.MemberAssignmentContext)
+		if !ok || assign.MemberAttributeName() == nil {
+			continue
+		}
+		key := memberAttributeNameText(assign.MemberAttributeName())
+		switch strings.ToLower(key) {
+		case "numberofpagestoclose":
+			b.refusePagesToCloseLiteral(assign)
+		case "location", "modal", "modalform":
+			b.strict(unknownPropertyKey, assign, fmt.Sprintf(
+				"'%s' on a show page action is not stored: the action has no location or modal setting "+
+					"(Mendix removed its location in 8.0), the page's own layout decides how it opens. Known properties: %s",
+				key, strings.Join(showPageWithSchema.names(), ", ")))
+		default:
+			b.checkProperty(assign, &showPageWithSchema, key, expressionShape(assign.Expression()))
+		}
+	}
+}
+
+// refusePagesToCloseLiteral refuses a NumberOfPagesToClose literal that is
+// not a whole number. The setting is an Integer expression, and mxbuild
+// 11.12.5 fails 1.5 and a Boolean with CE0117 "Error(s) in expression" at the
+// activity (0, -1 and `$Count + 1` pass). The key was dropped until #1617, so
+// no script relied on it and the refusal is not tied to the header — the same
+// reasoning as `close page 1.5` (ExitClosePageStatement).
+func (b *Builder) refusePagesToCloseLiteral(assign *parser.MemberAssignmentContext) {
+	lit, ok := buildExpression(assign.Expression()).(*ast.LiteralExpr)
+	if !ok || lit.Kind == ast.LiteralInteger {
+		return
+	}
+	b.addErrorWithExample(
+		fmt.Sprintf("%s: `NumberOfPagesToClose = %s`: the number of pages to close is an Integer expression — "+
+			"a whole number or an expression of type Integer (Mendix build fails CE0117 otherwise)",
+			ctxPos(assign), expressionSourceText(assign.Expression())),
+		"  show page M.P with NumberOfPagesToClose = 1;          -- close the current page first\n"+
+			"  show page M.P with NumberOfPagesToClose = $Count;     -- an Integer expression")
+}
+
+// expressionShape is the shape of an expression value, in the propShape
+// vocabulary.
+func expressionShape(expr parser.IExpressionContext) propShape {
+	if expr == nil {
+		return shapeOther
+	}
+	switch e := buildExpression(expr).(type) {
+	case *ast.LiteralExpr:
+		switch e.Kind {
+		case ast.LiteralString:
+			return shapeString
+		case ast.LiteralInteger, ast.LiteralDecimal:
+			return shapeNumber
+		case ast.LiteralBoolean:
+			return shapeBool
+		}
+	case *ast.VariableExpr:
+		return shapeVariable
+	}
+	return shapeOther
+}

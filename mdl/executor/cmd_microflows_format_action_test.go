@@ -556,6 +556,30 @@ func TestFormatAction_ShowPage_WithTitle(t *testing.T) {
 	}
 }
 
+// "Number of pages to close" is described, so an action that closes the
+// current page before opening reads differently from one that closes none,
+// and describe -> exec keeps it (mendixlabs/mxcli#1617).
+func TestFormatAction_ShowPage_NumberOfPagesToClose(t *testing.T) {
+	e := newTestExecutor()
+	action := &microflows.ShowPageAction{PageName: "MyFirstModule.Booking_Overview", NumberOfPagesToClose: "1"}
+	if got, want := e.formatAction(action, nil, nil),
+		"show page MyFirstModule.Booking_Overview with NumberOfPagesToClose = 1;"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// With a title, both settings share the one `with` list.
+	action.OverridePageTitle = &model.Text{Translations: map[string]string{"en_US": "Bookings"}}
+	action.NumberOfPagesToClose = "$Count + 1"
+	if got, want := e.formatAction(action, nil, nil),
+		"show page MyFirstModule.Booking_Overview with title = 'Bookings', NumberOfPagesToClose = $Count + 1;"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	// CONTROL: the stored default, "", closes nothing and says nothing.
+	action.OverridePageTitle, action.NumberOfPagesToClose = nil, ""
+	if got := e.formatAction(action, nil, nil); got != "show page MyFirstModule.Booking_Overview;" {
+		t.Errorf("no pages to close: got %q", got)
+	}
+}
+
 func TestFormatAction_ClosePage(t *testing.T) {
 	e := newTestExecutor()
 	action := &microflows.ClosePageAction{NumberOfPages: 1}

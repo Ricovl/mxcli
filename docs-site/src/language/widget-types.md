@@ -126,6 +126,7 @@ DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
 | `Pagination` | Pagination mode | `Pagination: virtualScrolling` |
 | `PagingPosition` | Position of paging controls | `PagingPosition: both` |
 | `ShowPagingButtons` | When to show paging buttons | `ShowPagingButtons: auto` |
+| `Selection` | Row selection: `None`, `Single` or `Multi` (also on a GALLERY). The widget key `itemSelection:` is the same property; two different values for it are refused (MDL-WIDGET50) | `Selection: Single` |
 
 **Any other Data grid 2 setting** can be set by its widget key — the name the
 widget's own definition gives it (`DESCRIBE WIDGET TYPE datagrid` lists them with

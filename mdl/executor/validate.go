@@ -94,6 +94,7 @@ type scriptContext struct {
 	// task page, the targeting microflow, the context entity and the workflow are
 	// ordinarily one script.
 	pageParams            map[string][]string // Module.Page (lower-cased) -> parameter entities
+	pageParamNames        map[string][]string // Module.Page (lower-cased) -> parameter names, for show page arguments
 	entityGeneralizations map[string]string   // Module.Entity (lower-cased) -> generalization, "" for none
 
 	// Associations and entity attributes declared in the script, for
@@ -158,6 +159,7 @@ func newScriptContext() *scriptContext {
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
+		pageParamNames:        make(map[string][]string),
 		entityGeneralizations: make(map[string]string),
 	}
 }
@@ -315,6 +317,7 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.pages[s.Name.String()] = true
 			sc.recordPageParams(s.Name.String(), s.Parameters)
+			sc.recordPageParamNames(s.Name.String(), s.Parameters)
 		}
 	case *ast.CreateSnippetStmtV3:
 		if s.Name.Module != "" {
@@ -1480,6 +1483,10 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 		}
 	}
 
+	if len(refs.pageCalls) > 0 {
+		errors = append(errors, validateShowPageParams(ctx, refs.pageCalls, sc)...)
+	}
+
 	if len(refs.javaActions) > 0 {
 		known := buildJavaActionQualifiedNames(ctx)
 		for _, ref := range refs.javaActions {
@@ -1771,7 +1778,10 @@ type flowRefCollector struct {
 	nanoflows  []string
 	// flowCalls are the microflow and nanoflow calls with the parameter names
 	// written on them, for the CE1613 parameter-name check (#953).
-	flowCalls         []flowCallRef
+	flowCalls []flowCallRef
+	// pageCalls are the show page actions with arguments, for the same check
+	// (mendixlabs/mxcli#1617).
+	pageCalls         []codeActionCallRef
 	javaActions       []codeActionCallRef
 	javaScriptActions []codeActionCallRef
 	entities          []entityRef
@@ -1898,6 +1908,9 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 		case *ast.ShowPageStmt:
 			if s.PageName.Module != "" {
 				c.pages = append(c.pages, s.PageName.String())
+				if names := showPageArgNames(s.Arguments); len(names) > 0 {
+					c.pageCalls = append(c.pageCalls, codeActionCallRef{name: s.PageName.String(), argNames: names})
+				}
 			}
 		case *ast.CallMicroflowStmt:
 			if s.MicroflowName.Module != "" {

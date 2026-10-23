@@ -186,6 +186,19 @@ SHOW PAGE Sales.OrderDetail (
 The older spellings `($Order = $Order)` and `(Order: $Order)` still parse but are
 deprecated (MDL-DEPR006, MDL-DEPR007); `mxcli fmt --upgrade` rewrites them.
 
+The action's own settings go in a `with` list after the arguments:
+
+```sql
+SHOW PAGE Sales.Order_Edit (Order = $Order) WITH title = 'Edit order';
+SHOW PAGE Sales.Order_Overview WITH NumberOfPagesToClose = 1;  -- close the current page first
+```
+
+`title` overrides the page title. `NumberOfPagesToClose` is Studio Pro's "Number of
+pages to close": an Integer expression for how many pages to close before the page
+opens. Leaving it out closes none. It is a setting, not an argument —
+`(NumberOfPagesToClose: 1)` passes a page parameter of that name, which
+`check --references` refuses (Mendix build: CE1613).
+
 ### CLOSE PAGE
 
 Closes the current page, or the given number of pages:
@@ -332,7 +345,7 @@ The query name follows a three-part naming convention: `Module.ConnectionName.Qu
 | Call microflow | `$Var = CALL MICROFLOW Module.Name (Param = $val);` | Any type |
 | Call nanoflow | `$Var = CALL NANOFLOW Module.Name (Param = $val);` | Any type |
 | Call Java action | `$Var = CALL JAVA ACTION Module.Name (Param = val);` | Any type |
-| Show page | `SHOW PAGE Module.Page (Param = $val);` | -- |
+| Show page | `SHOW PAGE Module.Page (Param = $val) [WITH title = '…', NumberOfPagesToClose = n];` | -- |
 | Close page | `CLOSE PAGE [n];` | -- |
 | Validation | `VALIDATION FEEDBACK $Var/Attr MESSAGE 'msg';` | -- |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'msg';` | -- |
