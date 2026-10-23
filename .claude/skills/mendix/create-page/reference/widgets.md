@@ -329,7 +329,9 @@ datagrid gridName (
 | `Draggable` | `true`, `false` | `true` | Can reorder column |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | Can hide column |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | Column width mode |
-| `Size` | integer (px) | `1` | Width in pixels — only under `ColumnWidth: manual`. Any other width hides it, so it must stay `1` (CE0463 otherwise): an `ALTER PAGE … SET (ColumnWidth: autoFill)` puts it back at `1` itself, and `SET (ColumnWidth: autoFill, Size: 220)` is refused |
+| `Size` | integer (weight) | `1` | A **relative weight, not pixels** — only under `ColumnWidth: manual`. Data grid 2 renders it as `<Size>fr` beside `1fr` for every `autoFill` column, so `Size: 220` takes 220 shares of the free width against one share per autoFill column: the others collapse (mendixlabs/mxcli#1519). Use small ratios (`Size: 2` = twice an autoFill column). For a width in pixels use `minWidthLimit` below. Any width but manual hides `Size`, so it must stay `1` (CE0463 otherwise): an `ALTER PAGE … SET (ColumnWidth: autoFill)` puts it back at `1` itself, and `SET (ColumnWidth: autoFill, Size: 220)` is refused |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | Only under `ColumnWidth: autoFit`, which renders `minmax(<minimum>, auto)`: `manual` takes the minimum from `minWidthLimit` |
+| `minWidthLimit` | integer (px) | `100` | The minimum width **in pixels**, under `ColumnWidth: autoFit, minWidth: manual` — the pixel option `Size` is not |
 | `visible` | expression string | `true` | Column-level visibility — hides/shows the whole column, so use page variables, NOT `$currentObject` (per-object widget visibility is different — see "Conditional Visibility and Editability") |
 | `DynamicCellClass` | expression string | (empty) | Dynamic CSS class per cell |
 | `tooltip` | text string | (empty) | Cell tooltip text |
@@ -359,7 +361,7 @@ column (
   Alignment: right, WrapText: true,
   Sortable: false, Resizable: false,
   Hidable: hidden,
-  ColumnWidth: manual, Size: 150,
+  ColumnWidth: manual, Size: 2,      -- a weight: twice an autoFill column
   DynamicCellClass: if($currentObject/Price > 100) then 'highlight' else '' ,
   tooltip: 'Price in USD'
 )
@@ -563,17 +565,21 @@ combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource
 --   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
 -- Enumeration mode (no datasource) has no caption and needs none.
 
--- Database mode (Studio Pro "Source: Database"): the options come from a
--- database, microflow or nanoflow source, and the value is the SELECTION — pass
--- it on as `$cbGroups`, a list when the selection is Multi. Spelled by the
--- widget's own keys; `DataSource:` would select the association mode instead.
-combobox cbGroups (
-  optionsSourceDatabaseDataSource: database from MyModule.Group sort by Name asc,
-  optionsSourceDatabaseItemSelection: 'Multi',   -- or `Selection: Multi`; default Single
-  optionsSourceDatabaseCaptionAttribute: Name     -- against the source's entity
-)
--- To store a single choice in an attribute instead, add
---   databaseAttributeString: Code, optionsSourceDatabaseValueAttribute: Name
+-- Database mode: options from a datasource of their own; the chosen option's
+-- value is stored on an attribute of the enclosing object. Selected by naming
+-- `optionsSourceDatabaseDataSource` — the generic `datasource:` clause selects
+-- association mode instead. `Attribute:` is the target (String, Integer, Long
+-- or Enumeration, else CE7247 — MDL-WIDGET39 with -p), `CaptionAttribute:` the
+-- option caption, and `optionsSourceDatabaseValueAttribute:` the option's
+-- attribute whose value is stored.
+combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyModule.DS_Codes,
+  attribute: Code, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Code)
+-- WRONG: a target attribute with no value attribute — MDL-WIDGET16, CE0642
+-- "Property 'Value' is required." Without `attribute:` the combo box only
+-- selects and needs no value attribute. No caption is CE0642 'Caption', as in
+-- association mode (expression caption: optionsSourceDatabaseCaptionType /
+-- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
+-- Multi` selects several and hides both the target and the value attribute.
 ```
 
 ### DataView with Form Layout

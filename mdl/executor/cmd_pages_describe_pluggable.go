@@ -150,25 +150,6 @@ func extractComboBoxDataSource(ctx *ExecContext, w map[string]any) *rawDataSourc
 	return extractCustomWidgetPropertyDataSource(ctx, w, "optionsSourceAssociationDataSource")
 }
 
-// extractCustomWidgetPropertySelection reads the Selection held by a named
-// pluggable-widget property ("Single", "Multi", "None"), "" when unset.
-func extractCustomWidgetPropertySelection(w map[string]any, wantKey string) string {
-	obj, ok := w["Object"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	keys := buildPropertyTypeKeyMap(w, false)
-	for _, prop := range getBsonArrayElements(obj["Properties"]) {
-		propMap, ok := prop.(map[string]any)
-		if !ok || keys[extractBinaryID(propMap["TypePointer"])] != wantKey {
-			continue
-		}
-		value, _ := propMap["Value"].(map[string]any)
-		return extractString(value["Selection"])
-	}
-	return ""
-}
-
 // extractCustomWidgetPropertyDataSource reads the DataSource held by a named
 // pluggable-widget property. Used by the association modes, where the option
 // list lives on a mode-specific property rather than the widget's own
@@ -1187,6 +1168,27 @@ func extractCustomWidgetPropertyString(ctx *ExecContext, w map[string]any, prope
 		// Extract PrimitiveValue for string properties
 		if pv, ok := value["PrimitiveValue"].(string); ok && pv != "" {
 			return pv
+		}
+	}
+	return ""
+}
+
+// extractCustomWidgetPropertySelection reads the Selection a named property
+// holds ("None", "Single", "Multi"); "" when the widget has no such property.
+func extractCustomWidgetPropertySelection(ctx *ExecContext, w map[string]any, propertyKey string) string {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != propertyKey {
+			continue
+		}
+		if value, ok := propMap["Value"].(map[string]any); ok {
+			sel, _ := value["Selection"].(string)
+			return sel
 		}
 	}
 	return ""

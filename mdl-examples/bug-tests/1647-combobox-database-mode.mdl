@@ -1,26 +1,25 @@
 mdl 1;
 -- ============================================================================
--- ako/mxcli#1647 (and the write half of ako/mxcli#1488) — a combo box in
--- database mode (Studio Pro "Source: Database") could not be written or read
--- back. The definition had only the association and enumeration modes, so
--- optionsSourceDatabaseDataSource and optionsSourceDatabaseItemSelection were
--- "recognized but not yet persisted" (MDL-WIDGET06), and describe printed the
+-- ako/mxcli#1647 — a combo box in database mode (Studio Pro "Source:
+-- Database") did not survive describe → exec. Measured on TestApp
+-- (Studio Pro-authored, 11.14.0): WorkflowCommons.User_WorkflowGroup_Select
+-- and WorkflowGroup_User_Select, rebuilt from their description (drop +
+-- create), came back with comboBox1 as source 'context', selection Single —
+-- mx check CE0642 "Property 'Caption'/'Entity' is required" ×4 and CE0115 on
+-- the button passing $comboBox1 to a list parameter ×2. Describe printed the
 -- database source as the association mode's `DataSource:`.
 --
--- Measured on TestApp (Studio Pro-authored, 11.14.0): describe → exec of
--- WorkflowCommons.User_WorkflowGroup_Select and WorkflowGroup_User_Select
--- rebuilt each comboBox1 as source 'context', selection Single — mx check
--- CE0642 "Property 'Caption'/'Entity' is required" ×4, and CE0115 on the
--- button passing $comboBox1 to a list parameter ×2. Now the database mode is
--- described by its own keys and built from them: the same rebuild is 0 errors.
+-- Fixed by the database mode mendixlabs/mxcli#1583 (ako/mxcli#1488) gave the
+-- definition: the same rebuild now stores both combo boxes as Studio Pro does
+-- and builds at 0 errors. This script is the TestApp shape on a fresh project:
+-- a multi-selection database combo box whose selection is passed to a list.
 --
--- Expected on a fresh project (measured 11.13.0): check -p passes with no
--- MDL-WIDGET06; cbGroups is stored with source 'database', the data source on
--- DbA.Grp, item selection Multi and the caption on DbA.Grp.Name; describe
--- prints the keys below; describe → exec is "Unchanged"; drop + create from the
--- description stores the same; mx check 0 errors. #1488's own script (a
--- microflow source, databaseAttributeString, optionsSourceDatabaseValueAttribute)
--- builds at 0 errors too, where it was CE0463.
+-- Expected (measured 11.13.0): check -p passes with no MDL-WIDGET06; cbGroups
+-- stores source 'database', the data source on DbA.Grp, item selection Multi
+-- and the caption on DbA.Grp.Name; describe prints
+-- `optionsSourceDatabaseDataSource: …, CaptionAttribute: Name,
+-- optionsSourceDatabaseItemSelection: Multi`; describe → exec is "Unchanged";
+-- mx check 0 errors.
 -- ============================================================================
 
 create module DbA;

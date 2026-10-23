@@ -203,9 +203,10 @@ func ValidateOQLTypes(oql string, attrs []ast.ViewAttribute) []linter.Violation 
 		if inferred.Kind == ast.TypeUnknown {
 			continue
 		}
-		// A DERIVED string column (CAST AS string, a string-returning CASE, a
-		// string literal/expression) always maps to Mendix's default length (200)
-		// in a view entity — a plain attribute reference infers TypeUnknown and is
+		// A DERIVED string column (CAST AS string, a string literal/expression,
+		// a CASE whose first branch is one of those) always maps to Mendix's
+		// default length (200) in a view entity — a plain attribute reference,
+		// and a CASE whose first branch is one, infers TypeUnknown and is
 		// skipped above, so any concrete String here is derived. Declaring another
 		// length makes mxbuild report CE6770 "out of sync"; normalize so the check
 		// flags that mismatch pre-build.
@@ -328,9 +329,9 @@ func inferTypeStatic(expr string) ast.DataType {
 		return castTargetType(expr)
 	}
 
-	// CASE expression: infer from THEN clauses
+	// CASE expression: infer from its result branches
 	if strings.HasPrefix(upper, "CASE") {
-		return inferCaseType(expr)
+		return inferCaseType(expr, func(_ int, branch string) ast.DataType { return inferTypeStatic(branch) })
 	}
 
 	// Numeric literals
@@ -355,8 +356,8 @@ func inferTypeStatic(expr string) ast.DataType {
 }
 
 // derivedStringLength is the length Mendix assigns to a DERIVED string column in
-// a view entity (CAST(x AS string), a string-returning CASE, a string
-// expression). It is the platform default (200); declaring any other length for
+// a view entity (CAST(x AS string), a string literal or expression, a CASE
+// whose first branch is one of those). It is the platform default (200); declaring any other length for
 // such a column makes mxbuild report CE6770 "View Entity is out of sync".
 const derivedStringLength = 200
 
@@ -386,45 +387,91 @@ func castTargetType(expr string) ast.DataType {
 	}
 }
 
-// inferCaseType infers the type of a CASE expression by looking at THEN clause values.
-// Only reports a type when it can be confidently inferred from a non-literal THEN branch.
-// Falls back to ELSE only if all THEN branches are unknown AND the ELSE is non-trivial.
-// A bare "0" in ELSE is ambiguous (could be Integer or Decimal depending on context).
-func inferCaseType(expr string) ast.DataType {
-	// Nested CASE expressions are too complex for static regex-based inference.
-	// The regex would match inner THEN clauses, producing wrong types.
-	upperExpr := strings.ToUpper(expr)
-	if strings.Count(upperExpr, "CASE") > 1 {
+// caseResultExprs returns a CASE expression's result branches in source order:
+// each THEN's expression, then the ELSE's if there is one. Nil for a nested
+// CASE, whose inner THENs the patterns would mistake for the outer's.
+func caseResultExprs(expr string) []string {
+	if strings.Count(strings.ToUpper(expr), "CASE") > 1 {
+		return nil
+	}
+	var out []string
+	for _, m := range caseThenRe.FindAllStringSubmatch(expr, -1) {
+		out = append(out, strings.TrimSpace(m[1]))
+	}
+	if m := caseElseRe.FindStringSubmatch(expr); m != nil {
+		out = append(out, strings.TrimSpace(m[1]))
+	}
+	return out
+}
+
+var (
+	caseThenRe = regexp.MustCompile(`(?is)\bTHEN\s+(.+?)(?:\s+when\b|\s+else\b|\s+end\b)`)
+	caseElseRe = regexp.MustCompile(`(?is)\bELSE\s+(.+?)\s+end\b`)
+)
+
+// numericRank orders the numeric kinds a CASE widens across; 0 is not numeric.
+func numericRank(k ast.DataTypeKind) int {
+	switch k {
+	case ast.TypeInteger:
+		return 1
+	case ast.TypeLong:
+		return 2
+	case ast.TypeDecimal:
+		return 3
+	}
+	return 0
+}
+
+// inferCaseType derives a CASE column's type from its result branches, typing
+// each with infer (i is the branch's position, 0 the first THEN). Mendix's two
+// rules, measured with mx check 11.12.5 on one-column views declared at every
+// candidate type (ako/mxcli#1294):
+//
+//   - A String CASE takes its FIRST branch's type, length included.
+//     `then l.Code else l.Name` (8 and 100) is String(8), `then l.Name else
+//     l.Code` String(100), and `then l.Code … else '0000'` String(8) — a
+//     derived String(200) only when the first branch is itself derived.
+//   - A numeric CASE widens across ALL branches, Integer < Long < Decimal:
+//     `then l.IntV else l.LngV` is Long either way round, `then 1 else 2.5`
+//     Decimal.
+//
+// Taking the first branch that could be typed instead of the first branch made
+// MDL031 demand String(200) for a CASE whose first branch is a String(8)
+// attribute — an attribute is untypable without the project — and its fix was
+// CE6770. A branch infer cannot type leaves the result unknown wherever it
+// could decide it: a first branch that is not a typed String, or a numeric
+// branch that could be wider than the rest.
+func inferCaseType(expr string, infer func(i int, branch string) ast.DataType) ast.DataType {
+	var widest, other ast.DataType
+	untyped := false
+	for i, branch := range caseResultExprs(expr) {
+		t := infer(i, branch)
+		switch {
+		case i == 0 && t.Kind == ast.TypeString:
+			return t
+		case t.Kind == ast.TypeUnknown:
+			untyped = true
+		case numericRank(t.Kind) > 0:
+			if numericRank(t.Kind) > numericRank(widest.Kind) {
+				widest = t
+			}
+		case other.Kind == ast.TypeUnknown:
+			other = t
+		}
+	}
+	switch {
+	case widest.Kind != ast.TypeUnknown && other.Kind != ast.TypeUnknown:
+		return ast.DataType{Kind: ast.TypeUnknown} // mixed kinds: not a column mxbuild builds
+	case widest.Kind != ast.TypeUnknown:
+		if untyped && widest.Kind != ast.TypeDecimal {
+			return ast.DataType{Kind: ast.TypeUnknown}
+		}
+		return widest
+	case other.Kind == ast.TypeString:
+		// A later branch is a string, but the length is the first branch's.
 		return ast.DataType{Kind: ast.TypeUnknown}
 	}
-
-	// Find THEN ... WHEN/ELSE/END patterns to extract result expressions
-	thenPattern := regexp.MustCompile(`(?i)\bTHEN\s+(.+?)(?:\s+when\b|\s+else\b|\s+end\b)`)
-	matches := thenPattern.FindAllStringSubmatch(expr, -1)
-	for _, match := range matches {
-		if len(match) >= 2 {
-			t := inferTypeStatic(strings.TrimSpace(match[1]))
-			if t.Kind != ast.TypeUnknown {
-				return t
-			}
-		}
-	}
-	// Try ELSE clause — but only if the value is not a bare integer literal.
-	// Bare "0" or "1" in ELSE are type-ambiguous fallback values that should
-	// not override the actual branch type (which may involve division or
-	// expressions the static inferrer can't parse).
-	elsePattern := regexp.MustCompile(`(?i)\bELSE\s+(.+?)\s+end\b`)
-	if match := elsePattern.FindStringSubmatch(expr); len(match) >= 2 {
-		elseExpr := strings.TrimSpace(match[1])
-		// Skip bare integer literals — they're ambiguous in CASE context
-		if !regexp.MustCompile(`^-?\d+$`).MatchString(elseExpr) {
-			t := inferTypeStatic(elseExpr)
-			if t.Kind != ast.TypeUnknown {
-				return t
-			}
-		}
-	}
-	return ast.DataType{Kind: ast.TypeUnknown}
+	return other
 }
 
 // passthroughStringLengthMismatch reports whether a PASS-THROUGH view-entity
@@ -469,10 +516,17 @@ func passthroughStringLengthMismatch(declared, inferred ast.DataType, sourceAttr
 // The hardcoded String(200) in formatDataTypeForMDL is untouched and still
 // right where it is used: a DERIVED string column is String(200) by rule
 // whatever its source.
+//
+// A String CASE whose first branch is an attribute reaches here too, since it
+// inherits that branch's length (inferCaseType), and is named as what it is.
 func passthroughLengthError(attrName string, declared, inferred ast.DataType, expression, sourceEntity, sourceAttr string) string {
+	column, via := "pass-through column", ""
+	if strings.HasPrefix(strings.ToUpper(expression), "CASE") {
+		column, via = "CASE column", " through its first branch"
+	}
 	return fmt.Sprintf(
-		"attribute '%s': declared as %s but pass-through column '%s' inherits length %d from source attribute %s.%s — Mendix requires an exact length match (CE6770 \"View Entity out of sync\"). Fix: change to '%s: %s'",
-		attrName, formatDataTypeForError(declared), expression, inferred.Length,
+		"attribute '%s': declared as %s but %s '%s' inherits length %d%s from source attribute %s.%s — Mendix requires an exact length match (CE6770 \"View Entity out of sync\"). Fix: change to '%s: %s'",
+		attrName, formatDataTypeForError(declared), column, expression, inferred.Length, via,
 		sourceEntity, sourceAttr, attrName, formatDataTypeForMDL(inferred))
 }
 
@@ -850,9 +904,25 @@ func inferTypeFromExpression(ctx *ExecContext, expr string, col *OQLColumnInfo, 
 		}
 	}
 
-	// Check for string literal
+	// A string literal is a derived String(200) whatever its own length: `'abc'`
+	// builds only declared String(200) (measured, mx check 11.12.5,
+	// ako/mxcli#1294).
 	if strings.HasPrefix(expr, "'") && strings.HasSuffix(expr, "'") {
-		return ast.DataType{Kind: ast.TypeString, Length: len(expr) - 2}
+		return ast.DataType{Kind: ast.TypeString, Length: derivedStringLength}
+	}
+
+	// CASE: type each branch here as well, so an attribute branch resolves
+	// against the project rather than leaving the column unknown. A String CASE
+	// is its first branch, source attribute included — which puts it under the
+	// pass-through rule's exact length match — so col goes to that branch.
+	if strings.HasPrefix(strings.ToUpper(expr), "CASE") {
+		return inferCaseType(expr, func(i int, branch string) ast.DataType {
+			c := &OQLColumnInfo{}
+			if i == 0 {
+				c = col
+			}
+			return inferTypeFromExpression(ctx, branch, c, aliasMap)
+		})
 	}
 
 	// Check for numeric literal
@@ -1101,7 +1171,7 @@ func typesStrictlyCompatible(declared, inferred ast.DataType) bool {
 	}
 	// For a derived string column the LENGTH must also match: Mendix's view-entity
 	// sync (CE6770) requires the declared length to equal the OQL column's length
-	// (200 for CAST/CASE/string expressions — see ValidateOQLTypes). Length 0 =
+	// (200 for a derived column — see ValidateOQLTypes). Length 0 =
 	// unlimited, which also mismatches the fixed 200.
 	if inferred.Kind == ast.TypeString {
 		return declared.Length == inferred.Length

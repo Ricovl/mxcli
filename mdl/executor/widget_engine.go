@@ -442,7 +442,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	//
 	// The set of properties that must be default-valued is the widget's to decide,
 	// not mxcli's; making it a subset of what MDL has words for was the mistake.
-	for propKey, reset := range unmappedHiddenResets(def, e.visibilityRules(def), hiddenSkip) {
+	for propKey, reset := range unmappedHiddenResets(mappings, e.visibilityRules(def), hiddenSkip) {
 		builder.SetPrimitive(propKey, reset)
 	}
 
@@ -644,6 +644,13 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		switch entry.ValueType {
 		case "Expression":
 			builder.SetExpression(propName, strVal)
+		case "Selection":
+			// A selection lives in the value's Selection field. The primitive
+			// fallback below wrote it into PrimitiveValue — a combo box's
+			// `optionsSourceDatabaseItemSelection: 'Single'` stored as
+			// PrimitiveValue "Single", which Studio Pro never writes there
+			// (mendixlabs/mxcli#1583).
+			builder.SetSelection(propName, strVal)
 		case "TextTemplate":
 			// `<propName>Params:` — or, failing that, the widget-wide
 			// `contentparams:` — supplies the parameters for a `{1}`-style
@@ -902,19 +909,19 @@ func (e *PluggableWidgetEngine) visibilityRules(def *WidgetDefinition) []types.W
 // datasource has no default.
 //
 // The mapped ones are excluded rather than merged: the loop already writes them,
-// and writing a second value for one property is its own defect.
-func unmappedHiddenResets(def *WidgetDefinition, rules []types.WidgetVisibilityRule, hidden map[string]string) map[string]string {
+// and writing a second value for one property is its own defect. "Mapped" means
+// in mappings — the mode the widget is built in, which is all the loop visits.
+// Counting every mode's mappings left a property that only ANOTHER mode maps
+// unwritten by either: a database-mode Combo box kept the template's
+// `optionsSourceType` "enumeration", hidden there, against a declared
+// "association" — CE0463 (mendixlabs/mxcli#1583).
+func unmappedHiddenResets(mappings []PropertyMapping, rules []types.WidgetVisibilityRule, hidden map[string]string) map[string]string {
 	if len(hidden) == 0 {
 		return nil
 	}
-	mapped := make(map[string]bool, len(def.PropertyMappings))
-	for _, m := range def.PropertyMappings {
+	mapped := make(map[string]bool, len(mappings))
+	for _, m := range mappings {
 		mapped[strings.ToLower(m.PropertyKey)] = true
-	}
-	for _, mode := range def.Modes {
-		for _, m := range mode.PropertyMappings {
-			mapped[strings.ToLower(m.PropertyKey)] = true
-		}
 	}
 	out := map[string]string{}
 	for _, rule := range rules {
@@ -1657,10 +1664,9 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		}
 
 	case "Selection":
-		// By the property's own key first: a widget with a selection that is not
-		// its main one — a database-mode combo box's
-		// optionsSourceDatabaseItemSelection (ako/mxcli#1647) — is written, and
-		// described, under that key. `Selection:` means the same.
+		// By the property's own key first, as check's widgetValueMap reads it:
+		// a widget with a selection besides its main one (a combo box's
+		// `optionsSourceDatabaseItemSelection`) is addressed that way.
 		val := namedPropValue(mapping, w)
 		if val == "" {
 			val = w.GetSelection()

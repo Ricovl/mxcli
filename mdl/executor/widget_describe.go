@@ -946,16 +946,22 @@ func definitionDefaults(def *WidgetDefinition) map[string]string {
 		}
 	}
 	collect(def.PropertyMappings)
-	for _, mode := range def.Modes {
-		// A mode selected by a NAMED datasource is one the generated example is
-		// never built in — it writes no such datasource — so its constants are
-		// not the example's configuration, and the validator, which reads only
-		// the mode a widget is built in, never sees them. The combo box's
-		// database mode writes source 'database', which here hid every
-		// context-source property the example emits (ako/mxcli#1647).
-		if strings.HasPrefix(mode.Condition, "hasDataSource:") {
-			continue
+	// The example is a bare widget, so it builds in the unconditioned mode, and
+	// that mode's constants are the ones the validator reads (widgetValueMap
+	// ignores an inactive mode's, #1519). Collecting every mode let a
+	// conditioned one speak for the example: Combo box's database mode set
+	// `source` to "database", the example was narrowed for database mode, and
+	// MDL-WIDGET10 then flagged the database-only settings it emitted
+	// (mendixlabs/mxcli#1583). A definition with no unconditioned mode keeps
+	// the old reading.
+	modes := def.Modes
+	for i := range def.Modes {
+		if def.Modes[i].Condition == "" {
+			modes = def.Modes[i : i+1]
+			break
 		}
+	}
+	for _, mode := range modes {
 		collect(mode.PropertyMappings)
 	}
 	return out

@@ -195,7 +195,11 @@ The **controls are what decide the predicate**, not the failures: a comparison
 inside `CASE` builds, grouping by `r.ID` does not exempt `r.Name`, `Long` over
 `AutoNumber` is the one numeric declaration that is not an error. A rule written
 from the failing cases alone over-fires, and over-firing is the expensive
-direction (above).
+direction (above). The matrix also has to vary the *shape* the rule generalises
+over, not only the values: "a string `CASE` is String(200)" had been measured on
+CASEs whose first branch was a literal, and putting an attribute first showed the
+first branch decides — while numeric CASEs widen over every branch instead, so no
+single rule covered both (mendixlabs/mxcli#1250).
 
 **`mx check` is phased, and two switches silently turn its checks off.** While
 any CE1613 stands, the later phases do not run — so re-measuring on a project

@@ -467,18 +467,8 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// For ComboBox, extract datasource and association attribute for association mode.
 		// In association mode the Attribute binding is stored as EntityRef (not AttributeRef),
 		// so we must use extractCustomWidgetPropertyAssociation instead of the generic scan.
-		if widget.RenderMode == "combobox" && comboBoxSourceIsDatabase(ctx, w) {
-			// A database-source combo box takes its options from
-			// optionsSourceDatabaseDataSource, under which it is described and
-			// built; `DataSource:` would select the association mode, and an
-			// association-mode combo box with no association is CE0642
-			// (ako/mxcli#1647). Studio Pro may leave optionsSourceType at
-			// 'association' after a switch, so the association reader below is
-			// not consulted at all.
-			if ds := extractCustomWidgetPropertyDataSource(ctx, w, comboBoxDatabaseDataSourceKey); ds != nil {
-				widget.DataSource = ds
-				widget.NamedDataSources = []rawNamedDataSource{{Key: comboBoxDatabaseDataSourceKey, DataSource: ds}}
-			}
+		if widget.RenderMode == "combobox" && comboBoxIsDatabaseMode(ctx, w) {
+			describeComboBoxDatabaseMode(ctx, w, &widget)
 		} else if widget.RenderMode == "combobox" {
 			widget.DataSource = extractComboBoxDataSource(ctx, w)
 			if widget.DataSource != nil {
@@ -499,12 +489,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 					widget.CaptionAttribute = ""
 				}
 			}
-		}
-		if widget.RenderMode == "combobox" {
-			// The on-change action, in EVERY mode — the def maps `onChangeEvent`
+			// The on-change action, in BOTH modes — the def maps `onChangeEvent`
 			// in each, and modes are exclusive. Read outside the DataSource
-			// branch so an enumeration- or database-mode ComboBox keeps its
-			// action too.
+			// branch so an enumeration-mode ComboBox keeps its action too.
 			//
 			// Without this the write path stored the action correctly and
 			// describe simply never emitted it, so a describe→edit→exec cycle
@@ -635,12 +622,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			}
 			widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, skip, inheritedCtx, ownEntity)
 			if widget.RenderMode == "combobox" {
-				database := comboBoxSourceIsDatabase(ctx, w)
-				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
-				if sel := extractCustomWidgetPropertySelection(w, comboBoxDatabaseSelectionKey); database && sel != "" && sel != "Single" {
-					widget.ExplicitProperties = append(widget.ExplicitProperties,
-						rawExplicitProp{Key: comboBoxDatabaseSelectionKey, Value: sel, ValueType: "Selection"})
+				database := comboBoxIsDatabaseMode(ctx, w)
+				if database {
+					ownEntity = ""
+					if len(widget.NamedDataSources) > 0 {
+						ownEntity = dataSourceEntityContext(ctx, widget.NamedDataSources[0].DataSource)
+					}
+					widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, comboBoxDatabaseByKeySkip, inheritedCtx, ownEntity)
+					widget.ExplicitProperties = append(widget.ExplicitProperties, comboBoxDatabaseSelection(ctx, w)...)
 				}
+				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
 				widget.HiddenContent = comboBoxHiddenContent(w)
 			}
 		}

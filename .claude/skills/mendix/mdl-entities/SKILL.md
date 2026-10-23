@@ -18,11 +18,11 @@ description: "Complete syntax reference for entities, attributes and association
 | 130-175 | Generalization (Inheritance) |
 | 176-224 | Associations |
 | 225-241 | Enumerations |
-| 242-283 | View Entity (OQL) |
-| 284-307 | Entity with Index |
-| 308-369 | Complete Domain Model Example |
-| 370-387 | Changing an Existing Domain Model |
-| 388-430 | Quick Reference |
+| 242-298 | View Entity (OQL) |
+| 299-322 | Entity with Index |
+| 323-384 | Complete Domain Model Example |
+| 385-402 | Changing an Existing Domain Model |
+| 403-445 | Quick Reference |
 
 <!-- /skill-index -->
 # MDL Entity Syntax Reference
@@ -266,12 +266,12 @@ as
 **Derived string columns must be `string(200)`.** A plain pass-through column
 (`c.Name as CustomerName`) inherits its source attribute's length, so declaring
 `string(100)` above is fine. But a **derived** string column — `cast(x as
-string)`, a string-returning `CASE`, or a string expression — is normalized by
-Mendix to the platform default length **`string(200)`**. Declaring any other
-length (`string(30)`, unlimited, …) passes `mxcli check`'s parser but fails the
-MxBuild consistency check with **CE6770 "View Entity is out of sync with the OQL
-Query."** `mxcli check` catches this pre-build as **MDL031** with a suggested
-fix:
+string)`, a string literal, or a string expression such as a concatenation — is
+normalized by Mendix to the platform default length **`string(200)`**.
+Declaring any other length (`string(30)`, unlimited, …) passes `mxcli check`'s
+parser but fails the MxBuild consistency check with **CE6770 "View Entity is out
+of sync with the OQL Query."** `mxcli check` catches this pre-build as
+**MDL031** with a suggested fix:
 
 ```mdl
 mdl 1;
@@ -280,6 +280,21 @@ create view entity Module.TicketLabel (
 ) as
   select cast(t.Status as string) as StatusLabel from Module.Ticket t;
 ```
+
+**A `CASE` column is typed by its branches, by two different rules** (measured,
+mx check 11.12.5, mendixlabs/mxcli#1250):
+
+| CASE | Declare | Why |
+|---|---|---|
+| `then l.Code … else '0000'` (Code `string(8)`) | `string(8)` | a string CASE takes its **first** branch's type, length included |
+| `then l.Code else l.Name` (8, 100) | `string(8)` | the first branch, not the longest |
+| `then '0' + l.Code else l.Code` | `string(200)` | the first branch is derived |
+| `then 1 else 2.5` / `then l.IntV else l.DecV` | `decimal` | a numeric CASE widens over **all** branches, integer < long < decimal |
+| `then l.IntV else l.LngV` | `long` | |
+
+Without `-p`, `mxcli check` cannot see an attribute's length, so it only judges a
+CASE whose deciding branches are literals or expressions; with `-p` it judges the
+rest.
 
 ## Entity with Index
 
