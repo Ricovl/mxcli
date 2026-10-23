@@ -1029,6 +1029,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
 			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
+			writeHiddenContentNote(ctx.Output, prefix, w.Name, w.HiddenContent)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 

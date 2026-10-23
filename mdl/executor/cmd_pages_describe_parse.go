@@ -621,6 +621,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, skip, inheritedCtx, ownEntity)
 			if widget.RenderMode == "combobox" {
 				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps)
+				widget.HiddenContent = comboBoxHiddenContent(w)
 			}
 		}
 		// For pluggable Image widget, extract image-specific properties
