@@ -288,10 +288,17 @@ func TestSpliceRerun_FreeNoteLineEndings(t *testing.T) {
 			t.Errorf("re-run with %q line breaks wrote %d unit(s)", eol, len(changed))
 		}
 	}
-	// Control: a real change to the free note is still refused, and the
-	// refusal names the note.
-	err := h.exec(strings.Replace(flow("\n"), "Second line.", "Second line, reworded.", 1))
-	if err == nil || !strings.Contains(err.Error(), `note "First line.\r\nSecond line." is now "First line.\nSecond line, reworded."`) {
-		t.Fatalf("a reworded free note: err = %v\n%s", err, h.out.String())
+	// Control: a real change to the free note is a change — written in place
+	// (mendixlabs/mxcli#1517), not taken for a line-ending difference.
+	h.out.Reset()
+	before := h.snapshot()
+	if err := h.exec(strings.Replace(flow("\n"), "Second line.", "Second line, reworded.", 1)); err != nil {
+		t.Fatalf("a reworded free note: %v\n%s", err, h.out.String())
+	}
+	if !strings.Contains(h.out.String(), "(set: free notes)") || len(before.diff(h.snapshot())) == 0 {
+		t.Errorf("a reworded free note was not written:\n%s", h.out.String())
+	}
+	if got := h.describeUnder("mdl 1;", "microflow MyFirstModule.Rerun_FreeNoteEol"); !strings.Contains(got, "Second line, reworded.") {
+		t.Errorf("describe after the reword:\n%q", got)
 	}
 }
