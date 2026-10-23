@@ -15,18 +15,18 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 62-76 | Changing an Existing Microflow |
 | 77-95 | When to Use a Microflow vs a Nanoflow |
 | 96-112 | Key Differences from Nanoflows |
-| 113-266 | Microflow Structure |
-| 267-344 | Variable Declarations |
-| 345-402 | Operators |
-| 403-419 | Logging |
-| 420-445 | Special Values |
-| 446-492 | Complete Example |
-| 493-549 | Calling Microflows |
-| 550-576 | Page Navigation |
-| 577-593 | Validation Checklist |
-| 594-605 | Tips for Success |
-| 606-612 | Related Documentation |
-| 613-725 | Quick Reference |
+| 113-267 | Microflow Structure |
+| 268-345 | Variable Declarations |
+| 346-403 | Operators |
+| 404-420 | Logging |
+| 421-446 | Special Values |
+| 447-493 | Complete Example |
+| 494-550 | Calling Microflows |
+| 551-577 | Page Navigation |
+| 578-594 | Validation Checklist |
+| 595-606 | Tips for Success |
+| 607-613 | Related Documentation |
+| 614-726 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -189,6 +189,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
 build, and `list microflows` reports it in the `Excluded` column.
+**On a statement** it disables that one activity instead — see [disabled activities](reference/control-flow.md#disabled-activities--excluded-on-a-statement).
 
 ```mdl
 mdl 1;
