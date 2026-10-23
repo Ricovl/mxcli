@@ -61,6 +61,9 @@ type Writer struct {
 	// net result (writer_deferred.go); nil when no run is open.
 	deferred      map[string]deferredWrite
 	deferredOrder []string
+	// simulating says the deferred run is a simulation (writer_simulated.go):
+	// it is discarded, never flushed, and any write it cannot hold is refused.
+	simulating bool
 }
 
 // removedUnit is everything about a deleted unit that a re-insert has to be

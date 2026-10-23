@@ -56,6 +56,10 @@ type LocalAppOptions struct {
 	// resolving to the wrong value is not an error. See
 	// docs/11-proposals/PROPOSAL_constant_values.md and mxcli-chat FINDINGS §33.
 	ConstantOverrides map[string]string
+	// JVMArgs are the configuration's JVM options, as LocalRuntimeOptions.JVMArgs
+	// — forwarded for the same reason as ConstantOverrides: a headless boot must
+	// run the configuration `run --local` runs.
+	JVMArgs []string
 	// Stdout/Stderr receive progress messages.
 	Stdout io.Writer
 	Stderr io.Writer
@@ -79,6 +83,7 @@ func (o LocalAppOptions) runtimeOptions(installPath string) LocalRuntimeOptions 
 		RuntimeLogPath:    o.RuntimeLogPath,
 		Env:               o.Env,
 		ConstantOverrides: o.ConstantOverrides,
+		JVMArgs:           o.JVMArgs,
 		Stdout:            o.Stdout,
 		Stderr:            o.Stderr,
 	}

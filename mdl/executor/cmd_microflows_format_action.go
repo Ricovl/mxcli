@@ -1384,11 +1384,20 @@ func formatListOperation(ctx *ExecContext, op microflows.ListOperation, outputVa
 // extractFieldName returns the short field name from a qualified attribute
 // or association reference (e.g. "MyModule.Entity.Status" → "Status",
 // "MyModule.Order_Customer" → "Order_Customer"). Returns the association
-// name if attribute is empty.
+// name if attribute is empty — qualified for a System association
+// ("System.owner").
 func extractFieldName(attribute, association string) string {
 	ref := attribute
 	if ref == "" {
 		ref = association
+		// A System association stays qualified. The builder resolves a bare
+		// name in the list entity's own module, so `owner` came back as an
+		// attribute of the entity and `User_Language` on an Administration.Account
+		// list as Administration.Account.User_Language — CE1613 on the next
+		// build (ako/mxcli#1629). The member speller spells it the same way.
+		if strings.HasPrefix(ref, "System.") {
+			return ref
+		}
 	}
 	if ref == "" {
 		return ""

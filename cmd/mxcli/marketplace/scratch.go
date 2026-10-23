@@ -130,10 +130,10 @@ func ModuleForVersionIDs(mprPath string, versionIDs []string) (moduleName, versi
 // edits.
 //
 // workDir must already exist and is written to freely; callers own its lifetime
-// (t.TempDir in tests, an os.MkdirTemp the command removes in production).
-// **Keep it short**: mx create-project extracts its template with .NET path
-// handling and fails with PathTooLongException under a deep directory, so a
-// nested scratch path breaks it where /tmp/xxxx works.
+// (a NewWorkDir the command removes in production). **Keep it short**: mx
+// refuses to write a file whose path reaches mxMaxPath, on every platform, and
+// the blank template and bundled node_modules trees come close on their own —
+// see NewWorkDir.
 //
 // newBackend is used to remove a module the template already ships (see below).
 func PackageProject(ctx context.Context, mpkPath, mendixVersion, workDir string, newBackend func() backend.FullBackend) (string, error) {
@@ -199,7 +199,7 @@ func PackageProject(ctx context.Context, mpkPath, mendixVersion, workDir string,
 	imp := exec.CommandContext(ctx, mxPath, "module-import", importable, mprPath)
 	docker.PrepareMxCommand(imp)
 	if out, err := imp.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("mx module-import failed: %w\n%s", err, strings.TrimSpace(string(out)))
+		return "", mxFailure("module-import", err, out, workDir)
 	}
 	return mprPath, nil
 }
@@ -232,7 +232,7 @@ func blankProjectInto(ctx context.Context, mxPath, mendixVersion, workDir string
 	create.Dir = workDir
 	docker.PrepareMxCommand(create)
 	if out, err := create.CombinedOutput(); err != nil {
-		return fmt.Errorf("mx create-project failed: %w\n%s", err, strings.TrimSpace(string(out)))
+		return mxFailure("create-project", err, out, workDir)
 	}
 	if cerr != nil {
 		return nil

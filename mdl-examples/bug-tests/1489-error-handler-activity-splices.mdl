@@ -1,0 +1,36 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1489 (ako/mxcli#1345) — an activity with a custom error
+-- handler cannot be changed in place
+-- ============================================================================
+--
+-- Under `mdl 1;`, re-running `create or modify` with one call argument changed
+-- was refused, advising `alter`; the advised `alter … replace` was refused
+-- too, advising create or modify:
+--
+--   cannot replace the ActionActivity at (360, 200): it has an error handler,
+--   which would be left with no activity; rewrite the flow with create or
+--   modify instead
+--
+-- To reproduce: exec this file, then change `P = $P` to `P = 'x'` (or the
+-- handler's log text) and exec it again. The second run reports
+-- `Modified microflow: BugTest1489.Flow (spliced: 1 replaced)`; the handler and
+-- the merge it rejoins at keep their $IDs and positions. A third run writes
+-- nothing. Changing the handler's kind is still refused.
+
+mdl 1;
+
+create module BugTest1489;
+
+create or modify microflow BugTest1489.Sub ($P: String)
+begin
+  return;
+end;
+
+create or modify microflow BugTest1489.Flow ($P: String)
+begin
+  call microflow BugTest1489.Sub(P = $P) on error without rollback begin
+    log warning node 'BugTest1489' 'failed';
+  end error;
+  log info node 'BugTest1489' 'after';
+  return;
+end;

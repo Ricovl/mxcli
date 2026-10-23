@@ -548,14 +548,10 @@ mxcli add-tool cursor
 ./mxcli                                    # project-local mxcli binary
 ```
 
-MxBuild is auto-downloaded on first use (via `mxcli setup mxbuild -p app.mpr` or `mxcli docker build`). To validate a project:
+MxBuild is downloaded by `mxcli setup mxbuild -p app.mpr`, `mxcli new` and `mxcli docker build`. `mxcli docker check` does not download it: it uses an `mx` already on the machine and stops with `mx not found` otherwise. To validate a project:
 
 ```bash
-# Auto-download mxbuild and check project
-mxcli setup mxbuild -p app.mpr
-mxcli docker check -p app.mpr
-
-# or use the integrated command
+mxcli setup mxbuild -p app.mpr   # once per Mendix version
 mxcli docker check -p app.mpr
 ```
 

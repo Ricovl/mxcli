@@ -66,8 +66,20 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 					"On an earlier version, model the buckets as your own entity and target user tasks with a microflow."}}
 		}
 	case *ast.CreateViewEntityStmt:
-		return []versionGate{{"domain_model", "view_entities", "create view entity",
+		gates := []versionGate{{"domain_model", "view_entities", "create view entity",
 			"upgrade your project to 10.18+ or use a regular entity with a microflow data source"}}
+		// An OQL comment — `--` or `/* */`, anywhere in the query — is CE0174
+		// "Error(s) in OQL query: The '-' part is incomplete or incorrect" below
+		// the floor. The query now keeps a comment before its first token or
+		// after its last (ako/mxcli#1632); one between clauses it always kept, and
+		// check passed what mxbuild then rejected. Gated on a COMMENT, not on the
+		// characters, so `'--'` in a string literal is not one.
+		if q := s.Query.RawQuery; stripOQLComments(q) != q {
+			gates = append(gates, versionGate{"oql_functions", "comments",
+				"a comment in a view entity's OQL query",
+				"remove the comments from the query — Mendix rejects them as CE0174 before 11.7 — or upgrade the project"})
+		}
+		return gates
 	// A domain-model EXPORT LEVEL is 9.3+ (mendixlabs/mxcli#1498). Gated on the
 	// clause being STATED, as the deep-link URL is: a statement without one
 	// carries the stored level and writes nothing new.

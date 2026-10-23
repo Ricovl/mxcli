@@ -288,6 +288,11 @@ var refusals = []string{
 	// Writing into a marketplace module is overwritten by the next module
 	// update; the executor refuses rather than write it.
 	"is a marketplace module",
+	// A mapping sourced from an imported web service: MDL cannot state the
+	// binding, so a rewrite is refused rather than written without it (#365).
+	// It could only fire once the source was read under its storage key,
+	// WsdlFile (ako/mxcli#1631) — before that, these rewrites dropped it.
+	"is sourced from the imported web service",
 }
 
 func isRefusal(err error) bool {

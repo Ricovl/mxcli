@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/marketplace"
 	"github.com/mendixlabs/mxcli/internal/auth"
@@ -87,7 +88,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	work, err := os.MkdirTemp("", "mxupdate")
+	work, err := marketplace.NewWorkDir("mxu")
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 				"  downloadable. It is not, and --force does not help: there is nothing to compare against.\n"+
 				"  hint: re-run with --no-baseline to update without that check (local edits are lost silently)", berr)
 		}
-		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "base")
+		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "b")
 		if rerr != nil {
 			return rerr
 		}
@@ -166,7 +167,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "target")
+	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "t")
 	if err != nil {
 		return err
 	}
@@ -347,17 +348,28 @@ func init() {
 // modules in one order and then another used to roll widgets backwards with no
 // sign that anything had happened (an older widget is not a check error). These
 // lines are what makes that visible.
+//
+// The package's own metadata (License.txt, manifest.json, ...) is left out of
+// every install, so it gets one line rather than one per file.
 func reportSkippedFiles(out io.Writer, skipped []marketplace.SkippedFile) {
 	if len(skipped) == 0 {
 		return
 	}
 	var kept, dupes []marketplace.SkippedFile
+	var metadata []string
 	for _, s := range skipped {
-		if s.Kept != "" {
+		switch {
+		case s.Kept != "":
 			kept = append(kept, s)
-		} else {
+		case s.Reason == marketplace.ReasonNotAProjectFile:
+			metadata = append(metadata, s.Path)
+		default:
 			dupes = append(dupes, s)
 		}
+	}
+	if len(metadata) > 0 {
+		fmt.Fprintf(out, "  Left out %d package file(s) package.xml does not list as project files: %s.\n",
+			len(metadata), strings.Join(metadata, ", "))
 	}
 	if len(kept) > 0 {
 		fmt.Fprintf(out, "\n  Kept %d newer widget(s) the package would have rolled back:\n", len(kept))

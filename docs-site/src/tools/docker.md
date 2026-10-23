@@ -8,7 +8,7 @@ mxcli provides Docker integration for building, running, and validating Mendix a
 |---------|-------------|
 | `mxcli docker build` | Build a Mendix application with mxbuild in Docker, including PAD patching |
 | `mxcli docker run` | Run a Mendix application in a Docker container |
-| `mxcli docker check` | Validate a project with `mx check` (auto-downloads mxbuild) |
+| `mxcli docker check` | Validate a project with `mx check`, run locally (does not download mxbuild or use Docker; see [Getting mx](docker-check.md#getting-mx)) |
 | `mxcli test` | Run test files (uses Docker for `mx create-project` and `mx check`) |
 | `mxcli oql` | Query a running Mendix runtime via M2EE admin API |
 
@@ -46,6 +46,9 @@ The mx binary location depends on the environment:
 ## Quick Start
 
 ```bash
+# Once per Mendix version: download MxBuild (docker check does not download it)
+mxcli setup mxbuild -p app.mpr
+
 # Validate a project
 mxcli docker check -p app.mpr
 

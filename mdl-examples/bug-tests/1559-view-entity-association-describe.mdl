@@ -1,0 +1,47 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1627 (ako/mxcli#1559) — `describe` emitted a view entity's
+-- association as a statement that check and exec then refuse (CE6771).
+--
+-- Selecting a persistent entity's ID under an alias gives a view entity an
+-- association named after the alias; the OQL column IS the declaration. The
+-- module's description printed it a second time, on its own:
+--
+--   create or modify association VeRt.VE_Target
+--   from VeRt.VE to VeRt.Target;
+--
+-- and `check`/`exec` refused the description with "VeRt.VE is a view entity —
+-- Mendix does not allow a plain association to or from one (CE6771)", so the
+-- module's own describe output did not re-execute. `describe module` now leaves
+-- it to the view entity's OQL, and `describe association` on one prints a
+-- pointer to the view entity instead of a statement.
+--
+-- The report's second symptom, a re-indented OQL, came from stored text the
+-- describe → exec span cannot carry (an indented first line, a comment before
+-- the first token, a trailing newline): a `create or modify view entity` whose
+-- query is exactly what the stored query describes to now keeps the stored
+-- bytes. Its third, an added `grant read` line, did not reproduce on an
+-- mxcli-authored 10.24.25 model with three grant shapes.
+--
+-- Measured on 10.24.25: pre-fix, the description of this module is refused by
+-- `check --references` and by `exec` (nothing written); fixed, it passes,
+-- rebuilds the view entity and its association in a fresh project, re-runs
+-- in place as "already in sync", and mx check reports 0 errors.
+--
+-- This file is a describe fixed point: `describe module VeRt with all` prints
+-- these statements back, with no association statement for VE_Target.
+-- ============================================================================
+
+create module VeRt;
+
+create persistent entity VeRt.Target (
+  Code: String(20)
+);
+
+create view entity VeRt.VE (
+  Code: String(20)
+) as (
+  from VeRt.Target as t
+  select t.ID as VE_Target,
+         t.Code as Code
+);

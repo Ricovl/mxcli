@@ -97,6 +97,11 @@ type LocalRuntimeOptions struct {
 	// merged over the defaults mxbuild wrote into the deployment. See
 	// mergeConstantOverrides.
 	ConstantOverrides map[string]string
+	// JVMArgs are the running configuration's JVM options — its Java heap
+	// maximum and Extra JVM parameters, already split into arguments — which
+	// Studio Pro passes to the runtime JVM. They go after mxcli's own -D flags and
+	// before -jar.
+	JVMArgs []string
 	// Trace attaches the bundled OpenTelemetry Java agent to the runtime JVM
 	// (traces via the console exporter → the tee'd runtime log). The caller should
 	// also set OpenTelemetry._RuntimeSpanFilters via RuntimeSettings — unfiltered
@@ -259,12 +264,17 @@ func (o *LocalRuntimeOptions) launcherJar() string {
 // silently returns 0 rows (findings #36). `run --local` is always a development
 // loop (it forces DTAPMode=D), so enabling live preview unconditionally matches
 // what docker mode already does.
+//
+// The configuration's JVMArgs come after those flags, so a property the
+// configuration sets deliberately wins (the JVM keeps the last -D for a name),
+// and before -jar, after which they would be the runtime's arguments instead.
 func (o *LocalRuntimeOptions) jvmArgs() []string {
-	return []string{
+	args := []string{
 		"-Dmendix.live-preview=enabled",
 		"-Dmendix.running.locally.by.studiopro=true",
-		"-jar", o.launcherJar(), o.DeployDir,
 	}
+	args = append(args, o.JVMArgs...)
+	return append(args, "-jar", o.launcherJar(), o.DeployDir)
 }
 
 // m2eeAdminListenAddr is the address the M2EE admin API binds to, and the

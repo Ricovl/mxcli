@@ -97,8 +97,9 @@ type PageMutator interface {
 	// SetWidgetDataSource sets the DataSource on the named widget.
 	SetWidgetDataSource(widgetRef string, ds pages.DataSource) error
 
-	// SetWidgetAction retargets the on-click action of the named widget.
-	// Refuses a widget that has no Action property.
+	// SetWidgetAction retargets the on-click action of the named widget,
+	// under the key its type stores it in (Action, OnClickAction or
+	// ClickAction — types.WidgetClickActionKeys). Refuses a widget with none.
 	SetWidgetAction(widgetRef string, action pages.ClientAction) error
 
 	// SetWidgetNamedAction writes an action into a pluggable widget's action

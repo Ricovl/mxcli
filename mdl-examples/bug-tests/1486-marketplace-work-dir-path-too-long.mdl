@@ -1,0 +1,42 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1486 (ako/mxcli#1343): marketplace diff/update fail with
+-- 'path too long' when unpacking under %TEMP%
+-- ============================================================================
+--
+-- Symptom, reported against v0.26.0 on Windows 11 (Mendix 11.12.4):
+--
+--   Extracting module files into C:\Users\<user>\AppData\Local\Temp\mxdiff1185592798\target-ref
+--   The specified file name or path is too long, or a component of the specified path is too long.
+--
+--   The same command succeeds with TMP=C:\mxt.
+--
+-- Root cause:
+--   mx refuses to write any file whose path is 260 characters or longer, and
+--   it does so itself (Mendix's FileSystem.OpenNewFileForWriting), so the
+--   limit holds on Linux and macOS too. Measured with mx 11.12.1 on Linux:
+--   module-import of a package with a 200-character entry succeeds under a
+--   58-character directory and fails under a 59-character one, with exactly
+--   the reported message; create-project of the blank app fails from a
+--   78-character directory up.
+--
+--   The reference project was built in %TEMP%\mxdiff<10 digits>\target-ref.
+--   The deepest bundled files are node_modules trees (181 characters in the
+--   11.12.1 blank app, about 202 in NanoflowCommons 7.x), so for
+--   NanoflowCommons 7.x that layout fits no user name at all.
+--
+-- After fix: references are built under the shortest directory the user owns
+-- (%USERPROFILE%\.mxcli\t on Windows, /tmp on POSIX, or TMP/TMPDIR when
+-- shorter), named in one letter beneath it; a remaining refusal says which
+-- directory, how long, and what is left for the package.
+--
+-- Usage (Windows, a project with Nanoflow Commons 6.x installed):
+--   mxcli marketplace diff <content-id> -p app.mpr --to 7.4.0
+--   mxcli marketplace update <content-id> -p app.mpr --to 7.4.0 --save-edits ./local-edits
+--   mxcli exec mdl-examples/bug-tests/1486-marketplace-work-dir-path-too-long.mdl -p app.mpr
+-- Regression test with a real mx (Linux, mxbuild 11.12.1 cached):
+--   go test -tags integration ./cmd/mxcli/marketplace/ -run TestPackageProject_BuildsUnderADeepTempDir
+-- ============================================================================
+
+-- After the update the module is listed at its new version.
+list modules;

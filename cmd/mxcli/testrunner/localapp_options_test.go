@@ -80,3 +80,14 @@ func TestLocalAppOptions_CarriesTheMxBuildPath(t *testing.T) {
 		}
 	}
 }
+
+// The configuration's JVM options reach a --local test app as they reach a
+// `run --local` app, for the reason the constants do: --attach runs against an
+// app `run --local` booted, so a suite must not see a different JVM under --local.
+func TestLocalAppOptions_CarriesTheJVMArgs(t *testing.T) {
+	opts := RunOptions{ProjectPath: "/tmp/app/App.mpr", JVMArgs: []string{"-Xmx1024m", "-Dhttps.proxyHost=127.0.0.1"}}
+	got := localAppOptions(opts, "log", nil, io.Discard)
+	if len(got.JVMArgs) != 2 || got.JVMArgs[1] != "-Dhttps.proxyHost=127.0.0.1" {
+		t.Fatalf("JVMArgs = %v, want the configuration's options", got.JVMArgs)
+	}
+}

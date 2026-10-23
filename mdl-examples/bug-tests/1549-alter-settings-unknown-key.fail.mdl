@@ -1,0 +1,20 @@
+mdl 1;
+-- Bug mendixlabs/mxcli#1549 (ako/mxcli#1447): `check` passed any key in a known
+-- `alter settings` section that `exec` then refused
+--
+-- NEGATIVE TEST (.fail.mdl) — this script is EXPECTED to fail `mxcli check`.
+-- `make check-mdl` inverts the exit code for .fail.mdl files: an unexpected pass
+-- is a regression of MDL-SET04.
+--
+-- The same check/exec mismatch as an unknown section, one level down: a
+-- misspelled key passed `check` and exec answered "unknown configuration
+-- setting". It is how mendixlabs/mxcli#131 presented, with a key mxcli did not
+-- know yet.
+--
+-- Expected: `mxcli check` exits non-zero with
+--   unknown configuration setting: ExtraJvmParams [MDL-SET04]
+--   → valid keys: DatabaseType, …, ExtraJvmParameters
+
+alter settings configuration 'Default' (
+  ExtraJvmParams: '-Dhttps.proxyHost=127.0.0.1'
+);

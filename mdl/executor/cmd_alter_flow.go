@@ -106,7 +106,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				"but to replace one activity by one of the same kind. %s",
 				target.Statement, loop.Statement, replaceLoopAdvice(s.Kind(), s.Name.String(), loop.Statement)))
 		}
-		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.ReplaceNotes || len(op.Body) != 1) {
+		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.SetNotes || op.ReplaceNotes || len(op.Body) != 1) {
 			return inLoop()
 		}
 		if op.ReplaceNotes {
@@ -127,6 +127,14 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 			a.noteRemoved(target, nil)
+			continue
+		}
+		if op.SetNotes {
+			// A decision's or an end event's notes, set in place
+			// (mendixlabs/mxcli#1517).
+			if err := a.setNodeNotes(ctx, mut, op, target); err != nil {
+				return fail(err)
+			}
 			continue
 		}
 		if op.SetCondition {
@@ -158,6 +166,13 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		frag, err := a.buildFragment(ctx, op.Body)
 		if err != nil {
 			return fail(err)
+		}
+		if op.Op == ast.AlterFlowReplace {
+			// An activity with a custom error handler, replaced by one that
+			// states the same handler, keeps the stored one (mendixlabs/mxcli#1489).
+			if frag, err = a.keepStoredHandler(ctx, op, target, frag); err != nil {
+				return fail(err)
+			}
 		}
 		if loop != nil && (len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0) {
 			return inLoop()
@@ -236,6 +251,11 @@ type alterFlowContext struct {
 	// the members a full build of the same statement writes (ako/mxcli#885):
 	// the stored flow alone does not say what every variable holds.
 	declaredVarTypes map[string]string
+
+	// storedDesc is the stored flow as describe prints it with full layout,
+	// read once when an operation needs the stored statement behind a target
+	// (storedStatementAt).
+	storedDesc ast.Statement
 }
 
 // enclosingLoop returns the top-level loop whose body holds the stored
@@ -528,6 +548,15 @@ func (a *alterFlowContext) splitCondition(ctx *ExecContext, op *ast.AlterFlowOpe
 	caption = split.Caption
 	if caption == old.Expression {
 		caption = expr
+	}
+	// A caption the statement changes (mendixlabs/mxcli#1610): the stated
+	// one, or — taken off — the condition, as the builder captions a
+	// decision with no @caption.
+	if ann := ifs.Annotations; ann != nil {
+		caption = expr
+		if ann.CaptionSet {
+			caption = ann.Caption
+		}
 	}
 	return expr, caption, nil
 }

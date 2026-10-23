@@ -54,6 +54,9 @@ type LocalRunOptions struct {
 	// wrote into the deployment. Empty means "every constant keeps its default",
 	// which is what a local run always did before — see runconstants.go.
 	ConstantOverrides map[string]string
+	// JVMArgs are that configuration's JVM options (Java heap maximum, Extra JVM
+	// parameters) for the runtime JVM — see LocalRuntimeOptions.JVMArgs.
+	JVMArgs []string
 	// DeployDir is where the serve Deploy target writes (default <projectDir>/deployment).
 	DeployDir string
 	// MxBuildPath overrides mxbuild resolution (optional).
@@ -896,6 +899,7 @@ func RunLocal(opts LocalRunOptions) error {
 		TraceServiceName:   traceService,
 		TraceOTLPEndpoint:  opts.TraceOTLP,
 		ConstantOverrides:  opts.ConstantOverrides,
+		JVMArgs:            opts.JVMArgs,
 		Env:                opts.Env,
 		Stdout:             w,
 		Stderr:             stderr,

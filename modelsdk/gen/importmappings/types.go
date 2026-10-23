@@ -256,7 +256,8 @@ func (o *ImportMapping) InitFromRaw(raw bson.Raw) {
 		}
 	}
 	o.rootElementName.Init(raw)
-	if val, err := raw.LookupErr("ImportedWebService"); err == nil {
+	// Stored as WsdlFile — see the STORAGE-NAME OVERRIDE in init (ako/mxcli#1631).
+	if val, err := raw.LookupErr("WsdlFile"); err == nil {
 		if s, ok := val.StringValueOK(); ok {
 			o.importedWebService.SetFromDecode(s)
 		}
@@ -853,9 +854,19 @@ func initImportMapping() *ImportMapping {
 	o.xmlSchema.Bind(&o.Base, 5)
 	o.jsonStructure = property.NewByNameRef[element.Element]("JsonStructure", "JsonStructures$JsonStructure")
 	o.jsonStructure.Bind(&o.Base, 6)
-	o.rootElementName = property.NewPrimitive[string]("RootElementName", property.DecodeString)
+	// STORAGE-NAME OVERRIDE: BSON key is "XsdRootElementName", not the SDK name
+	// "RootElementName" — mxbuild's own metadata pairs StorageName
+	// XsdRootElementName with SdkName rootElementName. Read under the SDK name, an
+	// XML-schema mapping's root was invisible, so nothing could notice a rewrite
+	// deleting it (CE0270, mendixlabs/mxcli#1623).
+	o.rootElementName = property.NewPrimitive[string]("XsdRootElementName", property.DecodeString)
 	o.rootElementName.Bind(&o.Base, 7)
-	o.importedWebService = property.NewByNameRef[element.Element]("ImportedWebService", "WebServices$ImportedWebService")
+	// STORAGE-NAME OVERRIDE: BSON key is "WsdlFile", not the SDK name
+	// "ImportedWebService" — mxbuild's own metadata pairs StorageName WsdlFile
+	// with SdkName importedWebService. Read under the SDK name, a SOAP-sourced
+	// mapping had no source, and the guard that refuses rewriting one (#365)
+	// never fired on a stored document (ako/mxcli#1631).
+	o.importedWebService = property.NewByNameRef[element.Element]("WsdlFile", "WebServices$ImportedWebService")
 	o.importedWebService.Bind(&o.Base, 8)
 	o.serviceName = property.NewPrimitive[string]("ServiceName", property.DecodeString)
 	o.serviceName.Bind(&o.Base, 9)

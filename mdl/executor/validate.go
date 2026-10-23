@@ -807,6 +807,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
 			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateListOperationSystemMembers(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("microflow", s.Name.String(), refErrors)
@@ -874,6 +875,7 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
 			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateListOperationSystemMembers(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
