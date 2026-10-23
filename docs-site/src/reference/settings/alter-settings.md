@@ -101,8 +101,9 @@ ALTER SETTINGS CONFIGURATION 'default' ( ExtraJvmParameters: '-Dhttps.proxyHost=
 ```
 
 The value is stored as written and is what Studio Pro passes to the JVM when it
-runs the app. `mxcli run --local` starts the runtime JVM itself and does not
-apply it.
+runs the app. `mxcli run --local` and `mxcli test --local` pass it too, after
+`-Xmx<n>m` for a non-zero `MaxJavaHeapSize`, and print which options they pass
+(without `-D` values).
 
 ### Override a constant in a configuration
 

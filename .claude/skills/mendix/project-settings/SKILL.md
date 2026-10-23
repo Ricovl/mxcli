@@ -11,10 +11,10 @@ description: "Read and change project settings in MDL — database configuration
 | lines | section |
 |---|---|
 | 22-32 | When to Use This Skill |
-| 33-341 | Commands |
-| 342-369 | Common Patterns |
-| 370-378 | Checklist |
-| 379-383 | AfterStartupMicroflow Must Return Boolean |
+| 33-342 | Commands |
+| 343-370 | Common Patterns |
+| 371-379 | Checklist |
+| 380-384 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -144,8 +144,9 @@ The configuration keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`,
 `ApplicationRootUrl`, `ExtraJvmParameters` and `MaxJavaHeapSize` (Server ▸ Java heap
 ▸ Maximum size, in MB; `0` is Studio Pro's "Default"); `create configuration` takes
 the same.
-`ExtraJvmParameters` is what Studio Pro passes to the JVM when it runs the app —
-`mxcli run --local` starts the runtime itself and does not apply it.
+`ExtraJvmParameters` and `MaxJavaHeapSize` are what Studio Pro passes to the runtime
+JVM when it runs the app; `mxcli run --local` and `mxcli test --local` pass them too
+(see the run-local skill).
 
 `HttpPortNumber`, `ServerPortNumber`, `MaxJavaHeapSize`, `BcryptCost`,
 `DefaultTaskParallelism`, `WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;

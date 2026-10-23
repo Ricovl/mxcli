@@ -49,41 +49,10 @@ type constantOverrides struct {
 // values. want names one explicitly; empty means "pick the obvious one".
 func resolveConstantOverrides(ps *model.ProjectSettings, want string) constantOverrides {
 	out := constantOverrides{Values: map[string]string{}}
-	if ps == nil || ps.Configuration == nil || len(ps.Configuration.Configurations) == 0 {
-		out.Note = "the project has no configurations"
+	chosen, note := chooseConfiguration(ps, want)
+	if chosen == nil {
+		out.Note = note
 		return out
-	}
-	cfgs := ps.Configuration.Configurations
-
-	var chosen *model.ServerConfiguration
-	switch {
-	case want != "":
-		for _, c := range cfgs {
-			if strings.EqualFold(c.Name, want) {
-				chosen = c
-				break
-			}
-		}
-		if chosen == nil {
-			out.Note = fmt.Sprintf("no configuration named %q (have: %s)", want, configurationNames(cfgs))
-			return out
-		}
-	case len(cfgs) == 1:
-		chosen = cfgs[0]
-	default:
-		for _, c := range cfgs {
-			if strings.EqualFold(c.Name, "Default") {
-				chosen = c
-				break
-			}
-		}
-		if chosen == nil {
-			// Several configurations and no "Default": which one this run means is
-			// the user's call, not a guess worth making silently.
-			out.Note = fmt.Sprintf("the project has %d configurations and none is named \"Default\" (%s); "+
-				"pass --configuration to choose one", len(cfgs), configurationNames(cfgs))
-			return out
-		}
 	}
 
 	out.Configuration = chosen.Name
@@ -99,6 +68,37 @@ func resolveConstantOverrides(ps *model.ProjectSettings, want string) constantOv
 	}
 	sort.Strings(out.Private)
 	return out
+}
+
+// chooseConfiguration picks the configuration a run represents: the one want
+// names, else the only one, else "Default". With none to pick it returns nil and
+// says why. Everything a run takes from a configuration — its constant values, its
+// JVM options — comes from this one choice.
+func chooseConfiguration(ps *model.ProjectSettings, want string) (*model.ServerConfiguration, string) {
+	if ps == nil || ps.Configuration == nil || len(ps.Configuration.Configurations) == 0 {
+		return nil, "the project has no configurations"
+	}
+	cfgs := ps.Configuration.Configurations
+	switch {
+	case want != "":
+		for _, c := range cfgs {
+			if strings.EqualFold(c.Name, want) {
+				return c, ""
+			}
+		}
+		return nil, fmt.Sprintf("no configuration named %q (have: %s)", want, configurationNames(cfgs))
+	case len(cfgs) == 1:
+		return cfgs[0], ""
+	}
+	for _, c := range cfgs {
+		if strings.EqualFold(c.Name, "Default") {
+			return c, ""
+		}
+	}
+	// Several configurations and no "Default": which one this run means is the
+	// user's call, not a guess worth making silently.
+	return nil, fmt.Sprintf("the project has %d configurations and none is named \"Default\" (%s); "+
+		"pass --configuration to choose one", len(cfgs), configurationNames(cfgs))
 }
 
 func configurationNames(cfgs []*model.ServerConfiguration) string {

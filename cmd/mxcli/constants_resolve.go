@@ -41,6 +41,10 @@ type constantChain struct {
 	Private       []string                 // overrides whose value is not in the model
 	Stale         []string                 // machine-store entries naming no constant of this project
 	Note          string                   // why no configuration contributed
+	// JVMArgs are the same configuration's JVM options (runjvm.go). They ride on
+	// the chain because they come from the one configuration choice and the one
+	// project read; a second read would cost a second open of the project.
+	JVMArgs []string
 }
 
 // parseConstantFlags turns repeated `--constant Module.Name=value` into a map.
@@ -88,6 +92,13 @@ func resolveConstantChain(ps *model.ProjectSettings, want string, flags, machine
 	for name, value := range base.Values {
 		chain.Values[name] = value
 		chain.From[name] = layerConfiguration
+	}
+	if chosen, _ := chooseConfiguration(ps, want); chosen != nil {
+		args, err := configurationJVMArgs(chosen)
+		if err != nil {
+			return constantChain{}, err
+		}
+		chain.JVMArgs = args
 	}
 
 	var unknown []string
