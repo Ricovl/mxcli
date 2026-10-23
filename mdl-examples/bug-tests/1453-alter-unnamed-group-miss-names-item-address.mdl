@@ -1,0 +1,46 @@
+mdl 1;
+-- mendixlabs/mxcli#1453 / ako/mxcli#1326, the reporter's last row: CREATE
+-- accepts a name on an Accordion group (`group grp1 (…)`) and drops it — the
+-- group stores none — so the natural next statement misses:
+--
+--   alter page Bug1453c.Repro { insert into grp1 { … }; };
+--
+-- On a page that also holds a data grid the miss named only the grid:
+--
+--   widget "grp1" not found. DataGrid2 columns are addressed by a derived
+--   name (the bound attribute, or the caption), not the name written in MDL —
+--   available columns: Name (run DESCRIBE PAGE to confirm)
+--
+-- It now names the address that resolves (check -p and exec alike):
+--
+--   widget "grp1" not found. An object-list item (an Accordion group, a pop-up
+--   menu item) stores no name, so a name written on one in CREATE is not kept —
+--   address it on its widget: acc1 item@1 = acc1 item('One'). DataGrid2
+--   columns are addressed by … available columns: Name …
+--
+-- Expected: the ALTER below — the address the miss names — applies, describe
+-- shows btnNew in the group after btnInGroup, and
+-- `mxcli docker check --no-update-widgets` reports 0 errors.
+
+create module Bug1453c;
+
+create persistent entity Bug1453c.Item (Name: string(50));
+
+create page Bug1453c.Repro (title: 'Repro', layout: Atlas_Core.Atlas_Default) {
+  accordion acc1 (advancedMode: false, collapsible: true, expandBehavior: 'singleExpanded', animate: true, showIcon: 'right', animateIcon: true) {
+    group grp1 (headerRenderMode: 'text', headerText: 'One') {
+      actionbutton btnInGroup (Caption: 'Inside group', Action: close page)
+    }
+  }
+  datagrid dg1 (DataSource: database from Bug1453c.Item) {
+    column (Attribute: Name) {
+      actionbutton btnInColumn (Caption: 'Inside column', Action: close page)
+    }
+  }
+};
+
+alter page Bug1453c.Repro {
+  insert into acc1 item@1 { actionbutton btnNew (Caption: 'New', Action: close page) }
+};
+
+describe page Bug1453c.Repro;

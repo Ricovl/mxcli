@@ -34,7 +34,10 @@ caption is edited. Persisting the name the author wrote is not available either:
 there is no slot for it, and inventing one is the write-a-property-Studio-Pro-
 does-not-declare hazard. What is left is to make the derivation *visible* — warn
 at authoring time which name will be addressable, and on a lookup miss list the
-addressable names rather than reporting a bare not-found.
+addressable names rather than reporting a bare not-found. The list has to cover
+every unnamed kind on the page, not the first one someone fixed: a miss that
+listed only grid columns sent the author of `insert into grp1` (an Accordion
+group, named in CREATE and never stored) to the grid.
 
 **Ambiguity must be refused, not resolved.** Two columns deriving the same name
 is a real state, and taking the first is a data hazard rather than a wart. The
@@ -55,7 +58,11 @@ name written where the model keeps none should be refused or deprecated at
 parse time (MDL-DEPR005), not silently discarded by the builder.
 
 **Property lookup is per-shape, and the shapes differ.** A button's text is a
-`CaptionTemplate`, not a `Caption`. A column's value kind comes from the
+`CaptionTemplate`, not a `Caption`. A click action is `Action` on a button,
+`OnClickAction` on a container and `ClickAction` on a list view or an image; a
+setter that knew only the first refused every container, while the catalog had
+held all three keys all along — when a setter refuses a shape, look for another
+reader of the same fact before believing it. A column's value kind comes from the
 schema — expression, primitive or text template — and writing a string where a
 reference belongs is accepted by everything and visible to nothing.
 
