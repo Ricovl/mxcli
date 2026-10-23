@@ -72,9 +72,18 @@ var builtinInputAttributeRules = map[string]inputAttributeRule{
 // a separate Boolean source (`attributeBoolean`), which MDL does not write.
 var comboBoxEnumerationRule = inputAttributeRule{"combo box", kindSet("Enumeration"), "Enumeration", "CE7247"}
 
+// comboBoxDatabaseRule is the combo box in database mode, which stores the
+// chosen option's value on `databaseAttributeString` (mendixlabs/mxcli#1583).
+// Measured on a fresh 11.12.5 project, Combo box 2.5.0, one combo box per
+// kind: Boolean, DateTime, Decimal, AutoNumber and Binary were CE7247 "Only
+// attributes of type String, Integer, Long, Enumeration are allowed here."
+// Its attribute may also be written under that key.
+var comboBoxDatabaseRule = inputAttributeRule{"combo box", kindSet("String", "Integer", "Long", "Enumeration"),
+	"String, Integer, Long, Enumeration", "CE7247"}
+
 // inputAttributeRuleFor is the rule w's attribute is judged by. A combo box
-// with an options data source is in association mode and binds an
-// association, not an attribute, so it has none.
+// is judged in the mode exec builds it in (comboBoxMode): the association mode
+// binds an association, not an attribute, so it has none.
 func inputAttributeRuleFor(w *ast.WidgetV3) (rule inputAttributeRule, isComboBox, ok bool) {
 	if w.TypeIsGeneric {
 		return inputAttributeRule{}, false, false
@@ -82,6 +91,9 @@ func inputAttributeRuleFor(w *ast.WidgetV3) (rule inputAttributeRule, isComboBox
 	if strings.EqualFold(w.Type, "combobox") {
 		if comboBoxHasOptionsDataSource(w) {
 			return inputAttributeRule{}, true, false
+		}
+		if comboBoxMode(w) == "database" {
+			return comboBoxDatabaseRule, true, true
 		}
 		return comboBoxEnumerationRule, true, true
 	}
@@ -337,7 +349,11 @@ func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing d
 	if !ok {
 		return
 	}
-	attr := strings.TrimPrefix(w.GetAttribute(), "$currentObject/")
+	attr := w.GetAttribute()
+	if attr == "" && isComboBox && comboBoxMode(w) == "database" {
+		attr = w.GetStringProp("databaseAttributeString")
+	}
+	attr = strings.TrimPrefix(attr, "$currentObject/")
 	if attr == "" || strings.HasPrefix(attr, "$") || enclosing.unresolved || len(enclosing.entities) == 0 {
 		return
 	}

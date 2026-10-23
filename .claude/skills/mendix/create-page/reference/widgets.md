@@ -562,6 +562,22 @@ combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource
 --   optionsSourceAssociationCaptionType: expression,
 --   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
 -- Enumeration mode (no datasource) has no caption and needs none.
+
+-- Database mode: options from a datasource of their own; the chosen option's
+-- value is stored on an attribute of the enclosing object. Selected by naming
+-- `optionsSourceDatabaseDataSource` — the generic `datasource:` clause selects
+-- association mode instead. `Attribute:` is the target (String, Integer, Long
+-- or Enumeration, else CE7247 — MDL-WIDGET39 with -p), `CaptionAttribute:` the
+-- option caption, and `optionsSourceDatabaseValueAttribute:` the option's
+-- attribute whose value is stored.
+combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyModule.DS_Codes,
+  attribute: Code, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Code)
+-- WRONG: a target attribute with no value attribute — MDL-WIDGET16, CE0642
+-- "Property 'Value' is required." Without `attribute:` the combo box only
+-- selects and needs no value attribute. No caption is CE0642 'Caption', as in
+-- association mode (expression caption: optionsSourceDatabaseCaptionType /
+-- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
+-- Multi` selects several and hides both the target and the value attribute.
 ```
 
 ### DataView with Form Layout

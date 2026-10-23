@@ -644,6 +644,13 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		switch entry.ValueType {
 		case "Expression":
 			builder.SetExpression(propName, strVal)
+		case "Selection":
+			// A selection lives in the value's Selection field. The primitive
+			// fallback below wrote it into PrimitiveValue — a combo box's
+			// `optionsSourceDatabaseItemSelection: 'Single'` stored as
+			// PrimitiveValue "Single", which Studio Pro never writes there
+			// (mendixlabs/mxcli#1583).
+			builder.SetSelection(propName, strVal)
 		case "TextTemplate":
 			// `<propName>Params:` — or, failing that, the widget-wide
 			// `contentparams:` — supplies the parameters for a `{1}`-style
@@ -1657,7 +1664,13 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		}
 
 	case "Selection":
-		val := w.GetSelection()
+		// By the property's own key first, as check's widgetValueMap reads it:
+		// a widget with a selection besides its main one (a combo box's
+		// `optionsSourceDatabaseItemSelection`) is addressed that way.
+		val := namedPropValue(mapping, w)
+		if val == "" {
+			val = w.GetSelection()
+		}
 		if val == "" && mapping.Default != "" {
 			val = mapping.Default
 		}

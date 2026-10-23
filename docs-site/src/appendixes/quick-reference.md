@@ -418,6 +418,7 @@ CREATE PAGE MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `LAYOUTGRID`, `ROW`, `COLUMN`, `CONTAINER`, `CUSTOMCONTAINER`
 - Input: `TEXTBOX`, `TEXTAREA`, `CHECKBOX`, `RADIOBUTTONS`, `DATEPICKER`, `COMBOBOX`
+  - `COMBOBOX` modes: enumeration `(Attribute: EnumAttr)`; association `(Attribute: Assoc, DataSource: DATABASE Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, Attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `DataSource:` association mode
 - Display: `DYNAMICTEXT`, `DATAGRID`, `GALLERY`, `LISTVIEW`, `IMAGE`, `STATICIMAGE`, `DYNAMICIMAGE`
 - Actions: `ACTIONBUTTON`, `LINKBUTTON`, `NAVIGATIONLIST`
 - Structure: `DATAVIEW`, `HEADER`, `FOOTER`, `CONTROLBAR`, `SNIPPETCALL`
