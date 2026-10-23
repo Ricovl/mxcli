@@ -61,6 +61,12 @@ func TestViewEntityOQL_DescribeExecRoundTripIsStable(t *testing.T) {
 		"tabs and blank line":     "select\n\tsum(s.Amount) as Total\n\n\t-- every sale\nfrom Shop.Sale as s",
 		"relative indent kept":    "select\n    sum(s.Amount) as Total\n  from Shop.Sale as s\n  where s.Amount > 0",
 		"comment between clauses": "select sum(s.Amount) as Total\n/* all sales */\nfrom Shop.Sale as s",
+		// A comment outside the query's tokens was dropped here — this test
+		// parses the description, so there is no stored text to carry
+		// (ako/mxcli#1632).
+		"leading comment":  "-- totals per sale\nselect sum(s.Amount) as Total\nfrom Shop.Sale as s",
+		"trailing comment": "select sum(s.Amount) as Total\nfrom Shop.Sale as s -- all of them",
+		"block comments":   "/* header */\nselect sum(s.Amount) as Total\nfrom Shop.Sale as s\n/* footer */",
 	}
 	for name, src := range cases {
 		storedCases["script: "+name] = src
