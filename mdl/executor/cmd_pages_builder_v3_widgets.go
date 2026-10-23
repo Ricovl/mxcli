@@ -223,12 +223,14 @@ func (pb *pageBuilder) buildColumnSpecFromAST(child *ast.WidgetV3) (*backend.Dat
 		Properties:        columnSpecProperties(child),
 	}
 	for _, grandchild := range child.Children {
-		if filterWidgetID := dataGridFilterWidgetID(grandchild.Type); filterWidgetID != "" {
-			fw, err := pb.widgetBackend.BuildFilterWidget(backend.FilterWidgetSpec{
-				WidgetID:        filterWidgetID,
-				FilterName:      grandchild.Name,
-				VisibilityRules: resolveWidgetVisibilityRules(pb.backend.Path(), filterWidgetID),
-			}, pb.backend.Path())
+		if dataGridFilterWidgetID(grandchild.Type) != "" {
+			// Through the pluggable engine and the filter's own definition, as
+			// CREATE builds a column's filter. Built from the widget id and name
+			// alone, the filter's properties were never read: a drop-down
+			// filter's `attributes: [Status]` was stored as attrChoice "auto"
+			// with an empty `attr`, check clean (mendixlabs/mxcli#1519 item 2,
+			// the ALTER path #1422 left).
+			fw, err := pb.buildWidgetV3(grandchild)
 			if err != nil {
 				return nil, mdlerrors.NewBackend("build column filter widget", err)
 			}

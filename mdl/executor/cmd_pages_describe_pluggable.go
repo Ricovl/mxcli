@@ -1173,6 +1173,27 @@ func extractCustomWidgetPropertyString(ctx *ExecContext, w map[string]any, prope
 	return ""
 }
 
+// extractCustomWidgetPropertySelection reads the Selection a named property
+// holds ("None", "Single", "Multi"); "" when the widget has no such property.
+func extractCustomWidgetPropertySelection(ctx *ExecContext, w map[string]any, propertyKey string) string {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != propertyKey {
+			continue
+		}
+		if value, ok := propMap["Value"].(map[string]any); ok {
+			sel, _ := value["Selection"].(string)
+			return sel
+		}
+	}
+	return ""
+}
+
 // extractCustomWidgetPropertyAttributes extracts attribute references from a CustomWidget property.
 func extractCustomWidgetPropertyAttributes(ctx *ExecContext, w map[string]any, propertyKey string) []string {
 	obj, ok := w["Object"].(map[string]any)
