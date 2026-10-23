@@ -97,7 +97,7 @@ func New(rawData bson.D, unitID model.ID, deps Deps) *Mutator {
 		containerType: containerType,
 		unitID:        unitID,
 		deps:          deps,
-		widgetFinder:  withNavItemAddresses(finder),
+		widgetFinder:  withTableCellAddresses(withNavItemAddresses(finder)),
 	}
 }
 
@@ -530,6 +530,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if result.item != nil {
 		return m.insertIntoObjectListItem(result, widgetRef, position, widgets)
 	}
+	if err := refuseBesideTableCell(result, widgetRef, position); err != nil {
+		return err
+	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
 	}
@@ -687,6 +690,11 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			if result == nil {
 				return m.widgetNotFoundError(ref.Name())
 			}
+			if result.cell != nil {
+				// A cell is emptied, not removed: the table's grid needs it.
+				setCellWidgets(result.widget, nil)
+				continue
+			}
 			if n := m.columnMatchCount(ref.Name()); n > 1 {
 				return columnAmbiguityError(ref.Name(), n)
 			}
@@ -720,6 +728,14 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
+	}
+	if result.cell != nil {
+		newBson, err := m.serializeWidgets(widgets)
+		if err != nil {
+			return fmt.Errorf("serialize widgets: %w", err)
+		}
+		setCellWidgets(result.widget, newBson)
+		return nil
 	}
 	if result.item != nil {
 		// Widgets in place of an item would be written into the item list,
@@ -1490,6 +1506,9 @@ type bsonWidgetResult struct {
 	// addressed as `owner item…` (an Accordion group): its slots are reached
 	// through it, and it is never a widget to insert beside or replace.
 	item *objectListItemInfo
+	// cell is set when the result is a legacy table cell addressed as
+	// `table cell(row, column)`: a position in the table, never a widget.
+	cell *backend.TableCellSelector
 }
 
 // widgetFinder is a function type for locating widgets in a raw BSON tree.
@@ -2115,6 +2134,9 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 	if err := m.navItemAddressError(name); err != nil {
 		return err
 	}
+	if err := m.tableCellAddressError(name); err != nil {
+		return err
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
@@ -2336,6 +2358,10 @@ func findNearestDataSourceDoc(rawData bson.D, widgetName string) (bson.D, bool) 
 	// sees (`nav item@2` → nav).
 	if sel, ok := backend.ParseNavItemSelector(widgetName); ok {
 		widgetName = sel.List
+	}
+	// Nor is a legacy table cell: `table1 cell(1,2)` sees what table1 sees.
+	if sel, ok := backend.ParseTableCellSelector(widgetName); ok {
+		widgetName = sel.Table
 	}
 	if formCall := bsonnav.DGetDoc(rawData, "FormCall"); formCall != nil {
 		for _, arg := range bsonnav.DGetArrayElements(bsonnav.DGet(formCall, "Arguments")) {

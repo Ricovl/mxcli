@@ -59,6 +59,23 @@ type WidgetRef struct {
 	// operation that takes a widget reaches the item unchanged. The item's @n
 	// lives in Item, never in Ordinal.
 	Item *NavItemRef
+	// Cell is set for a legacy table cell address `table1 cell(row, column)`.
+	// Widget then holds Cell.Spell(), the spelling the page mutator resolves.
+	Cell *TableCellRef
+}
+
+// TableCellRef is a legacy table cell address. A cell stores no name; it is the
+// cell whose top-left position is Row, Column, both counted from 1.
+type TableCellRef struct {
+	Table  string
+	Row    int
+	Column int
+}
+
+// Spell writes the address as the page mutator reads it
+// (backend.ParseTableCellSelector).
+func (r TableCellRef) Spell() string {
+	return r.Table + " cell(" + strconv.Itoa(r.Row) + "," + strconv.Itoa(r.Column) + ")"
 }
 
 // NavItemRef is a navigation list item address (mendixlabs/mxcli#1388). An item

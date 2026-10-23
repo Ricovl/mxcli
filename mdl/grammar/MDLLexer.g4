@@ -376,6 +376,7 @@ GALLERY: G A L L E R Y;
 CONTAINER: C O N T A I N E R;
 ROW: R O W;
 ITEM: I T E M;
+CELL: C E L L;   // legacy table cell address: `table1 cell(row, column)`
 CONTROLBAR: C O N T R O L B A R;
 SEARCH: S E A R C H;
 SEARCHBAR: S E A R C H B A R;

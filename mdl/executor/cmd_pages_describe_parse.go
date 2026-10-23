@@ -866,10 +866,41 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		})
 		return []rawWidget{widget}
 
+	case "Forms$Table":
+		widget.TableCells = parseTableCells(w)
+		return []rawWidget{widget}
+
 	default:
 		// For unknown types, just note them
 		return []rawWidget{widget}
 	}
+}
+
+// parseTableCells reads a legacy table's cells in stored order. A cell's
+// TopRowIndex / LeftColumnIndex are 0-based; the address ALTER PAGE takes is
+// 1-based.
+func parseTableCells(w map[string]any) []rawTableCell {
+	var cells []rawTableCell
+	for _, c := range getBsonArrayElements(w["Cells"]) {
+		cell, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		rc := rawTableCell{Row: extractInt(cell["TopRowIndex"]) + 1, Column: extractInt(cell["LeftColumnIndex"]) + 1}
+		for _, cw := range getBsonArrayElements(cell["Widgets"]) {
+			m, ok := cw.(map[string]any)
+			if !ok {
+				continue
+			}
+			label, _ := m["Name"].(string)
+			if label == "" {
+				label, _ = m["$Type"].(string)
+			}
+			rc.Widgets = append(rc.Widgets, label)
+		}
+		cells = append(cells, rc)
+	}
+	return cells
 }
 
 func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...string) []rawWidgetRow {

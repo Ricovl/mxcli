@@ -45,6 +45,9 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if result == nil {
 		return backend.AlterTargetMatch{}, m.widgetNotFoundError(name)
 	}
+	if result.cell != nil {
+		return backend.AlterTargetMatch{Kind: "cell", Name: name}, nil
+	}
 	if widgetTypeName(result.widget) == navListItemType || result.item != nil {
 		return backend.AlterTargetMatch{Kind: "item", Name: name}, nil
 	}
