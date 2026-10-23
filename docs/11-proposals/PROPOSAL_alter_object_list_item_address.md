@@ -99,7 +99,7 @@ Rules, decided with the maintainer:
    property (`defaultItemSlotKey`, `widget_engine.go`). Another slot needs
    `.slot`, spelled as its property key (case-insensitive) or the item-slot
    keyword CREATE accepts for it (`headercontent`).
-3. **Legacy table cells are deferred** (`table1 cell(r, c)` sketched below).
+3. **Legacy table cells** get their own positional form, `table1 cell(r, c)` (below).
 
 One rule follows from the widget's own definition: **a slot the item's
 configuration hides is refused, naming the property that enables it.** The
@@ -127,11 +127,17 @@ resolver for every selector form; INSERT INTO an item's body or slot,
 REPLACE / DROP of a slot, DROP of an item, SET of an item property; the
 hidden-slot refusal, Open Question 2 answered as "refuse"). Measuring the SET
 path found that a mode switch must also keep the texts it hides or shows as
-CREATE stores them, and does.
+CREATE stores them, and does. A widget-name miss lists the item addresses on
+the page (`acc1 item@1 = acc1 item('One')`), since CREATE accepts a name on an
+item and drops it — the reporter's `insert into grp1` had been answered with
+the DataGrid 2 column hint alone.
+
+Legacy table cells: done (`table1 cell(row, col)` — INSERT INTO appends,
+REPLACE swaps, DROP empties; describe lists the cells). See "Legacy Table
+Cells" below for the measured shape.
 
 Not done: inserting a NEW item (`insert after acc1 item@1 { group … }`) is
-refused; step 4's selector rename was not needed; legacy table cells stay
-deferred.
+refused; step 4's selector rename was not needed.
 
 ## Implementation Plan
 
@@ -202,15 +208,36 @@ schema (`ObjectType.PropertyTypes`), not a version table.
 - Pop-up menu: one test that the same address reaches a `basicItem`, proving the
   generalisation rather than an Accordion special case.
 
-## Deferred: Legacy Table Cells
+## Legacy Table Cells
 
-A `Forms$Table` cell is positional (`TopRowIndex`, `LeftColumnIndex`), so its
-address would be `table1 cell(row, column)`, 1-based — not `item@n`, which
-would depend on storage order. Deferred until (a) a Studio Pro-authored table is
-available to confirm the stored shape (a Mendix 11 cell is `Forms$DbTableCell`,
-which gen does not model, and `mx convert` refuses `Forms$TableCell`), and (b)
-describe prints tables at all. #1463 already lets ALTER reach widgets inside
-cells by name.
+A `Forms$Table` cell is positional, so its address is `table1 cell(row,
+column)`, 1-based — not `item@n`, which would depend on storage order.
+
+The shape was measured, not taken from gen: a table injected into a blank
+11.13.0 app and run through `mx convert -p` (0 errors) is stored as
+
+```
+Forms$Table { Name, Appearance, TabIndex, WidthUnit: "Weight",
+  ConditionalVisibilitySettings,
+  Rows [2]: Forms$TableRow, ColumnWidths [2]: Forms$TableColumn { Value },
+  Cells [2]: Forms$DbTableCell { TopRowIndex, LeftColumnIndex  (0-based),
+                                 Width, Height  (span), IsHeader,
+                                 Appearance, Widgets [2] } }
+```
+
+gen's `Forms$TableCell` and `Columns` are not what Mendix 11 stores (`mx
+convert` refuses `Forms$TableCell`). Rules:
+
+- INSERT INTO a cell appends; REPLACE a cell swaps its widgets; DROP a cell
+  empties it — the cell stays, the grid needs it.
+- A position under a spanning cell is refused, naming the spanning cell's
+  address; a miss lists the table's cells.
+- INSERT BEFORE / AFTER a cell is refused (no rows or columns are added); a
+  widget inside a cell is reached by its name (#1463).
+- A cell is not a data container: inserted widgets bind in the table's
+  enclosing context.
+- describe prints the table as NOT re-executable (MDL cannot create one) and
+  lists `--   cell(r,c): <widgets>` beneath it, so the address is discoverable.
 
 ## Open Questions
 

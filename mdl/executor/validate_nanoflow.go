@@ -53,6 +53,9 @@ func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) 
 	v.checkVoidCallOutputUse(v.params, stmt.Body)
 	// MDL-SET01: a nanoflow's Change variable is as primitive-only (CE7247).
 	v.checkSetOnObjectVariable(v.params, stmt.Body)
+	// MDL-CHANGE01: System.owner / System.changedBy are CE1050 in a nanoflow's
+	// create and change too, measured on 11.12.5 (mendixlabs/mxcli#1612).
+	v.checkSystemMemberChange(stmt.Body)
 	// MDL-FLOW05: a nanoflow's flow is built by the same builder, so a statement
 	// after a return is dead there too (mendixlabs/mxcli#1491).
 	v.checkUnreachableStatements(stmt.Body)

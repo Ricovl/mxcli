@@ -236,7 +236,9 @@ Examples:
 				os.Exit(1)
 			}
 			reportConstantChain(os.Stdout, overrides)
+			reportJVMArgs(os.Stdout, overrides)
 			opts.ConstantOverrides = overrides.Values
+			opts.JVMArgs = overrides.JVMArgs
 		} else if len(constantArgs) > 0 {
 			// --attach runs against an app someone else booted, and the Docker path
 			// configures the container. Accepting --constant there and doing nothing

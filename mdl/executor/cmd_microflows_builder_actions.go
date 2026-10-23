@@ -163,6 +163,9 @@ func (fb *flowBuilder) addCreateObjectAction(s *ast.CreateObjectStmt) model.ID {
 
 	// Build InitialMembers for each SET assignment
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        microflows.MemberChangeTypeSet,
@@ -362,6 +365,9 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 
 	// Build a MemberChange for each `=`, `+=` or `-=` member
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        memberChangeTypeOf(change.Op),
@@ -2402,6 +2408,23 @@ func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberNa
 		// qualifiedName is already set to the full memberName
 	} else {
 		qualifiedName = moduleName + "." + memberName
+	}
+
+	// System.owner and System.changedBy are associations to System.User that no
+	// domain model lists — an entity carries them as flags on the root of its
+	// generalization chain — so the lookup below cannot find them. A list
+	// operation finds and filters by them (measured clean on 11.12.5,
+	// ako/mxcli#1629). A create or change object cannot set them (CE1050);
+	// those statements refuse them before reaching here (refuseSystemMemberChange).
+	if strings.Count(memberName, ".") == 1 {
+		if canonical, ok := builtinSystemMemberAssociation(memberName); ok {
+			if memberName != canonical {
+				fb.addError("%s", systemMemberSpellingRefusal(memberName, canonical, entityQN))
+				return
+			}
+			mc.AssociationQualifiedName = canonical
+			return
+		}
 	}
 
 	// A one-dot member whose qualifier is NOT a module (`Assoc.Attr`) is a

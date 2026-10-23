@@ -40,6 +40,7 @@ ALTER PAGE Module.EditPage {
 | Property | Description | Example |
 |----------|-------------|---------|
 | `Caption` | Button/link caption | `SET (Caption: 'Submit') ON btnSave` |
+| `Action` | On-click action of a button, link button, container, list view or image — any `CREATE PAGE` action expression | `SET (Action: CALL MICROFLOW M.ACT_Open) ON card1` |
 | `Label` | Input field label | `SET (Label: 'Full Name') ON txtName` |
 | `RenderMode` | Dynamic text rendering: `Text`, `Paragraph`, `H1`–`H6` | `SET (RenderMode: H2) ON txtTitle` |
 | `Placeholder` | Input hint text (text box, text area, date picker) | `SET (Placeholder: 'Enter your name') ON txtName` |

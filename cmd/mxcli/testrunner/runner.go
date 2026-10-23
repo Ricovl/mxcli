@@ -80,6 +80,11 @@ type RunOptions struct {
 	// and inherits ITS constants, and the Docker path configures the container.
 	ConstantOverrides map[string]string
 
+	// JVMArgs are the same configuration's JVM options (Java heap maximum, Extra
+	// JVM parameters), resolved by the caller and carried like ConstantOverrides.
+	// Only --local uses them.
+	JVMArgs []string
+
 	// DBType is the database a --local run boots its scratch app against, in the
 	// canonical spelling docker.NormalizeDBType returns ("postgresql" or
 	// "hsqldb"; empty means PostgreSQL). Set it through ResolveTestDBType, which

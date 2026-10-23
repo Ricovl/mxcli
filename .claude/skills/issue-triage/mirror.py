@@ -13,6 +13,13 @@ What it does each run:
     original, unless the mirror has `agent:working` or an open fork PR
     mentions it; then it only labels and comments
 
+It refuses to create mirrors (exit 1) when the listing of existing mirrors looks
+short: empty while the fork has mirrors, or more than BACKFILL_LIMIT unmirrored
+upstream issues older than the newest mirrored one. Mirrors are created oldest
+first, so such gaps mean the listing was cut off, and creating them would
+duplicate existing mirrors. Pass --allow-backfill when they really are missing.
+Scenario tests: test_mirror.py.
+
 Mirrors never ping or link back to upstream: upstream text sits in a fenced
 block and the upstream reference in a code span, so no @mentions reach
 upstream users and no "mentioned this issue" events appear upstream.
@@ -29,6 +36,7 @@ MARKER = re.compile(r"<!--\s*upstream:\s*([\w.-]+/[\w.-]+)#(\d+)(?:\s+updated=(\
 MAX_BODY = 60000
 COMMENT_CHARS = 1500
 LAST_COMMENTS = 5
+BACKFILL_LIMIT = 5  # older-than-newest gaps tolerated (e.g. a mirror deleted by hand)
 DRY = False
 UPSTREAM = None
 
@@ -64,6 +72,14 @@ def paged(path, limit=5000):
     out, page = [], 1
     while len(out) < limit:
         batch = api(f"{path}{sep}per_page=100&page={page}")
+        # An empty page after a full one is either the end of an exact multiple
+        # of 100 or a transient API glitch. Treating a glitch as the end once cut
+        # the mirror listing short and re-created 40 mirrors; ask again first.
+        for attempt in range(2 if out else 0):
+            if batch:
+                break
+            time.sleep(5 * (attempt + 1))
+            batch = api(f"{path}{sep}per_page=100&page={page}")
         if not batch:
             break
         out += batch
@@ -131,6 +147,9 @@ def main():
     ap.add_argument("--fork", required=True)
     ap.add_argument("--max-create", type=int, default=40, help="cap new mirrors per run (GitHub limits issue creation)")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--allow-backfill", action="store_true",
+                    help="create mirrors for upstream issues older than the newest one already mirrored "
+                         "(normally a sign that the fork listing came back short)")
     a = ap.parse_args()
     up, fork, DRY = a.upstream, a.fork, a.dry_run
     UPSTREAM = up
@@ -152,9 +171,32 @@ def main():
             continue
         hit = MARKER.search(m.get("body") or "")
         if hit and hit.group(1).lower() == up.lower():
-            by_up.setdefault(int(hit.group(2)), m)
+            n = int(hit.group(2))
+            # With duplicates, track the open mirror, and the oldest of those.
+            # The listing is newest first, so taking the first one seen tracked
+            # a closed duplicate and left the open original stale.
+            seen = by_up.get(n)
+            if seen is None or (m["state"] == "open", -m["number"]) > (seen["state"] == "open", -seen["number"]):
+                by_up[n] = m
+
+    def mirrors_of_up(issues):
+        return [m for m in issues or [] if (h := MARKER.search(m.get("body") or "")) and h.group(1).lower() == up.lower()]
+
+    # An empty listing looks like a fresh fork; ask once more before seeding it.
+    if not by_up and mirrors_of_up(api(f"/repos/{fork}/issues?state=all&labels=mirror&per_page=100")):
+        sys.exit("refusing to create mirrors: the fork listing found no mirrors of "
+                 f"{up}, but the fork has issues labelled `mirror`; rerun later")
 
     missing = sorted(n for n in open_up if n not in by_up)
+    # Mirrors are created oldest first, so a missing upstream issue older than
+    # the newest one already mirrored means the fork listing came back short.
+    # Creating them would duplicate existing mirrors (2026-10-22: 40 at once).
+    newest = max(by_up, default=0)
+    backfill = [n for n in missing if n < newest]
+    if len(backfill) > BACKFILL_LIMIT and not a.allow_backfill:
+        sys.exit(f"refusing to create mirrors: {len(backfill)} upstream issues older than #{newest} have no mirror "
+                 f"(first: {backfill[:10]}), so the fork listing ({len(by_up)} mirrors) was probably incomplete. "
+                 "Rerun later, or pass --allow-backfill if they are really unmirrored.")
     for n in missing[:a.max_create]:
         i = open_up[n]
         api(f"/repos/{fork}/issues", "POST",

@@ -326,13 +326,13 @@ func reportTransplantInstall(out io.Writer, mprPath, mendixVer, moduleName, labe
 func installByTransplant(ctx context.Context, mpkPath, mprPath, moduleName, mendixVer string,
 	versionNumber, versionID string) (*mp.UpdateResult, error) {
 
-	work, err := os.MkdirTemp("", "mxinstall")
+	work, err := mp.NewWorkDir("mxi")
 	if err != nil {
 		return nil, err
 	}
 	defer os.RemoveAll(work)
 
-	refDir := filepath.Join(work, "ref")
+	refDir := filepath.Join(work, "r")
 	if err := os.MkdirAll(refDir, 0o755); err != nil {
 		return nil, err
 	}

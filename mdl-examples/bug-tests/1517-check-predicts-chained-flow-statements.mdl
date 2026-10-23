@@ -1,0 +1,38 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1517 (ako/mxcli#1399), item 4 — check does not predict a
+-- statement on a flow an earlier statement changed
+-- ============================================================================
+--
+-- `check -p` reported "Check passed!" with a note that a flow change was "not
+-- predicted", and exec then refused that statement and rolled the whole script
+-- back ("Nothing was written: statement 1 was rolled back").
+--
+-- To reproduce: exec the first statement alone against a project, then run
+-- `mxcli check -p` on the whole file. The second statement changes the loop
+-- body's shape, which the splice refuses whatever the first did; check now
+-- reports that refusal at statement 2 (MDL-V1-REBUILD) instead of "not
+-- predicted", because it applies statement 1 to an in-memory simulation of
+-- the flow — never to the project — before predicting statement 2.
+
+mdl 1;
+
+create module BugTest1517Chain;
+
+create or modify microflow BugTest1517Chain.F ($Items: List of System.User)
+begin
+  log info node 'BugTest1517' 'begin';
+  loop $It in $Items
+  begin
+    log info node 'BugTest1517' 'in loop';
+  end loop;
+end;
+
+create or modify microflow BugTest1517Chain.F ($Items: List of System.User)
+begin
+  log info node 'BugTest1517' 'begin';
+  loop $It in $Items
+  begin
+    log info node 'BugTest1517' 'in loop';
+    log info node 'BugTest1517' 'again';
+  end loop;
+end;

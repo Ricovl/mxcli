@@ -135,9 +135,7 @@ func (s *memberSpeller) respell(st ast.MicroflowStatement) {
 			if !ok {
 				return
 			}
-			short := s.member(entity, name, func(attr, assoc string) string {
-				return lastSegment(attr + assoc)
-			})
+			short := s.member(entity, name, extractFieldName)
 			if short != name {
 				binary.Left = &ast.IdentifierExpr{Name: short}
 			}

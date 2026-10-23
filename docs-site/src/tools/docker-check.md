@@ -10,8 +10,8 @@ mxcli docker check -p app.mpr
 
 ## What It Does
 
-1. **Resolves the `mx` binary** -- Looks for `mx` in the mxbuild directory, PATH, or cached installations at `~/.mxcli/mxbuild/<version>/modeler/mx`
-2. **Runs `mx check`** -- Executes the Mendix project checker against the `.mpr` file
+1. **Resolves the `mx` binary** -- Takes the `mx` next to `--mxbuild-path`, else the first it finds on PATH, in a Studio Pro installation, or in the download cache at `~/.mxcli/mxbuild/<version>/modeler/mx`. It does not download one (see [Getting mx](#getting-mx))
+2. **Runs `mx check`** -- Executes the Mendix project checker against a temporary copy of the `.mpr` file, as a local process; despite the `docker` in its name, it does not use Docker
 3. **Reports results** -- Outputs errors, warnings, and deprecations to the console
 
 If the project has errors, the command exits with a non-zero status code.
@@ -21,19 +21,29 @@ cannot see: an MPR v2 `ContentsHash` index that disagrees with the `.mxunit`
 files (`mxcli fix hashes`), and git states that make Studio Pro 11.13 fail to
 open the project. See [Working Outside Studio Pro](outside-studio-pro.md).
 
-## Auto-Download
+## Getting mx
 
-If mxbuild is not installed locally, you can download it first:
+`docker check` does not download MxBuild. With no `mx` to find it stops with
+`mx not found` and names the command that sets one up:
 
 ```bash
-# Explicit setup (downloads matching mxbuild version)
+# Once per Mendix version: download MxBuild (including mx) for the project's version
 mxcli setup mxbuild -p app.mpr
 
 # Then check
 mxcli docker check -p app.mpr
 ```
 
-The downloaded mxbuild (including the `mx` binary) is cached at `~/.mxcli/mxbuild/{version}/` for reuse.
+The downloaded mxbuild is cached at `~/.mxcli/mxbuild/{version}/` for reuse.
+`mxcli new` and `mxcli docker build` download it too. On macOS and Windows,
+`setup mxbuild` prefers Studio Pro's bundled MxBuild, because the CDN only
+publishes Linux binaries.
+
+The `mx` found need not be the project's version: an `mx` on PATH, or any
+cached version, is used when the project's own is not there. `mx check` accepts
+another patch of the same minor; `mx update-widgets` does not and the check then
+runs without it (see `mxcli docker check --help`). Pass `--mxbuild-path
+~/.mxcli/mxbuild/<version>` to choose one.
 
 ## Example Output
 

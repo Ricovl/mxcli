@@ -91,17 +91,28 @@ type fakeDeps struct{ saved []byte }
 
 func (d *fakeDeps) SerializeObject(o microflows.MicroflowObject) (bson.D, error) {
 	typ := "Microflows$ActionActivity"
-	if _, ok := o.(*microflows.ExclusiveMerge); ok {
+	switch o.(type) {
+	case *microflows.ExclusiveMerge:
 		typ = "Microflows$ExclusiveMerge"
+	case *microflows.Annotation:
+		typ = "Microflows$Annotation"
 	}
 	p := o.GetPosition()
 	sz := objectSize(o)
-	return bson.D{
+	doc := bson.D{
 		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(o.GetID()))}},
 		{Key: "$Type", Value: typ},
 		{Key: "RelativeMiddlePoint", Value: fmt.Sprintf("%d;%d", p.X, p.Y)},
 		{Key: "Size", Value: fmt.Sprintf("%d;%d", sz.X, sz.Y)},
-	}, nil
+	}
+	// The error handling is stored on the action, as the codec writes it.
+	if eh := microflows.ObjectErrorHandlingType(o); eh != "" {
+		doc = append(doc, bson.E{Key: "Action", Value: bson.D{
+			{Key: "$Type", Value: "Microflows$MicroflowCallAction"},
+			{Key: "ErrorHandlingType", Value: string(eh)},
+		}})
+	}
+	return doc, nil
 }
 
 func (d *fakeDeps) SerializeSequenceFlow(f *microflows.SequenceFlow) (bson.D, error) {

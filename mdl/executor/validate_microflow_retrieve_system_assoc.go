@@ -28,6 +28,10 @@ const retrieveSystemAssocRule = "MDL-RETRIEVE02"
 //	retrieve $u from $task/System.Owner;                               CE1613 (the name itself does not resolve)
 //	retrieve $u from System.User where [id = $task/System.owner] first; clean
 //
+// That rewrite needs the entity to store the member: on one that does not, it
+// is CE0161 instead (11.12.5, ako/mxcli#1306), so the suggestion says so and
+// validateRetrieveSystemMemberPaths refuses it where the entity is known.
+//
 // So the name resolves and the source still yields no entity — there is nothing
 // to write that mxbuild accepts. The rule needs no project: no module but System
 // can declare these names, and the entity flags do not change the outcome.
@@ -37,12 +41,12 @@ func (v *microflowValidator) checkRetrieveOverSystemAssociation(body []ast.Micro
 		if !ok || r.StartVariable == "" || !strings.EqualFold(r.Source.Module, "System") {
 			return
 		}
-		var member string
+		var member, stored string
 		switch strings.ToLower(r.Source.Name) {
 		case "owner":
-			member = "System.owner"
+			member, stored = "System.owner", "owner: AutoOwner"
 		case "changedby":
-			member = "System.changedBy"
+			member, stored = "System.changedBy", "changedBy: AutoChangedBy"
 		default:
 			return
 		}
@@ -52,7 +56,9 @@ func (v *microflowValidator) checkRetrieveOverSystemAssociation(body []ast.Micro
 				"\"Retrieve object must specify the 'Entity' property.\"",
 				r.Variable, r.StartVariable, r.Source.Module, r.Source.Name, member),
 			fmt.Sprintf("Retrieve the user from the database instead: "+
-				"`retrieve $%s from System.User where [id = $%s/%s] first;`",
-				r.Variable, r.StartVariable, member))
+				"`retrieve $%s from System.User where [id = $%s/%s] first;` — which builds only when $%s's "+
+				"entity stores the member (`%s` on the root of its generalization chain); otherwise mxbuild "+
+				"rejects that constraint with CE0161",
+				r.Variable, r.StartVariable, member, r.StartVariable, stored))
 	})
 }

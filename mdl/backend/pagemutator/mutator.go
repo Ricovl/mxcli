@@ -97,7 +97,7 @@ func New(rawData bson.D, unitID model.ID, deps Deps) *Mutator {
 		containerType: containerType,
 		unitID:        unitID,
 		deps:          deps,
-		widgetFinder:  withNavItemAddresses(finder),
+		widgetFinder:  withTableCellAddresses(withNavItemAddresses(finder)),
 	}
 }
 
@@ -258,22 +258,38 @@ func (m *Mutator) SetWidgetAction(widgetRef string, action pages.ClientAction) e
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
 	}
-	// Refuse rather than write an Action onto something that has no such
-	// property: Studio Pro resolves every stored property against the type's
+	// The key is the one the stored widget holds: a container keeps its click
+	// action in OnClickAction, a list view or an image in ClickAction
+	// (ako/mxcli#1503). Refuse rather than write a key the widget does not
+	// have: Studio Pro resolves every stored property against the type's
 	// property list and throws on one it does not know, while mxbuild's
 	// deserializer tolerates it — so a silent write here builds clean and fails
 	// to open.
-	if bsonnav.DGet(result.widget, "Action") == nil {
-		return fmt.Errorf("widget %q (%s) has no Action property — Action can only be set on a widget that "+
-			"performs an on-click action, such as a button or a clickable container",
+	key := clickActionKey(result.widget)
+	if key == "" {
+		return fmt.Errorf("widget %q (%s) has no on-click action — Action can only be set on a widget that "+
+			"has one: a button, a container, a list view or an image",
 			widgetRef, widgetTypeName(result.widget))
 	}
 	serialized := m.deps.SerializeClientAction(action)
 	if serialized == nil {
 		return fmt.Errorf("unsupported action type %T", action)
 	}
-	bsonnav.DSet(result.widget, "Action", serialized)
+	bsonnav.DSet(result.widget, key, serialized)
 	return nil
+}
+
+// clickActionKey returns the key under which a stored widget keeps its
+// on-click action, or "" when it has none.
+func clickActionKey(widget bson.D) string {
+	for _, key := range types.WidgetClickActionKeys {
+		for _, e := range widget {
+			if e.Key == key {
+				return key
+			}
+		}
+	}
+	return ""
 }
 
 // SetWidgetNamedAction writes an action into a pluggable widget's action slot
@@ -374,6 +390,10 @@ func (m *Mutator) SetColumnProperty(gridRef string, columnRef string, prop strin
 	if err != nil {
 		return err
 	}
+	// A template CREATE stored null (the column was not in dynamicText mode)
+	// gets one before its text is written; whether it may be shown is the
+	// reset pass's to decide afterwards.
+	m.ensureItemTemplate(result, prop)
 	return setColumnPropertyMut(result.widget, result.colPropKeys, result.colPropKinds, prop, value)
 }
 
@@ -525,6 +545,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	}
 	if result.item != nil {
 		return m.insertIntoObjectListItem(result, widgetRef, position, widgets)
+	}
+	if err := refuseBesideTableCell(result, widgetRef, position); err != nil {
+		return err
 	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
@@ -683,6 +706,11 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			if result == nil {
 				return m.widgetNotFoundError(ref.Name())
 			}
+			if result.cell != nil {
+				// A cell is emptied, not removed: the table's grid needs it.
+				setCellWidgets(result.widget, nil)
+				continue
+			}
 			if n := m.columnMatchCount(ref.Name()); n > 1 {
 				return columnAmbiguityError(ref.Name(), n)
 			}
@@ -716,6 +744,14 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
+	}
+	if result.cell != nil {
+		newBson, err := m.serializeWidgets(widgets)
+		if err != nil {
+			return fmt.Errorf("serialize widgets: %w", err)
+		}
+		setCellWidgets(result.widget, newBson)
+		return nil
 	}
 	if result.item != nil {
 		// Widgets in place of an item would be written into the item list,
@@ -1486,6 +1522,9 @@ type bsonWidgetResult struct {
 	// addressed as `owner item…` (an Accordion group): its slots are reached
 	// through it, and it is never a widget to insert beside or replace.
 	item *objectListItemInfo
+	// cell is set when the result is a legacy table cell addressed as
+	// `table cell(row, column)`: a position in the table, never a widget.
+	cell *backend.TableCellSelector
 }
 
 // widgetFinder is a function type for locating widgets in a raw BSON tree.
@@ -2111,16 +2150,23 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 	if err := m.navItemAddressError(name); err != nil {
 		return err
 	}
+	if err := m.tableCellAddressError(name); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("widget %q not found", name)
+	if hint := objectListItemMissHint(m.rawData); hint != "" {
+		msg += ". " + hint
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
 		return fmt.Errorf(
-			"widget %q not found. DataGrid2 columns are addressed by a derived name "+
+			"%s. DataGrid2 columns are addressed by a derived name "+
 				"(the bound attribute, or the caption), not the name written in MDL — "+
 				"available columns: %s (run DESCRIBE PAGE to confirm)",
-			name, formatColumnNameList(cols))
+			msg, formatColumnNameList(cols))
 	}
-	return fmt.Errorf("widget %q not found%s", name, m.dataViewFooterHint())
+	return fmt.Errorf("%s%s", msg, m.dataViewFooterHint())
 }
 
 // formatColumnNameList renders derived column names for an error message: each
@@ -2332,6 +2378,10 @@ func findNearestDataSourceDoc(rawData bson.D, widgetName string) (bson.D, bool) 
 	// sees (`nav item@2` → nav).
 	if sel, ok := backend.ParseNavItemSelector(widgetName); ok {
 		widgetName = sel.List
+	}
+	// Nor is a legacy table cell: `table1 cell(1,2)` sees what table1 sees.
+	if sel, ok := backend.ParseTableCellSelector(widgetName); ok {
+		widgetName = sel.Table
 	}
 	if formCall := bsonnav.DGetDoc(rawData, "FormCall"); formCall != nil {
 		for _, arg := range bsonnav.DGetArrayElements(bsonnav.DGet(formCall, "Arguments")) {

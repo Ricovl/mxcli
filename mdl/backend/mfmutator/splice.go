@@ -24,10 +24,11 @@ package mfmutator
 //
 // What the splice cannot do safely it refuses, with the reason: an insert
 // after a decision (which branch?), before an activity several flows enter
-// (which path?), a drop or replace of an activity with an error handler (the
-// handler would be orphaned), and — for now — anything inside a loop body
-// but an activity replaced by one of the same kind, in place, since a body
-// node's coordinates are relative to the loop box (ako/mxcli#1106).
+// (which path?), a drop of an activity with an error handler, or its replace
+// by anything but one activity handling errors the same way (the handler would
+// be orphaned; mendixlabs/mxcli#1489), and — for now — anything inside a loop
+// body but an activity replaced by one of the same kind, in place, since a
+// body node's coordinates are relative to the loop box (ako/mxcli#1106).
 
 import (
 	"bytes"
@@ -411,6 +412,9 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	if err != nil {
 		return err
 	}
+	if _, errs := g.outgoing(x.id); len(errs) > 0 && x.typ == "Microflows$ActionActivity" {
+		return m.replaceKeepingHandler(g, x, frag)
+	}
 	out, err := removable(g, x, "replace")
 	if err != nil {
 		return err
@@ -481,8 +485,7 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 // coordinates are relative to the loop box, so anything that adds, removes or
 // redraws a node there would have to re-lay the body out; that is refused.
 func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragment) error {
-	if frag == nil || len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0 ||
-		frag.ExitCase != nil || frag.Entry != frag.Objects[0].GetID() || frag.Exit != frag.Entry {
+	if !singleActivity(frag) {
 		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one activity "+
 			"only (nothing in the body is added, removed or redrawn); replace the whole loop instead", describeNode(x))
 	}
@@ -502,23 +505,144 @@ func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragme
 	if loop == nil {
 		return fmt.Errorf("%s is in a loop that is not in the flow", describeNode(x))
 	}
-	oc := dDoc(loop.doc, "ObjectCollection")
-	obj := frag.Objects[0]
-	obj.SetPosition(model.Point{X: x.pos.X, Y: x.pos.Y})
-	d, err := m.deps.SerializeObject(obj)
+	d, err := m.serializeInPlace(x, frag)
 	if err != nil {
-		return fmt.Errorf("serialize %T: %w", obj, err)
-	}
-	if d == nil {
-		return fmt.Errorf("cannot write a %T into a flow", obj)
+		return err
 	}
 	if t := dString(d, "$Type"); t != x.typ {
 		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one of the same "+
 			"kind only, not by a %s; replace the whole loop instead", describeNode(x), t)
 	}
-	// Drawn as the stored one is: a Studio Pro activity may have been resized.
+	return m.swapInPlace(g, x, dDoc(loop.doc, "ObjectCollection"), d, frag.Entry)
+}
+
+// replaceKeepingHandler replaces a top-level activity that has a custom error
+// handler by one activity handling errors the same way, in place
+// (mendixlabs/mxcli#1489): the new activity takes the stored one's place, is
+// drawn where it was at the size it was, and every flow that entered or left
+// it — its error flow included — now enters or leaves the new one. The
+// handler's own activities, and the merge its path rejoins at, are not
+// touched: changing one of them is a change of its own, addressed by its own
+// handle. Anything else — more than one activity, or one that does not raise
+// to a custom handler of the same kind — would leave the stored handler with
+// no activity, and is refused.
+func (m *Mutator) replaceKeepingHandler(g *graph, x *node, frag *backend.MicroflowFragment) error {
+	// The notes the replacement states come with it (a create or modify
+	// states every activity's notes; the stored ones were removed first).
+	frag, notes := withoutNotes(frag)
+	if !singleActivity(frag) {
+		return fmt.Errorf("cannot replace %s: it has an error handler, which the splice keeps only when the activity "+
+			"is replaced by one activity handling errors the same way (the handler's own activities are changed by "+
+			"their own handles); to change or take out the handler itself, drop the microflow and create it in the "+
+			"same script", describeNode(x))
+	}
+	stored := storedErrorHandling(x.doc)
+	got := microflows.ObjectErrorHandlingType(frag.Objects[0])
+	switch {
+	case !microflows.IsCustomErrorHandling(got):
+		return fmt.Errorf("cannot replace %s: it has an error handler (%s), and the replacement states none, so the "+
+			"handler would be left with no activity; state the handler on the replacement as `describe` prints it",
+			describeNode(x), errorHandlingClause(stored))
+	case string(got) != stored:
+		return fmt.Errorf("cannot replace %s: its error handler is `%s`, and the replacement's is `%s`; the splice keeps "+
+			"the stored handler, so state it as `describe` prints it", describeNode(x), errorHandlingClause(stored),
+			errorHandlingClause(string(got)))
+	}
+	d, err := m.serializeInPlace(x, frag)
+	if err != nil {
+		return err
+	}
+	if t := dString(d, "$Type"); t != x.typ {
+		return fmt.Errorf("cannot replace %s by a %s: it has an error handler, which the splice keeps only on an "+
+			"activity", describeNode(x), t)
+	}
+	if err := m.swapInPlace(g, x, dDoc(m.doc, "ObjectCollection"), d, frag.Entry); err != nil {
+		return err
+	}
+	if notes == nil {
+		return nil
+	}
+	// A note drawn relative to the activity moves with it, from where the
+	// builder drew the activity to where the stored one is; one whose canvas
+	// position the script states stays there (mendixlabs/mxcli#1598).
+	for _, n := range notes.frag.Objects {
+		if !notes.frag.Pinned[n.GetID()] {
+			p := n.GetPosition()
+			n.SetPosition(model.Point{X: p.X + x.pos.X - notes.entryAt.X, Y: p.Y + x.pos.Y - notes.entryAt.Y})
+		}
+	}
+	return m.addFragment(notes.frag)
+}
+
+// fragmentNotes are the notes a one-activity fragment attaches to its
+// activity: the note objects and their lines, as a fragment of their own.
+type fragmentNotes struct {
+	frag *backend.MicroflowFragment
+	// entryAt is where the builder drew the activity the notes are placed
+	// relative to.
+	entryAt model.Point
+}
+
+// withoutNotes splits frag into the fragment without its notes and the notes,
+// when every object but the entry is a note and every note line runs between
+// a note and the entry. Any other fragment is returned whole, with no notes.
+func withoutNotes(frag *backend.MicroflowFragment) (*backend.MicroflowFragment, *fragmentNotes) {
+	if frag == nil || len(frag.AnnotationFlows) == 0 {
+		return frag, nil
+	}
+	rest := *frag
+	rest.Objects, rest.AnnotationFlows = nil, nil
+	notes := &backend.MicroflowFragment{Pinned: frag.Pinned}
+	var entryAt model.Point
+	isNote := map[model.ID]bool{}
+	for _, obj := range frag.Objects {
+		if _, ok := obj.(*microflows.Annotation); ok {
+			notes.Objects = append(notes.Objects, obj)
+			isNote[obj.GetID()] = true
+			continue
+		}
+		if obj.GetID() == frag.Entry {
+			entryAt = obj.GetPosition()
+		}
+		rest.Objects = append(rest.Objects, obj)
+	}
+	for _, af := range frag.AnnotationFlows {
+		if !(isNote[af.OriginID] && af.DestinationID == frag.Entry) && !(isNote[af.DestinationID] && af.OriginID == frag.Entry) {
+			return frag, nil
+		}
+		notes.AnnotationFlows = append(notes.AnnotationFlows, af)
+	}
+	return &rest, &fragmentNotes{frag: notes, entryAt: entryAt}
+}
+
+// singleActivity reports whether frag is one object and nothing else: no
+// flows, no notes, no case on its exit.
+func singleActivity(frag *backend.MicroflowFragment) bool {
+	return frag != nil && len(frag.Objects) == 1 && len(frag.Flows) == 0 && len(frag.AnnotationFlows) == 0 &&
+		frag.ExitCase == nil && frag.Entry == frag.Objects[0].GetID() && frag.Exit == frag.Entry
+}
+
+// serializeInPlace encodes frag's one object as the replacement of x: drawn
+// where x is, at x's size (a Studio Pro activity may have been resized).
+func (m *Mutator) serializeInPlace(x *node, frag *backend.MicroflowFragment) (bson.D, error) {
+	obj := frag.Objects[0]
+	obj.SetPosition(model.Point{X: x.pos.X, Y: x.pos.Y})
+	d, err := m.deps.SerializeObject(obj)
+	if err != nil {
+		return nil, fmt.Errorf("serialize %T: %w", obj, err)
+	}
+	if d == nil {
+		return nil, fmt.Errorf("cannot write a %T into a flow", obj)
+	}
 	dSet(d, "RelativeMiddlePoint", x.pos.String())
 	dSet(d, "Size", x.size.String())
+	return d, nil
+}
+
+// swapInPlace puts d where x is in the collection oc, and points every flow
+// that entered or left x — normal, error or annotation — at d's $ID, id.
+// Nothing else moves.
+func (m *Mutator) swapInPlace(g *graph, x *node, oc bson.D, d bson.D, id model.ID) error {
 	objs := arrayElements(dGet(oc, "Objects"))
 	found := false
 	for i, el := range objs {
@@ -528,23 +652,43 @@ func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragme
 		}
 	}
 	if !found || !setArray(oc, "Objects", objs) {
-		return fmt.Errorf("%s is not in its loop's collection", describeNode(x))
+		return fmt.Errorf("%s is not in its collection", describeNode(x))
 	}
 	m.markRemoved(x.doc)
-	for _, in := range g.incoming(x.id) {
-		setPointer(in.doc, "DestinationPointer", frag.Entry)
-	}
-	for _, out := range normal {
-		setPointer(out.doc, "OriginPointer", frag.Exit)
-	}
-	for _, af := range g.annotationFlows(x.id) {
-		key := "DestinationPointer"
-		if af.origin == x.id {
-			key = "OriginPointer"
+	for _, f := range g.flows {
+		switch {
+		case f.origin == x.id:
+			setPointer(f.doc, "OriginPointer", id)
+		case f.dest == x.id:
+			setPointer(f.doc, "DestinationPointer", id)
 		}
-		setPointer(af.doc, key, frag.Entry)
 	}
 	return nil
+}
+
+// storedErrorHandling is the error handling a stored activity's action has.
+func storedErrorHandling(d bson.D) string {
+	if a := dDoc(d, "Action"); a != nil {
+		if eh := dString(a, "ErrorHandlingType"); eh != "" {
+			return eh
+		}
+	}
+	return dString(d, "ErrorHandlingType")
+}
+
+// errorHandlingClause is how MDL spells an error handling type.
+func errorHandlingClause(eh string) string {
+	switch microflows.ErrorHandlingType(eh) {
+	case microflows.ErrorHandlingTypeCustom:
+		return "on error begin … end error"
+	case microflows.ErrorHandlingTypeCustomWithoutRollback:
+		return "on error without rollback begin … end error"
+	case microflows.ErrorHandlingTypeContinue:
+		return "on error continue"
+	case "", microflows.ErrorHandlingTypeRollback, microflows.ErrorHandlingTypeAbort:
+		return "no on error clause"
+	}
+	return eh
 }
 
 // setCase gives a stored flow the case value cv, in the form the engine
@@ -615,6 +759,72 @@ func (m *Mutator) RemoveNotes(target model.ID) error {
 		}
 	}
 	return nil
+}
+
+// AddNotes attaches the notes frag holds to target, in place: target, its
+// flows and every other element stay. frag is one stand-in object — what the
+// builder drew the notes against — and the notes and their lines to it; each
+// unpinned note is moved by the stand-in's offset from target, a pinned one
+// stays where the script put it, and each line is pointed at target.
+func (m *Mutator) AddNotes(target model.ID, frag *backend.MicroflowFragment) error {
+	g := m.graph()
+	x, err := g.node(target)
+	if err != nil {
+		return err
+	}
+	rest, notes := withoutNotes(frag)
+	if notes == nil || len(rest.Objects) != 1 || rest.Objects[0].GetID() != frag.Entry || len(rest.Flows) > 0 {
+		return fmt.Errorf("the notes for %s are not a set of notes attached to one object", describeNode(x))
+	}
+	for _, n := range notes.frag.Objects {
+		if !notes.frag.Pinned[n.GetID()] {
+			p := n.GetPosition()
+			n.SetPosition(model.Point{X: p.X + x.pos.X - notes.entryAt.X, Y: p.Y + x.pos.Y - notes.entryAt.Y})
+		}
+	}
+	for _, af := range notes.frag.AnnotationFlows {
+		if af.OriginID == frag.Entry {
+			af.OriginID = model.ID(x.id)
+		}
+		if af.DestinationID == frag.Entry {
+			af.DestinationID = model.ID(x.id)
+		}
+	}
+	return m.addFragment(notes.frag)
+}
+
+// SetFreeNotes replaces the flow's free notes — top-level annotations no line
+// attaches to anything — by the free notes frag holds, written where the
+// builder drew them. Every other element stays.
+func (m *Mutator) SetFreeNotes(frag *backend.MicroflowFragment) error {
+	g := m.graph()
+	wired := map[string]bool{}
+	for _, f := range g.flows {
+		if !f.isSequence() {
+			wired[f.origin], wired[f.dest] = true, true
+		}
+	}
+	for _, n := range g.order {
+		if n.typ == "Microflows$Annotation" && n.loop == "" && !wired[n.id] {
+			if err := m.removeObject(n); err != nil {
+				return err
+			}
+		}
+	}
+	if frag == nil {
+		return nil
+	}
+	attached := map[model.ID]bool{}
+	for _, af := range frag.AnnotationFlows {
+		attached[af.OriginID], attached[af.DestinationID] = true, true
+	}
+	notes := &backend.MicroflowFragment{}
+	for _, obj := range frag.Objects {
+		if _, ok := obj.(*microflows.Annotation); ok && !attached[obj.GetID()] {
+			notes.Objects = append(notes.Objects, obj)
+		}
+	}
+	return m.addFragment(notes)
 }
 
 // Drop removes target and joins the flows that entered it to the object it
@@ -759,8 +969,12 @@ func removable(g *graph, x *node, verb string) (flowRef, error) {
 	}
 	normal, errs := g.outgoing(x.id)
 	if len(errs) > 0 {
+		// create or modify reaches this same refusal, so naming it would send
+		// the reader in a circle (mendixlabs/mxcli#1489): what takes a
+		// handler out is the deliberate rebuild.
 		return flowRef{}, fmt.Errorf("cannot %s %s: it has an error handler, which would be left with no activity; "+
-			"rewrite the flow with create or modify instead", verb, describeNode(x))
+			"the splice takes no handler out — to rebuild the flow deliberately, drop the microflow and create it "+
+			"in the same script", verb, describeNode(x))
 	}
 	if len(normal) != 1 {
 		return flowRef{}, fmt.Errorf("cannot %s %s: it has %d outgoing flows, not one", verb, describeNode(x), len(normal))
