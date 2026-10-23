@@ -830,22 +830,80 @@ func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutat
 	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
 	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (bool, error) {
 	keeper, ok := mutator.(pluggableKeepingReplacer)
-	if !ok || storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
-		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+	if !ok {
 		return false, nil
 	}
-	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+	baseline, ok := pluggableReplaceBaseline(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude)
+	if !ok {
 		return false, nil
+	}
+	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline)
+}
+
+// pluggableReplaceBaseline builds the stored widget as describe prints it, the
+// baseline the #1247 merge compares the replacement with; ok is false when the
+// merge does not apply — not exactly one pluggable widget for one of the same
+// kind, no description of the stored one, or a baseline that does not build.
+func pluggableReplaceBaseline(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
+	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (pages.Widget, bool) {
+	if storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
+		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+		return nil, false
+	}
+	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+		return nil, false
 	}
 	stored := storedWidgets()[op.Target.Widget]
 	if stored == nil || !strings.EqualFold(stored.Type, op.NewWidgets[0].Type) {
-		return false, nil
+		return nil, false
 	}
 	baseline, err := buildWidgetsFromAST(ctx, []*ast.WidgetV3{replaceBaseline(stored, op.NewWidgets[0])}, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil || len(baseline) != 1 {
-		return false, nil
+		return nil, false
 	}
-	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline[0])
+	return baseline[0], true
+}
+
+// pluggableReplaceChecker is the check-time half of pluggableKeepingReplacer:
+// the refusal ReplacePluggableKeepingUnstated would give, without the write.
+type pluggableReplaceChecker interface {
+	CheckPluggableReplace(widgetRef string, replacement, baseline pages.Widget) error
+}
+
+// refuseStaleContentReplace is the check -p half of the refusal a pluggable
+// REPLACE gives for content it would carry onto another entity
+// (backend.StaleWidgetContentError, ako/mxcli#1563): the replacement built
+// as exec builds it, and the stored document asked, without writing. A
+// replacement that does not build here is exec's to report, so nothing is
+// said for it.
+func refuseStaleContentReplace(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
+	checker, ok := mutator.(pluggableReplaceChecker)
+	if !ok || op.Target.Item != nil || isFooterRegionTarget(op.Target) {
+		return nil
+	}
+	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
+	if err != nil {
+		return nil
+	}
+	expanded := *op
+	expanded.NewWidgets = newWidgets
+	op = &expanded
+	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, false, moduleName, moduleID)
+	exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+	for n := range replacedWidgetNames(mutator, op.Target) {
+		exclude = append(exclude, n)
+	}
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
+	if err != nil {
+		return nil
+	}
+	baseline, ok := pluggableReplaceBaseline(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude)
+	if !ok {
+		return nil
+	}
+	return checker.CheckPluggableReplace(op.Target.Widget, widgets[0], baseline)
 }
 
 // replaceBaselineSystemProps are the widget-level settings describe prints for

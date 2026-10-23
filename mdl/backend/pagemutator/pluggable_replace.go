@@ -5,9 +5,11 @@ package pagemutator
 import (
 	"bytes"
 	"strconv"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -41,26 +43,115 @@ import (
 // with replacement, keeping every stored property on which replacement and
 // baseline agree. handled is false when the merge does not apply; the caller
 // then replaces as usual.
+//
+// A merge that would keep content describe cannot show, bound to an entity the
+// replacement no longer uses, is refused instead (StaleWidgetContentError,
+// ako/mxcli#1563): handled is then true and nothing is written.
 func (m *Mutator) ReplacePluggableKeepingUnstated(widgetRef string, replacement, baseline pages.Widget) (handled bool, err error) {
-	if replacement == nil || baseline == nil {
-		return false, nil
-	}
-	result := m.widgetFinder(m.rawData, widgetRef)
-	if result == nil || len(result.colPropKeys) > 0 {
-		return false, nil
-	}
-	if bsonnav.DGetString(result.widget, "$Type") != "CustomWidgets$CustomWidget" {
-		return false, nil
-	}
-	newDoc := m.deps.SerializeWidget(replacement)
-	baseDoc := m.deps.SerializeWidget(baseline)
-	merged, ok := mergeUnstatedPluggable(result.widget, newDoc, baseDoc)
+	result, merged, ok := m.mergePluggableReplace(widgetRef, replacement, baseline)
 	if !ok {
 		return false, nil
+	}
+	if stale := staleLinkedContent(result.widget, merged); stale != nil {
+		stale.Widget = widgetRef
+		return true, stale
 	}
 	result.parentArr[result.index] = merged
 	bsonnav.DSetArray(result.parentDoc, result.parentKey, result.parentArr)
 	return true, nil
+}
+
+// CheckPluggableReplace is ReplacePluggableKeepingUnstated without the write:
+// the refusal it would give, for `check` to report before exec runs.
+func (m *Mutator) CheckPluggableReplace(widgetRef string, replacement, baseline pages.Widget) error {
+	result, merged, ok := m.mergePluggableReplace(widgetRef, replacement, baseline)
+	if !ok {
+		return nil
+	}
+	if stale := staleLinkedContent(result.widget, merged); stale != nil {
+		stale.Widget = widgetRef
+		return stale
+	}
+	return nil
+}
+
+// mergePluggableReplace finds the stored pluggable widget and merges the
+// replacement into it; ok is false when the merge does not apply.
+func (m *Mutator) mergePluggableReplace(widgetRef string, replacement, baseline pages.Widget) (*bsonWidgetResult, bson.D, bool) {
+	if replacement == nil || baseline == nil {
+		return nil, nil, false
+	}
+	result := m.widgetFinder(m.rawData, widgetRef)
+	if result == nil || len(result.colPropKeys) > 0 {
+		return nil, nil, false
+	}
+	if bsonnav.DGetString(result.widget, "$Type") != "CustomWidgets$CustomWidget" {
+		return nil, nil, false
+	}
+	merged, ok := mergeUnstatedPluggable(result.widget, m.deps.SerializeWidget(replacement), m.deps.SerializeWidget(baseline))
+	if !ok {
+		return nil, nil, false
+	}
+	return result, merged, true
+}
+
+// staleLinkedContent reports the widgets a merge keeps in a Widgets property
+// while the data source that property is built for — its DataSourceProperty in
+// the stored Type — now names another entity (ako/mxcli#1563).
+//
+// Content describe prints is always stated, so the merge only ever keeps
+// content describe cannot print; that is the content this is about. An entity
+// that cannot be read on either side reports nothing: the refusal is for what
+// is provably bound to the wrong entity.
+func staleLinkedContent(stored, merged bson.D) *backend.StaleWidgetContentError {
+	storedProps, mergedProps := propertiesByKey(stored), propertiesByKey(merged)
+	for _, pt := range bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(bsonnav.DGetDoc(stored, "Type"), "ObjectType"), "PropertyTypes")) {
+		ptd, ok := pt.(bson.D)
+		if !ok {
+			continue
+		}
+		vt := bsonnav.DGetDoc(ptd, "ValueType")
+		key, linked := bsonnav.DGetString(ptd, "PropertyKey"), bsonnav.DGetString(vt, "DataSourceProperty")
+		if bsonnav.DGetString(vt, "Type") != "Widgets" || linked == "" {
+			continue
+		}
+		content := listElements(bsonnav.DGetDoc(storedProps[key], "Value"), "Widgets")
+		if len(content) == 0 ||
+			!sameIgnoringIdentity(bsonnav.DGet(bsonnav.DGetDoc(mergedProps[key], "Value"), "Widgets"),
+				bsonnav.DGet(bsonnav.DGetDoc(storedProps[key], "Value"), "Widgets")) {
+			continue // nothing to carry, or the statement's own content
+		}
+		was := dataSourceEntity(bsonnav.DGetDoc(storedProps[linked], "Value"))
+		now := dataSourceEntity(bsonnav.DGetDoc(mergedProps[linked], "Value"))
+		if was == "" || now == "" || strings.EqualFold(was, now) {
+			continue
+		}
+		stale := &backend.StaleWidgetContentError{Property: key, DataSource: linked, StoredEntity: was, NewEntity: now}
+		for _, w := range content {
+			wd, _ := w.(bson.D)
+			stale.Widgets = append(stale.Widgets, bsonnav.DGetString(wd, "Name"))
+			stale.WidgetTypes = append(stale.WidgetTypes, bsonnav.DGetString(wd, "$Type"))
+		}
+		return stale
+	}
+	return nil
+}
+
+// dataSourceEntity is the entity a DataSource-typed WidgetValue's source
+// names, "" when it names none this can read.
+func dataSourceEntity(value bson.D) string {
+	ref := bsonnav.DGetDoc(bsonnav.DGetDoc(value, "DataSource"), "EntityRef")
+	if e := bsonnav.DGetString(ref, "Entity"); e != "" {
+		return e
+	}
+	// An IndirectEntityRef: the entity the last step arrives at.
+	steps := bsonnav.DGetArrayElements(bsonnav.DGet(ref, "Steps"))
+	if len(steps) > 0 {
+		if last, ok := steps[len(steps)-1].(bson.D); ok {
+			return bsonnav.DGetString(last, "DestinationEntity")
+		}
+	}
+	return ""
 }
 
 // mergeUnstatedPluggable returns stored with the replacement's stated changes
