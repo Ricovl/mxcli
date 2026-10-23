@@ -159,14 +159,26 @@ func extractVisibilityRulesFromJS(js string) ([]types.WidgetVisibilityRule, edit
 		if listKey != "" {
 			itemIdent = enclosingForEachParam(js, callStart)
 		}
-		cond, guardText, ok, conjunctive := parseGuard(js, callStart, itemIdent)
+		cond, guardText, ok, conjunctive, chain := parseGuard(js, callStart, itemIdent)
 		// A guard inside `outer ? ( … inner && hide(x) … )` states only the INNER
 		// term; the branch runs on outer too. Collect the enclosing group guards
 		// so the rule carries the whole conjunction — Combo box nests three deep,
 		// and a rule keeping only the innermost term claims hidden in
 		// configurations the editor shows.
 		var extra []types.WidgetVisibilityCondition
-		if ok && conjunctive {
+		if ok && len(chain) > 0 {
+			// An else-if branch: its own condition, the negated earlier
+			// branches, and whatever groups enclose the chain. Exact or not
+			// lifted — this shape had no rule before, so withholding one loses
+			// nothing. (An else-branch hide's chain IS its enclosing groups, so
+			// this only dedupes it.)
+			enclosing, enclosed := enclosingGroupConditions(js, callStart, itemIdent)
+			if !enclosed {
+				stats.SkippedComplex++
+				continue
+			}
+			extra = dedupeConditions(cond, append(chain, enclosing...))
+		} else if ok && conjunctive {
 			enclosing, enclosed := enclosingGroupConditions(js, callStart, itemIdent)
 			switch {
 			case enclosed:
@@ -663,7 +675,12 @@ var nsPrefixRE = regexp.MustCompile(`[A-Za-z_$][\w$]*\.$`)
 // (it sits inside a grouping paren carrying its own guard). Such a rule is only
 // safe when the ternary's other branch hides the same property anyway — see
 // hiddenInComplementaryBranch, which the caller consults.
-func parseGuard(js string, callStart int, itemIdent string) (types.WidgetVisibilityCondition, string, bool, bool) {
+//
+// The fifth result holds the further conditions the rule must carry: for a
+// guard that heads an else-if branch (`A ? x : guard && hide(…)`), the negated
+// conditions of the chain's earlier branches — see elseChainTerms; for an
+// else-branch hide inside a guarded group, that group's conditions.
+func parseGuard(js string, callStart int, itemIdent string) (types.WidgetVisibilityCondition, string, bool, bool, []types.WidgetVisibilityCondition) {
 	pre := strings.TrimRight(js[:callStart], " ")
 	// Strip the widget-editor namespace prefix (any `<ident>.`, not just `_.`).
 	if loc := nsPrefixRE.FindStringIndex(pre); loc != nil {
@@ -686,6 +703,7 @@ func parseGuard(js string, callStart int, itemIdent string) (types.WidgetVisibil
 	}
 	// Identify the connector.
 	var falsy bool // || connector or !prefix ⇒ hide when guard is falsy
+	elseBranch := false
 	switch {
 	case strings.HasSuffix(pre, "&&"):
 		pre = pre[:len(pre)-2]
@@ -710,17 +728,18 @@ func parseGuard(js string, callStart int, itemIdent string) (types.WidgetVisibil
 		// with showLabel false. See the CE0463 that produced (ledger #104).
 		cond, ok := ternaryCondition(pre[:len(pre)-1])
 		if !ok {
-			return types.WidgetVisibilityCondition{}, pre, false, false
+			return types.WidgetVisibilityCondition{}, pre, false, false, nil
 		}
 		pre = cond
 		falsy = true
+		elseBranch = true
 	default:
-		return types.WidgetVisibilityCondition{}, pre, false, false
+		return types.WidgetVisibilityCondition{}, pre, false, false, nil
 	}
-	guard, boundary := lastGuardExpr(pre)
+	guard, boundary, boundaryAt := lastGuardExprAt(pre)
 	guard = stripReturnPrefix(guard) // getProperties' first statement is `return <guard> && hide…`
 	if guard == "" {
-		return types.WidgetVisibilityCondition{}, guard, false, false
+		return types.WidgetVisibilityCondition{}, guard, false, false, nil
 	}
 	// Skip guards nested inside a larger expression. A clean statement-level guard
 	// is bounded by a statement separator (`,`, `;`, `{`, or start-of-input); a
@@ -768,25 +787,47 @@ func parseGuard(js string, callStart int, itemIdent string) (types.WidgetVisibil
 	conjunctive := boundary == ',' &&
 		insideOpenGroup(pre[:len(pre)-len(guard)]) &&
 		sameReceiver(groupGuard(js, callStart), guard)
+	var chain []types.WidgetVisibilityCondition
 	switch boundary {
 	case 0, ',', ';', '{':
 		// clean
+	case ':':
+		// The guard heads an else branch: `A ? (…) : guard && hide(…)`, or the
+		// else-if `A ? (…) : guard ? (hide(…), …)`. The hide fires on the
+		// guard AND on every earlier branch's condition being false.
+		terms, ok := elseChainTerms(pre[:boundaryAt], enclosingAliases(js, callStart), itemIdent)
+		if !ok {
+			return types.WidgetVisibilityCondition{}, guard, false, false, nil
+		}
+		chain = terms
 	case '?':
 		// The guard is the THEN branch of a ternary and carries its own condition
 		// (`outer ? inner && hide(...)`). Hand back the WHOLE expression, `?`
 		// included, so the caller can split it and decide whether the else branch
 		// makes the pair expressible — see ternaryThenCandidate (#238).
-		return types.WidgetVisibilityCondition{}, pre, false, false
+		return types.WidgetVisibilityCondition{}, pre, false, false, nil
 	case '&':
 		if !falsy {
-			return types.WidgetVisibilityCondition{}, guard, false, false
+			return types.WidgetVisibilityCondition{}, guard, false, false, nil
 		}
 	default:
-		return types.WidgetVisibilityCondition{}, guard, false, false
+		return types.WidgetVisibilityCondition{}, guard, false, false, nil
 	}
 	aliases := enclosingAliases(js, callStart)
 	c, ok := guardToCondition(guard, falsy, aliases, itemIdent)
-	return c, guard, ok, conjunctive
+	// An else-branch hide inside a guarded group, `G ? (…, C ? hide(a) :
+	// hide(b), …)`, fires on G as well as on !C. Its guard was isolated from the
+	// group by the ternary walk above, so it read as statement-level and b was
+	// hidden wherever C is false — Combo box's `selectedItemsSorting`, hidden by
+	// the database branch whenever its item selection is not Multi, read as
+	// hidden in association mode too. Carried only when the whole enclosing
+	// chain reads; otherwise the rule stays as it was lifted before.
+	if ok && elseBranch && chain == nil {
+		if enclosing, enclosed := enclosingGroupConditions(js, callStart, itemIdent); enclosed && len(enclosing) > 0 {
+			chain = enclosing
+		}
+	}
+	return c, guard, ok, conjunctive, chain
 }
 
 // ternaryCondition returns the text preceding the `?` that matches a trailing
@@ -881,6 +922,13 @@ func isIdentByte(b byte) bool {
 // terminated it (0 for start-of-input). The boundary lets the caller reject
 // guards nested inside a compound/ternary expression.
 func lastGuardExpr(pre string) (string, byte) {
+	expr, boundary, _ := lastGuardExprAt(pre)
+	return expr, boundary
+}
+
+// lastGuardExprAt is lastGuardExpr plus the index of the boundary byte in pre
+// (-1 for start-of-input), for a caller that has to keep walking past it.
+func lastGuardExprAt(pre string) (string, byte, int) {
 	depth := 0
 	var boundary byte
 	i := len(pre) - 1
@@ -903,7 +951,46 @@ func lastGuardExpr(pre string) (string, byte) {
 		}
 	}
 done:
-	return strings.TrimSpace(pre[i+1:]), boundary
+	return strings.TrimSpace(pre[i+1:]), boundary, i
+}
+
+// elseChainTerms returns the conditions under which an ELSE branch runs, for
+// the branch opened by the `:` that follows before (exclusive): the negation
+// of the ternary's own condition and, when that condition heads an else branch
+// in turn, of every earlier one in the chain.
+//
+//	A ? x : B ? y : <here>     →  [!B, !A]
+//
+// Combo box selects its option source this way, and the database and static
+// branches' hides were never lifted: their guard's boundary is the outer `:`,
+// which reads as "one fragment of a larger expression" (mendixlabs/mxcli#1583).
+// The chain ends at a statement separator or a group's `(` — the caller's
+// enclosing-group walk carries on from there. Any condition the guard
+// vocabulary cannot represent fails the whole chain: a branch lifted on its own
+// condition fires where an unread earlier branch runs instead.
+func elseChainTerms(before string, aliases map[string]string, itemIdent string) ([]types.WidgetVisibilityCondition, bool) {
+	var out []types.WidgetVisibilityCondition
+	for depth := 0; depth < maxGroupNesting; depth++ {
+		q := matchingTernaryQuestion(before)
+		if q < 0 {
+			return nil, false
+		}
+		text, boundary, at := lastGuardExprAt(before[:q])
+		c, ok := guardToCondition(stripReturnPrefix(text), true, aliases, itemIdent)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, c)
+		switch boundary {
+		case ':':
+			before = before[:at]
+		case 0, ',', ';', '{', '(':
+			return out, true
+		default:
+			return nil, false
+		}
+	}
+	return nil, false
 }
 
 var (
@@ -1054,6 +1141,11 @@ func impliesGroupGuard(js string, callStart int, cond types.WidgetVisibilityCond
 	if cond.Operator != "eq" || cond.PropertyKey == "" {
 		return false
 	}
+	// A group in an else-if branch carries the chain's negations as well,
+	// which cond need not imply.
+	if _, elseIf, _ := groupElseChain(js, callStart, ""); elseIf {
+		return false
+	}
 	text := groupGuard(js, callStart)
 	if text == "" {
 		return false
@@ -1102,6 +1194,14 @@ func groupGuard(js string, callStart int) string {
 					return ""
 				}
 				head = head[:q]
+			}
+			// An else-if group, `A ? (…) : B ? ( … )`: its condition is B, not
+			// the whole chain trailingExpr would return — which is no
+			// comparison, so every hide in the group went unread or lost its
+			// conjunction (mendixlabs/mxcli#1583). The negated A is
+			// groupElseChain's.
+			if g, boundary := lastGuardExpr(head); boundary == ':' && g != "" {
+				return g
 			}
 			// trailingExpr, not lastGuardExpr: the ternary is rarely the first
 			// thing in its function — ProgressCircle's is preceded by a whole
@@ -1291,9 +1391,64 @@ func enclosingGroupConditions(js string, callStart int, itemIdent string) ([]typ
 			// a real term we cannot represent, so the conjunction is incomplete.
 			return nil, false
 		}
+		// A group whose condition heads an else branch runs only where the
+		// chain's earlier conditions are false.
+		chain, elseIf, chainOK := groupElseChain(js, at, itemIdent)
+		switch {
+		case chainOK:
+			out = append(out, chain...)
+		case elseIf:
+			return nil, false
+		}
 		at = open
 	}
 	return nil, false
+}
+
+// groupElseChain returns the negated earlier conditions of the ternary chain
+// whose else branch the group enclosing at is guarded in:
+//
+//	A ? (…) : B ? ( …at… )       → [!A]
+//	A ? (…) : B && ( …at… )      → [!A]
+//
+// elseIf reports whether the group's condition heads an else branch at all; ok
+// whether the chain was read. A `?`/`:` group whose chain is unreadable is not
+// representable (elseIf && !ok). An `&&`/`||` group keeps the reading it had
+// before chains were followed — its rule stands on the group's own condition —
+// so an unreadable chain there reports elseIf false rather than withdrawing a
+// rule an older release lifted.
+func groupElseChain(js string, at int, itemIdent string) (chain []types.WidgetVisibilityCondition, elseIf, ok bool) {
+	open := enclosingGroupOpen(js, at)
+	if open < 0 {
+		return nil, false, false
+	}
+	head := strings.TrimRight(js[:open], " ")
+	conditional := false
+	switch {
+	case strings.HasSuffix(head, "&&"), strings.HasSuffix(head, "||"):
+		head = head[:len(head)-2]
+	case strings.HasSuffix(head, "?"):
+		head = head[:len(head)-1]
+		conditional = true
+	case strings.HasSuffix(head, ":"):
+		q := matchingTernaryQuestion(head[:len(head)-1])
+		if q < 0 {
+			return nil, false, false
+		}
+		head = head[:q]
+		conditional = true
+	default:
+		return nil, false, false
+	}
+	_, boundary, boundaryAt := lastGuardExprAt(head)
+	if boundary != ':' {
+		return nil, false, false
+	}
+	terms, read := elseChainTerms(head[:boundaryAt], enclosingAliases(js, at), itemIdent)
+	if !read {
+		return nil, conditional, false
+	}
+	return terms, true, true
 }
 
 // maxGroupNesting bounds the outward walk. Combo box reaches three; a file that

@@ -770,7 +770,13 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	// attribute is required when column sorting is enabled" (#1468).
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
 		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
-		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
+		// What the replaced column contains — its filter, its custom content —
+		// leaves the name scope with it, so the replacement may reuse the names.
+		exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+		for n := range replaced {
+			exclude = append(exclude, n)
+		}
+		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)
 		}
