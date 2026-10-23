@@ -86,3 +86,50 @@ func parseOneComboBox(t *testing.T, props string) *ast.WidgetV3 {
 	}
 	return found
 }
+
+// mendixlabs/mxcli#1583: the database mode has the same two required parts,
+// and one more. Each row was one combo box on a fresh 11.12.5 project (Combo
+// box 2.5.0) built with mxbuild; "want" is the CE0642 it reported, "" for a
+// combo box that built clean.
+func TestMDLWIDGET16_ComboBoxDatabaseModeRequired(t *testing.T) {
+	const ds = `optionsSourceDatabaseDataSource: database Bm.District`
+	cases := []struct {
+		name  string
+		props string
+		want  string // the required property mxbuild named
+	}{
+		{"no caption", ds + `, Attribute: Name, optionsSourceDatabaseValueAttribute: Name`, "Caption"},
+		{"target without a value attribute", ds + `, Attribute: Name, CaptionAttribute: Name`, "Value"},
+		{"target by key without a value attribute", ds + `, databaseAttributeString: Name, CaptionAttribute: Name`, "Value"},
+		{"caption type expression, no expression", ds + `, optionsSourceDatabaseCaptionType: expression, CaptionAttribute: Name`, "Caption"},
+
+		// Controls: each built at 0 errors.
+		{"target, value and caption", ds + `, Attribute: Name, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Name`, ""},
+		{"caption by key", ds + `, Attribute: Name, optionsSourceDatabaseCaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Name`, ""},
+		{"no target needs no value attribute", ds + `, CaptionAttribute: Name`, ""},
+		{"caption expression", ds + `, optionsSourceDatabaseCaptionType: expression, optionsSourceDatabaseCaptionExpression: '$currentObject/Name'`, ""},
+		{"Multi hides the target and value", ds + `, optionsSourceDatabaseItemSelection: Multi, CaptionAttribute: Name`, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var hits []string
+			for _, v := range validateComboBoxAssociation(parseOneComboBox(t, c.props), "page Bm.P") {
+				if v.RuleID == "MDL-WIDGET16" {
+					hits = append(hits, v.Message)
+				}
+			}
+			if c.want == "" {
+				if len(hits) > 0 {
+					t.Fatalf("built clean, but MDL-WIDGET16 fired: %q", hits)
+				}
+				return
+			}
+			if len(hits) != 1 {
+				t.Fatalf("want one MDL-WIDGET16 naming %q, got %q", c.want, hits)
+			}
+			if want := "Property '" + c.want + "' is required."; !strings.Contains(hits[0], "CE0642") || !strings.Contains(hits[0], want) {
+				t.Errorf("message should cite CE0642 and %q, got: %s", want, hits[0])
+			}
+		})
+	}
+}

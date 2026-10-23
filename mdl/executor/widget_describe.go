@@ -946,7 +946,22 @@ func definitionDefaults(def *WidgetDefinition) map[string]string {
 		}
 	}
 	collect(def.PropertyMappings)
-	for _, mode := range def.Modes {
+	// The example is a bare widget, so it builds in the unconditioned mode, and
+	// that mode's constants are the ones the validator reads (widgetValueMap
+	// ignores an inactive mode's, #1519). Collecting every mode let a
+	// conditioned one speak for the example: Combo box's database mode set
+	// `source` to "database", the example was narrowed for database mode, and
+	// MDL-WIDGET10 then flagged the database-only settings it emitted
+	// (mendixlabs/mxcli#1583). A definition with no unconditioned mode keeps
+	// the old reading.
+	modes := def.Modes
+	for i := range def.Modes {
+		if def.Modes[i].Condition == "" {
+			modes = def.Modes[i : i+1]
+			break
+		}
+	}
+	for _, mode := range modes {
 		collect(mode.PropertyMappings)
 	}
 	return out

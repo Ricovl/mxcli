@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1583 (ako/mxcli#1488) — a combo box in database mode
+-- ============================================================================
+--
+-- `check` warned MDL-WIDGET06 ("recognized but not yet persisted") for the
+-- datasource and the item selection and passed; `exec` wrote the widget without
+-- the datasource, the selection as a PrimitiveValue, and the caption and value
+-- attributes against the data view's entity; mx check reported CE0463 at
+-- Combo box 'cbCode'. A second cause sat behind the first: the database branch
+-- of the widget's editorConfig was never lifted, so `optionsSourceType` and
+-- `selectAllButtonCaption`, hidden there, kept the template's values.
+--
+-- Expected now: check is clean (no MDL-WIDGET06), and `mxcli docker check
+-- --no-update-widgets` reports 0 errors (measured on 11.12.5 and 11.15.0,
+-- Combo box 2.5.0). Both spellings write the same widget: the widget's own keys,
+-- and the keywords the association mode already has. The datasource's key is
+-- what selects the mode; the generic `DataSource:` clause selects the
+-- association mode. Describe prints the keyword spelling, which re-executes.
+
+create module Bug1583;
+create persistent entity Bug1583.Parent ( Name: String(200) );
+create persistent entity Bug1583.Child ( Code: String(200), Name: String(200) );
+
+create or modify microflow Bug1583.GET_Parents () returns List of Bug1583.Parent as $List
+begin
+  retrieve $List from Bug1583.Parent;
+  return $List;
+end;
+
+create or modify page Bug1583.Child_Edit (
+  Title: 'Child edit',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Child: Bug1583.Child )
+) {
+  dataview dvChild (DataSource: $Child) {
+    -- The reported spelling: the widget's own keys.
+    combobox cbCode (source: 'database', optionsSourceDatabaseDataSource: microflow Bug1583.GET_Parents,
+      optionsSourceDatabaseItemSelection: 'Single', optionsSourceDatabaseCaptionAttribute: Name,
+      optionsSourceDatabaseValueAttribute: Name, databaseAttributeString: Code)
+    -- The keyword spelling: `Attribute:` is the attribute the value is stored
+    -- into, `CaptionAttribute:` the option caption.
+    combobox cbName (optionsSourceDatabaseDataSource: database from Bug1583.Parent,
+      Attribute: Name, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Name)
+  }
+};
+
+describe page Bug1583.Child_Edit;

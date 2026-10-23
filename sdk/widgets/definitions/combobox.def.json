@@ -23,6 +23,19 @@
       ]
     },
     {
+      "name": "database",
+      "condition": "hasDataSource:optionsSourceDatabaseDataSource",
+      "description": "Database mode",
+      "propertyMappings": [
+        {"propertyKey": "source", "value": "database", "operation": "primitive"},
+        {"propertyKey": "optionsSourceDatabaseDataSource", "source": "DataSource", "operation": "datasource"},
+        {"propertyKey": "optionsSourceDatabaseItemSelection", "source": "Selection", "operation": "selection", "default": "Single"},
+        {"propertyKey": "databaseAttributeString", "source": "Attribute", "operation": "attribute"},
+        {"propertyKey": "optionsSourceDatabaseCaptionAttribute", "source": "CaptionAttribute", "operation": "attribute"},
+        {"propertyKey": "onChangeDatabaseEvent", "source": "OnChange", "operation": "action"}
+      ]
+    },
+    {
       "name": "default",
       "description": "Enumeration mode",
       "propertyMappings": [

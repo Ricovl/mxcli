@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1519 (item 1) — a custom-content column with an empty caption
+-- ============================================================================
+--
+-- `column (Caption: '', ShowContentAs: customContent)` passed check, and mx
+-- check reported CE0463 on the Data grid 2: a column with no caption, no
+-- attribute and no name had nothing to fall back to, and its header was written
+-- as TextTemplate: null where Studio Pro writes an empty Forms$ClientTemplate.
+-- Fixed by d1528359 (ako/mxcli#1125); this is the reporter's shape as a
+-- regression case.
+--
+-- Expected: `mxcli docker check --no-update-widgets` reports 0 errors (11.15.0).
+-- Control: a binary built at d1528359^ reports CE0463 at Data grid 2 'dg' on
+-- this script.
+
+create module Bug1519c;
+create persistent entity Bug1519c.Item ( Name: String(100) );
+
+create page Bug1519c.Item_Overview ( Title: 'Items', Layout: Atlas_Core.Atlas_Default ) {
+  datagrid dg ( DataSource: database from Bug1519c.Item ) {
+    column (Attribute: Name, Caption: 'Name')
+    column (Caption: '', ShowContentAs: customContent) {
+      actionbutton btnOpen (Caption: 'Open')
+    }
+    column (Attribute: Name, Caption: '', ShowContentAs: customContent) {
+      dynamictext dt (Content: '{1}', ContentParams: ({1} = Name))
+    }
+  }
+};
+
+describe page Bug1519c.Item_Overview;
