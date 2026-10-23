@@ -12,10 +12,18 @@ options { tokenVocab = MDLLexer; }
 
 /**
  * Creates a new microflow with parameters, return type, and activity body.
+ *
+ * The parameter list's parentheses are mandatory, even when it is empty. The
+ * bare form (`Mod.F returns …`, `Mod.F $l: List of …`) parses only so the
+ * visitor can refuse it with one error that names them
+ * (refuseRoutineHeaderWithoutParens). Left to ANTLR it inserted the `(`, read
+ * `returns` as a parameter name, swallowed the body into its type and closed
+ * the statement early — three errors, none at the mistake
+ * (mendixlabs/mxcli#1514). The same holds for nanoflows and rules below.
  */
 createMicroflowStatement
     : MICROFLOW ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?
@@ -26,7 +34,7 @@ createMicroflowStatement
  */
 createNanoflowStatement
     : NANOFLOW ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?   // bare: refused
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?
@@ -42,7 +50,7 @@ createNanoflowStatement
  */
 createRuleStatement
     : RULE ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?   // bare: refused
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?

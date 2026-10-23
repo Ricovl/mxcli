@@ -181,21 +181,6 @@ func enhanceErrorMessageAt(msg, offendingLine string, site errorSite) string {
 			"    mdl 1;\n"+
 			"    create entity Shop.Customer ( Name: String(200) );   (correct)", msg)
 	}
-	// A microflow / nanoflow / rule header without its parameter parentheses
-	// (mendixlabs/mxcli#1514). ANTLR's recovery inserts the missing `(` and then
-	// reads `returns Boolean` or `$l: List of …` as a parameter, so the errors
-	// point at `returns`, `Boolean` and `)` — never at the parentheses. Keyed off
-	// the source line; deduplicateHint keeps the cascade on that line to one
-	// explanation.
-	if m := routineHeaderWithoutParensRe.FindStringSubmatch(offendingLine); m != nil {
-		kind := strings.ToLower(m[1])
-		return fmt.Sprintf("%s\n\n  A %s header needs its parameter list in parentheses, even when it is\n"+
-			"  empty — they are not optional:\n"+
-			"    create %s Mod.F () returns Boolean as $b                    (correct)\n"+
-			"    create %s Mod.F ($l: List of Mod.Item) returns Boolean      (correct)\n"+
-			"    create %s Mod.F returns Boolean as $b                       (wrong — causes parse error)",
-			msg, kind, kind, kind, kind)
-	}
 	// `drop microflow M.F if exists;` — the SQL order. The grammar takes the
 	// clause before the name, and ANTLR reports only an extraneous `if`.
 	if dropIfExistsAfterNameRe.MatchString(offendingLine) {
@@ -483,13 +468,6 @@ var dropIfExistsAfterNameRe = regexp.MustCompile(`(?i)^\s*drop\s+[a-z][a-z ]*?\s
 // unquoted or quoted as one string: `Icon: Mod.Coll.add-circle` or
 // `Icon: 'Mod.Coll.add-circle'`. Group 1 is the collection, group 2 the name.
 var hyphenatedIconRe = regexp.MustCompile(`(?i)\bicon\s*:?\s*'?([A-Za-z_]\w*\.[A-Za-z_]\w*)\.([A-Za-z_]\w*(?:-\w+)+)'?`)
-
-// routineHeaderWithoutParensRe matches `create [or modify] microflow|nanoflow|rule
-// <name>` followed directly by what comes after the parameter list — `returns`,
-// a `$param`, `as` or `begin` — instead of `(`. A header with its parentheses
-// cannot match, so an unrelated error on a correct header line is not hinted.
-var routineHeaderWithoutParensRe = regexp.MustCompile(
-	`(?i)^\s*create\s+(?:or\s+\w+\s+)?(microflow|nanoflow|rule)\s+(?:if\s+not\s+exists\s+)?[\w."]+\s+(?:returns\b|\$|as\b|begin\b)`)
 
 var workflowAccessRe = regexp.MustCompile(`(?i)^\s*(grant|revoke)\s+execute\s+on\s+workflow\b`)
 

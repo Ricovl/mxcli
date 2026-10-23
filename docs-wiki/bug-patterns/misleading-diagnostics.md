@@ -81,6 +81,17 @@ tokens can report a missing terminator that is plainly present in the source —
 a second, phantom mistake stacked on the real one. See
 [[the-visitor-walks-a-failed-parse]].
 
+**A hint cannot repair a cascade that recovery built.** A microflow header
+without its parameter parentheses got the right hint on ANTLR's first error, and
+two more errors underneath it — one three lines into the body, reported after
+recovery had already closed the statement. Once the parser has left the
+statement, nothing in the error listener can tie the later error back to the
+mistake, because the recovered parse no longer knows where the statement ends.
+The layer that can is the grammar: accept the wrong form only so the visitor
+refuses it, and the cascade never starts — one error, at the mistake, quoting
+the author's own header back corrected. Dump the rule-context stack at each
+error first; a stack of just the program rule is the sign.
+
 **The reachable-form question.** Several of these are not really about wording:
 the reader's next question is "then how *do* I write it?", and a hint that names
 the working spelling answers it. Where there is no working spelling, saying so is
