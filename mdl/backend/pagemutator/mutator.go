@@ -3913,6 +3913,10 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		// the runtime all read the template (mendixlabs/mxcli#1201). An empty
 		// kind — a document with no ValueType — stays primitive, as before.
 		kind := propKindMap[typePointerID]
+		if b, ok := value.(backend.AttributeBinding); ok {
+			// Resolved by the executor, which knows the binding scope (#1622).
+			return setAttributeBindingValue(valDoc, propName, kind, b)
+		}
 		field, settable := columnValueField(kind)
 		if !settable {
 			return fmt.Errorf(

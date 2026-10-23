@@ -40,9 +40,10 @@ import (
 //
 // On Mendix 11.14+ every build after the first in one mxbuild --serve process
 // fails (an mxbuild regression, measured without mxcli: webclient_legacy_paths.go).
-// There the steps that wait for build #2 assert that documented failure — the
-// build fails and the run log explains why — instead of an applied build. When an
-// mxbuild fixes it, those assertions fail and this branch should go.
+// mxcli recovers by restarting mxbuild --serve and building on the fresh process
+// (serve_recovery.go), so build #2 still applies there; the steps that wait for it
+// also assert that the run log shows that recovery. When an mxbuild fixes the
+// regression, those assertions fail and this branch should go.
 func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 	version := os.Getenv("MXCLI_RUNLIFE_VERSION")
 	if version == "" {
@@ -109,21 +110,22 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 		return f
 	}
 
-	// wantBuild2 checks a `run wait` that should report build #2: applied, or on
-	// 11.14+ failed with mxcli's explanation of the mxbuild regression in the log.
-	// orApplied also accepts an applied build #2 on 11.14+, for a step whose
-	// claim is only that build #2 ran.
-	wantBuild2 := func(step, out string, code int, orApplied bool) {
+	// wantBuild2 checks a `run wait` that should report build #2 applied. On
+	// 11.14+ that build only applies because mxcli restarted mxbuild --serve after
+	// the incremental build failed, so the run log must show that recovery.
+	// orDirect drops that requirement, for a step whose claim is only that build
+	// #2 ran.
+	wantBuild2 := func(step, out string, code int, orDirect bool) {
 		t.Helper()
-		if serveRebuildsBroken && !(orApplied && code == 0 && strings.HasPrefix(out, "applied: build #2")) {
-			log, _ := os.ReadFile(docker.RunLogPath(mpr))
-			if code != 1 || !strings.HasPrefix(out, "failed: build #2") || !strings.Contains(string(log), "first build does not") {
-				t.Fatalf("%s (Mendix 11.14+): want build #2 to fail with the serve-rebuild hint; exit %d, %q\n%s", step, code, out, tailOf(docker.RunLogPath(mpr)))
-			}
-			return
-		}
 		if code != 0 || !strings.HasPrefix(out, "applied: build #2") {
 			t.Fatalf("%s: exit %d, %q\n%s", step, code, out, tailOf(docker.RunLogPath(mpr)))
+		}
+		if serveRebuildsBroken && !orDirect {
+			log, _ := os.ReadFile(docker.RunLogPath(mpr))
+			if !strings.Contains(string(log), "cannot build this change incrementally") {
+				t.Fatalf("%s (Mendix 11.14+): build #2 applied without mxcli restarting mxbuild --serve; "+
+					"if this mxbuild builds incrementally again, drop the 11.14+ branch\n%s", step, tailOf(docker.RunLogPath(mpr)))
+			}
 		}
 	}
 
@@ -205,11 +207,11 @@ func TestRunLifecycle_DetachStatusExecWaitStop(t *testing.T) {
 	if err := bg.Wait(); err != nil {
 		t.Fatalf("detach (boot race): %v\n%s", err, tailOf(docker.RunLogPath(mpr)))
 	}
-	// What this step claims is that the change is not lost: build #2 runs. On
-	// 11.14+ this build was measured applying (via restart) where step 4's failed;
-	// the likely difference is how much of the change the boot build had already
-	// read, which the test does not control. So either outcome passes there;
-	// "nothing to apply" never does.
+	// What this step claims is that the change is not lost: build #2 applies. On
+	// 11.14+ this build was measured applying without a serve restart where step
+	// 4's needed one; the likely difference is how much of the change the boot
+	// build had already read, which the test does not control. So the recovery is
+	// not required in the log here; "nothing to apply" never passes.
 	out, code = mxcli("run", "wait", "-p", mpr, "--timeout", "2m")
 	wantBuild2("a change made during the boot", out, code, true)
 	if out, code := mxcli("run", "stop", "-p", mpr); code != 0 {
