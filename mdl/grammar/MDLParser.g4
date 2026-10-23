@@ -447,10 +447,14 @@ alterFragment
 // (PROPOSAL_alter_object_list_item_address.md): `acc1 item@1` is the group,
 // INSERT INTO it fills its body slot, and `acc1 item@1.headercontent` names
 // another of its slots, as `grid.controlbar` names a widget's.
+//
+// A legacy table's cell has no name either and sits at a grid position, so it
+// is addressed by that position, 1-based: `table1 cell(row, column)`.
 alterTarget
     : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
     | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)? (DOT itemSlot=identifierOrKeyword)?
     | identifierOrKeyword ITEM AT NUMBER_LITERAL (DOT itemSlot=identifierOrKeyword)?
+    | identifierOrKeyword CELL LPAREN cellRow=NUMBER_LITERAL COMMA cellColumn=NUMBER_LITERAL RPAREN
     | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;

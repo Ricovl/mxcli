@@ -810,6 +810,13 @@ type rawDataGridColumn struct {
 }
 
 // rawWidget represents a widget from raw BSON data for MDL output.
+// rawTableCell is one legacy table cell: its 1-based ALTER PAGE address and
+// the names (or types, when unnamed) of the widgets directly inside it.
+type rawTableCell struct {
+	Row, Column int
+	Widgets     []string
+}
+
 type rawWidget struct {
 	Type    string
 	Name    string
@@ -873,6 +880,10 @@ type rawWidget struct {
 	SubmitBehaviour    string
 	SubmitOnInputDelay *int
 	LayoutGridWidth    string
+	// TableCells are a legacy Forms$Table's cells, which MDL cannot create
+	// but ALTER PAGE can address as `table1 cell(row, col)`; describe lists
+	// them so the address is discoverable (mendixlabs/mxcli#1453).
+	TableCells []rawTableCell
 	// Formatting is the widget's Forms$FormattingInfo as MDL properties
 	// (DateFormat, CustomDateFormat, DecimalPrecision, GroupDigits), only the
 	// non-default ones (ako/mxcli#968).
