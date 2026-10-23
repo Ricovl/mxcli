@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -124,26 +125,43 @@ func gitNoteCommits(root string, args []string) ([]string, error) {
 }
 
 func annotateCommits(out io.Writer, repo *gitNoteRepo, commits []string, branch string, write, force bool) error {
+	// With --write, every note is written before anything is printed. A print to
+	// a stdout whose reader has gone (`| head -1`) ends the process with SIGPIPE,
+	// so a print ahead of a write is where the write silently stops — for that
+	// commit and every one after it (mendixlabs/mxcli#1490). A preview has
+	// nothing to lose, so it streams.
+	report := out
+	var held bytes.Buffer
+	if write {
+		report = &held
+	}
 	wrote := 0
+	var failed error
 	for _, c := range commits {
 		subject, _ := gitOut(repo.Root, "log", "-1", "--format=%s", c)
 		label := fmt.Sprintf("%s %s", c[:min(len(c), 10)], strings.TrimSpace(subject))
 		if existing := repo.existingNote(c); !force && !isPlaceholderNote(existing) {
-			fmt.Fprintf(out, "%s\n  kept: already has a Studio Pro note (--force replaces it)\n", label)
+			fmt.Fprintf(report, "%s\n  kept: already has a Studio Pro note (--force replaces it)\n", label)
 			continue
 		}
 		note, err := repo.buildNote(c, branch)
 		if err != nil {
-			return fmt.Errorf("%s: %w", label, err)
+			failed = fmt.Errorf("%s: %w", label, err)
+			break
 		}
 		text := note.marshal()
-		fmt.Fprintf(out, "%s\n  %d model change(s)\n  %s\n", label, len(note.ModelChanges), text)
 		if write {
 			if err := repo.writeNote(c, text); err != nil {
-				return fmt.Errorf("%s: write note: %w", label, err)
+				failed = fmt.Errorf("%s: write note: %w", label, err)
+				break
 			}
 			wrote++
 		}
+		fmt.Fprintf(report, "%s\n  %d model change(s)\n  %s\n", label, len(note.ModelChanges), text)
+	}
+	_, _ = out.Write(held.Bytes())
+	if failed != nil {
+		return failed
 	}
 	switch {
 	case write && wrote > 0:

@@ -709,12 +709,21 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 		}
 		// Cross-module associations are stored in a separate collection but are
 		// owned by this module (the FROM entity lives here); emit them too.
+		//
+		// A view entity's association is not emitted: its `<alias>.ID as <name>`
+		// OQL column declares it, the view entity's description above carries
+		// that column, and no statement can — a plain one is CE6771, refused by
+		// check and exec alike (mendixlabs/mxcli#1627).
 		var assocNames []string
 		for _, a := range dm.Associations {
-			assocNames = append(assocNames, a.Name)
+			if !isViewAssociationSource(a.Source) {
+				assocNames = append(assocNames, a.Name)
+			}
 		}
 		for _, ca := range dm.CrossAssociations {
-			assocNames = append(assocNames, ca.Name)
+			if !isViewAssociationSource(ca.Source) {
+				assocNames = append(assocNames, ca.Name)
+			}
 		}
 		for _, name := range assocNames {
 			qn := ast.QualifiedName{Module: moduleName, Name: name}

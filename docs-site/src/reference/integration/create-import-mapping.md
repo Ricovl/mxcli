@@ -100,6 +100,15 @@ If `OR MODIFY` is specified and the mapping already exists, it is updated in pla
     only ever something imported into the project by hand, and having none is the
     ordinary case. The same resolution applies to `WITH JSON STRUCTURE`.
 
+    MDL cannot state the XML half of such a mapping — the schema element it is
+    rooted at, or the schema path of each element — and mxcli does not read the
+    XSD to derive them. So `CREATE OR MODIFY` of an existing XML-schema mapping
+    that carries them is accepted only when the statement is the mapping's own
+    `DESCRIBE` output, which reports `Unchanged` and writes nothing; any other
+    rewrite is refused rather than written without its root element (which
+    mxbuild reports as CE0270 "No root element could be found in the schema").
+    Edit such a mapping in Studio Pro.
+
 `CREATE | FIND | FIND OR CREATE`
 :   Object handling strategy for each entity block.
 

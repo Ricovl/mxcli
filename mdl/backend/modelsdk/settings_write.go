@@ -15,8 +15,8 @@ import (
 // UpdateProjectSettings rewrites the Settings$ProjectSettings unit using the
 // raw-part overlay strategy (ADR-0005 guard-don't-drop): the Settings array is
 // rebuilt from ps.RawParts (captured on read), and only the parsed-and-modified
-// parts (Model / Configuration / Language / Workflows) have their fields overlaid
-// onto the preserved raw part. Every other part (WebUI, Convention, Integration,
+// parts (Model / Configuration / Language / Workflows / WebUI) have their fields
+// overlaid onto the preserved raw part. Every other part (Convention, Integration,
 // Certificate, JarDeployment, Distribution, …) passes through byte-for-byte.
 func (b *Backend) UpdateProjectSettings(ps *model.ProjectSettings) error {
 	if ps == nil {
@@ -74,6 +74,15 @@ func (b *Backend) UpdateProjectSettings(ps *model.ProjectSettings) error {
 					return err
 				}
 				settings = append(settings, settingsoverlay.WorkflowGroups(ps.Workflows, rawPart))
+			} else {
+				settings = append(settings, rawPart)
+			}
+		case "Forms$WebUIProjectSettingsPart", "Settings$WebUIProjectSettingsPart":
+			// Without this the part passed through as read, so `alter settings
+			// webui` would report success and write nothing
+			// (mendixlabs/mxcli#1549).
+			if ps.WebUI != nil {
+				settings = append(settings, settingsoverlay.SetWebUISettings(ps.WebUI, rawPart))
 			} else {
 				settings = append(settings, rawPart)
 			}

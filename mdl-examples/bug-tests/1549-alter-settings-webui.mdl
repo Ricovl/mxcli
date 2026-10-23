@@ -1,0 +1,34 @@
+mdl 1;
+-- Bug mendixlabs/mxcli#1549 (ako/mxcli#1447): Web UI settings (OptimizedClient)
+-- cannot be described or altered
+--
+-- Symptom:
+--   $ mxcli -p App.mpr -c "list settings"
+--   | Web UI Settings         | OptimizedClient: Yes |
+--   $ mxcli -p App.mpr -c "describe settings"          -- no Web UI section
+--   $ mxcli exec webui.mdl -p App.mpr
+--   Error: unknown settings section: webui (expected model, configuration, constant, LANGUAGE, or workflows)
+--
+-- UseOptimizedClient picks the client the app runs on — Yes the React client, No
+-- the classic (Dojo) one, MigrationMode Mendix's mixed mode — and `run --local`
+-- and the create-page skill both depend on it, so an agent setting up an app from
+-- MDL could not set it, and one reading `describe settings` could not see it.
+--
+-- Fix: `alter settings webui (OptimizedClient: …)` writes
+-- Forms$WebUIProjectSettingsPart.UseOptimizedClient (the backend used to pass that
+-- part through as read, so adding only the executor case would have reported
+-- "Updated" and written nothing), and DESCRIBE SETTINGS emits it.
+--
+-- Measured on a blank 11.14.0 app: `mx check` reports 0 errors after
+-- `alter settings webui (OptimizedClient: 'No')` wrote the property, and ALSO
+-- 0 errors with an out-of-range value ('React') forced into it
+-- — so the MDL-SET03 refusal of a non-member is the only thing that catches one.
+--
+-- Manual verification:
+--   mxcli exec 1549-alter-settings-webui.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe settings"   → alter settings webui ( OptimizedClient: 'Yes' );
+
+alter settings webui (OptimizedClient: 'No');
+
+-- Matched case-insensitively, stored in Mendix's spelling.
+alter settings webui (OptimizedClient: 'yes');

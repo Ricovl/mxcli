@@ -1,0 +1,38 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1487 (ako/mxcli#1344): `marketplace update` writes the
+-- package's manifest.json, License.txt and OSS readme into the app root
+-- ============================================================================
+--
+-- Symptom, reported against v0.26.0 updating Nanoflow Commons 6.2.1 → 7.4.0:
+--
+--   the package's own metadata files end up in the **app root**:
+--   - `manifest.json`
+--   - `License.txt`
+--   - `SiemensMendixNanoflowCommons__7.4.0__READMEOSS_<timestamp>.html`
+--
+--   Studio Pro does not put these in the project folder, so they show up as
+--   untracked files. `marketplace install` had the same defect: both copy the
+--   package's bundled files through InstallPackageFiles.
+--
+-- Root cause:
+--   InstallPackageFiles copied every archive entry except project.mpr and
+--   package.xml. package.xml's <files> list is what separates a package's
+--   project files from its metadata, and nothing read it.
+--
+--   Measured with `mx module-import` on 11.12.1 (ExternalDatabaseConnector
+--   6.3.0 and BusinessEvents 3.12.1 into a blank app): mx writes exactly the
+--   listed files — none of License.txt, manifest.json, the READMEOSS report or
+--   "Mendix EULA.docx" — and passes over a listed entry the archive lacks.
+--
+-- After fix: only listed files are installed; the rest are reported in one
+-- line ("Left out N package file(s) package.xml does not list ...").
+--
+-- Usage (on a project with Nanoflow Commons installed from the marketplace):
+--   mxcli marketplace update <content-id> -p app.mpr --to <version> --no-baseline
+--   git status --short        # no License.txt / manifest.json / *READMEOSS*.html
+--   mxcli exec mdl-examples/bug-tests/1487-marketplace-package-metadata-in-app-root.mdl -p app.mpr
+-- ============================================================================
+
+-- The model side of the update, unchanged by the fix: the module is present.
+list modules;

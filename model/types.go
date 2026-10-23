@@ -1237,6 +1237,13 @@ type ImportMapping struct {
 	// one: the properties are read so a rewrite can be refused rather than
 	// silently dropping the binding (ako/mxcli#365).
 	WebServiceSource WebServiceMappingSource `json:"webServiceSource,omitempty"`
+	// RootElementName is the schema element an XML-schema (or SOAP) mapping is
+	// rooted at, stored as XsdRootElementName. MDL cannot state it and mxcli does
+	// not read an XSD, so it is carried, never derived: a rewrite that wrote ""
+	// left the mapping with CE0270 "No root element could be found in the
+	// schema" (mendixlabs/mxcli#1623). Empty for a JSON or message-definition
+	// mapping.
+	RootElementName string `json:"rootElementName,omitempty"`
 	// ParameterEntity is the entity of the mapping's INPUT object, stored as
 	// ParameterType — a DataTypes$ObjectType naming it. Empty means the mapping
 	// takes none, which Mendix stores as the DataTypes$UnknownType marker rather
@@ -1495,7 +1502,10 @@ type ExportMapping struct {
 	// one: the properties are read so a rewrite can be refused rather than
 	// silently dropping the binding (ako/mxcli#365).
 	WebServiceSource WebServiceMappingSource `json:"webServiceSource,omitempty"`
-	Elements         []*ExportMappingElement `json:"elements,omitempty"`
+	// RootElementName is the XML schema element the mapping produces, stored
+	// as XsdRootElementName — see ImportMapping.RootElementName.
+	RootElementName string                  `json:"rootElementName,omitempty"`
+	Elements        []*ExportMappingElement `json:"elements,omitempty"`
 }
 
 // GetName returns the export mapping's name.

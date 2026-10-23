@@ -290,6 +290,24 @@ func SetModelSettings(ms *model.ModelSettings, raw map[string]any) map[string]an
 	return raw
 }
 
+// IsWebUIPart reports whether a settings part's $Type is the Web UI part. Studio
+// Pro stores it as Forms$WebUIProjectSettingsPart (measured on 11.6, 11.13 and
+// 11.14); the codec also registers the Settings$ spelling, and a part the reader
+// decodes as Web UI settings has to be written back as one.
+func IsWebUIPart(typeName string) bool {
+	return typeName == "Forms$WebUIProjectSettingsPart" || typeName == "Settings$WebUIProjectSettingsPart"
+}
+
+// SetWebUISettings overlays the Web UI settings MDL can change onto the part they
+// were read from. That is UseOptimizedClient alone — which client the app runs
+// on — so every other property of the part passes through as stored. Presence-
+// gated like SetModelSettings: the property was introduced in Mendix 9.10, and
+// the executor refuses an ALTER on a part that does not carry it.
+func SetWebUISettings(ws *model.WebUISettings, raw map[string]any) map[string]any {
+	setIfPresent(raw, "UseOptimizedClient", ws.UseOptimizedClient)
+	return raw
+}
+
 // ConstantValues rebuilds a configuration's ConstantValues list, updating each
 // override in the slot it is already stored in so its value shape survives.
 // Studio Pro and mxbuild only read the nested SharedOrPrivateValue; a flat "Value"

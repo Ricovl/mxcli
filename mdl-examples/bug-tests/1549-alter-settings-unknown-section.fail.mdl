@@ -1,0 +1,25 @@
+mdl 1;
+-- Bug mendixlabs/mxcli#1549 (ako/mxcli#1447): `check` passed any `alter settings`
+-- section that `exec` then refused
+--
+-- NEGATIVE TEST (.fail.mdl) — this script is EXPECTED to fail `mxcli check`.
+-- `make check-mdl` inverts the exit code for .fail.mdl files: an unexpected pass
+-- is a regression of MDL-SET04.
+--
+-- Symptom:
+--   $ mxcli check nosuchsection.mdl -p App.mpr
+--   Check passed!
+--   $ mxcli exec nosuchsection.mdl -p App.mpr
+--   Error: unknown settings section: nosuchsection (expected model, configuration, constant, LANGUAGE, or workflows)
+--
+-- The grammar takes any identifier as a settings section, and ValidateSettings
+-- returned nil for a section it had no typed keys for, so the only refusal was
+-- exec's — after the statements before it had run.
+--
+-- Fix: one project-independent validator (settingsStatementErrors) that exec
+-- calls first and check reports as MDL-SET04, so the two cannot disagree.
+--
+-- Expected: `mxcli check` exits non-zero with
+--   unknown settings section: nosuchsection (expected runtime, configuration, constant, language, workflows, or webui) [MDL-SET04]
+
+alter settings nosuchsection (Foo: 1);

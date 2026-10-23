@@ -1,0 +1,32 @@
+mdl 1;
+-- Bug mendixlabs/mxcli#131 (ako/mxcli#1225): ALTER SETTINGS CONFIGURATION does not
+-- support ExtraJvmParameters
+--
+-- Symptom:
+--   ./mxcli -p app.mpr -c "ALTER SETTINGS CONFIGURATION 'Default' ExtraJvmParameters = '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=29758'"
+--   Error: unknown configuration setting: ExtraJvmParameters
+--
+-- ExtraJvmParameters is Studio Pro's Configuration ▸ Server ▸ "Extra JVM
+-- parameters" — how the runtime JVM is given a proxy. The reader already read it
+-- and the overlay already wrote it back; only the executor's key switch refused
+-- it, in ALTER SETTINGS CONFIGURATION and CREATE CONFIGURATION alike, and
+-- DESCRIBE SETTINGS left it out, so a described project replayed without it.
+--
+-- Fix: both statements accept the key, and DESCRIBE emits it when it is set.
+--
+-- Manual verification:
+--   mxcli exec 131-alter-settings-extra-jvm-parameters.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe settings configuration 'Default'"
+--     → ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=29758'
+--
+-- Note: this sets what Studio Pro passes when it runs the app. `mxcli run --local`
+-- starts the runtime JVM itself and does not apply the configuration's parameters.
+
+alter settings configuration 'Default' (
+  ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=29758'
+);
+
+-- The form DESCRIBE emits: on an existing configuration it is a patch.
+create or modify configuration 'Default' (
+  ExtraJvmParameters: '-Dhttp.proxyHost=proxy.example.invalid -Dhttp.proxyPort=3128'
+);
