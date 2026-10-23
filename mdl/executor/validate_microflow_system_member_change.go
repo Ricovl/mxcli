@@ -35,7 +35,9 @@ const systemMemberChangeRule = "MDL-CHANGE01"
 // from the same `mx check` run, which first read as "builds clean". Measure
 // each variant in a project with no other error.
 //
-// A list operation is not covered: `find $l by System.owner = $u` builds clean.
+// A list operation is not covered: `find $l by System.owner = $u` builds clean
+// when the entity stores the member (ako/mxcli#1629, see
+// validateListOperationSystemMembers).
 
 // builtinSystemMemberAssociation reports the spelling of the System
 // association member names, in any case, when it is System.owner or
@@ -52,6 +54,18 @@ func builtinSystemMemberAssociation(member string) (string, bool) {
 		return "System.changedBy", true
 	}
 	return "", false
+}
+
+// systemMemberSpellingRefusal is the message for System.owner / System.changedBy
+// written in another case: a different name to mxbuild, which reports it as
+// CE1613 (measured on 11.12.5). entityQN is "" when the entity is not known.
+func systemMemberSpellingRefusal(member, canonical, entityQN string) string {
+	on := "the object"
+	if entityQN != "" {
+		on = entityQN
+	}
+	return fmt.Sprintf("member %q on %s: the System member is spelled %s — as written, mxbuild rejects it "+
+		"with CE1613 \"The selected association '%s' no longer exists.\"", member, on, canonical, member)
 }
 
 // systemMemberChangeRefusal is the message and suggestion for a create or
