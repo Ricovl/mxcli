@@ -1591,7 +1591,9 @@ MDL uses explicit property declarations for pages:
 | `Draggable` | `true`, `false` | `true` | `Draggable: false` |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | `Hidable: no` |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | `ColumnWidth: manual` |
-| `Size` | integer (px) | `1` | `Size: 200` |
+| `Size` | integer — a relative weight, not px | `1` | `Size: 2` — under `ColumnWidth: manual` only, rendered `2fr` against `1fr` per autoFill column |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | `minWidth: manual` — under `ColumnWidth: autoFit` only |
+| `minWidthLimit` | integer (px) | `100` | `minWidthLimit: 220` — the minimum in pixels, under `ColumnWidth: autoFit, minWidth: manual` |
 | `visible` | expression string | `true` | `visible: '$showColumn'` (page variable, not $currentObject) |
 | `DynamicCellClass` | expression string | (empty) | `DynamicCellClass: if(...) then ... else ...` |
 | `tooltip` | text string | (empty) | `tooltip: 'Price in USD'` |
