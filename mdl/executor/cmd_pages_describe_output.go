@@ -1253,6 +1253,13 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			fmt.Fprintf(ctx.Output, " (%s)", w.Name)
 		}
 		fmt.Fprint(ctx.Output, "  -- NOT re-executable: mxcli cannot author this widget, so re-running this script would drop it\n")
+		for _, c := range w.TableCells {
+			contents := "(empty)"
+			if len(c.Widgets) > 0 {
+				contents = strings.Join(c.Widgets, ", ")
+			}
+			fmt.Fprintf(ctx.Output, "%s--   cell(%d,%d): %s\n", prefix, c.Row, c.Column, contents)
+		}
 	}
 }
 

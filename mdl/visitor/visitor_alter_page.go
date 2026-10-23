@@ -267,7 +267,9 @@ func (b *Builder) buildAlterFragment(ctx parser.IAlterFragmentContext) []*ast.Wi
 func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef {
 	tc := ctx.(*parser.AlterTargetContext)
 	var ref ast.WidgetRef
-	if n := tc.NUMBER_LITERAL(); n != nil {
+	// A cell address's numbers are its row and column, read below; every other
+	// form's one number is @n.
+	if n := tc.NUMBER_LITERAL(0); n != nil && tc.CELL() == nil {
 		// @n counts matches from 1, as the ambiguity error lists them.
 		if v, err := strconv.Atoi(n.GetText()); err == nil && v >= 1 {
 			ref.Ordinal = v
@@ -298,6 +300,26 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 		ref.Ordinal = 0
 		ref.Item = item
 		ref.Widget = item.Spell()
+		return ref
+	}
+	if tc.CELL() != nil {
+		// `table1 cell(row, column)`: a legacy table cell, by its position.
+		cell := &ast.TableCellRef{Table: identifierOrKeywordText(tc.IdentifierOrKeyword(0))}
+		for _, n := range []struct {
+			text string
+			dst  *int
+		}{{tc.GetCellRow().GetText(), &cell.Row}, {tc.GetCellColumn().GetText(), &cell.Column}} {
+			v, err := strconv.Atoi(n.text)
+			if err != nil || v < 1 {
+				b.addError(fmt.Errorf("alter target %s: table rows and columns are counted from 1, as describe prints them",
+					tc.GetText()))
+				v = 1
+			}
+			*n.dst = v
+		}
+		ref.Ordinal = 0
+		ref.Cell = cell
+		ref.Widget = cell.Spell()
 		return ref
 	}
 	if tc.COLUMN() != nil {
