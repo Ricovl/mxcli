@@ -30,8 +30,12 @@ func validateGalleryClickAmbiguity(w *ast.WidgetV3, locationPrefix string) []lin
 	if w == nil || !strings.EqualFold(w.Type, "gallery") || w.GetAction() == nil {
 		return nil
 	}
+	// By the keyword or by the property's own key, which the builder writes
+	// alike (mendixlabs/mxcli#1618): `itemSelection: None` is no selection.
 	selection := "Single"
 	if v, ok := lookupProperty(w.Properties, "Selection"); ok {
+		selection = stringifyAny(v)
+	} else if v, ok := lookupProperty(w.Properties, "itemSelection"); ok {
 		selection = stringifyAny(v)
 	}
 	trigger := "single"

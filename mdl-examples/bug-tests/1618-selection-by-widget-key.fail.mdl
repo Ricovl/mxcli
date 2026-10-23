@@ -1,0 +1,14 @@
+mdl 1;
+-- mendixlabs/mxcli#1618, the refusals (MDL-WIDGET50). Each was accepted and
+-- written: `Bogus` as a PrimitiveValue by key and as a Selection by keyword,
+-- which mxbuild 11.12.5 accepts at 0 errors; and of two disagreeing spellings
+-- one was silently dropped. See 1618-selection-by-widget-key.mdl.
+
+create or modify module BugSelByKeyFail;
+
+create persistent entity BugSelByKeyFail.Ord (Code: String(20));
+
+create page BugSelByKeyFail.Ord_Overview (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  gallery galBogus (DataSource: database BugSelByKeyFail.Ord, itemSelection: Bogus) { dynamictext t1 (Content: 'x') }
+  datagrid dgTwo (DataSource: database BugSelByKeyFail.Ord, Selection: Single, itemSelection: Multi) { column (Attribute: Code) }
+};

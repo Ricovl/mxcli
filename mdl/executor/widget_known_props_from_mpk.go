@@ -72,7 +72,9 @@ func enrichKnownPropertiesFromMPK(r *WidgetRegistry, projectPath string) {
 			continue
 		}
 		var keys []string
+		def.declaredKeys = make(map[string]bool, len(props))
 		for _, p := range props {
+			def.declaredKeys[strings.ToLower(p.Key)] = true
 			if !p.IsSystem {
 				keys = append(keys, p.Key)
 			}
