@@ -1,0 +1,35 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1519 (item 2, the ALTER path) — a column's filter properties
+-- ============================================================================
+--
+-- `1519-dropdownfilter-attribute.mdl` covers CREATE. A column built by ALTER
+-- PAGE INSERT or REPLACE built its filter from the widget id and name alone, so
+-- `dropdownfilter ddf (attributes: [Status])` stored attrChoice "auto" with an
+-- empty `attr` — check passed, describe printed a bare `dropdownfilter ddf`.
+--
+-- Expected now: both ALTERs store attrChoice "linked" with the named attribute
+-- (Status, then Kind), the REPLACE may reuse the filter's name, `mxcli docker
+-- check --no-update-widgets` reports 0 errors (11.15.0), and describe prints
+-- `dropdownfilter ddf (Attributes: [Kind])`.
+
+create module Bug1519d;
+create enumeration Bug1519d.Status ( Open 'Open', Closed 'Closed' );
+create persistent entity Bug1519d.Item (
+  Name: String(100), Status: Enumeration(Bug1519d.Status), Kind: Enumeration(Bug1519d.Status)
+);
+
+create page Bug1519d.Item_Overview ( Title: 'Items', Layout: Atlas_Core.Atlas_Default ) {
+  datagrid dg ( DataSource: database from Bug1519d.Item ) {
+    column (Attribute: Name, Caption: 'Name')
+  }
+};
+
+alter page Bug1519d.Item_Overview {
+  insert after dg column(Name) { column (Attribute: Kind, Caption: 'Kind') { dropdownfilter ddf (attributes: [Status]) } };
+};
+alter page Bug1519d.Item_Overview {
+  replace dg column(Kind) with { column (Attribute: Kind, Caption: 'Kind') { dropdownfilter ddf (attributes: [Kind]) } };
+};
+
+describe page Bug1519d.Item_Overview;

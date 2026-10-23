@@ -282,3 +282,100 @@ func TestWidgetValueMap1519_ReadsOnlyTheActiveMode(t *testing.T) {
 		t.Errorf("baseType = %q, but only the association mode writes it", got)
 	}
 }
+
+// The same drop of #1519 item 2 on the ALTER path. A column built by ALTER PAGE
+// INSERT or REPLACE (buildColumnSpecFromAST) built its filter from the widget id
+// and name alone, never reading the filter's own properties:
+//
+//	alter page … { insert after dg column(Name) { column (…) { dropdownfilter ddf (attributes: [Status]) } } }
+//
+// stored attrChoice "auto" and an empty `attr`, check passed, and describe
+// printed a bare `dropdownfilter ddf` — the CREATE path's symptom before #1422.
+func TestAlterColumn1519_FilterKeepsItsProperties(t *testing.T) {
+	e := dropdownFilterEngine(t)
+	real := &modelsdkbackend.Backend{}
+	b := e.pageBuilder.backend.(*mock.MockBackend)
+	b.BuildFilterWidgetFunc = real.BuildFilterWidget
+	pb := e.pageBuilder
+	pb.widgetBackend = b
+	reg, err := NewWidgetRegistry()
+	if err != nil {
+		t.Fatalf("registry: %v", err)
+	}
+	pb.widgetRegistry = reg
+
+	grid := parseSnippetWidget(t, `datagrid dg (DataSource: database from Tmp.Item) {
+    column (Attribute: Name, Caption: 'Name') { dropdownfilter ddf (attributes: [Status]) }
+  }`)
+	spec, err := pb.buildColumnSpecFromAST(grid.Children[0])
+	if err != nil {
+		t.Fatalf("buildColumnSpecFromAST: %v", err)
+	}
+	cw, ok := spec.FilterWidget.(*pages.CustomWidget)
+	if !ok {
+		t.Fatalf("column filter = %T, want a drop-down filter", spec.FilterWidget)
+	}
+	if got, _ := bsonField(rawWidgetValue(t, cw, "attrChoice"), "PrimitiveValue").(string); got != "linked" {
+		t.Errorf("attrChoice = %q, want linked", got)
+	}
+	ref, _ := bsonField(rawWidgetValue(t, cw, "attr"), "AttributeRef").(bson.D)
+	if got, _ := bsonField(ref, "Attribute").(string); got != "Tmp.Item.Status" {
+		t.Errorf("attr = %q, want Tmp.Item.Status", got)
+	}
+	if cw.Name != "ddf" {
+		t.Errorf("filter name = %q, want ddf", cw.Name)
+	}
+
+	// The control: a bare filter keeps the column's attribute (auto).
+	bare := parseSnippetWidget(t, `datagrid dg (DataSource: database from Tmp.Item) {
+    column (Attribute: Name, Caption: 'Name') { dropdownfilter ddf2 }
+  }`)
+	spec, err = pb.buildColumnSpecFromAST(bare.Children[0])
+	if err != nil {
+		t.Fatalf("buildColumnSpecFromAST: %v", err)
+	}
+	cw, ok = spec.FilterWidget.(*pages.CustomWidget)
+	if !ok {
+		t.Fatalf("column filter = %T, want a drop-down filter", spec.FilterWidget)
+	}
+	if got, _ := bsonField(rawWidgetValue(t, cw, "attrChoice"), "PrimitiveValue").(string); got != "auto" {
+		t.Errorf("a bare drop-down filter: attrChoice = %q, want auto", got)
+	}
+}
+
+// rawWidgetValue is customWidgetValue for a widget whose PropertyTypeIDMap is
+// not filled in: the property type is found by key in the stored Type.
+func rawWidgetValue(t *testing.T, cw *pages.CustomWidget, key string) bson.D {
+	t.Helper()
+	idOf := func(v any) string {
+		switch b := v.(type) {
+		case bson.Binary:
+			return strings.ReplaceAll(types.BlobToUUID(b.Data), "-", "")
+		case []byte:
+			return strings.ReplaceAll(types.BlobToUUID(b), "-", "")
+		case string:
+			return strings.ReplaceAll(b, "-", "")
+		}
+		return ""
+	}
+	objType, _ := bsonField(cw.RawType, "ObjectType").(bson.D)
+	propTypes, _ := bsonField(objType, "PropertyTypes").(bson.A)
+	var typeID string
+	for _, pt := range propTypes {
+		if d, ok := pt.(bson.D); ok && bsonField(d, "PropertyKey") == key {
+			typeID = idOf(bsonField(d, "$ID"))
+		}
+	}
+	if typeID == "" {
+		t.Fatalf("stored Type declares no property %q", key)
+	}
+	props, _ := bsonField(cw.RawObject, "Properties").(bson.A)
+	for _, p := range props {
+		if d, ok := p.(bson.D); ok && idOf(bsonField(d, "TypePointer")) == typeID {
+			v, _ := bsonField(d, "Value").(bson.D)
+			return v
+		}
+	}
+	t.Fatalf("property %q not found in the widget object", key)
+	return nil
+}

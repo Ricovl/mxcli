@@ -774,8 +774,9 @@ keyword
     // that word — which is what TestKeywordRuleCoverage exists to catch.
     | SYNC | ONLINE | NEVER | PRESERVE
 
-    // Log levels
-    | CRITICAL | DEBUG | ERROR | INFO | SUCCESS | WARNING
+    // Log levels, and the log activity's `with stacktrace`. STACKTRACE has to
+    // stay a name: System.Error's attribute is `$latestError/Stacktrace`.
+    | CRITICAL | DEBUG | ERROR | INFO | STACKTRACE | SUCCESS | WARNING
 
     // OData / REST / API
     | API | SAMPLE | BASE | BODY | CHANNELS | CLIENT | CLIENTS | CONTRACT | OPENAPI

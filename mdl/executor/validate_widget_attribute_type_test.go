@@ -347,3 +347,38 @@ func TestCheck_ComboBoxAssociationModeIsNotTypeChecked(t *testing.T) {
 		}
 	}
 }
+
+// mendixlabs/mxcli#1583: a combo box in DATABASE mode — selected by naming its
+// own datasource, `optionsSourceDatabaseDataSource` — stores the chosen value on
+// `databaseAttributeString`, which takes String, Integer, Long or Enumeration.
+// Judged as enumeration mode, a String target was refused with CE7247, so the
+// MDL describe prints for such a combo box could not be re-executed. Measured on
+// a fresh 11.12.5 project (Combo box 2.5.0), one combo box per type: Boolean,
+// DateTime, Decimal, AutoNumber and Binary are CE7247 "Only attributes of type
+// String, Integer, Long, Enumeration are allowed here."; the other four build.
+func TestCheck_ComboBoxDatabaseModeAttributeTypes(t *testing.T) {
+	ctx := typeCheckCtx(t, "Yes")
+	attrs := map[string]string{
+		"Name": "String", "Color": "Enumeration", "Num": "Integer", "LongNum": "Long",
+		"Flag": "Boolean", "WhenAt": "DateTime", "Amount": "Decimal", "Seq": "AutoNumber", "Blob": "Binary",
+	}
+	accepted := map[string]bool{"String": true, "Enumeration": true, "Integer": true, "Long": true}
+	for _, spelling := range []string{"Attribute", "databaseAttributeString"} {
+		for attrName, kind := range attrs {
+			body := fmt.Sprintf(`dataview dv (datasource: $Thing) { combobox cb1 (optionsSourceDatabaseDataSource: database from Sales.Other, `+
+				`%s: %s, CaptionAttribute: Txt, optionsSourceDatabaseValueAttribute: Txt) }`, spelling, attrName)
+			errs := typeErrs(t, ctx, body, nil)
+			if want := !accepted[kind]; (len(errs) > 0) != want {
+				t.Errorf("%s: %s (%s): flagged=%v, want %v (%q)", spelling, attrName, kind, len(errs) > 0, want, errs)
+				continue
+			}
+			if len(errs) > 0 {
+				for _, want := range []string{"MDL-WIDGET39", "CE7247", "String, Integer, Long, Enumeration"} {
+					if !strings.Contains(errs[0], want) {
+						t.Errorf("%s: %s: error should mention %q, got: %s", spelling, attrName, want, errs[0])
+					}
+				}
+			}
+		}
+	}
+}

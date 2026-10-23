@@ -106,7 +106,7 @@ func TestHiddenResets_IncludeAPropertyMDLCannotName(t *testing.T) {
 	hidden := e.hiddenUnnamedProperties(def, &ast.WidgetV3{Name: "img"},
 		imageDefaultsWithMaxHeight(), imageTemplateValues())
 
-	resets := unmappedHiddenResets(def, def.PropertyVisibility, hidden)
+	resets := unmappedHiddenResets(def.PropertyMappings, def.PropertyVisibility, hidden)
 	got, ok := resets["maxHeight"]
 	if !ok {
 		t.Fatalf("maxHeight is hidden and has a declared default, but is not in the resets: %v", resets)
@@ -128,7 +128,7 @@ func TestHiddenResets_DeclaredDefaultAloneCannotAnswerTheCondition(t *testing.T)
 	hidden := e.hiddenUnnamedProperties(def, &ast.WidgetV3{Name: "img"},
 		imageDefaultsWithMaxHeight(), nil)
 
-	if v, ok := unmappedHiddenResets(def, def.PropertyVisibility, hidden)["maxHeight"]; ok {
+	if v, ok := unmappedHiddenResets(def.PropertyMappings, def.PropertyVisibility, hidden)["maxHeight"]; ok {
 		t.Errorf("maxHeight was reset to %q from the declared defaults alone — if this "+
 			"passes, the condition no longer depends on the template's value and the "+
 			"test above proves nothing", v)
@@ -145,7 +145,7 @@ func TestHiddenResets_SkipWhatTheMappingLoopAlreadyWrites(t *testing.T) {
 		imageDefaultsWithMaxHeight(), imageTemplateValues())
 
 	for _, mapped := range []string{"width", "height"} {
-		if _, ok := unmappedHiddenResets(def, def.PropertyVisibility, hidden)[mapped]; ok {
+		if _, ok := unmappedHiddenResets(def.PropertyMappings, def.PropertyVisibility, hidden)[mapped]; ok {
 			t.Errorf("%s has a property mapping and is written by that loop; "+
 				"it must not be written a second time here", mapped)
 		}
@@ -163,7 +163,7 @@ func TestHiddenResets_NoDeclaredDefaultWritesNothing(t *testing.T) {
 	hidden := e.hiddenUnnamedProperties(def, &ast.WidgetV3{Name: "img"},
 		imageDefaults(), imageTemplateValues())
 
-	if v, ok := unmappedHiddenResets(def, def.PropertyVisibility, hidden)["maxHeight"]; ok {
+	if v, ok := unmappedHiddenResets(def.PropertyMappings, def.PropertyVisibility, hidden)["maxHeight"]; ok {
 		t.Errorf("maxHeight was reset to %q with no declared default to reset it to", v)
 	}
 }
@@ -182,7 +182,32 @@ func TestHiddenResets_VisibleUnmappedPropertyIsLeftAlone(t *testing.T) {
 	hidden := e.hiddenUnnamedProperties(def, w,
 		imageDefaultsWithMaxHeight(), imageTemplateValues())
 
-	if _, ok := unmappedHiddenResets(def, def.PropertyVisibility, hidden)["maxHeight"]; ok {
+	if _, ok := unmappedHiddenResets(def.PropertyMappings, def.PropertyVisibility, hidden)["maxHeight"]; ok {
 		t.Error("maxHeight is visible under this configuration and must keep its value")
+	}
+}
+
+// A property mapped only in ANOTHER mode is as unreachable as one with no
+// mapping at all: the mapping loop visits the mode the widget is built in. A
+// database-mode Combo box hides `optionsSourceType`, which only the association
+// mode maps, and kept the template's "enumeration" against a declared
+// "association" — the last difference between mxcli's widget and the one
+// mx update-widgets leaves, and the CE0463 (mendixlabs/mxcli#1583).
+func TestHiddenResets_AMappingOfAnotherModeIsReset(t *testing.T) {
+	rules := []types.WidgetVisibilityRule{{
+		PropertyKey: "optionsSourceType",
+		HiddenWhen:  &types.WidgetVisibilityCondition{PropertyKey: "source", Operator: "eq", Value: "database"},
+	}}
+	association := []PropertyMapping{{PropertyKey: "optionsSourceType", Value: "association", Operation: "primitive"}}
+	database := []PropertyMapping{{PropertyKey: "source", Value: "database", Operation: "primitive"}}
+	hidden := map[string]string{"optionssourcetype": "association"}
+
+	if got := unmappedHiddenResets(database, rules, hidden)["optionsSourceType"]; got != "association" {
+		t.Errorf("built in the database mode, optionsSourceType reset = %q, want its declared default %q",
+			got, "association")
+	}
+	// The control: built in the mode that maps it, the mapping loop writes it.
+	if v, ok := unmappedHiddenResets(association, rules, hidden)["optionsSourceType"]; ok {
+		t.Errorf("optionsSourceType is mapped in the mode being built; reset here too (%q) writes it twice", v)
 	}
 }

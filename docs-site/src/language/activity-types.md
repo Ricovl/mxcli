@@ -232,6 +232,17 @@ LOG INFO NODE 'OrderProcessing' 'Order created: ' + $Order/OrderNumber;
 LOG ERROR NODE 'PaymentGateway' 'Payment failed for order ' + $Order/OrderNumber;
 ```
 
+`WITH STACKTRACE` ticks **Include latest stack trace**, which is what an error
+handler usually wants. It comes after the template parameters, which also open
+with `WITH`:
+
+```sql
+LOG ERROR NODE 'PaymentGateway' 'Payment failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;
+```
+
+Without it the box is unticked, which is Mendix's default, so `DESCRIBE` prints
+`WITH STACKTRACE` only for a log that has it.
+
 ## Email
 
 ### SEND EMAIL
