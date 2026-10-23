@@ -20,7 +20,6 @@
 package executor
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -115,12 +114,8 @@ func parameterAttributeMDL(name, attrQN string) string {
 	return "$" + name + "." + mdlIdent(shortAttributeName(attrQN))
 }
 
-// parameterAttributeTextRe is `$Param.Attr` and nothing more: one variable,
-// one attribute name (quoted when it is a keyword). namedObjectBinding alone
-// takes `$Ctx.Name + 'x'` too, which is an expression.
-var parameterAttributeTextRe = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*\.(?:[A-Za-z_][A-Za-z0-9_]*|"[A-Za-z_][A-Za-z0-9_]*")$`)
-
 // isParameterAttributeText reports whether text is the `$Param.Attr` shape.
+// namedObjectBinding alone takes `$Ctx.Name + 'x'` too, which is an expression.
 func isParameterAttributeText(text string) bool {
-	return parameterAttributeTextRe.MatchString(text)
+	return ast.IsParameterAttributeText(text)
 }

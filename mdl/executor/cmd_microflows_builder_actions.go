@@ -2483,6 +2483,8 @@ func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberNa
 					mc.AttributeQualifiedName = memberName
 				} else if attrQN, ok := fb.resolveAttributeInEntityHierarchy(entityQN, memberName); ok {
 					mc.AttributeQualifiedName = attrQN
+				} else if assocQN, ok := fb.resolveInheritedAssociation(entityQN, memberName); ok {
+					mc.AssociationQualifiedName = assocQN
 				} else {
 					mc.AttributeQualifiedName = entityQN + "." + memberName
 				}
@@ -2541,6 +2543,59 @@ func (fb *flowBuilder) resolveAttributeInEntityHierarchy(entityQN, attrName stri
 		for _, attr := range entity.Attributes {
 			if attr != nil && attr.Name == attrName {
 				return currentQN + "." + attrName, true
+			}
+		}
+		currentQN = entity.GeneralizationRef
+	}
+	return "", false
+}
+
+// resolveInheritedAssociation finds a bare association name among the
+// associations entityQN inherits from a generalization in ANOTHER module, and
+// returns its qualified name. An association lives in its FROM entity's
+// module, so one inherited from Other.Person is in Other — the lookup by name
+// in the specialization's own module cannot see it, and the bare name was
+// written as an attribute of the specialization, which mxbuild reports as
+// CE1613 (ako/mxcli#1637). describe prints a find's association short, so its
+// output executes through here. The entity's own module was searched by name
+// already; a match must involve the ancestor, at either end.
+func (fb *flowBuilder) resolveInheritedAssociation(entityQN, name string) (string, bool) {
+	if fb == nil || fb.backend == nil || entityQN == "" || name == "" {
+		return "", false
+	}
+	ownModule, _, _ := strings.Cut(entityQN, ".")
+	seen := make(map[string]bool)
+	for currentQN := entityQN; currentQN != ""; {
+		if seen[currentQN] {
+			return "", false
+		}
+		seen[currentQN] = true
+		module, entityName, ok := strings.Cut(currentQN, ".")
+		if !ok {
+			return "", false
+		}
+		mod, err := fb.backend.GetModuleByName(module)
+		if err != nil || mod == nil {
+			return "", false
+		}
+		dm, err := fb.backend.GetDomainModel(mod.ID)
+		if err != nil || dm == nil {
+			return "", false
+		}
+		entity := dm.FindEntityByName(entityName)
+		if entity == nil {
+			return "", false
+		}
+		if module != ownModule {
+			for _, a := range dm.Associations {
+				if a != nil && a.Name == name && (a.ParentID == entity.ID || a.ChildID == entity.ID) {
+					return module + "." + name, true
+				}
+			}
+			for _, a := range dm.CrossAssociations {
+				if a != nil && a.Name == name && a.ParentID == entity.ID {
+					return module + "." + name, true
+				}
 			}
 		}
 		currentQN = entity.GeneralizationRef

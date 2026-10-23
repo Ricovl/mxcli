@@ -472,7 +472,13 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else {
-			if err := mutator.SetWidgetProperty(op.Target.Widget, propName, value); err != nil {
+			// An attribute property of a pluggable widget is bound here, by the
+			// rule CREATE uses; the mutator only writes it (#1622).
+			resolved, err := resolvePluggableSetValue(ctx, mutator, op.Target.Widget, propName, value, moduleName, moduleID)
+			if err != nil {
+				return err
+			}
+			if err := mutator.SetWidgetProperty(op.Target.Widget, propName, resolved); err != nil {
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		}
