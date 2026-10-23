@@ -912,6 +912,11 @@ func mapMicroflowAction(a microflows.MicroflowAction) (map[string]any, error) {
 		if act.LogNodeName != "" {
 			m["node"] = act.LogNodeName
 		}
+		// The Model SDK's name for "Include latest stack trace"; false is the
+		// default, so it is sent only when ticked (mendixlabs/mxcli#1543).
+		if act.IncludeLastStackTrace {
+			m["includeLatestStackTrace"] = true
+		}
 		return m, nil
 	case *microflows.NotifyWorkflowAction:
 		// ped_get_schema, Studio Pro 11.14: workflowVariable, outputVariableName and

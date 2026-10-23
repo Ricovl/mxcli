@@ -13,7 +13,7 @@ import (
 )
 
 // buildLogStatement converts LOG statement context to LogStmt.
-// Grammar: LOG logLevel? (NODE expression)? expression logTemplateParams?
+// Grammar: LOG logLevel? (NODE expression)? expression logTemplateParams? logStackTrace?
 func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 	if ctx == nil {
 		return nil
@@ -66,6 +66,9 @@ func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 			stmt.Template = buildTemplateParams(tplParams)
 		}
 	}
+
+	// WITH STACKTRACE: "Include latest stack trace" (mendixlabs/mxcli#1543)
+	stmt.IncludeLatestStackTrace = logCtx.LogStackTrace() != nil
 
 	// Check for ON ERROR clause
 	if errClause := logCtx.OnErrorClause(); errClause != nil {

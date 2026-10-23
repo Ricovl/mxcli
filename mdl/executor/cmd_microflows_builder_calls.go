@@ -91,7 +91,8 @@ func (fb *flowBuilder) addLogMessageAction(s *ast.LogStmt) model.ID {
 				fb.textLangOrDefault(): templateText,
 			},
 		},
-		TemplateParameters: templateParams,
+		TemplateParameters:    templateParams,
+		IncludeLastStackTrace: s.IncludeLatestStackTrace,
 	}
 
 	activity := &microflows.ActionActivity{
