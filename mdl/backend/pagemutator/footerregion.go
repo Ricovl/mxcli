@@ -165,11 +165,18 @@ func (m *Mutator) ContainedWidgetNames(widgetRef, columnRef string) []string {
 	var roots []any
 	switch {
 	case columnRef != "":
-		dv, ok := m.findDataViewFooter(widgetRef, columnRef)
-		if !ok {
+		if dv, ok := m.findDataViewFooter(widgetRef, columnRef); ok {
+			roots = dataViewFooterWidgets(dv.widget)
+			break
+		}
+		// A Data grid 2 column: its filter and its custom content. Reported
+		// nothing before, so a replacement column could not reuse its filter's
+		// name (mendixlabs/mxcli#1519).
+		col, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder)
+		if err != nil || col == nil {
 			return nil
 		}
-		roots = dataViewFooterWidgets(dv.widget)
+		roots = []any{col.parentArr[col.index]}
 	default:
 		result := m.widgetFinder(m.rawData, widgetRef)
 		if result == nil {

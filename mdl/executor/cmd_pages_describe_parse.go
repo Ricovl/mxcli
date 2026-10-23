@@ -467,7 +467,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// For ComboBox, extract datasource and association attribute for association mode.
 		// In association mode the Attribute binding is stored as EntityRef (not AttributeRef),
 		// so we must use extractCustomWidgetPropertyAssociation instead of the generic scan.
-		if widget.RenderMode == "combobox" {
+		if widget.RenderMode == "combobox" && comboBoxIsDatabaseMode(ctx, w) {
+			describeComboBoxDatabaseMode(ctx, w, &widget)
+		} else if widget.RenderMode == "combobox" {
 			widget.DataSource = extractComboBoxDataSource(ctx, w)
 			if widget.DataSource != nil {
 				widget.Content = associationRefForContext(extractCustomWidgetPropertyAssociationQN(ctx, w, "attributeAssociation"), inheritedCtx)
@@ -620,7 +622,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			}
 			widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, skip, inheritedCtx, ownEntity)
 			if widget.RenderMode == "combobox" {
-				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps)
+				database := comboBoxIsDatabaseMode(ctx, w)
+				if database {
+					ownEntity = ""
+					if len(widget.NamedDataSources) > 0 {
+						ownEntity = dataSourceEntityContext(ctx, widget.NamedDataSources[0].DataSource)
+					}
+					widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, comboBoxDatabaseByKeySkip, inheritedCtx, ownEntity)
+					widget.ExplicitProperties = append(widget.ExplicitProperties, comboBoxDatabaseSelection(ctx, w)...)
+				}
+				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
 			}
 		}
 		// For pluggable Image widget, extract image-specific properties
