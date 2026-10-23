@@ -82,6 +82,15 @@ For page-level properties (like `Title`), omit the `ON` clause.
 
 For pluggable widget properties, use quoted property names (e.g., `'showLabel'`).
 
+A pluggable widget's **attribute** property is bound the way `CREATE PAGE` binds it.
+A bare name (`set (eventDataAttribute: JsonData) on chart1`) belongs to the entity
+the property binds to: the widget's own datasource when the property is linked to
+one, otherwise the enclosing data container. `Module.Entity.Attr` must be an
+attribute of that entity or of one of its generalizations. `$Param.Attr` reads an
+attribute of a page or snippet parameter instead. A name the bound entity lacks
+(CE1613), and another entity's qualified attribute (CE7247), are refused by
+`check` and `exec` alike.
+
 ### INSERT BEFORE / INSERT AFTER
 
 Inserts new widgets immediately before or after a named widget within its parent container. The new widgets use the same syntax as in `CREATE PAGE`.

@@ -1,0 +1,55 @@
+mdl 1;
+-- ============================================================================
+-- ALTER PAGE SET on a pluggable widget's attribute property  (ako/mxcli#1622)
+-- ============================================================================
+--
+-- Symptom (before fix), Mendix 11.12.5: every spelling was refused.
+--   set (eventDataAttribute: JsonData) on chart1
+--     → pluggable property "eventDataAttribute" holds a value of kind
+--       Attribute, which ALTER cannot set from a plain value — rewrite the
+--       widget with CREATE OR REPLACE PAGE (or ALTER PAGE REPLACE) instead
+--   set (eventDataAttribute: $Ctx.EventData) on chart1
+--     → Parse error: property eventDataAttribute takes a plain value, not an
+--       expression
+--
+-- Fix: the mutator reports the property's kind, datasource link and scopes;
+-- the executor binds the value by CREATE's rule and hands it the resolved
+-- AttributeRef (+ SourceVariable for `$Param.Attr`). check --references
+-- dry-runs the same path. Measured on mxbuild 11.12.5:
+--   after each SET below                          → 0 errors
+--   bound back to JsonData with the $Ctx
+--     SourceVariable left in place (fault)        → CE7247
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1622-alter-set-pluggable-attribute.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                       → 0 errors
+--   mxcli -p app.mpr -c "describe page BugTest1622.ChartPage"
+--     → eventDataAttribute: $Ctx.EventData
+--   `set (eventDataAttribute: EventData) on chart1` is refused (CE1613), and
+--   `set (eventDataAttribute: BugTest1622.ChartContext.EventData)` too (CE7247).
+-- ============================================================================
+
+create module BugTest1622;
+
+create non-persistent entity BugTest1622.ChartContext (EventData: String(unlimited));
+create non-persistent entity BugTest1622.ChartEntry (JsonData: String(unlimited), JsonLayout: String(unlimited));
+
+create page BugTest1622.ChartPage (
+  Title: 'Chart',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Ctx: BugTest1622.ChartContext, $Entry: BugTest1622.ChartEntry )
+) {
+  dataview dvEntry (DataSource: $Entry) {
+    customchart chart1 (
+      dataAttribute: JsonData,
+      layoutAttribute: JsonLayout,
+      eventDataAttribute: JsonLayout
+    )
+  }
+};
+
+-- A bare name: an attribute of the data view's entity.
+alter page BugTest1622.ChartPage { set (eventDataAttribute: JsonData) on chart1; };
+
+-- An attribute of the other page parameter.
+alter page BugTest1622.ChartPage { set (eventDataAttribute: $Ctx.EventData) on chart1; };

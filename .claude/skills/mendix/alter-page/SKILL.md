@@ -243,7 +243,7 @@ so a silent write would build cleanly and then fail to open.
 > `Editable` on a non-input widget is rejected. This mirrors CREATE PAGE's
 > `visible:` — see the create-page skill for enum-value rules.
 
-**Pluggable widget properties** use quoted names to set values in the widget's `Object.Properties[]`. Boolean values are stored as `"yes"`/`"no"` in BSON.
+**Pluggable widget properties** use quoted names to set values in the widget's `Object.Properties[]`. Boolean values are stored as `"yes"`/`"no"` in BSON. An **attribute** property binds as in CREATE: `Attr` (the bound entity's), `Module.Entity.Attr`, or `$Param.Attr` — `set (eventDataAttribute: $Ctx.EventData) on chart1`; an attribute the bound entity lacks is refused (CE1613, CE7247).
 
 **Column property names are case-insensitive** in MDL — `set (caption: …)` and `set (Caption: …)` both work. The internal BSON keys are dictated by the widget schema and stay case-sensitive on the storage side.
 

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/antlr4-go/antlr/v4"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
@@ -141,6 +143,12 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			}
 		}
 		if expr := ctx.Expression(); expr != nil {
+			// `$Param.Attr` binds an attribute property to a page or snippet
+			// parameter (ako/mxcli#1622); the executor, which knows the
+			// property's kind, resolves or refuses it.
+			if text := stripExpressionIdentifierQuotes(ruleSourceText(expr.(antlr.ParserRuleContext))); ast.IsParameterAttributeText(text) {
+				return name, &ast.WidgetExpressionV3{Text: text}
+			}
 			b.addError(widgetExpressionNotAllowed(name, expr))
 			return "", nil
 		}
