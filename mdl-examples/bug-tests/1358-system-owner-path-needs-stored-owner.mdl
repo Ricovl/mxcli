@@ -1,0 +1,60 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1306 (follow-up on upstream #1358): $var/System.owner in a constraint
+-- ============================================================================
+--
+-- MDL-RETRIEVE02 rewrites `retrieve $u from $o/System.owner;` (CE0136) to
+-- `retrieve $u from System.User where [id = $o/System.owner] first;`. That
+-- rewrite builds only when $o's entity stores its owner. On one that does not,
+-- it passed `check -p` and exec, and mxbuild then reported
+--   [CE0161] "Error(s) in XPath constraint." at Retrieve object(s) activity 'Retrieve User from database'
+-- Measured with mx check on 11.12.5. `check -p` / exec now refuse it:
+--
+--   create persistent entity B1306N.Order (Number: String(50));   -- no owner
+--   ... retrieve $Owner from System.User where [id = $Order/System.owner] first;
+--   → the constraint reads $Order/System.owner, but B1306N.Order does not store
+--     System.owner … Store it first: alter entity B1306N.Order add attribute owner: AutoOwner
+--
+-- The refusal needs the entity's flags, so it is a `check -p` rule; plain
+-- `check` (what `make check-mdl` runs) cannot see it. This file holds the forms
+-- that build, each measured clean on 11.12.5.
+-- ============================================================================
+
+create module B1306;
+
+-- The entity stores both members.
+create persistent entity B1306.Order (
+  "Number": String(50),
+  "owner": AutoOwner,
+  "changedBy": AutoChangedBy
+);
+
+-- A specialization of a root that stores them: judged by the root.
+create persistent entity B1306.RushOrder extends B1306.Order ("Deadline": DateTime);
+
+-- System.FileDocument stores all four system members.
+create persistent entity B1306.Invoice extends System.FileDocument ("Title": String(200));
+
+create or modify microflow B1306.Order_GetOwner ($Order: B1306.Order)
+returns System.User as $Owner
+begin
+  retrieve $Owner from System.User where [id = $Order/System.owner] first;
+end;
+
+create or modify microflow B1306.Order_GetLastEditor ($Order: B1306.Order)
+returns System.User as $Editor
+begin
+  retrieve $Editor from System.User where [id = $Order/System.changedBy] first;
+end;
+
+create or modify microflow B1306.RushOrder_GetOwner ($Order: B1306.RushOrder)
+returns System.User as $Owner
+begin
+  retrieve $Owner from System.User where [id = $Order/System.owner] first;
+end;
+
+create or modify microflow B1306.Invoice_GetOwner ($Invoice: B1306.Invoice)
+returns System.User as $Owner
+begin
+  retrieve $Owner from System.User where [id = $Invoice/System.owner] first;
+end;

@@ -163,6 +163,9 @@ func (fb *flowBuilder) addCreateObjectAction(s *ast.CreateObjectStmt) model.ID {
 
 	// Build InitialMembers for each SET assignment
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        microflows.MemberChangeTypeSet,
@@ -362,6 +365,9 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 
 	// Build a MemberChange for each `=`, `+=` or `-=` member
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        memberChangeTypeOf(change.Op),

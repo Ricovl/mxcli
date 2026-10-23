@@ -124,6 +124,7 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkShowMessageType(body)
 	v.checkRetrieveOverSystemAssociation(body)
 	v.checkSetOnObjectVariable(v.params, body)
+	v.checkSystemMemberChange(body)
 	v.checkListOperationSource(body)
 	v.checkMergeJoinLabels(body)
 	v.checkAnnotationLabels(body)

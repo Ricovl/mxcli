@@ -349,6 +349,38 @@ retrieve $u from System.User where [id = $task/System.owner] first;
 retrieve $u from System.User where [id = $task/System.changedBy] first;
 ```
 
+That constraint reads the member off `$task`, so it builds only when `$task`'s entity stores
+it — `owner: AutoOwner` / `changedBy: AutoChangedBy` on the root of its generalization chain
+(a `System.FileDocument` specialization stores both). On an entity that does not, mxbuild
+rejects it with CE0161 "Error(s) in XPath constraint." (measured on 11.12.5, ako/mxcli#1306),
+and `check -p` and `exec` refuse it, naming the `alter entity` that stores the member.
+
+### MDL-CHANGE01: Setting `System.owner` / `System.changedBy` in a create or change
+
+```
+member "System.owner" on M.Entity: System.owner is kept by the runtime, not set by a
+microflow — a create or change object cannot set it, and mxbuild rejects the member with
+CE1050 "Unknown association 'System.owner'." (whether or not the entity stores it) [MDL-CHANGE01]
+```
+
+**Cause:** The owner and last editor of an object are system members, not associations a
+project models. Written as a create or change object member, `System.owner` and
+`System.changedBy` are CE1050 for every entity — one that stores its owner, one that does not,
+a `System.FileDocument` specialization — in a microflow and a nanoflow alike (measured on
+11.12.5, mendixlabs/mxcli#1612). `check` needs no project to know it; `check` and `exec` both
+refuse it. A list operation is different: `find $l by System.owner = $u` builds.
+
+**Solution:** To record a user on an object — for example to own seeded data — model the
+association and set that:
+
+```mdl
+create association M.Entity_User from M.Entity to System.User;
+
+$S = create M.Entity (Name = 'x', M.Entity_User = $User);
+```
+
+Constrain on `M.Entity_User` where you would have used `System.owner`.
+
 ### MDL-RETRIEVE03: `change` over a list retrieve
 
 ```
