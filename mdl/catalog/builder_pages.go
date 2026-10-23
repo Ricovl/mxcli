@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
@@ -331,9 +332,8 @@ type rawWidgetInfo struct {
 	Style          string
 	DynamicClasses string
 
-	// ActionType is the stored $Type of the widget's primary action: Action
-	// (action button, link button), else OnClickAction (containers, layout
-	// grids), else ClickAction (list views, images). Raw, e.g.
+	// ActionType is the stored $Type of the widget's primary action, read from
+	// the first of types.WidgetClickActionKeys the widget holds. Raw, e.g.
 	// "Forms$DeleteClientAction", "Forms$MicroflowAction", "Forms$NoAction".
 	// HasConfirmation reports a ConfirmationInfo on that action; only
 	// microflow, nanoflow and workflow calls can carry one — a delete action
@@ -342,16 +342,12 @@ type rawWidgetInfo struct {
 	HasConfirmation bool
 }
 
-// widgetActionKeys are, in priority order, the keys under which a widget stores
-// its primary client action.
-var widgetActionKeys = []string{"Action", "OnClickAction", "ClickAction"}
-
 // widgetPrimaryAction returns the $Type of a widget's primary action and whether
 // that action asks for confirmation. A microflow call keeps its confirmation in
 // MicroflowSettings.ConfirmationInfo; nanoflow and workflow calls hold
 // ConfirmationInfo directly. Unset, the property is stored as null.
 func widgetPrimaryAction(w map[string]any) (actionType string, hasConfirmation bool) {
-	for _, key := range widgetActionKeys {
+	for _, key := range types.WidgetClickActionKeys {
 		action, ok := w[key].(map[string]any)
 		if !ok {
 			continue

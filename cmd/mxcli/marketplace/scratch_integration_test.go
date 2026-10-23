@@ -15,12 +15,12 @@ import (
 	"github.com/mendixlabs/mxcli/cmd/mxcli/docker"
 )
 
-// shortTemp returns a work dir with a short path. mx create-project extracts its
-// template with .NET path handling and dies with PathTooLongException under a
-// deep directory, so t.TempDir() nested inside a long module path is not safe
-// here — this was found the hard way.
+// shortTemp returns a work dir with a short path. mx refuses to write a file
+// whose path reaches mxMaxPath, so t.TempDir() nested inside a long module path
+// is not safe here — this was found the hard way. NewWorkDir is what the
+// commands use.
 func shortTemp(t *testing.T) string {
-	d, err := os.MkdirTemp("", "mxref")
+	d, err := NewWorkDir("mxref")
 	if err != nil {
 		t.Fatal(err)
 	}

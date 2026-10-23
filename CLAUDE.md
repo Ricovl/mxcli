@@ -61,11 +61,8 @@ The `mx` command-line tool validates and builds Mendix projects. Location depend
 # Auto-download mxbuild for the project's Mendix version
 mxcli setup mxbuild -p app.mpr
 
-# check/validate a Mendix project
+# check/validate a Mendix project (runs mx locally; does not download mxbuild)
 mxcli docker check -p /path/to/app.mpr
-
-# or use the integrated command (auto-downloads mxbuild)
-mxcli docker check -p app.mpr
 ```
 
 **Devcontainer gotcha — libSkiaSharp/FreeType crash on some mxbuild releases.** Certain bundled `mx` binaries (observed on 11.10.0) abort with `symbol lookup error: .../libSkiaSharp.so: undefined symbol: FT_Get_BDF_Property`. Root cause: `mx`/mxbuild run under the Temurin JVM, whose bundled libfreetype is stripped and lacks `FT_Get_BDF_Property`, so Skia loads the *JVM's* FreeType instead of the system one (which has the symbol). Preloading the system libfreetype makes it load first and fixes `mx check`/`build`/`run` while keeping Skia working.

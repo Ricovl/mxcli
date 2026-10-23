@@ -800,6 +800,11 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			fromEntity := entityNames[assoc.ParentID]
 			toEntity := entityNames[assoc.ChildID]
 
+			if isViewAssociationSource(assoc.Source) {
+				describeViewAssociation(ctx, module.Name+"."+assoc.Name, fromEntity, toEntity, assoc.ViewSourceReference)
+				return nil
+			}
+
 			if assoc.Documentation != "" {
 				outputJavadocIndented(ctx.Output, assoc.Documentation, "")
 			}
@@ -818,6 +823,11 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 				fromEntity = string(ca.ParentID)
 			}
 
+			if isViewAssociationSource(ca.Source) {
+				describeViewAssociation(ctx, module.Name+"."+ca.Name, fromEntity, ca.ChildRef, ca.ViewSourceReference)
+				return nil
+			}
+
 			if ca.Documentation != "" {
 				outputJavadocIndented(ctx.Output, ca.Documentation, "")
 			}
@@ -830,6 +840,32 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 	}
 
 	return mdlerrors.NewNotFound("association", name.String())
+}
+
+// describeViewAssociation describes an association a view entity's OQL
+// declares — a `<alias>.ID as <name>` select column — as a pointer to that
+// view entity, never as a statement.
+//
+// There is no statement that can say it: a plain `create association` with a
+// view entity at either end is CE6771, and check and exec both refuse one. The
+// column IS the declaration, and the view entity's own description carries it,
+// so re-executing that rebuilds the association (syncViewEntityAssociations).
+// Printing `create or modify association` here made `describe module` output
+// that its own check refused (mendixlabs/mxcli#1627).
+func describeViewAssociation(ctx *ExecContext, qualifiedName, fromEntity, toEntity, column string) {
+	if column == "" {
+		column = shortAssociationName(qualifiedName)
+	}
+	fmt.Fprintf(ctx.Output, "-- association %s (%s -> %s) is declared by view entity %s's OQL column `as %s`;\n",
+		qualifiedName, fromEntity, toEntity, fromEntity, column)
+	fmt.Fprintf(ctx.Output, "-- it has no statement of its own: describe entity %s to reproduce it\n", fromEntity)
+}
+
+// isViewAssociationSource reports whether an association's Source makes it a
+// view entity's OQL-declared association, which describes with the view entity
+// rather than on its own.
+func isViewAssociationSource(source string) bool {
+	return source == domainmodel.OqlViewAssociationSource
 }
 
 // statedStorageFormat maps an authored storage clause onto the stored value, and

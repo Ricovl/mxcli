@@ -17,10 +17,14 @@ import (
 // install (2026-09-20): the module had already been transplanted into the model
 // when the bundled-file step failed, so the command reported failure over a
 // half-finished install.
+//
+// The entry in that report was manifest.json, which is package metadata and is
+// no longer installed at all (mendixlabs/mxcli#1487); the guard refused every
+// entry alike, so two project files stand in for it here.
 func TestInstallPackageFiles_RelativeProjectDir(t *testing.T) {
 	mpk := buildMPK(t, map[string]string{
-		"manifest.json":                   `{"name":"probe"}`,
-		"themesource/probe/web/main.scss": "// probe",
+		"javasource/probe/actions/Probe.java": "class Probe {}",
+		"themesource/probe/web/main.scss":     "// probe",
 	})
 	proj := t.TempDir()
 	wd, _ := os.Getwd()
@@ -36,7 +40,8 @@ func TestInstallPackageFiles_RelativeProjectDir(t *testing.T) {
 	if len(written) != 2 {
 		t.Fatalf("written = %v, want both entries", written)
 	}
-	for _, rel := range []string{"manifest.json", filepath.Join("themesource", "probe", "web", "main.scss")} {
+	for _, rel := range []string{filepath.Join("javasource", "probe", "actions", "Probe.java"),
+		filepath.Join("themesource", "probe", "web", "main.scss")} {
 		if _, err := os.Stat(filepath.Join(proj, rel)); err != nil {
 			t.Errorf("%s not written under the project: %v", rel, err)
 		}

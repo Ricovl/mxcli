@@ -393,13 +393,7 @@ func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants boo
 
 			// For VIEW entities, output the OQL query
 			if entityType == "view" && entity.OqlQuery != "" {
-				fmt.Fprint(ctx.Output, " as (\n")
-				// Indent OQL query lines
-				oqlLines := strings.SplitSeq(entity.OqlQuery, "\n")
-				for line := range oqlLines {
-					fmt.Fprintf(ctx.Output, "  %s\n", line)
-				}
-				fmt.Fprint(ctx.Output, ")")
+				fmt.Fprint(ctx.Output, describedViewQuery(entity.OqlQuery))
 			}
 
 			// Build attribute name map

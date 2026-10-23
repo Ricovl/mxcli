@@ -81,7 +81,7 @@ func runMarketplaceDiff(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	work, err := os.MkdirTemp("", "mxdiff")
+	work, err := marketplace.NewWorkDir("mxd")
 	if err != nil {
 		return fmt.Errorf("create work directory: %w", err)
 	}
@@ -107,7 +107,7 @@ func runMarketplaceDiff(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	baseRef, basePkgModule, err := referenceFor(ctx, client, base, mendixVersion, work, "base")
+	baseRef, basePkgModule, err := referenceFor(ctx, client, base, mendixVersion, work, "b")
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func runMarketplaceDiff(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		targetRef, targetPkgModule, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "target")
+		targetRef, targetPkgModule, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "t")
 		if err != nil {
 			return err
 		}
@@ -205,7 +205,10 @@ func downloadVersion(ctx context.Context, client *mp.Client, v *mp.Version, work
 func referenceFor(ctx context.Context, client *mp.Client, v *mp.Version,
 	mendixVersion, work, slot string) (mprPath, pkgModule string, err error) {
 
-	refDir := filepath.Join(work, slot+"-ref")
+	// The slot is one letter on purpose: mx writes the whole reference project
+	// beneath refDir, and every character here is one less for the package's own
+	// paths (see marketplace.NewWorkDir).
+	refDir := filepath.Join(work, slot)
 	if err := os.MkdirAll(refDir, 0o755); err != nil {
 		return "", "", err
 	}

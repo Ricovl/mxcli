@@ -286,6 +286,62 @@ func objectListItemHint(owner *bsonWidgetResult, name string) string {
 		"`%s item('<text>')` addresses one by its text", lists[0].key, name, name)
 }
 
+// objectListItemMissHint names every object-list item address on the page, for
+// a widget lookup that missed. CREATE accepts a name on an item — `group grp1
+// (…)` — and drops it, since the item stores none, so `insert into grp1 { … }`
+// is the natural next statement and can never resolve (ako/mxcli#1326). The
+// miss said only how DataGrid 2 columns are addressed, sending the author to
+// the grid. Listed: each widget whose one object list `item` addresses; not a
+// DataGrid 2's columns, which the column hint lists by their derived names.
+func objectListItemMissHint(page bson.D) string {
+	var addrs []string
+	collectObjectListItemAddresses(page, &addrs)
+	if len(addrs) == 0 {
+		return ""
+	}
+	return "An object-list item (an Accordion group, a pop-up menu item) stores no name, so a name " +
+		"written on one in CREATE is not kept — address it on its widget: " + strings.Join(addrs, "; ")
+}
+
+func collectObjectListItemAddresses(node any, out *[]string) {
+	switch v := node.(type) {
+	case bson.D:
+		*out = append(*out, objectListItemAddresses(v)...)
+		for _, e := range v {
+			collectObjectListItemAddresses(e.Value, out)
+		}
+	case bson.A:
+		for _, e := range v {
+			collectObjectListItemAddresses(e, out)
+		}
+	}
+}
+
+// objectListItemAddresses spells each item of a pluggable widget's one object
+// list as the author types it, `acc1 item@1 = acc1 item('One')`; nil for any
+// other node.
+func objectListItemAddresses(w bson.D) []string {
+	name := bsonnav.DGetString(w, "Name")
+	if name == "" || !strings.Contains(widgetTypeName(w), "CustomWidget") {
+		return nil
+	}
+	lists := objectItemLists(w)
+	if len(lists) != 1 || lists[0].key == "columns" {
+		return nil
+	}
+	_, kinds := buildColumnPropKeyMap(w, lists[0].typeID)
+	var out []string
+	for i, el := range bsonnav.DGetArrayElements(bsonnav.DGet(lists[0].value, "Objects")) {
+		itemDoc, _ := el.(bson.D)
+		addr := fmt.Sprintf("%s item@%d", name, i+1)
+		if texts := objectItemTexts(itemDoc, kinds); len(texts) > 0 {
+			addr += fmt.Sprintf(" = %s item('%s')", name, strings.ReplaceAll(texts[0], "'", "''"))
+		}
+		out = append(out, addr)
+	}
+	return out
+}
+
 // ObjectListItemValues reports a stored item's values for visibility rules.
 // ok is false when itemRef does not resolve to an object-list item.
 func (m *Mutator) ObjectListItemValues(itemRef string) (backend.ObjectListItemValues, bool) {
