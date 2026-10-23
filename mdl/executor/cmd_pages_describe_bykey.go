@@ -389,22 +389,43 @@ var sharedBranchByKeySkip = map[string]map[string]bool{
 	},
 }
 
-// comboBoxUndescribedModePrefixes are the keys of the combo box's database and
-// static option sources. DESCRIBE spells only the association and enumeration
-// modes, so these settings are named as not reproduced rather than printed: on
-// their own, without the mode and its datasource, they would be written into a
-// combo box in another mode — an attribute resolved against the wrong entity.
+// comboBoxUndescribedModePrefixes are the keys of the combo box's static
+// option source, which DESCRIBE does not spell, so these settings are named as
+// not reproduced rather than printed: on their own, without the mode and its
+// datasource, they would be written into a combo box in another mode — an
+// attribute resolved against the wrong entity.
 var comboBoxUndescribedModePrefixes = []string{
-	"optionsSourceDatabase", "optionsSourceStatic", "staticDataSource", "staticAttribute", "databaseAttributeString",
+	"optionsSourceStatic", "staticDataSource", "staticAttribute",
+}
+
+// comboBoxDatabaseModePrefixes are the database option source's keys. That
+// mode is spelled by its own keys (ako/mxcli#1647), so they are printed on a
+// database-source combo box and withheld on any other, for the reason above.
+var comboBoxDatabaseModePrefixes = []string{"optionsSourceDatabase", "databaseAttributeString"}
+
+const (
+	comboBoxDatabaseDataSourceKey = "optionsSourceDatabaseDataSource"
+	comboBoxDatabaseSelectionKey  = "optionsSourceDatabaseItemSelection"
+)
+
+// comboBoxSourceIsDatabase reports whether a combo box takes its options from
+// its database source (Studio Pro's "Source: Database").
+func comboBoxSourceIsDatabase(ctx *ExecContext, w map[string]any) bool {
+	return extractCustomWidgetPropertyString(ctx, w, "source") == "database"
 }
 
 // withoutUndescribedComboBoxModes moves the settings of a combo box's
-// undescribed option-source modes from props to omitted.
-func withoutUndescribedComboBoxModes(props []rawExplicitProp, omitted []string) ([]rawExplicitProp, []string) {
+// undescribed option-source modes from props to omitted. database is whether
+// the combo box is in the database mode, whose settings are then described.
+func withoutUndescribedComboBoxModes(props []rawExplicitProp, omitted []string, database bool) ([]rawExplicitProp, []string) {
+	prefixes := comboBoxUndescribedModePrefixes
+	if !database {
+		prefixes = append(append([]string(nil), prefixes...), comboBoxDatabaseModePrefixes...)
+	}
 	kept := props[:0:0]
 	for _, p := range props {
 		undescribed := false
-		for _, prefix := range comboBoxUndescribedModePrefixes {
+		for _, prefix := range prefixes {
 			if strings.HasPrefix(p.Key, prefix) {
 				undescribed = true
 				break

@@ -370,29 +370,42 @@ func TestRegistryComboboxModes(t *testing.T) {
 		t.Fatal("combobox not found")
 	}
 
-	if len(def.Modes) != 2 {
-		t.Fatalf("modes count = %d, want 2", len(def.Modes))
+	if len(def.Modes) != 3 {
+		t.Fatalf("modes count = %d, want 3", len(def.Modes))
 	}
 
-	// First mode: association (conditional)
-	if def.Modes[0].Name != "association" {
-		t.Errorf("first mode name = %q, want association", def.Modes[0].Name)
+	// First mode: database, selected by its own named datasource
+	// (ako/mxcli#1647) — `DataSource:` keeps selecting the association mode.
+	if def.Modes[0].Name != "database" {
+		t.Errorf("first mode name = %q, want database", def.Modes[0].Name)
 	}
-	if def.Modes[0].Condition != "hasDataSource" {
-		t.Errorf("association mode condition = %q, want hasDataSource", def.Modes[0].Condition)
+	if def.Modes[0].Condition != "hasDataSource:optionsSourceDatabaseDataSource" {
+		t.Errorf("database mode condition = %q, want hasDataSource:optionsSourceDatabaseDataSource", def.Modes[0].Condition)
+	}
+	// source, the datasource, the item selection + the onChangeEvent action slot.
+	if len(def.Modes[0].PropertyMappings) != 4 {
+		t.Errorf("database mode mappings = %d, want 4", len(def.Modes[0].PropertyMappings))
+	}
+
+	// Second mode: association (conditional)
+	if def.Modes[1].Name != "association" {
+		t.Errorf("second mode name = %q, want association", def.Modes[1].Name)
+	}
+	if def.Modes[1].Condition != "hasDataSource" {
+		t.Errorf("association mode condition = %q, want hasDataSource", def.Modes[1].Condition)
 	}
 	// 4 options-source mappings + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[0].PropertyMappings) != 5 {
-		t.Errorf("association mode mappings = %d, want 5", len(def.Modes[0].PropertyMappings))
+	if len(def.Modes[1].PropertyMappings) != 5 {
+		t.Errorf("association mode mappings = %d, want 5", len(def.Modes[1].PropertyMappings))
 	}
 
-	// Second mode: default (no condition)
-	if def.Modes[1].Name != "default" {
-		t.Errorf("second mode name = %q, want default", def.Modes[1].Name)
+	// Third mode: default (no condition)
+	if def.Modes[2].Name != "default" {
+		t.Errorf("third mode name = %q, want default", def.Modes[2].Name)
 	}
 	// attributeEnumeration + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[1].PropertyMappings) != 2 {
-		t.Errorf("default mode mappings = %d, want 2", len(def.Modes[1].PropertyMappings))
+	if len(def.Modes[2].PropertyMappings) != 2 {
+		t.Errorf("default mode mappings = %d, want 2", len(def.Modes[2].PropertyMappings))
 	}
 }
 

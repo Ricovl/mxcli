@@ -562,6 +562,18 @@ combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource
 --   optionsSourceAssociationCaptionType: expression,
 --   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
 -- Enumeration mode (no datasource) has no caption and needs none.
+
+-- Database mode (Studio Pro "Source: Database"): the options come from a
+-- database, microflow or nanoflow source, and the value is the SELECTION — pass
+-- it on as `$cbGroups`, a list when the selection is Multi. Spelled by the
+-- widget's own keys; `DataSource:` would select the association mode instead.
+combobox cbGroups (
+  optionsSourceDatabaseDataSource: database from MyModule.Group sort by Name asc,
+  optionsSourceDatabaseItemSelection: 'Multi',   -- or `Selection: Multi`; default Single
+  optionsSourceDatabaseCaptionAttribute: Name     -- against the source's entity
+)
+-- To store a single choice in an attribute instead, add
+--   databaseAttributeString: Code, optionsSourceDatabaseValueAttribute: Name
 ```
 
 ### DataView with Form Layout

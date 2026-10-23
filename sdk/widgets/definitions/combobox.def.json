@@ -11,6 +11,17 @@
   ],
   "modes": [
     {
+      "name": "database",
+      "condition": "hasDataSource:optionsSourceDatabaseDataSource",
+      "description": "Database mode: the options come from optionsSourceDatabaseDataSource",
+      "propertyMappings": [
+        {"propertyKey": "source", "value": "database", "operation": "primitive"},
+        {"propertyKey": "optionsSourceDatabaseDataSource", "source": "DataSource", "operation": "datasource"},
+        {"propertyKey": "optionsSourceDatabaseItemSelection", "source": "Selection", "operation": "selection", "default": "Single"},
+        {"propertyKey": "onChangeEvent", "source": "OnChange", "operation": "action"}
+      ]
+    },
+    {
       "name": "association",
       "condition": "hasDataSource",
       "description": "Association mode",

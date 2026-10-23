@@ -1657,7 +1657,14 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		}
 
 	case "Selection":
-		val := w.GetSelection()
+		// By the property's own key first: a widget with a selection that is not
+		// its main one — a database-mode combo box's
+		// optionsSourceDatabaseItemSelection (ako/mxcli#1647) — is written, and
+		// described, under that key. `Selection:` means the same.
+		val := namedPropValue(mapping, w)
+		if val == "" {
+			val = w.GetSelection()
+		}
 		if val == "" && mapping.Default != "" {
 			val = mapping.Default
 		}

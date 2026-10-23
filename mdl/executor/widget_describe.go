@@ -947,6 +947,15 @@ func definitionDefaults(def *WidgetDefinition) map[string]string {
 	}
 	collect(def.PropertyMappings)
 	for _, mode := range def.Modes {
+		// A mode selected by a NAMED datasource is one the generated example is
+		// never built in — it writes no such datasource — so its constants are
+		// not the example's configuration, and the validator, which reads only
+		// the mode a widget is built in, never sees them. The combo box's
+		// database mode writes source 'database', which here hid every
+		// context-source property the example emits (ako/mxcli#1647).
+		if strings.HasPrefix(mode.Condition, "hasDataSource:") {
+			continue
+		}
 		collect(mode.PropertyMappings)
 	}
 	return out
