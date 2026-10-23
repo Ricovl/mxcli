@@ -384,3 +384,29 @@ func TestCheck_FailedUpdateWidgetsIsNotReportedAsNormalised(t *testing.T) {
 		t.Errorf("output does not say the check ran without normalisation:\n%s", got)
 	}
 }
+
+// docker check never downloads MxBuild: it resolves an mx that is installed or
+// cached, and stops when there is none. The docs said it downloaded on first use,
+// so on a fresh clone the reader met "mx not found; specify --mxbuild-path
+// pointing to Mendix installation directory" (measured with an empty HOME) and
+// nothing naming the command that does download.
+func TestCheck_MissingMxNamesSetupNotADownload(t *testing.T) {
+	mprPath := v1Fixture(t)
+	seen := stubTools(t)
+	resolveMxForCheck = func(string, string) (string, error) {
+		return "", fmt.Errorf("mx not found; specify --mxbuild-path pointing to Mendix installation directory")
+	}
+
+	err := Check(CheckOptions{ProjectPath: mprPath, Stdout: io.Discard, Stderr: io.Discard})
+	if err == nil {
+		t.Fatal("Check succeeded without an mx")
+	}
+	if len(*seen) != 0 {
+		t.Errorf("mx ran without having been found: %v", *seen)
+	}
+	for _, want := range []string{"does not download", "mxcli setup mxbuild -p " + mprPath} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not say %q:\n%v", want, err)
+		}
+	}
+}

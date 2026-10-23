@@ -96,7 +96,7 @@ func Check(opts CheckOptions) error {
 
 	mxPath, err := resolveMxForCheck(opts.MxBuildPath, projectVersion)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w\n  docker check does not download MxBuild; 'mxcli setup mxbuild -p %s' sets up the project's version", err, opts.ProjectPath)
 	}
 	fmt.Fprintf(w, "Using mx: %s\n", mxPath)
 

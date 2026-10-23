@@ -31,7 +31,8 @@ Subcommands:
 Requirements:
   - Mendix 11.6.1 or later for build, run and reload, which produce a Portable
     App Distribution; check has no floor (Mendix 10 works, tested on 10.24)
-  - MxBuild (auto-downloaded from CDN if not found)
+  - MxBuild: build, run and reload download it from the CDN when it is missing;
+    check does not download it ('mxcli setup mxbuild -p app.mpr' sets it up)
   - A JDK matching the project's JavaVersion (21 up to Mendix 11.13, 25 from
     11.14; devcontainers created by 'mxcli init' ship 21)
   - Docker with Compose V2, or Podman 4.7+ with podman compose
@@ -201,7 +202,11 @@ fetches the project's exact version.
 There is no Mendix version floor for check: Mendix 10 works (tested on 10.24).
 The 11.6.1 requirement is docker build's, for the Portable App Distribution.
 
-The mx binary is located from the same directory as mxbuild.
+check does not download MxBuild, and does not use Docker: it runs mx as a local
+process. It takes the mx next to --mxbuild-path, else the first it finds on
+PATH, in a Studio Pro installation or in the download cache (~/.mxcli/mxbuild/),
+which need not be the project's version. With none it stops; 'mxcli setup
+mxbuild -p app.mpr' sets up the project's version.
 
 Examples:
   mxcli docker check -p app.mpr
