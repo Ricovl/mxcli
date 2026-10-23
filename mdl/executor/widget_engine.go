@@ -1378,12 +1378,20 @@ func refuseAmbiguousGenericDataSource(def *WidgetDefinition, w *ast.WidgetV3, ds
 func (e *PluggableWidgetEngine) parameterBinding(w *ast.WidgetV3, propertyKey, attr, name string) (pages.WidgetVariable, string, error) {
 	wv, entity, ok := e.pageBuilder.parameterVariable(name)
 	if !ok {
-		return pages.WidgetVariable{}, "", mdlerrors.NewValidationf(
-			"%s `%s` property `%s`: `%s` — `$%s` is not a parameter of this %s; `$Param.Attr` reads an attribute "+
-				"of a page or snippet parameter. Inside a data container, name the attribute bare",
-			strings.ToLower(w.Type), w.Name, propertyKey, attr, name, e.pageBuilder.documentKind())
+		return pages.WidgetVariable{}, "", notAParameterError(
+			fmt.Sprintf("%s `%s` property `%s`", strings.ToLower(w.Type), w.Name, propertyKey),
+			attr, name, e.pageBuilder.documentKind())
 	}
 	return wv, entity, nil
+}
+
+// notAParameterError refuses a `$name.Attr` binding whose name is no page or
+// snippet parameter. where names the widget property, for the message.
+func notAParameterError(where, attr, name, documentKind string) error {
+	return mdlerrors.NewValidationf(
+		"%s: `%s` — `$%s` is not a parameter of this %s; `$Param.Attr` reads an attribute "+
+			"of a page or snippet parameter. Inside a data container, name the attribute bare",
+		where, attr, name, documentKind)
 }
 
 // entityContextFor returns the entity that propertyKey's value binds against.

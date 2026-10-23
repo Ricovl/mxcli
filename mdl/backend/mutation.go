@@ -472,6 +472,44 @@ type ColumnHiddenPropertyResetter interface {
 	ResetHiddenColumnProperties(gridRef, columnRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
 }
 
+// SourceScope is what one data source hands to the widgets it governs: the
+// entity it names, or the microflow/nanoflow whose return entity it is — which
+// lives in the flow document, so only a caller holding the model can resolve it.
+type SourceScope struct {
+	Entity    string
+	Microflow string
+	Nanoflow  string
+}
+
+// PluggablePropertyScope describes one top-level property of a stored pluggable
+// widget, for a SET that has to bind it: its kind, the widget's own datasource
+// it is linked to (widget.xml `dataSource="…"`, "" when none), and the scope of
+// that datasource and of the enclosing data container.
+type PluggablePropertyScope struct {
+	Key        string // the property key as the template spells it
+	Kind       string // ValueType.Type
+	DataSource string // the linked datasource property key, "" when linked to none
+	Linked     SourceScope
+	Enclosing  SourceScope
+}
+
+// PluggablePropertyScoper is implemented by a PageMutator that can describe a
+// stored pluggable widget's property, so the executor can resolve an attribute
+// binding for ALTER … SET by the rule CREATE uses (ako/mxcli#1622). ok
+// is false when widgetRef is not a pluggable widget or has no such property.
+// Optional: the Studio Pro MCP backend has no pluggable SET path.
+type PluggablePropertyScoper interface {
+	PluggablePropertyScope(widgetRef, propKey string) (PluggablePropertyScope, bool)
+}
+
+// AttributeBinding is the value SetWidgetProperty takes for an Attribute-kind
+// pluggable property: the attribute path already resolved by the executor, and
+// the page or snippet parameter it is read from (nil for the context object).
+type AttributeBinding struct {
+	Path           string
+	SourceVariable *pages.WidgetVariable
+}
+
 // ObjectListItemSpec describes one item of an object-list property (e.g. one
 // Accordion group, one PopupMenu basicItem, one Maps marker). The backend
 // applies these specs to the template's nested PropertyTypeIDs to produce

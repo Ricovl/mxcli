@@ -3,6 +3,7 @@
 package ast
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -206,6 +207,18 @@ func (w *WidgetV3) ExpressionSource(key string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// parameterAttributeTextRe is `$Param.Attr` and nothing more: one variable,
+// one attribute name (quoted when it is a keyword). `$Ctx.Name + 'x'` is an
+// expression, and so is `$Ctx/Name`.
+var parameterAttributeTextRe = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*\.(?:[A-Za-z_][A-Za-z0-9_]*|"[A-Za-z_][A-Za-z0-9_]*")$`)
+
+// IsParameterAttributeText reports whether text is the `$Param.Attr` shape: an
+// attribute of a page or snippet parameter, the binding an attribute property
+// takes. It is no Mendix expression, which would read `$Param/Attr`.
+func IsParameterAttributeText(text string) bool {
+	return parameterAttributeTextRe.MatchString(text)
 }
 
 // WidgetExpressionV3 is a generic widget property written as a Mendix
