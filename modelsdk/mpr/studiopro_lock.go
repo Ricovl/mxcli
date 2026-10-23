@@ -97,6 +97,9 @@ func studioProOpenGuard(mprPath string) error {
 // here before it changes anything, which is also what lets an open Journal copy
 // the .mpr before the first change (journal.go).
 func (w *Writer) guardWrite() error {
+	if w.simulating {
+		return ErrSimulatedWrite
+	}
 	if err := studioProOpenGuard(w.reader.path); err != nil {
 		return err
 	}

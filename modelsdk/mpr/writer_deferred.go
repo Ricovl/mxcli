@@ -55,6 +55,10 @@ func (w *Writer) DeferUnitWrites() {
 // it was first written. The first error is returned; the remaining units are
 // still attempted, since each is a complete document of its own.
 func (w *Writer) FlushDeferredWrites() error {
+	if w.simulating {
+		// A simulation is discarded by whoever opened it, never written.
+		return ErrSimulatedWrite
+	}
 	held, order := w.deferred, w.deferredOrder
 	w.deferred, w.deferredOrder = nil, nil
 	var first error

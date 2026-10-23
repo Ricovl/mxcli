@@ -1,0 +1,32 @@
+-- ============================================================================
+-- mendixlabs/mxcli#1610 (ako/mxcli#1538) — an @caption on an if is refused
+-- ============================================================================
+--
+-- Under `mdl 1;`, re-running `create or modify microflow` with only an
+-- `@caption` added to an existing `if` was refused:
+--
+--   exec refuses with MDL-V1-REBUILD: 'the If at (360, 200) changes where its
+--   paths end or meet — a branch's return, or its else, is added or taken
+--   away'. Nothing about the paths changed.
+--
+-- A decision's caption is set in place, as a changed condition is: the
+-- decision keeps its $ID, its flows and both of its paths.
+--
+-- To reproduce: exec this file against a project, then add
+-- `@caption 'Big?'` on the line before `if` and exec it again. The second run
+-- reports `Modified microflow: BugTest1610.F (spliced: 1 replaced)`, and a
+-- third run writes nothing. Taking the caption off again captions the
+-- decision with its condition, as a new one would be.
+
+mdl 1;
+
+create module BugTest1610;
+
+create or modify microflow BugTest1610.F ($N: Integer) returns String
+begin
+  if $N > 1 then
+    return 'big';
+  else
+    return 'small';
+  end if;
+end;
