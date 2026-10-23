@@ -363,9 +363,8 @@ var useOptimizedClientValues = []string{
 }
 
 // configurationSettingKeys names every property ALTER SETTINGS CONFIGURATION and
-// CREATE CONFIGURATION assign. DatabaseUseIntegratedSecurity, MaxJavaHeapSize and
-// the Open*Port flags are read and written back as stored, but no statement sets
-// them.
+// CREATE CONFIGURATION assign. DatabaseUseIntegratedSecurity and the Open*Port
+// flags are read and written back as stored, but no statement sets them.
 var configurationSettingKeys = []string{
 	"DatabaseType",
 	"DatabaseUrl",
@@ -376,6 +375,7 @@ var configurationSettingKeys = []string{
 	"ServerPortNumber",
 	"ApplicationRootUrl",
 	"ExtraJvmParameters",
+	"MaxJavaHeapSize",
 }
 
 // webUISettingKeys names every property ALTER SETTINGS WEBUI assigns.
@@ -827,6 +827,14 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 			// verbatim; every supported Mendix version carries the property
 			// (mendixlabs/mxcli#131).
 			cfg.ExtraJvmParameters = valStr
+		case "MaxJavaHeapSize":
+			// Server ▸ Java heap ▸ Maximum size (in MB). The model has no
+			// Default/Custom flag: 0 is Studio Pro's "Default".
+			v, err := settingsInt(key, valStr)
+			if err != nil {
+				return err
+			}
+			cfg.MaxJavaHeapSize = v
 		default:
 			return unknownSettingsKey("configuration", key)
 		}
@@ -1028,6 +1036,12 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 			newCfg.ApplicationRootUrl = valStr
 		case "ExtraJvmParameters":
 			newCfg.ExtraJvmParameters = valStr
+		case "MaxJavaHeapSize":
+			v, err := settingsInt(key, valStr)
+			if err != nil {
+				return err
+			}
+			newCfg.MaxJavaHeapSize = v
 		default:
 			return unknownSettingsKey("configuration", key)
 		}
@@ -1170,6 +1184,9 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 	}
 	if cfg.ExtraJvmParameters != "" {
 		parts = append(parts, "  ExtraJvmParameters: "+mdlQuoted(cfg.ExtraJvmParameters))
+	}
+	if cfg.MaxJavaHeapSize != 0 {
+		parts = append(parts, fmt.Sprintf("  MaxJavaHeapSize: %d", cfg.MaxJavaHeapSize))
 	}
 	if cfg.DatabasePassword != "" {
 		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+

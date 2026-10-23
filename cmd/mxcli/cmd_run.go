@@ -240,10 +240,12 @@ Examples:
 			os.Exit(1)
 		}
 		reportConstantChain(os.Stdout, overrides)
+		reportJVMArgs(os.Stdout, overrides)
 
 		opts := docker.LocalRunOptions{
 			ProjectPath:        projectPath,
 			ConstantOverrides:  overrides.Values,
+			JVMArgs:            overrides.JVMArgs,
 			Hub:                hub,
 			HubSecret:          hubSecret,
 			HubKey:             hubKey,

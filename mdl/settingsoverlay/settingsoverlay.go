@@ -111,6 +111,12 @@ func ServerConfiguration(cfg *model.ServerConfiguration, raw map[string]any, sib
 // sibling deliberately: it is version-specific (Mendix 11.6 stores "Tracing", 11.12
 // "OpenTelemetry") and a new configuration has no better default to offer.
 //
+// Inherited by value, not by identity: every storage object nested in the copy
+// gets a fresh $ID. On 11.12+ the OpenTelemetry part and its Logs / Traces children
+// carry $IDs of their own, and sharing them put each id in the unit twice — the
+// write path refused it ("element id(s) are used more than once"), so `create
+// configuration` failed on every such project.
+//
 // With no sibling to copy there is no way to know which spelling this version
 // expects, so the fallback writes neither: a property the metamodel does not define
 // is what Studio Pro chokes on (see JavaVersionKey and mendixlabs/mxcli#759), while
@@ -119,9 +125,11 @@ func newServerConfiguration(cfg *model.ServerConfiguration, siblings []map[strin
 	if len(siblings) > 0 {
 		tmpl := make(map[string]any, len(siblings[0]))
 		for k, v := range siblings[0] {
-			tmpl[k] = v
+			if k == "$ID" {
+				continue // minted by ServerConfiguration
+			}
+			tmpl[k] = cloneWithFreshIDs(v)
 		}
-		delete(tmpl, "$ID")
 		tmpl["ConstantValues"] = bson.A{ArrayMarker(siblings[0]["ConstantValues"], DefaultListMarker)}
 		tmpl["CustomSettings"] = bson.A{ArrayMarker(siblings[0]["CustomSettings"], DefaultListMarker)}
 		return tmpl
@@ -132,6 +140,31 @@ func newServerConfiguration(cfg *model.ServerConfiguration, siblings []map[strin
 		"OpenAdminPort":  cfg.OpenAdminPort,
 		"OpenHttpPort":   cfg.OpenHttpPort,
 	}
+}
+
+// cloneWithFreshIDs deep-copies a stored value, minting a new $ID for every
+// storage object inside it. The copy shares no document with the original, so a
+// later overlay of one cannot change the other.
+func cloneWithFreshIDs(v any) any {
+	if m, ok := AsMap(v); ok {
+		out := make(map[string]any, len(m))
+		for k, child := range m {
+			if k == "$ID" {
+				out[k] = bsonutil.NewIDBsonBinary()
+				continue
+			}
+			out[k] = cloneWithFreshIDs(child)
+		}
+		return out
+	}
+	if arr, ok := v.(bson.A); ok {
+		out := make(bson.A, len(arr))
+		for i, el := range arr {
+			out[i] = cloneWithFreshIDs(el)
+		}
+		return out
+	}
+	return v
 }
 
 // The two spellings of the runtime Java version property. They differ in value
