@@ -1,0 +1,46 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1543 — "MDL: LOG cannot set 'Include latest stack trace'"
+-- ============================================================================
+--
+-- A Log message activity has 'Include latest stack trace'
+-- (IncludeLatestStackTrace), but `LOG ERROR NODE 'X' 'failed' WITH STACKTRACE;`
+-- was a parse error, so every log written through MDL stored false — and an
+-- error handler written by an agent could not log the stack trace.
+--
+-- `with stacktrace` ticks the box. It follows the template parameters, which
+-- also open with `with`; absent is unticked, Mendix's default.
+--
+-- EXPECTED after exec: DESCRIBE prints `with stacktrace` on exactly the logs
+-- below that carry it, in the microflow and the nanoflow, and re-running the
+-- DESCRIBE output reports "Unchanged". `mxcli docker check` reports 0 errors
+-- (measured on 11.12.4, nanoflow included).
+--
+-- In Studio Pro: those logs have 'Include latest stack trace' ticked.
+-- Guard: mdl/executor/issue1543_log_stacktrace_test.go.
+-- ============================================================================
+
+create module BugLogStack1543;
+
+create or modify microflow BugLogStack1543.ACT_log_stacktrace ()
+begin
+  -- The reporter's spelling.
+  log error node 'BugLogStack1543' 'failed' with stacktrace;
+  -- After template parameters: two clauses that both open with `with`.
+  log error node 'BugLogStack1543' 'failed {1}' with ({1} = 'probe') with stacktrace;
+  -- Absent: unticked, and DESCRIBE prints nothing for it.
+  log warning node 'BugLogStack1543' 'plain';
+  -- The use case: an error handler logging the error with its stack trace.
+  -- `$latestError/Stacktrace` is System.Error's attribute, still a name although
+  -- `stacktrace` is now a keyword.
+  declare $Ratio Decimal = 1 div 0 on error without rollback begin
+    log error node 'BugLogStack1543' 'failed: {1} {2}' with ({1} = $latestError/Message, {2} = $latestError/Stacktrace) with stacktrace;
+  end error;
+  return;
+end;
+
+create or modify nanoflow BugLogStack1543.NAV_log_stacktrace ()
+begin
+  log error node 'BugLogStack1543' 'failed' with stacktrace;
+  return;
+end;

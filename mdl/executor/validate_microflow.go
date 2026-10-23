@@ -1875,6 +1875,7 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 				"`@anchor(iterator: (…), tail: (…))` — either side of a pair may be left out (mendixlabs/mxcli#992).")
 	}
 	v.checkCaseAnchors(s, ann)
+	v.checkExcludedOnNonActivity(s, ann)
 	for _, name := range ann.UnknownNames {
 		v.addViolation("MDL059", linter.SeverityError,
 			fmt.Sprintf("unknown annotation `@%s` — it parses but does nothing, so whatever it was "+
@@ -1932,6 +1933,42 @@ func (v *microflowValidator) checkAnnotationLabels(body []ast.MicroflowStatement
 		}
 	}
 	walk(body)
+}
+
+// excludedNonActivityRule is `@excluded` on a statement that builds no activity.
+const excludedNonActivityRule = "MDL095"
+
+// checkExcludedOnNonActivity raises MDL095 for `@excluded` on a statement that
+// does not build an action activity. On an activity it is Studio Pro's "Disable
+// activity" (ActionActivity.Disabled); the Model SDK declares that property on
+// ActionActivity and nowhere else, so on a decision, a loop or an event the
+// builder has nowhere to put it and drops it — and the logic the author meant
+// to switch off runs (mendixlabs/mxcli#1139).
+func (v *microflowValidator) checkExcludedOnNonActivity(s ast.MicroflowStatement, ann *ast.ActivityAnnotations) {
+	if !ann.Excluded {
+		return
+	}
+	var what string
+	switch s.(type) {
+	case *ast.IfStmt, *ast.EnumSplitStmt, *ast.InheritanceSplitStmt:
+		what = "a decision"
+	case *ast.LoopStmt, *ast.WhileStmt:
+		what = "a loop"
+	case *ast.ReturnStmt:
+		what = "an end event"
+	case *ast.RaiseErrorStmt:
+		what = "an error event"
+	case *ast.BreakStmt, *ast.ContinueStmt:
+		what = "a break or continue event"
+	case *ast.MergeStmt, *ast.JoinStmt:
+		what = "a merge"
+	default:
+		return
+	}
+	v.addViolation(excludedNonActivityRule, linter.SeverityWarning,
+		"@excluded on "+what+" has no effect — only an activity can be disabled (Disabled is "+
+			"a property of the action activity alone), so the annotation is dropped and nothing is disabled.",
+		"Put @excluded on the activities themselves, e.g. each activity inside the branch or loop body")
 }
 
 // checkCaptionOnLoop raises MDL042 for a @caption on a loop or a while loop. Both

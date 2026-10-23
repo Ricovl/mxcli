@@ -342,6 +342,32 @@ commit $Product;
     $Feedback: MyModule.Feedback
   )
   ```
+
+### Disabled activities — `@excluded` on a statement
+
+`@excluded` **on a statement inside the body** is Studio Pro's **Disable
+activity** (right-click → Disable): the activity stays in the flow with its
+configuration and is skipped at runtime, greyed out until someone re-enables it.
+Use it for an activity mxcli cannot configure fully, so a developer can finish it
+in Studio Pro. `describe` prints it back, in microflows and nanoflows alike.
+(Before `create microflow` the same annotation is the *document's* "Exclude from
+project" — a different property.)
+
+```mdl
+mdl 1;
+create microflow MyModule.ACT_Process ($Order: MyModule.Order)
+begin
+  log info node 'Orders' 'processing';
+  @excluded
+  call microflow MyModule.SUB_NotifyLegacy(Order = $Order);
+  return;
+end;
+```
+
+Only an **activity** can be disabled — the property exists on the action activity
+alone. On a decision, a loop, `return` or `raise error` there is nowhere to put
+it, so it is dropped and `mxcli check` warns **MDL095**. Put it on the activities
+inside the branch or loop body instead (mendixlabs/mxcli#1139).
 ## Error Handling
 
 MDL supports error handling for activities that may fail (microflow calls, commits, external service calls, etc.).
@@ -434,7 +460,9 @@ begin
   -- The call output establishes $response — objects are never declared
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
     on error without rollback begin
-      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
+      -- `with stacktrace` ticks "Include latest stack trace" (after any
+      -- `with ({1} = …)` template parameters)
+      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData with stacktrace;
       -- Not `$response = create …`: a variable name is unique flow-wide,
       -- handler included (MDL063, CE0111). The fallback gets its own name
       -- and the handler returns it.

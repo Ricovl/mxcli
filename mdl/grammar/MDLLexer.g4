@@ -339,6 +339,8 @@ INFO: I N F O;
 WARNING: W A R N I N G;
 TRACE: T R A C E;
 CRITICAL: C R I T I C A L;
+// `log ... with stacktrace` — the Log message activity's "Include latest stack trace".
+STACKTRACE: S T A C K T R A C E;
 WITH: W I T H;
 EMPTY: E M P T Y;
 OBJECT: O B J E C T;
