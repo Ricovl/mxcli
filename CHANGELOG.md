@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A pluggable widget's text-template parameter across an association builds, and describes so it re-executes** (mendixlabs/mxcli#1494) — `fieldset fs (legend: '{1}', legendParams: ({1} = M.Parent_Child/Label))` passed `check` and `exec` and failed the build with `[CE1365] "Attribute 'M.Child.Label' is not an attribute of entity 'M.Parent'."`: the parameter was written with its attribute but without the association hop, so mxbuild read the attribute against the widget's own entity. The same writer serves an object-list item's template (an Accordion group's `headerText`) and a Data grid 2 column's dynamic text, and all three failed; on Mendix 11.12.4 they now build with 0 errors. `describe page` printed such a parameter as the bare attribute (`{1} = Label`), which re-executed into CE1613 "The selected attribute 'M.Parent.Label' no longer exists"; it now prints `M.Parent_Child/Label`. The companion report, an expression parameter (`{1} = if 1 = 1 then 'A' else 'B'`) stored as an attribute name (mendixlabs/mxcli#1495), was fixed in v0.25.0 (#823) and is now pinned by a test.
+
 ## [0.28.0] - 2026-10-23
 
 Headline: **Change one thing without restating the rest: `alter navigation`, `alter menu` and `alter consumed rest service` edit a document in place, ALTER PAGE reaches every widget, and `create or modify` of a flow splices note, caption and error-handler changes instead of refusing them.** Alongside it: Protected (add-on) modules and `export level` are understood by `check` and MDL, `mxcli marketplace package` exports a module as a `.mpk`, rewriting a page no longer deletes the widgets MDL cannot author, and the deprecated v1 BSON driver is gone, leaving mxcli on `mongo-driver/v2` alone.

@@ -151,3 +151,37 @@ func TestBothDescribers_StillReportATrulyUnboundParameter(t *testing.T) {
 		}
 	}
 }
+
+// mendixlabs/mxcli#1494: a parameter bound across an association
+// (AttributeRef.EntityRef = IndirectEntityRef of steps) renders as its
+// `Assoc/Attr` path in BOTH describers. The pluggable one printed the bare
+// `Label`, which re-executes against the widget's own entity — the same CE1365
+// the write side had just stopped producing. The core describer had learned the
+// path and its twin had not: the drift #977 found, a second time.
+func TestBothDescribers_RenderAnAssociationPath(t *testing.T) {
+	param := map[string]any{
+		"AttributeRef": map[string]any{
+			"$Type":     "DomainModels$AttributeRef",
+			"Attribute": "Repro.Child.Label",
+			"EntityRef": map[string]any{
+				"$Type": "DomainModels$IndirectEntityRef",
+				"Steps": []any{map[string]any{
+					"$Type":             "DomainModels$EntityRefStep",
+					"Association":       "Repro.Parent_Child",
+					"DestinationEntity": "Repro.Child",
+				}},
+			},
+		},
+	}
+	template := map[string]any{"Parameters": []any{param}}
+	ctx, _ := newMockCtx(t)
+
+	for label, values := range map[string][]string{
+		"cmd_pages_describe_output":    extractClientTemplateParameters(ctx, map[string]any{"Content": template}, "Content"),
+		"cmd_pages_describe_pluggable": extractTextTemplateParameters(ctx, template),
+	} {
+		if len(values) != 1 || values[0] != "Repro.Parent_Child/Label" {
+			t.Errorf("%s: rendered %v, want [Repro.Parent_Child/Label]", label, values)
+		}
+	}
+}
