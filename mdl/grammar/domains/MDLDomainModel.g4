@@ -298,7 +298,9 @@ alterEntityAction
     | DROP INDEX ifExists? indexDefinition
     | DROP INDEX ifExists? IDENTIFIER
     | ADD EVENT HANDLER ifNotExists? eventHandlerDefinition
-    | DROP EVENT HANDLER ifExists? ON eventMoment eventType
+    // An entity may carry several handlers for one event, so CALL names which
+    // one to drop. Without it the drop must be unambiguous (mendixlabs/mxcli#1540).
+    | DROP EVENT HANDLER ifExists? ON eventMoment eventType (CALL qualifiedName)?
     ;
 
 // Idempotency guards for a re-runnable domain script: ADD ... IF NOT EXISTS

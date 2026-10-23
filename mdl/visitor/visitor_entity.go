@@ -967,7 +967,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				return
 			}
 
-			// DROP EVENT HANDLER ON Moment Type
+			// DROP EVENT HANDLER ON Moment Type [CALL Mod.Microflow]
 			if ctx.DROP() != nil && ctx.EVENT() != nil && ctx.HANDLER() != nil {
 				eh := &ast.EventHandlerDef{}
 				if m := ctx.EventMoment(); m != nil {
@@ -985,6 +985,9 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 					case "ROLLBACK":
 						eh.Event = "RollBack"
 					}
+				}
+				if qn := ctx.QualifiedName(); qn != nil {
+					eh.Microflow = buildQualifiedName(qn)
 				}
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:         name,
