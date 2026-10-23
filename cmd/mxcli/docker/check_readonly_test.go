@@ -352,3 +352,61 @@ func TestWithProjectCopy_SkipsNamedFoldersButNeverTheProject(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// mendixlabs/mxcli#1629: with an mx of the project's minor but another patch,
+// `mx update-widgets` refuses the project while `mx check` accepts it. Measured
+// with 10.24.18's mx on a project at 10.24.13: update-widgets prints "Project is
+// in different Mendix version - 10.24.13.86719" and exits 4; mx check reports 0
+// errors. The check carried on, as it should — and then closed with a note that
+// widget definitions "were normalised on a temporary copy", a few lines after
+// the warning that they were not.
+func TestCheck_FailedUpdateWidgetsIsNotReportedAsNormalised(t *testing.T) {
+	mprPath := v1Fixture(t)
+	stubTools(t)
+	updateWidgetsCmd = func(_, _ string, w, _ io.Writer) error {
+		fmt.Fprintln(w, "Project is in different Mendix version - 10.24.13.86719")
+		return fmt.Errorf("exit status 4")
+	}
+	t.Setenv("TMPDIR", t.TempDir())
+
+	var out bytes.Buffer
+	if err := Check(CheckOptions{ProjectPath: mprPath, Stdout: &out, Stderr: io.Discard}); err != nil {
+		t.Fatalf("a failed update-widgets must not stop the check: %v\n%s", err, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "The app contains: 0 errors.") {
+		t.Fatalf("mx check did not run after update-widgets failed:\n%s", got)
+	}
+	if strings.Contains(got, "were normalised") {
+		t.Errorf("output says widget definitions were normalised after update-widgets failed:\n%s", got)
+	}
+	if !strings.Contains(got, "not normalised") {
+		t.Errorf("output does not say the check ran without normalisation:\n%s", got)
+	}
+}
+
+// docker check never downloads MxBuild: it resolves an mx that is installed or
+// cached, and stops when there is none. The docs said it downloaded on first use,
+// so on a fresh clone the reader met "mx not found; specify --mxbuild-path
+// pointing to Mendix installation directory" (measured with an empty HOME) and
+// nothing naming the command that does download.
+func TestCheck_MissingMxNamesSetupNotADownload(t *testing.T) {
+	mprPath := v1Fixture(t)
+	seen := stubTools(t)
+	resolveMxForCheck = func(string, string) (string, error) {
+		return "", fmt.Errorf("mx not found; specify --mxbuild-path pointing to Mendix installation directory")
+	}
+
+	err := Check(CheckOptions{ProjectPath: mprPath, Stdout: io.Discard, Stderr: io.Discard})
+	if err == nil {
+		t.Fatal("Check succeeded without an mx")
+	}
+	if len(*seen) != 0 {
+		t.Errorf("mx ran without having been found: %v", *seen)
+	}
+	for _, want := range []string{"does not download", "mxcli setup mxbuild -p " + mprPath} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not say %q:\n%v", want, err)
+		}
+	}
+}
