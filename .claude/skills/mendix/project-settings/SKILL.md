@@ -11,10 +11,10 @@ description: "Read and change project settings in MDL — database configuration
 | lines | section |
 |---|---|
 | 22-32 | When to Use This Skill |
-| 33-339 | Commands |
-| 340-367 | Common Patterns |
-| 368-376 | Checklist |
-| 377-381 | AfterStartupMicroflow Must Return Boolean |
+| 33-341 | Commands |
+| 342-369 | Common Patterns |
+| 370-378 | Checklist |
+| 379-383 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -141,12 +141,14 @@ alter settings configuration 'Default' (
 
 The configuration keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`,
 `DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`,
-`ApplicationRootUrl` and `ExtraJvmParameters`; `create configuration` takes the same.
+`ApplicationRootUrl`, `ExtraJvmParameters` and `MaxJavaHeapSize` (Server ▸ Java heap
+▸ Maximum size, in MB; `0` is Studio Pro's "Default"); `create configuration` takes
+the same.
 `ExtraJvmParameters` is what Studio Pro passes to the JVM when it runs the app —
 `mxcli run --local` starts the runtime itself and does not apply it.
 
-`HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism` and
-`WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;
+`HttpPortNumber`, `ServerPortNumber`, `MaxJavaHeapSize`, `BcryptCost`,
+`DefaultTaskParallelism`, `WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;
 `AllowUserMultipleSessions`, `EnableDataStorageOptimisticLocking`,
 `UseDatabaseForeignKeyConstraints` and `UseOQLVersion2` are Boolean; `FirstDayOfWeek`
 and `SslCertificateAlgorithm` are enumerations, matched case-insensitively and

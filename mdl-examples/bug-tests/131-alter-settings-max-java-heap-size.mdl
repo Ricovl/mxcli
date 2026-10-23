@@ -1,0 +1,20 @@
+mdl 1;
+-- Follow-up to mendixlabs/mxcli#131: MaxJavaHeapSize could not be set
+--
+-- MaxJavaHeapSize is Studio Pro's Configuration ▸ Server ▸ Java heap ▸ Maximum
+-- size (in MB), on the same tab as Extra JVM parameters. The reader read it and
+-- the overlay wrote it back, but `alter settings configuration` and `create
+-- configuration` answered "unknown configuration setting: MaxJavaHeapSize", and
+-- DESCRIBE left it out. The stored configuration has no Default/Custom flag: 0 is
+-- Studio Pro's "Default", and DESCRIBE prints the key only when it is not 0.
+--
+-- Measured on a blank 11.14.0 app: `mx check` reports 0 errors after this script.
+
+alter settings configuration 'Default' (
+  MaxJavaHeapSize: 2048
+);
+
+-- Back to Studio Pro's "Default".
+alter settings configuration 'Default' (
+  MaxJavaHeapSize: 0
+);

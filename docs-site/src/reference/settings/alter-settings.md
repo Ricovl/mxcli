@@ -32,7 +32,7 @@ Modifies project settings by category. Each category has its own syntax and avai
 
 **MODEL** settings control application-level behavior such as the after-startup microflow, hashing algorithm, and Java version.
 
-**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). The keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`, `DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`, `ApplicationRootUrl` and `ExtraJvmParameters` (Studio Pro's Server ▸ Extra JVM parameters). The configuration name must be enclosed in single quotes.
+**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). The keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`, `DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`, `ApplicationRootUrl`, `ExtraJvmParameters` (Studio Pro's Server ▸ Extra JVM parameters) and `MaxJavaHeapSize` (Server ▸ Java heap ▸ Maximum size, in MB; `0` is Studio Pro's "Default"). The configuration name must be enclosed in single quotes.
 
 **CONSTANT** settings override the default value of a project constant within a specific runtime configuration. The constant is named as MDL names a constant everywhere, `@Module.Name`; the configuration name is enclosed in single quotes. The older quoted constant name (`CONSTANT 'Module.Name'`) still parses and warns `MDL-DEPR085`; `mxcli fmt --upgrade` rewrites it.
 
