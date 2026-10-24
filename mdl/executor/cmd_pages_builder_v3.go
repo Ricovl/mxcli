@@ -562,6 +562,7 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 		if err := pb.storedPluggables.refuseLostHiddenContent(def, w); err != nil {
 			return nil, err
 		}
+		pb.storedPluggables.carryNoActionExecution(def, w, widget)
 	}
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err
