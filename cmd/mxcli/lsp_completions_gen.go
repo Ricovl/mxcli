@@ -174,6 +174,7 @@ var mdlGeneratedKeywords = []protocol.CompletionItem{
 	{Label: "WARNING", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "TRACE", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "CRITICAL", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
+	{Label: "STACKTRACE", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "WITH", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "EMPTY", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},
 	{Label: "OBJECT", Kind: protocol.CompletionItemKindKeyword, Detail: "Microflow keyword"},

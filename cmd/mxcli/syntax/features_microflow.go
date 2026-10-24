@@ -592,9 +592,10 @@ func init() {
 		Keywords: []string{
 			"log", "logging", "info", "warning", "error", "debug",
 			"trace", "critical", "node", "message template",
+			"stacktrace", "stack trace", "include latest stack trace",
 		},
-		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
-		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
+		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);\nLOG ERROR NODE 'OrderService' 'Failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;",
 	})
 
 	Register(SyntaxFeature{
@@ -639,10 +640,16 @@ func init() {
 		Summary: "Open and close pages from microflows",
 		Keywords: []string{
 			"show page", "open page", "close page", "display page",
-			"navigate", "page action",
+			"navigate", "page action", "number of pages to close", "title override",
 		},
-		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE [n];",
-		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
+		Syntax: "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value) [WITH title = 'Title', NumberOfPagesToClose = n];\nCLOSE PAGE [n];",
+		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\n\n" +
+			"-- Close the current page, then open the overview (Studio Pro: \"Number of\n" +
+			"-- pages to close\"; an Integer expression, unstated closes none). A setting,\n" +
+			"-- not an argument: (NumberOfPagesToClose: 1) is a page parameter (CE1613).\n" +
+			"SHOW PAGE MyModule.OrderOverview WITH NumberOfPagesToClose = 1;\n" +
+			"SHOW PAGE MyModule.OrderDetail (Order = $NewOrder) WITH title = 'Edit order';\n\n" +
+			"CLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
 		SeeAlso: []string{"page"},
 	})
 
@@ -812,10 +819,11 @@ func init() {
 
 	Register(SyntaxFeature{
 		Path:    "microflow.layout",
-		Summary: "Canvas layout annotations — @position, @start, @anchor, @curve, @caption, @color",
+		Summary: "Canvas layout annotations — @position, @start, @anchor, @curve, @caption, @color, @excluded",
 		Keywords: []string{
 			"position", "start", "anchor", "curve", "layout", "canvas",
 			"annotation", "caption", "color", "excluded", "bezier",
+			"disable activity", "disabled activity",
 		},
 		Syntax: "@position(x, y)                       -- the activity's centre point\n" +
 			"@position(x, y)                       -- also on a PARAMETER, in the ( … ) list\n" +
@@ -852,12 +860,17 @@ func init() {
 			"DOCUMENT annotations too — a typo, or one on a document kind that does not\n" +
 			"read it (@applyentityaccess on a nanoflow, @excluded on a queue), is\n" +
 			"refused with the list of what that document does accept.\n\n" +
-			"@excluded and @applyentityaccess are DOCUMENT annotations — they go before\n" +
-			"CREATE, not on a statement. @applyentityaccess runs the flow under the\n" +
-			"current user's entity access rules instead of with full access; it is a\n" +
-			"SECURITY setting and only ever narrows, so an ABSENT annotation PRESERVES\n" +
-			"whatever is stored and @applyentityaccess(false) is how a script turns it\n" +
-			"off. A nanoflow has no such property (it runs in the client).\n\n" +
+			"@excluded on a STATEMENT disables that activity (Studio Pro's Disable\n" +
+			"activity): it stays in the flow, configured, and is skipped at runtime.\n" +
+			"Only an activity can be disabled — on a decision, loop, return or raise\n" +
+			"error it is dropped, and check warns (MDL095).\n\n" +
+			"@excluded before CREATE is the DOCUMENT annotation (Exclude from project).\n" +
+			"@applyentityaccess is document-only — it goes before CREATE, never on a\n" +
+			"statement — and runs the flow under the current user's entity access rules\n" +
+			"instead of with full access; it is a SECURITY setting and only ever\n" +
+			"narrows, so an ABSENT annotation PRESERVES whatever is stored and\n" +
+			"@applyentityaccess(false) is how a script turns it off. A nanoflow has no\n" +
+			"such property (it runs in the client).\n\n" +
 			"Mendix stores no waypoints — a flow's shape is two control vectors, each a\n" +
 			"pixel offset from its end of the line. (0, 0) at both ends is straight.\n" +
 			"@position on a split belongs to the SPLIT, so its end-if join has its own\n" +

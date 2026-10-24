@@ -80,7 +80,7 @@ const (
 	AlterEntityDropIndex                                        // DROP INDEX
 	AlterEntitySetPosition                                      // SET POSITION (x, y)
 	AlterEntityAddEventHandler                                  // ADD EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK CALL Mod.MF
-	AlterEntityDropEventHandler                                 // DROP EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK
+	AlterEntityDropEventHandler                                 // DROP EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK [CALL Mod.MF]
 	AlterEntitySetAllowCreateChangeLocally                      // SET ALLOW_CREATE_CHANGE_LOCALLY = true/false
 	AlterEntityDropDefault                                      // DROP DEFAULT ON ATTRIBUTE — clear a default value
 	AlterEntitySetExportLevel                                   // SET EXPORT LEVEL API | HIDDEN
@@ -90,7 +90,7 @@ const (
 type EventHandlerDef struct {
 	Moment            string        // "Before" or "After"
 	Event             string        // "Create", "Commit", "Delete", "Rollback"
-	Microflow         QualifiedName // Microflow to call
+	Microflow         QualifiedName // Microflow to call; on DROP, empty unless CALL names one
 	RaiseErrorOnFalse bool          // RAISE ERROR clause present
 	PassEventObject   bool          // Whether to pass entity object (default true)
 }

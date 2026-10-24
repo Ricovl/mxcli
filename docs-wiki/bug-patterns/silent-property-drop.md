@@ -216,6 +216,26 @@ is both plausible and inert. That table is also the fix: because the engine
 already maps keyword to property per widget, the diagnostic can name the
 spelling *this* widget uses instead of listing everything it declares.
 
+**One property, two names: every reader has to treat them as one.** A
+pluggable property is reachable by its mapping's keyword (`Selection:`) and by
+its own key (`itemSelection:`). The pass that skips "already handled" names
+compared the author's name with the keywords only, so the key fell through to
+the scalar writer and was stored where no reader looks; a rule judging the value
+read only the keyword, and refused a page the builder writes correctly. Grep
+every consumer for *both* names. Where the two spellings can disagree, refuse
+the pair rather than choose — choosing is a silent drop of the other. And a
+hand-written definition outlives the widget version it was written for: its
+constant for a key the installed package no longer declares is harmless until
+the script names that key, and then it is a drop like any other.
+
+**A setting written as an argument is a dangling reference, not a dropped
+property.** `show page M.P (NumberOfPagesToClose: 1)` parsed as the deprecated
+`Param: value` argument, so the setting became a mapping to a page parameter
+that does not exist — a build error the reference check never saw, because
+show page arguments, unlike flow-call arguments, were never compared with the
+callee's parameters. Before adding the missing property, ask what the author's
+spelling meant instead, and close that path too.
+
 ## See also
 
 - [fix-issue findings](../../.claude/skills/fix-issue/findings/) — the individual

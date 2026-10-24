@@ -1029,6 +1029,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
 			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
+			writeHiddenContentNote(ctx.Output, prefix, w.Name, w.HiddenContent)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
@@ -1823,18 +1824,11 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 			}
 		}
 
-		// Check for a Forms$PageVariable binding.
+		// Check for a Forms$PageVariable binding. One naming only a widget is a
+		// control-bar button passing its grid's selection (mendixlabs/mxcli#122),
+		// written `$grid`.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
-		}
-		// A PageVariable naming only a widget is a control-bar button passing
-		// its grid's selection (mendixlabs/mxcli#122), written `$grid`.
-		if value == "" {
-			if v, ok := mappingMap["Variable"].(map[string]any); ok {
-				if w := extractString(v["Widget"]); w != "" {
-					value = "$" + w
-				}
-			}
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1891,7 +1885,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1950,7 +1944,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1979,84 +1973,19 @@ func extractTextsText(ctx *ExecContext, w map[string]any, field string) string {
 }
 
 // extractClientTemplateParameters extracts parameter values from a ClientTemplate field (Content or Caption).
+//
+// One reader for every stored Forms$ClientTemplateParameter: the pluggable
+// describer's extractTextTemplateParameters. This used to be a second copy of
+// that loop, and the two drifted twice — a local-variable binding read here as
+// `<unbound>` (upstream #977), and an association path was read only here, so a
+// pluggable widget's `{1} = Assoc/Attr` described as the bare attribute
+// (mendixlabs/mxcli#1494).
 func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldName string) []string {
 	template, ok := w[fieldName].(map[string]any)
 	if !ok {
 		return nil
 	}
-	params := getBsonArrayElements(template["Parameters"])
-	if params == nil {
-		return nil
-	}
-	var result []string
-	var suffixes []string // per-param format block " (decimalPrecision: 2, …)", "" when default
-	for _, p := range params {
-		pMap, ok := p.(map[string]any)
-		if !ok {
-			continue
-		}
-		// One suffix per emitted param, in the same order, so it can be zipped in
-		// after the value string is chosen (round-trips per-parameter formatting).
-		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
-		// Check for Expression first (literal value)
-		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
-			// The expression as stored. `toString($Order/Total)` used to be
-			// unwrapped to `$Order.Total`, the spelling mxcli once wrapped in
-			// toString itself; that spelling now binds the attribute (#823,
-			// MDL-V1-TEMPLATEATTR), so unwrapping changed the page's output on
-			// describe -> exec. The write side stores a non-attribute value as
-			// an expression (isTemplateExpression), so the text round-trips.
-			result = append(result, strings.TrimSpace(expr))
-			continue
-		}
-
-		// Which variable the parameter is bound to, if any. This read only
-		// PageParameter, so a binding to a page-level LOCAL variable came back as
-		// `<unbound>` here while the pluggable describer rendered the same bytes
-		// as `$Name` (upstream #977) — hence the shared resolver.
-		sourceVarName, isLocalVariable := sourceVariableBinding(pMap)
-
-		// A local variable renders bare: it has no AttributeRef to hang off.
-		if isLocalVariable {
-			result = append(result, "$"+sourceVarName)
-			continue
-		}
-
-		// Check for AttributeRef
-		if attrRef, ok := pMap["AttributeRef"].(map[string]any); ok && attrRef != nil {
-			// Attribute navigated over associations (AttributeRef.EntityRef):
-			// reconstruct the "Assoc/.../Attr" path so DESCRIBE round-trips.
-			if assocPath := associationTemplateParamPath(attrRef); assocPath != "" {
-				result = append(result, assocPath)
-				continue
-			}
-			if attr, ok := attrRef["Attribute"].(string); ok {
-				if sourceVarName != "" {
-					// Has SourceVariable - this is a page parameter reference
-					// Extract just the attribute name from the path
-					// attr is like "Module.Entity.Attribute", we want just "Attribute"
-					parts := strings.Split(attr, ".")
-					attrName := parts[len(parts)-1]
-					// Use $ParamName.Attribute format to indicate parameter reference
-					result = append(result, "$"+sourceVarName+"."+attrName)
-				} else {
-					// No SourceVariable - use short attribute name
-					result = append(result, describeAttr(ctx, attr))
-				}
-				continue
-			}
-		}
-		// Parameter exists but has no binding - mark as unbound
-		result = append(result, "<unbound>")
-	}
-	// Append each param's format block to its value string. result and suffixes are
-	// aligned (one of each per param that had a valid pMap).
-	for i := range result {
-		if i < len(suffixes) && suffixes[i] != "" {
-			result[i] += suffixes[i]
-		}
-	}
-	return result
+	return extractTextTemplateParameters(ctx, template)
 }
 
 // formatParamFormatSuffix renders a dynamic-text parameter's FormattingInfo back

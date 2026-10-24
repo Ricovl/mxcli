@@ -122,6 +122,11 @@ type WidgetDefinition struct {
 	// value yields an MDL-WIDGET04 warning rather than a false MDL-WIDGET01
 	// error. Validation-only; never written to BSON. See issue #643.
 	KnownProperties []string `json:"knownProperties,omitempty"`
+
+	// declaredKeys is every property key (lower-cased) the project's INSTALLED
+	// package declares, system ones included; nil when unknown — no project,
+	// or no package for the widget. Validation-only (mendixlabs/mxcli#1618).
+	declaredKeys map[string]bool
 }
 
 // PropertyMapping maps an MDL source (attribute, association, literal, etc.)
@@ -442,7 +447,7 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	//
 	// The set of properties that must be default-valued is the widget's to decide,
 	// not mxcli's; making it a subset of what MDL has words for was the mistake.
-	for propKey, reset := range unmappedHiddenResets(def, e.visibilityRules(def), hiddenSkip) {
+	for propKey, reset := range unmappedHiddenResets(mappings, e.visibilityRules(def), hiddenSkip) {
 		builder.SetPrimitive(propKey, reset)
 	}
 
@@ -594,16 +599,26 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 
 	// 4.6 Apply explicit properties (not covered by .def.json mappings)
 	mappedKeys := make(map[string]bool)
+	selectionKeys := make(map[string]bool) // lower-cased: read like lookupProperty, in any case
 	for _, m := range mappings {
 		if m.Source != "" {
 			mappedKeys[m.Source] = true
+		}
+		// A selection is read by its key as well as by `Selection:`
+		// (selectionMappingValue), so this pass must not write it a second
+		// time — as a PrimitiveValue, which is where `itemSelection: Single`
+		// used to end up (mendixlabs/mxcli#1618).
+		if m.Operation == "selection" {
+			for _, k := range append([]string{m.PropertyKey}, m.MdlAliases...) {
+				selectionKeys[strings.ToLower(k)] = true
+			}
 		}
 	}
 	for _, s := range slots {
 		mappedKeys[s.MDLContainer] = true
 	}
 	for propName, propVal := range w.Properties {
-		if mappedKeys[propName] || isBuiltinPropName(propName) {
+		if mappedKeys[propName] || selectionKeys[strings.ToLower(propName)] || isBuiltinPropName(propName) {
 			continue
 		}
 		entry, ok := propertyTypeIDs[propName]
@@ -699,6 +714,18 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 			if attrPath != "" {
 				builder.SetAttribute(propName, attrPath)
 			}
+		case "Selection":
+			// A selection lives in the value's Selection field, never in
+			// PrimitiveValue, where the primitive fallback below put a combo
+			// box's `optionsSourceDatabaseItemSelection: 'Single'`
+			// (mendixlabs/mxcli#1583). A selection the definition maps is read
+			// in the mapping pass instead (mendixlabs/mxcli#1618); this is one
+			// it does not.
+			canonical, err := checkedSelectionValue(w, propName, strVal)
+			if err != nil {
+				return nil, err
+			}
+			builder.SetSelection(propName, canonical)
 		default:
 			// Known non-attribute types: always use primitive
 			if entry.ValueType != "" && entry.ValueType != "Attribute" {
@@ -902,19 +929,19 @@ func (e *PluggableWidgetEngine) visibilityRules(def *WidgetDefinition) []types.W
 // datasource has no default.
 //
 // The mapped ones are excluded rather than merged: the loop already writes them,
-// and writing a second value for one property is its own defect.
-func unmappedHiddenResets(def *WidgetDefinition, rules []types.WidgetVisibilityRule, hidden map[string]string) map[string]string {
+// and writing a second value for one property is its own defect. "Mapped" means
+// in mappings — the mode the widget is built in, which is all the loop visits.
+// Counting every mode's mappings left a property that only ANOTHER mode maps
+// unwritten by either: a database-mode Combo box kept the template's
+// `optionsSourceType` "enumeration", hidden there, against a declared
+// "association" — CE0463 (mendixlabs/mxcli#1583).
+func unmappedHiddenResets(mappings []PropertyMapping, rules []types.WidgetVisibilityRule, hidden map[string]string) map[string]string {
 	if len(hidden) == 0 {
 		return nil
 	}
-	mapped := make(map[string]bool, len(def.PropertyMappings))
-	for _, m := range def.PropertyMappings {
+	mapped := make(map[string]bool, len(mappings))
+	for _, m := range mappings {
 		mapped[strings.ToLower(m.PropertyKey)] = true
-	}
-	for _, mode := range def.Modes {
-		for _, m := range mode.PropertyMappings {
-			mapped[strings.ToLower(m.PropertyKey)] = true
-		}
 	}
 	out := map[string]string{}
 	for _, rule := range rules {
@@ -1046,8 +1073,16 @@ func singleAttributeOverflowMessage(w *ast.WidgetV3, m PropertyMapping, attrs []
 // (`value` in the .def.json) is not checked: it is the definition's default, not
 // the user's data, and an older widget version lacking the key is not the
 // script's fault.
+//
+// A constant the script overrides by the property's own key is the script's
+// value, though: Gallery 3.4.0 declares no `advanced`, which the hand-written
+// definition maps to false, and `advanced: true` was discarded
+// (mendixlabs/mxcli#1618).
 func refuseUndeclaredMappedKey(builder backend.WidgetObjectBuilder, def *WidgetDefinition, mapping PropertyMapping, ctx *BuildContext, w *ast.WidgetV3) error {
-	if mapping.Value != "" || !ctx.carriesValue() {
+	if !ctx.carriesValue() {
+		return nil
+	}
+	if _, authored := lookupProperty(w.Properties, mapping.PropertyKey); mapping.Value != "" && !authored {
 		return nil
 	}
 	declarer, ok := builder.(backend.WidgetPropertyDeclarer)
@@ -1657,7 +1692,10 @@ func (e *PluggableWidgetEngine) resolveMapping(mapping PropertyMapping, w *ast.W
 		}
 
 	case "Selection":
-		val := w.GetSelection()
+		val, err := selectionMappingValue(mapping, w)
+		if err != nil {
+			return nil, err
+		}
 		if val == "" && mapping.Default != "" {
 			val = mapping.Default
 		}

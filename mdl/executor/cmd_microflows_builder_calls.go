@@ -91,7 +91,8 @@ func (fb *flowBuilder) addLogMessageAction(s *ast.LogStmt) model.ID {
 				fb.textLangOrDefault(): templateText,
 			},
 		},
-		TemplateParameters: templateParams,
+		TemplateParameters:    templateParams,
+		IncludeLastStackTrace: s.IncludeLatestStackTrace,
 	}
 
 	activity := &microflows.ActionActivity{
@@ -1158,6 +1159,11 @@ func (fb *flowBuilder) addShowPageAction(s *ast.ShowPageStmt) model.ID {
 	// Set passed object if FOR syntax was used
 	if s.ForObject != "" {
 		action.PassedObject = "$" + s.ForObject
+	}
+
+	// "Number of pages to close" (mendixlabs/mxcli#1617); none when unstated.
+	if s.NumberOfPagesToClose != nil {
+		action.NumberOfPagesToClose = fb.exprToString(s.NumberOfPagesToClose)
 	}
 
 	// Set title override if specified

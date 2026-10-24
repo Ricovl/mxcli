@@ -435,15 +435,15 @@ on after create call Sales.ACT_InitDefaults;
 alter entity Sales.Order
   add event handler on before delete call Sales.ACT_CheckCanDelete raise error;
 
--- Drop via ALTER ENTITY
+-- Drop via ALTER ENTITY (call names which, when the event has several)
 alter entity Sales.Order
-  drop event handler on before commit;
+  drop event handler on before commit call Sales.ACT_ValidateOrder;
 ```
 
 **Moments**: `before`, `after`
 **Events**: `create`, `commit`, `delete`, `rollback`
 
-Each (Moment, Event) combination can only have one handler per entity. The microflow must exist (the executor validates the reference). `raise error` is optional — without it, the handler runs but its return value doesn't affect the operation.
+An entity may have several handlers for one (Moment, Event), as in Studio Pro: a handler is identified by its moment, event and microflow, so `add event handler` with another microflow adds a second one, and `drop event handler … call Mod.MF` says which to remove (without `call`, a drop matching several is refused). The microflow must exist (the executor validates the reference). `raise error` is optional — without it, the handler runs but its return value doesn't affect the operation.
 
 ### Associations
 

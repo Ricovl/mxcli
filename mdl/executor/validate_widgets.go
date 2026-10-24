@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -339,6 +340,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validateWidgetExpressionValuesIn(w, def, nil, isObjectListItem, embedded, locationPrefix)...)
 			// An Expression property's value of the wrong kind (MDL-WIDGET49).
 			out = append(out, validateWidgetExpressionReturnTypes(w, def, embedded, locationPrefix)...)
+			// A selection that is not one, or two of them (MDL-WIDGET50, #1618).
+			out = append(out, validateWidgetSelectionValues(w, def, embedded, locationPrefix)...)
 		}
 		// A generic widget type that resolved to nothing is already reported as
 		// MDL-WIDGET25 (the kind is wrong). Validating its properties on top of
@@ -461,6 +464,9 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 	if comboBoxHasOptionsDataSource(w) {
 		return validateComboBoxCaption(w, locationPrefix)
 	}
+	if comboBoxMode(w) == "database" {
+		return validateComboBoxDatabase(w, locationPrefix)
+	}
 	if w.GetStringProp("Association") == "" {
 		return nil
 	}
@@ -472,6 +478,34 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 			locationPrefix, w.Name),
 		Suggestion: "Association mode needs the option list and a caption: `combobox " + w.Name + " (Association: Module.Ref, datasource: database Module.TargetEntity, CaptionAttribute: Name)`.",
 	}}
+}
+
+// comboBoxDefinition is the built-in combo box definition. Check asks its mode
+// selection rather than restating it, so the two cannot drift.
+var comboBoxDefinition = sync.OnceValue(func() *WidgetDefinition {
+	reg, err := NewWidgetRegistry()
+	if err != nil {
+		return nil
+	}
+	def, _ := reg.Get("COMBOBOX")
+	return def
+})
+
+// comboBoxMode is the mode exec builds a combo box in — "association",
+// "database" or "default" (enumeration) — by the definition's own conditions:
+// the generic `datasource:` clause or the association key selects association
+// mode, `optionsSourceDatabaseDataSource` the database mode
+// (mendixlabs/mxcli#1583). "" when it cannot be told.
+func comboBoxMode(w *ast.WidgetV3) string {
+	def := comboBoxDefinition()
+	if def == nil || w == nil {
+		return ""
+	}
+	mode, err := (&PluggableWidgetEngine{}).selectMode(def, w)
+	if err != nil || mode == nil {
+		return ""
+	}
+	return mode.Name
 }
 
 // comboBoxHasOptionsDataSource reports whether a ComboBox carries the option
@@ -536,6 +570,50 @@ func validateComboBoxCaption(w *ast.WidgetV3, locationPrefix string) []linter.Vi
 			locationPrefix, w.Name, why),
 		Suggestion: fix,
 	}}
+}
+
+// validateComboBoxDatabase is MDL-WIDGET16 for the database mode
+// (mendixlabs/mxcli#1583): the option caption, and — when the combo box stores
+// the chosen option on an attribute of its own object — the option attribute
+// whose value it stores. Measured on a fresh 11.12.5 project, Combo box 2.5.0,
+// one combo box per row:
+//
+//	no caption                                         CE0642 'Caption'
+//	caption type expression, only CaptionAttribute      CE0642 'Caption'
+//	Attribute: (or databaseAttributeString:), no value  CE0642 'Value'
+//	no target attribute, no value attribute             ok
+//	optionsSourceDatabaseItemSelection: Multi           ok (hides both)
+//	caption expression with the expression type         ok
+func validateComboBoxDatabase(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	var out []linter.Violation
+	required := func(property, why, fix string) {
+		out = append(out, linter.Violation{
+			RuleID:   "MDL-WIDGET16",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf("%s: combobox `%s` takes its options from `optionsSourceDatabaseDataSource` (database mode) %s — "+
+				"mxbuild fails the build with CE0642 (\"Property '%s' is required.\")", locationPrefix, w.Name, why, property),
+			Suggestion: fix,
+		})
+	}
+	if strings.EqualFold(comboBoxPropText(w, "optionsSourceDatabaseCaptionType"), "expression") {
+		if comboBoxPropText(w, "optionsSourceDatabaseCaptionExpression") == "" {
+			required("Caption", "and sets `optionsSourceDatabaseCaptionType: expression` but no `optionsSourceDatabaseCaptionExpression`",
+				"Add `optionsSourceDatabaseCaptionExpression: '$currentObject/<Attr>'`, or drop the caption type and use `CaptionAttribute: <Attr>`.")
+		}
+	} else if comboBoxPropText(w, "CaptionAttribute") == "" && comboBoxPropText(w, "optionsSourceDatabaseCaptionAttribute") == "" {
+		required("Caption", "but has no caption",
+			"Name the attribute shown for each option: `CaptionAttribute: <attribute of the listed entity>`, or give an expression caption: "+
+				"`optionsSourceDatabaseCaptionType: expression, optionsSourceDatabaseCaptionExpression: '$currentObject/<Attr>'`.")
+	}
+	multi := strings.EqualFold(comboBoxPropText(w, "optionsSourceDatabaseItemSelection"), "Multi") ||
+		strings.EqualFold(w.GetSelection(), "Multi")
+	target := w.GetAttribute() != "" || comboBoxPropText(w, "databaseAttributeString") != ""
+	if !multi && target && comboBoxPropText(w, "optionsSourceDatabaseValueAttribute") == "" {
+		required("Value", "and stores the chosen option on an attribute, but does not say which of the option's attributes to store",
+			"Name it: `optionsSourceDatabaseValueAttribute: <attribute of the listed entity>`. "+
+				"Without a target attribute (`Attribute:`) the combo box only selects, and needs no value attribute.")
+	}
+	return out
 }
 
 // comboBoxPropText is a ComboBox property's value as text, "" when it is absent
@@ -1734,6 +1812,24 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 			continue
 		}
 
+		// A key the definition maps by its own name that the installed widget
+		// does not declare is written nowhere. Gallery 3.4.0 has no `advanced`,
+		// which the hand-written definition sets to a constant, so
+		// `advanced: true` was dropped with check and exec clean
+		// (mendixlabs/mxcli#1618). Known only from the project's package.
+		if def.declaredKeys != nil && !def.declaredKeys[lower] && mapsOwnKey(def, lower) {
+			out = append(out, linter.Violation{
+				RuleID:   "MDL-WIDGET01",
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: %s has no property `%s` — mxcli's definition maps one, but the installed widget %s does not declare it, so the value would be dropped",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, def.WidgetID,
+				),
+				Suggestion: "Remove it: this version of the widget has no such setting.",
+			})
+			continue
+		}
+
 		if allowed[lower] {
 			continue
 		}
@@ -1771,6 +1867,21 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		})
 	}
 	return out
+}
+
+// mapsOwnKey reports whether a mapping of def (or of one of its modes) writes
+// the property named lower, the key itself lower-cased.
+func mapsOwnKey(def *WidgetDefinition, lower string) bool {
+	mappings := append([]PropertyMapping(nil), def.PropertyMappings...)
+	for _, m := range def.Modes {
+		mappings = append(mappings, m.PropertyMappings...)
+	}
+	for _, m := range mappings {
+		if strings.ToLower(m.PropertyKey) == lower {
+			return true
+		}
+	}
+	return false
 }
 
 // datasourceTypedKeys returns the lowercased propertyKeys whose def.json mapping

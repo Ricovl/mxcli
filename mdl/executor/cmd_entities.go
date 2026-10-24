@@ -49,6 +49,33 @@ func buildEventHandlers(ctx *ExecContext, defs []ast.EventHandlerDef) ([]*domain
 	return handlers, nil
 }
 
+// matchEventHandlers returns the indexes of the entity's handlers for moment and
+// event, narrowed to those calling mfQN when it is non-empty. An entity may carry
+// several handlers for one event (mendixlabs/mxcli#1540), so (moment, event) alone
+// is not an identity — the microflow is part of it.
+func matchEventHandlers(ctx *ExecContext, entity *domainmodel.Entity, moment, event, mfQN string) []int {
+	var out []int
+	for i, eh := range entity.EventHandlers {
+		if eh.Moment != domainmodel.EventMoment(moment) || eh.Event != domainmodel.EventType(event) {
+			continue
+		}
+		if mfQN != "" && storedHandlerMicroflow(ctx, eh) != mfQN {
+			continue
+		}
+		out = append(out, i)
+	}
+	return out
+}
+
+// storedHandlerMicroflow is the qualified name of the microflow a stored handler
+// calls. The read path fills MicroflowName; the ID is the fallback, as in describe.
+func storedHandlerMicroflow(ctx *ExecContext, eh *domainmodel.EventHandler) string {
+	if eh.MicroflowName == "" && eh.MicroflowID != "" {
+		return lookupMicroflowName(ctx, eh.MicroflowID)
+	}
+	return eh.MicroflowName
+}
+
 // checkBeforeCreateHandlerHasNoParameters refuses to wire a microflow that takes
 // parameters to a BEFORE CREATE event handler.
 //
@@ -1868,61 +1895,77 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		if err != nil {
 			return err
 		}
-		// Reject duplicate (same Moment + Event)
-		for _, existing := range entity.EventHandlers {
-			if existing.Moment == ehs[0].Moment && existing.Event == ehs[0].Event {
-				// An event handler has no other re-run route: a defensive
-				// drop-then-add fails on the drop when it is absent and on the
-				// add when it is present. IF NOT EXISTS makes the script
-				// idempotent, like ADD ATTRIBUTE. (mxcli-todo findings #18)
-				if s.IfNotExists {
-					fmt.Fprintf(ctx.Output, "Event handler %s %s already exists on %s, skipping\n",
-						s.EventHandler.Moment, s.EventHandler.Event, s.Name)
-					return nil
-				}
-				return mdlerrors.NewAlreadyExistsMsg("event handler",
-					fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event),
-					fmt.Sprintf("event handler already exists for %s %s on %s (use ADD EVENT HANDLER IF NOT EXISTS to make the script re-runnable)", s.EventHandler.Moment, s.EventHandler.Event, s.Name))
+		// A handler is identified by its moment, event AND microflow: Studio
+		// Pro allows several handlers for one event, and CREATE OR MODIFY
+		// stores them, so only the same microflow on the same event is a
+		// duplicate (mendixlabs/mxcli#1540). mxbuild accepts even that
+		// (measured 11.12.4, 0 errors); refusing it is what stops a re-run
+		// from wiring the microflow twice, so it would run twice per commit.
+		mfQN := s.EventHandler.Microflow.String()
+		label := fmt.Sprintf("%s %s call %s", s.EventHandler.Moment, s.EventHandler.Event, mfQN)
+		if matches := matchEventHandlers(ctx, entity, s.EventHandler.Moment, s.EventHandler.Event, mfQN); len(matches) > 0 {
+			// An event handler has no other re-run route: a defensive
+			// drop-then-add fails on the drop when it is absent and on the
+			// add when it is present. IF NOT EXISTS makes the script
+			// idempotent, like ADD ATTRIBUTE. (mxcli-todo findings #18)
+			if s.IfNotExists {
+				fmt.Fprintf(ctx.Output, "Event handler %s already exists on %s, skipping\n", label, s.Name)
+				return nil
 			}
+			return mdlerrors.NewAlreadyExistsMsg("event handler", label,
+				fmt.Sprintf("event handler %s already exists on %s (use ADD EVENT HANDLER IF NOT EXISTS to make the script re-runnable)", label, s.Name))
 		}
 		entity.EventHandlers = append(entity.EventHandlers, ehs[0])
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("add event handler", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Added event handler %s %s on %s\n",
-			s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+		fmt.Fprintf(ctx.Output, "Added event handler %s on %s\n", label, s.Name)
 
 	case ast.AlterEntityDropEventHandler:
 		if s.EventHandler == nil {
 			return mdlerrors.NewValidation("missing event handler reference")
 		}
-		moment := domainmodel.EventMoment(s.EventHandler.Moment)
-		event := domainmodel.EventType(s.EventHandler.Event)
-		idx := -1
-		for i, eh := range entity.EventHandlers {
-			if eh.Moment == moment && eh.Event == event {
-				idx = i
-				break
-			}
+		mfQN := ""
+		if s.EventHandler.Microflow.Name != "" {
+			mfQN = s.EventHandler.Microflow.String()
 		}
-		if idx < 0 {
+		label := fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event)
+		if mfQN != "" {
+			label += " call " + mfQN
+		}
+		matches := matchEventHandlers(ctx, entity, s.EventHandler.Moment, s.EventHandler.Event, mfQN)
+		if len(matches) == 0 {
 			if s.IfExists {
-				fmt.Fprintf(ctx.Output, "Event handler %s %s not present on %s, skipping\n",
-					s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+				fmt.Fprintf(ctx.Output, "Event handler %s not present on %s, skipping\n", label, s.Name)
 				return nil
 			}
-			return mdlerrors.NewNotFoundMsg("event handler",
-				fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event),
-				fmt.Sprintf("event handler %s %s not found on %s (use DROP EVENT HANDLER IF EXISTS to make the script re-runnable)", s.EventHandler.Moment, s.EventHandler.Event, s.Name))
+			return mdlerrors.NewNotFoundMsg("event handler", label,
+				fmt.Sprintf("event handler %s not found on %s (use DROP EVENT HANDLER IF EXISTS to make the script re-runnable)", label, s.Name))
+		}
+		// Without CALL the drop has to be unambiguous. Taking the first match
+		// would remove whichever handler happens to be stored first, which
+		// is not necessarily the one the author meant — and IF EXISTS does
+		// not help, since the question is which, not whether.
+		if len(matches) > 1 {
+			names := make([]string, 0, len(matches))
+			for _, i := range matches {
+				names = append(names, storedHandlerMicroflow(ctx, entity.EventHandlers[i]))
+			}
+			return mdlerrors.NewValidationf("entity %s has %d %s event handlers (%s); name the one to drop: drop event handler on %s %s call %s",
+				s.Name, len(matches), label, strings.Join(names, ", "),
+				strings.ToLower(s.EventHandler.Moment), strings.ToLower(s.EventHandler.Event), names[0])
+		}
+		idx := matches[0]
+		if mfQN == "" {
+			label += " call " + storedHandlerMicroflow(ctx, entity.EventHandlers[idx])
 		}
 		entity.EventHandlers = append(entity.EventHandlers[:idx], entity.EventHandlers[idx+1:]...)
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("drop event handler", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Dropped event handler %s %s from %s\n",
-			s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+		fmt.Fprintf(ctx.Output, "Dropped event handler %s from %s\n", label, s.Name)
 
 	case ast.AlterEntitySetAllowCreateChangeLocally:
 		entity.CreateChangeLocally = s.BoolValue

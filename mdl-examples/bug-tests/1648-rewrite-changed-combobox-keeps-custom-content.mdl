@@ -1,0 +1,71 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1648 — `create or modify` of a page whose combo box the statement
+-- CHANGES rebuilt the combo box from its template and deleted its custom
+-- content (txtOptionName), which MDL cannot author, while the content type
+-- stayed 'yes': exec reported "Replaced page", then mx check CE0642 "Property
+-- 'Custom content' is required." An unchanged combo box kept it (the pluggable
+-- passthrough), and `alter page … set` keeps it too.
+--
+-- The rewrite is now refused, by check -p and by exec, naming the widgets
+-- (ADR-0012: carry or refuse, never drop). Measured on 11.13.0, on the page
+-- after #1563's steps 1–2 (the BSON edit that puts txtOptionName in
+-- cbBooking's custom content):
+--
+--   the description, executed unchanged      → "Unchanged page"
+--   the description with Label changed      → check -p and exec refuse;
+--                                               nothing is written
+--   step 2 below (drop the content first,
+--   then write the combo box without its
+--   content type)                            → "Replaced page"; mx check 0 errors
+-- ============================================================================
+
+-- Step 1: the page, as in mdl-examples/bug-tests/1563-replace-combobox-keeps-hidden-custom-content.mdl,
+-- then the BSON edit described there.
+create persistent entity MyFirstModule.Booking (Name: String(100));
+create non-persistent entity MyFirstModule.Holder (Note: String(100));
+create association MyFirstModule.Holder_Booking from MyFirstModule.Holder to MyFirstModule.Booking;
+create page MyFirstModule.Holder_Edit (
+  Title: 'Holder',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ($Holder: MyFirstModule.Holder)
+) {
+  layoutgrid lgHolder {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvHolder (DataSource: $Holder) {
+          combobox cbBooking (
+            Label: 'Booking',
+            Attribute: MyFirstModule.Holder_Booking,
+            DataSource: database from MyFirstModule.Booking,
+            CaptionAttribute: Name
+          )
+        }
+      }
+    }
+  }
+};
+
+-- Step 2, on the page after the BSON edit: the rewrite the refusal recommends.
+-- Without the `drop`, the `create or modify` below is refused.
+-- alter page MyFirstModule.Holder_Edit { drop txtOptionName; };
+-- create or modify page MyFirstModule.Holder_Edit (
+--   Title: 'Holder',
+--   Layout: Atlas_Core.PopupLayout,
+--   Params: ($Holder: MyFirstModule.Holder)
+-- ) {
+--   layoutgrid lgHolder {
+--     row {
+--       column (DesktopWidth: AutoFill) {
+--         dataview dvHolder (DataSource: $Holder) {
+--           combobox cbBooking (
+--             Label: 'Booking (changed)',
+--             Attribute: MyFirstModule.Holder_Booking,
+--             DataSource: database from MyFirstModule.Booking,
+--             CaptionAttribute: Name
+--           )
+--         }
+--       }
+--     }
+--   }
+-- };

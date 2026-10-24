@@ -1,0 +1,56 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1139 — "MDL syntax to disable/enable individual activities
+-- in microflows and nanoflows"
+-- ============================================================================
+--
+-- Studio Pro's right-click "Disable activity" is `@excluded` on the statement.
+-- The flow builder dropped it until #1328 (see 1328-excluded-activity.mdl); a
+-- nanoflow takes it the same way, which is the case the report was about.
+--
+-- Only an activity can be disabled: the Model SDK declares `disabled` on
+-- ActionActivity and nowhere else. So `@excluded` on a decision, a loop or an
+-- end event parsed, passed check, and was dropped on write — the logic the
+-- author meant to switch off still ran. `mxcli check` now warns MDL095.
+--
+-- EXPECTED: `mxcli check` reports exactly one MDL095, on the `if` in
+-- ACT_excluded_decision; nothing for the activities.
+-- After exec, DESCRIBE prints `@excluded` above 'skipped' in the microflow and
+-- above the call in the nanoflow, and above nothing in ACT_excluded_decision.
+-- In Studio Pro: those two activities are greyed out (disabled).
+-- Guard: mdl/executor/issue1139_excluded_non_activity_test.go.
+-- ============================================================================
+
+create module BugExcluded1139;
+
+create or modify microflow BugExcluded1139.ACT_excluded_activity ()
+begin
+  log info node 'BugExcluded1139' 'first';
+  @caption 'cap'
+  @excluded
+  log info node 'BugExcluded1139' 'skipped';
+  return;
+end;
+
+create or modify nanoflow BugExcluded1139.NAV_target ()
+begin
+  return;
+end;
+
+create or modify nanoflow BugExcluded1139.NAV_excluded_activity ()
+begin
+  log info node 'BugExcluded1139' 'before';
+  @excluded
+  call nanoflow BugExcluded1139.NAV_target();
+  return;
+end;
+
+-- MDL095: a decision has no Disabled property, so this @excluded is dropped.
+create or modify microflow BugExcluded1139.ACT_excluded_decision ($Flag: Boolean)
+begin
+  @excluded
+  if $Flag then
+    log info node 'BugExcluded1139' 'branch';
+  end if;
+  return;
+end;

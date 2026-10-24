@@ -1,0 +1,50 @@
+mdl 1;
+-- mendixlabs/mxcli#1617: a microflow Show page action's "Number of pages to
+-- close" (Microflows$ShowFormAction.NumberOfPagesToClose) had no MDL spelling.
+-- DESCRIBE MICROFLOW printed an action that closes the current page exactly
+-- like one that closes none, and every action exec built stored "".
+--
+-- It is a setting of the action, so it goes in the `with` list beside the
+-- title override; the value is an Integer expression, "" (unstated) closing
+-- none. `show page M.P (NumberOfPagesToClose: 1)` is an ARGUMENT for a page
+-- parameter of that name — `check --references` and exec now refuse it
+-- (CE1613 in mxbuild) and name the spelling below.
+--
+--   mxcli exec mdl-examples/bug-tests/1617-show-page-number-of-pages-to-close.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe microflow ShowPageClose.ACT_OpenOverview"
+--     -- show page ShowPageClose.Booking_Overview with NumberOfPagesToClose = 1;
+--   mx check app.mpr                                          # 0 errors (11.12.5)
+
+create or modify module ShowPageClose;
+
+create page ShowPageClose.Booking_Overview (Title: 'Bookings', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext text1 (Content: 'Bookings')
+};
+
+-- Closes the current page, then opens the overview.
+create microflow ShowPageClose.ACT_OpenOverview ()
+begin
+  show page ShowPageClose.Booking_Overview with NumberOfPagesToClose = 1;
+  return;
+end;
+
+-- Beside a title override, and as an expression.
+create microflow ShowPageClose.ACT_OpenOverviewAfter ($Count: Integer)
+begin
+  show page ShowPageClose.Booking_Overview with title = 'Bookings', NumberOfPagesToClose = $Count + 1;
+  return;
+end;
+
+-- The same action in a nanoflow.
+create nanoflow ShowPageClose.NF_OpenOverview ()
+begin
+  show page ShowPageClose.Booking_Overview with NumberOfPagesToClose = 2;
+  return;
+end;
+
+-- Control: unstated closes none and describes without the setting.
+create microflow ShowPageClose.ACT_OpenOverviewOnTop ()
+begin
+  show page ShowPageClose.Booking_Overview;
+  return;
+end;

@@ -125,8 +125,8 @@ Modifies an existing entity without full replacement.
 | Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Every `create` that names one element takes the same guard, after the kind's keywords (`create page if not exists M.P …`, `create module if not exists M;`) — see `mxcli syntax create-if-not-exists`. Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
 | Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
-| Add event handler | `alter entity Module.Name add event handler on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE |
-| Drop event handler | `alter entity Module.Name drop event handler on before commit;` | |
+| Add event handler | `alter entity Module.Name add event handler [if not exists] on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE. An event may have several handlers: a different microflow adds a second one; only the same microflow again is a duplicate |
+| Drop event handler | `alter entity Module.Name drop event handler [if exists] on before commit [call Mod.MF];` | `call` names which handler; without it the drop is refused when the event has several |
 | Set documentation | `alter entity Module.Name set documentation 'text';` | |
 | Set position | `alter entity Module.Name set position (100, 200);` | Canvas position |
 | Add system attribute | `alter entity Module.Name add attribute owner: autoowner;` | Same syntax as regular attributes |
@@ -600,6 +600,7 @@ it is for pages.
 | Synchronize (nanoflow only) | `synchronize all;` / `synchronize unsynchronized;` / `synchronize $Obj, $List;` | Offline sync. `unsynchronized` needs Mendix 9.4+. In a microflow this is MDL057 / CE0009 |
 | Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE |
 | Log | `log [info\|warning\|error] [node 'name'] 'message';` | Level `info` and node `'Application'` are the defaults; `describe` leaves them out |
+| Log with stack trace | `log error node 'name' 'failed: {1}' with ({1} = $latestError/Message) with stacktrace;` | Studio Pro's "Include latest stack trace". After the template parameters; absent = unticked, the default (mendixlabs/mxcli#1543) |
 | Apply entity access | `@applyentityaccess` / `@applyentityaccess(false)` before `create microflow` or `create rule` | Runs the flow under the **current user's** entity access rules instead of with full access. A **security** setting and only ever narrowing, so an ABSENT annotation **preserves** what is stored rather than clearing it — the same rule as `@excluded`. Not available on a nanoflow: it runs in the client and Mendix stores no such property |
 | Position | `@position(x, y)` | Canvas position (before activity) |
 | Deep-link URL | `url 'item/{Key}'` / `url search parameters ($Filter)` / `drop url` | Header clauses on `create microflow`, Mendix **10.6+**. Every `{Name}` must name a parameter (**MDL-MF01**), and a parameter used in the PATH may **not** also be a search parameter (**MDL-MF02** / CE5612) — the two sets are disjoint. With a project, a URL another microflow already owns is refused (CE0570). An OMITTED clause **preserves** what is stored |
@@ -1591,7 +1592,9 @@ MDL uses explicit property declarations for pages:
 | `Draggable` | `true`, `false` | `true` | `Draggable: false` |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | `Hidable: no` |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | `ColumnWidth: manual` |
-| `Size` | integer (px) | `1` | `Size: 200` |
+| `Size` | integer — a relative weight, not px | `1` | `Size: 2` — under `ColumnWidth: manual` only, rendered `2fr` against `1fr` per autoFill column |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | `minWidth: manual` — under `ColumnWidth: autoFit` only |
+| `minWidthLimit` | integer (px) | `100` | `minWidthLimit: 220` — the minimum in pixels, under `ColumnWidth: autoFit, minWidth: manual` |
 | `visible` | expression string | `true` | `visible: '$showColumn'` (page variable, not $currentObject) |
 | `DynamicCellClass` | expression string | (empty) | `DynamicCellClass: if(...) then ... else ...` |
 | `tooltip` | text string | (empty) | `tooltip: 'Price in USD'` |
@@ -1634,6 +1637,7 @@ create page MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `layoutgrid`, `row`, `column`, `container`, `customcontainer`
 - Input: `textbox`, `textarea`, `checkbox`, `radiobuttons`, `datepicker`, `combobox`
+  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode
 - Display: `dynamictext`, `datagrid`, `gallery`, `listview`, `image`, `staticimage`, `dynamicimage`
 
 ### List View specialization templates

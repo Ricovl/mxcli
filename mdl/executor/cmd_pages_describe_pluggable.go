@@ -586,7 +586,6 @@ func extractTextTemplateText(value map[string]any) (string, map[string]any) {
 	return "", nil
 }
 
-// extractTextTemplateParameters extracts parameters from a TextTemplate (Forms$ClientTemplate).
 // sourceVariableBinding reads the SourceVariable of a stored
 // Forms$ClientTemplateParameter and reports which variable it names, and whether
 // that variable is a page-level LOCAL one.
@@ -623,6 +622,10 @@ func sourceVariableBinding(param map[string]any) (name string, isLocal bool) {
 	return "", false
 }
 
+// extractTextTemplateParameters renders the parameters of a stored
+// Forms$ClientTemplate as the MDL values of its `{n} = …` list. It is the one
+// reader of a template parameter: the core describer's
+// extractClientTemplateParameters delegates here.
 func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any) []string {
 	params := getBsonArrayElements(textTemplate["Parameters"])
 	if params == nil || len(params) == 0 {
@@ -641,7 +644,13 @@ func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any
 		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
 		// Check for Expression first (literal value)
 		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
-			result = append(result, expr)
+			// The expression as stored. `toString($Order/Total)` used to be
+			// unwrapped to `$Order.Total`, the spelling mxcli once wrapped in
+			// toString itself; that spelling now binds the attribute (#823,
+			// MDL-V1-TEMPLATEATTR), so unwrapping changed the page's output on
+			// describe -> exec. The write side stores a non-attribute value as
+			// an expression (isTemplateExpression), so the text round-trips.
+			result = append(result, strings.TrimSpace(expr))
 			continue
 		}
 
@@ -655,6 +664,14 @@ func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any
 
 		// Check for AttributeRef
 		if attrRef, ok := pMap["AttributeRef"].(map[string]any); ok && attrRef != nil {
+			// Attribute navigated over associations (AttributeRef.EntityRef):
+			// reconstruct the "Assoc/.../Attr" path so DESCRIBE round-trips. The
+			// bare attribute re-executes against the widget's own entity (CE1365,
+			// mendixlabs/mxcli#1494).
+			if assocPath := associationTemplateParamPath(attrRef); assocPath != "" {
+				result = append(result, assocPath)
+				continue
+			}
 			if attr, ok := attrRef["Attribute"].(string); ok {
 				if sourceVarName != "" {
 					// Has SourceVariable - this is a page parameter reference
@@ -1168,6 +1185,27 @@ func extractCustomWidgetPropertyString(ctx *ExecContext, w map[string]any, prope
 		// Extract PrimitiveValue for string properties
 		if pv, ok := value["PrimitiveValue"].(string); ok && pv != "" {
 			return pv
+		}
+	}
+	return ""
+}
+
+// extractCustomWidgetPropertySelection reads the Selection a named property
+// holds ("None", "Single", "Multi"); "" when the widget has no such property.
+func extractCustomWidgetPropertySelection(ctx *ExecContext, w map[string]any, propertyKey string) string {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != propertyKey {
+			continue
+		}
+		if value, ok := propMap["Value"].(map[string]any); ok {
+			sel, _ := value["Selection"].(string)
+			return sel
 		}
 	}
 	return ""

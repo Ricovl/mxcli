@@ -215,9 +215,9 @@ mdl 1;
 ALTER ENTITY Sales.Order
   ADD EVENT HANDLER ON BEFORE DELETE CALL Sales.ACT_CheckCanDelete RAISE ERROR;
 
--- Remove a handler
+-- Remove a handler (CALL names which, when the event has several)
 ALTER ENTITY Sales.Order
-  DROP EVENT HANDLER ON BEFORE COMMIT;
+  DROP EVENT HANDLER ON BEFORE COMMIT CALL Sales.ACT_ValidateOrder;
 ```
 
 **Moments**: `BEFORE`, `AFTER`

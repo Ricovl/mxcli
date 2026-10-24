@@ -756,6 +756,11 @@ func formatAction(
 			}
 			withClause = fmt.Sprintf(" with (%s)", strings.Join(params, ", "))
 		}
+		// "Include latest stack trace" (mendixlabs/mxcli#1543). Unticked is what
+		// an absent clause builds, so only a ticked box is printed.
+		if a.IncludeLastStackTrace {
+			withClause += " with stacktrace"
+		}
 
 		// Level info and node 'Application' are what an unstated level and node
 		// build (addLogMessageAction), so neither is printed (R12, #748).
@@ -949,11 +954,21 @@ func formatAction(
 		// taking it out of a create or modify compared as no change
 		// (ako/mxcli#869). An override without text has no statement form:
 		// `with title = ''` builds none.
-		titleStr := ""
+		var settings []string
 		if title := pickTextTranslation(a.OverridePageTitle, describeDefaultLanguage(ctx)); title != "" {
-			titleStr = " with title = " + mdlQuote(ctx, title)
+			settings = append(settings, "title = "+mdlQuote(ctx, title))
 		}
-		return fmt.Sprintf("show page %s%s%s;", pageName, paramStr, titleStr)
+		// "Number of pages to close". Left out, an action that closes the
+		// current page read exactly like one that closes none
+		// (mendixlabs/mxcli#1617). "" is Studio Pro's default: none.
+		if n := strings.TrimSpace(a.NumberOfPagesToClose); n != "" {
+			settings = append(settings, "NumberOfPagesToClose = "+describeExpr(ctx, n))
+		}
+		withStr := ""
+		if len(settings) > 0 {
+			withStr = " with " + strings.Join(settings, ", ")
+		}
+		return fmt.Sprintf("show page %s%s%s;", pageName, paramStr, withStr)
 
 	case *microflows.ClosePageAction:
 		if a.NumberOfPages > 1 {

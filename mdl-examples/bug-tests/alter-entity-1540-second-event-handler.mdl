@@ -1,0 +1,69 @@
+mdl 1;
+-- ============================================================================
+-- Issue mendixlabs/mxcli#1540 (ako/mxcli#1438) — ALTER ENTITY ADD EVENT HANDLER
+-- refuses a second handler for the same event
+-- ============================================================================
+--
+-- Reported:
+--
+--   `ALTER ENTITY M.E ADD EVENT HANDLER ON BEFORE COMMIT CALL
+--   M.Second($currentObject)` fails with "event handler already exists for
+--   Before Commit" when the entity already has one. Studio Pro allows several
+--   handlers for one event, and `CREATE OR MODIFY ENTITY` with two `ON BEFORE
+--   COMMIT` clauses stores both, so the two statements disagree.
+--
+-- ALTER keyed a handler on (moment, event) alone. Its identity is (moment,
+-- event, microflow): the same microflow on the same event is still a duplicate,
+-- a different one is a second handler. The same key had made two other things
+-- wrong, both fixed here:
+--
+--   * `add event handler if not exists … call M.New` skipped when ANY handler
+--     for the event existed — "already exists" for a microflow never wired.
+--   * `drop event handler on before commit` removed the FIRST handler for the
+--     event, whichever that was. It now takes `call M.X` to say which; without
+--     it, a drop that matches several handlers is refused and names them.
+--
+-- Measured on Mendix 11.12.4 (`mxcli docker check`): an entity with two Before
+-- Commit handlers is "0 errors", so the refusal was protecting nothing.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/alter-entity-1540-second-event-handler.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe entity Bug1540.Invoice"
+--       # two `on before commit` lines, ACT_Invoice_Second then ACT_Invoice_First
+-- ============================================================================
+
+create module if not exists Bug1540;
+
+create entity Bug1540.Invoice (
+  "Amount": decimal
+);
+
+create microflow Bug1540.ACT_Invoice_First ($Invoice: Bug1540.Invoice)
+returns boolean
+begin
+  return true;
+end;
+
+create microflow Bug1540.ACT_Invoice_Second ($Invoice: Bug1540.Invoice)
+returns boolean
+begin
+  return true;
+end;
+
+alter entity Bug1540.Invoice
+  add event handler on before commit call Bug1540.ACT_Invoice_First($currentObject) raise error;
+
+-- The reported statement: a second handler for the same event. Was refused.
+alter entity Bug1540.Invoice
+  add event handler on before commit call Bug1540.ACT_Invoice_Second($currentObject);
+
+-- The guard keys on the microflow too: this one is present, so it skips.
+alter entity Bug1540.Invoice
+  add event handler if not exists on before commit call Bug1540.ACT_Invoice_Second($currentObject);
+
+-- Two handlers now match `on before commit`, so a drop names the one it means.
+alter entity Bug1540.Invoice
+  drop event handler on before commit call Bug1540.ACT_Invoice_First;
+
+alter entity Bug1540.Invoice
+  add event handler on before commit call Bug1540.ACT_Invoice_First($currentObject) raise error;

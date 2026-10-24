@@ -1,0 +1,87 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1563 (mendixlabs/mxcli#1631) — `alter page … replace cbBooking
+-- with { combobox cbSale (… DataSource: database from …Sale …) }` kept
+-- cbBooking's custom content inside cbSale: txtOptionName, still bound to
+-- Booking.Name, which describe never prints. check and exec passed; with the
+-- content type 'yes' mx check reported CE1365 "Attribute
+-- 'MyFirstModule.Booking.Name' is not an attribute of entity
+-- 'MyFirstModule.Sale'" at a widget the author never wrote. (On a build whose
+-- describe prints the type, the replace turned it 'no' and mx check passed —
+-- with txtOptionName still stored, hidden.)
+--
+-- A same-kind REPLACE keeps what the statement does not state
+-- (mendixlabs/mxcli#1247), and content describe cannot print is never stated.
+-- When the data source that content is built for moves to another entity, the
+-- replace is now refused by check -p and by exec, naming the widgets; dropping
+-- them first, in the same statement, lets it through.
+--
+-- MDL cannot author a combo box's custom content (MDL-WIDGET26), so the state
+-- is set up by hand: run step 1, then — as the issue's repro does — move
+-- txtOptionName into cbBooking's optionsSourceAssociationCustomContent and set
+-- optionsSourceAssociationCustomContentType to 'yes' with a BSON edit, then
+-- `mxcli fix hashes --repair`. Measured on 11.13.0:
+--
+--   the replace as reported  → check -p and exec refuse; nothing is written
+--   step 3 (drop, then the same replace) → cbSale, type 'no', no content;
+--                              mx check 0 errors
+--   step 4 instead (replace keeping Booking) → the content is kept, as #1247
+--                              intends; mx check 0 errors
+-- ============================================================================
+
+-- Step 1: the page.
+create persistent entity MyFirstModule.Booking (Name: String(100));
+create persistent entity MyFirstModule.Sale (Code: String(100));
+create non-persistent entity MyFirstModule.Holder (Note: String(100));
+create association MyFirstModule.Holder_Booking from MyFirstModule.Holder to MyFirstModule.Booking;
+create association MyFirstModule.Holder_Sale from MyFirstModule.Holder to MyFirstModule.Sale;
+create page MyFirstModule.Holder_Edit (
+  Title: 'Holder',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ($Holder: MyFirstModule.Holder)
+) {
+  layoutgrid lgHolder {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvHolder (DataSource: $Holder) {
+          combobox cbBooking (
+            Label: 'Booking',
+            Attribute: MyFirstModule.Holder_Booking,
+            DataSource: database from MyFirstModule.Booking,
+            CaptionAttribute: Name
+          )
+        }
+      }
+    }
+  }
+};
+
+-- Step 2 is the BSON edit described above.
+
+-- Step 3, on the page after step 2: the replace the refusal recommends — drop
+-- the hidden content first. Without the `drop`, this replace is refused.
+-- alter page MyFirstModule.Holder_Edit {
+--   drop txtOptionName;
+--   replace cbBooking with {
+--     combobox cbSale (
+--       Label: 'Sale',
+--       Attribute: MyFirstModule.Holder_Sale,
+--       DataSource: database from MyFirstModule.Sale,
+--       CaptionAttribute: Code
+--     )
+--   };
+-- };
+
+-- Step 4 (instead of step 3, on the page after step 2): a replace that keeps
+-- the entity keeps the content.
+-- alter page MyFirstModule.Holder_Edit {
+--   replace cbBooking with {
+--     combobox cbBooking (
+--       Label: 'Booking, renamed label',
+--       Attribute: MyFirstModule.Holder_Booking,
+--       DataSource: database from MyFirstModule.Booking,
+--       CaptionAttribute: Name,
+--       optionsSourceAssociationCustomContentType: 'yes'
+--     )
+--   };
+-- };

@@ -1,0 +1,67 @@
+mdl 1;
+-- ako/mxcli#1294 (mendixlabs/mxcli#1250) — MDL031 demanded String(200) for a
+-- CASE column that Mendix derives as String(8), and following its "Fix:"
+-- produced CE6770 "View Entity is out of sync with the OQL Query". The only
+-- way to write the declaration that builds was `exec --no-check`.
+--
+-- Mendix types a CASE column by two rules, measured with mx check 11.12.5 on
+-- one-column views declared at every candidate type:
+--
+--   a String CASE   takes its FIRST branch's type, length included
+--                   (`then l.Code else l.Name`, 8 and 100, is String(8))
+--   a numeric CASE  widens across ALL branches, Integer < Long < Decimal
+--
+-- mxcli took the first branch it could TYPE. Without the project `l.Code` is
+-- untyped, so the second branch's concatenation decided: String(200).
+--
+-- Every declaration below is the one mxbuild accepts. `make check-mdl` runs
+-- `mxcli check` with no project, which is the reported shape (the source entity
+-- is created by the same script) and was enough to raise the false MDL031.
+-- `mxcli exec` + `mxcli docker check` on a fresh project: 0 errors.
+
+create module Bt1294;
+
+create persistent entity Bt1294.Lane (
+  Code: String(8),
+  Name: String(100),
+  Points: Integer,
+  Bonus: Long,
+  Factor: Decimal
+);
+
+-- The reported view: String(8), Code's length, not String(200).
+create view entity Bt1294.LaneSorted (
+  SortKey: String(8)
+) as (
+  select case when length(l.Code) >= 4 then l.Code
+              when length(l.Code) = 3 then '0' + l.Code
+              else '0000' end as SortKey
+  from Bt1294.Lane as l
+);
+
+-- The first branch decides, not the longest one.
+create view entity Bt1294.LaneLabel (
+  Label: String(100)
+) as (
+  select case when length(l.Code) >= 4 then l.Name else l.Code end as Label
+  from Bt1294.Lane as l
+);
+
+-- A derived first branch is String(200), whatever follows it.
+create view entity Bt1294.LanePadded (
+  Padded: String(200)
+) as (
+  select case when length(l.Code) >= 4 then '0' + l.Code else l.Code end as Padded
+  from Bt1294.Lane as l
+);
+
+-- Numbers widen across the branches: an Integer literal and a Decimal column
+-- are Decimal, an Integer and a Long column are Long.
+create view entity Bt1294.LaneScore (
+  Score: Decimal,
+  Total: Long
+) as (
+  select case when l.Points > 4 then 1 else l.Factor end as Score,
+         case when l.Points > 4 then l.Points else l.Bonus end as Total
+  from Bt1294.Lane as l
+);

@@ -151,3 +151,69 @@ func writeOmittedPropsNote(out io.Writer, prefix string, omitted []string) {
 		prefix, strings.Join(omitted, ", "))
 	fmt.Fprintf(out, "%s-- no spelling for. Re-running this script would reset it to the widget's default.\n", prefix)
 }
+
+// rawHiddenContent is one widgets property of a combo box that holds widgets,
+// by property key, with the widgets by name.
+type rawHiddenContent struct {
+	Property string
+	Widgets  []string // a name, or "an unnamed <kind>"
+}
+
+// comboBoxHiddenContent reads a combo box's custom content off the stored
+// document: every top-level property holding widgets. A combo box has no
+// child slot MDL can write (MDL-WIDGET26), so each of them is content the
+// description leaves out — unlike a generic pluggable widget, whose slots
+// unreconstructedContainers reports only when DESCRIBE did not reproduce them.
+func comboBoxHiddenContent(w map[string]any) []rawHiddenContent {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	keyMap := buildPropertyTypeKeyMap(w, false)
+	var out []rawHiddenContent
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok {
+			continue
+		}
+		value, _ := propMap["Value"].(map[string]any)
+		content := getBsonArrayElements(value["Widgets"])
+		key := keyMap[extractBinaryID(propMap["TypePointer"])]
+		if len(content) == 0 || key == "" {
+			continue
+		}
+		hc := rawHiddenContent{Property: key}
+		for _, c := range content {
+			cw, _ := c.(map[string]any)
+			if name := extractString(cw["Name"]); name != "" {
+				hc.Widgets = append(hc.Widgets, name)
+				continue
+			}
+			kind := extractString(cw["$Type"])
+			kind = strings.ToLower(kind[strings.LastIndex(kind, "$")+1:])
+			if kind == "" {
+				kind = "widget"
+			}
+			hc.Widgets = append(hc.Widgets, "an unnamed "+kind)
+		}
+		out = append(out, hc)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Property < out[j].Property })
+	return out
+}
+
+// writeHiddenContentNote names a combo box's custom content. Executed against
+// this page the content is kept while the combo box is left as stored — the
+// pluggable passthrough — and a statement that changes the combo box is refused
+// rather than delete it (ako/mxcli#1648); run anywhere else, it is left out.
+// `alter page … set` changes the combo box and keeps it.
+func writeHiddenContentNote(out io.Writer, prefix, widget string, hidden []rawHiddenContent) {
+	for _, hc := range hidden {
+		fmt.Fprintf(out, "%s-- NOT SHOWN: %s's %s holds %s, custom content MDL cannot author.\n",
+			prefix, widget, hc.Property, strings.Join(hc.Widgets, ", "))
+		fmt.Fprintf(out, "%s-- Executed on this page it is kept while %s is unchanged, and a change to %s is\n",
+			prefix, widget, widget)
+		fmt.Fprintf(out, "%s-- refused; run anywhere else, it is left out. Change %s with `alter page … set (…) on %s`.\n",
+			prefix, widget, widget)
+	}
+}

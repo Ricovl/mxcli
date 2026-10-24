@@ -79,6 +79,29 @@ func checkNoUnauthorableWidgetsDropped(ctx *ExecContext, kind string, name ast.Q
 	return mdlerrors.NewUnsupported(unauthorableRewriteMessage(kind, name, lost))
 }
 
+// checkNoHiddenContentRebuilt is check's half of the refusal a rewrite gives
+// for a changed combo box whose custom content it would delete
+// (ako/mxcli#1648): the stored document's pluggable widgets, paired with what
+// describe prints for them, exactly as the rewrite itself pairs them.
+func checkNoHiddenContentRebuilt(ctx *ExecContext, kind string, name ast.QualifiedName, unitID model.ID, widgets []*ast.WidgetV3) error {
+	if ctx == nil || ctx.Backend == nil || unitID == "" {
+		return nil
+	}
+	pt := loadPluggablePassthrough(ctx, unitID, func() error {
+		if kind == "snippet" {
+			return describeSnippet(ctx, name)
+		}
+		prev := ctx.describeID
+		ctx.describeID = unitID
+		defer func() { ctx.describeID = prev }()
+		return describePage(ctx, name)
+	})
+	if err := pt.refuseChangedWithHiddenContent(widgets); err != nil {
+		return fmt.Errorf("%s %s: %w", kind, name, err)
+	}
+	return nil
+}
+
 // unauthorableRewriteMessage explains the refusal: every widget, and the two
 // ways forward.
 func unauthorableRewriteMessage(kind string, name ast.QualifiedName, lost []unauthorableWidget) string {
@@ -127,6 +150,9 @@ func validateUnauthorableRewrites(ctx *ExecContext, prog *ast.Program) []error {
 					if err := checkNoUnauthorableWidgetsDropped(ctx, "page", s.Name, id, allPageWidgets(s)); err != nil {
 						errs = append(errs, fmt.Errorf("statement %d: %w", i+1, err))
 					}
+					if err := checkNoHiddenContentRebuilt(ctx, "page", s.Name, id, allPageWidgets(s)); err != nil {
+						errs = append(errs, fmt.Errorf("statement %d: %w", i+1, err))
+					}
 				}
 			}
 			touched[k] = true
@@ -135,6 +161,9 @@ func validateUnauthorableRewrites(ctx *ExecContext, prog *ast.Program) []error {
 			if (s.IsModify || s.IsReplace) && !touched[k] {
 				if id := storedRewriteTarget(ctx, "snippet", s.Name); id != "" {
 					if err := checkNoUnauthorableWidgetsDropped(ctx, "snippet", s.Name, id, s.Widgets); err != nil {
+						errs = append(errs, fmt.Errorf("statement %d: %w", i+1, err))
+					}
+					if err := checkNoHiddenContentRebuilt(ctx, "snippet", s.Name, id, s.Widgets); err != nil {
 						errs = append(errs, fmt.Errorf("statement %d: %w", i+1, err))
 					}
 				}

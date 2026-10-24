@@ -389,22 +389,82 @@ var sharedBranchByKeySkip = map[string]map[string]bool{
 	},
 }
 
-// comboBoxUndescribedModePrefixes are the keys of the combo box's database and
-// static option sources. DESCRIBE spells only the association and enumeration
-// modes, so these settings are named as not reproduced rather than printed: on
-// their own, without the mode and its datasource, they would be written into a
-// combo box in another mode — an attribute resolved against the wrong entity.
-var comboBoxUndescribedModePrefixes = []string{
-	"optionsSourceDatabase", "optionsSourceStatic", "staticDataSource", "staticAttribute", "databaseAttributeString",
+// comboBoxStaticModePrefixes and comboBoxDatabaseModePrefixes are the keys of
+// the combo box's option sources DESCRIBE does not spell in the mode being
+// described (withoutUndescribedComboBoxModes): the static
+// source always, and the database source outside database mode. Those settings
+// are named as not reproduced rather than printed: on their own, without the
+// mode and its datasource, they would be written into a combo box in another
+// mode — an attribute resolved against the wrong entity.
+var (
+	comboBoxStaticModePrefixes   = []string{"optionsSourceStatic", "staticDataSource", "staticAttribute"}
+	comboBoxDatabaseModePrefixes = []string{"optionsSourceDatabase", "databaseAttributeString"}
+)
+
+// comboBoxDatabaseByKeySkip is sharedBranchByKeySkip for a database-mode combo
+// box: the association and enumeration keys stay unprinted, and so do the
+// database keys the reader spells as keywords — the target attribute as
+// `Attribute:`, the option caption as `CaptionAttribute:` — and `source`,
+// which the datasource's key selects on exec.
+var comboBoxDatabaseByKeySkip = func() map[string]bool {
+	skip := map[string]bool{"databaseAttributeString": true, "optionsSourceDatabaseCaptionAttribute": true}
+	for k, v := range sharedBranchByKeySkip["combobox"] {
+		skip[k] = v
+	}
+	return skip
+}()
+
+// comboBoxIsDatabaseMode reports whether a stored combo box takes its options
+// from a database source of its own (`source` "database").
+func comboBoxIsDatabaseMode(ctx *ExecContext, w map[string]any) bool {
+	return extractCustomWidgetPropertyString(ctx, w, "source") == "database"
+}
+
+// describeComboBoxDatabaseMode reads a database-mode combo box (mendixlabs/
+// mxcli#1583): its option list under the datasource's own key, which is what
+// selects the mode on exec — the generic `DataSource:` clause selects the
+// association mode — the attribute it stores into as `Attribute:`, the option
+// caption as `CaptionAttribute:`, and the change action from the mode's own
+// slot. The value attribute and the caption type and expression are settings by
+// key (comboBoxDatabaseByKeySkip).
+func describeComboBoxDatabaseMode(ctx *ExecContext, w map[string]any, widget *rawWidget) {
+	if ds := extractCustomWidgetPropertyDataSource(ctx, w, "optionsSourceDatabaseDataSource"); ds != nil {
+		widget.NamedDataSources = []rawNamedDataSource{{Key: "optionsSourceDatabaseDataSource", DataSource: ds}}
+	}
+	widget.Content = extractCustomWidgetPropertyAttributeRef(ctx, w, "databaseAttributeString")
+	if param := customWidgetPropertyParameter(w, "databaseAttributeString"); param != "" && widget.Content != "" {
+		widget.Content = parameterAttributeMDL(param, widget.Content)
+	}
+	if extractCustomWidgetPropertyString(ctx, w, "optionsSourceDatabaseCaptionType") != "expression" {
+		widget.CaptionAttribute = extractCustomWidgetPropertyAttributeRef(ctx, w, "optionsSourceDatabaseCaptionAttribute")
+	}
+	widget.OnChange = renderClientActionMDL(ctx, customWidgetPropertyActionMap(ctx, w, "onChangeDatabaseEvent"))
+}
+
+// comboBoxDatabaseSelection is the item selection of a database-mode combo
+// box, by key, when it is not the Single exec writes for it left out. The
+// by-key reader skips every selection-typed property, because a data grid's
+// and a gallery's have the `Selection:` keyword.
+func comboBoxDatabaseSelection(ctx *ExecContext, w map[string]any) []rawExplicitProp {
+	sel := extractCustomWidgetPropertySelection(ctx, w, "optionsSourceDatabaseItemSelection")
+	if sel == "" || sel == "Single" {
+		return nil
+	}
+	return []rawExplicitProp{{Key: "optionsSourceDatabaseItemSelection", Value: sel, IsRef: true}}
 }
 
 // withoutUndescribedComboBoxModes moves the settings of a combo box's
-// undescribed option-source modes from props to omitted.
-func withoutUndescribedComboBoxModes(props []rawExplicitProp, omitted []string) ([]rawExplicitProp, []string) {
+// undescribed option-source modes from props to omitted. database says the
+// combo box is described in database mode, whose own settings are kept.
+func withoutUndescribedComboBoxModes(props []rawExplicitProp, omitted []string, database bool) ([]rawExplicitProp, []string) {
+	prefixes := comboBoxStaticModePrefixes
+	if !database {
+		prefixes = append(append([]string{}, prefixes...), comboBoxDatabaseModePrefixes...)
+	}
 	kept := props[:0:0]
 	for _, p := range props {
 		undescribed := false
-		for _, prefix := range comboBoxUndescribedModePrefixes {
+		for _, prefix := range prefixes {
 			if strings.HasPrefix(p.Key, prefix) {
 				undescribed = true
 				break

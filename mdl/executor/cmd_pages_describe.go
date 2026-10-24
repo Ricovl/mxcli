@@ -972,6 +972,11 @@ type rawWidget struct {
 	// See unreconstructedContainers.
 	OmittedContainers []string
 
+	// HiddenContent is a combo box's custom content: widgets MDL cannot author
+	// (MDL-WIDGET26), named in a comment so the author can see they are there
+	// (ako/mxcli#1563). See comboBoxHiddenContent.
+	HiddenContent []rawHiddenContent
+
 	// OmittedProps names properties whose stored value differs from the default
 	// and that DESCRIBE has no spelling for (an attribute reached over
 	// associations, …). Emitted as a comment, like OmittedContainers, so a

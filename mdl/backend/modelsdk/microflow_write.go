@@ -886,7 +886,9 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		g.SetID(element.ID(a.ID))
 		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		g.SetPageSettings(showPageFormSettingsToGen(a))
-		g.SetNumberOfPagesToClose("")
+		// An expression; "" (the default) closes no page. It was always written
+		// as "", whatever the statement said (mendixlabs/mxcli#1617).
+		g.SetNumberOfPagesToClose(a.NumberOfPagesToClose)
 		return g
 	case *microflows.ClosePageAction:
 		// Storage $Type Microflows$CloseFormAction. The count is the string

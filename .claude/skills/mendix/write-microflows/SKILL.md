@@ -15,18 +15,18 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 62-76 | Changing an Existing Microflow |
 | 77-95 | When to Use a Microflow vs a Nanoflow |
 | 96-112 | Key Differences from Nanoflows |
-| 113-266 | Microflow Structure |
-| 267-344 | Variable Declarations |
-| 345-402 | Operators |
-| 403-419 | Logging |
-| 420-445 | Special Values |
-| 446-492 | Complete Example |
-| 493-549 | Calling Microflows |
-| 550-576 | Page Navigation |
-| 577-593 | Validation Checklist |
-| 594-605 | Tips for Success |
-| 606-612 | Related Documentation |
-| 613-725 | Quick Reference |
+| 113-267 | Microflow Structure |
+| 268-345 | Variable Declarations |
+| 346-403 | Operators |
+| 404-420 | Logging |
+| 421-446 | Special Values |
+| 447-493 | Complete Example |
+| 494-550 | Calling Microflows |
+| 551-578 | Page Navigation |
+| 579-595 | Validation Checklist |
+| 596-607 | Tips for Success |
+| 608-614 | Related Documentation |
+| 615-727 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -189,6 +189,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
 build, and `list microflows` reports it in the `Excluded` column.
+**On a statement** it disables that one activity instead — see [disabled activities](reference/control-flow.md#disabled-activities--excluded-on-a-statement).
 
 ```mdl
 mdl 1;
@@ -414,7 +415,7 @@ log warning node 'ValidationService' 'Invalid data detected';
 
 -- With variables (use concatenation)
 log info node 'OrderService' 'Order processed: ' + $OrderNumber;
-log error node 'Service' 'Error: ' + $ErrorMessage;
+log error node 'Service' 'Error: ' + $ErrorMessage with stacktrace;  -- ticks "Include latest stack trace"
 ```
 
 ## Special Values
@@ -561,6 +562,7 @@ parameter name: `call microflow`, `show page`, and widget actions
 (`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
 `Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
 --upgrade` rewrites them.
+Settings follow in a `with` list: `show page M.P with NumberOfPagesToClose = 1;` closes the current page first (an Integer expression; unstated closes none) — as an argument, `(NumberOfPagesToClose: 1)` is CE1613.
 
 ### CLOSE PAGE
 

@@ -1,0 +1,66 @@
+mdl 1;
+-- mendixlabs/mxcli#1494 (ako/mxcli#1348): a pluggable widget's text-template
+-- parameter bound across an association resolved to the right attribute and
+-- the right steps, and the serializer dropped the steps — it wrote
+-- AttributeRef.EntityRef null, so mxbuild read the attribute against the
+-- widget's context entity:
+--
+--   [CE1365] "Attribute 'Bug1494.Child.Label' is not an attribute of entity 'Bug1494.Parent'."
+--
+-- One serializer writes three things, and all three failed: a widget-level
+-- template (Fieldset `legend`), an object-list item's template (Accordion
+-- group `headerText`) and a Data grid 2 column's dynamic text. `describe`
+-- then printed the Fieldset's and the column's parameter as the bare `Label`,
+-- which re-executes into CE1613 "The selected attribute 'Bug1494.Parent.Label'
+-- no longer exists."
+--
+-- mendixlabs/mxcli#1495 (ako/mxcli#1349), fixed in v0.25.0 (#823): an
+-- expression parameter is stored as the parameter's Expression, not in
+-- AttributeRef.Attribute with its spaces stripped.
+--
+-- Expected: `mxcli docker check` reports 0 errors, and the describe below
+-- prints `{1} = Bug1494.Parent_Child/Label` for fsAssoc, the group and the
+-- column, and the expression as written for fsExpr.
+
+create module Bug1494;
+
+create persistent entity Bug1494.Parent (Name: string(50));
+create persistent entity Bug1494.Child (Label: string(50));
+create association Bug1494.Parent_Child from Bug1494.Parent to Bug1494.Child;
+
+create page Bug1494.Parent_View (
+  title: 'Parent',
+  layout: Atlas_Core.Atlas_Default,
+  params: ($Parent: Bug1494.Parent)
+) {
+  dataview dvParent (DataSource: $Parent) {
+    -- control: an attribute of the context entity, no steps
+    fieldset fsOwn (legend: '{1}', legendParams: ({1} = Name)) {
+      dynamictext txtOwn (content: 'own')
+    }
+    fieldset fsAssoc (legend: '{1}', legendParams: ({1} = Bug1494.Parent_Child/Label)) {
+      dynamictext txtAssoc (content: 'across the association')
+    }
+    fieldset fsExpr (legend: '{1}', legendParams: ({1} = if 1 = 1 then 'A' else 'B')) {
+      dynamictext txtExpr (content: 'an expression')
+    }
+    accordion acc1 {
+      group (headerRenderMode: 'text', headerText: '{1}', headerTextParams: ({1} = Bug1494.Parent_Child/Label)) {
+        dynamictext txtGroup (content: 'group body')
+      }
+    }
+  }
+};
+
+create page Bug1494.Parent_Overview (
+  title: 'Parents',
+  layout: Atlas_Core.Atlas_Default
+) {
+  datagrid dgParents (DataSource: database Bug1494.Parent) {
+    column (Attribute: Name)
+    column (ShowContentAs: dynamicText, Caption: 'Child', Content: '{1}', ContentParams: ({1} = Bug1494.Parent_Child/Label))
+  }
+};
+
+describe page Bug1494.Parent_View;
+describe page Bug1494.Parent_Overview;

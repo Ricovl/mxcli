@@ -715,14 +715,15 @@ func (p *TemplateParam) IsDataSourceRef() bool {
 	return p.DataSourceName != ""
 }
 
-// LogStmt represents: LOG LEVEL [NODE expr] message [WITH params]
+// LogStmt represents: LOG LEVEL [NODE expr] message [WITH params] [WITH STACKTRACE]
 type LogStmt struct {
-	Level         LogLevel             // Log level (INFO, WARNING, etc.)
-	Node          Expression           // Optional log node expression
-	Message       Expression           // Message expression
-	Template      []TemplateParam      // Optional WITH template params
-	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
+	Level                   LogLevel             // Log level (INFO, WARNING, etc.)
+	Node                    Expression           // Optional log node expression
+	Message                 Expression           // Message expression
+	Template                []TemplateParam      // Optional WITH template params
+	IncludeLatestStackTrace bool                 // WITH STACKTRACE — Studio Pro's "Include latest stack trace"
+	Annotations             *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling           *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *LogStmt) isMicroflowStatement() {}
@@ -1127,6 +1128,9 @@ type ShowPageStmt struct {
 	ModalForm     bool                 // Whether to show as modal
 	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
+	// NumberOfPagesToClose is `with NumberOfPagesToClose = <expr>`: how many
+	// pages to close before the page opens; nil closes none (mendixlabs/mxcli#1617).
+	NumberOfPagesToClose Expression
 }
 
 func (s *ShowPageStmt) isMicroflowStatement() {}
