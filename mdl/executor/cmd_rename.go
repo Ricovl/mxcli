@@ -245,7 +245,13 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 		return err
 	}
 
-	found := false
+	// docID is the document the rename acts on: the one found here, among the
+	// documents of the requested kind. The rename used to look it up again by
+	// bare name among all the module's units and take the first, and a folder of
+	// the same name — inserted before the document a FOLDER clause puts in it —
+	// was renamed instead, after the sweep had already pointed every reference
+	// at the new name (ako/mxcli#1443).
+	var docID model.ID
 	collision := false
 	switch docType {
 	case "microflow":
@@ -256,7 +262,7 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 				continue
 			}
 			if mf.Name == s.Name.Name {
-				found = true
+				docID = mf.ID
 			} else if mf.Name == s.NewName {
 				collision = true
 			}
@@ -269,7 +275,7 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 				continue
 			}
 			if nf.Name == s.Name.Name {
-				found = true
+				docID = nf.ID
 			} else if nf.Name == s.NewName {
 				collision = true
 			}
@@ -282,7 +288,7 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 				continue
 			}
 			if pg.Name == s.Name.Name {
-				found = true
+				docID = pg.ID
 			} else if pg.Name == s.NewName {
 				collision = true
 			}
@@ -295,7 +301,7 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 				continue
 			}
 			if c.Name == s.Name.Name {
-				found = true
+				docID = c.ID
 			} else if c.Name == s.NewName {
 				collision = true
 			}
@@ -308,25 +314,30 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 				continue
 			}
 			if wf.Name == s.Name.Name {
-				found = true
+				docID = wf.ID
 			} else if wf.Name == s.NewName {
 				collision = true
 			}
 		}
 	}
 
-	if !found {
+	if docID == "" {
 		return mdlerrors.NewNotFound(s.ObjectType, oldQualifiedName)
 	}
 	if collision {
 		return mdlerrors.NewValidationf("%s %s already exists in module %s", docType, s.NewName, s.Name.Module)
 	}
 
-	// The reference scanner will also update the document's own Name field
-	// when it matches the old qualified name. But the Name field is just the
-	// simple name (e.g., "OldName"), not the qualified name. So we need to
-	// handle it separately — the scanner updates cross-references, and we
-	// update the Name field directly.
+	// The document's own Name is a simple name, which the reference sweep below
+	// does not match, so it is rewritten separately — and first, so that a
+	// rename the backend refuses leaves no reference pointing at a name nothing
+	// carries.
+	if !s.DryRun {
+		if err := ctx.Backend.RenameDocument(docID, s.Name.Name, s.NewName); err != nil {
+			return mdlerrors.NewBackend(fmt.Sprintf("rename %s", docType), err)
+		}
+	}
+
 	hits, err := ctx.Backend.RenameReferences(oldQualifiedName, newQualifiedName, s.DryRun)
 	if err != nil {
 		return mdlerrors.NewBackend("scan references", err)
@@ -335,11 +346,6 @@ func execRenameDocument(ctx *ExecContext, s *ast.RenameStmt, docType string) err
 	if s.DryRun {
 		printRenameReport(ctx, oldQualifiedName, newQualifiedName, hits)
 		return nil
-	}
-
-	// Update the document's own Name field via the raw BSON name updater
-	if err := ctx.Backend.RenameDocumentByName(s.Name.Module, s.Name.Name, s.NewName); err != nil {
-		return mdlerrors.NewBackend(fmt.Sprintf("rename %s", docType), err)
 	}
 
 	invalidateHierarchy(ctx)
@@ -370,7 +376,9 @@ func execRenameEnumeration(ctx *ExecContext, s *ast.RenameStmt) error {
 	if err != nil {
 		return err
 	}
-	found := false
+	// Rename the enumeration found here, by ID — not by looking its name up
+	// again among units of any type (ako/mxcli#1443).
+	var docID model.ID
 	collision := false
 	for _, en := range enums {
 		modID := h.FindModuleID(en.ContainerID)
@@ -378,16 +386,24 @@ func execRenameEnumeration(ctx *ExecContext, s *ast.RenameStmt) error {
 			continue
 		}
 		if en.Name == s.Name.Name {
-			found = true
+			docID = en.ID
 		} else if en.Name == s.NewName {
 			collision = true
 		}
 	}
-	if !found {
+	if docID == "" {
 		return mdlerrors.NewNotFound("enumeration", oldQualifiedName)
 	}
 	if collision {
 		return mdlerrors.NewValidationf("enumeration %s already exists in module %s", s.NewName, s.Name.Module)
+	}
+
+	// The document first, as in execRenameDocument: a refused rename then
+	// leaves the references alone.
+	if !s.DryRun {
+		if err := ctx.Backend.RenameDocument(docID, s.Name.Name, s.NewName); err != nil {
+			return mdlerrors.NewBackend("rename enumeration", err)
+		}
 	}
 
 	hits, err := ctx.Backend.RenameReferences(oldQualifiedName, newQualifiedName, s.DryRun)
@@ -398,11 +414,6 @@ func execRenameEnumeration(ctx *ExecContext, s *ast.RenameStmt) error {
 	if s.DryRun {
 		printRenameReport(ctx, oldQualifiedName, newQualifiedName, hits)
 		return nil
-	}
-
-	// Update enumeration name via raw BSON
-	if err := ctx.Backend.RenameDocumentByName(s.Name.Module, s.Name.Name, s.NewName); err != nil {
-		return mdlerrors.NewBackend("rename enumeration", err)
 	}
 
 	// Also update enumeration refs in domain models (attribute types store qualified enum names)
@@ -559,7 +570,9 @@ func execRenameJavaAction(ctx *ExecContext, s *ast.RenameStmt) error {
 	if err != nil {
 		return err
 	}
-	found := false
+	// Rename the Java action found here, by ID — not by looking its name up
+	// again among units of any type (ako/mxcli#1443).
+	var docID model.ID
 	collision := false
 	for _, ja := range jas {
 		modID := h.FindModuleID(ja.ContainerID)
@@ -567,16 +580,24 @@ func execRenameJavaAction(ctx *ExecContext, s *ast.RenameStmt) error {
 			continue
 		}
 		if ja.Name == s.Name.Name {
-			found = true
+			docID = ja.ID
 		} else if ja.Name == s.NewName {
 			collision = true
 		}
 	}
-	if !found {
+	if docID == "" {
 		return mdlerrors.NewNotFound("java action", oldQualifiedName)
 	}
 	if collision {
 		return mdlerrors.NewValidationf("java action %s already exists in module %s", s.NewName, s.Name.Module)
+	}
+
+	// The document first, as in execRenameDocument: a refused rename then
+	// leaves the references alone.
+	if !s.DryRun {
+		if err := ctx.Backend.RenameDocument(docID, s.Name.Name, s.NewName); err != nil {
+			return mdlerrors.NewBackend("rename java action", err)
+		}
 	}
 
 	hits, err := ctx.Backend.RenameReferences(oldQualifiedName, newQualifiedName, s.DryRun)
@@ -589,9 +610,6 @@ func execRenameJavaAction(ctx *ExecContext, s *ast.RenameStmt) error {
 		return nil
 	}
 
-	if err := ctx.Backend.RenameDocumentByName(s.Name.Module, s.Name.Name, s.NewName); err != nil {
-		return mdlerrors.NewBackend("rename java action", err)
-	}
 	if err := ctx.Backend.RenameJavaSourceFile(s.Name.Module, s.Name.Name, s.NewName); err != nil {
 		return mdlerrors.NewBackend("rename java source file", err)
 	}
