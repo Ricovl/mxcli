@@ -432,10 +432,12 @@ func insertJunctionRows(ctx context.Context, tx *sql.Tx, assoc *AssocInfo,
 
 // updateObjectSequence updates the object_sequence counter for the given entity.
 func updateObjectSequence(ctx context.Context, tx *sql.Tx, entityName string, newSeq int64) error {
+	// The aliases are spelled with AS: PostgreSQL treats it as optional, SQLite
+	// requires it, and the import tests run this pipeline against SQLite.
 	query := `
-		UPDATE mendixsystem$entityidentifier ei
+		UPDATE mendixsystem$entityidentifier AS ei
 		SET object_sequence = $1
-		FROM mendixsystem$entity e
+		FROM mendixsystem$entity AS e
 		WHERE ei.id = e.id AND e.entity_name = $2`
 
 	result, err := tx.ExecContext(ctx, query, newSeq, entityName)
