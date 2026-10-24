@@ -1489,6 +1489,7 @@ MDL uses explicit property declarations for pages:
 |---------|-----------|---------|
 | Page properties | `(key: value, ...)` | `(title: 'Edit', layout: Atlas_Core.Atlas_Default)` |
 | Pop-up dimensions | `PopupWidth: n, PopupHeight: n, PopupResizable: bool` | `(Layout: Atlas_Core.PopupLayout, PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` — case-sensitive; default 600×600 |
+| Page design properties | `DesignProperties: ( 'Key': 'Value', … )` | `(Layout: Atlas_Core.NativePhone_Default, DesignProperties: ('Spacing top': 'Inner large'))` — the page's own, from the theme's Document and Page groups |
 | Pop-up close button | `PopupCloseAction: <widgetName>` | `(Layout: Atlas_Core.PopupLayout, PopupCloseAction: cancelButton1)` — names a widget on this page. Not carried from the stored document on a rewrite: the statement rebuilds the widget tree, so a carried name could dangle |
 | DataView read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `dataview dv (datasource: $O, ReadOnlyStyle: Text)` — a DataView's own, distinct from a checkbox's. **Control** is Studio Pro's default here, not Inherit |
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
@@ -1731,6 +1732,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Documentation | `set (Documentation: 'What this page is for.')` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
 | Pop-up dimensions | `set (PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` | Page-level; apply when the page opens in a pop-up |
 | Page CSS class / style | `set (Class: 'css-class')` / `set (Style: 'css: rule')` | Page-level (no ON clause); sets the page's Appearance |
+| Page design property | `set ('Background color': 'Background Primary')` | Page-level (no ON clause); the page's own Appearance design property, from the theme's Document and Page groups (Atlas declares them on native). `create page` takes them as `DesignProperties: ( … )` in the header |
 | Dynamic text heading level | `set (RenderMode: H2) on txtTitle` | Dynamic text: Text, Paragraph, H1–H6 (any casing); another value is refused with the accepted list. On other widgets the key is not a dynamic text's RenderMode and keeps the generic route |
 | Native dynamic text style | `set (NativeTextStyle: Heading2) on txtTitle` | Dynamic text on a native page, where RenderMode does not apply: Text, Heading1–Heading6 (any casing); another value is refused with the accepted list. `create page` takes the same property |
 | Widget dynamic classes | `set (DynamicClasses: 'expr') on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |

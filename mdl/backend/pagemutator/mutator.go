@@ -423,6 +423,11 @@ func (m *Mutator) ClearDesignProperties(widgetRef string) error {
 
 // findStyleableWidget locates a widget by name for design-property operations.
 func (m *Mutator) findStyleableWidget(widgetRef string) (bson.D, error) {
+	// No widget is the page itself: a page's own Appearance carries design
+	// properties too (ako/mxcli#1678).
+	if widgetRef == "" && m.containerType == backend.ContainerPage {
+		return m.rawData, nil
+	}
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return nil, fmt.Errorf("widget %q not found", widgetRef)

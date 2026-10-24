@@ -127,6 +127,11 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			if st, _ := ap["Style"].(string); st != "" {
 				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, st)))
 			}
+			// The page's own design properties; unprinted, a rewrite dropped
+			// them (ako/mxcli#1678).
+			if dps := extractDesignProperties(ap); len(dps) > 0 {
+				props = append(props, formatDesignPropertiesMDL(ctx, dps))
+			}
 		}
 	}
 	if len(foundPage.Parameters) > 0 {

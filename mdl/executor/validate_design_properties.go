@@ -24,7 +24,7 @@ func LoadThemeRegistryForProject(mprPath string) *ThemeRegistry {
 		return nil
 	}
 	reg, err := loadThemeRegistry(filepath.Dir(mprPath))
-	if err != nil || reg == nil || len(reg.WidgetProperties) == 0 {
+	if err != nil || reg == nil || (len(reg.WidgetProperties) == 0 && len(reg.NativeWidgetProperties) == 0) {
 		return nil
 	}
 	return reg
@@ -117,7 +117,14 @@ func ValidateDesignPropertiesForStatement(stmt ast.Statement, reg *ThemeRegistry
 		return nil
 	}
 	if label, widgets, ok := documentWidgets(stmt); ok {
-		return validateDesignPropsTree(widgets, reg, label)
+		out := validateDesignPropsTree(widgets, reg, label)
+		// The page's own, typed against the theme's "Page" group (ako/mxcli#1678).
+		if s, isPage := stmt.(*ast.CreatePageStmtV3); isPage && len(s.DesignProperties) > 0 {
+			page := &ast.WidgetV3{Type: "page", Name: s.Name.Name,
+				Properties: map[string]any{"DesignProperties": s.DesignProperties}}
+			out = append(out, validateDesignPropsAs(page, pageThemeKey, reg, label)...)
+		}
+		return out
 	}
 	switch s := stmt.(type) {
 	case *ast.AlterPageStmt:
@@ -258,7 +265,7 @@ func validateDesignPropsAs(w *ast.WidgetV3, key string, reg *ThemeRegistry, loca
 	// Only validate widgets we have type-specific metadata for. For an unknown
 	// widget type (e.g. a pluggable widget not in the theme registry) we don't
 	// know the full property set, so we must not flag its keys as unknown.
-	if _, ok := reg.WidgetProperties[key]; !ok {
+	if !reg.declaresGroup(key) {
 		return nil
 	}
 	props := reg.GetPropertiesForWidget(key)

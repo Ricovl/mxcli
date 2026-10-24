@@ -155,10 +155,22 @@ func parseDesignPropertiesJSON(data []byte) (map[string][]ThemeProperty, error) 
 	return fileProps, nil
 }
 
+// pageThemeKey is the group a page's own design properties are declared in. A
+// page does not inherit "Widget" but "Document": Atlas Core 4.1.3's native theme
+// declares 'Spacing top' (Inner small/medium/large) and 'Background color' there,
+// and mxbuild types a page's 'Spacing left' against Document's options, refusing
+// Widget's 'Small' with CE6085 "Unknown option Small" (ako/mxcli#1678).
+const pageThemeKey = "Page"
+
 // GetPropertiesForWidget returns properties applicable to a widget type,
-// including inherited "Widget" properties that apply to all widget types.
+// including inherited "Widget" properties that apply to all widget types. For
+// pageThemeKey it returns the page's: "Document", then "Page".
 func (r *ThemeRegistry) GetPropertiesForWidget(widgetTypeKey string) []ThemeProperty {
 	var result []ThemeProperty
+	if widgetTypeKey == pageThemeKey {
+		result = append(result, r.WidgetProperties["Document"]...)
+		return append(result, r.WidgetProperties[pageThemeKey]...)
+	}
 
 	// Add inherited "Widget" properties first (apply to all widgets)
 	if widgetProps, ok := r.WidgetProperties["Widget"]; ok {
@@ -173,6 +185,19 @@ func (r *ThemeRegistry) GetPropertiesForWidget(widgetTypeKey string) []ThemeProp
 	}
 
 	return result
+}
+
+// declaresGroup reports whether the theme defines design properties for key,
+// so a validator knows the full property set rather than guessing.
+func (r *ThemeRegistry) declaresGroup(key string) bool {
+	if _, ok := r.WidgetProperties[key]; ok {
+		return true
+	}
+	if key == pageThemeKey {
+		_, ok := r.WidgetProperties["Document"]
+		return ok
+	}
+	return false
 }
 
 // mdlKeywordStorageType maps each MDL keyword that builds a NATIVE widget to the

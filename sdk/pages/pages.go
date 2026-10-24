@@ -28,10 +28,13 @@ type Page struct {
 	PopupCloseAction string `json:"popupCloseAction,omitempty"`
 	// Class / Style are the page's Forms$Appearance CSS class and inline style
 	// (issue #714).
-	Class      string `json:"class,omitempty"`
-	Style      string `json:"style,omitempty"`
-	MarkAsUsed bool   `json:"markAsUsed"`
-	Excluded   bool   `json:"excluded"`
+	Class string `json:"class,omitempty"`
+	Style string `json:"style,omitempty"`
+	// DesignProperties are the page's own Appearance.DesignProperties — Atlas
+	// declares them under "Page" (ako/mxcli#1678).
+	DesignProperties []DesignPropertyValue `json:"designProperties,omitempty"`
+	MarkAsUsed       bool                  `json:"markAsUsed"`
+	Excluded         bool                  `json:"excluded"`
 }
 
 // GetName returns the page's name.

@@ -110,6 +110,17 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 		}
 	}
 
+	// The page's own design properties, typed against the theme's "Page" group —
+	// after the layout, which decides the platform (ako/mxcli#1678).
+	if len(s.DesignProperties) > 0 {
+		dps, err := designPropertyValuesV3(&ast.WidgetV3{Name: s.Name.Name,
+			Properties: map[string]any{"DesignProperties": s.DesignProperties}}, pageThemeKey, pb.themeRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("page %s: %w", s.Name.String(), err)
+		}
+		page.DesignProperties = dps
+	}
+
 	// Build parameters
 	for _, param := range s.Parameters {
 		pageParam := &pages.PageParameter{

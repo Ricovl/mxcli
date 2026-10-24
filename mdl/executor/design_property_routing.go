@@ -140,6 +140,11 @@ func designPropertyForStoredWidget(theme *ThemeRegistry, mutator backend.PageMut
 		return nil
 	}
 	dpKey := storedWidgetDesignPropsKey(mutator, widgetRef)
+	if widgetRef == "" && mutator != nil && mutator.ContainerType() == backend.ContainerPage {
+		// A page-level SET: the page's own design properties, which the theme
+		// declares under "Page" (ako/mxcli#1678).
+		dpKey = pageThemeKey
+	}
 	if dpKey == "" {
 		return nil
 	}
