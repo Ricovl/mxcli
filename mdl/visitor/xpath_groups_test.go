@@ -77,3 +77,47 @@ func TestParseXPathConstraint_RejectsPartialParse(t *testing.T) {
 		t.Error("ParseXPathConstraint rejected a single well-formed group")
 	}
 }
+
+// TestXPathPredicateGroupSpans pins that the spans index the string as given, not
+// a trimmed copy of it: a caller that edits one group splices it back at Start:End
+// and copies everything else verbatim, so an offset that ignored leading
+// whitespace would shift every edit (ako/mxcli#1506).
+func TestXPathPredicateGroupSpans(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want []XPathGroupSpan
+	}{
+		{name: "single group", in: "[a = 1]", want: []XPathGroupSpan{{0, 7}}},
+		{name: "adjacent groups", in: "[a = 1][b = 2]", want: []XPathGroupSpan{{0, 7}, {7, 14}}},
+		{
+			name: "line breaks between groups and around them",
+			in:   "\n  [a = 1]\r\n\t[b = ']['] \n",
+			want: []XPathGroupSpan{{3, 10}, {13, 23}},
+		},
+		{name: "nested group", in: "[A/B[c = 1]] [d = 2]", want: []XPathGroupSpan{{0, 12}, {13, 20}}},
+		{name: "empty", in: "", want: nil},
+		{name: "blank", in: " \n ", want: nil},
+		{name: "not bracketed", in: "a = 1", want: nil},
+		{name: "content between groups", in: "[a = 1] or [b = 2]", want: nil},
+		{name: "unbalanced", in: "[a = 1", want: nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := XPathPredicateGroupSpans(tc.in)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("XPathPredicateGroupSpans(%q)\n got %#v\nwant %#v", tc.in, got, tc.want)
+			}
+			// The spans and the split must agree: same groups, same text.
+			groups := SplitXPathPredicateGroups(tc.in)
+			if len(groups) != len(got) {
+				t.Fatalf("%d spans but %d groups", len(got), len(groups))
+			}
+			for i, sp := range got {
+				if tc.in[sp.Start:sp.End] != groups[i] {
+					t.Errorf("span %d is %q, group is %q", i, tc.in[sp.Start:sp.End], groups[i])
+				}
+			}
+		})
+	}
+}
