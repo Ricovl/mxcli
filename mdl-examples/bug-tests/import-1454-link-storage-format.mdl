@@ -1,0 +1,80 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1454 (upstream mendixlabs/mxcli#1557) — IMPORT ... LINK reported
+-- success and linked nothing.
+--
+-- The import read mendixsystem$association.storage_format and compared it with
+-- the strings "Column" / "Table". The runtime stores a smallint there — 1 for a
+-- foreign-key column on the owner's table, 2 for a junction table — measured
+-- with psql on Mendix 10.24.24, 11.12.2, 11.13.0 and 11.14.0. Neither comparison ever
+-- matched, so a column-stored LINK skipped the FK column, a table-stored LINK
+-- skipped the junction insert, and the import printed
+--
+--   MyFirstModule.EmployeeCol_Department: 1 storage, lookup by ...
+--   Imported 5 rows into MyFirstModule.EmployeeCol (1 batches, 8ms)
+--
+-- with every association empty. The value is now decoded (1, 2, their text, or
+-- the model's names); anything else is an error naming the association, and an
+-- import refuses a LINK whose storage it cannot place before writing a row.
+-- Every LINK now reports its count, zero included.
+--
+-- To reproduce: run this against a project, boot it once so the runtime
+-- creates the tables and the mendixsystem rows, create the source database
+--
+--   create table employees (name text, dept text);
+--   insert into employees values ('Alice','Sales'), ('Bob','Engineering'),
+--     ('Carol','Finance'), ('Dave','Sales'), ('Eve','NoSuchDept');
+--   create table departments as select distinct dept as name from employees
+--     where dept <> 'NoSuchDept';
+--
+-- and run the import half below (MXCLI_DB_* point mxcli at the app database
+-- when the project settings do not). Expected: both imports print
+-- "linked 4/5 rows (1 null — lookup value not found)", and
+--
+--   select count(*) from "myfirstmodule$employeecol"
+--     where "myfirstmodule$employeecol_department" is not null;   -- 4
+--   select count(*) from "myfirstmodule$employeetbl_department";  -- 4
+--
+-- Before the fix both counts were 0 and neither import printed a link line.
+-- ============================================================================
+
+create or modify persistent entity MyFirstModule.Department (
+  Name: String(100)
+);
+create or modify persistent entity MyFirstModule.EmployeeCol (
+  Name: String(100)
+);
+create or modify persistent entity MyFirstModule.EmployeeTbl (
+  Name: String(100)
+);
+
+-- storage column: the runtime writes storage_format 1
+create or modify association MyFirstModule.EmployeeCol_Department
+  from MyFirstModule.EmployeeCol to MyFirstModule.Department
+  storage column;
+
+-- storage table: the runtime writes storage_format 2
+create or modify association MyFirstModule.EmployeeTbl_Department
+  from MyFirstModule.EmployeeTbl to MyFirstModule.Department
+  storage table;
+
+-- ---------------------------------------------------------------------------
+-- Import half — needs the app database (boot the app once first) and the
+-- source database above.
+-- ---------------------------------------------------------------------------
+
+sql connect postgres 'postgres://mendix:mendix@127.0.0.1:5432/i1454_src?sslmode=disable' as src;
+
+import from src query 'SELECT name FROM departments'
+  into MyFirstModule.Department
+  map (name as Name);
+
+import from src query 'SELECT name, dept FROM employees'
+  into MyFirstModule.EmployeeCol
+  map (name as Name)
+  link (dept to EmployeeCol_Department on Name);
+
+import from src query 'SELECT name, dept FROM employees'
+  into MyFirstModule.EmployeeTbl
+  map (name as Name)
+  link (dept to EmployeeTbl_Department on Name);
