@@ -59,6 +59,10 @@ package roundtrip
 // imported web service under the SDK name instead of WsdlFile, so the #365
 // refusal could not see it and the rewrite dropped the binding (GetPut). Read
 // under the storage key, the rewrite is refused and nothing is written.
+// ako/mxcli#1560 struck WorkflowCommons.User_WorkflowGroup_Select and
+// WorkflowGroup_User_Select: their Save button passes comboBox1's selection, a
+// PageVariable naming only the widget, which describe dropped and exec could
+// not write back — the rebuilt button called its microflow unbound (CE1571).
 var testAppKnownFailures = map[string]knownFailure{
 	"building block Atlas_Web_Content.Alert":                                        {laws: []law{lawParse}, issue: "#721", why: "building block: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"building block Atlas_Web_Content.AlertIcon":                                    {laws: []law{lawParse}, issue: "#721", why: "building block: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -128,14 +132,12 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page WorkflowCommons.UserTask_Assign":                                          {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp (putget since this branch's widget fixes), measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.UserTask_Target":                                          {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.UserTask_TargetGroups":                                    {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.User_WorkflowGroup_Select":                                {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowAttachment_View":                                  {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowCommentHelper_Edit":                               {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowComment_Edit_Admin":                               {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_CleanUp":                               {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowDefinition_View":                                  {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowEndedUserTask":                                    {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.WorkflowGroup_User_Select":                                {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowSubProcess_View":                                  {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowUserTaskView_View":                                {laws: []law{lawGetPut}, issue: "#721 #826", why: "executes since describe prints snippet call Params (#826); the page Appearance keeps 1 of 3 DesignProperties (#721 C)"},
 	"page WorkflowCommons.Workflow_Dashboard":                                       {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},

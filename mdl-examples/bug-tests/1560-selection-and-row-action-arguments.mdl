@@ -1,0 +1,66 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1560 (mendixlabs/mxcli#1628) — "a grid or list view calls
+-- M.ACT_Open whose parameter is filled in from the container; describe prints
+-- `Action: microflow M.ACT_Open` and check rejects it with CE1571". Two causes,
+-- both measured on TestApp (Studio Pro-authored, 11.14.0), where describe →
+-- check reported CE1571 16 times on pages `mx check` passes:
+--
+-- 1. A button passing a widget's SELECTION — a grid's control-bar button, or a
+--    button passing a combo box's selection — is stored as a Forms$PageVariable
+--    naming only the widget. Describe dropped it (13 of the 16), and exec
+--    wrote the call unbound: rebuilt from the description, the nine pages give
+--    13 CE1571 on mx check 11.14.0. Describe now prints `Items: $dgItems` and
+--    exec binds it to the same Widget slot: those 11 grid and data view
+--    arguments build clean, and an in-place describe → exec is 0 errors where
+--    the pre-fix binary gave 2 CE1571.
+-- 2. A list widget's OWN click (list view `Action:`, data grid / gallery
+--    `OnClick:`) fires per row, and the row fills the parameter in: Studio Pro
+--    stores no mapping (3 of the 16). check judged it against the context
+--    around the widget. Measured on 10.24.25: list view, data grid and gallery
+--    with no argument → no CE1571; a button outside every data context →
+--    CE1571 (the control, kept below as btnLoose's commented-out form).
+--
+-- Expected: `check -p` passes (the pre-fix binary reported dgItems and lvItems
+-- as CE1571); exec writes btnRemove's argument as Variable {Widget: dgItems},
+-- the shape Studio Pro stores, where the pre-fix binary wrote the Expression
+-- "$dgItems" (the #1140 form: mxbuild accepts it, Studio Pro reports CE1571);
+-- describe page SelA.P_Items prints `Items = $dgItems` and the row actions with
+-- no argument. Measured on 10.24.25: mx check 0 errors.
+-- ============================================================================
+
+create module SelA;
+
+create persistent entity SelA.Item (Code: String(20));
+
+create microflow SelA.ACT_OpenItem ($Item: SelA.Item)
+begin
+  return;
+end;
+
+create microflow SelA.ACT_RemoveItems ($Items: list of SelA.Item)
+begin
+  return;
+end;
+
+create page SelA.P_Items (Title: 'Items', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgItems (
+    DataSource: database from SelA.Item,
+    Selection: Multi,
+    OnClick: call microflow SelA.ACT_OpenItem
+  ) {
+    controlbar {
+      actionbutton btnRemove (Caption: 'Remove', Action: call microflow SelA.ACT_RemoveItems(Items = $dgItems))
+    }
+    column (Attribute: Code, Caption: 'Code')
+  }
+  listview lvItems (DataSource: database from SelA.Item, Action: call microflow SelA.ACT_OpenItem) {
+    dynamictext txtCode (Content: '{1}', ContentParams: ({1} = Code))
+  }
+};
+
+-- The control: no data context supplies $Item here, so check refuses it with
+-- CE1571, as mx check does. Uncomment to see it.
+-- create page SelA.P_Loose (Title: 'Loose', Layout: Atlas_Core.Atlas_Default) {
+--   actionbutton btnLoose (Caption: 'No context', Action: call microflow SelA.ACT_OpenItem)
+-- };

@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -48,6 +49,9 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 	h, _ := getHierarchy(ctx)
 	added := widgetsTheScriptAddsTo(prog)
 	grown := map[string]bool{} // documents an operation so far has added widgets to
+	// The widgets an operation so far has dropped, per document: this pass
+	// reads the stored document, where exec has already applied them.
+	dropped := map[string]map[string]bool{}
 	opened := map[model.ID]backend.PageMutator{}
 	var judge columnAttrJudge
 
@@ -70,15 +74,27 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 		// creates, or one that does not resolve (validateAlterTarget's
 		// finding) or will not open.
 		var mutator backend.PageMutator
+		var unitID, containerID model.ID
 		if h != nil && !alterTargetComesFromScript(sc, s) {
-			if unitID, _, _, err := resolveAlterPageUnit(ctx, s, h); err == nil {
-				m, seen := opened[unitID]
+			if uid, cid, _, err := resolveAlterPageUnit(ctx, s, h); err == nil {
+				m, seen := opened[uid]
 				if !seen {
-					m, _ = ctx.Backend.OpenPageForMutation(unitID)
-					opened[unitID] = m
+					m, _ = ctx.Backend.OpenPageForMutation(uid)
+					opened[uid] = m
 				}
-				mutator = m
+				mutator, unitID, containerID = m, uid, cid
 			}
+		}
+		// The stored document as describe prints it, for a pluggable REPLACE's
+		// baseline — read once, and only when a REPLACE needs it, as exec does.
+		var described map[string]*ast.WidgetV3
+		describedOnce := false
+		storedWidgets := func() map[string]*ast.WidgetV3 {
+			if !describedOnce {
+				describedOnce = true
+				described = describedStoredWidgets(ctx, unitID, kind, s.PageName)
+			}
+			return described
 		}
 
 		// The references the inserted and replacing widgets carry. They need no
@@ -149,16 +165,45 @@ func validateAlterPageReferences(ctx *ExecContext, prog *ast.Program, sc *script
 						if err := refuseHiddenItemSlotFor(ctx, mutator, op, ref); err != nil {
 							errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
 						}
+						if r, isReplace := op.(*ast.ReplaceWidgetOp); isReplace && ref.Widget == r.Target.Widget {
+							err := refuseStaleContentReplace(ctx, mutator, r, h.GetModuleName(containerID), containerID, storedWidgets)
+							if err != nil && !droppedFirst(err, dropped[doc]) {
+								errs = append(errs, mdlerrors.NewValidationf("%s: %v", label, err))
+							}
+						}
 					}
 				}
 			}
-			switch op.(type) {
+			switch o := op.(type) {
 			case *ast.InsertWidgetOp, *ast.ReplaceWidgetOp:
 				grown[doc] = true
+			case *ast.DropWidgetOp:
+				if dropped[doc] == nil {
+					dropped[doc] = map[string]bool{}
+				}
+				for _, t := range o.Targets {
+					dropped[doc][t.Widget] = true
+				}
 			}
 		}
 	}
 	return errs
+}
+
+// droppedFirst reports whether err is a stale-content refusal whose widgets an
+// earlier DROP removes — the remedy the refusal itself gives, which exec sees
+// applied and this pass, reading the stored document, does not.
+func droppedFirst(err error, dropped map[string]bool) bool {
+	var stale *backend.StaleWidgetContentError
+	if !errors.As(err, &stale) || len(stale.Widgets) == 0 {
+		return false
+	}
+	for _, w := range stale.Widgets {
+		if w == "" || !dropped[w] {
+			return false
+		}
+	}
+	return true
 }
 
 // alterColumnInsertion returns the grid target and the columns of an INSERT or

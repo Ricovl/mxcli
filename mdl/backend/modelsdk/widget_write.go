@@ -2003,14 +2003,22 @@ type parameterMappingTarget interface {
 // kind empty means "not a page-variable reference": variable is then written as
 // the expression, preserving what every caller before #1140 relied on —
 // $currentObject among them, whose stored form has not been measured.
+//
+// Kind "widget" is a widget's selection: the PageVariable names the widget and
+// nothing else, as on all 13 such mappings in TestApp's WorkflowCommons
+// (ako/mxcli#1560). It used to fall to the page-parameter slot.
 func bindParameterMappingValue(m parameterMappingTarget, variable, kind, expression string) {
 	if variable != "" && kind != "" {
-		// sourceVariableToGen spells the page-parameter slot as the empty kind.
-		svKind := kind
-		if svKind == "parameter" {
-			svKind = ""
+		name := strings.TrimPrefix(variable, "$")
+		switch kind {
+		case "widget":
+			m.SetVariable(pageVariableToGen(name, "", ""))
+		case "parameter":
+			// sourceVariableToGen spells the page-parameter slot as the empty kind.
+			m.SetVariable(sourceVariableToGen(name, ""))
+		default:
+			m.SetVariable(sourceVariableToGen(name, kind))
 		}
-		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(variable, "$"), svKind))
 		// Studio Pro writes both keys, the unused one empty.
 		m.SetExpression("")
 		return

@@ -632,6 +632,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 					widget.ExplicitProperties = append(widget.ExplicitProperties, comboBoxDatabaseSelection(ctx, w)...)
 				}
 				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
+				widget.HiddenContent = comboBoxHiddenContent(w)
 			}
 		}
 		// For pluggable Image widget, extract image-specific properties

@@ -52,8 +52,9 @@ func TestPageVariableArgValue(t *testing.T) {
 			"$Workflow",
 		},
 		{
-			// A grid's selection. MDL has no syntax for it, and rendering it as
-			// $dataGrid23 would re-execute into a different binding.
+			// A grid's selection is a flow call's to read (flowArgVariableValue,
+			// ako/mxcli#1560); a snippet call, which reads through this, has no
+			// Studio Pro mapping of that shape.
 			"widget selection is not rendered",
 			map[string]any{"$Type": "Forms$PageVariable", "Widget": "dataGrid23"},
 			"",

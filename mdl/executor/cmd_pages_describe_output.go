@@ -1029,6 +1029,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
 			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
+			writeHiddenContentNote(ctx.Output, prefix, w.Name, w.HiddenContent)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
@@ -1823,18 +1824,11 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 			}
 		}
 
-		// Check for a Forms$PageVariable binding.
+		// Check for a Forms$PageVariable binding. One naming only a widget is a
+		// control-bar button passing its grid's selection (mendixlabs/mxcli#122),
+		// written `$grid`.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
-		}
-		// A PageVariable naming only a widget is a control-bar button passing
-		// its grid's selection (mendixlabs/mxcli#122), written `$grid`.
-		if value == "" {
-			if v, ok := mappingMap["Variable"].(map[string]any); ok {
-				if w := extractString(v["Widget"]); w != "" {
-					value = "$" + w
-				}
-			}
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1891,7 +1885,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1950,7 +1944,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {

@@ -5,10 +5,12 @@ package executor
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
@@ -57,6 +59,9 @@ type storedPluggable struct {
 	declared *ast.WidgetV3
 	// refs are the model elements the stored Object names.
 	refs map[string]bool
+	// hidden is content of the stored widget that describe cannot print, and so
+	// no statement can carry (ako/mxcli#1648); see storedHiddenContent.
+	hidden []rawHiddenContent
 }
 
 // pluggablePassthrough indexes a stored document's pluggable widgets by name.
@@ -100,6 +105,7 @@ func loadPluggablePassthrough(ctx *ExecContext, unitID model.ID, describe func()
 			typ:      typ,
 			obj:      obj,
 			refs:     modelRefs(obj),
+			hidden:   storedHiddenContent(w.WidgetID, typ, obj),
 		}
 	})
 	for name := range ambiguous {
@@ -248,4 +254,156 @@ func cloneBsonD(d bson.D) bson.D {
 		return d
 	}
 	return out
+}
+
+// A rebuild that would delete content MDL cannot author (ako/mxcli#1648).
+//
+// A combo box's custom content is widgets the combo box holds that describe
+// cannot print as MDL (MDL-WIDGET26) — only name, in a NOT SHOWN note. An
+// unchanged combo box keeps it, passed through above; a CHANGED one is rebuilt
+// from the template, the content is gone, and its type stays 'yes', because
+// describe prints that: "Replaced page", then mx check CE0642 "Property 'Custom
+// content' is required". The statement cannot have asked for the deletion — it
+// has no words for the content — so the rewrite is refused (ADR-0012: carry or
+// refuse, never drop), naming the widgets, as #1622 refuses for widgets MDL
+// cannot author.
+//
+// Only the combo box: every other pluggable widget's slots are described, so a
+// widget the statement leaves out of one is a deletion the author wrote.
+
+const comboBoxPackageWidgetID = "com.mendix.widget.web.combobox.Combobox"
+
+// storedHiddenContent is the custom content of a stored combo box, by
+// property, read off its stored Type and Object; nil for any other widget.
+func storedHiddenContent(widgetID string, typ, obj bson.D) []rawHiddenContent {
+	if widgetID != comboBoxPackageWidgetID {
+		return nil
+	}
+	widgetsKeys := map[string]string{}
+	for _, pt := range bsonDocs(bsonValue(bsonDocField(typ, "ObjectType"), "PropertyTypes")) {
+		if bsonString(bsonDocField(pt, "ValueType"), "Type") == "Widgets" {
+			widgetsKeys[bsonIDKey(bsonValue(pt, "$ID"))] = bsonString(pt, "PropertyKey")
+		}
+	}
+	var out []rawHiddenContent
+	for _, prop := range bsonDocs(bsonValue(obj, "Properties")) {
+		key := widgetsKeys[bsonIDKey(bsonValue(prop, "TypePointer"))]
+		content := bsonDocs(bsonValue(bsonDocField(prop, "Value"), "Widgets"))
+		if key == "" || len(content) == 0 {
+			continue
+		}
+		hc := rawHiddenContent{Property: key}
+		for _, w := range content {
+			if name := bsonString(w, "Name"); name != "" {
+				hc.Widgets = append(hc.Widgets, name)
+				continue
+			}
+			kind := bsonString(w, "$Type")
+			hc.Widgets = append(hc.Widgets, "an unnamed "+strings.ToLower(kind[strings.LastIndex(kind, "$")+1:]))
+		}
+		out = append(out, hc)
+	}
+	return out
+}
+
+// refuseChangedWithHiddenContent is the check -p half: a widget of the
+// statement that is a stored combo box with custom content, written
+// differently from how describe prints it, is the rebuild exec refuses.
+func (pt *pluggablePassthrough) refuseChangedWithHiddenContent(widgets []*ast.WidgetV3) error {
+	if pt == nil {
+		return nil
+	}
+	var found error
+	var walk func([]*ast.WidgetV3)
+	walk = func(ws []*ast.WidgetV3) {
+		for _, w := range ws {
+			if w == nil || found != nil {
+				continue
+			}
+			if sp := pt.byName[w.Name]; sp != nil && len(sp.hidden) > 0 && sp.declared != nil &&
+				strings.EqualFold(w.Type, sp.declared.Type) && !declaredMatches(w, sp.declared) {
+				found = hiddenContentRebuildError(w.Name, sp.hidden)
+				return
+			}
+			walk(w.Children)
+		}
+	}
+	walk(widgets)
+	return found
+}
+
+// refuseLostHiddenContent is exec's half, for a widget passStoredThrough did
+// not keep: a stored combo box with custom content, rebuilt as one. It covers
+// every reason the passthrough declines — a changed statement, and a context
+// change under the same text — which check, reading only the text, cannot.
+func (pt *pluggablePassthrough) refuseLostHiddenContent(def *WidgetDefinition, w *ast.WidgetV3) error {
+	if pt == nil || def == nil || w == nil {
+		return nil
+	}
+	sp, ok := pt.byName[w.Name]
+	if !ok || len(sp.hidden) == 0 || sp.widgetID != def.WidgetID {
+		return nil
+	}
+	return hiddenContentRebuildError(w.Name, sp.hidden)
+}
+
+func hiddenContentRebuildError(widget string, hidden []rawHiddenContent) error {
+	hc := hidden[0]
+	var named []string
+	for _, n := range hc.Widgets {
+		if !strings.HasPrefix(n, "an unnamed ") {
+			named = append(named, n)
+		}
+	}
+	remedy := fmt.Sprintf("give the content a name in Studio Pro, or drop %s itself", widget)
+	if len(named) == len(hc.Widgets) {
+		remedy = fmt.Sprintf("delete it on purpose first (`alter page … { drop %s; }`) and write %s without %sType",
+			strings.Join(named, ", "), widget, hc.Property)
+	}
+	return mdlerrors.NewUnsupported(fmt.Sprintf(
+		"%s would be rebuilt from this statement, which changes it, and its %s — %s, custom content MDL cannot "+
+			"author — would be deleted (Mendix then reports CE0642 \"Custom content is required\" while the content "+
+			"type stays set). Change %s with `alter page … { set (…) on %s; }`, which keeps the content, or %s",
+		widget, hc.Property, strings.Join(hc.Widgets, ", "), widget, widget, remedy))
+}
+
+// The raw-document helpers the content reader needs.
+
+func bsonValue(d bson.D, key string) any {
+	for _, e := range d {
+		if e.Key == key {
+			return e.Value
+		}
+	}
+	return nil
+}
+
+func bsonDocField(d bson.D, key string) bson.D {
+	v, _ := bsonValue(d, key).(bson.D)
+	return v
+}
+
+// bsonDocs is an array's documents, without the leading list marker.
+func bsonDocs(v any) []bson.D {
+	arr, _ := v.(bson.A)
+	var out []bson.D
+	for _, e := range arr {
+		if d, ok := e.(bson.D); ok {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// bsonIDKey renders an element ID — binary as stored, or a string — as a key.
+func bsonIDKey(v any) string {
+	switch x := v.(type) {
+	case bson.Binary:
+		return string(x.Data)
+	case []byte:
+		return string(x)
+	case string:
+		return x
+	}
+	return ""
 }
