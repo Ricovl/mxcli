@@ -97,6 +97,11 @@ func (fb *flowBuilder) rejoinMergePosition(source model.ID, computed model.Point
 // RIGHT of an activity, so the edge into it ran backwards (mendixlabs/mxcli#884,
 // ako/mxcli#1273). The fallback still covers an edge that does not run left to
 // right, such as one that wraps onto the next row.
+//
+// When the node entered is itself a merge — a branch's exit into the merge that
+// closes its IF or CASE — the new merge stays on the branch's row instead: on the
+// closing merge's line it would sit beside it, with the branch's and the
+// handler's edges climbing past each other to reach it (ako/mxcli#1459).
 func (fb *flowBuilder) mergeOnEdge(originID, destinationID model.ID, fallback model.Point) model.Point {
 	origin, dest := fb.objectByID(originID), fb.objectByID(destinationID)
 	if origin == nil || dest == nil {
@@ -107,7 +112,11 @@ func (fb *flowBuilder) mergeOnEdge(originID, destinationID model.ID, fallback mo
 	if left <= right {
 		return fallback
 	}
-	return model.Point{X: (right + left) / 2, Y: dest.GetPosition().Y}
+	y := dest.GetPosition().Y
+	if _, closes := dest.(*microflows.ExclusiveMerge); closes {
+		y = origin.GetPosition().Y
+	}
+	return model.Point{X: (right + left) / 2, Y: y}
 }
 
 // objectByID returns this builder's object with the given ID, or nil.
@@ -324,6 +333,93 @@ func (fb *flowBuilder) rewritePendingErrorHandlers(rewrite func(pendingErrorHand
 
 	active := rewrite(fb.activePendingErrorHandler())
 	fb.setActivePendingErrorHandler(active)
+}
+
+// pendingHandlers is every custom error-handler rejoin a builder still owes:
+// the active one and the queued ones, taken out of the builder together.
+type pendingHandlers struct {
+	active pendingErrorHandlerState
+	queue  []pendingErrorHandlerState
+}
+
+func (h pendingHandlers) empty() bool {
+	return h.active.activeIsEmpty() && len(h.queue) == 0
+}
+
+func (fb *flowBuilder) hasPendingErrorHandlers() bool {
+	return !fb.activePendingErrorHandler().activeIsEmpty() || len(fb.pendingErrorHandlers) > 0
+}
+
+// takePendingErrorHandlers removes every pending rejoin from the builder and
+// returns them.
+func (fb *flowBuilder) takePendingErrorHandlers() pendingHandlers {
+	h := pendingHandlers{active: fb.activePendingErrorHandler(), queue: fb.pendingErrorHandlers}
+	fb.setActivePendingErrorHandler(pendingErrorHandlerState{})
+	fb.pendingErrorHandlers = nil
+	return h
+}
+
+// adoptPendingErrorHandlers adds h to the builder's pending rejoins. h's active
+// handler stays the active one when the builder has none of its own: the
+// skip-var lookahead at the enclosing level reads the active handler's
+// variable, and a handler handed up from a branch is the one it has to see.
+func (fb *flowBuilder) adoptPendingErrorHandlers(h pendingHandlers) {
+	if h.empty() {
+		return
+	}
+	fb.pendingErrorHandlers = append(fb.pendingErrorHandlers, h.queue...)
+	if fb.activePendingErrorHandler().activeIsEmpty() {
+		fb.setActivePendingErrorHandler(h.active)
+	} else if !h.active.activeIsEmpty() {
+		fb.pendingErrorHandlers = append(fb.pendingErrorHandlers, h.active)
+	}
+}
+
+// enterBranch sets the enclosing path's pending rejoins aside while a branch
+// body (an IF or CASE arm, a loop body) is built, and returns them for
+// leaveBranch.
+//
+// A handler that falls through continues with the statement after the activity
+// that failed, so its rejoin is settled on the flow LEAVING that activity. The
+// rejoins used to live in one builder-wide slot that only the top-level body
+// loop settled: the handler of an activity inside an IF leaked out of it, and
+// the enclosing builder settled it on the next flow IT drew — the one into the
+// IF's own split, so a failing call re-entered the decision for ever — or on
+// none, which ended the flow at a new end event (ako/mxcli#1459). Scoping the
+// slot to the branch keeps the two apart in both directions: a branch's flows
+// settle only the branch's handlers, and never the enclosing path's.
+func (fb *flowBuilder) enterBranch() pendingHandlers {
+	return fb.takePendingErrorHandlers()
+}
+
+// leaveBranch restores the enclosing path's pending rejoins and hands it
+// whatever the branch could not settle itself — typically the handler of the
+// branch's last activity when the branch continues without a merge, where the
+// next flow the enclosing path draws is the one leaving that activity.
+func (fb *flowBuilder) leaveBranch(outer pendingHandlers) {
+	inner := fb.takePendingErrorHandlers()
+	fb.adoptPendingErrorHandlers(outer)
+	fb.adoptPendingErrorHandlers(inner)
+}
+
+// settleBranchFlow settles the pending rejoins of the branch being built on the
+// flow it just drew from originID to destinationID. stmt is the statement the
+// flow enters (nil for a merge) and rest the branch's statements after it, for
+// the skip-var rule: a handler skips the statements that read the failed
+// activity's output, which the failure never produced.
+//
+// branchEnds is true for a branch that ends in RETURN (or another terminator).
+// There a handler is settled only on the flow leaving its own activity: once it
+// has to skip a statement that reads the output, it does not come back into the
+// branch but continues where the IF does — the shared continuation a30881bbb
+// introduced for a branch whose success tail reads the output.
+func (fb *flowBuilder) settleBranchFlow(originID, destinationID model.ID, stmt ast.MicroflowStatement, rest []ast.MicroflowStatement, branchEnds bool) {
+	fb.rewritePendingErrorHandlers(func(state pendingErrorHandlerState) pendingErrorHandlerState {
+		if branchEnds && state.skipVar != "" && state.source != originID {
+			return state
+		}
+		return fb.addPendingErrorHandlerFlowForState(state, originID, destinationID, stmt, statementsReferenceVar(rest, state.skipVar))
+	})
 }
 
 func (fb *flowBuilder) addPendingErrorHandlerFlowForStatement(originID, destinationID model.ID, stmt ast.MicroflowStatement, futureReferencesSkipVar ...bool) {

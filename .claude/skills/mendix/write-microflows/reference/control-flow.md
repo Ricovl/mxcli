@@ -486,12 +486,21 @@ knowing which one you are writing.
 |------|-----------|
 | `on error continue` | No error path at all |
 | `on error [without rollback] begin … return/throw end error` | Its own path, its own terminator |
-| `on error [without rollback] begin end error` | **Not a no-op** — falls through to whatever the *enclosing branch* does next |
+| `on error [without rollback] begin [ … ] end error` | **Falls through** — after the handler body (if any), continues with the statement after the failing activity |
 | `on error [without rollback] begin … join L; end error` | Rejoins the normal path at the merge labelled `L` |
 
-The empty form is the one that surprises people. It means "on error, do whatever
-the enclosing branch's continuation does" — which in a branch that returns
-something else is a value nowhere in the text. Prefer `join` when you mean it.
+The fall-through form holds inside a branch too: the statement after the failing
+activity is the next one in the same `if`/`case` arm or loop body, and for an
+arm's last activity it is whatever follows the `end if`/`end case` (in a loop
+body, the next iteration). The empty form is the one that surprises people: it
+is **not a no-op**, the error path just has no activities of its own.
+
+One refinement, because a failure never produces the activity's output: the
+error path skips the statements that read that output (`$N = call …;
+log … $N …;`) and rejoins after them. In an arm that ends in `return`, a handler
+that would have to skip leaves the arm instead and continues where the `if`
+does — which, in an arm that returns something else, is a value nowhere in the
+text. Prefer `join` when you mean a specific place.
 
 ```mdl
 mdl 1;
