@@ -68,9 +68,20 @@ Mendix 11.12, upgrading Data Widgets 3.4 → 3.11.3:
 |---|---|---|---|
 | a real mxcli-built app | 0 errors | 36 CE0463 (7 mxcli-authored, 29 Studio Pro's own) | 0 errors |
 
-mxcli has no "Update all widgets" equivalent yet. Until it does, run the update in
-Studio Pro. Avoid `mx update-widgets` on an MPR v2 project — it collapses
-`mprcontents/` back to the single-file v1 layout.
+mxcli's equivalent, `mxcli widget sync`, is partial today (see
+[below](#reconciling-stored-widgets-after-a-package-upgrade-mxcli-widget-sync));
+for the rest, run the update in Studio Pro. Avoid `mx update-widgets` on an MPR v2
+project — it collapses `mprcontents/` back to the single-file v1 layout.
+
+**Re-running a page's description does not upgrade its widgets either.** A
+`create or modify` (or `create or replace`) of a stored page, snippet or layout
+keeps each pluggable widget as Studio Pro stored it, schema included — as Studio
+Pro itself does. A widget the statement leaves unchanged is kept whole; one it
+changes keeps every property the statement does not change, so editing a column
+caption leaves the other columns, the row click and the grid's data source as
+they were. (A widget whose data context the statement changes is rebuilt from
+mxcli's template instead, since its stored bindings no longer apply.) So a widget
+stays at its stored package version until you sync it.
 
 **Two widgets do not yet author cleanly against Data Widgets 3.10+.** Freshly created
 `gallery` and `dropdownfilter` widgets produce CE0463 on those packages; `datagrid2`,

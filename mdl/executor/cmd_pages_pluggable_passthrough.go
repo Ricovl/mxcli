@@ -172,6 +172,8 @@ func describedWidgets(ctx *ExecContext, describe func() error) (map[string]*ast.
 			}
 		case *ast.CreateSnippetStmtV3:
 			walk(s.Widgets)
+		case *ast.CreateLayoutStmt:
+			walk(s.AllWidgets())
 		}
 	}
 	for name := range dup {

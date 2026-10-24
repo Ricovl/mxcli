@@ -1,0 +1,67 @@
+-- ako/mxcli#832: a rewrite rebuilt a pluggable widget whole from mxcli's
+-- template, so every property the statement did not mention lost what Studio
+-- Pro had stored — and a widget the statement did not change at all was rebuilt
+-- too whenever describe printed it imperfectly. Layout rewrites kept no stored
+-- pluggable widget.
+--
+-- Symptom: on ako/TestApp (Mendix 11.14.0),
+--   describe page WorkflowCommons.TaskInbox > p.mdl ; exec p.mdl
+-- passed check and answered "Replaced page", and
+--   mxcli bson dump -p TestApp.mpr --type page --object WorkflowCommons.TaskInbox
+-- showed both data grids rebuilt: the Assignee(s) column, stored as
+-- Administration.Account.FullName through System.WorkflowUserTask_Assignees,
+-- now System.User.FullName (CE1613); the row click that opens the task
+-- (Forms$OpenUserTaskClientAction) a Forms$NoAction; a caption's second
+-- translation gone.
+--
+-- Fix: a widget the statement does not change is kept whole; one it changes
+-- keeps its stored Type and every property the statement does not change, read
+-- by building the widget from the statement and from describe's own text and
+-- comparing the two by property key. A property bound to the widget's own data
+-- source is kept while that data source is; one bound to the enclosing context
+-- is kept only while it names what is stored, so a data view switched to
+-- another entity still rebinds. Layouts get the same.
+--
+-- To verify: mxcli writes its template's values on every widget it creates, so
+-- the state to lose has to come from Studio Pro. Run the TaskInbox round trip
+-- above and dump again: both columns still store Administration.Account.FullName
+-- and both rows still open the task. Or build the page below in Studio Pro,
+-- bind the Assignee column through the association to Administration.Account's
+-- FullName, give the grid an "Open user task" row click, then run the CREATE OR
+-- MODIFY at the end (it changes only the Title caption): the column binding and
+-- the row click are kept.
+
+mdl 1;
+
+create module Chores;
+
+create persistent entity Chores.Chore (
+  Title: string(100)
+);
+
+create association Chores.Chore_Assignee from Chores.Chore to System.User;
+
+create page Chores.ChoreOverview (Title: 'Chores', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgChores (DataSource: database from Chores.Chore) {
+    column (Attribute: Title, Caption: 'Title')
+    column (Attribute: Chore_Assignee/Name, Caption: 'Assignee')
+  }
+};
+
+create layout Chores.ChoresLayout (layouttype: 'Responsive') {
+  image imgLogo (ImageType: 'imageUrl', ImageUrl: 'https://example.com/logo.png')
+  placeholder Main
+};
+
+-- The edits: each changes one property of one widget and keeps the rest.
+create or modify page Chores.ChoreOverview (Title: 'Chores', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgChores (DataSource: database from Chores.Chore) {
+    column (Attribute: Title, Caption: 'Chore')
+    column (Attribute: Chore_Assignee/Name, Caption: 'Assignee')
+  }
+};
+
+create or modify layout Chores.ChoresLayout (layouttype: 'Responsive') {
+  image imgLogo (ImageType: 'imageUrl', ImageUrl: 'https://example.com/logo2.png')
+  placeholder Main
+};
