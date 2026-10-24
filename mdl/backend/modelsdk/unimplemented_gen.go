@@ -1025,8 +1025,8 @@ func (unimplemented) RemoveUserRole(_ model.ID, _ string) error {
 	return errUnimplemented("RemoveUserRole")
 }
 
-func (unimplemented) RenameDocumentByName(_ string, _ string, _ string) error {
-	return errUnimplemented("RenameDocumentByName")
+func (unimplemented) RenameDocument(_ model.ID, _ string, _ string) error {
+	return errUnimplemented("RenameDocument")
 }
 
 func (unimplemented) RenameJavaScriptSourceFile(_ string, _ string, _ string) error {

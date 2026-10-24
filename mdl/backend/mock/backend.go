@@ -318,7 +318,7 @@ type MockBackend struct {
 	// RenameBackend
 	UpdateQualifiedNameInAllUnitsFunc func(oldName, newName string) (int, error)
 	RenameReferencesFunc              func(oldName, newName string, dryRun bool) ([]types.RenameHit, error)
-	RenameDocumentByNameFunc          func(moduleName, oldName, newName string) error
+	RenameDocumentFunc                func(id model.ID, oldName, newName string) error
 
 	// RawUnitBackend
 	GetRawUnitFunc            func(id model.ID) (map[string]any, error)
