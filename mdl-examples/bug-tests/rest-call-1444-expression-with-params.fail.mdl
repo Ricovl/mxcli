@@ -1,0 +1,22 @@
+-- Negative test (ako/mxcli#1444): an expression body or URL followed by
+-- `with (…)` must be REFUSED (MDL-REST05).
+--
+-- A REST call's URL and custom body are templates whose {n} placeholders the
+-- `with (…)` parameters fill. An expression is not a template: it is stored as
+-- the template '{1}' with the expression as its parameter, so there is nothing
+-- left for further parameters to fill. This used to store the expression's
+-- source text as the template, with the parameters attached, and send that
+-- text. See rest-call-1444-body-variable.mdl for the forms that work.
+
+mdl 1;
+
+create module Shop;
+
+create microflow Shop.Send ($Payload: String, $Id: String)
+returns String as $Response
+begin
+  $Response = call rest service post 'https://example.com/orders' (
+    Body: $Payload with ({1} = $Id),
+  ) returns String;
+  return $Response;
+end;

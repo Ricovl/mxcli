@@ -149,6 +149,17 @@ $response = call rest service post 'https://api.example.com/items' (
 ) returns string
     on error continue;
 
+-- POST a body built elsewhere: an expression sends its VALUE. It is stored as
+-- the template '{1}' with the expression as its parameter (what Studio Pro
+-- stores, and what describe prints). `Body: template '$Payload'` would send
+-- the literal text "$Payload". An expression URL works the same way.
+-- An expression followed by `with (…)` is refused (MDL-REST05).
+$response = call rest service post @MyModule.BaseUrl + '/items' (
+    Headers: ('Content-Type': 'application/json'),
+    Body: $Payload,
+    Timeout: 30,
+) returns string;
+
 -- POST a BINARY body (upload a file document's contents)
 -- The expression is the FileDocument's Contents MEMBER, not the document
 -- itself, and the content type goes on a header. A consumed REST CLIENT
