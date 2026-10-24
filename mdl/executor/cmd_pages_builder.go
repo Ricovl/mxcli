@@ -112,8 +112,14 @@ type pageBuilder struct {
 	// storedPluggables are the pluggable widgets of the stored document a
 	// `create or replace`/`create or modify` rewrites; nil for a new document.
 	// A widget the statement did not change keeps its stored Type and Object
-	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go).
+	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go); one it did
+	// change keeps the properties it did not (ako/mxcli#832,
+	// cmd_pages_pluggable_patch.go).
 	storedPluggables *pluggablePassthrough
+
+	// shadowBuild is set while that patch builds the widget describe prints
+	// for the stored one: its child widgets are stubbed (shadowChild).
+	shadowBuild bool
 }
 
 // initPluggableEngine lazily initializes the pluggable widget engine.
