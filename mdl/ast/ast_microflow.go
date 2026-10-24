@@ -1409,6 +1409,14 @@ type ImportFromMappingStmt struct {
 	First      bool       // FIRST — bind ONE object rather than a list
 	LimitExpr  Expression // LIMIT <expr>  — Custom range
 	OffsetExpr Expression // OFFSET <expr> — Custom range
+
+	// The activity's settings list, `( Parameter: $Obj, Commit: No )` (ADR-0013,
+	// ako/mxcli#1681). Parameter is the variable holding the mapping's input
+	// object (ImportMappingCall.ParameterVariableName, without $); Commit is
+	// Yes, YesWithoutEvents or No. Empty means not authored: no parameter, and
+	// the writer's YesWithoutEvents.
+	Parameter string
+	Commit    string
 }
 
 func (s *ImportFromMappingStmt) isMicroflowStatement() {}

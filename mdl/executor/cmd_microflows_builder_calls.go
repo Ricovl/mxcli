@@ -2073,6 +2073,9 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 		MappingID:      model.ID(s.Mapping.String()),
 		ResultVariable: s.OutputVariable,
 		SingleObject:   true,
+		// The settings list (ako/mxcli#1681).
+		ParameterVariable: s.Parameter,
+		Commit:            s.Commit,
 	}
 
 	// The RANGE and the RESULT VARIABLE's type are two independent axes, and
@@ -2146,6 +2149,17 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 		case err != nil || im == nil:
 			fb.addError("import from mapping %s: import mapping not found in the project (create it above this microflow; an activity without its result entity makes the project unloadable)", s.Mapping.String())
 		default:
+			// The call's input object must match the mapping's declaration:
+			// mxbuild refuses either mismatch, and check cannot see it without
+			// the mapping (ako/mxcli#1681).
+			switch {
+			case im.ParameterEntity != "" && s.Parameter == "":
+				fb.addError("import from mapping %s: the mapping takes an input object of %s; pass it with `(Parameter: $Obj)` (mxbuild refuses the call without one: CE0244)",
+					s.Mapping.String(), im.ParameterEntity)
+			case im.ParameterEntity == "" && s.Parameter != "":
+				fb.addError("import from mapping %s: the mapping declares no input object, so `Parameter: $%s` has nothing to bind (mxbuild CE0246)",
+					s.Mapping.String(), s.Parameter)
+			}
 			if !rangeAuthored && fb.mappingRootIsList(im) {
 				resultHandling.SingleObject = false
 			}

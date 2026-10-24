@@ -386,6 +386,9 @@ Using `parameter` without declaring one is refused — the build reports it as
 CE0279. The declared entity must match the microflow's parameter type, which the
 build checks as CE0282.
 
+The **activity** that calls such a mapping passes the object in its settings
+list, `(Parameter: $Obj)` — see "Settings" under Import from Mapping below.
+
 ---
 
 ## Export Mappings
@@ -515,6 +518,20 @@ $PetResponse = import from mapping Module.IMM_Pet($JsonContent);
 -- Without result variable (persistent entities, stores to DB)
 import from mapping Module.IMM_Pet($JsonContent);
 ```
+
+#### Settings — the input object and the commit mode
+
+A settings list after the source variable holds the activity's dialog:
+
+```sql
+import from mapping Module.IMM_Embed($Json) (Parameter: $Collection);
+$Pets = import from mapping Module.IMM_Pets($Json) (Commit: No) all;
+```
+
+- `Parameter: $Obj` — the mapping's input object. **Required** for a mapping
+  declared with `parameter Module.Entity` (without it mxbuild reports CE0244),
+  and refused on a mapping without one (CE0246); `exec` refuses both.
+- `Commit: Yes | YesWithoutEvents | No` — omitted means YesWithoutEvents.
 
 #### Range — how much of the result to bind
 

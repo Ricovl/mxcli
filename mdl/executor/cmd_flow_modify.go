@@ -414,7 +414,12 @@ func fallBack(ctx *ExecContext, d *flowDecl, v flowVerdict) (bool, error) {
 }
 
 // storedImportWithoutEntity returns the mapping of the first import-from-mapping
-// activity in oc (loop bodies included) whose result entity is empty, or "".
+// activity in oc (loop bodies included) whose result is an object or list type
+// naming no entity, or "". That is the shape Mendix cannot load
+// (mendixlabs/mxcli#1418). An activity that stores no result type, or a
+// DataTypes$VoidType, binds no result and loads at 0 errors (measured on
+// mxbuild 11.13.0); refusing it as "no result entity" refused every statement
+// over a flow importing into a parameter object (ako/mxcli#1681).
 func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string {
 	if oc == nil {
 		return ""
@@ -426,7 +431,8 @@ func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string 
 				if ix.ResultHandling == nil {
 					return "(none)"
 				}
-				if ix.ResultHandling.ResultEntityID == "" {
+				rt := ix.ResultHandling.ResultType
+				if ix.ResultHandling.ResultEntityID == "" && (rt == "DataTypes$ObjectType" || rt == "DataTypes$ListType") {
 					return string(ix.ResultHandling.MappingID)
 				}
 			}
