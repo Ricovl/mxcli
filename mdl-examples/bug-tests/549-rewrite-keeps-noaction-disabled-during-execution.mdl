@@ -1,0 +1,59 @@
+-- ako/mxcli#549: a rewrite overwrote a stored DisabledDuringExecution = false
+-- on an unused action slot (a Forms$NoAction) with true.
+--
+-- Symptom: on ako/TestApp (Mendix 11.14.0), the describe output of
+-- WorkflowCommons.Snip_TaskDashboard_Header with only the combo box dropDown2's
+-- emptyOptionText changed passed check, answered "Replaced snippet", and
+--   mxcli bson dump -p TestApp.mpr --type snippet \
+--     --object WorkflowCommons.Snip_TaskDashboard_Header
+-- showed dropDown2's onEnterEvent and onLeaveEvent NoActions turned from
+-- DisabledDuringExecution false to true. A layout rewrite did the same to the
+-- NoAction of an action button. The classic widgets of pages and snippets
+-- already kept the flag (#721 L2).
+--
+-- Fix: a pluggable widget the statement changes is still rebuilt from its
+-- template, but each NoAction slot takes the stored widget's flag, paired by
+-- property key; a layout rewrite carries its widgets' flags as page and
+-- snippet rewrites do. A slot the statement fills with an action keeps what
+-- its own `with ( … )` says.
+--
+-- To verify: mxcli writes true on every slot it creates, so the false has to
+-- come from Studio Pro. On ako/TestApp, describe the snippet above, change
+-- dropDown2's emptyOptionText, run it, and dump again: both slots still store
+-- false. This script is the same shape on a fresh project — run it, set a
+-- stored false on cbColour's onEnterEvent and on btnHome's Action, then run
+-- the two rewrites at the end.
+
+mdl 1;
+
+create module Shop;
+
+create enumeration Shop.Colour (Red 'Red', Blue 'Blue');
+
+create persistent entity Shop.Thing (
+  Colour: Enumeration(Shop.Colour)
+);
+
+create page Shop.ThingEdit (Title: 'Thing', Layout: Atlas_Core.Atlas_Default, Params: ($Thing: Shop.Thing)) {
+  dataview dvThing (DataSource: $Thing) {
+    combobox cbColour (Label: 'Colour', Attribute: Colour)
+  }
+};
+
+create layout Shop.ShopLayout (layouttype: 'Default') {
+  actionbutton btnHome (Caption: 'Home')
+  placeholder Main
+};
+
+-- The rewrites: each changes the widget, so it is rebuilt, and each keeps the
+-- stored flag of the widget's unused action slots.
+create or modify page Shop.ThingEdit (Title: 'Thing', Layout: Atlas_Core.Atlas_Default, Params: ($Thing: Shop.Thing)) {
+  dataview dvThing (DataSource: $Thing) {
+    combobox cbColour (Label: 'Colour (changed)', Attribute: Colour)
+  }
+};
+
+create or modify layout Shop.ShopLayout (layouttype: 'Default') {
+  actionbutton btnHome (Caption: 'Start')
+  placeholder Main
+};

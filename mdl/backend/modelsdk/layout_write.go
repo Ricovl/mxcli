@@ -314,6 +314,9 @@ func (b *Backend) UpdateLayout(layout *pages.Layout) error {
 	}
 	g.SetID(element.ID(layout.ID))
 	b.carryStoredLayoutCanvas(layout.ID, g)
+	// The page and snippet rewrites' carry, which this one lacked: a layout's
+	// widgets have the same unused action slots (ako/mxcli#549).
+	b.carryNoActionExecution(layout.ID, g)
 	contents, err := (&codec.Encoder{}).Encode(g)
 	if err != nil {
 		return fmt.Errorf("UpdateLayout: encode: %w", err)
