@@ -1,0 +1,126 @@
+mdl 1;
+-- ako/mxcli#1459 (mendixlabs/mxcli#1565) — a fall-through error handler on an
+-- activity inside a branch is wired to the wrong place.
+--
+-- A handler that does not end in RETURN or RAISE ERROR falls through: after it
+-- runs, the flow continues with the statement after the activity that failed.
+-- At the top level of a flow that held. Inside a branch the handler's rejoin
+-- leaked out of it, and was settled on whatever flow the enclosing body drew
+-- next:
+--
+--   * with a result variable ($N = call …) the handler flowed into a merge
+--     spliced in FRONT of the enclosing decision. A call that keeps failing
+--     re-enters the decision for ever (measured at runtime: 3063 'A failed'
+--     lines in five seconds, after-startup never finishes);
+--   * without one it flowed into a new end event: nothing after the failure
+--     ran ('B failed', then no 'B after call' and no 'B end');
+--   * in a branch that ends in RETURN it jumped to the code after the IF,
+--     skipping the rest of the branch and its own return ('C end').
+--
+-- check, exec and mx check passed for all three. Same defect in IF/ELSE, CASE
+-- and type-split branches, and a nanoflow loop body.
+--
+--   mxcli exec mdl-examples/bug-tests/error-handler-1459-fallthrough-in-branch.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe microflow Bug1459.InIfWithResult"
+--
+-- Expected: each handler is described in the fall-through form it was written
+-- in — no `merge rejoin1;` before the IF and no `join rejoin1;` or `return;`
+-- inside the handler — and re-running the script reports every document
+-- unchanged. Called from an after-startup microflow with $Flag = true, each of
+-- the first three logs 'before', 'failed', 'after call' and (A, B) 'end', once
+-- each (verified on Mendix 11.12.2; mx check 0 errors).
+
+create module Bug1459;
+
+create or modify microflow Bug1459.CalleeInt () returns Integer
+begin
+  return parseInteger('not a number');
+end;
+
+create or modify microflow Bug1459.CalleeVoid ()
+begin
+  declare $X Integer = parseInteger('not a number');
+  log info node 'Bug1459' 'unreachable {1}' with ({1} = toString($X));
+end;
+
+-- Was: an endless loop while the call keeps failing.
+create or modify microflow Bug1459.InIfWithResult ($Flag: Boolean)
+begin
+  log info node 'Bug1459' 'A before';
+  if $Flag then
+    $N = call microflow Bug1459.CalleeInt () on error without rollback begin
+      log warning node 'Bug1459' 'A failed';
+    end error;
+    log info node 'Bug1459' 'A after call';
+  end if;
+  log info node 'Bug1459' 'A end';
+end;
+
+-- Was: a silent end — nothing after the failure ran.
+create or modify microflow Bug1459.InIfWithoutResult ($Flag: Boolean)
+begin
+  log info node 'Bug1459' 'B before';
+  if $Flag then
+    call microflow Bug1459.CalleeVoid () on error without rollback begin
+      log warning node 'Bug1459' 'B failed';
+    end error;
+    log info node 'Bug1459' 'B after call';
+  end if;
+  log info node 'Bug1459' 'B end';
+end;
+
+-- The report's third shape: THEN ends in RETURN, ELSE falls through. Was: the
+-- handler joined the code after the IF and skipped THEN's own return.
+create or modify microflow Bug1459.InReturningBranch ($Flag: Boolean)
+begin
+  log info node 'Bug1459' 'C before';
+  if $Flag then
+    call microflow Bug1459.CalleeVoid () on error without rollback begin
+      log warning node 'Bug1459' 'C failed';
+    end error;
+    log info node 'Bug1459' 'C after call';
+    return;
+  else
+    log info node 'Bug1459' 'C else';
+  end if;
+  log info node 'Bug1459' 'C end';
+end;
+
+-- The handler is on the last statement of the ELSE branch: the statement after
+-- it is the one after the IF.
+create or modify microflow Bug1459.LastInElse ($Flag: Boolean)
+begin
+  if $Flag then
+    log info node 'Bug1459' 'D then';
+  else
+    $N = call microflow Bug1459.CalleeInt () on error without rollback begin
+      log warning node 'Bug1459' 'D failed';
+    end error;
+  end if;
+  log info node 'Bug1459' 'D end';
+end;
+
+-- A flow with a named return value. Was: the handler got a new end event
+-- returning $Result, which does not exist (CE0109).
+create or modify microflow Bug1459.NamedReturn ($Flag: Boolean) returns Boolean as $Result
+begin
+  if $Flag then
+    call microflow Bug1459.CalleeVoid () on error without rollback begin
+      log warning node 'Bug1459' 'E failed';
+    end error;
+    log info node 'Bug1459' 'E after call';
+  end if;
+  return true;
+end;
+
+-- Control: a handler at the top level was always wired correctly.
+create or modify microflow Bug1459.TopLevel ($Flag: Boolean)
+begin
+  $N = call microflow Bug1459.CalleeInt () on error without rollback begin
+    log warning node 'Bug1459' 'F failed';
+  end error;
+  log info node 'Bug1459' 'F after call';
+  if $Flag then
+    log info node 'Bug1459' 'F then';
+  end if;
+end;
