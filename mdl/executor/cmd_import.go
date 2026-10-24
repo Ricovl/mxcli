@@ -81,14 +81,15 @@ func execImport(ctx *ExecContext, s *ast.ImportStmt) error {
 	fmt.Fprintf(ctx.Output, "Imported %d rows into %s (%d batches, %s)\n",
 		result.TotalRows, s.TargetEntity, result.BatchesWritten, elapsed.Round(time.Millisecond))
 
-	// Report association link stats
+	// Report association link stats — for every LINK, zero included: a LINK
+	// that linked nothing printing nothing is how ako/mxcli#1454 went unnoticed.
 	for _, a := range assocs {
 		linked := result.LinksCreated[a.AssociationName]
 		missed := result.LinksMissed[a.AssociationName]
 		if missed > 0 {
 			fmt.Fprintf(ctx.Output, "  %s: linked %d/%d rows (%d null — lookup value not found)\n",
 				a.AssociationName, linked, linked+missed, missed)
-		} else if linked > 0 {
+		} else {
 			fmt.Fprintf(ctx.Output, "  %s: linked %d rows\n", a.AssociationName, linked)
 		}
 	}
@@ -209,14 +210,14 @@ func resolveOneLink(
 	if foundAssoc != nil {
 		storageFormat = string(foundAssoc.StorageFormat)
 		if storageFormat == "" {
-			storageFormat = "Table" // default
+			storageFormat = sqllib.StorageFormatTable // default
 		}
 		childEntity = entityNames[string(foundAssoc.ChildID)]
 		assocType = string(foundAssoc.Type)
 	} else {
 		storageFormat = string(foundCross.StorageFormat)
 		if storageFormat == "" {
-			storageFormat = "Table"
+			storageFormat = sqllib.StorageFormatTable
 		}
 		childEntity = foundCross.ChildRef
 		assocType = string(foundCross.Type)
@@ -246,9 +247,10 @@ func resolveOneLink(
 	}
 
 	if sysInfo != nil {
-		// Use system table info
+		// Use system table info. StorageFormat arrives decoded to the model's
+		// spelling; an undecodable storage_format is already an error.
 		info.StorageFormat = sysInfo.StorageFormat
-		if info.StorageFormat == "Column" {
+		if info.StorageFormat == sqllib.StorageFormatColumn {
 			info.FKColumnName = sysInfo.ChildColumnName
 			// Fall back to naming convention if system table has NULL child_column_name
 			if info.FKColumnName == "" {
@@ -266,7 +268,7 @@ func resolveOneLink(
 		}
 	} else {
 		// Fall back to naming conventions
-		if info.StorageFormat == "Column" {
+		if info.StorageFormat == sqllib.StorageFormatColumn {
 			info.FKColumnName = sqllib.AssocColumnNameFromConvention(assocQualName)
 		} else {
 			info.JunctionTable = sqllib.JunctionTableFromConvention(assocQualName)

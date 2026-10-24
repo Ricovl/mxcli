@@ -175,6 +175,13 @@ from mendixsystem$association
 where table_name like 'tasklist%';
 ```
 
+`storage_format` is a **number**, not a name — `1` is column storage (Mode A),
+`2` is a junction table (Mode B); measured on Mendix 10.24, 11.12, 11.13 and 11.14.
+Comparing it with `'Column'` / `'Table'` never matches. The row's other columns
+follow the mode: for Mode A `table_name` is the owner entity's table and
+`child_column_name` the FK column on it; for Mode B `table_name` is the junction
+table and `parent_column_name` / `child_column_name` are its two id columns.
+
 Mendix stores associations in one of two ways, controlled by the project's
 `AssocStorage` convention setting (check with `list settings`):
 
