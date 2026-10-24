@@ -329,6 +329,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if rm, ok := w["RenderMode"].(string); ok {
 			widget.RenderMode = rm
 		}
+		widget.NativeTextStyle = extractString(w["NativeTextStyle"])
 		return []rawWidget{widget}
 
 	case "Forms$ActionButton", "Pages$ActionButton":

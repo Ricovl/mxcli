@@ -3311,6 +3311,11 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return setContainerRenderModeMut(widget, value)
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "nativetextstyle":
+		if isDynamicTextWidget(widget) {
+			return setDynamicTextNativeTextStyleMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
@@ -3364,6 +3369,27 @@ func setDynamicTextRenderModeMut(widget bson.D, value any) error {
 	}
 	return fmt.Errorf("invalid RenderMode %q for dynamic text %q: expected one of %s",
 		fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+}
+
+// setDynamicTextNativeTextStyleMut writes a dynamic text's NativeTextStyle in
+// place, canonically spelled; an unknown member is refused before the document
+// is touched (ako/mxcli#1677).
+func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	style, ok := pages.CanonicalNativeTextStyle(s)
+	if !ok {
+		names := make([]string, len(pages.NativeTextStyles))
+		for i, v := range pages.NativeTextStyles {
+			names[i] = string(v)
+		}
+		return fmt.Errorf("invalid NativeTextStyle %q for dynamic text %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+	}
+	if !bsonnav.DSet(widget, "NativeTextStyle", string(style)) {
+		return fmt.Errorf("dynamic text %q has no stored NativeTextStyle property to set",
+			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
 }
 
 // setContainerRenderModeMut writes a container's RenderMode — the HTML element

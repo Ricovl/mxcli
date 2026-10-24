@@ -148,3 +148,26 @@ func TestSetWidgetProperty_Editable_DataViewEditability(t *testing.T) {
 		t.Fatalf("ConditionalEditabilitySettings = %#v after set Editable = Always, want null", s)
 	}
 }
+
+// ako/mxcli#1677: `alter page … set (NativeTextStyle: …)` on a dynamic text
+// writes the stored enum in place, canonically spelled, and refuses a value
+// outside it.
+func TestSetWidgetProperty_NativeTextStyle(t *testing.T) {
+	w := bson.D{
+		{Key: "$Type", Value: "Forms$DynamicText"},
+		{Key: "Name", Value: "text4"},
+		{Key: "RenderMode", Value: "Text"},
+		{Key: "NativeTextStyle", Value: "Text"},
+	}
+	rawData := makeRawPage(w)
+	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+	if err := m.SetWidgetProperty("text4", "NativeTextStyle", "heading3"); err != nil {
+		t.Fatalf("set NativeTextStyle = heading3: %v", err)
+	}
+	if got := bsonnav.DGet(findBsonWidget(rawData, "text4").widget, "NativeTextStyle"); got != "Heading3" {
+		t.Fatalf("NativeTextStyle = %#v, want \"Heading3\"", got)
+	}
+	if err := m.SetWidgetProperty("text4", "NativeTextStyle", "H3"); err == nil {
+		t.Fatal("set NativeTextStyle = H3 succeeded; want an error naming the valid styles")
+	}
+}

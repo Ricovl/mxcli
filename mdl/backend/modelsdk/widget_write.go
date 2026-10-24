@@ -466,7 +466,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g := genPg.NewDynamicText()
 		applyWidgetBase(g, &x.BaseWidget)
 		g.SetRenderMode(orDefaultStr(string(x.RenderMode), "Text"))
-		g.SetNativeTextStyle("Text")
+		g.SetNativeTextStyle(orDefaultStr(string(x.NativeTextStyle), string(pages.NativeTextStyleText)))
 		g.SetContent(clientTemplateToGen(x.Content))
 		return g, nil
 

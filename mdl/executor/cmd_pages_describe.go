@@ -827,8 +827,11 @@ type rawWidget struct {
 	Caption       string
 	Tooltip       string // an action button's Tooltip (mendixlabs/mxcli#1307)
 	RenderMode    string
-	Action        string
-	ButtonStyle   string
+	// NativeTextStyle is a dynamic text's style on a native page (Text,
+	// Heading1–6), the native counterpart of RenderMode (ako/mxcli#1677).
+	NativeTextStyle string
+	Action          string
+	ButtonStyle     string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the

@@ -559,6 +559,10 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.RenderMode != "" && w.RenderMode != "Text" {
 			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
 		}
+		// Text is what every dynamic text stores, so only a heading is printed.
+		if w.NativeTextStyle != "" && w.NativeTextStyle != "Text" {
+			props = append(props, fmt.Sprintf("NativeTextStyle: %s", w.NativeTextStyle))
+		}
 		if len(w.Parameters) > 0 {
 			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
