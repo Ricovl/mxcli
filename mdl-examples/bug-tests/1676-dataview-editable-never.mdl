@@ -1,0 +1,44 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1676 — a read-only data view became editable on describe → exec.
+-- `describe` printed `dataview dataView1 (DataSource: microflow …,
+-- ReadOnlyStyle: Text)` without `Editable`, and `Editable: Never` written by
+-- hand was ignored: exec reported "Unchanged page" and the stored
+-- `Forms$DataView.Editability` stayed `Always`.
+--
+-- A data view stores the enum as `Editability` (Mendix 10.7+); input widgets
+-- store `Editable`. The builder put the value on the widget, the writer took it
+-- from a field nothing sets, and describe never read the key. `alter page …
+-- set (Editable: …) on <data view>` was refused as "a DataView has no Editable
+-- property".
+--
+-- Measured on 11.13.0, after a BSON edit setting dvReadOnly's Editability to
+-- Never as Studio Pro stores it:
+--
+--   before the fix: describe prints no Editable; exec → Editability Always
+--   after:          describe prints `Editable: Never`; exec → "Unchanged
+--                   page", Editability Never; mx check 0 errors
+-- ============================================================================
+
+create module BugDataViewEditable;
+
+create persistent entity BugDataViewEditable.Boat (Name: String(100));
+
+create microflow BugDataViewEditable.DS_Boat () returns BugDataViewEditable.Boat as $Boat
+begin
+  $Boat = create BugDataViewEditable.Boat (Name = 'Boat');
+  return $Boat;
+end;
+
+create page BugDataViewEditable.HealthPage (Title: 'Health', Layout: Atlas_Core.Atlas_Default) {
+  dataview dvReadOnly (DataSource: microflow BugDataViewEditable.DS_Boat, ReadOnlyStyle: Text, Editable: Never) {
+    textbox tbName (Label: 'Name', Attribute: Name)
+  }
+  dataview dvConditional (DataSource: microflow BugDataViewEditable.DS_Boat, Editable: $currentObject/Name != 'Locked') {
+    textbox tbName2 (Label: 'Name', Attribute: Name)
+  }
+};
+
+alter page BugDataViewEditable.HealthPage {
+  set (Editable: Always) on dvReadOnly
+};

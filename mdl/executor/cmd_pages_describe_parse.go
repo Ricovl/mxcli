@@ -392,6 +392,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			widget.EntityContext = inheritedCtx
 		}
 		widget.LabelWidth = extractDataViewLabelWidth(w)
+		// A data view stores `Editability`, where input widgets store `Editable`.
+		// Unread, a read-only data view described as an editable one and
+		// re-executing the description widened it (ako/mxcli#1676).
+		widget.Editable = extractString(w["Editability"])
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowFooter, _ = w["ShowFooter"].(bool)
 		widget.Children = withQualifiedAttrs(ctx, widget.DataSource, func() []rawWidget {

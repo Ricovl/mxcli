@@ -3078,8 +3078,10 @@ func storedVisibleRoles(widget bson.D) bson.A {
 // different things under the same key, so the stored value's type decides what
 // the statement may say:
 //
-//   - a list view or data view stores a BOOLEAN — `true` / `false`;
-//   - an input widget stores the Always / Never / Conditional enum.
+//   - a list view, or a data view before Mendix 10.7, stores a BOOLEAN —
+//     `true` / `false`;
+//   - an input widget stores the Always / Never / Conditional enum, and so does
+//     a data view from 10.7, under `Editability` (editabilityKey).
 //
 // Anything else is refused. Before mendixlabs/mxcli#1214 only a string was
 // written, so `set Editable = true on lvRows` — the boolean every list view
@@ -3087,7 +3089,8 @@ func storedVisibleRoles(widget bson.D) bson.A {
 // stored, leaving the list's inputs read-only at runtime.
 func setWidgetEditableMut(widget bson.D, value any) error {
 	typ := bsonnav.DGetString(widget, "$Type")
-	switch bsonnav.DGet(widget, "Editable").(type) {
+	key := editabilityKey(widget)
+	switch bsonnav.DGet(widget, key).(type) {
 	case bool:
 		b, ok := editableBool(value)
 		if !ok {
@@ -3107,13 +3110,25 @@ func setWidgetEditableMut(widget bson.D, value any) error {
 			// expression; the bracketed form writes both.
 			return fmt.Errorf("`set Editable = Conditional` needs the condition itself: write `set Editable = [expression]`")
 		}
-		bsonnav.DSet(widget, "Editable", canon)
+		bsonnav.DSet(widget, key, canon)
 		// A plain value replaces a stored condition rather than contradicting it.
 		bsonnav.DSet(widget, "ConditionalEditabilitySettings", nil)
 		return nil
 	default:
 		return fmt.Errorf("a %s has no Editable property", widgetTypeLabel(typ))
 	}
+}
+
+// editabilityKey is the key a widget stores its editability under. A data view
+// moved from a boolean `Editable` to the `Editability` enum in Mendix 10.7 (Model
+// SDK: Forms$DataView `editable` Deleted 10.7.0, `editability` Introduced
+// 10.7.0); every input widget keeps `Editable`. Reading only `Editable` refused
+// `set Editable = Never` on every current data view (ako/mxcli#1676).
+func editabilityKey(widget bson.D) string {
+	if _, ok := bsonnav.DGet(widget, "Editability").(string); ok {
+		return "Editability"
+	}
+	return "Editable"
 }
 
 // editableBool reads a list/data view's boolean Editable from MDL, which hands
@@ -3241,8 +3256,9 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		// The element only applies under the enum that says so — CREATE writes
 		// both (pages.WidgetEditability); writing the element alone left the
 		// stored enum saying Always or Never beside it.
-		if _, isEnum := bsonnav.DGet(widget, "Editable").(string); isEnum {
-			bsonnav.DSet(widget, "Editable", "Conditional")
+		key := editabilityKey(widget)
+		if _, isEnum := bsonnav.DGet(widget, key).(string); isEnum {
+			bsonnav.DSet(widget, key, "Conditional")
 		}
 		return nil
 	case "name":
