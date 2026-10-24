@@ -445,6 +445,9 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 		case *ast.RestCallStmt:
 			// #922: `returns Module.Entity` must name a FileDocument specialization.
 			v.checkRestFileDocumentResult(stmt)
+			// ako/mxcli#1444: an expression URL or body with `with (…)`.
+			// Same function exec calls.
+			v.checkRestCallTemplates(stmt)
 		case *ast.CallWebServiceStmt:
 			// MDL-SOAP01: a call stores ONE request body, so arguments and a send
 			// mapping are alternatives. Same function exec calls.

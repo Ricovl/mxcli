@@ -1,0 +1,66 @@
+-- ako/mxcli#1444 (upstream mendixlabs/mxcli#1546): a REST call body written as
+-- an expression was sent as the expression's SOURCE TEXT.
+--
+-- `Body: $Payload` was stored as the custom request template '$Payload' with no
+-- parameters, so the request body was the eight characters "$Payload". `check`,
+-- `exec` and `mx check` all passed — mx check only warned that $Payload was
+-- never used (CW0094). The deprecated `body $Payload` clause built the same
+-- statement. A URL written as an expression (`@Shop.BaseUrl + '/orders'`) had
+-- the same defect: the request went to the text of the expression.
+--
+-- Fixed: an expression is stored as the template '{1}' with the expression as
+-- its parameter — what Studio Pro stores for a template holding only a
+-- variable — and describe prints that form, which re-executes to the same
+-- document:
+--
+--   $Response = call rest service post '{1}' with ({1} = @Shop.BaseUrl + '/orders') (
+--     Headers: ('Content-Type': 'application/json'),
+--     Body: template '{1}' with ({1} = $Payload),
+--     Timeout: 30,
+--   ) returns String;
+--
+-- An expression followed by `with (…)` has no {n} to fill and is refused
+-- (MDL-REST05). `Body: template '$Payload'` is still the literal text.
+--
+-- Verify: exec, then `describe microflow Shop.Order_Send`, `mx check` (no
+-- CW0094 for $Payload), and at runtime point BaseUrl at an echo server: the
+-- logged body is {"number": "<the order number>"}.
+
+mdl 1;
+
+create module Shop;
+
+create persistent entity Shop.Order (
+  Number: String(20)
+);
+
+create constant Shop.BaseUrl (
+  Type: String,
+  DefaultValue: 'https://example.com'
+);
+
+create microflow Shop.Order_Send ($Order: Shop.Order)
+returns String as $Response
+begin
+  declare $Payload String = '{"number": "' + $Order/Number + '"}';
+  $Response = call rest service post @Shop.BaseUrl + '/orders' (
+    Headers: ('Content-Type': 'application/json'),
+    Body: $Payload,
+    Timeout: 30,
+  ) returns String;
+  return $Response;
+end;
+
+-- The explicit spelling of the same activity: describe prints this, and
+-- `create or modify` treats the two as one.
+create microflow Shop.Order_SendTemplate ($Order: Shop.Order)
+returns String as $Response
+begin
+  declare $Payload String = '{"number": "' + $Order/Number + '"}';
+  $Response = call rest service post '{1}' with ({1} = @Shop.BaseUrl + '/orders') (
+    Headers: ('Content-Type': 'application/json'),
+    Body: template '{1}' with ({1} = $Payload),
+    Timeout: 30,
+  ) returns String;
+  return $Response;
+end;

@@ -60,6 +60,35 @@ END;
 
 ```
 
+## POST a Body Built Elsewhere
+
+When the body is already in a variable (or any other expression), write the
+expression. It sends the expression's **value**: mxcli stores it as the template
+`'{1}'` with the expression as its parameter, which is what Studio Pro stores,
+and `DESCRIBE` prints it in that form. A URL written as an expression
+(`@Integration.BaseUrl + '/orders'`) is stored the same way.
+
+```sql
+CREATE MICROFLOW Integration.SendOrder (
+  $Order: Integration.Order
+)
+RETURNS String AS $Response
+BEGIN
+  DECLARE $Payload String = '{"number": "' + $Order/Number + '"}';
+  $Response = CALL REST SERVICE POST @Integration.BaseUrl + '/orders' (
+    Headers: ('Content-Type': 'application/json'),
+    Body: $Payload,
+    Timeout: 30,
+  ) RETURNS String;
+  RETURN $Response;
+END;
+
+```
+
+`Body: TEMPLATE '$Payload'` is different: a template is text, so that sends the
+eight characters `$Payload`. An expression followed by `WITH (…)` has no `{n}`
+placeholders to fill and is refused as **MDL-REST05**.
+
 ## POST a Binary Body (File Upload)
 
 Mendix models a binary request body on the **REST CALL activity**, not on a

@@ -249,6 +249,8 @@ var messageStructTypes = map[reflect.Type]bool{
 	reflect.TypeOf(ast.LogStmt{}):                true,
 	reflect.TypeOf(ast.ShowMessageStmt{}):        true,
 	reflect.TypeOf(ast.ValidationFeedbackStmt{}): true,
+	// A REST call's URL and custom body: restCallAsTemplates (ako/mxcli#1444).
+	reflect.TypeOf(ast.RestCallStmt{}): true,
 }
 
 // messageAsTemplate returns v, a statement with a message, with its message
@@ -286,6 +288,8 @@ func messageAsTemplate(v reflect.Value) reflect.Value {
 			st.Message = placeholder
 		}
 		return reflect.ValueOf(st)
+	case ast.RestCallStmt:
+		return reflect.ValueOf(restCallAsTemplates(st))
 	}
 	return v
 }
