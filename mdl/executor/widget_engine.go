@@ -617,11 +617,22 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	for _, s := range slots {
 		mappedKeys[s.MDLContainer] = true
 	}
-	for propName, propVal := range w.Properties {
-		if mappedKeys[propName] || selectionKeys[strings.ToLower(propName)] || isBuiltinPropName(propName) {
+	// Sorted: two spellings of one key (`Adjustable:` and `adjustable:`) now
+	// resolve to the same property, and which one lands must not depend on Go's
+	// map order.
+	authoredNames := make([]string, 0, len(w.Properties))
+	for name := range w.Properties {
+		authoredNames = append(authoredNames, name)
+	}
+	sort.Strings(authoredNames)
+	for _, authored := range authoredNames {
+		propVal := w.Properties[authored]
+		if mappedKeys[authored] || selectionKeys[strings.ToLower(authored)] || isBuiltinPropName(authored) {
 			continue
 		}
-		entry, ok := propertyTypeIDs[propName]
+		// The template's own spelling of the key the author named, in any case
+		// (ako/mxcli#1652). Everything below writes and scopes by that key.
+		propName, entry, ok := explicitPropertyKey(propertyTypeIDs, authored)
 		if !ok {
 			continue // not a known widget property key
 		}
@@ -2481,6 +2492,49 @@ func lookupProperty(props map[string]any, key string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// explicitPropertyKey resolves a property name the author wrote to the widget
+// template's own key, for the explicit-property pass (Build, step 4.6) — the
+// reverse direction of lookupProperty, and with the same answer.
+//
+// That pass used to look the authored name up byte-for-byte, while everything
+// that judges or edits the same key folds case: check's allow-list and its
+// "persisted by the explicit pass" verdict (validate_widget_explicit_writable.go),
+// the mapping pass's lookupProperty, and ALTER's setter since #1069. So
+// `Adjustable: false` on a text filter checked clean and was dropped on create,
+// and `Placeholder:` — a grammar keyword the visitor always lowers to
+// "Placeholder" — was dropped in every spelling, including the `placeholder:`
+// DESCRIBE prints (ako/mxcli#1652, mendixlabs/mxcli#1643).
+//
+// An exact match wins. A match by case alone must be unique — no shipped template
+// has two keys differing only in case (TestPluggablePropertyKeysAreUniqueIgnoringCase),
+// but a project's own package is not covered by that — and must be of a kind this
+// pass writes correctly, the set check calls persisted (explicitPassWritableTypes).
+// A key of any other kind (an icon, an image, a list of objects) would be stored
+// as a meaningless PrimitiveValue, and check already warns it is dropped.
+func explicitPropertyKey(propertyTypeIDs map[string]pages.PropertyTypeIDEntry, name string) (string, pages.PropertyTypeIDEntry, bool) {
+	if entry, ok := propertyTypeIDs[name]; ok {
+		return name, entry, true
+	}
+	match := ""
+	for key := range propertyTypeIDs {
+		if !strings.EqualFold(key, name) {
+			continue
+		}
+		if match != "" {
+			return "", pages.PropertyTypeIDEntry{}, false // ambiguous by case
+		}
+		match = key
+	}
+	if match == "" {
+		return "", pages.PropertyTypeIDEntry{}, false
+	}
+	entry := propertyTypeIDs[match]
+	if !explicitPassWritableTypes[strings.ToLower(entry.ValueType)] {
+		return "", pages.PropertyTypeIDEntry{}, false
+	}
+	return match, entry, true
 }
 
 // stringifyAny converts a property value of arbitrary type to its string form
