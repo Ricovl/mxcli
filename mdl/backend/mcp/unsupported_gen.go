@@ -1128,8 +1128,8 @@ func (unsupportedBackend) RemoveUserRole(_ model.ID, _ string) (err0 error) {
 	return
 }
 
-func (unsupportedBackend) RenameDocumentByName(_ string, _ string, _ string) (err0 error) {
-	err0 = errUnsupported("RenameDocumentByName")
+func (unsupportedBackend) RenameDocument(_ model.ID, _ string, _ string) (err0 error) {
+	err0 = errUnsupported("RenameDocument")
 	return
 }
 

@@ -260,6 +260,14 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		isDocumentWidget: widgetNameSet(s.AllWidgets()),
 	}
 
+	// As for pages and snippets (#721 L4, #832): a layout's pluggable widgets
+	// were rebuilt from the template on every rewrite, unchanged or not.
+	if stored != nil && len(duplicates) == 0 {
+		pb.storedPluggables = loadPluggablePassthrough(ctx, stored.ID, func() error {
+			return describeLayout(ctx, s.Name)
+		})
+	}
+
 	// Built before the old one is deleted: a build failure must leave the
 	// project as it was, not layout-less.
 	layout, err := pb.buildLayoutV3(s)

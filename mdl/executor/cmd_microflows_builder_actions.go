@@ -585,6 +585,8 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 		lastID := model.ID("")
 		pendingCase := ""
 		var prevAnchor *ast.FlowAnchors
+		branchEnds := lastStmtIsReturn(br.body)
+		outerHandlers := fb.enterBranch()
 		for j, stmt := range br.body {
 			thisAnchor := stmtOwnAnchor(stmt)
 			actID := fb.addStatement(stmt)
@@ -635,9 +637,7 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				}
 				applyUserAnchors(flow, prevAnchor, thisAnchor)
 				fb.flows = append(fb.flows, flow)
-				if fb.emptyErrorHandlerFrom == lastID {
-					fb.addPendingErrorHandlerFlowForStatement(lastID, actID, stmt, statementsReferenceVar(br.body[j+1:], fb.errorHandlerSkipVar))
-				}
+				fb.settleBranchFlow(lastID, actID, stmt, br.body[j+1:], branchEnds)
 			}
 			prevAnchor = thisAnchor
 			if fb.nextConnectionPoint != "" {
@@ -653,7 +653,10 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 			}
 		}
 
-		if lastStmtIsReturn(br.body) {
+		if branchEnds {
+			// What a returning branch could not settle goes on to the
+			// enclosing path, which settles it after the CASE.
+			fb.leaveBranch(outerHandlers)
 			continue
 		}
 		allBranchesReturn = false
@@ -670,7 +673,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				tail.DestinationConnectionIndex = mergeSideFor(fb.objectPosition(lastID), fb.objectPosition(ensureMerge().ID))
 			}
 			fb.flows = append(fb.flows, tail)
+			fb.settleBranchFlow(lastID, ensureMerge().ID, nil, nil, false)
 		}
+		fb.leaveBranch(outerHandlers)
 	}
 
 	fb.posX = mergeX + HorizontalSpacing/2
@@ -754,6 +759,7 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 		fromSplit bool
 		order     int
 		anchor    *ast.FlowAnchors
+		handlers  pendingHandlers
 	}
 	var branchTails []branchTail
 
@@ -778,7 +784,9 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 		var lastID model.ID
 		var prevAnchor *ast.FlowAnchors
 		pendingCase := ""
-		for _, stmt := range body {
+		branchEnds := lastStmtIsReturn(body)
+		outerHandlers := fb.enterBranch()
+		for j, stmt := range body {
 			thisAnchor := stmtOwnAnchor(stmt)
 			actID := fb.addStatement(stmt)
 			if fb.takeBranchJoin(lastID, splitID, caseValue, pendingCase, prevAnchor, nil) {
@@ -814,6 +822,7 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 					applyUserAnchors(flow, prevAnchor, thisAnchor)
 					fb.flows = append(fb.flows, flow)
 				}
+				fb.settleBranchFlow(lastID, actID, stmt, body[j+1:], branchEnds)
 			}
 			prevAnchor = thisAnchor
 			if fb.nextConnectionPoint != "" {
@@ -829,12 +838,16 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 			}
 		}
 
-		if !lastStmtIsReturn(body) {
+		if !branchEnds {
 			allBranchesReturn = false
 			if lastID != "" {
-				branchTails = append(branchTails, branchTail{id: lastID, caseValue: pendingCase, anchor: prevAnchor})
+				// The tail's flow into the merge is drawn once every branch is
+				// built, and the handlers of its last activity are settled on
+				// it then, so they wait with it.
+				branchTails = append(branchTails, branchTail{id: lastID, caseValue: pendingCase, anchor: prevAnchor, handlers: fb.takePendingErrorHandlers()})
 			}
 		}
+		fb.leaveBranch(outerHandlers)
 	}
 
 	for _, c := range s.Cases {
@@ -901,6 +914,10 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 					applyUserAnchors(flow, tail.anchor, nil)
 					fb.flows = append(fb.flows, flow)
 				}
+				outerHandlers := fb.enterBranch()
+				fb.adoptPendingErrorHandlers(tail.handlers)
+				fb.settleBranchFlow(tail.id, merge.ID, nil, nil, false)
+				fb.leaveBranch(outerHandlers)
 			}
 		}
 		fb.nextConnectionPoint = merge.ID

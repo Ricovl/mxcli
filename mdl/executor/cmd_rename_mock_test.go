@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -152,7 +153,10 @@ func TestRename_Microflow_Success(t *testing.T) {
 		RenameReferencesFunc: func(old, new string, dryRun bool) ([]types.RenameHit, error) {
 			return nil, nil
 		},
-		RenameDocumentByNameFunc: func(mod, old, new string) error {
+		RenameDocumentFunc: func(id model.ID, old, new string) error {
+			if id != mf.ID || old != "OldMF" || new != "NewMF" {
+				t.Errorf("RenameDocument(%q, %q, %q), want (%q, OldMF, NewMF)", id, old, new, mf.ID)
+			}
 			renameCalled = true
 			return nil
 		},
@@ -166,7 +170,7 @@ func TestRename_Microflow_Success(t *testing.T) {
 		NewName:    "NewMF",
 	}))
 	if !renameCalled {
-		t.Error("Expected RenameDocumentByName to be called")
+		t.Error("Expected RenameDocument to be called")
 	}
 	assertContainsStr(t, buf.String(), "Renamed microflow")
 }
@@ -333,7 +337,10 @@ func TestRename_JavaAction_Success(t *testing.T) {
 		RenameReferencesFunc: func(old, new string, dryRun bool) ([]types.RenameHit, error) {
 			return []types.RenameHit{{UnitID: "u1", Name: "SomeMF", Count: 1}}, nil
 		},
-		RenameDocumentByNameFunc: func(module, old, newName string) error {
+		RenameDocumentFunc: func(id model.ID, old, newName string) error {
+			if id != ja.ID {
+				t.Errorf("RenameDocument renamed unit %q, want the java action %q", id, ja.ID)
+			}
 			documentRenamed = true
 			return nil
 		},
@@ -351,7 +358,7 @@ func TestRename_JavaAction_Success(t *testing.T) {
 		NewName:    "NewHelper",
 	}))
 	if !documentRenamed {
-		t.Error("Expected RenameDocumentByName to be called")
+		t.Error("Expected RenameDocument to be called")
 	}
 	if !sourceRenamed {
 		t.Error("Expected RenameJavaSourceFile to be called")
@@ -400,7 +407,10 @@ func TestRename_Workflow_Success(t *testing.T) {
 		RenameReferencesFunc: func(old, new string, dryRun bool) ([]types.RenameHit, error) {
 			return nil, nil
 		},
-		RenameDocumentByNameFunc: func(module, old, newName string) error {
+		RenameDocumentFunc: func(id model.ID, old, newName string) error {
+			if id != wf.ID {
+				t.Errorf("RenameDocument renamed unit %q, want the workflow %q", id, wf.ID)
+			}
 			renameCalled = true
 			return nil
 		},
@@ -414,7 +424,7 @@ func TestRename_Workflow_Success(t *testing.T) {
 		NewName:    "NewProcess",
 	}))
 	if !renameCalled {
-		t.Error("Expected RenameDocumentByName to be called")
+		t.Error("Expected RenameDocument to be called")
 	}
 	assertContainsStr(t, buf.String(), "Renamed workflow")
 	assertContainsStr(t, buf.String(), "BPModule.OldProcess")
@@ -515,4 +525,75 @@ func TestRename_Workflow_NotFound(t *testing.T) {
 	})
 	assertError(t, err)
 	assertContainsStr(t, err.Error(), "not found")
+}
+
+// ako/mxcli#1443: the document is renamed before the reference sweep, so a
+// rename the backend refuses leaves every reference where it was. Before, the
+// sweep had already pointed the callers at the new name when the document
+// rename failed — or, worse, renamed a same-named folder and reported success.
+func TestRename_Page_RefusedDocumentRenameSweepsNothing(t *testing.T) {
+	mod := mkModule("Shop")
+	pg := mkPage(mod.ID, "Order_Overview")
+	swept := false
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		ListModulesFunc: func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		ListFoldersFunc: func() ([]*types.FolderInfo, error) { return nil, nil },
+		ListPagesFunc:   func() ([]*pages.Page, error) { return []*pages.Page{pg}, nil },
+		RenameDocumentFunc: func(id model.ID, old, newName string) error {
+			return fmt.Errorf("unit %s is named %q, not %q", id, "Other", old)
+		},
+		RenameReferencesFunc: func(old, new string, dryRun bool) ([]types.RenameHit, error) {
+			swept = true
+			return nil, nil
+		},
+	}
+	h := mkHierarchy(mod)
+	withContainer(h, pg.ContainerID, mod.ID)
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	err := execRename(ctx, &ast.RenameStmt{
+		ObjectType: "page",
+		Name:       ast.QualifiedName{Module: "Shop", Name: "Order_Overview"},
+		NewName:    "Order_List",
+	})
+	assertError(t, err)
+	assertContainsStr(t, err.Error(), "rename page")
+	if swept {
+		t.Error("references were rewritten although the page itself was not renamed")
+	}
+	if strings.Contains(buf.String(), "Renamed page") {
+		t.Errorf("reported success for a refused rename:\n%s", buf.String())
+	}
+}
+
+// A dry run renames nothing, the document included.
+func TestRename_Page_DryRunRenamesNoDocument(t *testing.T) {
+	mod := mkModule("Shop")
+	pg := mkPage(mod.ID, "Order_Overview")
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		ListModulesFunc: func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		ListFoldersFunc: func() ([]*types.FolderInfo, error) { return nil, nil },
+		ListPagesFunc:   func() ([]*pages.Page, error) { return []*pages.Page{pg}, nil },
+		RenameDocumentFunc: func(id model.ID, old, newName string) error {
+			t.Errorf("dry run renamed document %s", id)
+			return nil
+		},
+		RenameReferencesFunc: func(old, new string, dryRun bool) ([]types.RenameHit, error) {
+			if !dryRun {
+				t.Error("dry run rewrote references")
+			}
+			return nil, nil
+		},
+	}
+	h := mkHierarchy(mod)
+	withContainer(h, pg.ContainerID, mod.ID)
+	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	assertNoError(t, execRename(ctx, &ast.RenameStmt{
+		ObjectType: "page",
+		Name:       ast.QualifiedName{Module: "Shop", Name: "Order_Overview"},
+		NewName:    "Order_List",
+		DryRun:     true,
+	}))
+	assertContainsStr(t, buf.String(), "Would rename")
 }

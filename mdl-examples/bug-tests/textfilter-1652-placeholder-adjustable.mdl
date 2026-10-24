@@ -1,0 +1,52 @@
+mdl 1;
+-- ako/mxcli#1652 (mirror of mendixlabs/mxcli#1643): a Data grid 2 text filter
+-- written with `Placeholder: 'Search name', Adjustable: false` inside
+-- `create page` passed check and exec, and neither value was stored — describe
+-- printed a bare `textfilter tfName (Attributes: [Name])`. `alter page … set
+-- (placeholder: …, adjustable: …)` on the same widget did write them.
+--
+-- The filters' definitions map neither key, so both go through the engine's
+-- explicit-property pass, which matched the authored name against the widget's
+-- keys byte-for-byte: `Adjustable` is not `adjustable`, and `Placeholder:` is a
+-- grammar keyword the parser always spells "Placeholder", so even the lower-case
+-- `placeholder:` that describe prints was dropped. The number and date filters
+-- declare the same pair, and the text and number filters' `delay` went the same
+-- way. All are now matched in any case, as check and ALTER already did.
+--
+--   mxcli exec mdl-examples/bug-tests/textfilter-1652-placeholder-adjustable.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page BugFilter1652.Sale_Overview"
+--     -- textfilter tfName (Attributes: [Name], adjustable: false, placeholder: 'Search name')
+--   mx check app.mpr                                          # 0 errors (11.13.0)
+
+create or modify module BugFilter1652;
+
+create persistent entity BugFilter1652.Sale (
+  Name: String(100),
+  Amount: Decimal,
+  SoldOn: DateTime
+);
+
+create page BugFilter1652.Sale_Overview (Title: 'Sales', Layout: Atlas_Core.Atlas_Default) {
+  layoutgrid lg { row { column (DesktopWidth: AutoFill) {
+    datagrid dgSales (DataSource: database from BugFilter1652.Sale) {
+      -- The report's spelling.
+      controlbar { textfilter tfName (Attributes: [Name], Placeholder: 'Search name', Adjustable: false) }
+      column (Attribute: Name, Caption: 'Name')
+      -- The siblings, in the column's own filter slot.
+      column (Attribute: Amount, Caption: 'Amount') {
+        numberfilter nfAmount (Placeholder: 'Amount', Adjustable: false, Delay: 250)
+      }
+      column (Attribute: SoldOn, Caption: 'Sold on') {
+        datefilter dfSoldOn (Placeholder: 'Sold on', Adjustable: false)
+      }
+    }
+  } } }
+};
+
+-- The spelling describe prints, fed back into create.
+create page BugFilter1652.Sale_Describe (Title: 'Sales', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgSales2 (DataSource: database from BugFilter1652.Sale) {
+    controlbar { textfilter tfName2 (Attributes: [Name], adjustable: false, placeholder: 'Search name') }
+    column (Attribute: Name, Caption: 'Name')
+  }
+};

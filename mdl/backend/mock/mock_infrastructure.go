@@ -28,11 +28,11 @@ func (m *MockBackend) RenameReferences(oldName, newName string, dryRun bool) ([]
 	return nil, nil
 }
 
-func (m *MockBackend) RenameDocumentByName(moduleName, oldName, newName string) error {
-	if m.RenameDocumentByNameFunc != nil {
-		return m.RenameDocumentByNameFunc(moduleName, oldName, newName)
+func (m *MockBackend) RenameDocument(id model.ID, oldName, newName string) error {
+	if m.RenameDocumentFunc != nil {
+		return m.RenameDocumentFunc(id, oldName, newName)
 	}
-	return nil
+	return fmt.Errorf("MockBackend.RenameDocument not configured")
 }
 
 // ---------------------------------------------------------------------------

@@ -1559,15 +1559,23 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 		httpConfig.HttpMethod = microflows.HttpMethodGet
 	}
 
-	// Set URL template
-	if lit, ok := s.URL.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
-		httpConfig.LocationTemplate = fmt.Sprintf("%v", lit.Value)
+	// The same function `mxcli check` runs (MDL-REST05): an expression that
+	// also states `with (…)` has no template for the parameters to fill.
+	if err := checkRestCallTemplatesStmt(s); err != nil {
+		fb.addError("%v", err)
+	}
+
+	// Set URL template. An expression URL is the template '{1}' with the
+	// expression as its parameter, not its own source text (ako/mxcli#1444).
+	url, urlParams := restCallTemplate(s.URL, s.URLParams)
+	if text, ok := restTemplateText(url); ok {
+		httpConfig.LocationTemplate = text
 	} else {
-		httpConfig.LocationTemplate = fb.exprToString(s.URL)
+		httpConfig.LocationTemplate = fb.exprToString(url)
 	}
 
 	// Set URL template parameters
-	for _, param := range s.URLParams {
+	for _, param := range urlParams {
 		httpConfig.LocationParams = append(httpConfig.LocationParams, fb.exprToString(param.Value))
 	}
 
@@ -1593,16 +1601,21 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 	if s.Body != nil {
 		switch s.Body.Type {
 		case ast.RestBodyCustom:
-			// Custom body template
+			// Custom body template. A body written as an expression
+			// (`Body: $Payload`) is the template '{1}' with the expression as
+			// its parameter — what Studio Pro stores for a template that only
+			// holds a variable. Storing the expression's source as the
+			// template sent the text "$Payload" (ako/mxcli#1444).
+			tmpl, params := restCallTemplate(s.Body.Template, s.Body.TemplateParams)
 			var template string
-			if lit, ok := s.Body.Template.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
-				template = fmt.Sprintf("%v", lit.Value)
+			if text, ok := restTemplateText(tmpl); ok {
+				template = text
 			} else {
-				template = fb.exprToString(s.Body.Template)
+				template = fb.exprToString(tmpl)
 			}
 			// Extract template parameters
 			var templateParams []string
-			for _, param := range s.Body.TemplateParams {
+			for _, param := range params {
 				templateParams = append(templateParams, fb.exprToString(param.Value))
 			}
 			requestHandling = &microflows.CustomRequestHandling{

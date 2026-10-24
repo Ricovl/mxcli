@@ -1,0 +1,71 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1506 (mirror of mendixlabs/mxcli#1596): RENAME ATTRIBUTE rewrote
+-- XPath constraints that never name the attribute, and dropped their line breaks
+-- ============================================================================
+--
+-- Symptom:
+--   Studio Pro stores a line break between the predicate groups of a constraint
+--   (`[Status = 'Open']\n[Code = 'X']`). Renaming ANY attribute rewrote every
+--   such constraint in the project to `[Status = 'Open'][Code = 'X']` — in other
+--   modules too, and whether or not it named the attribute — and reported each
+--   as "Updated N XPath constraint(s) in N document(s)". On a larger project one
+--   rename wrote 147 units in 21 modules, all of them whitespace only.
+--
+-- Cause (mdl/xpathrefs/rewrite.go, rewriteConstraint):
+--   The constraint was split into its bracket groups and re-joined with nothing
+--   between them, even when no group changed. The caller compares the result
+--   with the stored string to decide whether the unit changed, so the dropped
+--   separators alone made it a write and a count.
+--
+-- Fix:
+--   A constraint with nothing to rewrite is returned as stored; a rewritten
+--   group is spliced back at its own offset, so the layout between groups
+--   survives a real rename too.
+--
+-- Verify (mxcli cannot author a line break BETWEEN groups yet, so step 2 is a
+-- BSON edit — the same one the upstream report used):
+--   1. Run this file WITHOUT its last statement, against an app in git.
+--   2. Put `\n` between the bracket groups of the stored constraints of
+--      Probe1506.ACT_Fetch, Other1506.ACT_Unrelated, Probe1506.ACT_Uses and the
+--      Probe1506.Item access rule; `mxcli fix hashes --repair`; commit.
+--   3. Run the last statement, then `git status --porcelain`.
+--   Expected: "Updated 2 XPath constraint(s) in 2 document(s)" (ACT_Uses and the
+--   access rule); only the Probe1506 domain model and ACT_Uses are modified;
+--   ACT_Uses is stored as `[Status = 'Open']\n[Unused2 = 'X']\n[UnusedX = 'Y']`
+--   — line breaks kept, UnusedX untouched. `mx check`: 0 errors.
+--   Before the fix: 4 constraints in 4 documents, ACT_Fetch and ACT_Unrelated
+--   modified, every line break gone.
+-- ============================================================================
+
+create module Probe1506;
+create module Other1506;
+
+create persistent entity Probe1506.Item (
+  Code: String(20),
+  Status: String(20),
+  Unused: String(20),
+  -- Shares a prefix with the renamed attribute. It must not move.
+  UnusedX: String(20)
+);
+create persistent entity Other1506.Thing (Label: String(20), Flag: String(20));
+
+-- Never names Unused: must keep its bytes.
+create microflow Probe1506.ACT_Fetch () begin
+  retrieve $Items from Probe1506.Item where [Status = 'Open'][Code = 'X'];
+end;
+
+-- Another module, another entity: must keep its bytes.
+create microflow Other1506.ACT_Unrelated () begin
+  retrieve $Things from Other1506.Thing where [Label = 'A'][Flag != 'B'];
+end;
+
+-- Names Unused: the one group changes, nothing else does.
+create microflow Probe1506.ACT_Uses () begin
+  retrieve $Items from Probe1506.Item where [Status = 'Open'][Unused = 'X'][UnusedX = 'Y'];
+end;
+
+create module role Probe1506.User;
+grant read * on entity Probe1506.Item to Probe1506.User where [Unused = 'x'][Status = 'Open'];
+
+alter entity Probe1506.Item rename attribute Unused to Unused2;

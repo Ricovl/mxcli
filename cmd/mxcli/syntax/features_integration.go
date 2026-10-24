@@ -219,7 +219,7 @@ func init() {
 			"body binary", "binary", "upload", "post binary",
 			"headers", "authentication", "basic auth", "timeout", "request body", "template",
 		},
-		Syntax: "[$Var =] CALL REST SERVICE GET|POST|PUT|PATCH|DELETE '<url>' [WITH ({1} = expr, ...)] [(\n" +
+		Syntax: "[$Var =] CALL REST SERVICE GET|POST|PUT|PATCH|DELETE ('<url>' [WITH ({1} = expr, ...)] | <expr>) [(\n" +
 			"  Headers: ('Name': expr, ...),\n" +
 			"  Authentication: BASIC (Username: expr, Password: expr),\n" +
 			"  Body: TEMPLATE '<template>' [WITH ({1} = expr)]\n" +
@@ -234,6 +234,13 @@ func init() {
 			"-- The clauses `header 'N' = v`, `auth basic $u password $p`, `body ...`\n" +
 			"-- and `timeout n` are the deprecated spelling (MDL-DEPR720); `mxcli fmt\n" +
 			"-- --upgrade` rewrites them, and the two forms cannot be mixed.\n\n" +
+			"-- The URL and a custom body are templates: '...{1}...' WITH ({1} = expr)\n" +
+			"-- fills each {n}. An expression instead (`Body: $Payload`, a URL like\n" +
+			"-- `@Module.BaseUrl + '/rates'`) sends its VALUE: it is stored as the\n" +
+			"-- template '{1}' with the expression as its parameter — what Studio Pro\n" +
+			"-- stores — and describe prints that form. An expression has no {n} to\n" +
+			"-- fill, so one followed by WITH (...) is refused (MDL-REST05).\n" +
+			"-- `Body: TEMPLATE '$Payload'` is the literal text $Payload.\n\n" +
 			"RETURNS String                          -- the response body as a string\n" +
 			"RETURNS response                        -- the whole System.HttpResponse object\n" +
 			"RETURNS Module.MyFile                   -- store the body in a file document\n" +

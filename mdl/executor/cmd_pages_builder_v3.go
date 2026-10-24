@@ -349,6 +349,9 @@ func (pb *pageBuilder) buildSnippetV3(s *ast.CreateSnippetStmtV3) (*pages.Snippe
 // as item slots. The dispatch table is consumed by inspection commands and
 // DESCRIBE-side keyword resolution rather than overriding write-side routing here.
 func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
+	if pb.shadowBuild {
+		return shadowChild(w), nil
+	}
 	// What a SHOW_PAGE argument inside this widget may bind to. The data widgets
 	// below overwrite it with the context they actually create; this only stops
 	// "no context object at all" surviving past a widget whose data source this
@@ -562,6 +565,8 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 		if err := pb.storedPluggables.refuseLostHiddenContent(def, w); err != nil {
 			return nil, err
 		}
+		pb.patchStoredPluggable(def, w, widget)
+		pb.storedPluggables.carryNoActionExecution(def, w, widget)
 	}
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err

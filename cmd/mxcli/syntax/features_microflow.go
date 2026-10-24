@@ -304,7 +304,9 @@ func init() {
 			"-- other form is CE6035 and is refused (MDL091).\n" +
 			"--\n" +
 			"-- A handler that does NOT end in RETURN/RAISE ERROR merges back into the main\n" +
-			"-- flow, so a variable created after the merge is out of scope on the error\n" +
+			"-- flow at the statement after the failing activity — inside an IF, CASE or\n" +
+			"-- loop body too, where a branch's last activity continues after END IF —\n" +
+			"-- so a variable created after the merge is out of scope on the error\n" +
 			"-- path (CE0108). End the handler, or expect that.\n" +
 			"--\n" +
 			"-- An EMPTY handler `BEGIN END ERROR` is not a no-op: it means \"on error, do whatever\n" +
