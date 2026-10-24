@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // LoadThemeRegistryForProject loads the design-property registry for a project
@@ -42,16 +44,70 @@ func LoadThemeRegistryForProject(mprPath string) *ThemeRegistry {
 // properties; otherwise there is no metadata to validate against and it is a
 // no-op. Compound (nested) entries are skipped — the registry does not model
 // their sub-properties, so validating them would produce false positives.
-func ValidateDesignProperties(prog *ast.Program, projectPath string) []linter.Violation {
+//
+// A page on a native layout is checked against the native definitions; checked
+// against the web ones, Atlas's native `'Color': 'Brand primary'` and `'Size':
+// 'Smallest'` were reported as not allowed (ako/mxcli#1679). project opens the
+// project to resolve a layout the script does not create; it may be nil or
+// return nil, and a page whose layout cannot be resolved is checked as web.
+func ValidateDesignProperties(prog *ast.Program, projectPath string, project func() backend.FullBackend) []linter.Violation {
 	reg := LoadThemeRegistryForProject(projectPath)
 	if reg == nil {
 		return nil
 	}
+	native := nativeLayoutResolver(prog, project)
 	var out []linter.Violation
 	for _, stmt := range prog.Statements {
-		out = append(out, ValidateDesignPropertiesForStatement(stmt, reg)...)
+		r := reg
+		if s, ok := stmt.(*ast.CreatePageStmtV3); ok && s.Layout != "" && native(s.Layout) {
+			r = reg.ForPlatform(true)
+		}
+		out = append(out, ValidateDesignPropertiesForStatement(stmt, r)...)
 	}
 	return out
+}
+
+// nativeLayoutResolver answers whether a layout, by qualified name, is native:
+// one the script creates with a native layout type, or one the project holds.
+// The project is read once, on the first question.
+func nativeLayoutResolver(prog *ast.Program, project func() backend.FullBackend) func(string) bool {
+	native := map[string]bool{}
+	for _, stmt := range prog.Statements {
+		if s, ok := stmt.(*ast.CreateLayoutStmt); ok {
+			if n, ok := platformForLayoutType(pages.LayoutType((&ast.WidgetV3{Properties: s.Properties}).GetStringProp("LayoutType"))); ok {
+				native[s.Name.String()] = n
+			}
+		}
+	}
+	loaded := project == nil
+	return func(qn string) bool {
+		if n, ok := native[qn]; ok {
+			return n
+		}
+		if loaded {
+			return false
+		}
+		loaded = true
+		b := project()
+		if b == nil {
+			return false
+		}
+		layouts, err := b.ListLayouts()
+		if err != nil {
+			return false
+		}
+		h, err := NewContainerHierarchyFromBackend(b)
+		if err != nil {
+			return false
+		}
+		for _, l := range layouts {
+			name := h.GetModuleName(h.FindModuleID(l.ContainerID)) + "." + l.Name
+			if _, scripted := native[name]; !scripted {
+				native[name] = l.Native
+			}
+		}
+		return native[qn]
+	}
 }
 
 // ValidateDesignPropertiesForStatement validates one statement's widget design

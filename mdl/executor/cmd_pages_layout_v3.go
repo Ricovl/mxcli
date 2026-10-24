@@ -49,6 +49,9 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 			"layout %s: unknown layouttype %q (want Responsive, Phone, Tablet, ModalPopup, Default or Popup)",
 			s.Name.String(), layoutType))
 	}
+	// A native layout's widgets take the native design-property definitions
+	// (ako/mxcli#1679).
+	pb.themeRegistry = pb.themeRegistry.ForPlatform(native)
 
 	layout := &pages.Layout{
 		BaseElement: model.BaseElement{

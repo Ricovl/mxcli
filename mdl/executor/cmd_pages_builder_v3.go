@@ -90,6 +90,13 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 			log.Printf("warning: layout %s not found", s.Layout)
 		} else {
 			page.LayoutID = layoutID
+			// A native page's widgets take the native design-property
+			// definitions; typed against the web ones, Atlas's native `'Color':
+			// 'Brand primary'` option was stored as a custom colour
+			// (ako/mxcli#1679). The layout decides, as it does in Studio Pro.
+			if pb.layoutIsNative(layoutID) {
+				pb.themeRegistry = pb.themeRegistry.ForPlatform(true)
+			}
 
 			// Create LayoutCall with arguments for placeholders
 			page.LayoutCall = &pages.LayoutCall{

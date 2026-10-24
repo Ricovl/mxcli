@@ -76,13 +76,32 @@ type ThemeRegistry struct {
 	// WidgetProperties maps design-properties.json widget type key to its properties.
 	// Keys: "Widget", "DivContainer", "Button", "DataGrid", pluggable widget IDs, etc.
 	WidgetProperties map[string][]ThemeProperty
+	// NativeWidgetProperties are the same groups from the native
+	// design-properties.json files. A native page's widgets resolve against
+	// these (ForPlatform): the two platforms declare different types and options
+	// for the same key, so typing a native widget against the web definitions
+	// stored Atlas's native `'Color': 'Brand primary'` option as a custom colour
+	// (ako/mxcli#1679).
+	NativeWidgetProperties map[string][]ThemeProperty
+}
+
+// ForPlatform returns the registry a document of that platform resolves its
+// design properties against: the receiver for a web document, a view over the
+// native definitions for a native one. Nil stays nil.
+func (r *ThemeRegistry) ForPlatform(native bool) *ThemeRegistry {
+	if r == nil || !native {
+		return r
+	}
+	return &ThemeRegistry{WidgetProperties: r.NativeWidgetProperties, NativeWidgetProperties: r.NativeWidgetProperties}
 }
 
 // loadThemeRegistry reads and merges all design-properties.json files from the project's
-// themesource directories (themesource/*/web/design-properties.json).
+// themesource directories (themesource/*/web/design-properties.json, and the
+// native ones into NativeWidgetProperties).
 func loadThemeRegistry(projectDir string) (*ThemeRegistry, error) {
 	registry := &ThemeRegistry{
-		WidgetProperties: make(map[string][]ThemeProperty),
+		WidgetProperties:       make(map[string][]ThemeProperty),
+		NativeWidgetProperties: make(map[string][]ThemeProperty),
 	}
 
 	themesourceDir := filepath.Join(projectDir, "themesource")
@@ -100,24 +119,25 @@ func loadThemeRegistry(projectDir string) (*ThemeRegistry, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		dpPath := filepath.Join(themesourceDir, entry.Name(), "web", "design-properties.json")
-		if _, err := os.Stat(dpPath); os.IsNotExist(err) {
-			continue
-		}
+		for platform, into := range map[string]map[string][]ThemeProperty{
+			"web":    registry.WidgetProperties,
+			"native": registry.NativeWidgetProperties,
+		} {
+			dpPath := filepath.Join(themesourceDir, entry.Name(), platform, "design-properties.json")
+			data, err := os.ReadFile(dpPath)
+			if err != nil {
+				continue // Absent or unreadable
+			}
 
-		data, err := os.ReadFile(dpPath)
-		if err != nil {
-			continue // Skip unreadable files
-		}
+			fileProps, err := parseDesignPropertiesJSON(data)
+			if err != nil {
+				continue // Skip malformed files
+			}
 
-		fileProps, err := parseDesignPropertiesJSON(data)
-		if err != nil {
-			continue // Skip malformed files
-		}
-
-		// Merge into registry
-		for widgetType, props := range fileProps {
-			registry.WidgetProperties[widgetType] = append(registry.WidgetProperties[widgetType], props...)
+			// Merge into registry
+			for widgetType, props := range fileProps {
+				into[widgetType] = append(into[widgetType], props...)
+			}
 		}
 	}
 

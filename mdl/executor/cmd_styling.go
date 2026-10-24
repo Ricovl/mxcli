@@ -309,7 +309,7 @@ func execAlterStyling(ctx *ExecContext, s *ast.AlterStylingStmt) error {
 			fmt.Sprintf("widget %q not found in %s %s", s.WidgetName, containerType, s.ContainerName.String()))
 	}
 
-	if err := applyStylingMutator(mutator, s, ctx.GetThemeRegistry()); err != nil {
+	if err := applyStylingMutator(mutator, s, documentTheme(ctx, mutator)); err != nil {
 		return mdlerrors.NewBackend("alter styling", err)
 	}
 

@@ -182,7 +182,7 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Validate design properties against the project's theme registry
 	// (themesource design-properties.json) — flags unknown keys and invalid
 	// option values, listing the allowed values. Only runs with --project.
-	violations = append(violations, ValidateDesignProperties(prog, projectPath)...)
+	violations = append(violations, ValidateDesignProperties(prog, projectPath, project)...)
 
 	// The same question for ALTER STYLING, which that pass never looked at — the
 	// one statement whose entire job is writing design properties, and the one
