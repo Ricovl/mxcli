@@ -25,7 +25,7 @@ An `@expect` or `@verify` **may span several lines**. Its text runs on, as a
 javadoc block tag's does, to the next tag or the end of the comment, and all of
 it is the one assertion:
 
-```mdl
+```text
 /**
  * @test the separator survives
  * @expect $r = 'a;b'
