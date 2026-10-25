@@ -14,16 +14,16 @@ description: "Create and manage JSON structures, import mappings and export mapp
 | 111-122 | Export Mappings |
 | 123-187 | JSON Structures |
 | 188-229 | Message Definitions |
-| 230-390 | Import Mappings |
-| 391-488 | Export Mappings |
-| 489-506 | Starting a Mapping Below the Payload Root |
-| 507-576 | Microflow Actions |
-| 577-589 | Browse |
-| 590-637 | Export Workflow: PE → NPE → JSON |
-| 638-644 | Realistic Example: Countries REST API |
-| 645-668 | Placing Documents in Folders |
-| 669-684 | Documentation |
-| 685-699 | Common Mistakes |
+| 230-393 | Import Mappings |
+| 394-491 | Export Mappings |
+| 492-509 | Starting a Mapping Below the Payload Root |
+| 510-593 | Microflow Actions |
+| 594-606 | Browse |
+| 607-654 | Export Workflow: PE → NPE → JSON |
+| 655-661 | Realistic Example: Countries REST API |
+| 662-685 | Placing Documents in Folders |
+| 686-701 | Documentation |
+| 702-716 | Common Mistakes |
 
 <!-- /skill-index -->
 # JSON Structures, Import Mappings & Export Mappings
