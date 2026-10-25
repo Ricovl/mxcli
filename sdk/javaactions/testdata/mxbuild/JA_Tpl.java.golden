@@ -15,13 +15,13 @@ import com.mendix.systemwideinterfaces.core.UserAction;
 
 public class JA_Tpl extends UserAction<java.util.List<IMendixObject>>
 {
-	private final java.lang.String Q;
-	private final java.lang.String X;
+	private final com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate Q;
+	private final com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate X;
 
 	public JA_Tpl(
 		IContext context,
-		java.lang.String _q,
-		java.lang.String _x
+		com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate _q,
+		com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate _x
 	)
 	{
 		super(context);

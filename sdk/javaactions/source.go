@@ -220,10 +220,15 @@ func javaParamType(t CodeActionParameterType) string {
 		return "java.lang.Long"
 	case *DecimalType:
 		return "java.math.BigDecimal"
-	case *StringType, *StringTemplateParameterType, *MicroflowType, *EnumerationType, *EntityTypeParameterType:
+	case *StringType, *MicroflowType, *EnumerationType, *EntityTypeParameterType:
 		// A microflow arrives as its qualified name, an entity type selector as
 		// the entity's, an enumeration as its value's name.
 		return "java.lang.String"
+	case *StringTemplateParameterType:
+		// What mxbuild declares for a text template (Text or Sql), fully
+		// qualified and not imported — measured on the source it generated for
+		// BusinessEvents 3.12's PublishBusinessEvent_V2.Subject.
+		return "com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate"
 	case *DateTimeType:
 		return "java.util.Date"
 	case *EntityType, *FileDocumentType, *TypeParameter:

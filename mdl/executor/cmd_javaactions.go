@@ -749,6 +749,20 @@ func astDataTypeToJavaActionParamType(dt ast.DataType) javaactions.CodeActionPar
 				TypeName: "CodeActions$DateTimeType",
 			},
 		}
+	case ast.TypeStringTemplate:
+		// `StringTemplate(Text)` / `StringTemplate(Sql)` — what describe prints
+		// for a text-template parameter. It fell to the default below and was
+		// written as a String: a describe -> exec round trip turned the
+		// parameter into a String, and every call Studio Pro had written for
+		// it (a template value) no longer matched — CE0115.
+		grammar := "Text"
+		if strings.EqualFold(dt.TemplateContext, "sql") {
+			grammar = "Sql"
+		}
+		return &javaactions.StringTemplateParameterType{
+			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+			Grammar:     grammar,
+		}
 	case ast.TypeEntity, ast.TypeEnumeration:
 		// An unambiguous `ENUM`/`Enumeration(...)` type must serialize as an
 		// enumeration parameter, not an entity reference (#680). A bare
