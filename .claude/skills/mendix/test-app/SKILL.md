@@ -11,18 +11,18 @@ description: "Verify a running Mendix app in a browser: `mxcli playwright check`
 | lines | section |
 |---|---|
 | 32-42 | When to Use This Skill |
-| 43-84 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
-| 85-135 | Prerequisites |
-| 136-160 | Quick Start |
-| 161-182 | Widget Name Selectors |
-| 183-298 | Verification Patterns |
-| 299-372 | CI/CD: Test Scripts |
-| 373-416 | Session Management |
-| 417-444 | Debugging |
-| 445-477 | Selector Rules |
-| 478-494 | Known Gotchas |
-| 495-528 | Feedback Loop Workflow |
-| 529-536 | Related Skills |
+| 43-90 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
+| 91-141 | Prerequisites |
+| 142-166 | Quick Start |
+| 167-188 | Widget Name Selectors |
+| 189-304 | Verification Patterns |
+| 305-378 | CI/CD: Test Scripts |
+| 379-422 | Session Management |
+| 423-450 | Debugging |
+| 451-483 | Selector Rules |
+| 484-500 | Known Gotchas |
+| 501-534 | Feedback Loop Workflow |
+| 535-542 | Related Skills |
 
 <!-- /skill-index -->
 # Test App Skill
@@ -62,7 +62,13 @@ FAIL 1 of 2 page(s)
 
 - **Exit status:** 0 all pages passed; 1 a page failed (error banner/dialog, console
   error, failed request, HTTP error, sign-in form instead of the page, failed
-  assertion); 2 the check could not run.
+  assertion, or `STILL LOADING`); 2 the check could not run.
+- **It waits for the data.** A page is measured once no request to the app has been
+  open for half a second and its text holds still — a list view shows no spinner
+  while its data source runs, so the text alone would hold still on an empty list.
+  A page still loading after `--wait` (default 15s) is reported `STILL LOADING`,
+  with a `WAIT` line naming the open request, and fails: do not read its `rows=` as
+  the answer. A page with a list or grid always prints `rows=`, `rows=0` included.
 - **Login is handled:** `--user U --password P`, or `--role R` (the project's demo user
   holding user role R), or nothing but `-p` (a demo user, an administrator first).
   The session is saved under `.mxcli/playwright-check/` and reused by the next check;

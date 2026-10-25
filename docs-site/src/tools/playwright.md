@@ -66,10 +66,27 @@ FAIL 1 of 2 page(s)
 The verdict line is the same one `mxcli run --local --page-check` prints; both use
 one probe, and every page of a call is loaded in one headless browser.
 
+A page is measured once it has **settled**: no request to the app open for half a
+second, no progress indicator, and its text unchanged. The requests are the part
+that matters. While a list view's data source runs, the list view shows nothing
+that says so — no spinner, no "no items" placeholder — so a page caught then looks
+finished and simply empty (ako/mxcli#845). A page that has not settled within
+`--wait` (default 15s; a page that settles sooner is measured then) is reported as
+still loading and fails, naming what it was waiting for:
+
+```
+page /p/Order_Overview  title="Orders"  STILL LOADING  rows=0  text=37  console-errors=0
+  WAIT   not settled after 3.1s: still waiting for POST /xas/
+  FAIL   still loading when measured, so the verdict may describe a partly rendered page (raise --wait if it is only slow)
+```
+
+A page with a list view, data grid or gallery always reports `rows=`, `rows=0`
+included, so an empty list does not read the same as a page without one.
+
 | Exit status | Meaning |
 |---|---|
 | 0 | every page passed |
-| 1 | a page failed: HTTP error, sign-in form instead of the page (or a 401 from the runtime), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
+| 1 | a page failed: still loading when measured, HTTP error, sign-in form instead of the page (or a 401 from the runtime), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
 | 2 | the check could not run (no Node/Playwright, sign-in rejected, bad flag) |
 
 A warning banner or validation message is shown but does not fail the page.
