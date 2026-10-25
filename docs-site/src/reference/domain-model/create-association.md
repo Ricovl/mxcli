@@ -63,6 +63,10 @@ A documentation comment (`/** ... */`) placed before the statement is preserved 
 **OWNER**
 : Which side can modify the association. Defaults to `Default` if omitted.
 
+: Between a persistent and a non-persistent entity, Mendix allows one shape only: `FROM` the non-persistent entity, with owner `Default`. A persistent `FROM` end or `OWNER Both` there fails the build with CE0001, so `mxcli check` and `exec` refuse it (MDL-ASSOC01). `ALTER ASSOCIATION … SET OWNER Both` is refused the same way.
+
+: Under `OWNER Both` the association is a member of the TO entity too, so its access rules get an entry for it — in the TO entity's module, for a cross-module association. `CREATE OR MODIFY` that moves the TO end, or changes the owner, reconciles the old and the new TO module's rules.
+
 **ON DELETE**
 : What happens to associated objects when a FROM-side object is deleted. If omitted, references are kept (the default Mendix behavior).
 
