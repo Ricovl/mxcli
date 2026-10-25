@@ -159,10 +159,23 @@ var (
 	oqlPlainColumnRe = regexp.MustCompile(`^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$`)
 	oqlBareIdentRe   = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
 	// oqlAggregateCallRe matches an aggregate call in a normalized expression.
-	oqlAggregateCallRe = regexp.MustCompile(`(^|[^a-z0-9_.])(count|sum|avg|min|max)\(`)
+	oqlAggregateCallRe = regexp.MustCompile(`(^|[^a-z0-9_.])(` + strings.Join(oqlAggregateFunctions, "|") + `)\(`)
 	// oqlRawAggregateCallRe is oqlAggregateCallRe over query text as written.
-	oqlRawAggregateCallRe = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_.])(count|sum|avg|min|max)\s*\(`)
+	oqlRawAggregateCallRe = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_.])(` + strings.Join(oqlAggregateFunctions, "|") + `)\s*\(`)
 )
+
+// oqlAggregateFunctions are the aggregate functions of Mendix OQL — the
+// aggregate tokens of mxbuild's own OQL grammar, 'SUM' 'COUNT' 'AVG' 'MIN'
+// 'MAX' 'STRING_AGG' (DeprecatedOqlLexer in Mendix.Modeler.Core.dll, the only
+// OQL grammar it carries). Every rule that asks "is this column aggregated?"
+// reads this one list. It held the first five only, so a STRING_AGG column
+// read as an ungrouped expression and every view using it was refused as
+// MDL036 — by check, by exec, and by exec --no-check (ako/mxcli#1650). A
+// name Mendix does not have is CE0174 "Unknown function '…'": group_concat,
+// listagg, array_agg and stddev, measured on 11.13.0.
+//
+// STRING_AGG has a version floor of its own; see oqlUsesStringAgg.
+var oqlAggregateFunctions = []string{"count", "sum", "avg", "min", "max", "string_agg"}
 
 // oqlColumnRefs lists the column references in a normalized expression,
 // ignoring anything inside a string literal.

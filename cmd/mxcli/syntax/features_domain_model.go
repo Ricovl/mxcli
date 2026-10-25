@@ -183,6 +183,7 @@ func init() {
 			"oql", "view entity oql", "select", "from", "join", "group by",
 			"order by", "limit", "union", "alias", "as alias", "cast",
 			"MDL030", "MDL031", "MDL072", "CE0174", "CE6770",
+			"string_agg", "aggregate functions",
 		},
 		MinVersion: "10.18.0",
 		Syntax: "BOTH CLAUSE ORDERS ARE ACCEPTED — `select … from …` and Mendix's own\n" +
@@ -205,6 +206,13 @@ func init() {
 			"   (MDL072). So a view attribute can never be called `Month` or `Year` —\n" +
 			"   that one is renamed, not quoted. An MDL keyword that is NOT an OQL one\n" +
 			"   (Role, Status, Value) is a fine FROM / JOIN alias after `as`.\n\n" +
+			"AGGREGATES: count, sum, avg, min, max and string_agg(expr, 'separator'),\n" +
+			"which joins a group's values into one string; the separator must be a string\n" +
+			"literal. string_agg needs Mendix 11.2+, or 10.24.22+ on the 10.24 line (below\n" +
+			"that: CE0174 \"Unknown function\"). Its column is String(200) from 11.7 and on\n" +
+			"10.24, but its argument's own type on 11.2-11.6 (CE6770 otherwise; check -p\n" +
+			"gives the fix for the project). An aggregate may not read a GROUP BY column\n" +
+			"(CE0174, MDL034); every other column must be grouped (MDL035/036).\n\n" +
 			"UNION / UNION ALL are supported and round-trip; column count and types must\n" +
 			"line up across branches, and an ORDER BY applies to the whole result.",
 		Example: "mdl 1;\n" +

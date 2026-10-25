@@ -42,6 +42,18 @@ features:
     join_types:
       min_version: "10.18.0"
       mdl: "INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN"
+    string_agg:
+      # STRING_AGG(expression, 'separator'), the OQL aggregate that joins a
+      # group's values into one string. On the 10.24 line it arrived in a
+      # patch: mxbuild 10.24.21's OQL lexer has no 'STRING_AGG' token and mx
+      # check reports every such view as CE0174 "Unknown function
+      # 'string_agg'"; 10.24.22 has the token and builds them at 0 errors.
+      # Never in 10.18-10.23. 11.x has its own floor (mendix-11.yaml), hence
+      # the max_version (ako/mxcli#1650).
+      min_version: "10.24.22"
+      max_version: "10.99.99"
+      mdl: "STRING_AGG(expression, 'separator') in a view entity's OQL query"
+      notes: "Measured with mx check: 10.24.21 CE0174 \"Unknown function 'string_agg'\", 10.24.22 and 10.24.24 0 errors. The column is a String(200) whatever it aggregates. ako/mxcli#1650"
 
   microflows:
     basic:
