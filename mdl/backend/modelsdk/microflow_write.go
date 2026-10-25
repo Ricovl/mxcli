@@ -1035,11 +1035,14 @@ func importXmlActionToGen(a *microflows.ImportXmlAction) element.Element {
 	}
 
 	imc := newElem("Microflows$ImportMappingCall", "")
-	addStr(imc, "Commit", "YesWithoutEvents")
+	// Both were constants, so a mapping with an input object could not be
+	// called (mxbuild CE0244) and a non-default commit mode was unwritable
+	// (ako/mxcli#1681).
+	addStr(imc, "Commit", orDefault(rh.Commit, "YesWithoutEvents"))
 	addStr(imc, "ContentType", orDefault(rh.ContentType, "Json"))
 	addBool(imc, "ForceSingleOccurrence", forceSingle)
 	addStr(imc, "ObjectHandlingBackup", "Create")
-	addStr(imc, "ParameterVariableName", "")
+	addStr(imc, "ParameterVariableName", rh.ParameterVariable)
 	addPart(imc, "Range", importMappingRangeToGen(rh))
 	addStr(imc, "ReturnValueMapping", string(rh.MappingID))
 

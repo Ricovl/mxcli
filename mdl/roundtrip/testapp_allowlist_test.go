@@ -139,7 +139,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"page WorkflowCommons.WorkflowDefinition_View":                                  {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowEndedUserTask":                                    {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"page WorkflowCommons.WorkflowSubProcess_View":                                  {laws: []law{lawExec}, issue: "#721", why: "page: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"page WorkflowCommons.WorkflowUserTaskView_View":                                {laws: []law{lawGetPut}, issue: "#721 #826", why: "executes since describe prints snippet call Params (#826); the page Appearance keeps 1 of 3 DesignProperties (#721 C)"},
 	"page WorkflowCommons.Workflow_Dashboard":                                       {laws: []law{lawGetPut}, issue: "#721", why: "page: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"rest client Clients.OrdersRestClient":                                          {laws: []law{lawParse}, issue: "#721", why: "rest client: breaks parse on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"rule Rules.Rule1":                                                              {laws: []law{lawGetPut}, issue: "#721", why: "rule: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
@@ -188,7 +187,6 @@ var testAppKnownFailures = map[string]knownFailure{
 	"snippet WorkflowCommons.Snip_Workflow_NotificationArea":                        {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_Workflow_StateCircleOnly":                         {laws: []law{lawGetPut, lawPutGet}, issue: "#721", why: "snippet: breaks getput and putget on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 	"snippet WorkflowCommons.Snip_Workflow_SubProcessDetails":                       {laws: []law{lawExec}, issue: "#721", why: "snippet: breaks exec on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
-	"snippet WorkflowCommons.Snip_Workflow_TaskDetails":                             {laws: []law{lawGetPut}, issue: "#721", why: "snippet: breaks getput on TestApp, measured when it joined the harness (#743); not yet triaged into #721's classes"},
 }
 
 // createOrModifyProbeKnownFailures is the allowlist of

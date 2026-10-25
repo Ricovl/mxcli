@@ -39,3 +39,21 @@ func TestCreatePage_ClassOmitted(t *testing.T) {
 		t.Errorf("expected empty Class/Style, got %q/%q", stmt.Class, stmt.Style)
 	}
 }
+
+// ako/mxcli#1678 — the page's own design properties, written in the header with
+// the same list a widget takes.
+func TestCreatePage_DesignProperties(t *testing.T) {
+	prog, errs := Build(`create page M.P (
+		Title: 'x',
+		Layout: Atlas_Core.NativePhone_Default,
+		DesignProperties: ('Spacing top': 'Inner large', 'Hide header bottom border': on)
+	) { dynamictext t (Content: 'x') };`)
+	if len(errs) > 0 {
+		t.Fatalf("unexpected parse errors: %v", errs)
+	}
+	got := prog.Statements[0].(*ast.CreatePageStmtV3).DesignProperties
+	if len(got) != 2 || got[0].Key != "Spacing top" || got[0].Value != "Inner large" ||
+		got[1].Key != "Hide header bottom border" || got[1].Value != "on" {
+		t.Errorf("DesignProperties = %+v", got)
+	}
+}

@@ -112,6 +112,22 @@ func TestMapPageWidget_DynamicText(t *testing.T) {
 	}
 }
 
+// ako/mxcli#1677: a native text style is written, not replaced by Text.
+func TestMapPageWidget_DynamicTextNativeTextStyle(t *testing.T) {
+	b := &Backend{}
+	for _, tc := range []struct {
+		authored pages.NativeTextStyle
+		want     string
+	}{{"", "Text"}, {pages.NativeTextStyleHeading3, "Heading3"}} {
+		dt := &pages.DynamicText{NativeTextStyle: tc.authored}
+		dt.Name = "txt1"
+		m, err := b.mapPageWidget(dt)
+		if err != nil || m["nativeTextStyle"] != tc.want {
+			t.Errorf("authored %q: nativeTextStyle = %v (%v), want %q", tc.authored, m["nativeTextStyle"], err, tc.want)
+		}
+	}
+}
+
 func TestMapPageWidget_DataView(t *testing.T) {
 	b := &Backend{}
 	inner := &pages.DynamicText{AttributePath: "$Loc/Name"}

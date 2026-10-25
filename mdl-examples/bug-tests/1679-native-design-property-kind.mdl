@@ -1,0 +1,33 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1679 — on a native page, describe → exec turned `'Color': 'Brand
+-- primary'` from a Forms$OptionDesignPropertyValue into a
+-- Forms$CustomDesignPropertyValue. `Size` on the same widget stayed an option.
+--
+-- The theme registry read only themesource/*/web/design-properties.json. Atlas
+-- Core 4.1.3 declares DynamicText `Color` as a web ColorPicker whose swatch is
+-- spelled `Brand Primary`, and as a native Dropdown with the option `Brand
+-- primary`; off the web list, on a ColorPicker, the value was a custom colour.
+-- A native page, layout or snippet now types its widgets against the native
+-- definitions — in create, alter page set, alter styling and check -p.
+--
+-- Measured on 11.13.0 (Atlas Core 4.1.3), after a BSON edit storing text6's
+-- Color as an option, the way Studio Pro does:
+--
+--   before the fix: exec → Color Forms$CustomDesignPropertyValue; mx check 0
+--                   errors (silent); check -p warns MDL-WIDGET12 on the native
+--                   values 'Brand primary' and 'Smallest'
+--   after:          exec → "Unchanged page", Color stays an option; check -p
+--                   quiet on the native page and still warns on a web one
+-- ============================================================================
+
+create module BugNativeDesignProps;
+
+create page BugNativeDesignProps.Login_Native (Title: 'Login', Layout: Atlas_Core.NativePhone_Default) {
+  dynamictext text6 (Content: 'Sign in', DesignProperties: ('Color': 'Brand primary', 'Size': 'Small'))
+  dynamictext text8 (Content: 'Forgot password?')
+};
+
+alter page BugNativeDesignProps.Login_Native {
+  set ('Color': 'Brand primary') on text8
+};

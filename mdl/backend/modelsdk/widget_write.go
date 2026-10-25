@@ -466,7 +466,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g := genPg.NewDynamicText()
 		applyWidgetBase(g, &x.BaseWidget)
 		g.SetRenderMode(orDefaultStr(string(x.RenderMode), "Text"))
-		g.SetNativeTextStyle("Text")
+		g.SetNativeTextStyle(orDefaultStr(string(x.NativeTextStyle), string(pages.NativeTextStyleText)))
 		g.SetContent(clientTemplateToGen(x.Content))
 		return g, nil
 
@@ -493,7 +493,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetDataSource(ds)
-		g.SetEditability(editability(x.ReadOnly))
+		g.SetEditability(dataViewEditability(x))
 		// Control is the DataView default, measured 47 of 56 across ako/TestApp's
 		// 67 pages with not one Inherit — so it is NOT the "Inherit" every other
 		// input widget uses. An authored or carried value wins (ako/mxcli#550).
@@ -1603,12 +1603,16 @@ func widgetValidationToGenWith(expression, message string) element.Element {
 	return v
 }
 
-// editability maps a read-only flag to the Forms editability enum.
-func editability(readOnly bool) string {
-	if readOnly {
+// dataViewEditability is the Forms editability enum a data view stores.
+//
+// The builder puts `Editable:` on the BaseWidget, as it does for every widget.
+// Reading only ReadOnly, which nothing sets, wrote Always whatever was authored,
+// so a read-only data view became editable on describe → exec (ako/mxcli#1676).
+func dataViewEditability(x *pages.DataView) string {
+	if x.ReadOnly {
 		return "Never"
 	}
-	return "Always"
+	return pages.WidgetEditability(&x.BaseWidget)
 }
 
 // dataViewSourceToGen builds a DataView's data source. The page-context source

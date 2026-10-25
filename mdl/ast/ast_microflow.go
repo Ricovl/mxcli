@@ -65,7 +65,11 @@ type CreateMicroflowStmt struct {
 	DocumentationSet bool
 	Folder           string // Folder path within module (e.g., "Resources/Images")
 	CreateOrModify   bool
-	Excluded         bool // @excluded — document excluded from project
+	// CreateOrReplace records that CreateOrModify was spelled `create or
+	// replace`, which splices the same way, so a message names the statement
+	// as written (ako/mxcli#1681).
+	CreateOrReplace bool
+	Excluded        bool // @excluded — document excluded from project
 	// ApplyEntityAccess is Studio Pro's "apply entity access" checkbox, set by
 	// `@applyentityaccess` / `@applyentityaccess(false)`.
 	//
@@ -163,6 +167,7 @@ type CreateNanoflowStmt struct {
 	DocumentationSet bool   // see mendixlabs/mxcli#1018: absent preserves, empty clears
 	Folder           string // Folder path within module
 	CreateOrModify   bool
+	CreateOrReplace  bool // spelled `create or replace` (see CreateMicroflowStmt)
 	Excluded         bool // @excluded — document excluded from project
 	// No ApplyEntityAccess: a nanoflow runs in the CLIENT and Mendix stores no
 	// such property on Nanoflows$Nanoflow (modelsdk/gen declares the accessor
@@ -1409,6 +1414,14 @@ type ImportFromMappingStmt struct {
 	First      bool       // FIRST — bind ONE object rather than a list
 	LimitExpr  Expression // LIMIT <expr>  — Custom range
 	OffsetExpr Expression // OFFSET <expr> — Custom range
+
+	// The activity's settings list, `( Parameter: $Obj, Commit: No )` (ADR-0013,
+	// ako/mxcli#1681). Parameter is the variable holding the mapping's input
+	// object (ImportMappingCall.ParameterVariableName, without $); Commit is
+	// Yes, YesWithoutEvents or No. Empty means not authored: no parameter, and
+	// the writer's YesWithoutEvents.
+	Parameter string
+	Commit    string
 }
 
 func (s *ImportFromMappingStmt) isMicroflowStatement() {}

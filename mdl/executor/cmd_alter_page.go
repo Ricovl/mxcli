@@ -457,7 +457,7 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else if p := designPropertyForStoredWidget(
-			ctx.GetThemeRegistry(), mutator, op.Target.Widget, propName); p != nil {
+			documentTheme(ctx, mutator), mutator, op.Target.Widget, propName); p != nil {
 			// An Atlas design property of THIS stored widget. It lives in
 			// Appearance.DesignProperties, which SetWidgetProperty does not
 			// reach, so before ako/mxcli#515 this dead-ended and ALTER STYLING
@@ -576,7 +576,7 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
 		isDocumentWidget: alterDocumentWidgets(mutator, nil),
@@ -1120,7 +1120,7 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
 		isDocumentWidget: alterDocumentWidgets(mutator, widgets),
@@ -1325,7 +1325,7 @@ func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID,
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
 		isDocumentWidget: alterDocumentWidgets(mutator, nil),

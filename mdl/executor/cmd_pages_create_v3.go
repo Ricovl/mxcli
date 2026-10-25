@@ -294,6 +294,12 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 			return describeSnippet(ctx, s.Name)
 		})
 	}
+	// A rewrite keeps the stored snippet's Type (the header carry), so a native
+	// snippet's widgets take the native design-property definitions
+	// (ako/mxcli#1679).
+	if len(snippetsToDelete) > 0 && storedSnippetIsNative(ctx, snippetsToDelete[0]) {
+		pb.themeRegistry = pb.themeRegistry.ForPlatform(true)
+	}
 
 	snippet, err := pb.buildSnippetV3(s)
 	if err != nil {

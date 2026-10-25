@@ -74,9 +74,12 @@ var flowRebuildRefused = langver.Change{
 // NANOFLOW statement.
 type flowDecl struct {
 	nanoflow bool
-	name     ast.QualifiedName
-	body     []ast.MicroflowStatement
-	folder   string
+	// replace is a statement spelled `create or replace`, which splices as
+	// `create or modify` does; messages name it as written (ako/mxcli#1681).
+	replace bool
+	name    ast.QualifiedName
+	body    []ast.MicroflowStatement
+	folder  string
 	// returnVar is the `returns … as $Var` variable, which the end a body
 	// falls through to returns; "" when there is none.
 	returnVar string
@@ -110,6 +113,14 @@ func (d *flowDecl) buildOnce(ctx *ExecContext) func() (any, []*microflows.Microf
 		}
 		return built, params, varTypes, err
 	}
+}
+
+// verb is the statement as written: `create or replace` or `create or modify`.
+func (d *flowDecl) verb() string {
+	if d.replace {
+		return "create or replace"
+	}
+	return "create or modify"
 }
 
 func (d *flowDecl) kind() string {
@@ -414,7 +425,12 @@ func fallBack(ctx *ExecContext, d *flowDecl, v flowVerdict) (bool, error) {
 }
 
 // storedImportWithoutEntity returns the mapping of the first import-from-mapping
-// activity in oc (loop bodies included) whose result entity is empty, or "".
+// activity in oc (loop bodies included) whose result is an object or list type
+// naming no entity, or "". That is the shape Mendix cannot load
+// (mendixlabs/mxcli#1418). An activity that stores no result type, or a
+// DataTypes$VoidType, binds no result and loads at 0 errors (measured on
+// mxbuild 11.13.0); refusing it as "no result entity" refused every statement
+// over a flow importing into a parameter object (ako/mxcli#1681).
 func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string {
 	if oc == nil {
 		return ""
@@ -426,7 +442,8 @@ func storedImportWithoutEntity(oc *microflows.MicroflowObjectCollection) string 
 				if ix.ResultHandling == nil {
 					return "(none)"
 				}
-				if ix.ResultHandling.ResultEntityID == "" {
+				rt := ix.ResultHandling.ResultType
+				if ix.ResultHandling.ResultEntityID == "" && (rt == "DataTypes$ObjectType" || rt == "DataTypes$ListType") {
 					return string(ix.ResultHandling.MappingID)
 				}
 			}
@@ -646,7 +663,8 @@ func storedFolderOf(st ast.Statement) string {
 // microflowDecl adapts a CREATE MICROFLOW statement.
 func microflowDecl(s *ast.CreateMicroflowStmt) *flowDecl {
 	return &flowDecl{
-		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
+		replace: s.CreateOrReplace,
+		name:    s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
 		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error) {
 			built, err := buildMicroflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
 			if err != nil {
@@ -706,7 +724,8 @@ func returnVariable(rt *ast.MicroflowReturnType) string {
 // nanoflowDecl adapts a CREATE NANOFLOW statement.
 func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 	return &flowDecl{
-		nanoflow: true, name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
+		nanoflow: true, replace: s.CreateOrReplace,
+		name: s.Name, body: s.Body, folder: s.Folder, returnVar: returnVariable(s.ReturnType), params: s.Parameters,
 		build: func(ctx *ExecContext) (any, []*microflows.MicroflowParameter, map[string]string, error) {
 			built, err := buildNanoflowFromStmt(ctx, s, buildFlowOpts{Quiet: true})
 			if err != nil {

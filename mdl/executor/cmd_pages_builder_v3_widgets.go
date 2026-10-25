@@ -956,6 +956,21 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 	if rm := w.GetRenderMode(); rm != "" {
 		dt.RenderMode = pages.TextRenderMode(rm)
 	}
+	// NativeTextStyle is RenderMode's counterpart on a native page. MDL had no
+	// spelling for it, so the writer stored Text and a native heading
+	// round-tripped into body text (ako/mxcli#1677).
+	if s := w.GetStringProp("NativeTextStyle"); s != "" {
+		style, ok := pages.CanonicalNativeTextStyle(s)
+		if !ok {
+			names := make([]string, len(pages.NativeTextStyles))
+			for i, v := range pages.NativeTextStyles {
+				names[i] = string(v)
+			}
+			return nil, mdlerrors.NewValidationf("dynamictext %q: unknown NativeTextStyle %q — valid styles are %s",
+				w.Name, s, strings.Join(names, ", "))
+		}
+		dt.NativeTextStyle = style
+	}
 
 	// Handle Content
 	content := w.GetContent()

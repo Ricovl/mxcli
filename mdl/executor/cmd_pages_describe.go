@@ -127,6 +127,11 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			if st, _ := ap["Style"].(string); st != "" {
 				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, st)))
 			}
+			// The page's own design properties; unprinted, a rewrite dropped
+			// them (ako/mxcli#1678).
+			if dps := extractDesignProperties(ap); len(dps) > 0 {
+				props = append(props, formatDesignPropertiesMDL(ctx, dps))
+			}
 		}
 	}
 	if len(foundPage.Parameters) > 0 {
@@ -827,8 +832,11 @@ type rawWidget struct {
 	Caption       string
 	Tooltip       string // an action button's Tooltip (mendixlabs/mxcli#1307)
 	RenderMode    string
-	Action        string
-	ButtonStyle   string
+	// NativeTextStyle is a dynamic text's style on a native page (Text,
+	// Heading1–6), the native counterpart of RenderMode (ako/mxcli#1677).
+	NativeTextStyle string
+	Action          string
+	ButtonStyle     string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the

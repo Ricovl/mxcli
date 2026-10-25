@@ -36,9 +36,12 @@ type CreatePageStmtV3 struct {
 	Folder      string
 	// Class / Style set the page's Forms$Appearance CSS class and inline style
 	// (issue #714). Empty means "not specified".
-	Class   string
-	Style   string
-	Widgets []*WidgetV3
+	Class string
+	Style string
+	// DesignProperties are the page's own Appearance.DesignProperties
+	// (ako/mxcli#1678), typed against the theme's "Page" group.
+	DesignProperties []DesignPropertyEntryV3
+	Widgets          []*WidgetV3
 	// Placeholders holds widgets assigned to named layout placeholders via
 	// `placeholder <Name> { … }` blocks (issue #532). `Widgets` above is the
 	// bare-body content, which binds to the Main placeholder. A `placeholder

@@ -1,0 +1,68 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1681 — an import-with-mapping activity's input object and commit
+-- mode had no MDL. JTSBootLogboek.GetWeer passes NewStormglass and
+-- NewZeeweerActueelWeer to its mappings (ImportMappingCall.ParameterVariableName);
+-- describe printed `import from mapping …($stormglass) all;` without them, and
+-- v0.28.0 refused every rewrite of the flow, naming `create or modify` for a
+-- `create or replace` and giving the reason as "no result entity". Lint CONV020
+-- reported both objects as never committed.
+--
+-- Measured on mxbuild 11.13.0 against the mapping below:
+--
+--   the call without a parameter        CE0244 "The import mapping requires a
+--                                       parameter but none is specified in the action."
+--   a parameter on IMM_NoParam          CE0246 "… does not accept a parameter …"
+--   (Parameter: $Coll), bound or not    0 errors
+--   an unbound result stored as a       0 errors — so "no result entity" was a
+--   VoidType, or with no type at all    false refusal; only an object or list type
+--                                       naming no entity is unloadable (#1418)
+--
+-- After: the settings list is written and described, describe → exec is
+-- "Unchanged", exec refuses the CE0244 / CE0246 shapes, CONV020 is quiet.
+-- ============================================================================
+
+create module BugImportParam;
+
+create persistent entity BugImportParam.ChunkCollection (Name: String(100));
+create persistent entity BugImportParam.Chunk (Text: String(200));
+create association BugImportParam.Chunk_ChunkCollection
+  from BugImportParam.Chunk to BugImportParam.ChunkCollection type Reference;
+
+create json structure BugImportParam.JSON_Embed
+  sample $${"id": "x", "embeddings": [{"text": "t", "idx": 1}]}$$;
+
+create microflow BugImportParam.MF_FindChunk ($Collection: BugImportParam.ChunkCollection, $Index: Integer)
+returns BugImportParam.Chunk
+begin
+  return empty;
+end;
+
+create import mapping BugImportParam.IMM_Embed
+  with json structure BugImportParam.JSON_Embed
+  parameter BugImportParam.ChunkCollection
+{
+  create BugImportParam.ChunkCollection {
+    Name = id,
+    find BugImportParam.Chunk_ChunkCollection/BugImportParam.Chunk
+      by BugImportParam.MF_FindChunk (Collection: parameter, Index: idx)
+      = embeddings { Text = text }
+  }
+};
+
+-- The reported shape: a new object handed to the mapping, the result unbound.
+create microflow BugImportParam.GetWeer ($Json: String) returns Boolean as $Ok
+begin
+  $NewColl = create BugImportParam.ChunkCollection (Name = 'weather');
+  import from mapping BugImportParam.IMM_Embed($Json) (Parameter: $NewColl);
+  declare $Ok Boolean = true;
+  return $Ok;
+end;
+
+-- A bound result and a non-default commit mode.
+create microflow BugImportParam.ImportCommitted ($Json: String, $Coll: BugImportParam.ChunkCollection)
+returns BugImportParam.ChunkCollection as $Result
+begin
+  $Result = import from mapping BugImportParam.IMM_Embed($Json) (Parameter: $Coll, Commit: Yes);
+  return $Result;
+end;

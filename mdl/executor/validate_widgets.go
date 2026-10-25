@@ -1189,6 +1189,8 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// a scroll-container region's toggle mode, which a sidebartoggle opens
 		// (mendixlabs/mxcli#1220).
 		"ToggleMode",
+		// a dynamic text's style on a native page (ako/mxcli#1677).
+		"NativeTextStyle",
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",

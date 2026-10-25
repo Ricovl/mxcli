@@ -923,9 +923,17 @@ func init() {
 		Keywords: []string{
 			"import from mapping", "export to mapping", "import mapping activity",
 			"range", "all", "first", "limit", "offset", "single object",
+			"mapping parameter", "input object", "commit",
 		},
-		Syntax: "[$Var =] IMPORT FROM MAPPING Module.IMM ($SourceVar) [<range>];\n" +
+		Syntax: "[$Var =] IMPORT FROM MAPPING Module.IMM ($SourceVar) [( <settings> )] [<range>];\n" +
 			"$Var = EXPORT TO MAPPING Module.EMM ($EntityVar);\n\n" +
+			"<settings> — the activity's dialog, any of:\n" +
+			"  Parameter: $Obj              the mapping's input object, for a mapping\n" +
+			"                               declared with `parameter Module.Entity`.\n" +
+			"                               Required there (mxbuild CE0244 without it),\n" +
+			"                               refused on any other mapping (CE0246)\n" +
+			"  Commit: Yes | YesWithoutEvents | No\n" +
+			"                               omitted = YesWithoutEvents\n\n" +
 			"<range> — Studio Pro's Range on the import activity:\n" +
 			"  ALL                          bind the whole result\n" +
 			"  FIRST                        bind ONE object (not a one-element list)\n" +
@@ -941,6 +949,7 @@ func init() {
 		Example: "$Pets  = import from mapping Shop.IMM_Pets($Json) all;\n" +
 			"$Pet   = import from mapping Shop.IMM_Pets($Json) first;\n" +
 			"$Page  = import from mapping Shop.IMM_Pets($Json) limit 10 offset 5;\n" +
+			"import from mapping Shop.IMM_Embed($Json) (Parameter: $Collection, Commit: Yes);\n" +
 			"$Json2 = export to mapping Shop.EMM_Pet($Pet);",
 		SeeAlso: []string{"import-mapping", "export-mapping", "json-structure"},
 	})

@@ -66,17 +66,17 @@ func flowRefusal(d *flowDecl, why error) error {
 		// alter that makes the change.
 		// The deliberate rebuild is a route here too (mendixlabs/mxcli#1517).
 		return mdlerrors.NewValidation(fmt.Sprintf(
-			"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
+			"%s %s %s: this change cannot be spliced into the stored flow: %v. "+
 				"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
 				"(curves, merges, element IDs). %s. Or, %s",
-			d.kind(), d.name, why, strings.TrimSuffix(replaceLoopAdvice(d.kind(), d.name.String(), ns.loopHandle), "."),
+			d.verb(), d.kind(), d.name, why, strings.TrimSuffix(replaceLoopAdvice(d.kind(), d.name.String(), ns.loopHandle), "."),
 			deliberateRebuildAdvice(d.kind())))
 	}
 	return mdlerrors.NewValidation(fmt.Sprintf(
-		"create or modify %s %s: this change cannot be spliced into the stored flow: %v. "+
+		"%s %s %s: this change cannot be spliced into the stored flow: %v. "+
 			"Nothing was written: rebuilding the whole flow instead would reset what Studio Pro drew "+
 			"(curves, merges, element IDs). Change activities with `alter %s %s { … }`; %s",
-		d.kind(), d.name, why, d.kind(), d.name, deliberateRebuildAdvice(d.kind())))
+		d.verb(), d.kind(), d.name, why, d.kind(), d.name, deliberateRebuildAdvice(d.kind())))
 }
 
 // deliberateRebuildAdvice is the route every splice refusal names for a

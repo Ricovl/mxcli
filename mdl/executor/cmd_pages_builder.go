@@ -283,6 +283,20 @@ func (pb *pageBuilder) resolveLayout(layoutName string) (model.ID, error) {
 	return "", mdlerrors.NewNotFound("layout", layoutName)
 }
 
+// layoutIsNative reports whether the layout with this ID is a native one.
+func (pb *pageBuilder) layoutIsNative(id model.ID) bool {
+	layouts, err := pb.getLayouts()
+	if err != nil {
+		return false
+	}
+	for _, l := range layouts {
+		if l.ID == id {
+			return l.Native
+		}
+	}
+	return false
+}
+
 // resolveEntity finds an entity by qualified name.
 func (pb *pageBuilder) resolveEntity(entityRef ast.QualifiedName) (model.ID, error) {
 	// Get domain models which contain entities
