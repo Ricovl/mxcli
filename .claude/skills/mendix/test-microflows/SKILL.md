@@ -17,13 +17,13 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 | 223-238 | string Operations |
 | 239-262 | Running Tests |
 | 263-450 | How It Works |
-| 451-477 | Check a test file before you run it |
-| 478-584 | Writing Good Tests |
-| 585-599 | Test File Organization |
-| 600-612 | Interpreting Failures |
-| 613-634 | CI Integration |
-| 635-641 | Related Skills |
-| 642-644 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 451-489 | Check a test file before you run it |
+| 490-596 | Writing Good Tests |
+| 597-611 | Test File Organization |
+| 612-624 | Interpreting Failures |
+| 625-646 | CI Integration |
+| 647-653 | Related Skills |
+| 654-656 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -458,6 +458,18 @@ That includes the semantic rules, which is where most of the value is: a test
 whose body would not compile is reported here instead of failing the injection
 with nothing but "the project cannot be deployed". An `@expect` or `@verify` that
 cannot be evaluated is reported here too, as `MDL-TEST01`.
+
+A test file **creates nothing itself**, so the microflows its tests call must be
+in the project already. When a setup script creates them, check the two in one
+call, the setup script first — each file is resolved against a scratch copy
+holding what the files before it write, and the project is not changed:
+
+```bash
+mxcli check setup.mdl tests/orders.test.mdl -p app.mpr
+```
+
+Checked alone, the test file reports the microflow as not found, with a hint
+naming this form.
 
 One rule to know about, because its symptom is confusing and its shape is common
 in tests: `retrieve $x … first` — and `retrieve $x … limit 1` in a script without

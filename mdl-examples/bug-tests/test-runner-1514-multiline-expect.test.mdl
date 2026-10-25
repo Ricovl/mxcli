@@ -1,0 +1,47 @@
+-- ako/mxcli#1514 (upstream mendixlabs/mxcli#1604): an @expect written over two
+-- lines kept only its first, with no message. When the first line was a
+-- complete expression the test ran a different assertion from the one written:
+-- with `and` it could pass on less, with `or` it could fail although the whole
+-- assertion held. An @expect (and an @verify) now runs on, as a javadoc tag's
+-- text does, to the next @tag or the end of the comment.
+--
+-- Setup: test-runner-1514-setup.mdl. Then:
+--
+--   mxcli test mdl-examples/bug-tests/test-runner-1514-multiline-expect.test.mdl --list
+--
+-- lists the whole assertion for each test (before the fix: only the first line,
+-- and an "expected a value at column 16" ERROR for test_3), and
+--
+--   mxcli test mdl-examples/bug-tests/test-runner-1514-multiline-expect.test.mdl -p app.mpr --local
+--
+-- reports test_1 FAIL ("expected $r = 'a;b' and length($r) = 4") and test_2 and
+-- test_3 PASS. Before the fix test_1 PASSED — it asserted only $r = 'a;b' — and
+-- test_2 FAILED with "expected $r = 'zzz', actual: a;b". Measured on 11.13.0.
+--
+-- `make check-mdl` sweeps this file without a project: test_3 is the shape that
+-- did not compile before, so the sweep fails if the continuation is lost again.
+-- The negative twin is test-runner-1514-text-after-expect.fail.test.mdl.
+mdl 1;
+/**
+ * @test and on the next line: the whole assertion is false
+ * @expect $r = 'a;b'
+ *   and length($r) = 4
+ */
+$r = call microflow Probe.SUB_Make();
+/
+
+/**
+ * @test or on the next line: the whole assertion is true
+ * @expect $r = 'zzz'
+ *   or $r = 'a;b'
+ */
+$r = call microflow Probe.SUB_Make();
+/
+
+/**
+ * @test open parenthesis on the first line
+ * @expect ($r = 'a;b' and
+ *   length($r) = 3)
+ */
+$r = call microflow Probe.SUB_Make();
+/
