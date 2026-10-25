@@ -1634,7 +1634,9 @@ func reportPageChecks(opts LocalRunOptions, rt *LocalRuntime) {
 	for i, t := range targets {
 		pages[i] = PageTarget{URL: resolveScreenshotURL(rt.AppURL(), t)}
 	}
-	sigs, err := ProbePages(ProbeOptions{Pages: pages, Storage: opts.screenshotStorage, WaitMs: 4000})
+	// WaitMs is left to the probe's default: a cap that a page settling sooner
+	// does not pay, and long enough for the first data source of a cold runtime.
+	sigs, err := ProbePages(ProbeOptions{Pages: pages, Storage: opts.screenshotStorage})
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "  page check skipped: %v\n", err)
 		return

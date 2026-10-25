@@ -87,7 +87,11 @@ Several files are checked as one script set, run in the order given, as
 resolved against a scratch copy of it that the files before it have been
 applied to, so a name an earlier file creates resolves in a later one; a file
 that does not pass is left out of the copy, as exec's pre-flight would refuse
-it and write nothing. The project itself is not changed. The set is also first
+it and write nothing. The project itself is not changed. A test file
+(.test.mdl, .test.md) can be one of the files: it creates nothing itself, so
+when its tests call a microflow a setup script creates, check the two together,
+the setup script first — checked alone, the test file reports the microflow as
+not found. The set is also first
 read as a whole for two "create or modify" statements declaring the same flow — a placeholder
 ("stub") followed by the real flow. That is reported as an MDL-STUB01 warning
 naming both statements: run in order, the stub replaces the real flow before
@@ -137,6 +141,9 @@ Examples:
 
   # Check a script set, run in this order
   mxcli check 10-domain.mdl 20-flows.mdl 30-pages.mdl -p app.mpr
+
+  # Check a test file against what its setup script creates
+  mxcli check setup.mdl tests/orders.test.mdl -p app.mpr
 
   # Read the script from stdin
   cat script.mdl | mxcli check -
@@ -422,6 +429,9 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 					fmt.Fprintf(os.Stderr, "  %v\n", err)
 				}
 				fmt.Fprintf(os.Stderr, "\n✗ %d reference error(s) found\n", len(validationErrors))
+				if hint := testFileMissingTargetHint(filePath, validationErrors); hint != "" {
+					fmt.Fprint(os.Stderr, hint)
+				}
 			}
 			return finish(1)
 		}
@@ -668,6 +678,29 @@ func applyToScratch(scratch *scriptdiff.Scratch, file string, checkCode int) str
 	}
 	if _, err := scratch.Apply(prog, opts); err != nil {
 		return fmt.Sprintf("what %s writes after: %v", file, err)
+	}
+	return ""
+}
+
+// testFileMissingTargetHint is the line under a test file's "not found"
+// reference errors that names the way to check it (ako/mxcli#1514).
+//
+// A test file creates nothing of its own — applyToScratch does not even run
+// it — so whatever its tests call has to be in the project already or come
+// from a script. Check resolves a later file against what the files before it
+// write, but a lone "microflow not found" gave no sign that this applies to
+// test files; the user had to know the script-set form existed.
+func testFileMissingTargetHint(filePath string, errs []error) string {
+	if !testrunner.IsTestFile(filePath) {
+		return ""
+	}
+	for _, err := range errs {
+		if strings.Contains(err.Error(), "not found") {
+			return fmt.Sprintf("  Hint: a test file creates nothing itself, so what its tests use must already be in\n"+
+				"  the project. If a script creates it, check the two together, that script first —\n"+
+				"  each file is resolved against what the files before it write:\n"+
+				"    mxcli check <setup script> %s -p <project>\n", mdlSourceLabel(filePath))
+		}
 	}
 	return ""
 }

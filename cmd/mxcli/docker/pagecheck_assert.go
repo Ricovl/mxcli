@@ -108,13 +108,21 @@ func (s CheckSpec) CountSelectors() []string {
 
 // EvaluatePage returns the reasons a page fails, empty when it passes.
 //
-// A page fails when the browser was refused it (HTTP >= 400), when it shows
+// A page fails when it was still loading when the wait ran out, when the
+// browser was refused it (HTTP >= 400), when it shows
 // the sign-in form instead of itself, when it shows an error banner or error
 // dialog, when the console reports an error, when a same-origin request it
 // made failed, or when an assertion does not hold. Warnings and validation
 // messages are reported in the verdict but do not fail it.
 func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 	var fails []string
+	// A page measured before it finished loading may be missing exactly what
+	// the check is for — the rows of a list whose data had not arrived
+	// (ako/mxcli#845) — so it cannot pass, whatever else it shows.
+	if sig.Unsettled {
+		fails = append(fails, "still loading when measured, so the verdict may describe a partly "+
+			"rendered page (raise --wait if it is only slow)")
+	}
 	if sig.Status >= 400 {
 		fails = append(fails, fmt.Sprintf("HTTP %d", sig.Status))
 	}

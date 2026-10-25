@@ -1,0 +1,65 @@
+-- ako/mxcli#845: `--page-check` (and `mxcli playwright check`) could give its
+-- verdict before the page's data source had rendered, and passed the page.
+--
+-- Measured on 11.13.0: while a list view's microflow data source runs, the list
+-- view shows nothing that says it is loading — `.mx-listview` sits empty, with
+-- no progress element, no aria-busy and no "no items" placeholder, and the body
+-- text holds still. The probe waited for the text to stop changing (750ms) or
+-- 4s, so it measured the empty list. The only sign of the unfinished page is the
+-- open POST /xas/ runtimeOperation, which the probe now waits for. (A data grid 2
+-- shows a spinner with aria-busy, so grids were measured correctly all along —
+-- Probe.Grid2 is the control for that.)
+--
+-- Reproduce against a blank app (security off):
+--
+--   mxcli exec mdl-examples/bug-tests/pagecheck-845-slow-datasource.mdl -p app.mpr
+--   mxcli run --local --detach -p app.mpr --db-type hsqldb \
+--       --page-check --screenshot-url /p/slow2 --screenshot-url /p/slow8 --screenshot-url /p/fast
+--   mxcli playwright check /p/fast /p/slow2 /p/slow8 /p/grid2 -p app.mpr
+--   mxcli playwright check /p/slow8 -p app.mpr --wait 3s
+--
+-- Before the fix both slow pages read `text=37` with no rows= field and the check
+-- exited 0 ("OK 4 page(s)"); with --wait 3s too. After it, every page reports
+-- rows=2, and with --wait 3s /p/slow8 is reported STILL LOADING ("still waiting
+-- for POST /xas/") and the check exits 1.
+mdl 1;
+create module Probe;
+create non-persistent entity Probe.Row (Code: String(50));
+
+/** Holds the data source back, standing in for a slow query or a cold runtime. */
+create java action Probe.SleepMs(Ms: integer) returns boolean
+as $$
+try { Thread.sleep(Ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+return true;
+$$;
+
+create microflow Probe.DS_Rows (Delay: Integer) returns list of Probe.Row as $Rows
+begin
+  $Slept = call java action Probe.SleepMs(Ms = $Delay);
+  $Rows = create list of Probe.Row;
+  $A = create Probe.Row (Code = 'Row A');
+  add $A to $Rows;
+  $B = create Probe.Row (Code = 'Row B');
+  add $B to $Rows;
+  return $Rows;
+end;
+create microflow Probe.DS_Fast () returns list of Probe.Row as $Rows begin $Rows = call microflow Probe.DS_Rows(Delay = 0); return $Rows; end;
+create microflow Probe.DS_Slow2 () returns list of Probe.Row as $Rows begin $Rows = call microflow Probe.DS_Rows(Delay = 2000); return $Rows; end;
+create microflow Probe.DS_Slow8 () returns list of Probe.Row as $Rows begin $Rows = call microflow Probe.DS_Rows(Delay = 8000); return $Rows; end;
+
+create page Probe.Fast (title: 'Fast', layout: Atlas_Core.Atlas_Default, url: 'fast') {
+  dynamictext hdr (content: 'Fast list')
+  listview lvRows (datasource: microflow Probe.DS_Fast) { dynamictext code (content: '{1}', contentparams: ({1} = Code)) }
+};
+create page Probe.Slow2 (title: 'Slow2', layout: Atlas_Core.Atlas_Default, url: 'slow2') {
+  dynamictext hdr (content: 'Slow list')
+  listview lvRows (datasource: microflow Probe.DS_Slow2) { dynamictext code (content: '{1}', contentparams: ({1} = Code)) }
+};
+create page Probe.Slow8 (title: 'Slow8', layout: Atlas_Core.Atlas_Default, url: 'slow8') {
+  dynamictext hdr (content: 'Slow list')
+  listview lvRows (datasource: microflow Probe.DS_Slow8) { dynamictext code (content: '{1}', contentparams: ({1} = Code)) }
+};
+create page Probe.Grid2 (title: 'Grid2', layout: Atlas_Core.Atlas_Default, url: 'grid2') {
+  dynamictext hdr (content: 'Slow grid')
+  datagrid dgRows (datasource: microflow Probe.DS_Slow2) { column (attribute: Code, caption: 'Code') }
+};

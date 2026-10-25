@@ -78,7 +78,10 @@ So:
   `--user/--password`, `--role R` (the project's demo user for that role) or, with
   only `-p`, a demo user; it saves the session under `.mxcli/playwright-check/` and
   reuses it, renewing it when the runtime restarted; it waits for the page to
-  settle instead of sleeping. Hand-written `playwright-cli` is for **interaction**
+  settle instead of sleeping — including for its data sources, whose requests it
+  watches, since a list view shows no spinner while one runs. A page that does not
+  settle within `--wait` is reported `STILL LOADING` and fails, rather than passing
+  on whatever had rendered. Hand-written `playwright-cli` is for **interaction**
   (click, fill, submit) — and then put it in a `playwright verify` script.
 - **Take a screenshot when the question is genuinely about appearance** — layout,
   spacing, colour, "does this look right" — and then take it **once**, at the end:

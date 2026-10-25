@@ -761,8 +761,11 @@ var (
 	// in a sentence" gave the test an assertion nobody wrote, and "@cleanup none
 	// would apply here" changed the cleanup strategy. The leading `*` and its
 	// indentation are stripped before these run.
-	expectPattern  = regexp.MustCompile(`^@expect\s+(.+)`)
-	verifyPattern  = regexp.MustCompile(`^@verify\s+(.+)`)
+	//
+	// @expect and @verify match on their own as well: their text may start on
+	// the next line, and a bare tag that matched nothing was dropped.
+	expectPattern  = regexp.MustCompile(`^@expect\b(.*)$`)
+	verifyPattern  = regexp.MustCompile(`^@verify\b(.*)$`)
 	testPattern    = regexp.MustCompile(`^@test\s+(.+)`)
 	setupPattern   = regexp.MustCompile(`^@setup\s+(\S+)`)
 	cleanupPattern = regexp.MustCompile(`^@cleanup\s+(\S+)`)
@@ -770,9 +773,30 @@ var (
 	// message is optional — the old pattern required it, so a bare @throws
 	// matched nothing at all and was dropped without a word.
 	throwsPattern = regexp.MustCompile(`^@throws\b(.*)$`)
+	// tagPattern is any javadoc block tag, known or not: it ends the text of the
+	// annotation before it.
+	tagPattern = regexp.MustCompile(`^@[A-Za-z]`)
 )
 
+// openAssertion is an @expect or @verify whose text may still continue on the
+// lines below it.
+type openAssertion struct {
+	tag   string // "@expect" or "@verify"
+	parts []string
+}
+
 // parseAnnotations extracts test annotations from a javadoc comment.
+//
+// The text of @expect and @verify runs on, as a javadoc block tag's does, to
+// the next tag or the end of the comment, and the whole of it is parsed as one
+// assertion (ako/mxcli#1514). Reading only the tag's own line truncated an
+// assertion written over two lines to its first, without a word — and when
+// that first line was complete, the test asserted less than it said: `$r =
+// 'a;b'` instead of `$r = 'a;b' and length($r) = 3`. Text after one of these
+// tags that does not continue the expression is therefore an error, not
+// ignored; a description belongs before the first tag. @test, @setup,
+// @cleanup and @throws keep to their own line, so prose under a test's name
+// is still description.
 func parseAnnotations(doc string) annotations {
 	var a annotations
 	a.Cleanup = "rollback" // default
@@ -780,6 +804,31 @@ func parseAnnotations(doc string) annotations {
 	// Strip /** and */
 	doc = strings.TrimPrefix(doc, "/**")
 	doc = strings.TrimSuffix(doc, "*/")
+
+	var open *openAssertion
+	closeOpen := func() {
+		if open == nil {
+			return
+		}
+		text := strings.Join(open.parts, " ")
+		switch open.tag {
+		case "@expect":
+			exp, err := ParseExpect(text)
+			if err != nil {
+				a.AssertionErrors = append(a.AssertionErrors, continuationHint(err, open))
+			} else {
+				a.Expects = append(a.Expects, exp)
+			}
+		case "@verify":
+			v, err := ParseVerify(text)
+			if err != nil {
+				a.AssertionErrors = append(a.AssertionErrors, continuationHint(err, open))
+			} else {
+				a.Verify = append(a.Verify, v)
+			}
+		}
+		open = nil
+	}
 
 	// Process line by line
 	scanner := bufio.NewScanner(strings.NewReader(doc))
@@ -790,24 +839,22 @@ func parseAnnotations(doc string) annotations {
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
 
+		if !tagPattern.MatchString(line) {
+			if open != nil && line != "" {
+				open.parts = append(open.parts, line)
+			}
+			continue
+		}
+		closeOpen()
+
 		if m := testPattern.FindStringSubmatch(line); m != nil {
 			a.Test = strings.TrimSpace(m[1])
 		}
 		if m := expectPattern.FindStringSubmatch(line); m != nil {
-			exp, err := ParseExpect(m[1])
-			if err != nil {
-				a.AssertionErrors = append(a.AssertionErrors, err.Error())
-			} else {
-				a.Expects = append(a.Expects, exp)
-			}
+			open = &openAssertion{tag: "@expect", parts: nonEmpty(m[1])}
 		}
 		if m := verifyPattern.FindStringSubmatch(line); m != nil {
-			v, err := ParseVerify(m[1])
-			if err != nil {
-				a.AssertionErrors = append(a.AssertionErrors, err.Error())
-			} else {
-				a.Verify = append(a.Verify, v)
-			}
+			open = &openAssertion{tag: "@verify", parts: nonEmpty(m[1])}
 		}
 		if m := setupPattern.FindStringSubmatch(line); m != nil {
 			a.Setups = append(a.Setups, strings.TrimSpace(m[1]))
@@ -820,10 +867,33 @@ func parseAnnotations(doc string) annotations {
 			parseThrows(&a, m[1])
 		}
 	}
+	closeOpen()
 
 	checkVerifyCleanup(&a)
 	checkThrowsExpect(&a)
 	return a
+}
+
+// nonEmpty is the tag line's own text as the first part of an annotation, or
+// nothing when the tag stands alone and its text starts on the next line.
+func nonEmpty(s string) []string {
+	if s = strings.TrimSpace(s); s == "" {
+		return nil
+	}
+	return []string{s}
+}
+
+// continuationHint is the parse error of an annotation written over several
+// lines, saying so. The error quotes the joined text, which reads as though the
+// author wrote it on one line; without the hint, a sentence of description
+// under an @expect looks like a mangled expression.
+func continuationHint(err error, open *openAssertion) string {
+	if len(open.parts) < 2 {
+		return err.Error()
+	}
+	return fmt.Sprintf("%v (this %s spans %d lines: an annotation's text runs on to the next "+
+		"@tag or the end of the comment, and all of it is the assertion; put a "+
+		"description before the first tag)", err, open.tag, len(open.parts))
 }
 
 // parseThrows records an @throws annotation and its optional message.
