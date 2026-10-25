@@ -13,13 +13,13 @@ description: "Write OQL for Mendix VIEW entities — joins, aggregates, calculat
 | 27-32 | Reference files |
 | 33-35 | Purpose |
 | 36-42 | When to Use This Skill |
-| 43-387 | Critical OQL Syntax Rules |
-| 388-524 | Step-by-Step Process |
-| 525-620 | Common Mistakes to Avoid |
-| 621-652 | Testing OQL Queries |
-| 653-671 | Integration with MDL Linter |
-| 672-679 | References |
-| 680-704 | Summary Checklist |
+| 43-402 | Critical OQL Syntax Rules |
+| 403-539 | Step-by-Step Process |
+| 540-635 | Common Mistakes to Avoid |
+| 636-667 | Testing OQL Queries |
+| 668-686 | Integration with MDL Linter |
+| 687-694 | References |
+| 695-719 | Summary Checklist |
 
 <!-- /skill-index -->
 # Skill: Write OQL Queries for Mendix VIEW Entities
@@ -204,8 +204,23 @@ fine as long as nothing aggregates it.
 | `max(expr)` / `min(expr)` | DateTime | DateTime | `attr: datetime` |
 | `datepart(part, expr)` | DateTime | Integer | `attr: integer` |
 | `length(expr)` | String | Integer | `attr: integer` |
+| `string_agg(expr, 'sep')` | String | String(200) — 11.7+ and 10.24.22+ | `attr: string(200)` |
+| `string_agg(expr, 'sep')` | String(n) | String(n), the argument's own length — 11.2 to 11.6 | `attr: string(n)` |
 
-**Key rule**: `count()` and `avg()` have fixed return types. `sum()`, `min()`, `max()` preserve the input type.
+`string_agg(expr, 'separator')` joins the values of a group into one string —
+`string_agg(s.Name, ', ')` next to `group by b.Code` lists each booking's names.
+The separator must be a string literal (CE0174 otherwise). It needs **Mendix
+11.2+, or 10.24.22+** on the 10.24 line; below that every such view is CE0174
+"Unknown function 'string_agg'", and `mxcli check -p` refuses it (MDL-VERSION01).
+
+Its column type **changed in 11.7**: from 11.7 (and on 10.24.22+) it is a derived
+String(200) whatever it aggregates; on 11.2–11.6 it is the argument's own type, so
+over a `string(100)` attribute it must be declared `string(100)`. Anything else is
+CE6770, and `mxcli check -p` reports it with the fix for the project's version.
+There is no `group_concat`, `listagg` or `array_agg` in OQL — the six aggregates
+are count, sum, avg, min, max and string_agg.
+
+**Key rule**: `count()` and `avg()` have fixed return types (and `string_agg()` from 11.7). `sum()`, `min()`, `max()` preserve the input type.
 
 ### 3. DATEPART Function (Comma Syntax)
 ```sql

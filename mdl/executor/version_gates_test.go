@@ -40,6 +40,9 @@ func TestCheckVersionGates_ReportsEveryHandlerGate(t *testing.T) {
 		// refuses the statement instead of writing an unbuildable model.
 		{"view query comment", &ast.CreateViewEntityStmt{Query: ast.OQLQuery{
 			RawQuery: "-- totals\nselect sum(s.Amount) as Total\nfrom M.Sale as s"}}, [3]int{11, 6, 6}, "a comment in a view entity's OQL query"},
+		// ako/mxcli#1650: STRING_AGG is 11.2+ (and 10.24.22+ on the 10.24 line).
+		{"view query string_agg", &ast.CreateViewEntityStmt{Query: ast.OQLQuery{
+			RawQuery: "select string_agg(s.Name, ', ') as Names\nfrom M.Sale as s"}}, [3]int{11, 1, 0}, "STRING_AGG in a view entity's OQL query"},
 		{"agent model", &ast.CreateModelStmt{}, [3]int{11, 8, 0}, "create model"},
 		{"consumed mcp", &ast.CreateConsumedMCPServiceStmt{}, [3]int{11, 8, 0}, "create consumed mcp service"},
 		{"knowledge base", &ast.CreateKnowledgeBaseStmt{}, [3]int{11, 8, 0}, "create knowledge base"},

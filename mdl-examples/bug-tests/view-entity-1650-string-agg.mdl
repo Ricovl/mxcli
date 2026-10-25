@@ -1,0 +1,59 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1650 (upstream mendixlabs/mxcli#1641) — STRING_AGG in a view
+-- entity was reported as "not aggregated" (MDL036), so check, exec and even
+-- exec --no-check refused every view that used it.
+--
+-- The GROUP BY rules knew five aggregates; mxbuild's OQL grammar has six
+-- (SUM COUNT AVG MIN MAX STRING_AGG). They now read one list.
+--
+-- Two version facts came with it, both measured with mx check:
+--   * STRING_AGG exists from 11.2.0, and from 10.24.22 on the 10.24 line.
+--     Below that every such view is CE0174 "Unknown function 'string_agg'",
+--     and `check -p` / exec refuse it (MDL-VERSION01).
+--   * Its column type changed in 11.7.0: from 11.7 (and on 10.24.22+) it is a
+--     derived String(200) whatever it aggregates; on 11.2–11.6 it is the
+--     argument's own type (String(100) below). Anything else is CE6770.
+--
+-- Run against an 11.7+ (or 10.24.22+) project. Measured on 11.13.0: check
+-- passes, exec creates both views, mx check reports 0 errors, and
+-- `describe entity` → exec reports them Unchanged.
+-- ============================================================================
+
+create module Sagg;
+
+create persistent entity Sagg.Booking (
+  Code: String(20)
+);
+
+create persistent entity Sagg.Sale (
+  Name: String(100),
+  Amount: Decimal
+);
+
+create association Sagg.Sale_Booking from Sagg.Sale to Sagg.Booking;
+
+-- The issue's view: the names of each booking's sales.
+create view entity Sagg.BookingNames (
+  Code: String(20),
+  Names: String(200)
+) as (
+  select b.Code as Code, STRING_AGG(s.Name, '; ') as Names
+  from Sagg.Sale as s
+  join s/Sagg.Sale_Booking/Sagg.Booking as b
+  group by b.Code
+);
+
+-- A CASE inside the aggregate, beside a COUNT.
+create view entity Sagg.BookingSummary (
+  Code: String(20),
+  Paid: String(200),
+  Sales: Integer
+) as (
+  select b.Code as Code,
+    string_agg(case when s.Amount > 0 then s.Name else '-' end, ', ') as Paid,
+    count(s.Name) as Sales
+  from Sagg.Sale as s
+  join s/Sagg.Sale_Booking/Sagg.Booking as b
+  group by b.Code
+);
