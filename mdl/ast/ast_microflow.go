@@ -737,6 +737,10 @@ func (s *LogStmt) isMicroflowStatement() {}
 type CallArgument struct {
 	Name  string     // Parameter name
 	Value Expression // Value expression
+	// TemplateParams fills the {n} placeholders of Value when it is the text of
+	// a Java action's text-template parameter: `Subject = 'Order {1}' with
+	// ({1} = $Order/Number)` (ako/mxcli#1451). Only call java action takes it.
+	TemplateParams []TemplateParam
 }
 
 // CallMicroflowStmt represents: [$Result =] CALL MICROFLOW Name (args) [ON ERROR ...]

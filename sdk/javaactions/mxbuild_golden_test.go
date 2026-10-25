@@ -53,7 +53,11 @@ var mxbuildCases = []mxbuildCase{
 		param("C", &EnumerationType{Enumeration: "MyFirstModule.Color"}),
 	}, &EnumerationType{Enumeration: "MyFirstModule.Color"}},
 	// Its import list was emptied before the build: mxbuild appended the three
-	// it needs, sorted.
+	// it needs, sorted. Q and X were first measured as java.lang.String — but
+	// `create java action` then wrote StringTemplate(…) as a String parameter.
+	// For a real text template mxbuild declares IStringTemplate, fully
+	// qualified: re-measured on 11.13.0, where a build rewrites the String
+	// form back to it (ako/mxcli#1451).
 	{"JA_Tpl", "return null;", []*JavaActionParameter{
 		param("Q", &StringTemplateParameterType{Grammar: "Sql"}),
 		param("X", &StringTemplateParameterType{Grammar: "Text"}),

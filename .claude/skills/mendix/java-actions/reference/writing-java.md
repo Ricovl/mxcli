@@ -32,7 +32,7 @@ still compiles after a full build regenerates it.
 | `entity <pEntity>` | `java.lang.String` | The entity's qualified name. |
 | `pEntity` | `IMendixObject` | No proxy: the type is only known at runtime. |
 | `list of pEntity` | `java.util.List<IMendixObject>` | |
-| `stringtemplate(sql)` / `stringtemplate(text)` | `java.lang.String` | |
+| `stringtemplate(sql)` / `stringtemplate(text)` | `com.mendix.systemwideinterfaces.javaactions.parameters.IStringTemplate` | Fully qualified, not imported. `replacePlaceholders(...)` fills the `{n}`; each `ITemplateParameter` carries its value and type. A call passes `'text {1}' with ({1} = …)` |
 | `Microflow` | `java.lang.String` | The microflow's qualified name. |
 
 Return types: an entity, `pEntity` or `System.FileDocument` return is

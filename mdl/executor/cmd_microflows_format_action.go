@@ -853,8 +853,12 @@ func formatAction(
 			valueStr := ""
 			switch v := pm.Value.(type) {
 			case *microflows.StringTemplateParameterValue:
-				if v.TypedTemplate != nil {
-					valueStr = mdlQuote(ctx, v.TypedTemplate.Text)
+				valueStr = describeTypedTemplate(ctx, v.TypedTemplate)
+			case *microflows.CustomBlobDocumentCodeActionParameterValue:
+				if v.CustomDocument != "" {
+					valueStr = mdlQuote(ctx, v.CustomDocument)
+				} else {
+					valueStr = "empty"
 				}
 			case *microflows.ExpressionBasedCodeActionParameterValue:
 				valueStr = describeExpr(ctx, v.Expression)
@@ -2414,6 +2418,29 @@ func mdlAggregateKeyword(fn microflows.AggregateFunction) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// describeTypedTemplate renders a Java action's text-template argument
+// (ako/mxcli#1451): the text, with its arguments as ` with ({1} = …)`. The
+// template '{1}' holding one expression is that expression — what the builder
+// writes for one — unless the expression is itself a string literal, which
+// would read back as the template's text.
+func describeTypedTemplate(ctx *ExecContext, tt *microflows.TypedTemplate) string {
+	if tt == nil {
+		return "''"
+	}
+	args := make([]string, 0, len(tt.Arguments))
+	for _, a := range tt.Arguments {
+		if a != nil {
+			args = append(args, a.Expression)
+		}
+	}
+	if tt.Text == "{1}" && len(args) == 1 {
+		if _, isText := singleStringLiteral(args[0]); !isText {
+			return describeExpr(ctx, args[0])
+		}
+	}
+	return mdlQuote(ctx, tt.Text) + templateArgsClause(ctx, args)
 }
 
 // templateArgsClause renders a text template's arguments as ` with ({1} = a,

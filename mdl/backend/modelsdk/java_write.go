@@ -287,6 +287,18 @@ func codeActionParamTypeToGen(t javaactions.CodeActionParameterType) element.Ele
 		assignID(s)
 		s.SetGrammar(v.Grammar)
 		return s
+	case *javaactions.CustomBlobDocumentType:
+		// Direct, like StringTemplate: the inverse of codeActionParamTypeFromGen.
+		// Without it a rewrite of the action turned the document parameter into
+		// a String, and every call of it failed CE0115 (ako/mxcli#1451).
+		c := genCa.NewCustomBlobDocumentParameterType()
+		if v.ID != "" {
+			c.SetID(element.ID(v.ID))
+		}
+		assignID(c)
+		c.SetCustomDocumentTypeName(v.DocumentType)
+		c.SetCustomDocumentReadableTypeName(v.ReadableName)
+		return c
 	case *javaactions.EntityTypeParameterType:
 		e := genCa.NewEntityTypeParameterType()
 		if v.ID != "" {

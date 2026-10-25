@@ -1,0 +1,17 @@
+-- Negative test (found with ako/mxcli#1451): a JavaScript action parameter or
+-- return type of StringTemplate(Text|Sql) must be REFUSED (MDL-JSA01).
+--
+-- A text template is a Java action type only. The grammar reads the type for
+-- both kinds of action and they share one converter, so main wrote it as a
+-- String parameter without a word (describe printed `S: String`), and after
+-- the Java-action fix it was written as a template into a JavaScript action.
+-- mxbuild 11.13 reports 0 errors for both, so only mxcli can refuse it.
+
+mdl 1;
+
+create module BugTestJsa1451;
+
+create javascript action BugTestJsa1451.JSA_Tpl (S: StringTemplate(Text)) returns Boolean
+as $$
+return true;
+$$;

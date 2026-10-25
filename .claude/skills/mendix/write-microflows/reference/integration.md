@@ -297,3 +297,44 @@ $Tool = call java action MCPServer.AddTool(
 `DESCRIBE JAVA ACTION` prints such a parameter's type as the bare word
 `Microflow` (`Nanoflow` for JavaScript actions), and that spelling is what
 `CREATE JAVA ACTION` accepts, so the round-trip is stable.
+
+## Text-Template and Document Java-Action Parameters
+
+Two more parameter types take something other than an expression. Check the
+action's signature with `DESCRIBE JAVA ACTION` first.
+
+A **text template** — `StringTemplate(Text)` or `StringTemplate(Sql)`, such as
+`BusinessEvents.PublishBusinessEvent_V2`'s `Subject` — is written like a log
+message: a string is the template text, and `with ({1} = …)` fills its
+placeholders. Any other expression becomes the template `'{1}'` with that
+expression as its argument.
+
+```mdl
+call java action BusinessEvents.PublishBusinessEvent_V2(
+  Subject       = 'Order {1} shipped ({2} items)' with ({1} = $Order/Number, {2} = $Order/Lines),
+  BusinessEvent = $Event
+);
+```
+
+Each argument is stored with the type of its result, and mxbuild checks the
+two match (CE0117). The five types a template takes are String, Integer,
+Decimal, Boolean and DateTime. An enumeration is refused, so pass
+`getCaption($Order/Status)` or `getKey(…)` instead.
+
+A **document** parameter — `DESCRIBE JAVA ACTION` prints its type as
+`Document(<type>)`, for example `Document(agenteditor.agent)` for
+AgentEditorCommons' `Agent` — takes the document's qualified name, never an
+expression:
+
+```mdl
+$Response = call java action AgentEditorCommons.Agent_CallDocument_WithoutHistory(
+  Agent                 = MyModule.PaymentReminderAgent,
+  OptionalContextObject = $Invoice
+);
+```
+
+`check --references` reports a missing agent-editor document; mxbuild reports
+one as CE1613, and a document of another type as CE0115. `CREATE JAVA ACTION`
+cannot declare a document parameter, so `describe` output for such an action
+does not re-execute: the parser stops at `Document(…)` instead of rewriting
+the parameter as a String.

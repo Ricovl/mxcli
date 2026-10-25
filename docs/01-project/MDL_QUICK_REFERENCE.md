@@ -1458,6 +1458,8 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 | Drop Java action | `drop java action [if exists] Module.Name;` | Deletes MPR unit and .java source file |
 | Call from microflow | `$Result = call java action Module.Name(Param = value);` | Inside BEGIN...END |
 | Empty argument | `call java action Module.Name(Param = empty);` | Unbound code-action parameter preserved as empty mapping |
+| Text-template argument | `call java action Module.Name(Subject = 'Order {1}' with ({1} = $Order/Number));` | For a `StringTemplate(Text\|Sql)` parameter. A plain string is the text; another expression is the template `'{1}'` with it as the argument (so an expression with `with (…)` is refused, MDL-JA02). Arguments are typed from their expression; an enumeration is refused (use `getKey`/`getCaption`) |
+| Document argument | `call java action Module.Name(Agent = Module.MyAgent);` | For a document parameter (`describe java action` shows `Document(<type>)`, e.g. an agent-editor Agent): the document's name, never an expression |
 | Show JavaScript actions | `list javascript actions [in module];` | List all or filtered by module |
 | Describe JavaScript action | `describe javascript action Module.Name;` | Re-executable MDL with signature + body |
 | Create JavaScript action | `create [or modify] javascript action Module.Name [folder 'path'](params) returns type [platform Web] as $$ ... $$;` | Writes the unit + `javascriptsource/<Module>/actions/<Name>.js`; OR MODIFY preserves UUID |

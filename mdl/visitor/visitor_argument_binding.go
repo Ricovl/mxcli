@@ -44,7 +44,25 @@ func (b *Builder) ExitCallArgument(ctx *parser.CallArgumentContext) {
 			"call nanoflow; bind the parameter to a value, or to `empty`",
 			tok.GetLine(), tok.GetColumn()))
 	}
+	if tp := ctx.TemplateParams(); tp != nil && !isJavaActionCallArgument(ctx) {
+		tok := tp.GetStart()
+		b.addError(fmt.Errorf("line %d:%d `with ({1} = …)` fills a text-template parameter, which only "+
+			"call java action has; bind this parameter to an expression",
+			tok.GetLine(), tok.GetColumn()))
+	}
 	b.recordDollarArgument(ctx.VARIABLE())
+}
+
+// isJavaActionCallArgument reports whether a call argument belongs to a call
+// java action — the one call whose parameters can be text templates
+// (StringTemplate(Text|Sql)), filled with `with ({1} = …)` (ako/mxcli#1451).
+func isJavaActionCallArgument(ctx *parser.CallArgumentContext) bool {
+	list := ctx.GetParent()
+	if list == nil {
+		return false
+	}
+	_, ok := list.GetParent().(*parser.CallJavaActionStatementContext)
+	return ok
 }
 
 // isFlowCallArgument reports whether a call argument belongs to a call

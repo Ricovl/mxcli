@@ -1,0 +1,20 @@
+-- Negative test (found with ako/mxcli#1451): a Java action that returns a
+-- StringTemplate must be REFUSED (MDL-JA03).
+--
+-- A text template is a parameter type only: a Java action's return type is a
+-- CodeActions$Type, and CodeActions$StringTemplateParameterType is not one.
+-- A unit patched to return one does not load in mxbuild 11.13 ("Type
+-- Mendix.Modeler.CodeActions.StringTemplateParameterType does not contain a
+-- constructor with a parameter of type Mendix.Modeler.JavaActions.JavaAction").
+-- main wrote this statement as a Boolean action without a word: the return
+-- converter's default turned every type it did not handle into Boolean. That
+-- default is now an error; only an omitted `returns` is Boolean.
+
+mdl 1;
+
+create module BugTestJaRet1451;
+
+create java action BugTestJaRet1451.JA_Subject (Code: String) returns StringTemplate(Text)
+as $$
+return null;
+$$;

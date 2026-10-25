@@ -63,6 +63,12 @@ type scriptContext struct {
 	// (Module.Action -> parameter name). Such a parameter takes a microflow
 	// NAME, never an expression (mendixlabs/mxcli#1210).
 	javaActionFlowParams map[string]map[string]bool
+	// Text-template parameters of the Java actions the script creates
+	// (Module.Action -> parameter name), and the agent-editor documents it
+	// creates (CustomDocumentTypeName + " " + Module.Name): what a call's
+	// template and document arguments are checked against (ako/mxcli#1451).
+	javaActionTemplateParams map[string]map[string]bool
+	customDocuments          map[string]bool
 
 	// Entities the script declares, and those it alters, for resolving the
 	// bare members of a retrieve constraint on an entity the project does not
@@ -145,9 +151,11 @@ func newScriptContext() *scriptContext {
 		imageCollections:      make(map[string]bool),
 		images:                make(map[string]bool),
 
-		javaActionFlowParams: make(map[string]map[string]bool),
-		entityDecls:          make(map[string]*ast.CreateEntityStmt),
-		alteredEntities:      make(map[string]bool),
+		javaActionFlowParams:     make(map[string]map[string]bool),
+		javaActionTemplateParams: make(map[string]map[string]bool),
+		customDocuments:          make(map[string]bool),
+		entityDecls:              make(map[string]*ast.CreateEntityStmt),
+		alteredEntities:          make(map[string]bool),
 
 		javaActions:       make(map[string][]string),
 		javaScriptActions: make(map[string][]string),
@@ -347,7 +355,16 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.javaActions[s.Name.String()] = codeActionParamNames(s.Parameters)
 			sc.javaActionFlowParams[s.Name.String()] = microflowTypedParams(s.Parameters)
+			sc.javaActionTemplateParams[s.Name.String()] = templateTypedParams(s.Parameters)
 		}
+	case *ast.CreateAgentStmt:
+		sc.customDocuments["agenteditor.agent "+s.Name.String()] = true
+	case *ast.CreateModelStmt:
+		sc.customDocuments["agenteditor.model "+s.Name.String()] = true
+	case *ast.CreateKnowledgeBaseStmt:
+		sc.customDocuments["agenteditor.knowledgebase "+s.Name.String()] = true
+	case *ast.CreateConsumedMCPServiceStmt:
+		sc.customDocuments["agenteditor.consumedMCPService "+s.Name.String()] = true
 	case *ast.CreateQueueStmt:
 		if s.Name.Module != "" {
 			sc.queues[strings.ToLower(s.Name.String())] = true
@@ -1023,6 +1040,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
 		}
+	case *ast.CreateJavaActionStmt:
+		// The signature's bare Module.Name types, which exec resolves and
+		// refuses (ako/mxcli#935).
+		if errs := codeActionSignatureErrors(ctx, sc, "java action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("java action", s.Name.String(), nil, errs)
+		}
+	case *ast.CreateJavaScriptActionStmt:
+		if errs := codeActionSignatureErrors(ctx, sc, "javascript action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("javascript action", s.Name.String(), nil, errs)
+		}
 	case *ast.CreatePublishedRestServiceStmt:
 		return validatePublishedRestAuthMicroflow(ctx, s.Authentication, sc)
 	case *ast.AlterPublishedRestServiceStmt:
@@ -1506,6 +1533,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			if declared, inScript := sc.javaActions[ref.name]; inScript {
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
 				errors = append(errors, microflowParamArgErrors(ref, sc.javaActionFlowParams[ref.name])...)
+				errors = append(errors, javaActionCallValueErrors(ctx, sc, ref, sc.javaActionTemplateParams[ref.name], nil)...)
 				continue
 			}
 			if !known[ref.name] {
@@ -1515,14 +1543,22 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			if ja, err := ctx.Backend.ReadJavaActionByName(ref.name); err == nil && ja != nil {
 				declared := []string{} // read: an action with no parameters is known to have none
 				flowParams := map[string]bool{}
+				templates := map[string]bool{}
+				documents := map[string]string{}
 				for _, p := range ja.Parameters {
 					declared = append(declared, p.Name)
-					if _, isFlow := p.ParameterType.(*javaactions.MicroflowType); isFlow {
+					switch pt := p.ParameterType.(type) {
+					case *javaactions.MicroflowType:
 						flowParams[p.Name] = true
+					case *javaactions.StringTemplateParameterType:
+						templates[p.Name] = true
+					case *javaactions.CustomBlobDocumentType:
+						documents[p.Name] = pt.DocumentType
 					}
 				}
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
 				errors = append(errors, microflowParamArgErrors(ref, flowParams)...)
+				errors = append(errors, javaActionCallValueErrors(ctx, sc, ref, templates, documents)...)
 			}
 		}
 	}

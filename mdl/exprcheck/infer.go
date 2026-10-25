@@ -27,6 +27,22 @@ func InferSourceKind(src string, vars map[string]TypeKind) TypeKind {
 	return inferKind(root, ctx)
 }
 
+// InferArgumentKind types src the way a built-in function's argument is typed
+// (argKind): with a full Context — an EntityScope and a CatalogReader type
+// attribute paths (`$Order/Number`), which a bare variable scope cannot — and
+// with [%CurrentDateTime%] and the [%BeginOf…%]/[%EndOf…%] tokens as the
+// DateTimes they are. Anything it cannot type is KindUnknown.
+func InferArgumentKind(src string, ctx Context) TypeKind {
+	if strings.TrimSpace(src) == "" {
+		return KindUnknown
+	}
+	root, _ := (&parserImpl{}).Parse(src, ctx)
+	if root == nil {
+		return KindUnknown
+	}
+	return argKind(root, ctx)
+}
+
 // BuiltinCallHints parses src and returns the built-in signature hints — E006
 // (wrong argument count) and E005 (an argument of the wrong kind) — for every
 // built-in call in it, typing variables from vars (names without the '$').

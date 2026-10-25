@@ -190,6 +190,17 @@ func codeActionParamTypeFromGen(el element.Element) javaactions.CodeActionParame
 		e := &javaactions.EntityTypeParameterType{TypeParameterID: model.ID(t.TypeParameterRefID())}
 		e.ID = model.ID(t.ID())
 		return e
+	// A document of a custom (extension-defined) type — AgentEditorCommons'
+	// `Agent` parameter. It fell to the default below and read back as a
+	// String, so describe printed `Agent: String` and a call bound it as an
+	// expression: CE0115 (ako/mxcli#1451).
+	case *genCa.CustomBlobDocumentParameterType:
+		c := &javaactions.CustomBlobDocumentType{
+			DocumentType: t.CustomDocumentTypeName(),
+			ReadableName: t.CustomDocumentReadableTypeName(),
+		}
+		c.ID = model.ID(t.ID())
+		return c
 	default:
 		return codeActionBasicFromGen(el)
 	}
