@@ -66,7 +66,7 @@ func storedImportCall(t *testing.T, exec *Executor, name string) (imc, varType b
 	if err := bson.Unmarshal(raw, &d); err != nil {
 		t.Fatal(err)
 	}
-	walkBSON(d, func(x bson.D) {
+	walkStoredDocs(d, func(x bson.D) {
 		if afGet(x, "$Type") == "Microflows$ResultHandling" && imc == nil {
 			imc, _ = afGet(x, "ImportMappingCall").(bson.D)
 			varType, _ = afGet(x, "VariableType").(bson.D)
@@ -152,7 +152,7 @@ func TestImportMappingVoidResultIsNotRefused(t *testing.T) {
 	if err := bson.Unmarshal(raw, &d); err != nil {
 		t.Fatal(err)
 	}
-	walkBSON(d, func(x bson.D) {
+	walkStoredDocs(d, func(x bson.D) {
 		if afGet(x, "$Type") != "Microflows$ResultHandling" {
 			return
 		}

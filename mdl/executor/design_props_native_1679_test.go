@@ -93,7 +93,7 @@ func storedDesignPropertyTypes(t *testing.T, exec *Executor, page, widget string
 			t.Fatal(err)
 		}
 		out := map[string]string{}
-		walkBSON(doc, func(d bson.D) {
+		walkStoredDocs(doc, func(d bson.D) {
 			if afGet(d, "Name") != widget {
 				return
 			}
@@ -110,16 +110,16 @@ func storedDesignPropertyTypes(t *testing.T, exec *Executor, page, widget string
 	return nil
 }
 
-func walkBSON(d bson.D, fn func(bson.D)) {
+func walkStoredDocs(d bson.D, fn func(bson.D)) {
 	fn(d)
 	for _, e := range d {
 		switch v := e.Value.(type) {
 		case bson.D:
-			walkBSON(v, fn)
+			walkStoredDocs(v, fn)
 		case bson.A:
 			for _, x := range v {
 				if xd, ok := x.(bson.D); ok {
-					walkBSON(xd, fn)
+					walkStoredDocs(xd, fn)
 				}
 			}
 		}

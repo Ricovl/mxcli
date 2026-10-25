@@ -47,7 +47,7 @@ func storedColumnTemplateRefs(t *testing.T, exec *Executor, page string) [][2]st
 			t.Fatal(err)
 		}
 		var out [][2]string
-		walkBSON(doc, func(d bson.D) {
+		walkStoredDocs(doc, func(d bson.D) {
 			if afGet(d, "$Type") != "Forms$ClientTemplateParameter" {
 				return
 			}
