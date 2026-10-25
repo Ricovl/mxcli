@@ -304,3 +304,67 @@ func TestWorkflowGroupsFloorIs11_2(t *testing.T) {
 		}
 	}
 }
+
+// TestStringAggIsOnTwoReleaseLines: Mendix added STRING_AGG to OQL in 11.2.0
+// and, separately, in 10.24.22 on the 10.24 line (ako/mxcli#1650). Two entries
+// with a max_version on the first; every view of the registry has to agree on
+// what that means — IsAvailable alone did, while `show features` took the
+// lowest floor and reported the feature missing on every 11.x.
+func TestStringAggIsOnTwoReleaseLines(t *testing.T) {
+	reg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	cases := []struct {
+		v         SemVer
+		available bool
+		since     string // the floor shown for v
+	}{
+		{SemVer{10, 24, 21}, false, "10.24.22"},
+		{SemVer{10, 24, 22}, true, "10.24.22"},
+		{SemVer{11, 0, 0}, false, "11.2.0"},
+		{SemVer{11, 1, 0}, false, "11.2.0"},
+		{SemVer{11, 2, 0}, true, "11.2.0"},
+		{SemVer{11, 6, 6}, true, "11.2.0"},
+	}
+	for _, c := range cases {
+		if got := reg.IsAvailable("oql_functions", "string_agg", c.v); got != c.available {
+			t.Errorf("IsAvailable(%s) = %v, want %v", c.v, got, c.available)
+		}
+		for _, list := range [][]FeatureStatus{reg.FeaturesForVersion(c.v), reg.FeaturesInArea("oql_functions", c.v)} {
+			found := false
+			for _, f := range list {
+				if f.Area != "oql_functions" || f.Name != "string_agg" {
+					continue
+				}
+				found = true
+				if f.Available != c.available || f.MinVersion.String() != c.since {
+					t.Errorf("at %s: listed available=%v since %s, want %v since %s",
+						c.v, f.Available, f.MinVersion, c.available, c.since)
+				}
+			}
+			if !found {
+				t.Errorf("at %s: string_agg not listed", c.v)
+			}
+		}
+	}
+
+	// Upgrading from 11.0 adds it at 11.2.0; from 10.24.22 there is nothing to add.
+	added := func(since SemVer) string {
+		for _, f := range reg.FeaturesAddedSince(since) {
+			if f.Area == "oql_functions" && f.Name == "string_agg" {
+				return f.MinVersion.String()
+			}
+		}
+		return ""
+	}
+	if got := added(SemVer{11, 0, 0}); got != "11.2.0" {
+		t.Errorf("added since 11.0.0 = %q, want 11.2.0", got)
+	}
+	if got := added(SemVer{10, 24, 22}); got != "" {
+		t.Errorf("added since 10.24.22 = %q, want nothing: it is there already", got)
+	}
+	if got := added(SemVer{10, 24, 0}); got != "10.24.22" {
+		t.Errorf("added since 10.24.0 = %q, want 10.24.22", got)
+	}
+}

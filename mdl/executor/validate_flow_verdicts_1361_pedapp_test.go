@@ -65,13 +65,44 @@ begin
   log info node 'X' 'done';
 end;`
 
+// The first shape is no longer a refusal (ako/mxcli#1399): the patch replaces
+// $Equal with the new $Different and drops the stored one, and the clash was
+// judged against the stored $Different that the same patch drops. A body that
+// builds declares each variable once, so `create or modify` cannot clash with
+// a stored activity it keeps. Both variants are now predicted as spliced, and
+// exec writes the declared flow; the start event, the log and the end event
+// keep their $IDs.
 func TestCheckFlowVerdicts_Issue1361_VariableClash(t *testing.T) {
-	exec, out, _ := openPedAppCopy(t)
-	if err := agreeExec(t, exec, issue1361VarStored); err != nil {
-		t.Fatalf("setup: %v\n%s", err, out.String())
+	for _, tc := range issue1361Variants(issue1361VarModify, "Issue1361VarSub") {
+		t.Run(tc.name, func(t *testing.T) {
+			exec, out, _ := openPedAppCopy(t)
+			if err := agreeExec(t, exec, issue1361VarStored); err != nil {
+				t.Fatalf("setup: %v\n%s", err, out.String())
+			}
+			before := flowObjectIDs(loopEditFlowOf(t, exec, "Issue1361Var").ObjectCollection)
+			r := verdictReport(t, exec, tc.src)
+			if got := verdictRefusals(r.Violations); got != "" || len(r.Unpredicted) != 0 {
+				t.Fatalf("check must predict the splice, reported refusals %q, unpredicted %+v", got, r.Unpredicted)
+			}
+			if err := agreeExec(t, exec, tc.src); err != nil {
+				t.Fatalf("exec must splice the change: %v", err)
+			}
+			got := describeFlow(t, exec, "Issue1361Var")
+			if strings.Contains(got, "$Equal") || strings.Count(got, "declare $Different") != 1 ||
+				!strings.Contains(got, "declare $Different Boolean = true;") {
+				t.Errorf("the declared flow was not written:\n%s", got)
+			}
+			kept := 0
+			for id := range flowObjectIDs(loopEditFlowOf(t, exec, "Issue1361Var").ObjectCollection) {
+				if _, ok := before[id]; ok {
+					kept++
+				}
+			}
+			if kept < 3 {
+				t.Errorf("want the start event, the log and the end event to keep their $IDs, %d did", kept)
+			}
+		})
 	}
-	issue1361Expect(t, exec, issue1361VarModify, "Issue1361VarSub",
-		"replace $Equal: the fragment declares $Different, which the microflow already has")
 }
 
 const issue1361LoopStored = `mdl 1;

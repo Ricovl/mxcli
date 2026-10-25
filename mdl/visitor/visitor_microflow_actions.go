@@ -734,7 +734,14 @@ func buildCallArgumentList(ctx parser.ICallArgumentListContext) []ast.CallArgume
 			ca.Value = &ast.BlankExpr{}
 		} else if expr := arg.Expression(); expr != nil {
 			value := buildSourceExpression(expr)
-			ca.Value = appendExpressionListTrailingWhitespace(listCtx, nextParserRuleContext(allArgs, i), expr, value)
+			if tp := arg.TemplateParams(); tp != nil {
+				// The template text ends at `with`, so there is no trailing
+				// whitespace before `)` to keep.
+				ca.Value = value
+				ca.TemplateParams = buildTemplateParams(tp)
+			} else {
+				ca.Value = appendExpressionListTrailingWhitespace(listCtx, nextParserRuleContext(allArgs, i), expr, value)
+			}
 		}
 
 		args = append(args, ca)

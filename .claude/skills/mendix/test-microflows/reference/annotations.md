@@ -21,6 +21,26 @@ indentation). Quoting one inside a sentence — ``a test with `@expect $x = 1`
 asserts …`` — is documentation, not an annotation, so a doc comment can explain
 itself without giving the test assertions nobody wrote.
 
+An `@expect` or `@verify` **may span several lines**. Its text runs on, as a
+javadoc block tag's does, to the next tag or the end of the comment, and all of
+it is the one assertion:
+
+```text
+/**
+ * @test the separator survives
+ * @expect $r = 'a;b'
+ *   and length($r) = 3
+ */
+```
+
+So a test's description goes **before** its first tag. Text under an `@expect`
+that does not continue the expression is not skipped — it makes the assertion
+an ERROR that says the annotation spans several lines. Reading only the tag's
+own line used to drop the continuation without a word, and the test then
+asserted `$r = 'a;b'` alone: less than it said (ako/mxcli#1514). `@test`,
+`@setup`, `@cleanup` and `@throws` are one line each, so prose under a test's
+name is still description.
+
 ### A test run leaves the project byte-identical
 
 `mxcli test` injects an `MxTest` module, builds, runs, and takes the injection

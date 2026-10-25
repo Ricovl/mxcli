@@ -1,0 +1,58 @@
+-- ============================================================================
+-- ako/mxcli#856 — a find/filter `where` naming a member bare never matched
+-- its own stored activity, so a one-line change next to it was refused
+-- ============================================================================
+--
+-- `find $L where Code = 'x'` is stored as `$currentObject/Code = 'x'` (Mendix
+-- evaluates the predicate once per item, and a bare name is CE0117), and
+-- describe prints the stored form. create or modify matches the statements it
+-- is given against that description, so the statement as written read as
+-- changed on every run:
+--
+--   - a re-run that changed nothing was still Unchanged (the built flow is
+--     the stored one);
+--   - a re-run with a real change elsewhere replaced the find too, and next
+--     to the change the two became one replace whose fragment declares $A
+--     while the stored find still does. Under `mdl 1;`:
+--
+--       this change cannot be spliced into the stored flow: alter microflow
+--       BugTest856.F: replace $N: the fragment declares $A, which the
+--       microflow already has; choose another name. Nothing was written
+--
+--     and under mdl 0 the whole flow was rebuilt (MDL-V1-REBUILD warning).
+--
+-- The predicate is now compared as the builder stores it.
+--
+-- To reproduce: exec this file against a project. Expected:
+--   Created microflow: BugTest856.F
+--   Modified microflow: BugTest856.F (spliced: 1 replaced)
+-- Before the fix the second statement was refused and exec rolled the whole
+-- script back. Running the file again sets the declare back and forth, and
+-- each statement again replaces the declare alone (spliced: 1 replaced).
+
+mdl 1;
+
+create module BugTest856;
+
+create or modify persistent entity BugTest856.Row (
+  Code: String(100),
+  Qty: Integer
+);
+
+create or modify microflow BugTest856.F ($L: List of BugTest856.Row)
+begin
+  declare $N Integer = 0;
+  $A = find $L where Code = 'x';
+  $B = filter $L where Code != 'y' and Qty > 0;
+  log info node 'BugTest856' toString($N);
+end;
+
+-- The same flow with one change, next to the find: only the declare is
+-- replaced; the find and the filter keep their $IDs.
+create or modify microflow BugTest856.F ($L: List of BugTest856.Row)
+begin
+  declare $N Integer = 1;
+  $A = find $L where Code = 'x';
+  $B = filter $L where Code != 'y' and Qty > 0;
+  log info node 'BugTest856' toString($N);
+end;

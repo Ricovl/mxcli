@@ -242,19 +242,7 @@ func (r *Registry) FeaturesForVersion(projectVersion SemVer) []FeatureStatus {
 		}
 		seen[key] = true
 
-		// Use the entry with the lowest min_version as the canonical one.
-		best := entries[0]
-		for _, e := range entries[1:] {
-			if best.MinVersion.AtLeast(e.MinVersion) && e.MinVersion.String() != best.MinVersion.String() {
-				best = e
-			}
-		}
-
-		available := projectVersion.AtLeast(best.MinVersion)
-		if best.MaxVersion != nil && !best.MaxVersion.AtLeast(projectVersion) {
-			available = false
-		}
-
+		best, available := entryAt(entries, projectVersion)
 		result = append(result, FeatureStatus{
 			FeatureEntry: best,
 			Available:    available,
@@ -266,6 +254,51 @@ func (r *Registry) FeaturesForVersion(projectVersion SemVer) []FeatureStatus {
 	})
 
 	return result
+}
+
+// covers reports whether v lies in the entry's [min_version, max_version].
+func (e FeatureEntry) covers(v SemVer) bool {
+	return v.AtLeast(e.MinVersion) && (e.MaxVersion == nil || e.MaxVersion.AtLeast(v))
+}
+
+// entryAt picks the entry that describes a feature at version v, and reports
+// whether the feature is available there.
+//
+// Most features have one floor, so every entry agrees and the lowest
+// min_version is the one to show. A feature Mendix shipped on two release
+// lines has two that do not: STRING_AGG in OQL is 10.24.22 on the 10.24 line
+// (closed by a max_version) and 11.2.0 on 11 (ako/mxcli#1650). Taking the
+// lowest floor there reports it unavailable on 11.6 — 10.24.22's range does
+// not reach it — and tells an 11.1 project it needs "10.24.22+". So: the
+// lowest entry whose range holds v; failing that, the next floor above v, the
+// one an upgrade reaches first; failing that (a feature Mendix removed), the
+// lowest floor.
+func entryAt(entries []FeatureEntry, v SemVer) (FeatureEntry, bool) {
+	var covering, next *FeatureEntry
+	lowest := &entries[0]
+	for i := range entries {
+		e := &entries[i]
+		if !e.MinVersion.AtLeast(lowest.MinVersion) {
+			lowest = e
+		}
+		switch {
+		case e.covers(v):
+			if covering == nil || !e.MinVersion.AtLeast(covering.MinVersion) {
+				covering = e
+			}
+		case !v.AtLeast(e.MinVersion):
+			if next == nil || !e.MinVersion.AtLeast(next.MinVersion) {
+				next = e
+			}
+		}
+	}
+	if covering != nil {
+		return *covering, true
+	}
+	if next != nil {
+		return *next, false
+	}
+	return *lowest, false
 }
 
 // FeaturesAddedSince returns features that become available when upgrading
@@ -280,14 +313,8 @@ func (r *Registry) FeaturesAddedSince(sinceVersion SemVer) []FeatureEntry {
 		}
 		seen[key] = true
 
-		best := entries[0]
-		for _, e := range entries[1:] {
-			if best.MinVersion.AtLeast(e.MinVersion) && e.MinVersion.String() != best.MinVersion.String() {
-				best = e
-			}
-		}
-
-		if !sinceVersion.AtLeast(best.MinVersion) {
+		// Added since: not available at sinceVersion, and a floor above it.
+		if best, available := entryAt(entries, sinceVersion); !available && !sinceVersion.AtLeast(best.MinVersion) {
 			result = append(result, best)
 		}
 	}
@@ -308,22 +335,11 @@ func (r *Registry) FeaturesInArea(area string, projectVersion SemVer) []FeatureS
 		if seen[key] {
 			continue
 		}
-		best := entries[0]
-		for _, e := range entries[1:] {
-			if best.MinVersion.AtLeast(e.MinVersion) && e.MinVersion.String() != best.MinVersion.String() {
-				best = e
-			}
-		}
-
+		best, available := entryAt(entries, projectVersion)
 		if best.Area != area {
 			continue
 		}
 		seen[key] = true
-
-		available := projectVersion.AtLeast(best.MinVersion)
-		if best.MaxVersion != nil && !best.MaxVersion.AtLeast(projectVersion) {
-			available = false
-		}
 
 		result = append(result, FeatureStatus{
 			FeatureEntry: best,

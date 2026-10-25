@@ -11,6 +11,7 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/linter"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
@@ -313,6 +314,13 @@ func inferTypeStatic(expr string) ast.DataType {
 		return ast.DataType{Kind: ast.TypeUnknown}
 	}
 
+	// string_agg(...) → depends on the project's Mendix version, which this
+	// path does not know: String(200) on one, its argument's type on another
+	// (see stringAggType). Unknown, so the column is not judged here.
+	if strings.HasPrefix(upper, "STRING_AGG(") {
+		return ast.DataType{Kind: ast.TypeUnknown}
+	}
+
 	// datepart(...) → Integer
 	if strings.HasPrefix(upper, "DATEPART(") {
 		return ast.DataType{Kind: ast.TypeInteger}
@@ -360,6 +368,54 @@ func inferTypeStatic(expr string) ast.DataType {
 // whose first branch is one of those). It is the platform default (200); declaring any other length for
 // such a column makes mxbuild report CE6770 "View Entity is out of sync".
 const derivedStringLength = 200
+
+// firstOQLArgument returns the first argument of a function's argument list:
+// the text before the first comma outside parentheses and string literals, so
+// the separator of string_agg(case when … then 'a,b' end, ', ') is not mistaken
+// for part of the expression.
+func firstOQLArgument(args string) string {
+	depth := 0
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case '\'':
+			for i++; i < len(args) && args[i] != '\''; i++ {
+			}
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				return strings.TrimSpace(args[:i])
+			}
+		}
+	}
+	return strings.TrimSpace(args)
+}
+
+// stringAggType is the type of a STRING_AGG(expression, 'separator') column.
+// Mendix changed it in 11.7 (ako/mxcli#1650). Measured with mx check over
+// String(100), String(500) and unlimited attributes:
+//
+//	11.2.0 – 11.6.12   the type of its argument: String(100) over a String(100)
+//	                   attribute, unlimited over an unlimited one — exactly, as
+//	                   for a pass-through column; String(200) is CE6770
+//	11.7.0 – 11.15.0,  a derived String(200), whatever it aggregates; unlimited,
+//	10.24.22 – 10.24.24  String(100) or String(500) are CE6770
+//
+// Below 11.2 (and 10.24.22) there is no STRING_AGG at all — the version gate.
+// argType infers the argument; the caller's column takes its pass-through
+// source from it, which holds the 11.2–11.6 era to the exact-length rule.
+// Unknown without a project version: neither answer is right for both eras.
+func stringAggType(pv *types.ProjectVersion, argType func() ast.DataType) ast.DataType {
+	if pv == nil || pv.MajorVersion == 0 {
+		return ast.DataType{Kind: ast.TypeUnknown}
+	}
+	if pv.MajorVersion == 10 || pv.IsAtLeastFull(11, 7, 0) {
+		return ast.DataType{Kind: ast.TypeString, Length: derivedStringLength}
+	}
+	return argType()
+}
 
 // castTargetType maps a CAST(expr AS type) to the target Mendix data type. Only
 // the target matters for view-entity column typing; the source expression is
@@ -521,8 +577,12 @@ func passthroughStringLengthMismatch(declared, inferred ast.DataType, sourceAttr
 // inherits that branch's length (inferCaseType), and is named as what it is.
 func passthroughLengthError(attrName string, declared, inferred ast.DataType, expression, sourceEntity, sourceAttr string) string {
 	column, via := "pass-through column", ""
-	if strings.HasPrefix(strings.ToUpper(expression), "CASE") {
+	switch upper := strings.ToUpper(expression); {
+	case strings.HasPrefix(upper, "CASE"):
 		column, via = "CASE column", " through its first branch"
+	case strings.HasPrefix(upper, "STRING_AGG("):
+		// Before 11.7 only — see stringAggType.
+		column, via = "STRING_AGG column", " through its argument"
 	}
 	return fmt.Sprintf(
 		"attribute '%s': declared as %s but %s '%s' inherits length %d%s from source attribute %s.%s — Mendix requires an exact length match (CE6770 \"View Entity out of sync\"). Fix: change to '%s: %s'",
@@ -605,8 +665,16 @@ func validateViewEntityTypes(ctx *ExecContext, stmt *ast.CreateViewEntityStmt) (
 			continue
 		}
 
-		// Compare types
-		if !typesCompatible(attr.Type, col.InferredType) {
+		// Compare types. A derived STRING_AGG column (11.7+, 10.24.22+) is
+		// String(200) exactly, like every derived string — the static rule
+		// cannot apply it, because only here is the version known
+		// (stringAggType). Unlimited and String(500) are CE6770 too, which the
+		// "long enough" rule below would let through.
+		compatible := typesCompatible(attr.Type, col.InferredType)
+		if col.AggregateFunc == "string_agg" && col.SourceAttr == "" {
+			compatible = typesStrictlyCompatible(attr.Type, col.InferredType)
+		}
+		if !compatible {
 			errors = append(errors, fmt.Sprintf(
 				"attribute '%s': declared as %s but OQL expression '%s' returns %s. Fix: change to '%s: %s'",
 				attr.Name,
@@ -1024,6 +1092,14 @@ func inferAggregateType(ctx *ExecContext, expr string, col *OQLColumnInfo, alias
 			}
 		}
 		return ast.DataType{Kind: ast.TypeUnknown}
+	}
+
+	if strings.HasPrefix(upperExpr, "STRING_AGG(") {
+		col.IsAggregate = true
+		col.AggregateFunc = "string_agg"
+		return stringAggType(ctx.Backend.ProjectVersion(), func() ast.DataType {
+			return inferTypeFromExpression(ctx, firstOQLArgument(extractFunctionArg(expr)), col, aliasMap)
+		})
 	}
 
 	// LENGTH returns Integer

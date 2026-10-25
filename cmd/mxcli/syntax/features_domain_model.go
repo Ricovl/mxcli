@@ -183,6 +183,7 @@ func init() {
 			"oql", "view entity oql", "select", "from", "join", "group by",
 			"order by", "limit", "union", "alias", "as alias", "cast",
 			"MDL030", "MDL031", "MDL072", "CE0174", "CE6770",
+			"string_agg", "aggregate functions",
 		},
 		MinVersion: "10.18.0",
 		Syntax: "BOTH CLAUSE ORDERS ARE ACCEPTED — `select … from …` and Mendix's own\n" +
@@ -205,6 +206,13 @@ func init() {
 			"   (MDL072). So a view attribute can never be called `Month` or `Year` —\n" +
 			"   that one is renamed, not quoted. An MDL keyword that is NOT an OQL one\n" +
 			"   (Role, Status, Value) is a fine FROM / JOIN alias after `as`.\n\n" +
+			"AGGREGATES: count, sum, avg, min, max and string_agg(expr, 'separator'),\n" +
+			"which joins a group's values into one string; the separator must be a string\n" +
+			"literal. string_agg needs Mendix 11.2+, or 10.24.22+ on the 10.24 line (below\n" +
+			"that: CE0174 \"Unknown function\"). Its column is String(200) from 11.7 and on\n" +
+			"10.24, but its argument's own type on 11.2-11.6 (CE6770 otherwise; check -p\n" +
+			"gives the fix for the project). An aggregate may not read a GROUP BY column\n" +
+			"(CE0174, MDL034); every other column must be grouped (MDL035/036).\n\n" +
 			"UNION / UNION ALL are supported and round-trip; column count and types must\n" +
 			"line up across branches, and an ORDER BY applies to the whole result.",
 		Example: "mdl 1;\n" +
@@ -298,7 +306,7 @@ func init() {
 			"many-to-one", "many-to-many", "foreign key",
 			"owner", "delete behavior",
 		},
-		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  [TYPE Reference|ReferenceSet]\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n-- Documentation: the /** … */ doc comment before the statement\n-- (COMMENT 'text' is its deprecated alias, MDL-DEPR100).\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
+		Syntax:  "[@anchor(from: (x, y), to: (x, y))]\nCREATE [OR MODIFY] ASSOCIATION Module.Name\n  FROM Module.FromEntity TO Module.ToEntity\n  [TYPE Reference|ReferenceSet]\n  [OWNER Default|Both]\n  [STORAGE COLUMN|TABLE]\n  [ON DELETE CASCADE|RESTRICT|SET NULL [ERROR MESSAGE 'text']];\n-- Documentation: the /** … */ doc comment before the statement\n-- (COMMENT 'text' is its deprecated alias, MDL-DEPR100).\nALTER ASSOCIATION Module.Name SET ANCHOR FROM (x, y) TO (x, y);\nDROP ASSOCIATION Module.Name;\n\nOR MODIFY: updates type/owner/delete behavior in-place, preserves UUID.\n\n@anchor sets the LINE ANCHORS — where the connector attaches to each entity box\nin the domain model editor — as a PERCENTAGE of the box (0..100, whole numbers).\n`from` is the FROM entity's box, `to` the TO entity's: (0, 50) is the middle of\nthe left edge, (100, 50) the right, (50, 100) the bottom centre. Omitting an end\nPRESERVES what is stored, so a CREATE OR MODIFY about something else never\nflattens a hand-tuned line. Cross-module associations have no anchors.\n\nPersistent <-> non-persistent: FROM the non-persistent entity, OWNER Default.\nA persistent FROM end or OWNER Both there is CE0001 and is refused\n(MDL-ASSOC01), on CREATE and on ALTER ... SET OWNER Both.\n\nDROP reconciles the entity access rules that named the association, and is\nREFUSED while a message definition still exposes it (that one cannot be\nreconciled -- removing the member would change a published contract). The\nrefusal prints the `alter message definition ... drop member` statement for\neach definition, ready to run.",
 		Example: "mdl 1;\n-- Many-to-one\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer\n  TYPE Reference\n  OWNER Default\n  ON DELETE SET NULL;\n\n-- Many-to-many\nCREATE ASSOCIATION Shop.Product_Tag\n  FROM Shop.Product TO Shop.Tag\n  TYPE ReferenceSet\n  OWNER Both;\n\n-- Line leaving the bottom of Order and entering the top of Customer\n@anchor(from: (50, 100), to: (50, 0))\nCREATE ASSOCIATION Shop.Order_Customer\n  FROM Shop.Order TO Shop.Customer;\n\n-- Retune the line without restating the association\nALTER ASSOCIATION Shop.Order_Customer SET ANCHOR FROM (0, 54) TO (100, 54);",
 		SeeAlso: []string{"domain-model.association.create", "domain-model.association.anchor", "domain-model.association.delete-behavior"},
 	})

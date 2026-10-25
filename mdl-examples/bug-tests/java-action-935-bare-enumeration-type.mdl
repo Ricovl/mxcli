@@ -1,0 +1,66 @@
+-- ako/mxcli#935: `create java action` stored a bare enumeration parameter type
+-- as an ENTITY.
+--
+-- The parser cannot tell an entity from an enumeration for a bare
+-- `Module.Name`, and the Java/JavaScript action converters called every such
+-- name an entity. `check` and `exec` were clean; mxbuild then reported
+--
+--   CE1613 "The selected entity 'BugTest935.Color' no longer exists."
+--
+-- for the parameter and for the return type. Only the explicit `enum` keyword
+-- worked. A name that was neither an entity nor an enumeration was written the
+-- same way and failed the same way.
+--
+-- Fixed: exec settles each bare name against the project — an entity stays an
+-- entity, an enumeration (of the project, of the System module, or created
+-- earlier in the script) becomes an enumeration type — and refuses a name that
+-- is neither. `check --references` reports the same refusal. Describe prints
+-- the explicit `Enum M.Color`, which re-executes to the same document.
+--
+-- Verify: exec, `mx check` (0 errors on 11.13.0; a pre-fix build reports
+-- CE1613 five times), then describe the actions and re-exec: "already in sync".
+-- The misspelled form is refused by check and exec:
+--
+--   create java action BugTest935.JA_Ghost (G: BugTest935.NoSuchThing) returns Boolean …
+--   → parameter G of java action BugTest935.JA_Ghost: entity or enumeration
+--     BugTest935.NoSuchThing does not exist
+
+mdl 1;
+
+create module BugTest935;
+
+create enumeration BugTest935.Color (
+  Red 'Red',
+  Green 'Green'
+);
+
+create persistent entity BugTest935.Canvas (
+  Name: String(50)
+);
+
+-- A bare enumeration, a bare entity and a System enumeration in one signature.
+create java action BugTest935.JA_Paint (
+  C: BugTest935.Color,
+  Target: BugTest935.Canvas,
+  Device: System.DeviceType
+) returns Boolean
+as $$
+return true;
+$$;
+
+create java action BugTest935.JA_PickColor () returns BugTest935.Color
+as $$
+return null;
+$$;
+
+create javascript action BugTest935.JSA_PickColor (C: BugTest935.Color) returns BugTest935.Color
+as $$
+return null;
+$$;
+
+-- Flows have resolved the same ambiguity since the entity-then-enumeration
+-- fallback; this is the control that they still do.
+create microflow BugTest935.MF_Paint ($C: BugTest935.Color) returns BugTest935.Color
+begin
+  return $C;
+end;

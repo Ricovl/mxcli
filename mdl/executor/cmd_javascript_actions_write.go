@@ -20,6 +20,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A text template is a Java action type only (MDL-JSA01).
+	if bad := unsupportedJavaScriptActionTypes(s); len(bad) > 0 {
+		return mdlerrors.NewValidationf("%s", strings.Join(bad, "\n"))
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -41,6 +45,13 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	}
 	if containerID == "" {
 		return mdlerrors.NewNotFound("module", s.Name.Module)
+	}
+
+	// A bare Module.Name in the signature is an entity or an enumeration, which
+	// only the project can say (ako/mxcli#935).
+	params, returnType, err := settleCodeActionSignature(ctx, "javascript action "+s.Name.String(), s.Parameters, s.ReturnType)
+	if err != nil {
+		return err
 	}
 
 	// Detect an existing action of the same name (for CREATE OR MODIFY).
@@ -144,7 +155,7 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		typeParamNames[tpName] = true
 	}
 
-	for _, param := range s.Parameters {
+	for _, param := range params {
 		p := &types.JavaActionParameter{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
@@ -185,19 +196,21 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		jsa.Parameters = append(jsa.Parameters, p)
 	}
 
-	if isTypeParamRef(s.ReturnType, typeParamNames) {
-		tpName := getTypeParamRefName(s.ReturnType)
+	if isTypeParamRef(returnType, typeParamNames) {
+		tpName := getTypeParamRefName(returnType)
 		jsa.ReturnType = &types.TypeParameter{
 			BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
-	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+	} else if l := listOfTypeParameter(returnType, typeParamNameToID); l != nil {
 		// `returns list of T` — without this it became a list of the entity `.T`,
 		// the JavaScript twin of the Java action's #1183.
 		jsa.ReturnType = l
 	} else {
-		jsa.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
+		if jsa.ReturnType, err = astDataTypeToJavaActionReturnType(returnType); err != nil {
+			return mdlerrors.NewValidationf("javascript action %s: %v", s.Name.String(), err)
+		}
 	}
 
 	if jsa.MicroflowActionInfo, err = mergeMicroflowActionInfo(ctx,

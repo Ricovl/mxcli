@@ -38,8 +38,10 @@ func checkFeature(ctx *ExecContext, area, name, statement, hint string) error {
 		return nil
 	}
 
-	// Find the min_version for the error message.
-	features := reg.FeaturesForVersion(versions.SemVer{Major: 99, Minor: 0, Patch: 0})
+	// Find the min_version for the error message: the floor an upgrade from
+	// this project reaches first. A feature on two release lines has two
+	// (STRING_AGG: 10.24.22 and 11.2.0), and an 11.1 project needs the second.
+	features := reg.FeaturesForVersion(pv)
 	minV := "a newer version"
 	for _, f := range features {
 		if f.Area == area && f.Name == name {

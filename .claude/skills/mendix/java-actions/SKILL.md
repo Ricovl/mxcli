@@ -254,7 +254,7 @@ from describe output has changed an action's export level to Public. Check it ag
 | `decimal` | Decimal number |
 | `boolean` | True/false |
 | `datetime` | Date and time |
-| `Module.Entity` | Entity reference |
+| `Module.Entity` | Entity reference — or an enumeration, when `Module.Entity` names one (the project decides; a name that is neither is refused) |
 | `list of Module.Entity` | List of entities |
 | `stringtemplate(sql)` | SQL/OQL query template with parameters |
 | `stringtemplate(text)` | Text template with parameters |

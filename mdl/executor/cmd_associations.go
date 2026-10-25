@@ -75,6 +75,16 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 		}
 	}
 
+	// A persistable and a non-persistable entity may only be associated FROM the
+	// non-persistable one under owner Default — anything else is CE0001
+	// (ako/mxcli#819). The same function judges it in `check`.
+	if v := associationPersistenceViolation(s.Name,
+		ast.QualifiedName{Module: parentModule, Name: s.Parent.Name},
+		ast.QualifiedName{Module: childModule, Name: s.Child.Name},
+		s.Owner == ast.OwnerBoth, projectEntityPersistence(ctx)); v != nil {
+		return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
+	}
+
 	// Convert types
 	assocType := domainmodel.AssociationTypeReference
 	if s.Type == ast.AssocReferenceSet {
@@ -145,6 +155,8 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			childRef := childModule + "." + s.Child.Name
 			for _, ca := range dm.CrossAssociations {
 				if ca.Name == s.Name.Name {
+					// Read before it is overwritten: the TO end may be moving.
+					oldToModule := qualifiedNameModule(ca.ChildRef)
 					ca.Type = assocType
 					ca.Owner = owner
 					if s.Storage != ast.StorageDefault { // as above (#704)
@@ -164,7 +176,14 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					invalidateDomainModelsCache(ctx)
 					ctx.trackModifiedDomainModel(module.ID, module.Name)
 					ctx.ReportMutation("Modified", "association: %s", s.Name)
-					return nil
+					// Under OWNER Both the TO entity holds a member entry, in its own
+					// module. Only the declaring module was reconciled (at the end of
+					// the program), so moving the TO end left the old TO entity's
+					// entry behind and never gave the new one its entry — CE0066 at
+					// both modules; changing the owner alone missed the TO module the
+					// same way (ako/mxcli#819).
+					return reconcileModulesAccess(ctx, "after modifying the association",
+						module.Name, oldToModule, childModule)
 				}
 			}
 		}
@@ -294,6 +313,16 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 		return mdlerrors.NewBackend("get domain model", err)
 	}
 
+	// `set owner both` across the persistence boundary is CE0001, as on create
+	// (ako/mxcli#819).
+	if s.Operation == ast.AlterAssociationSetOwner && s.Owner == ast.OwnerBoth {
+		if from, to, ok := storedAssociationEnds(ctx, s.Name); ok {
+			if v := associationPersistenceViolation(s.Name, from, to, true, projectEntityPersistence(ctx)); v != nil {
+				return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
+			}
+		}
+	}
+
 	// Try intra-module associations first
 	for _, assoc := range dm.Associations {
 		if assoc.Name == s.Name.Name {
@@ -370,11 +399,7 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
 				return err
 			}
-			toModule := ""
-			if i := strings.LastIndex(ca.ChildRef, "."); i > 0 {
-				toModule = ca.ChildRef[:i]
-			}
-			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, toModule); err != nil {
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, qualifiedNameModule(ca.ChildRef)); err != nil {
 				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
@@ -400,15 +425,29 @@ func reconcileAfterAssociationAlter(ctx *ExecContext, s *ast.AlterAssociationStm
 	if s.Operation != ast.AlterAssociationSetOwner {
 		return nil
 	}
+	return reconcileModulesAccess(ctx, "after changing the owner", modules...)
+}
+
+// reconcileModulesAccess reconciles the entity access rules of each named module
+// once, after a write that changed which entities an association is a member of
+// — or removed associations outright. It is the one reconcile behind create,
+// alter and drop association and drop entity, so that every statement that can
+// leave a member entry behind reconciles the same set of modules the same way.
+//
+// The modules are named by the caller because the rule that needs fixing is not
+// always in the module written: an association is a member of its FROM entity,
+// and under OWNER Both of its TO entity, which for a cross-module association
+// lives in another module.
+func reconcileModulesAccess(ctx *ExecContext, why string, modules ...string) error {
 	invalidateHierarchy(ctx)
 	invalidateDomainModelsCache(ctx)
 	seen := map[string]bool{}
 	for _, name := range modules {
-		if name == "" || seen[name] {
+		if name == "" || seen[strings.ToLower(name)] {
 			continue
 		}
-		seen[name] = true
-		if err := reconcileModuleAccess(ctx, name, "after changing the owner"); err != nil {
+		seen[strings.ToLower(name)] = true
+		if err := reconcileModuleAccess(ctx, name, why); err != nil {
 			return err
 		}
 	}
@@ -555,15 +594,10 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 	// rule that named it, which Mendix rejects with CE1613 "The selected
 	// association … no longer exists". Creating one already reconciles; dropping
 	// one has to as well, or the drop produces a model that will not build.
-	afterDrop := func() {
-		invalidateHierarchy(ctx)
-		invalidateDomainModelsCache(ctx)
-		if freshDM, err := ctx.Backend.GetDomainModel(module.ID); err == nil {
-			if count, err := ctx.Backend.ReconcileMemberAccesses(freshDM.ID, module.Name); err == nil && count > 0 {
-				fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) after dropping the association\n", count)
-			}
-		}
-		ctx.trackModifiedDomainModel(module.ID, module.Name)
+	// toModule is a cross-module association's TO end: under OWNER Both its
+	// entity holds an entry too, in a module this one is not (ako/mxcli#1449).
+	afterDrop := func(toModule string) error {
+		return reconcileModulesAccess(ctx, "after dropping the association", module.Name, toModule)
 	}
 
 	// A message definition holds the association by qualified name, and nothing
@@ -585,7 +619,9 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 			if err := ctx.Backend.DeleteAssociation(dm.ID, assoc.ID); err != nil {
 				return mdlerrors.NewBackend("delete association", err)
 			}
-			afterDrop()
+			if err := afterDrop(""); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped association: %s\n", s.Name)
 			return nil
 		}
@@ -595,7 +631,9 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 			if err := ctx.Backend.DeleteCrossAssociation(dm.ID, ca.ID); err != nil {
 				return mdlerrors.NewBackend("delete cross-module association", err)
 			}
-			afterDrop()
+			if err := afterDrop(qualifiedNameModule(ca.ChildRef)); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped cross-module association: %s\n", s.Name)
 			return nil
 		}

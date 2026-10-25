@@ -1,0 +1,16 @@
+-- ako/mxcli#1514 (upstream mendixlabs/mxcli#1604): the setup script for
+-- test-runner-1514-multiline-expect.test.mdl. Apply it before running the tests:
+--
+--   mxcli exec mdl-examples/bug-tests/test-runner-1514-setup.mdl -p app.mpr
+--
+-- Case B of the issue is about checking a test file before this has run. A test
+-- file creates nothing itself, so checked alone it reports Probe.SUB_Make as
+-- "microflow not found", and the report now names the way to check it — this
+-- script first, as one set, each file resolved against what the ones before it
+-- write (the project is not changed):
+--
+--   mxcli check mdl-examples/bug-tests/test-runner-1514-setup.mdl \
+--               mdl-examples/bug-tests/test-runner-1514-multiline-expect.test.mdl -p app.mpr
+mdl 1;
+create module Probe;
+create microflow Probe.SUB_Make () returns String as $r begin return 'a;b'; end;

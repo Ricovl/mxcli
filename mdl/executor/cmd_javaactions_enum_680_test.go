@@ -39,7 +39,10 @@ func TestParamType_ExplicitEnum_IsEnumeration(t *testing.T) {
 }
 
 func TestReturnType_ExplicitEnum_IsEnumeration(t *testing.T) {
-	rt := astDataTypeToJavaActionReturnType(enumDataType("M", "Status"))
+	rt, err := astDataTypeToJavaActionReturnType(enumDataType("M", "Status"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	et, ok := rt.(*javaactions.EnumerationType)
 	if !ok {
 		t.Fatalf("expected *EnumerationType, got %T", rt)

@@ -39,6 +39,15 @@ features:
     join_types:
       min_version: "10.18.0"
       mdl: "INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL JOIN"
+    string_agg:
+      # STRING_AGG(expression, 'separator'), the OQL aggregate that joins a
+      # group's values into one string. mxbuild 11.0.0 and 11.1.0 have no
+      # 'STRING_AGG' token in their OQL lexer and mx check reports every such
+      # view as CE0174 "Unknown function 'string_agg'"; 11.2.0 has it. The
+      # 10.24 line got it separately, in 10.24.22 (ako/mxcli#1650).
+      min_version: "11.2.0"
+      mdl: "STRING_AGG(expression, 'separator') in a view entity's OQL query"
+      notes: "Measured with mx check: 11.0.0 and 11.1.0 CE0174 \"Unknown function 'string_agg'\"; 11.2.0, 11.6.6, 11.6.8, 11.6.12, 11.7.0, 11.8.0, 11.9.1, 11.10.0, 11.12.2, 11.13.0 and 11.15.0 build it. The column's type changed in 11.7.0: before, the type of its argument (String(100) over a String(100)); from 11.7.0, String(200) whatever it aggregates. ako/mxcli#1650"
     comments:
       min_version: "11.7.0"
       mdl: "-- line comment / /* block comment */ in a view entity's OQL query"

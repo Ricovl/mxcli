@@ -402,10 +402,13 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 	// Cross-module associations declared ELSEWHERE whose TO end is an entity of
 	// this module. Under `OWNER Both` such an association is a member of that
 	// entity too, and nothing in this domain model says so (ako/mxcli#802).
-	incoming, err := b.incomingCrossAssociations(moduleName)
+	// The same scan records what every other module declares, which is what
+	// lets a foreign reference be judged rather than kept on faith.
+	elsewhere, err := b.scanProjectAssociations(moduleName)
 	if err != nil {
 		return 0, err
 	}
+	incoming := elsewhere.incoming
 
 	modified := 0
 	for _, el := range dm.EntitiesItems() {
@@ -658,14 +661,25 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 						// whose owner is no longer Both (ako/mxcli#802).
 						rule.RemoveMemberAccesses(i)
 						changed = true
+					case !assocRefBelongsTo(assocRef, moduleName) &&
+						elsewhere.staleForeignRef(assocRef, foreignAnc):
+						// A foreign reference that is positively stale: its module no
+						// longer declares it (CE1613), or this entity cannot be one of
+						// its members (CE0066). See staleForeignRef. Kept before
+						// ako/mxcli#1449 / #819, so `drop entity` on the FROM end of a
+						// cross-module OWNER Both association, `drop association` on
+						// one, and moving its TO end all left the entry for good — and
+						// `update security` reported nothing to do.
+						rule.RemoveMemberAccesses(i)
+						changed = true
 					case !assocRefBelongsTo(assocRef, moduleName):
 						// An association is qualified by the module that DECLARES it, so
 						// one inherited from a generalization in another module names
-						// that module. Its domain model is not loaded here, so the
-						// reference cannot be validated at all — preserve it, as the
-						// attribute branch above does, rather than delete what cannot be
-						// checked. Without this, every rule on a specialization of a
-						// marketplace entity lost its inherited associations.
+						// that module. Whether this entity inherits it cannot be decided
+						// from here — preserve it, as the attribute branch above does,
+						// rather than delete what cannot be checked. Without this, every
+						// rule on a specialization of a marketplace entity lost its
+						// inherited associations.
 						covAssoc[assocRef] = true
 					default:
 						// Genuinely stale: an association of this module that no longer
@@ -773,45 +787,109 @@ type incomingCross struct {
 	both   bool   // OWNER Both: a member of the TO entity as well
 }
 
-// incomingCrossAssociations maps each entity name of moduleName to the
-// cross-module associations other modules declare TO it. A CrossAssociation
-// names its TO entity by qualified name, so this is a scan of every other
-// domain model — the only place the fact is stored.
-func (b *Backend) incomingCrossAssociations(moduleName string) (map[string][]incomingCross, error) {
+// projectAssociations is what a reconcile of one module needs to know about the
+// associations every other module declares.
+type projectAssociations struct {
+	// incoming maps each entity name of the module being reconciled to the
+	// cross-module associations other modules declare TO it.
+	incoming map[string][]incomingCross
+	// declared maps every module with a stored domain model (lower-cased) to the
+	// lower-cased names of the associations, regular and cross-module, it
+	// declares. System has no stored domain model and is absent.
+	declared map[string]map[string]bool
+}
+
+// scanProjectAssociations reads every domain model once. A CrossAssociation
+// names its TO entity by qualified name, so the incoming half is a scan of every
+// other domain model — the only place the fact is stored.
+func (b *Backend) scanProjectAssociations(moduleName string) (*projectAssociations, error) {
 	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
 	if err != nil {
 		return nil, fmt.Errorf("list domain models: %w", err)
 	}
+	mods, err := b.reader.ListModules()
+	if err != nil {
+		return nil, fmt.Errorf("list modules: %w", err)
+	}
+	moduleNameOf := make(map[model.ID]string, len(mods))
+	for _, m := range mods {
+		moduleNameOf[model.ID(m.ID)] = m.Name
+	}
 	prefix := moduleName + "."
-	out := map[string][]incomingCross{}
+	out := &projectAssociations{incoming: map[string][]incomingCross{}, declared: map[string]map[string]bool{}}
 	for _, u := range units {
-		var declaring string
+		declaring := moduleNameOf[u.ContainerID]
+		if declaring == "" {
+			continue // an orphaned domain model declares nothing reachable
+		}
+		names := out.declared[strings.ToLower(declaring)]
+		if names == nil {
+			names = map[string]bool{}
+			out.declared[strings.ToLower(declaring)] = names
+		}
+		for _, ae := range u.Element.AssociationsItems() {
+			if a, ok := ae.(*genDm.Association); ok && a.Name() != "" {
+				names[strings.ToLower(a.Name())] = true
+			}
+		}
 		for _, ce := range u.Element.CrossAssociationsItems() {
 			ca, ok := ce.(*genDm.CrossAssociation)
 			if !ok || ca.Name() == "" {
+				continue
+			}
+			names[strings.ToLower(ca.Name())] = true
+			if strings.EqualFold(declaring, moduleName) {
 				continue
 			}
 			child := ca.ChildQualifiedName()
 			if len(child) <= len(prefix) || !strings.EqualFold(child[:len(prefix)], prefix) {
 				continue
 			}
-			if declaring == "" {
-				mi, err := b.reader.GetModule(string(u.ContainerID))
-				if err != nil || mi == nil {
-					break // an orphaned domain model declares nothing reachable
-				}
-				declaring = mi.Name
-			}
-			if strings.EqualFold(declaring, moduleName) {
-				break
-			}
 			name := child[len(prefix):]
-			out[name] = append(out[name], incomingCross{
+			out.incoming[name] = append(out.incoming[name], incomingCross{
 				qn: declaring + "." + ca.Name(), module: declaring, both: ca.Owner() == "Both",
 			})
 		}
 	}
 	return out, nil
+}
+
+// staleForeignRef reports whether a MemberAccess naming an association declared
+// in ANOTHER module is positively stale on an entity of the module being
+// reconciled. foreignAnc is foreignAncestorModule's answer for that entity: ""
+// when its whole generalization chain lies in its own module.
+//
+// The reconcile used to keep every such reference, because the one it was
+// written for — an association inherited from a generalization in another module
+// — cannot be validated without walking that chain. Two cases can be decided
+// without it, and both were reported (ako/mxcli#1449, ako/mxcli#819):
+//
+//   - The declaring module exists and no longer declares the association. It is a
+//     member of nothing; mx check reports CE1613 "The selected association … no
+//     longer exists". This is what `drop entity` on the FROM end of a cross-module
+//     OWNER Both association, or `drop association` on one, leaves on the TO end.
+//   - The association still exists, but the entity's generalization chain never
+//     leaves its module. Then the only way a foreign association is a member of it
+//     is as the TO end under OWNER Both, which `incoming` enumerates — so one the
+//     reconcile did not collect is not a member: CE0066 "Entity access is out of
+//     date". This is what moving the TO end of such an association leaves behind.
+//
+// A reference into a module the project does not store — System, whose domain
+// model is virtual, or one that is simply absent — is still preserved, and so is
+// an existing association on an entity that inherits from another module.
+func (p *projectAssociations) staleForeignRef(ref, foreignAnc string) bool {
+	idx := strings.LastIndex(ref, ".")
+	if idx < 0 {
+		return false
+	}
+	names, known := p.declared[strings.ToLower(ref[:idx])]
+	if !known {
+		return false
+	}
+	if !names[strings.ToLower(ref[idx+1:])] {
+		return true
+	}
+	return foreignAnc == ""
 }
 
 // foreignAncestorModule returns the module of the first generalization in ent's

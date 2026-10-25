@@ -78,6 +78,7 @@ type (
 	EntityType                  = types.EntityType
 	ListType                    = types.ListType
 	StringTemplateParameterType = types.StringTemplateParameterType
+	CustomBlobDocumentType      = types.CustomBlobDocumentType
 	FileDocumentType            = types.FileDocumentType
 	EnumerationType             = types.EnumerationType
 	MicroflowType               = types.MicroflowType

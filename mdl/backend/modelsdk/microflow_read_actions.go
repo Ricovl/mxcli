@@ -757,8 +757,27 @@ func codeActionParameterValueFromRaw(doc bson.Raw) microflows.CodeActionParamete
 		if tt, ok := doc.Lookup("TypedTemplate").DocumentOK(); ok {
 			t := &microflows.TypedTemplate{Text: rawStr(tt, "Text")}
 			t.ID = model.ID(rawStr(tt, "$ID"))
+			if arr, ok := tt.Lookup("Arguments").ArrayOK(); ok {
+				vals, _ := arr.Values()
+				for _, av := range vals {
+					ad, ok := av.DocumentOK()
+					if !ok {
+						continue // the list's leading marker
+					}
+					a := &microflows.TypedTemplateArgument{
+						Expression: rawStr(ad, "Expression"),
+						Type:       rawStr(ad, "Type"),
+					}
+					a.ID = model.ID(rawStr(ad, "$ID"))
+					t.Arguments = append(t.Arguments, a)
+				}
+			}
 			v.TypedTemplate = t
 		}
+		return v
+	case "Microflows$CustomBlobDocumentCodeActionParameterValue":
+		v := &microflows.CustomBlobDocumentCodeActionParameterValue{CustomDocument: rawStr(doc, "CustomDocument")}
+		v.ID = id
 		return v
 	case "Microflows$ExpressionBasedCodeActionParameterValue":
 		v := &microflows.ExpressionBasedCodeActionParameterValue{Expression: rawStr(doc, "Expression")}

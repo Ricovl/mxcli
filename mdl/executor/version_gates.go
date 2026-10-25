@@ -5,6 +5,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -78,6 +79,15 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			gates = append(gates, versionGate{"oql_functions", "comments",
 				"a comment in a view entity's OQL query",
 				"remove the comments from the query — Mendix rejects them as CE0174 before 11.7 — or upgrade the project"})
+		}
+		// STRING_AGG is an OQL aggregate from 11.2, and from 10.24.22 on the
+		// 10.24 line (ako/mxcli#1650). Below that floor mxbuild has no such
+		// function, and the view fails the build.
+		if oqlUsesStringAgg(s.Query.RawQuery) {
+			gates = append(gates, versionGate{"oql_functions", "string_agg",
+				"STRING_AGG in a view entity's OQL query",
+				"Mendix added STRING_AGG to OQL in 11.2 and in 10.24.22 — upgrade the project, " +
+					"or build the list in a microflow"})
 		}
 		return gates
 	// A domain-model EXPORT LEVEL is 9.3+ (mendixlabs/mxcli#1498). Gated on the
@@ -187,6 +197,15 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		return gates
 	}
 	return nil
+}
+
+// oqlStringAggCallRe is a STRING_AGG call in query text as written.
+var oqlStringAggCallRe = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_."` + "`" + `])string_agg\s*\(`)
+
+// oqlUsesStringAgg reports whether a view's query calls STRING_AGG — outside
+// comments and string literals, so `'string_agg('` as a label is not a call.
+func oqlUsesStringAgg(oql string) bool {
+	return oqlStringAggCallRe.MatchString(oqlStringLiteralRe.ReplaceAllString(stripOQLComments(oql), "''"))
 }
 
 func exportLevelGate(statement string) versionGate {

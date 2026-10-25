@@ -181,9 +181,18 @@ the project's demo users (an administrator first). The session is saved under
 <project>/.mxcli/playwright-check/ and reused by later checks; it is renewed
 automatically when the runtime has forgotten it (after a restart).
 
-Exit status: 0 every page passed; 1 a page failed (HTTP error, sign-in form
-instead of the page, error banner or dialog, console error, failed same-origin
-request, or a failed assertion); 2 the check could not run.
+A page is measured once it has settled: no request to the app open for half a
+second, no progress indicator, and its text no longer changing. Waiting for the
+requests matters because a list view shows nothing while its data source runs —
+no spinner, no placeholder — so a page caught then looks finished and empty. A
+page that has not settled within --wait is reported STILL LOADING, naming the
+requests it was waiting for, and fails. A page with a list view or grid always
+reports its rows, rows=0 included.
+
+Exit status: 0 every page passed; 1 a page failed (still loading when measured,
+HTTP error, sign-in form instead of the page, error banner or dialog, console
+error, failed same-origin request, or a failed assertion); 2 the check could
+not run.
 
 Examples:
   mxcli playwright check /p/customers /p/orders -p app.mpr
@@ -282,7 +291,7 @@ func init() {
 	playwrightCheckCmd.Flags().StringArray("assert-text", nil, "Fail unless the page text contains this (repeatable)")
 	playwrightCheckCmd.Flags().StringArray("assert-count", nil, "Fail unless SELECTOR OP N holds, e.g. '.mx-listview li>=1' (ops >= <= == != > <; bare selector = >=1; repeatable)")
 	playwrightCheckCmd.Flags().String("screenshot", "", "Also write a full-page PNG here (per-page suffix for several pages); only the path is printed")
-	playwrightCheckCmd.Flags().Duration("wait", 4*time.Second, "Longest a page may keep changing after it mounts before it is measured")
+	playwrightCheckCmd.Flags().Duration("wait", time.Duration(docker.DefaultPageWaitMs)*time.Millisecond, "Longest a page may keep loading after it mounts (open requests, changing text) before it is measured; a page still loading then fails as STILL LOADING")
 	playwrightCheckCmd.Flags().Bool("fresh-login", false, "Ignore the saved session and sign in again")
 	playwrightCheckCmd.Flags().Bool("allow-console-errors", false, "Report console errors but do not fail on them")
 

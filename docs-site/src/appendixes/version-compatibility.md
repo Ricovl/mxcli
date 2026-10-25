@@ -135,6 +135,7 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 |---------|-----------|--------|-------|
 | Basic SELECT | `SELECT, FROM, WHERE` | Yes | Yes |
 | Aggregate functions | `COUNT, SUM, AVG, MIN, MAX, GROUP BY` | Yes | Yes |
+| String aggregate | `STRING_AGG(expr, 'separator')` | 10.24.22+ only | 11.2+ |
 | Subqueries | Inline subqueries in SELECT/WHERE | Yes | Yes |
 | JOIN types | `INNER/LEFT/RIGHT/FULL JOIN` | Yes | Yes |
 

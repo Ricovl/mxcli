@@ -108,6 +108,12 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// at build time (MDL-JA01, mendixlabs/mxcli#1404).
 		if jaStmt, ok := stmt.(*ast.CreateJavaActionStmt); ok {
 			violations = append(violations, validateJavaActionTypeNames(jaStmt)...)
+			// A return type no action can have (MDL-JA03).
+			violations = append(violations, validateJavaActionReturnType(jaStmt)...)
+		}
+		// A text template is a Java action type only (MDL-JSA01).
+		if jsStmt, ok := stmt.(*ast.CreateJavaScriptActionStmt); ok {
+			violations = append(violations, validateJavaScriptActionTypes(jsStmt)...)
 		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
@@ -211,6 +217,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// CE0161 at build time (mendixlabs/mxcli#1466). The script's declarations
 	// answer first; the project, when there is one, for the rest.
 	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
+
+	// An association between a persistable and a non-persistable entity must
+	// start in the non-persistable one and have owner Default — CE0001
+	// (MDL-ASSOC01, ako/mxcli#819). The script's declarations answer first.
+	violations = append(violations, ValidateAssociationPersistence(prog, project)...)
 
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix

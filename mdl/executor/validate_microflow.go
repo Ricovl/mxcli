@@ -448,6 +448,10 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 			// ako/mxcli#1444: an expression URL or body with `with (…)`.
 			// Same function exec calls.
 			v.checkRestCallTemplates(stmt)
+		case *ast.CallJavaActionStmt:
+			// ako/mxcli#1451: an expression argument with `with (…)`. Same
+			// function exec calls.
+			v.checkJavaActionTemplateArgs(stmt)
 		case *ast.CallWebServiceStmt:
 			// MDL-SOAP01: a call stores ONE request body, so arguments and a send
 			// mapping are alternatives. Same function exec calls.

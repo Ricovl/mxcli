@@ -163,7 +163,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			a.noteRewritten(target, "return "+value)
 			continue
 		}
-		frag, err := a.buildFragment(ctx, op.Body)
+		frag, vars, err := a.buildFragmentVars(ctx, op.Body)
 		if err != nil {
 			return fail(err)
 		}
@@ -186,6 +186,18 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		if err := a.checkFragmentScope(ctx, op, target, frag); err != nil {
 			return fail(err)
 		}
+		// A variable the fragment declares that a stored activity declares
+		// too is a clash — unless the block takes that activity away, as a
+		// producer moved upstream is inserted there and dropped here
+		// (ako/mxcli#1399). Whether it does is known once every operation
+		// is applied, as for the outputs.
+		declaring := frag
+		outputChecks = append(outputChecks, func() error {
+			if err := a.checkDeclaredUnclashed(declaring); err != nil {
+				return fail(err)
+			}
+			return nil
+		})
 		switch op.Op {
 		case ast.AlterFlowInsertAfter:
 			err = mut.InsertAfter(target.ID, frag)
@@ -209,7 +221,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		if op.Op == ast.AlterFlowReplace {
 			a.noteRemoved(target, frag)
 		}
-		a.noteFragment(ctx, op, target, frag)
+		a.noteFragment(ctx, op, target, frag, vars)
 	}
 	for _, check := range outputChecks {
 		if err := check(); err != nil {
@@ -236,8 +248,15 @@ type alterFlowContext struct {
 	declaredByOps map[string]bool
 	// declaredAt says where each of those fragments went, so a later
 	// operation counts a variable as declared only where it is on its path.
-	declaredAt   map[string][]declSite
-	readByOps    map[string][]string
+	declaredAt map[string][]declSite
+	// opVars is what the variables declared by those fragments hold, as each
+	// fragment's builder resolved them, so a later fragment is built knowing
+	// them (ako/mxcli#1399): `set $Late = …` after an insert that declares
+	// $Late, a member of an entity an inserted retrieve returns.
+	opVars    fragmentVars
+	readByOps map[string][]opRead
+	// removedByOps are the stored outputs the statement's operations took
+	// away without declaring them again.
 	removedByOps map[string]bool
 	// removedIDs are the stored activities the statement's operations take
 	// out or rewrite (a return given a new value, a decision a new
@@ -346,7 +365,7 @@ func (a *alterFlowContext) noteRemoved(target mfmutator.Candidate, replacement *
 func (a *alterFlowContext) noteRewritten(target mfmutator.Candidate, text string) {
 	a.removedIDs[target.ID] = true
 	for _, m := range variableRef.FindAllStringSubmatch(withoutStringLiterals(text), -1) {
-		a.readByOps[m[1]] = append(a.readByOps[m[1]], text)
+		a.readByOps[m[1]] = append(a.readByOps[m[1]], opRead{text: text, site: declSite{op: ast.AlterFlowReplace, target: target.ID}})
 	}
 }
 
@@ -357,9 +376,26 @@ type declSite struct {
 	target model.ID
 }
 
+// opRead is a read of a variable by what an operation of the statement puts
+// in: the activity's text, where the operation puts it, and whether the
+// fragment declares the variable itself.
+type opRead struct {
+	text string
+	site declSite
+	own  bool
+}
+
+// fragmentVars are the variables a fragment declares, as its builder keeps
+// them: entity-typed ones with their entity ("M.E" / "List of M.E"), the rest
+// with their type name.
+type fragmentVars struct {
+	varTypes, declared map[string]string
+}
+
 // noteFragment records what an inserted or replacing fragment declares and
-// reads, and where it goes.
-func (a *alterFlowContext) noteFragment(ctx *ExecContext, op *ast.AlterFlowOperation, target mfmutator.Candidate, frag *backend.MicroflowFragment) {
+// reads, and where it goes. vars is what its builder resolved the variables
+// it declares to hold.
+func (a *alterFlowContext) noteFragment(ctx *ExecContext, op *ast.AlterFlowOperation, target mfmutator.Candidate, frag *backend.MicroflowFragment, vars fragmentVars) {
 	for _, obj := range frag.Objects {
 		if act, ok := obj.(*microflows.ActionActivity); ok {
 			if v := mfmutator.OutputVariable(act.Action); v != "" {
@@ -368,9 +404,44 @@ func (a *alterFlowContext) noteFragment(ctx *ExecContext, op *ast.AlterFlowOpera
 			}
 		}
 	}
+	a.opVars = a.opVars.with(vars)
+	site := declSite{op: op.Op, target: target.ID}
 	a.fragmentReads(ctx, frag.Objects, func(v, text string) {
-		a.readByOps[v] = append(a.readByOps[v], text)
+		a.readByOps[v] = append(a.readByOps[v], opRead{text: text, site: site, own: fragmentDeclares(frag, v)})
 	})
+}
+
+// with returns fv with the variables of more added, a variable already there
+// keeping what it holds.
+func (fv fragmentVars) with(more fragmentVars) fragmentVars {
+	add := func(into, from map[string]string) map[string]string {
+		for name, t := range from {
+			if into == nil {
+				into = map[string]string{}
+			}
+			if _, ok := into[name]; !ok {
+				into[name] = t
+			}
+		}
+		return into
+	}
+	fv.varTypes = add(fv.varTypes, more.varTypes)
+	fv.declared = add(fv.declared, more.declared)
+	return fv
+}
+
+// takenAway reports whether the statement's operations take the stored object
+// id out or rewrite it, itself or with a loop that holds it.
+func (a *alterFlowContext) takenAway(id model.ID) bool {
+	if a.removedIDs[id] {
+		return true
+	}
+	for _, l := range a.loopsAround(id) {
+		if a.removedIDs[l.ID] {
+			return true
+		}
+	}
+	return false
 }
 
 // fragmentReads calls read with each variable the objects read, and the
@@ -431,7 +502,7 @@ func loadAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) (*alterFlowContext, e
 		return nil, mdlerrors.NewBackend("build hierarchy", err)
 	}
 	a := &alterFlowContext{stmt: s, entityNames: getEntityNames(ctx, h),
-		declaredByOps: map[string]bool{}, declaredAt: map[string][]declSite{}, readByOps: map[string][]string{}, removedByOps: map[string]bool{},
+		declaredByOps: map[string]bool{}, declaredAt: map[string][]declSite{}, readByOps: map[string][]opRead{}, removedByOps: map[string]bool{},
 		removedIDs: map[model.ID]bool{}}
 	// A copy: nanoflow names are added below, and the cached map is shared.
 	a.microflowNames = map[model.ID]string{}
@@ -562,9 +633,21 @@ func (a *alterFlowContext) splitCondition(ctx *ExecContext, op *ast.AlterFlowOpe
 }
 
 // fragmentBuilder is the builder `create microflow` uses, seeded with the
-// variables the stored flow declares.
+// variables the stored flow declares and those the statement's earlier
+// operations declare (ako/mxcli#1399). Seeding a variable only lets the
+// fragment build; whether it is in scope where the fragment goes is
+// checkFragmentScope's to say.
 func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 	varTypes, declared := a.storedVariables(ctx)
+	for name, t := range a.opVars.varTypes {
+		varTypes[name] = t
+		delete(declared, name)
+	}
+	for name, t := range a.opVars.declared {
+		if _, ok := varTypes[name]; !ok {
+			declared[name] = t
+		}
+	}
 	for name, t := range a.declaredVarTypes {
 		varTypes[name] = t
 		delete(declared, name)
@@ -596,24 +679,55 @@ func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 // microflow` uses, seeded with the variables the stored flow declares, and
 // cuts it out of the start and end events the builder wraps it in.
 func (a *alterFlowContext) buildFragment(ctx *ExecContext, body []ast.MicroflowStatement) (*backend.MicroflowFragment, error) {
+	frag, _, err := a.buildFragmentVars(ctx, body)
+	return frag, err
+}
+
+// buildFragmentVars is buildFragment that also returns the variables the
+// fragment declares — the outputs of its own activities, not of a loop's body —
+// as its builder resolved them.
+func (a *alterFlowContext) buildFragmentVars(ctx *ExecContext, body []ast.MicroflowStatement) (*backend.MicroflowFragment, fragmentVars, error) {
 	if len(body) == 0 {
-		return nil, fmt.Errorf("the fragment is empty; use drop to remove an activity")
+		return nil, fragmentVars{}, fmt.Errorf("the fragment is empty; use drop to remove an activity")
 	}
 	fb := a.fragmentBuilder(ctx)
 	oc := fb.buildFlowGraph(body, nil)
 	if errs := fb.GetErrors(); len(errs) > 0 {
-		return nil, fmt.Errorf("the fragment has errors:\n  - %s", strings.Join(errs, "\n  - "))
+		return nil, fragmentVars{}, fmt.Errorf("the fragment has errors:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	if fb.endsWithReturn {
-		return nil, fmt.Errorf("every path through the fragment ends the flow with a return, so nothing would lead on " +
+		return nil, fragmentVars{}, fmt.Errorf("every path through the fragment ends the flow with a return, so nothing would lead on " +
 			"to the rest of it; a return can be inserted only on a path that branches off the rest (a guard clause)")
 	}
 	frag, err := cutFragment(oc, fb.fallThroughEndID, fb.returnEndIDs)
 	if err != nil {
-		return nil, err
+		return nil, fragmentVars{}, err
 	}
 	frag.Pinned = fb.statedNotes
-	return frag, nil
+	return frag, declaredVarsOf(fb, frag.Objects), nil
+}
+
+// declaredVarsOf returns the variables objs declare — the outputs of their
+// own activities, not of a loop's body — as fb, which built them, resolved
+// them.
+func declaredVarsOf(fb *flowBuilder, objs []microflows.MicroflowObject) fragmentVars {
+	vars := fragmentVars{varTypes: map[string]string{}, declared: map[string]string{}}
+	for _, obj := range objs {
+		act, ok := obj.(*microflows.ActionActivity)
+		if !ok {
+			continue
+		}
+		v := mfmutator.OutputVariable(act.Action)
+		if v == "" {
+			continue
+		}
+		if t, ok := fb.varTypes[v]; ok {
+			vars.varTypes[v] = t
+		} else if t, ok := fb.declaredVars[v]; ok {
+			vars.declared[v] = t
+		}
+	}
+	return vars
 }
 
 // cutFragment removes the builder's start event and the end event the body
@@ -809,19 +923,18 @@ func withoutStringLiterals(text string) string {
 
 // checkFragmentScope is plan item 4.2d: the fragment is checked in the scope
 // of its insertion point. A variable it declares that the flow already has is
-// an error (it would shadow or clash with the stored one); a variable it uses
-// that is not declared upstream of where it goes, nor by the fragment itself,
-// is an error too, since the fragment would read something that does not exist
-// yet on that path.
+// an error (it would shadow or clash with the stored one; for a stored
+// activity's output, see checkDeclaredUnclashed); a variable it uses that is
+// not declared upstream of where it goes, nor by the fragment itself, is an
+// error too, since the fragment would read something that does not exist yet
+// on that path.
 func (a *alterFlowContext) checkFragmentScope(ctx *ExecContext, op *ast.AlterFlowOperation, target mfmutator.Candidate, frag *backend.MicroflowFragment) error {
+	// A stored activity declaring the same variable is a clash only if the
+	// statement keeps it, which is known once every operation is applied
+	// (checkDeclaredUnclashed); a parameter is never taken away.
 	existing := map[string]bool{}
 	for _, p := range a.mf.Parameters {
 		existing[p.Name] = true
-	}
-	for _, c := range a.cands {
-		if c.OutputVariable != "" {
-			existing[c.OutputVariable] = true
-		}
 	}
 	own := map[string]bool{}
 	for _, obj := range frag.Objects {
@@ -992,18 +1105,29 @@ func (a *alterFlowContext) upstreamOf(id model.ID, including bool) map[model.ID]
 // It runs once every operation of the statement is applied, so the readers it
 // counts are those of the flow the statement writes: a stored activity that an
 // operation takes out or rewrites is none, a fragment that reads it is one.
+//
+// Nor is a reader that another operation's fragment declares the variable
+// for, upstream of it (ako/mxcli#1399): a producer moved upstream is
+// inserted there and dropped here, and its readers read the inserted one.
 func (a *alterFlowContext) checkOutputUnused(target mfmutator.Candidate, replacement *backend.MicroflowFragment) error {
 	v := target.OutputVariable
 	if v == "" || fragmentDeclares(replacement, v) {
 		return nil
 	}
-	if readers := a.readByOps[v]; len(readers) > 0 {
+	var readers []string
+	for _, r := range a.readByOps[v] {
+		if r.own || a.declaredOnPath(v, r.site.target, r.site.op) {
+			continue
+		}
+		readers = append(readers, r.text)
+	}
+	if len(readers) > 0 {
 		return fmt.Errorf("$%s is read by what an operation of this alter adds: %s", v, strings.Join(readers, "; "))
 	}
 	ref := regexp.MustCompile(`\$` + regexp.QuoteMeta(v) + `\b`)
 	var users []string
 	for _, c := range a.cands {
-		if c.ID == target.ID || a.removedIDs[c.ID] {
+		if c.ID == target.ID || a.takenAway(c.ID) || a.declaredOnPath(v, c.ID, ast.AlterFlowReplace) {
 			continue
 		}
 		for _, text := range append([]string{c.Statement}, c.Alternates...) {
@@ -1015,6 +1139,30 @@ func (a *alterFlowContext) checkOutputUnused(target mfmutator.Candidate, replace
 	}
 	if len(users) > 0 {
 		return fmt.Errorf("$%s is still used by: %s", v, strings.Join(users, "; "))
+	}
+	return nil
+}
+
+// checkDeclaredUnclashed refuses a fragment that declares a variable a stored
+// activity also declares, unless the statement takes that activity away. It
+// runs once every operation is applied, like checkOutputUnused: a producer
+// moved upstream is inserted by one operation and dropped by another, in
+// either order (ako/mxcli#1399).
+func (a *alterFlowContext) checkDeclaredUnclashed(frag *backend.MicroflowFragment) error {
+	for _, obj := range frag.Objects {
+		act, ok := obj.(*microflows.ActionActivity)
+		if !ok {
+			continue
+		}
+		v := mfmutator.OutputVariable(act.Action)
+		if v == "" {
+			continue
+		}
+		for _, c := range a.cands {
+			if c.OutputVariable == v && !a.takenAway(c.ID) {
+				return fmt.Errorf("the fragment declares $%s, which the %s already has; choose another name", v, a.stmt.Kind())
+			}
+		}
 	}
 	return nil
 }

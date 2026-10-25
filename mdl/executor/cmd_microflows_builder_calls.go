@@ -315,6 +315,10 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 	entityTypeParams := make(map[string]bool)
 	microflowTypeParams := make(map[string]bool)
 	resolvedBasicParams := make(map[string]bool)
+	// A text template and a custom document take neither an expression nor
+	// `empty` as Argument text; each has its own value (ako/mxcli#1451).
+	templateParams := make(map[string]bool)
+	documentParams := make(map[string]bool)
 	if jaDef != nil {
 		for _, p := range jaDef.Parameters {
 			switch p.ParameterType.(type) {
@@ -322,6 +326,10 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 				entityTypeParams[p.Name] = true
 			case *javaactions.MicroflowType:
 				microflowTypeParams[p.Name] = true
+			case *javaactions.StringTemplateParameterType:
+				templateParams[p.Name] = true
+			case *javaactions.CustomBlobDocumentType:
+				documentParams[p.Name] = true
 			default:
 				resolvedBasicParams[p.Name] = true
 			}
@@ -337,7 +345,27 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 
 		// Check if this parameter is typed to a type parameter (EntityTypeParameterType)
 		var value microflows.CodeActionParameterValue
-		if entityTypeParams[arg.Name] {
+		if len(arg.TemplateParams) > 0 && !templateParams[arg.Name] {
+			if jaDef == nil {
+				fb.addError("call java action %s: parameter %s: the action's parameters could not be read, "+
+					"so `with (…)` cannot be written as a text template", actionQN, arg.Name)
+			} else {
+				fb.addError("%s", notTemplateParamRefusal(actionQN, arg.Name))
+			}
+		}
+		if templateParams[arg.Name] {
+			v, msg := fb.javaActionTemplateValue(actionQN, arg)
+			if msg != "" {
+				fb.addError("%s", msg)
+			}
+			value = v
+		} else if documentParams[arg.Name] {
+			v, msg := javaActionDocumentValue(actionQN, arg)
+			if msg != "" {
+				fb.addError("%s", msg)
+			}
+			value = v
+		} else if entityTypeParams[arg.Name] {
 			// Entity type parameter: value is the entity qualified name, not the variable reference.
 			// When the argument is a variable like $Email, resolve its entity type from varTypes.
 			value = &microflows.EntityTypeCodeActionParameterValue{
