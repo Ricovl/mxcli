@@ -208,7 +208,9 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		// the JavaScript twin of the Java action's #1183.
 		jsa.ReturnType = l
 	} else {
-		jsa.ReturnType = astDataTypeToJavaActionReturnType(returnType)
+		if jsa.ReturnType, err = astDataTypeToJavaActionReturnType(returnType); err != nil {
+			return mdlerrors.NewValidationf("javascript action %s: %v", s.Name.String(), err)
+		}
 	}
 
 	if jsa.MicroflowActionInfo, err = mergeMicroflowActionInfo(ctx,

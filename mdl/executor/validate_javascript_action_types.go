@@ -73,5 +73,12 @@ func validateJavaScriptActionTypes(s *ast.CreateJavaScriptActionStmt) []linter.V
 			Suggestion: "Declare the parameter as String; text templates are a Java action type",
 		})
 	}
+	// Any other type the return converter does not handle (MDL-JA03). A
+	// StringTemplate return is reported once, above.
+	if s.ReturnType.Kind != ast.TypeStringTemplate {
+		if v := codeActionReturnTypeViolation("javascript action", s.Name, s.ReturnType, s.TypeParameters); v != nil {
+			out = append(out, *v)
+		}
+	}
 	return out
 }

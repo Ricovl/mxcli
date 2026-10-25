@@ -657,7 +657,9 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	} else if l := listOfTypeParameter(returnType, typeParamNameToID); l != nil {
 		ja.ReturnType = l
 	} else {
-		ja.ReturnType = astDataTypeToJavaActionReturnType(returnType)
+		if ja.ReturnType, err = astDataTypeToJavaActionReturnType(returnType); err != nil {
+			return mdlerrors.NewValidationf("java action %s: %v", s.Name.String(), err)
+		}
 	}
 
 	// Fold the EXPOSED AS clause onto the stored toolbox entry rather than
@@ -840,8 +842,13 @@ func bareDataTypeName(dt ast.DataType) string {
 	return ""
 }
 
-// astDataTypeToJavaActionReturnType converts an AST DataType to a Java action return type.
-func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionReturnType {
+// astDataTypeToJavaActionReturnType converts an AST DataType to a Java (or
+// JavaScript) action return type. A type it does not handle is an error: the
+// default used to be Boolean, so `returns StringTemplate(Text)` — which a code
+// action cannot return at all — was written as Boolean without a word. Only an
+// omitted `returns` (TypeUnknown) is Boolean, Studio Pro's default for a new
+// action. check reports the same error as MDL-JA03 (validateJavaActionReturnType).
+func astDataTypeToJavaActionReturnType(dt ast.DataType) (javaactions.CodeActionReturnType, error) {
 	switch dt.Kind {
 	case ast.TypeVoid:
 		return &javaactions.VoidType{
@@ -849,49 +856,49 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$VoidType",
 			},
-		}
+		}, nil
 	case ast.TypeBoolean:
 		return &javaactions.BooleanType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$BooleanType",
 			},
-		}
+		}, nil
 	case ast.TypeInteger:
 		return &javaactions.IntegerType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$IntegerType",
 			},
-		}
+		}, nil
 	case ast.TypeLong:
 		return &javaactions.LongType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$LongType",
 			},
-		}
+		}, nil
 	case ast.TypeDecimal:
 		return &javaactions.DecimalType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$DecimalType",
 			},
-		}
+		}, nil
 	case ast.TypeString:
 		return &javaactions.StringType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$StringType",
 			},
-		}
+		}, nil
 	case ast.TypeDateTime, ast.TypeDate:
 		return &javaactions.DateTimeType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$DateTimeType",
 			},
-		}
+		}, nil
 	case ast.TypeEntity, ast.TypeEnumeration:
 		// An unambiguous `ENUM`/`Enumeration(...)` return type serializes as an
 		// enumeration, not an entity reference (#680). A bare qualified name
@@ -905,7 +912,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 					TypeName: "CodeActions$EnumerationType",
 				},
 				Enumeration: dt.EnumRef.Module + "." + dt.EnumRef.Name,
-			}
+			}, nil
 		}
 		entityName := ""
 		if dt.EntityRef != nil {
@@ -919,7 +926,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 					ID:       model.ID(types.GenerateID()),
 					TypeName: "CodeActions$VoidType",
 				},
-			}
+			}, nil
 		}
 		return &javaactions.EntityType{
 			BaseElement: model.BaseElement{
@@ -927,7 +934,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				TypeName: "CodeActions$EntityType",
 			},
 			Entity: entityName,
-		}
+		}, nil
 	case ast.TypeListOf:
 		entityName := ""
 		if dt.EntityRef != nil {
@@ -939,15 +946,17 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				TypeName: "CodeActions$ListType",
 			},
 			Entity: entityName,
-		}
-	default:
-		// Default to Boolean type (most common for Java actions)
+		}, nil
+	case ast.TypeUnknown:
+		// No `returns` clause: Boolean, what Studio Pro gives a new action.
 		return &javaactions.BooleanType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$BooleanType",
 			},
-		}
+		}, nil
+	default:
+		return nil, codeActionReturnTypeRefusal(dt)
 	}
 }
 
