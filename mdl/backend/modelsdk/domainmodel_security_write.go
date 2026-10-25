@@ -662,12 +662,14 @@ func (b *Backend) ReconcileMemberAccesses(unitID model.ID, moduleName string) (i
 						rule.RemoveMemberAccesses(i)
 						changed = true
 					case !assocRefBelongsTo(assocRef, moduleName) &&
-						elsewhere.staleForeignRef(assocRef):
-						// A foreign reference its module no longer declares (CE1613).
-						// Kept before ako/mxcli#1449, so `drop entity` on the FROM end
-						// of a cross-module OWNER Both association, and `drop
-						// association` on one, left the entry on the TO end for good —
-						// and `update security` reported nothing to do.
+						elsewhere.staleForeignRef(assocRef, foreignAnc):
+						// A foreign reference that is positively stale: its module no
+						// longer declares it (CE1613), or this entity cannot be one of
+						// its members (CE0066). See staleForeignRef. Kept before
+						// ako/mxcli#1449 / #819, so `drop entity` on the FROM end of a
+						// cross-module OWNER Both association, `drop association` on
+						// one, and moving its TO end all left the entry for good — and
+						// `update security` reported nothing to do.
 						rule.RemoveMemberAccesses(i)
 						changed = true
 					case !assocRefBelongsTo(assocRef, moduleName):
@@ -854,21 +856,28 @@ func (b *Backend) scanProjectAssociations(moduleName string) (*projectAssociatio
 
 // staleForeignRef reports whether a MemberAccess naming an association declared
 // in ANOTHER module is positively stale on an entity of the module being
-// reconciled.
+// reconciled. foreignAnc is foreignAncestorModule's answer for that entity: ""
+// when its whole generalization chain lies in its own module.
 //
 // The reconcile used to keep every such reference, because the one it was
 // written for — an association inherited from a generalization in another module
-// — cannot be validated without walking that chain. One case can be decided
-// without it: the declaring module exists and no longer declares the
-// association. Then it is a member of nothing, and mx check reports CE1613 "The
-// selected association … no longer exists". That is what `drop entity` on the
-// FROM end of a cross-module OWNER Both association, or `drop association` on
-// one, leaves on the TO end (ako/mxcli#1449).
+// — cannot be validated without walking that chain. Two cases can be decided
+// without it, and both were reported (ako/mxcli#1449, ako/mxcli#819):
+//
+//   - The declaring module exists and no longer declares the association. It is a
+//     member of nothing; mx check reports CE1613 "The selected association … no
+//     longer exists". This is what `drop entity` on the FROM end of a cross-module
+//     OWNER Both association, or `drop association` on one, leaves on the TO end.
+//   - The association still exists, but the entity's generalization chain never
+//     leaves its module. Then the only way a foreign association is a member of it
+//     is as the TO end under OWNER Both, which `incoming` enumerates — so one the
+//     reconcile did not collect is not a member: CE0066 "Entity access is out of
+//     date". This is what moving the TO end of such an association leaves behind.
 //
 // A reference into a module the project does not store — System, whose domain
 // model is virtual, or one that is simply absent — is still preserved, and so is
-// any association that still exists.
-func (p *projectAssociations) staleForeignRef(ref string) bool {
+// an existing association on an entity that inherits from another module.
+func (p *projectAssociations) staleForeignRef(ref, foreignAnc string) bool {
 	idx := strings.LastIndex(ref, ".")
 	if idx < 0 {
 		return false
@@ -877,7 +886,10 @@ func (p *projectAssociations) staleForeignRef(ref string) bool {
 	if !known {
 		return false
 	}
-	return !names[strings.ToLower(ref[idx+1:])]
+	if !names[strings.ToLower(ref[idx+1:])] {
+		return true
+	}
+	return foreignAnc == ""
 }
 
 // foreignAncestorModule returns the module of the first generalization in ent's

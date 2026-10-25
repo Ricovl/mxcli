@@ -1,7 +1,7 @@
 ---
 title: Access Rules Are Reconciled, Not Appended
 category: bug-pattern
-last-synced: ced830e0
+last-synced: 1ccc9383e
 covers:
   - mdl/backend
 sources:
@@ -49,6 +49,24 @@ local walk cannot see. Dropping what the walk cannot confirm produced
 `CE0066 "Entity access is out of date"` — the model claiming rights over members
 it no longer lists. The safe default is to carry an unconfirmable member through
 rather than to prune it.
+
+**"Cannot be checked" is a claim, and it widens if nobody re-tests it.** The
+preserve rule was written for one case — an association inherited from a
+generalization in another module — and was implemented as "keep every
+reference qualified by another module". That also kept the entry for a
+cross-module `OWNER Both` association after its FROM entity was dropped, after
+the association was dropped, and after its TO end moved: CE1613 or CE0066, with
+`update security` reporting nothing to do. Whether the declaring module still
+declares the association was answerable all along, from the same scan the
+reconcile already made for incoming associations. **Before preserving, ask
+which part is genuinely unknowable, and preserve only that** — and keep a
+control for the case the rule was written for.
+
+**The rule to fix is often not in the module written.** A member entry lives on
+the FROM entity and, under `OWNER Both`, on the TO entity — another module for a
+cross-module association. A statement that removes or moves an association has
+to name every module holding one of those rules, and must collect them *before*
+the write, while the associations still exist to be read.
 
 **Under-reporting access is the read-side twin.** A restricted page reported as
 having "no roles" is the same class seen from the query side, and it is the shape

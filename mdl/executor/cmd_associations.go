@@ -75,6 +75,16 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 		}
 	}
 
+	// A persistable and a non-persistable entity may only be associated FROM the
+	// non-persistable one under owner Default — anything else is CE0001
+	// (ako/mxcli#819). The same function judges it in `check`.
+	if v := associationPersistenceViolation(s.Name,
+		ast.QualifiedName{Module: parentModule, Name: s.Parent.Name},
+		ast.QualifiedName{Module: childModule, Name: s.Child.Name},
+		s.Owner == ast.OwnerBoth, projectEntityPersistence(ctx)); v != nil {
+		return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
+	}
+
 	// Convert types
 	assocType := domainmodel.AssociationTypeReference
 	if s.Type == ast.AssocReferenceSet {
@@ -145,6 +155,8 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			childRef := childModule + "." + s.Child.Name
 			for _, ca := range dm.CrossAssociations {
 				if ca.Name == s.Name.Name {
+					// Read before it is overwritten: the TO end may be moving.
+					oldToModule := qualifiedNameModule(ca.ChildRef)
 					ca.Type = assocType
 					ca.Owner = owner
 					if s.Storage != ast.StorageDefault { // as above (#704)
@@ -164,7 +176,14 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					invalidateDomainModelsCache(ctx)
 					ctx.trackModifiedDomainModel(module.ID, module.Name)
 					ctx.ReportMutation("Modified", "association: %s", s.Name)
-					return nil
+					// Under OWNER Both the TO entity holds a member entry, in its own
+					// module. Only the declaring module was reconciled (at the end of
+					// the program), so moving the TO end left the old TO entity's
+					// entry behind and never gave the new one its entry — CE0066 at
+					// both modules; changing the owner alone missed the TO module the
+					// same way (ako/mxcli#819).
+					return reconcileModulesAccess(ctx, "after modifying the association",
+						module.Name, oldToModule, childModule)
 				}
 			}
 		}
@@ -292,6 +311,16 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	dm, err := ctx.Backend.GetDomainModel(module.ID)
 	if err != nil {
 		return mdlerrors.NewBackend("get domain model", err)
+	}
+
+	// `set owner both` across the persistence boundary is CE0001, as on create
+	// (ako/mxcli#819).
+	if s.Operation == ast.AlterAssociationSetOwner && s.Owner == ast.OwnerBoth {
+		if from, to, ok := storedAssociationEnds(ctx, s.Name); ok {
+			if v := associationPersistenceViolation(s.Name, from, to, true, projectEntityPersistence(ctx)); v != nil {
+				return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
+			}
+		}
 	}
 
 	// Try intra-module associations first

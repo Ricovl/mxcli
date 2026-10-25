@@ -212,6 +212,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// answer first; the project, when there is one, for the rest.
 	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
 
+	// An association between a persistable and a non-persistable entity must
+	// start in the non-persistable one and have owner Default — CE0001
+	// (MDL-ASSOC01, ako/mxcli#819). The script's declarations answer first.
+	violations = append(violations, ValidateAssociationPersistence(prog, project)...)
+
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix
 	// rejects those with CE6206 on any page an offline profile can reach, and

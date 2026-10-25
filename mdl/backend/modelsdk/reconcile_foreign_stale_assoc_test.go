@@ -14,8 +14,14 @@
 // left the same entry, and `update security` printed "All entity access rules
 // are up to date" over both. Measured on mxbuild 11.13.0.
 //
-// That case is checkable after all: an association its declaring module no
-// longer declares is a member of nothing.
+// ako/mxcli#819: `create or modify association` moving the TO end to another
+// entity left the old TO entity's entry — mx check CE0066 "Entity access is out
+// of date".
+//
+// Both are checkable after all. An association its declaring module no longer
+// declares is a member of nothing; and an entity whose whole generalization
+// chain lies in its own module can only have a foreign association as the TO
+// end of an `OWNER Both` one, which the reconcile already enumerates.
 package modelsdkbackend
 
 import (
@@ -144,6 +150,40 @@ func entityNamesRef(t *testing.T, b *Backend, mod *model.Module, entity, ref str
 	}
 	t.Fatalf("entity %s not found in %s", entity, mod.Name)
 	return false
+}
+
+// The #819 shape: `create or modify association` points the TO end of an
+// OWNER Both cross-module association at another entity. The old TO entity has
+// no generalization, so every member it can have is known here, and the foreign
+// entry it kept is stale (CE0066).
+func TestReconcile_DropsAForeignAssociationWhoseToEndMoved(t *testing.T) {
+	const ref = "MyFirstModule.ZzNote_Target"
+	b, from, to := targetFixture(t)
+	reconcileModule(t, b, to)
+	if !entityNamesRef(t, b, to, "ZzTarget", ref) {
+		t.Fatalf("precondition: OWNER Both did not give the TO entity the entry")
+	}
+
+	dm, err := b.GetDomainModel(from.ID)
+	if err != nil {
+		t.Fatalf("GetDomainModel: %v", err)
+	}
+	for _, ca := range dm.CrossAssociations {
+		if ca.Name == "ZzNote_Target" {
+			ca.ChildRef = "Administration.Account"
+		}
+	}
+	if err := b.UpdateDomainModel(dm); err != nil {
+		t.Fatalf("UpdateDomainModel: %v", err)
+	}
+
+	reconcileModule(t, b, to)
+	if entityNamesRef(t, b, to, "ZzTarget", ref) {
+		t.Errorf("the old TO entity still names %s after the TO end moved away — CE0066", ref)
+	}
+	if !entityNamesRef(t, b, to, "Account", ref) {
+		t.Errorf("the new TO entity did not get %s", ref)
+	}
 }
 
 // Control: an association declared in another module that this entity INHERITS

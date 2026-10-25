@@ -1,0 +1,81 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#819 — association member access under OWNER Both.
+--
+-- 1. `create or modify association` moving the TO end of a cross-module OWNER
+--    Both association to an entity of another module reconciled only the
+--    declaring module. The old TO entity kept its member entry and the new one
+--    never got one:
+--      before: [CE0066] "Entity access is out of date…" at Domain model of
+--              module 'Access819Shop'; `describe entity Access819Shop.Order`
+--              still shows `read (Number, Lead_Order)` for the Viewer. Run as
+--              its own script after the setup, also CE0066 at 'Access819Hr'
+--              (here the end-of-program reconcile covers Hr, which the grants
+--              touched).
+--      after:  0 errors; "Reconciled … in module Access819Shop after modifying
+--              the association" (and Access819Hr), and the Viewer's rule is
+--              `read (Number)`.
+--    The old TO entity's entry used to survive even `update security`: the
+--    reconcile kept any reference to another module's association on faith.
+--
+-- 2. Between a persistent and a non-persistent entity Mendix allows only FROM
+--    the non-persistent one with owner Default; anything else is CE0001
+--    "An association between a persistable entity and a non-persistable entity
+--    must start in the non-persistable entity and have owner 'Default'."
+--    `mxcli check` and `exec` now refuse it (MDL-ASSOC01). Kept out of this
+--    script so it checks clean — each of these is refused:
+--
+--      create association Access819Shop.Cart_Order
+--        from Access819Shop.Cart to Access819Shop.Order owner both;
+--      create association Access819Shop.Order_Cart
+--        from Access819Shop.Order to Access819Shop.Cart;
+--      alter association Access819Shop.Cart_Customer set owner both;
+--
+-- 3. GRANT already accepts the TO-side member of a cross-module OWNER Both
+--    association by its bare name — `read (Number, Lead_Order)` below.
+--
+-- Access rules are only checked with security on.
+-- ============================================================================
+
+alter app security ( SecurityLevel: prototype );
+
+create module Access819Crm;
+create module role Access819Crm.User;
+create module Access819Shop;
+create module role Access819Shop.User;
+create module role Access819Shop.Viewer;
+create module Access819Hr;
+create module role Access819Hr.User;
+
+@position(100, 100)
+create persistent entity Access819Crm.Lead ( Name: string(200) );
+@position(100, 100)
+create persistent entity Access819Shop.Order ( Number: string(20) );
+@position(400, 100)
+create persistent entity Access819Shop.Customer ( Name: string(200) );
+@position(100, 300)
+create non-persistent entity Access819Shop.Cart ( Label: string(50) );
+@position(100, 100)
+create persistent entity Access819Hr.Employee ( Name: string(200) );
+
+create association Access819Crm.Lead_Order
+  from Access819Crm.Lead to Access819Shop.Order
+  owner both;
+-- The shape Mendix allows across the persistence boundary.
+create association Access819Shop.Cart_Customer
+  from Access819Shop.Cart to Access819Shop.Customer;
+
+grant create, delete, read *, write * on entity Access819Crm.Lead to Access819Crm.User;
+grant create, delete, read *, write * on entity Access819Shop.Order to Access819Shop.User;
+grant read (Number, Lead_Order) on entity Access819Shop.Order to Access819Shop.Viewer;
+grant create, delete, read *, write * on entity Access819Shop.Customer to Access819Shop.User;
+grant create, delete, read *, write * on entity Access819Shop.Cart to Access819Shop.User;
+grant create, delete, read *, write * on entity Access819Hr.Employee to Access819Hr.User;
+
+-- Move the TO end from Access819Shop.Order to Access819Hr.Employee.
+create or modify association Access819Crm.Lead_Order
+  from Access819Crm.Lead to Access819Hr.Employee
+  owner both;
+
+describe entity Access819Shop.Order;
+describe entity Access819Hr.Employee;

@@ -535,6 +535,12 @@ both is refused as **MDL085**.
 - `Parent` - Only parent (TO) entity owns
 - `Child` - Only child (FROM) entity owns
 
+> **Persistent ↔ non-persistent: FROM the non-persistent entity, owner `default`.**
+> That is the only shape Mendix accepts between a persistable and a
+> non-persistable entity; a persistent FROM end or `owner both` is **CE0001**, and
+> `mxcli check` refuses it as **MDL-ASSOC01** (`alter association … set owner
+> both` too).
+
 > **Use `default` ownership for a normal to-one reference.** Reserve `owner both`
 > for a `ReferenceSet` (many-to-many). On a plain `type reference`, `owner both`
 > makes the association navigable **to-one from *both* sides** — so the reverse
