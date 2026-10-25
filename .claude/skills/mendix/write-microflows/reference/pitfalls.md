@@ -362,10 +362,16 @@ the scope checks judge the flow the **whole block** writes:
 
 - a fragment may read a variable an earlier operation of the block declares, when that
   declaration lands upstream of it (an `insert after`/`replace` of a node before it, or
-  an `insert before` the node it replaces or inserts after);
+  an `insert before` the node it replaces or inserts after) — and may `set` it or name
+  its members, since the fragment is built knowing what the earlier operations declare
+  (ako/mxcli#1399). Declare first, use after: a declaration made by a *later*
+  operation of the block is not known to an earlier one's fragment;
 - an activity whose output is taken away is still "used" only by readers the block
-  leaves in place — so a rename (the producer, every reader and the `return`) goes in
-  **one** block:
+  leaves in place, and not by a reader that another operation's fragment declares the
+  variable for upstream of it — so a producer can be moved up the flow (insert it
+  where it goes, drop it where it was; `create or modify` does this for a reordered
+  body), and a rename (the producer, every reader and the `return`) goes in **one**
+  block:
 
 ```mdl
 mdl 1;
