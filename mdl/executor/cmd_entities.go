@@ -2057,6 +2057,16 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 			// Warn about references before deleting (best-effort)
 			warnEntityReferences(ctx, s.Name.String())
 
+			// DeleteEntity removes every association with this entity at either
+			// end, in other modules too, and their member entries stay behind on
+			// the entity at the other end: CE1613 "The selected association …
+			// no longer exists" (ako/mxcli#1449). Which modules hold those rules
+			// has to be read before the delete, while the associations exist.
+			reconcile, err := associationMemberModules(ctx, module.Name, entity)
+			if err != nil {
+				return err
+			}
+
 			// If this is a view entity, also delete the associated ViewEntitySourceDocument
 			if entity.Source == "DomainModels$OqlViewEntitySource" {
 				if err := ctx.Backend.DeleteViewEntitySourceDocumentByName(s.Name.Module, s.Name.Name); err != nil {
@@ -2067,12 +2077,46 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 				return mdlerrors.NewBackend("delete entity", err)
 			}
 			invalidateDomainModelsCache(ctx)
+			if err := reconcileModulesAccess(ctx, "after dropping the entity", reconcile...); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped entity: %s\n", s.Name)
 			return nil
 		}
 	}
 
 	return mdlerrors.NewNotFoundMsg("entity", fmt.Sprint(s.Name), fmt.Sprintf("entity not found: %s", s.Name))
+}
+
+// associationMemberModules names every module whose access rules can hold a
+// member entry for an association with entity (of module moduleName) at one end:
+// the entity's own module, which declares the associations it is the FROM end
+// of; the module of each TO end of those that are cross-module, whose entity is
+// a member under OWNER Both; and every module declaring a cross-module
+// association TO the entity, whose FROM entity holds the entry. The last two are
+// why reconciling the dropped entity's module alone is not enough.
+func associationMemberModules(ctx *ExecContext, moduleName string, entity *domainmodel.Entity) ([]string, error) {
+	modules := []string{moduleName}
+	dms, err := ctx.Backend.ListDomainModels()
+	if err != nil {
+		return nil, mdlerrors.NewBackend("list domain models", err)
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return nil, mdlerrors.NewBackend("build hierarchy", err)
+	}
+	qn := moduleName + "." + entity.Name
+	for _, dm := range dms {
+		for _, ca := range dm.CrossAssociations {
+			switch {
+			case ca.ParentID == entity.ID:
+				modules = append(modules, qualifiedNameModule(ca.ChildRef))
+			case strings.EqualFold(ca.ChildRef, qn):
+				modules = append(modules, h.GetModuleName(dm.ContainerID))
+			}
+		}
+	}
+	return modules, nil
 }
 
 // warnEntityReferences prints a warning if the entity is referenced by other elements.

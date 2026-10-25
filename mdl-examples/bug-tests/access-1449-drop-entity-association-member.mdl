@@ -1,0 +1,62 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1449 (upstream mendixlabs/mxcli#1551) — `drop entity` left the
+-- association's member entry in the access rule of the entity at the OTHER end.
+--
+-- Dropping an entity removes every association with it at either end, in other
+-- modules too, but reconciled no access rule. `drop association` did reconcile
+-- — only the declaring module, though, so a cross-module OWNER Both
+-- association left its TO entity's entry behind as well. And the reconcile
+-- itself kept any reference to another module's association on faith, so even
+-- `update security` printed "All entity access rules are up to date" over it.
+--
+--   mxcli exec this-file -p app.mpr ; mx check app.mpr
+--     before: [CE1613] "The selected association 'Access1449Crm.Lead_Order'
+--             no longer exists." at Access rule of entity 'Access1449Shop.Order'
+--             (with the drops run as their own script, one CE1613 per drop)
+--     after:  0 errors; `describe entity Access1449Shop.Order` still grants
+--             read *, write * and names none of the three associations
+--
+-- Access rules are only checked with security on.
+-- ============================================================================
+
+alter app security ( SecurityLevel: prototype );
+
+create module Access1449Shop;
+create module role Access1449Shop.User;
+create module Access1449Crm;
+create module role Access1449Crm.User;
+
+@position(100, 100)
+create persistent entity Access1449Shop.Customer ( Name: string(200) );
+@position(400, 100)
+create persistent entity Access1449Shop.Order ( Number: string(20) );
+@position(100, 100)
+create persistent entity Access1449Crm.Contact ( Name: string(200) );
+@position(400, 100)
+create persistent entity Access1449Crm.Lead ( Name: string(200) );
+
+-- Same module: the entry is on Order, FROM end.
+create association Access1449Shop.Order_Customer
+  from Access1449Shop.Order to Access1449Shop.Customer;
+-- Cross-module: the entry is on Order, in a module that is not the one of the
+-- entity dropped below.
+create association Access1449Shop.Order_Contact
+  from Access1449Shop.Order to Access1449Crm.Contact;
+-- Cross-module, OWNER Both: a member of the TO end too, so Order carries an
+-- entry for an association its own module does not declare.
+create association Access1449Crm.Lead_Order
+  from Access1449Crm.Lead to Access1449Shop.Order
+  owner both;
+
+grant create, delete, read *, write * on entity Access1449Shop.Customer to Access1449Shop.User;
+grant create, delete, read *, write * on entity Access1449Shop.Order to Access1449Shop.User;
+grant create, delete, read *, write * on entity Access1449Crm.Contact to Access1449Crm.User;
+grant create, delete, read *, write * on entity Access1449Crm.Lead to Access1449Crm.User;
+
+-- Each drop removes one association that Access1449Shop.Order's rule names.
+drop entity Access1449Shop.Customer;
+drop entity Access1449Crm.Contact;
+drop entity Access1449Crm.Lead;
+
+describe entity Access1449Shop.Order;
