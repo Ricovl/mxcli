@@ -606,6 +606,7 @@ func init() {
 		Keywords: []string{
 			"alter microflow", "alter nanoflow", "insert after", "insert before",
 			"replace", "drop activity", "patch microflow", "splice", "handle",
+			"existing note", "attach stored note",
 		},
 		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
 			"  INSERT AFTER|BEFORE <target> BEGIN <statements> END;\n" +
@@ -625,14 +626,28 @@ func init() {
 			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
 			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.\n" +
 			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
-			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.",
-		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.\n" +
+			"-- A fragment statement joins a note ALREADY in the flow with\n" +
+			"--   @annotation(existing: 'the note''s text')\n" +
+			"-- named by its text exactly as describe prints it. The note keeps its $ID, text and\n" +
+			"-- place; a text that no note reads, or that several notes read, is refused (the\n" +
+			"-- refusal lists them). `existing:` stands alone and never creates a note — a note of\n" +
+			"-- the statement's own is `@annotation 'text'`. The `id:` labels describe prints are\n" +
+			"-- not stored, so a fragment cannot name a stored note by one (ako/mxcli#1695).",
+		Example: "mdl 1;\nalter microflow FeedbackModule.VAL_Feedback {\n" +
 			"  insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;\n" +
 			"  replace set $ValidFeedback = false @3 with begin\n" +
 			"    set $ValidFeedback = false;\n" +
 			"    log warning node 'Feedback' 'Email rejected';\n" +
 			"  end;\n" +
 			"  drop log debug node 'Feedback' *;\n" +
+			"};\n\n" +
+			"-- The new statement joins the note the flow already has.\n" +
+			"alter microflow Shop.ACT_ProcessOrder {\n" +
+			"  insert after $Order begin\n" +
+			"    @annotation(existing: 'Validates the order')\n" +
+			"    log info node 'Shop' 'order validated';\n" +
+			"  end;\n" +
 			"};",
 		SeeAlso: []string{"microflow"},
 	})
@@ -852,7 +867,9 @@ func init() {
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +
-			"@annotation(id: n1)                   -- attaches THAT note to another activity\n\n" +
+			"@annotation(id: n1)                   -- attaches THAT note to another activity\n" +
+			"@annotation(existing: 'note text')    -- ALTER fragments only: attaches the stored note\n" +
+			"                                      -- with that text (it must be the only one)\n\n" +
 			"An @anchor never reaches the far end of its own outgoing flow: that end is\n" +
 			"the NEXT statement's `to:`. A straight vertical edge from A down to B is\n" +
 			"@anchor(from: bottom) on A and @anchor(to: top) on B; `to: top` on A alone\n" +
@@ -916,6 +933,13 @@ func init() {
 			"is scoped to the flow being authored and is not stored in the model —\n" +
 			"DESCRIBE re-derives labels, and emits one only for a note that really is\n" +
 			"shared. Two notes with identical text and no id stay two notes.\n\n" +
+			"An ALTER fragment is built alone, so it cannot see those labels; it names a\n" +
+			"note already stored in the flow by its text: @annotation(existing: '…'). The\n" +
+			"text must be the text of exactly one note of the flow (CRLF and LF line\n" +
+			"breaks match), or the statement is refused, listing the candidates. The note\n" +
+			"keeps its $ID, text and place, so `existing:` takes no id:, text:, position:\n" +
+			"or size:, and a statement that states the whole flow refuses it. DESCRIBE\n" +
+			"never prints it: a whole flow declares its notes. (ako/mxcli#1695)\n\n" +
 			"position:/size: are the note's own geometry, omitted whenever they match\n" +
 			"what a rewrite re-derives (100px above the activity, stacked 60px per extra\n" +
 			"note, 200x50), so an ordinary note keeps the short form. (#1077)",

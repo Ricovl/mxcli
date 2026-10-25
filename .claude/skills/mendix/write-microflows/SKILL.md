@@ -26,7 +26,7 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 579-595 | Validation Checklist |
 | 596-607 | Tips for Success |
 | 608-614 | Related Documentation |
-| 615-727 | Quick Reference |
+| 615-734 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -672,6 +672,13 @@ above the activity at 200×50 (60px per extra), and DESCRIBE omits it again.
 **An `@annotation` before a statement's `@position`/`@caption`/`@color`/`@anchor`
 is a free note**, attached to nothing (where DESCRIBE prints one): put an
 activity's own notes after them.
+
+**In an `alter microflow` fragment, a note already in the flow is named by its
+text**: `@annotation(existing: 'Validates the order')` attaches the stored note to
+the new statement — it never creates one, and the text must match exactly one note
+or the statement is refused, listing the candidates. The `id:` labels describe
+prints are not stored, so a fragment cannot use them
+([pitfalls §14](reference/pitfalls.md#14-attaching-an-inserted-statement-to-a-note-the-flow-already-has)).
 
 ### Page Navigation Pattern
 ```mdl

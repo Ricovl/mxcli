@@ -328,8 +328,11 @@ func extractMicroflowAnnotations(annotations []parser.IAnnotationContext) *ast.A
 			if ok {
 				// Free-floating only when nothing has claimed this statement
 				// yet AND an activity annotation follows: the note belongs to
-				// the canvas, not to the statement below it.
-				if !seenActivityMetadata && hasLaterActivityAnnotation(annotations, i+1) {
+				// the canvas, not to the statement below it. A stored note
+				// named by `existing:` is on the canvas already, so the only
+				// thing the mention can mean is "attach it to this statement"
+				// (ako/mxcli#1695).
+				if note.Existing == "" && !seenActivityMetadata && hasLaterActivityAnnotation(annotations, i+1) {
 					result.FreeNotes = append(result.FreeNotes, note)
 				} else {
 					result.Notes = append(result.Notes, note)
@@ -461,6 +464,16 @@ func parseNoteAnnotation(ann *parser.AnnotationContext, result *ast.ActivityAnno
 			if note.Text == "" {
 				result.InvalidNotes = append(result.InvalidNotes, strings.TrimSpace(pCtx.GetText()))
 			}
+		case "existing":
+			// The text of a note already stored in the flow (ako/mxcli#1695).
+			// A key of its own, not `text:`, so a note that is attached can
+			// never be read as one that is created.
+			if v := pCtx.AnnotationValue(); v != nil {
+				note.Existing = extractAnnotationValueString(v)
+			}
+			if note.Existing == "" {
+				result.InvalidNotes = append(result.InvalidNotes, strings.TrimSpace(pCtx.GetText()))
+			}
 		case "position":
 			pt, ok := annotationPointValue(pCtx)
 			if !ok {
@@ -480,8 +493,9 @@ func parseNoteAnnotation(ann *parser.AnnotationContext, result *ast.ActivityAnno
 		}
 	}
 
-	// A note needs either text (a declaration) or a label (a reference to one).
-	if note.Text == "" && note.Label == "" {
+	// A note needs text (a declaration), a label (a reference to one declared
+	// in the script) or a stored note's text (a reference to one in the flow).
+	if note.Text == "" && note.Label == "" && note.Existing == "" {
 		result.InvalidNotes = append(result.InvalidNotes, strings.TrimSpace(ann.GetText()))
 		return note, false
 	}

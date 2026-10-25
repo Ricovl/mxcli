@@ -398,6 +398,46 @@ it back. Either:
 
 A headerless (mdl 0) script still moves the row along, as it always did.
 
+### 14. Attaching an Inserted Statement to a Note the Flow Already Has
+
+A fragment of `alter microflow … insert|replace` is built on its own, so it cannot see
+the `id:` labels `describe` prints — and those are re-derived on every describe and
+stored nowhere, so a saved one could name a different note next time. Name the stored
+note by its **text**, exactly as `describe` prints it (ako/mxcli#1695):
+
+❌ **REFUSED** — "refers to a note that has not been declared above it":
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_Process {
+  insert after log node 'App' 'start' begin
+    @annotation(id: n1)
+    log info node 'App' 'middle';
+  end;
+};
+```
+
+✅ **CORRECT** — the new activity joins the note; the note keeps its `$ID`, text and place:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_Process {
+  insert after log node 'App' 'start' begin
+    @annotation(existing: 'Validates the order')
+    log info node 'App' 'middle';
+  end;
+};
+```
+
+- The text must be the text of **exactly one** note of the flow. None, or several, is
+  refused by `check` and `exec` alike, and the refusal lists the flow's notes (with where
+  each is drawn and what it is attached to). Two notes with the same text cannot be told
+  apart by text: reword one first.
+- `existing:` stands alone. Beside `text:`, `id:`, `position:` or `size:` it is refused
+  (MDL079) — `@annotation 'text'` is how a statement gets a note of its own.
+- Only an alter fragment takes it: `create`/`create or modify` state the whole flow and
+  declare every note, so `existing:` there is refused (MDL079). `describe` never prints it.
+- Re-running the alter inserts the statement again, as any `insert` does; the note is
+  attached to both.
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:

@@ -55,6 +55,9 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 // and check reports the error exec would (ako/mxcli#876).
 func (a *alterFlowContext) plan(ctx *ExecContext) (backend.MicroflowMutator, error) {
 	s := a.stmt
+	if err := a.resolveStoredNotes(); err != nil {
+		return nil, err
+	}
 	targets := make([]mfmutator.Candidate, len(s.Operations))
 	for i, op := range s.Operations {
 		c, err := mfmutator.ResolveText(a.cands, op.Target)
@@ -167,6 +170,9 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		if err != nil {
 			return fail(err)
 		}
+		// Lines from stored notes are drawn once the fragment is in place
+		// (ako/mxcli#1695).
+		noteLines := a.takeStoredNoteLines(frag)
 		if op.Op == ast.AlterFlowReplace {
 			// An activity with a custom error handler, replaced by one that
 			// states the same handler, keeps the stored one (mendixlabs/mxcli#1489).
@@ -214,6 +220,9 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			err = mut.Replace(target.ID, frag)
 		default:
 			err = fmt.Errorf("unknown operation")
+		}
+		if err == nil {
+			err = linkStoredNotes(mut, noteLines)
 		}
 		if err != nil {
 			return fail(err)
@@ -275,6 +284,12 @@ type alterFlowContext struct {
 	// read once when an operation needs the stored statement behind a target
 	// (storedStatementAt).
 	storedDesc ast.Statement
+
+	// storedNotes are the stored notes the statement's `@annotation(existing:
+	// '…')` name, by text, once resolveStoredNotes has found exactly one for
+	// each (ako/mxcli#1695). nil until then — and for the patch of a `create or
+	// modify`, which states its notes and has none to resolve.
+	storedNotes map[string]*microflows.Annotation
 }
 
 // enclosingLoop returns the top-level loop whose body holds the stored
@@ -668,6 +683,7 @@ func (a *alterFlowContext) fragmentBuilder(ctx *ExecContext) *flowBuilder {
 		restServices: restServices,
 		isNanoflow:   a.stmt.Nanoflow,
 		scriptFlows:  ctx.scriptFlows,
+		storedNotes:  a.storedNotes,
 
 		// A fragment is spliced into a stored flow: a member it cannot
 		// qualify is refused, never written bare (ako/mxcli#885).
