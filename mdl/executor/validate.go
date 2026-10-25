@@ -1023,6 +1023,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
 		}
+	case *ast.CreateJavaActionStmt:
+		// The signature's bare Module.Name types, which exec resolves and
+		// refuses (ako/mxcli#935).
+		if errs := codeActionSignatureErrors(ctx, sc, "java action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("java action", s.Name.String(), nil, errs)
+		}
+	case *ast.CreateJavaScriptActionStmt:
+		if errs := codeActionSignatureErrors(ctx, sc, "javascript action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("javascript action", s.Name.String(), nil, errs)
+		}
 	case *ast.CreatePublishedRestServiceStmt:
 		return validatePublishedRestAuthMicroflow(ctx, s.Authentication, sc)
 	case *ast.AlterPublishedRestServiceStmt:

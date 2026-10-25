@@ -484,6 +484,13 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		return mdlerrors.NewNotFound("module", s.Name.Module)
 	}
 
+	// Decide what each bare Module.Name in the signature is — an entity or an
+	// enumeration — before anything is written (ako/mxcli#935).
+	params, returnType, err := settleCodeActionSignature(ctx, "java action "+s.Name.String(), s.Parameters, s.ReturnType)
+	if err != nil {
+		return err
+	}
+
 	// Check if Java action already exists
 	jas, err := ctx.Backend.ListJavaActions()
 	if err != nil {
@@ -598,7 +605,7 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	// - TypeEntityTypeParam → EntityTypeParameterType (entity type selector)
 	// - Bare name matching a type parameter → TypeParameter (ParameterizedEntityType)
 	// - Other types → convert normally
-	for _, param := range s.Parameters {
+	for _, param := range params {
 		jaParam := &javaactions.JavaActionParameter{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
@@ -640,17 +647,17 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	}
 
 	// Convert return type — check if it references a type parameter
-	if isTypeParamRef(s.ReturnType, typeParamNames) {
-		tpName := getTypeParamRefName(s.ReturnType)
+	if isTypeParamRef(returnType, typeParamNames) {
+		tpName := getTypeParamRefName(returnType)
 		ja.ReturnType = &javaactions.TypeParameter{
 			BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
-	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+	} else if l := listOfTypeParameter(returnType, typeParamNameToID); l != nil {
 		ja.ReturnType = l
 	} else {
-		ja.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
+		ja.ReturnType = astDataTypeToJavaActionReturnType(returnType)
 	}
 
 	// Fold the EXPOSED AS clause onto the stored toolbox entry rather than
@@ -746,8 +753,9 @@ func astDataTypeToJavaActionParamType(dt ast.DataType) javaactions.CodeActionPar
 		// An unambiguous `ENUM`/`Enumeration(...)` type must serialize as an
 		// enumeration parameter, not an entity reference (#680). A bare
 		// qualified name (ExplicitEnum=false) can't be told apart from an entity
-		// by the parser, so it stays an entity type here — callers that have the
-		// project loaded resolve it via resolveCodeActionParamType.
+		// by the parser, so it stays an entity type here: the create handlers
+		// settle it against the project first (settleCodeActionSignature,
+		// ako/mxcli#935), which retypes an enumeration as an explicit one.
 		if dt.Kind == ast.TypeEnumeration && dt.ExplicitEnum && dt.EnumRef != nil {
 			return &javaactions.EnumerationType{
 				BaseElement: model.BaseElement{
@@ -873,7 +881,8 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 	case ast.TypeEntity, ast.TypeEnumeration:
 		// An unambiguous `ENUM`/`Enumeration(...)` return type serializes as an
 		// enumeration, not an entity reference (#680). A bare qualified name
-		// can't be told apart from an entity, so it stays an entity type.
+		// can't be told apart from an entity, so it stays an entity type; the
+		// create handlers settle it first (settleCodeActionSignature).
 		// "void" parses as a bare qualified name; treat it as VoidType.
 		if dt.Kind == ast.TypeEnumeration && dt.ExplicitEnum && dt.EnumRef != nil {
 			return &javaactions.EnumerationType{
