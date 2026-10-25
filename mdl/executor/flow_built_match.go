@@ -316,7 +316,7 @@ var expressionFields = map[reflect.Type]map[string]bool{
 	reflect.TypeOf(microflows.NanoflowCallParameterMapping{}):            {"Argument": true},
 	reflect.TypeOf(microflows.BasicCodeActionParameterValue{}):           {"Argument": true},
 	reflect.TypeOf(microflows.ExpressionBasedCodeActionParameterValue{}): {"Expression": true},
-	reflect.TypeOf(microflows.TypedTemplate{}):                           {"Arguments": true},
+	reflect.TypeOf(microflows.TypedTemplateArgument{}):                   {"Expression": true},
 	reflect.TypeOf(microflows.ShowMessageAction{}):                       {"TemplateParameters": true},
 	reflect.TypeOf(microflows.ValidationFeedbackAction{}):                {"TemplateParameters": true},
 	reflect.TypeOf(microflows.LogMessageAction{}):                        {"TemplateParameters": true},

@@ -812,12 +812,37 @@ type StringTemplateParameterValue struct {
 
 func (StringTemplateParameterValue) isCodeActionParameterValue() {}
 
-// TypedTemplate represents a typed template with arguments.
+// TypedTemplate represents a typed template with arguments: the value of a
+// Java action parameter of type StringTemplate (Text or Sql). Text holds {1},
+// {2}, … placeholders, one argument per placeholder.
 type TypedTemplate struct {
 	model.BaseElement
-	Arguments []string `json:"arguments,omitempty"`
-	Text      string   `json:"text,omitempty"`
+	Arguments []*TypedTemplateArgument `json:"arguments,omitempty"`
+	Text      string                   `json:"text,omitempty"`
 }
+
+// TypedTemplateArgument is one {n} argument of a TypedTemplate
+// (Microflows$PrimitiveTypedTemplateArgument): an expression and the type of
+// its result, one of String, Integer, Decimal, Boolean, DateTime. mxbuild
+// checks the expression against Type (CE0117 on a mismatch, and an absent Type
+// reads as String); the runtime hands Type to the Java action with the value
+// (ITemplateParameter.getParameterType).
+type TypedTemplateArgument struct {
+	model.BaseElement
+	Expression string `json:"expression,omitempty"`
+	Type       string `json:"type,omitempty"`
+}
+
+// CustomBlobDocumentCodeActionParameterValue is the document passed to a Java
+// action parameter of a custom document type (CodeActions$
+// CustomBlobDocumentParameterType, e.g. an agent-editor Agent): a by-name
+// reference to the document, never an expression.
+type CustomBlobDocumentCodeActionParameterValue struct {
+	model.BaseElement
+	CustomDocument string `json:"customDocument,omitempty"` // BY_NAME_REFERENCE: qualified document name
+}
+
+func (CustomBlobDocumentCodeActionParameterValue) isCodeActionParameterValue() {}
 
 // ExpressionBasedCodeActionParameterValue is an expression-based parameter value.
 type ExpressionBasedCodeActionParameterValue struct {

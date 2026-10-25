@@ -754,8 +754,13 @@ callArgumentList
 // which writes no mapping at all. Only call microflow / call nanoflow take it
 // (the visitor refuses it elsewhere). NOTHING is listed before expression so
 // the keyword wins over reading `nothing` as a name.
+//
+// `Param = 'Order {1} shipped' with ({1} = $Order/Number)` fills a Java
+// action's text-template parameter (StringTemplate(Text|Sql)) — the `with`
+// form of log and show message. Only call java action takes it (the visitor
+// refuses it elsewhere; ako/mxcli#1451).
 callArgument
-    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS (NOTHING | expression)
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS (NOTHING | expression templateParams?)
     | parameterName COLON /* @alias MDL-DEPR007 */ expression
     | expression                                  // positional: refused by the visitor
     ;

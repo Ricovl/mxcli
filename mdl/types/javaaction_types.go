@@ -204,6 +204,23 @@ func (s StringTemplateParameterType) TypeString() string {
 	return "StringTemplate"
 }
 
+// CustomBlobDocumentType is a parameter whose value is a document of a custom
+// (extension-defined) document type — CodeActions$CustomBlobDocumentParameterType,
+// e.g. AgentEditorCommons' `Agent` parameter, of type "agenteditor.agent". A
+// call passes the document by name, never an expression. Read as a String, it
+// described as `String` and a call bound it as an expression (CE0115,
+// ako/mxcli#1451).
+type CustomBlobDocumentType struct {
+	model.BaseElement
+	DocumentType string `json:"documentType,omitempty"` // CustomDocumentTypeName, e.g. "agenteditor.agent"
+	ReadableName string `json:"readableName,omitempty"` // CustomDocumentReadableTypeName, e.g. "Agent"
+}
+
+func (CustomBlobDocumentType) isCodeActionParameterType() {}
+func (c CustomBlobDocumentType) TypeString() string {
+	return "Document(" + c.DocumentType + ")"
+}
+
 // FileDocumentType represents a file document type.
 type FileDocumentType struct {
 	model.BaseElement

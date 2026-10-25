@@ -1,0 +1,17 @@
+-- Negative test (ako/mxcli#1451): a `call java action` argument written as an
+-- expression and followed by `with (…)` must be REFUSED (MDL-JA02).
+--
+-- `with (…)` fills the {n} placeholders of a text-template parameter's text,
+-- written as a string. An expression is not a template — it is stored as the
+-- template '{1}' with the expression as its argument — so there is nothing
+-- left to fill; and a parameter that is not a text template takes no `with`
+-- at all. See java-action-1451-template-parameter.mdl for the forms that work.
+
+mdl 1;
+
+create module BugTest1451Fail;
+
+create microflow BugTest1451Fail.MF_Notify ($Number: String)
+begin
+  call java action BugTest1451Fail.JA_Notify(Subject = $Number with ({1} = $Number));
+end;

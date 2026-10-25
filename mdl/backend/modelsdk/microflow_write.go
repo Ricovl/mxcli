@@ -77,6 +77,7 @@ func init() {
 	codec.RegisterTypeDefaults("Microflows$TypedTemplate", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"Arguments": 2},
 	})
+	codec.RegisterListMarker("Microflows$PrimitiveTypedTemplateArgument", 2)
 	// EXECUTE DATABASE QUERY action: both mapping lists empty as marker 2; their
 	// child mapping $Types use marker 2 too.
 	codec.RegisterListMarker("DatabaseConnector$ConnectionParameterMapping", 2)
@@ -1100,13 +1101,33 @@ func exportXmlActionToGen(a *microflows.ExportXmlAction) element.Element {
 func codeActionParameterValueToGen(v microflows.CodeActionParameterValue) element.Element {
 	switch val := v.(type) {
 	case *microflows.StringTemplateParameterValue:
+		// A text-template (or SQL-template) Java action parameter: the text with
+		// {n} placeholders plus one PrimitiveTypedTemplateArgument per
+		// placeholder, each an expression and its result type
+		// (ako/mxcli#1451; shape from the metamodel, accepted by mxbuild 11.13).
 		g := newElem("Microflows$StringTemplateParameterValue", string(val.ID))
 		if val.TypedTemplate != nil {
 			tt := newElem("Microflows$TypedTemplate", string(val.TypedTemplate.ID))
-			addPartList(tt, "Arguments", nil) // empty (marker 2, registered in init)
+			var args []element.Element
+			for _, a := range val.TypedTemplate.Arguments {
+				if a == nil {
+					continue
+				}
+				ae := newElem("Microflows$PrimitiveTypedTemplateArgument", string(a.ID))
+				addStr(ae, "Expression", a.Expression)
+				addStr(ae, "Type", a.Type)
+				args = append(args, ae)
+			}
+			addPartList(tt, "Arguments", args) // marker 2, registered in init
 			addStr(tt, "Text", val.TypedTemplate.Text)
 			addPart(g, "TypedTemplate", tt)
 		}
+		return g
+	case *microflows.CustomBlobDocumentCodeActionParameterValue:
+		// A document of a custom type (an agent-editor Agent), by name
+		// (ako/mxcli#1451).
+		g := newElem("Microflows$CustomBlobDocumentCodeActionParameterValue", string(val.ID))
+		addStr(g, "CustomDocument", val.CustomDocument)
 		return g
 	case *microflows.ExpressionBasedCodeActionParameterValue:
 		g := newElem("Microflows$ExpressionBasedCodeActionParameterValue", string(val.ID))

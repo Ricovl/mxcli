@@ -15,8 +15,8 @@ description: "Define event-driven APIs over Kafka with Mendix business event ser
 | 102-117 | Message Definition Syntax |
 | 118-125 | Service Properties |
 | 126-132 | Operations |
-| 133-169 | Publishing Events from Microflows |
-| 170-182 | Checklist |
+| 133-179 | Publishing Events from Microflows |
+| 180-192 | Checklist |
 
 <!-- /skill-index -->
 # Business Events
@@ -143,9 +143,19 @@ create microflow Module.ACT_PublishCustomerChanged
 begin
   $event = create Module.PBE_CustomerChangedEvent (CustomerId = $CustomerId);
   commit $event;
-  call java action BusinessEvents.PublishBusinessEvent_V2(EventObject = $event);
+  call java action BusinessEvents.PublishBusinessEvent_V2(
+    Subject = 'Customer {1} changed' with ({1} = $CustomerId),
+    BusinessEvent = $event
+  );
 end;
 ```
+
+`PublishBusinessEvent_V2` takes two parameters: `Subject`, a **text template**
+(`StringTemplate(Text)`), and `BusinessEvent`, the event object. `Subject` is
+written like a log message — a string, or `'… {1} …' with ({1} = …)`; each
+argument must be a String, Integer, Decimal, Boolean or DateTime value (wrap an
+enumeration in `getCaption(…)`). `describe java action` shows the parameters of
+any action before you call it.
 
 ### Available Java Actions (from BusinessEvents module)
 
@@ -164,7 +174,7 @@ end;
 2. Create entities prefixed with `PBE_` that **extend `BusinessEvents.PublishedBusinessEvent`**
 3. Entity attributes must **exactly match** the message attributes (no extra attributes on the entity)
 4. In microflows, create an instance of the event entity, populate its attributes, commit it
-5. Call `BusinessEvents.PublishBusinessEvent_V2` passing the entity instance
+5. Call `BusinessEvents.PublishBusinessEvent_V2` with a `Subject` template and the entity instance as `BusinessEvent`
 6. For subscribe operations, link a handler microflow in the service definition
 
 ## Checklist
