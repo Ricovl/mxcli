@@ -89,7 +89,13 @@ func execMove(ctx *ExecContext, s *ast.MoveStmt) error {
 			return err
 		}
 	case ast.DocumentTypeEnumeration:
-		return moveEnumeration(ctx, s.Name, targetContainerID, targetModule.Name)
+		// Not a return: an enumeration's cross-module move needs the reference
+		// sweep below like any other document's. Returning here left every
+		// reference outside the domain models — parameter and variable types,
+		// enumeration values — naming the old module (CE1613, ako/mxcli#1674).
+		if err := moveEnumeration(ctx, s.Name, targetContainerID, targetModule.Name); err != nil {
+			return err
+		}
 	case ast.DocumentTypeConstant:
 		if err := moveConstant(ctx, s.Name, targetContainerID); err != nil {
 			return err
