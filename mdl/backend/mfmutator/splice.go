@@ -457,6 +457,9 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	if err != nil {
 		return err
 	}
+	if isDecision(x) {
+		return m.replaceDecision(g, x, frag)
+	}
 	if _, errs := g.outgoing(x.id); len(errs) > 0 && x.typ == "Microflows$ActionActivity" {
 		return m.replaceKeepingHandler(g, x, frag)
 	}
@@ -1145,6 +1148,9 @@ func (m *Mutator) Drop(target model.ID) error {
 	if x.loop != "" {
 		return m.dropInLoop(g, x)
 	}
+	if isDecision(x) {
+		return m.dropDecision(g, x)
+	}
 	out, err := removable(g, x, "drop")
 	if err != nil {
 		return err
@@ -1296,8 +1302,8 @@ func removable(g *graph, x *node, verb string) (flowRef, error) {
 	switch x.typ {
 	case "Microflows$ActionActivity", "Microflows$LoopedActivity":
 	default:
-		return flowRef{}, fmt.Errorf("cannot %s %s: only an activity or a loop can be, because a decision or an end event "+
-			"changes the shape of the flow", verb, describeNode(x))
+		return flowRef{}, fmt.Errorf("cannot %s %s: only an activity, a loop or a decision of the shape `alter … insert` "+
+			"puts in can be, because an end event or a merge is where the flow's paths end or meet", verb, describeNode(x))
 	}
 	normal, errs := g.outgoing(x.id)
 	if len(errs) > 0 {
@@ -1835,6 +1841,12 @@ func (m *Mutator) ReplaceLoopBody(target model.ID, frag *backend.MicroflowFragme
 		}
 	}
 	return nil
+}
+
+// isDecision reports whether n is a split: a decision on a condition or by
+// type.
+func isDecision(n *node) bool {
+	return n.typ == "Microflows$ExclusiveSplit" || n.typ == "Microflows$InheritanceSplit"
 }
 
 // InLoopBody reports whether the stored object id is inside a loop body.

@@ -119,17 +119,27 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 		}
+		// A decision taken out takes the activities on its paths with it
+		// (ako/mxcli#1694): their outputs are judged like the target's.
+		takenOut := []mfmutator.Candidate{target}
+		if (op.Op == ast.AlterFlowDrop || op.Op == ast.AlterFlowReplace) && !op.SetCondition && !op.SetNotes {
+			takenOut = append(takenOut, a.candidatesOf(mut.DecisionNodes(target.ID))...)
+		}
 		if op.Op == ast.AlterFlowDrop {
-			outputChecks = append(outputChecks, func() error {
-				if err := a.checkOutputUnused(target, nil); err != nil {
-					return fail(err)
-				}
-				return nil
-			})
+			for _, c := range takenOut {
+				outputChecks = append(outputChecks, func() error {
+					if err := a.checkOutputUnused(c, nil); err != nil {
+						return fail(err)
+					}
+					return nil
+				})
+			}
 			if err := mut.Drop(target.ID); err != nil {
 				return fail(err)
 			}
-			a.noteRemoved(target, nil)
+			for _, c := range takenOut {
+				a.noteRemoved(c, nil)
+			}
 			continue
 		}
 		if op.SetNotes {
@@ -210,12 +220,14 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			err = mut.InsertBefore(target.ID, frag)
 		case ast.AlterFlowReplace:
 			replacement := frag
-			outputChecks = append(outputChecks, func() error {
-				if err := a.checkOutputUnused(target, replacement); err != nil {
-					return fail(err)
-				}
-				return nil
-			})
+			for _, c := range takenOut {
+				outputChecks = append(outputChecks, func() error {
+					if err := a.checkOutputUnused(c, replacement); err != nil {
+						return fail(err)
+					}
+					return nil
+				})
+			}
 			err = mut.Replace(target.ID, frag)
 		default:
 			err = fmt.Errorf("unknown operation")
@@ -224,7 +236,9 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			return fail(err)
 		}
 		if op.Op == ast.AlterFlowReplace {
-			a.noteRemoved(target, frag)
+			for _, c := range takenOut {
+				a.noteRemoved(c, frag)
+			}
 		}
 		a.noteFragment(ctx, op, target, frag, vars)
 	}
@@ -280,6 +294,21 @@ type alterFlowContext struct {
 	// read once when an operation needs the stored statement behind a target
 	// (storedStatementAt).
 	storedDesc ast.Statement
+}
+
+// candidatesOf returns the stored candidates with the given $IDs.
+func (a *alterFlowContext) candidatesOf(ids []model.ID) []mfmutator.Candidate {
+	want := map[model.ID]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []mfmutator.Candidate
+	for _, c := range a.cands {
+		if want[c.ID] {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // inLoopRefusal returns, for a target inside a loop body, the refusal of an

@@ -1,0 +1,105 @@
+-- ============================================================================
+-- ako/mxcli#1694 (mendixlabs/mxcli#1517) — take out a decision of the shape
+-- `alter … insert` puts in
+-- ============================================================================
+--
+-- After another script spliced a decision into a microflow
+-- (`alter microflow … insert after $X begin if … end if; end`), re-running
+-- the script that created the flow means taking that decision out again. It
+-- was refused, and so were `alter … drop` and `alter … replace` of it:
+--
+--   cannot drop the ExclusiveSplit '…' at (…): only an activity or a loop can
+--   be, because a decision or an end event changes the shape of the flow
+--
+-- The splice now takes out exactly the shape `alter … insert` produces — two
+-- paths of plain activities, or none, that rejoin at one merge — joining the
+-- flow into the decision to the node after its merge; every other element
+-- keeps its element ID. Any other decision (a path that returns or raises an
+-- error, a nested decision or loop on a path, an activity with an error
+-- handler, a path from elsewhere joining it) is still refused, saying which.
+--
+-- To reproduce: exec this file against any project. Expected:
+--   Created microflow: BugTest1694.Decide            (first run)
+--   Altered microflow BugTest1694.Decide
+--   Modified microflow: BugTest1694.Decide (spliced: 1 dropped)
+--   Altered microflow BugTest1694.Decide             (insert again)
+--   Altered microflow BugTest1694.Decide             (drop)
+--   Altered microflow BugTest1694.Decide             (insert again)
+--   Altered microflow BugTest1694.Decide             (replace)
+--   Modified microflow: BugTest1694.Decide (spliced: 1 dropped)
+-- Before the fix exec stopped at the first re-run of the create: "this
+-- change cannot be spliced into the stored flow: … cannot drop the
+-- ExclusiveSplit …". mx check: 0 errors. The file can be run again.
+
+mdl 1;
+
+create module BugTest1694;
+
+create or modify persistent entity BugTest1694.Item (
+  Name: String(100),
+  Count: Integer
+);
+
+drop microflow if exists BugTest1694.Decide;
+
+create microflow BugTest1694.Decide ($Item: BugTest1694.Item)
+begin
+  log info node 'BugTest1694' 'start';
+  change $Item (Count = 1);
+  log info node 'BugTest1694' 'done';
+end;
+
+-- Another script splices a decision in.
+alter microflow BugTest1694.Decide {
+  insert after log node 'BugTest1694' 'start' begin
+    if $Item/Count > 10 then
+      log info node 'BugTest1694' 'big';
+    else
+      log info node 'BugTest1694' 'small';
+    end if;
+  end;
+};
+
+-- The original script, run again: the decision is taken out.
+create or modify microflow BugTest1694.Decide ($Item: BugTest1694.Item)
+begin
+  log info node 'BugTest1694' 'start';
+  change $Item (Count = 1);
+  log info node 'BugTest1694' 'done';
+end;
+
+-- The same decision, taken out by alter: drop …
+alter microflow BugTest1694.Decide {
+  insert after log node 'BugTest1694' 'start' begin
+    if $Item/Count > 10 then
+      log info node 'BugTest1694' 'big';
+    end if;
+  end;
+};
+
+alter microflow BugTest1694.Decide {
+  drop '$Item/Count > 10';
+};
+
+-- … and replace, addressed by its caption.
+alter microflow BugTest1694.Decide {
+  insert after log node 'BugTest1694' 'start' begin
+    if $Item/Count > 10 then
+      log info node 'BugTest1694' 'big';
+    end if;
+  end;
+};
+
+alter microflow BugTest1694.Decide {
+  replace '$Item/Count > 10' with begin
+    log info node 'BugTest1694' 'no decision';
+  end;
+};
+
+-- The original script once more: the replacement is dropped.
+create or modify microflow BugTest1694.Decide ($Item: BugTest1694.Item)
+begin
+  log info node 'BugTest1694' 'start';
+  change $Item (Count = 1);
+  log info node 'BugTest1694' 'done';
+end;

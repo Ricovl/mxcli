@@ -405,6 +405,31 @@ it back. Either:
 
 A headerless (mdl 0) script still moves the row along, as it always did.
 
+### 14. Taking Out a Decision Another Script Put In
+
+A decision spliced in by `alter microflow … insert` — `if … then … [else …] end if` whose
+paths hold plain activities (or nothing) and rejoin at one merge — is taken out whole
+(ako/mxcli#1694): re-running the script that created the flow drops it, and so does
+`alter … drop` or `alter … replace` addressed by its handle (its caption, e.g.
+`'$Order/Total > 100'`). The flow into the decision is joined to the node after its
+merge; the decision, the activities on its paths (and notes on them) and the merge go,
+and every other element keeps its `$ID`. A variable a path declares that the rest of
+the flow still reads is refused like any dropped producer.
+
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_Order {
+  drop '$Order/Total > 100';
+};
+```
+
+Any other decision is refused, by `check` and `exec` alike, naming the part of the
+shape that is out of reach — "its true path ends in a return", "its false path holds a
+decision", "… on its true path has an error handler", "3 flows join at its merge", "it
+has 3 paths". Those change where the flow's paths end or meet; rebuild the flow
+deliberately (drop the microflow and create it in the same script) or edit it in Studio
+Pro. Inside a loop body a decision is the loop's to replace (§11).
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:

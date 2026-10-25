@@ -49,7 +49,9 @@ type MicroflowMutator interface {
 	InsertBefore(target model.ID, frag *MicroflowFragment) error
 	// Replace puts frag in target's place and removes target.
 	Replace(target model.ID, frag *MicroflowFragment) error
-	// Drop removes target and joins its incoming flows to its successor.
+	// Drop removes target and joins its incoming flows to its successor. A
+	// decision of the shape `alter … insert` produces goes with its paths and
+	// its merge (ako/mxcli#1694); any other decision is refused.
 	Drop(target model.ID) error
 	// ReplaceLoopBody replaces everything inside the loop target by the body
 	// of the one loop frag holds — the loop restated with its new body, as the
@@ -58,6 +60,12 @@ type MicroflowMutator interface {
 	// box keeps its size where the new body fits it, and grows where it does
 	// not.
 	ReplaceLoopBody(target model.ID, frag *MicroflowFragment) error
+	// DecisionNodes returns the activities on the paths of the decision
+	// target when it has the shape `alter … insert` produces — two paths of
+	// plain activities, or none, rejoining at one merge — which a Drop or a
+	// Replace of it takes out with it (ako/mxcli#1694); nil for any other
+	// target.
+	DecisionNodes(target model.ID) []model.ID
 	// RemoveNotes removes the annotations attached to target, with their
 	// lines, so that a Replace or Drop after it does not keep them
 	// (ako/mxcli#859: a `create or modify` states an activity's notes). A

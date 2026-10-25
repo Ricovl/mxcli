@@ -62,6 +62,18 @@ has outside the loop.
 `REPLACE <loop handle> WITH BEGIN LOOP … END LOOP; END;` also works, and
 rebuilds the loop as well — its element ID and position included.
 
+### Decisions
+
+`DROP` and `REPLACE` take a decision out whole when it has the shape `INSERT`
+produces: two paths of plain activities, or none, that rejoin at one merge.
+The flow into the decision is joined to the node after its merge (or to the
+replacing fragment), and the decision, the activities on its paths and the
+merge go; every other element keeps its element ID. A decision is addressed by
+its handle — its caption, `'$Order/Total > 100'`. Any other decision — a path
+that returns or raises an error, a decision or loop on a path, an activity
+with an error handler, a path from elsewhere joining it — is refused with the
+part of its shape that is out of reach.
+
 ### CREATE OR MODIFY
 
 `CREATE OR MODIFY MICROFLOW` of a flow that exists derives the same operations
@@ -69,6 +81,8 @@ from the difference between the script and the stored flow. A plain activity
 added, removed, reordered or changed inside a loop body is spliced; under
 `mdl 1;` a change the splice cannot make is refused with the operation that
 makes it — for a decision inside a loop body, `REPLACE BODY OF` that loop.
+Re-running the script that created a flow after another script spliced a
+decision into it takes that decision out again, when it has the shape above.
 
 ## Examples
 
@@ -103,6 +117,15 @@ ALTER MICROFLOW Shop.ACT_ProcessLines {
     END IF;
     COMMIT $Line;
   END;
+};
+```
+
+Take out a decision another script put in:
+
+```sql
+mdl 1;
+ALTER MICROFLOW Shop.ACT_Order {
+  DROP '$Order/Total > 100';
 };
 ```
 

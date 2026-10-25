@@ -627,8 +627,10 @@ func init() {
 			"-- REPLACE BODY OF <loop> keeps the loop itself (its $ID, position, iterator and list)\n" +
 			"-- and rebuilds only what is inside it: the way to put a decision, a nested loop or a\n" +
 			"-- return in a loop body. <loop> is the loop's handle: loop $It in $Items, while $N < 3.\n" +
+			"-- DROP/REPLACE of a decision takes it out whole when it has the shape INSERT produces:\n" +
+			"-- two paths of plain activities, or none, rejoining at one merge (ako/mxcli#1694).\n" +
 			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
-			"-- drop/replace of a decision or of an activity with an error handler, a decision, loop,\n" +
+			"-- drop/replace of any other decision or of an activity with an error handler, a decision, loop,\n" +
 			"-- return or error handler put in a loop body (use REPLACE BODY OF), a fragment that\n" +
 			"-- returns, and a fragment variable that clashes with one the flow has or reads one not\n" +
 			"-- declared on the path. Over --mcp only insert is supported, and not inside a loop body.\n" +

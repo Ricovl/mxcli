@@ -16,6 +16,10 @@ mdl 1;
 --                         loop is rebuilt, the loop itself (its element ID,
 --                         position, iterator and list) stays (ako/mxcli#1693)
 --   3. SP_WhileBody     — the same for a while loop, addressed by its handle
+--   4. SP_Decide        — a decision `alter … insert` put in, taken out again:
+--                         by re-running the original `create or modify`, by
+--                         `alter … drop` and by `alter … replace`
+--                         (ako/mxcli#1694)
 --
 -- Usage:
 --   ./bin/mxcli check mdl-examples/doctype-tests/02d-microflow-splice-examples.mdl
@@ -101,5 +105,54 @@ alter microflow SpliceExamples.SP_WhileBody {
   replace body of while $N < 3 with begin
     set $N = $N + 1;
     log info node 'Splice' 'step {1}' with ({1} = toString($N));
+  end;
+};
+
+-- ============================================================================
+-- 4. Taking out a decision `alter … insert` put in
+-- ============================================================================
+--
+-- A decision whose two paths hold plain activities (or nothing) and rejoin at
+-- one merge — the shape `alter … insert` produces — is taken out whole: the
+-- flow into it is joined to the node after its merge, and every other element
+-- keeps its element ID. Any other decision shape is refused.
+
+create microflow SpliceExamples.SP_Decide ($Line: SpliceExamples.Line)
+begin
+  log info node 'Splice' 'start';
+  change $Line (Processed = true);
+  log info node 'Splice' 'done';
+end;
+
+alter microflow SpliceExamples.SP_Decide {
+  insert after log node 'Splice' 'start' begin
+    if $Line/Quantity > 10 then
+      log info node 'Splice' 'large';
+    else
+      log info node 'Splice' 'small';
+    end if;
+  end;
+};
+
+-- The original script, run again, takes the decision out.
+create or modify microflow SpliceExamples.SP_Decide ($Line: SpliceExamples.Line)
+begin
+  log info node 'Splice' 'start';
+  change $Line (Processed = true);
+  log info node 'Splice' 'done';
+end;
+
+-- So do `drop` and `replace`, addressing the decision by its caption.
+alter microflow SpliceExamples.SP_Decide {
+  insert after log node 'Splice' 'start' begin
+    if $Line/Quantity > 10 then
+      log info node 'Splice' 'large';
+    end if;
+  end;
+};
+
+alter microflow SpliceExamples.SP_Decide {
+  replace '$Line/Quantity > 10' with begin
+    log info node 'Splice' 'checked';
   end;
 };
