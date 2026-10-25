@@ -345,17 +345,23 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 	}
 	// A fragment that does not build against the stored project is not
 	// predictable (see CheckFlowVerdicts). Only the builder's own errors say
-	// so; a fragment that builds and cannot be spliced is a refusal.
+	// so; a fragment that builds and cannot be spliced is a refusal. Each is
+	// built knowing what the operations before it declare, as exec builds it
+	// (ako/mxcli#1399).
 	for _, op := range s.Operations {
 		if len(op.Body) == 0 {
 			continue
 		}
 		fb := a.fragmentBuilder(ctx)
-		fb.buildFlowGraph(op.Body, nil)
+		oc := fb.buildFlowGraph(op.Body, nil)
 		if errs := fb.GetErrors(); len(errs) > 0 {
 			return nil, buildDependency(strings.Join(errs, "\n")), nil
 		}
+		if oc != nil {
+			a.opVars = a.opVars.with(declaredVarsOf(fb, oc.Objects))
+		}
 	}
+	a.opVars = fragmentVars{} // the plan below starts from the stored flow, as exec's does
 	mut, err := a.plan(ctx)
 	if err == nil {
 		return nil, "", func() bool { return mut.Save() == nil }
