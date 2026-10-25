@@ -116,9 +116,10 @@ var createOrReplaceCases = map[string]string{
 	"translations":                "translations in Administration for nl_NL ('Save' as 'Opslaan');",
 }
 
-// foldPageModeFlags erases the one AST difference between `or replace` and
-// `or modify` that means nothing: pages, snippets and layouts keep both flags,
-// and every reader in the executor tests `IsModify || IsReplace`.
+// foldPageModeFlags erases the AST differences between `or replace` and `or
+// modify` that mean nothing: pages, snippets and layouts keep both flags, and
+// every reader in the executor tests `IsModify || IsReplace`; microflows and
+// nanoflows keep the spelling, which only messages read.
 func foldPageModeFlags(stmts []ast.Statement) {
 	for _, s := range stmts {
 		switch n := s.(type) {
@@ -128,6 +129,12 @@ func foldPageModeFlags(stmts []ast.Statement) {
 			n.IsModify, n.IsReplace = n.IsModify || n.IsReplace, false
 		case *ast.CreateLayoutStmt:
 			n.IsModify, n.IsReplace = n.IsModify || n.IsReplace, false
+		case *ast.CreateMicroflowStmt:
+			// The spelling only, kept so a refusal names the statement as
+			// written (ako/mxcli#1681).
+			n.CreateOrReplace = false
+		case *ast.CreateNanoflowStmt:
+			n.CreateOrReplace = false
 		}
 	}
 }
