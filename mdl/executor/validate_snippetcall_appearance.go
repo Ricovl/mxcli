@@ -198,5 +198,5 @@ func setsSnippetCallAppearance(ctx *ExecContext, m backend.PageMutator, widget, 
 		s, ok := value.(string)
 		return !ok || strings.TrimSpace(s) != ""
 	}
-	return designPropertyForStoredWidget(ctx.GetThemeRegistry(), m, widget, name) != nil
+	return designPropertyForStoredWidget(documentTheme(ctx, m), m, widget, name) != nil
 }

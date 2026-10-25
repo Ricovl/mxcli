@@ -144,6 +144,9 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 			if str := prop.STRING_LITERAL(); str != nil {
 				stmt.Style = unquoteStringLit(str)
 			}
+		} else if dp := prop.DesignPropertyListV3(); dp != nil {
+			// DesignProperties: ( … ) — the page's own (ako/mxcli#1678)
+			stmt.DesignProperties = buildDesignPropertyListV3(dp)
 		} else if id := prop.IDENTIFIER(); id != nil {
 			// Generic page header property (e.g. PopupWidth: 800). Only the
 			// pop-up dimensions are recognized; anything else is a typo/unsupported.
@@ -183,7 +186,7 @@ func (b *Builder) applyGenericPageHeaderProp(stmt *ast.CreatePageStmtV3, name st
 		stmt.PopupCloseAction = strings.Trim(fmt.Sprintf("%v", val), `"'`)
 	default:
 		b.addError(fmt.Errorf("line %d:%d: unknown page property %q "+
-			"(supported: Title, Layout, Url, Folder, Params, Variables, PopupWidth, PopupHeight, PopupResizable, PopupCloseAction, Class, Style)",
+			"(supported: Title, Layout, Url, Folder, Params, Variables, PopupWidth, PopupHeight, PopupResizable, PopupCloseAction, Class, Style, DesignProperties)",
 			tok.GetLine(), tok.GetColumn(), name))
 	}
 }

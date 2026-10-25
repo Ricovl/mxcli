@@ -259,6 +259,7 @@ pageHeaderPropertyV3
     | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL          // Folder: 'Pages/Admin'
     | CLASS COLON STRING_LITERAL                                     // Class: 'my-page bg-primary'
     | STYLE COLON STRING_LITERAL                                     // Style: 'padding: 10px'
+    | DESIGNPROPERTIES COLON designPropertyListV3                    // DesignProperties: ( 'Spacing top': 'Inner large' ) — the page's own (ako/mxcli#1678)
     | IDENTIFIER COLON propertyValueV3                               // Generic page property: PopupWidth: 800, PopupResizable: true
     ;
 

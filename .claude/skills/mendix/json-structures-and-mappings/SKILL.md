@@ -14,16 +14,16 @@ description: "Create and manage JSON structures, import mappings and export mapp
 | 111-122 | Export Mappings |
 | 123-187 | JSON Structures |
 | 188-229 | Message Definitions |
-| 230-390 | Import Mappings |
-| 391-488 | Export Mappings |
-| 489-506 | Starting a Mapping Below the Payload Root |
-| 507-576 | Microflow Actions |
-| 577-589 | Browse |
-| 590-637 | Export Workflow: PE → NPE → JSON |
-| 638-644 | Realistic Example: Countries REST API |
-| 645-668 | Placing Documents in Folders |
-| 669-684 | Documentation |
-| 685-699 | Common Mistakes |
+| 230-393 | Import Mappings |
+| 394-491 | Export Mappings |
+| 492-509 | Starting a Mapping Below the Payload Root |
+| 510-593 | Microflow Actions |
+| 594-606 | Browse |
+| 607-654 | Export Workflow: PE → NPE → JSON |
+| 655-661 | Realistic Example: Countries REST API |
+| 662-685 | Placing Documents in Folders |
+| 686-701 | Documentation |
+| 702-716 | Common Mistakes |
 
 <!-- /skill-index -->
 # JSON Structures, Import Mappings & Export Mappings
@@ -386,6 +386,9 @@ Using `parameter` without declaring one is refused — the build reports it as
 CE0279. The declared entity must match the microflow's parameter type, which the
 build checks as CE0282.
 
+The **activity** that calls such a mapping passes the object in its settings
+list, `(Parameter: $Obj)` — see "Settings" under Import from Mapping below.
+
 ---
 
 ## Export Mappings
@@ -515,6 +518,20 @@ $PetResponse = import from mapping Module.IMM_Pet($JsonContent);
 -- Without result variable (persistent entities, stores to DB)
 import from mapping Module.IMM_Pet($JsonContent);
 ```
+
+#### Settings — the input object and the commit mode
+
+A settings list after the source variable holds the activity's dialog:
+
+```sql
+import from mapping Module.IMM_Embed($Json) (Parameter: $Collection);
+$Pets = import from mapping Module.IMM_Pets($Json) (Commit: No) all;
+```
+
+- `Parameter: $Obj` — the mapping's input object. **Required** for a mapping
+  declared with `parameter Module.Entity` (without it mxbuild reports CE0244),
+  and refused on a mapping without one (CE0246); `exec` refuses both.
+- `Commit: Yes | YesWithoutEvents | No` — omitted means YesWithoutEvents.
 
 #### Range — how much of the result to bind
 

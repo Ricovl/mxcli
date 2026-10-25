@@ -1171,6 +1171,19 @@ type ResultHandlingMapping struct {
 	// selected import mapping cannot handle content type JSON"
 	// (mendixlabs/mxcli#1232). Empty writes "Json".
 	ContentType string `json:"contentType,omitempty"`
+
+	// ParameterVariable is the variable holding the mapping's input object,
+	// ImportMappingCall.ParameterVariableName; empty for a mapping without one.
+	// Commit is the call's Yes / YesWithoutEvents / No; empty writes
+	// YesWithoutEvents. MDL could say neither before ako/mxcli#1681.
+	ParameterVariable string `json:"parameterVariable,omitempty"`
+	Commit            string `json:"commit,omitempty"`
+
+	// ResultType is the stored result VariableType's $Type, "" when none is
+	// stored. Read only: it tells a stored activity Mendix cannot load (an
+	// object or list type naming no entity, mendixlabs/mxcli#1418) from one that
+	// stores no result at all.
+	ResultType string `json:"resultType,omitempty"`
 }
 
 func (ResultHandlingMapping) isResultHandling() {}

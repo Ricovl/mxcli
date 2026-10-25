@@ -1,0 +1,26 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1677 — a native page's heading became body text on describe → exec.
+-- `Forms$DynamicText.NativeTextStyle: Heading3` came back as `Text`: describe
+-- printed `dynamictext text4 (Content: 'JTS boat log')`, MDL had no spelling for
+-- the property, and the writer stored Text on every dynamic text.
+--
+-- NativeTextStyle is the native counterpart of RenderMode (Model SDK:
+-- Forms$DynamicText `nativeTextStyle` Introduced 8.0.0; Text, Heading1–6).
+-- Measured on 11.13.0, after a BSON edit setting text4 to Heading3:
+--
+--   before the fix: describe prints no style; exec → "Replaced page", Text
+--   after:          describe prints `NativeTextStyle: Heading3`; exec →
+--                   "Unchanged page"; mx check 0 errors
+-- ============================================================================
+
+create module BugNativeTextStyle;
+
+create page BugNativeTextStyle.Home_Native (Title: 'Home', Layout: Atlas_Core.NativePhone_Default) {
+  dynamictext text4 (Content: 'JTS boat log', NativeTextStyle: Heading3)
+  dynamictext text5 (Content: 'Body text')
+};
+
+alter page BugNativeTextStyle.Home_Native {
+  set (NativeTextStyle: Heading1) on text5
+};

@@ -294,6 +294,11 @@ func buildImportFromMappingStatement(ctx antlr.ParserRuleContext) ast.MicroflowS
 		stmt.SourceVariable = strings.TrimPrefix(vars[0].GetText(), "$")
 	}
 
+	// The settings list, ( Parameter: $Obj, Commit: … ) (ako/mxcli#1681).
+	if settings := c.ImportMappingSettings(); settings != nil {
+		importMappingSettingsInto(stmt, settings)
+	}
+
 	// Range: FIRST, or LIMIT/OFFSET. Absent means "All", which leaves the builder
 	// inferring cardinality from the mapping's root shape as it always has. (#881)
 	if r := c.ImportMappingRange(); r != nil {

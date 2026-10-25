@@ -129,6 +129,7 @@ func (b *Builder) ExitCreateMicroflowStatement(ctx *parser.CreateMicroflowStatem
 	if createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
 			stmt.CreateOrModify = true
+			stmt.CreateOrReplace = createStmt.REPLACE() != nil
 		}
 		for _, ann := range createStmt.AllAnnotation() {
 			annCtx := ann.(*parser.AnnotationContext)
@@ -189,6 +190,7 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 	if createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
 			stmt.CreateOrModify = true
+			stmt.CreateOrReplace = createStmt.REPLACE() != nil
 		}
 		for _, ann := range createStmt.AllAnnotation() {
 			annCtx := ann.(*parser.AnnotationContext)

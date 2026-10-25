@@ -139,7 +139,7 @@ func styleWidgetsInContainer(ctx *ExecContext, containerID string, refs []widget
 		}
 	}
 
-	theme := ctx.GetThemeRegistry()
+	theme := documentTheme(ctx, target)
 	for _, ref := range refs {
 		landed := 0
 		for _, a := range s.Assignments {

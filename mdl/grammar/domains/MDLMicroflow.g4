@@ -1004,12 +1004,27 @@ sendRestRequestBodyClause
     ;
 
 /**
- * Import from mapping: [$Var =] IMPORT FROM MAPPING Module.IMM($SourceVar);
+ * Import from mapping: [$Var =] IMPORT FROM MAPPING Module.IMM($SourceVar)
+ *   [( Parameter: $Obj, Commit: Yes | YesWithoutEvents | No )] [range];
  */
 importFromMappingStatement
     : (VARIABLE EQUALS)? IMPORT FROM MAPPING qualifiedName LPAREN VARIABLE RPAREN
+      importMappingSettings?
       importMappingRange?
       onErrorClause?
+    ;
+
+/**
+ * The activity's dialog settings, one ( Key: value, … ) list after the main
+ * operand (ADR-0013, ako/mxcli#1681): the mapping's input object and the
+ * commit mode. Keys and value shapes are checked by the visitor.
+ */
+importMappingSettings
+    : LPAREN importMappingSetting (COMMA importMappingSetting)* COMMA? RPAREN
+    ;
+
+importMappingSetting
+    : identifierOrKeyword COLON (VARIABLE | identifierOrKeyword)
     ;
 
 /**

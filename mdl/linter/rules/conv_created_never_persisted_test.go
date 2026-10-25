@@ -111,8 +111,11 @@ func TestCreatedNeverPersisted_EscapesAreNotFlagged(t *testing.T) {
 		"javascript action argument": act(&microflows.JavaScriptActionCallAction{JavaScriptAction: "Tmp.JSA_Save",
 			ParameterMappings: []*microflows.JavaScriptActionParameterMapping{{Parameter: "Tmp.JSA_Save.Item",
 				Value: &microflows.BasicCodeActionParameterValue{Argument: "$o"}}}}),
-		"workflow context":     act(&microflows.WorkflowCallAction{Workflow: "Tmp.WF", WorkflowContextVariable: "o"}),
-		"export mapping":       act(&microflows.ExportMappingCallAction{MappingID: "m1", SourceVariable: "o", OutputVariable: "json"}),
+		"workflow context": act(&microflows.WorkflowCallAction{Workflow: "Tmp.WF", WorkflowContextVariable: "o"}),
+		"export mapping":   act(&microflows.ExportMappingCallAction{MappingID: "m1", SourceVariable: "o", OutputVariable: "json"}),
+		// The mapping fills and commits its input object (ako/mxcli#1681).
+		"import mapping parameter": act(&microflows.ImportXmlAction{XmlDocumentVariable: "json",
+			ResultHandling: &microflows.ResultHandlingMapping{MappingID: "m1", ParameterVariable: "o"}}),
 		"show page argument":   act(&microflows.ShowPageAction{PageName: "Tmp.Item_Edit", PageParameterMappings: []*microflows.PageParameterMapping{{Parameter: "Tmp.Item_Edit.Item", Argument: "$o"}}}),
 		"show page passed obj": act(&microflows.ShowPageAction{PageName: "Tmp.Item_Edit", PassedObject: "o"}),
 		"added to a list":      act(&microflows.ChangeListAction{ChangeVariable: "Items", Type: microflows.ChangeListTypeAdd, Value: "$o"}),

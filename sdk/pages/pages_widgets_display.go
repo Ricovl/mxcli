@@ -3,6 +3,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -28,6 +30,37 @@ const (
 	TextRenderModeH6        TextRenderMode = "H6"
 	TextRenderModeParagraph TextRenderMode = "Paragraph"
 )
+
+// NativeTextStyle is a dynamic text's style on a native page (Mendix 8.0+), the
+// native counterpart of TextRenderMode.
+type NativeTextStyle string
+
+const (
+	NativeTextStyleText     NativeTextStyle = "Text"
+	NativeTextStyleHeading1 NativeTextStyle = "Heading1"
+	NativeTextStyleHeading2 NativeTextStyle = "Heading2"
+	NativeTextStyleHeading3 NativeTextStyle = "Heading3"
+	NativeTextStyleHeading4 NativeTextStyle = "Heading4"
+	NativeTextStyleHeading5 NativeTextStyle = "Heading5"
+	NativeTextStyleHeading6 NativeTextStyle = "Heading6"
+)
+
+// NativeTextStyles lists every NativeTextStyle in the metamodel's order.
+var NativeTextStyles = []NativeTextStyle{
+	NativeTextStyleText, NativeTextStyleHeading1, NativeTextStyleHeading2, NativeTextStyleHeading3,
+	NativeTextStyleHeading4, NativeTextStyleHeading5, NativeTextStyleHeading6,
+}
+
+// CanonicalNativeTextStyle matches s case-insensitively against the
+// NativeTextStyle enumeration and returns its canonical spelling.
+func CanonicalNativeTextStyle(s string) (NativeTextStyle, bool) {
+	for _, v := range NativeTextStyles {
+		if strings.EqualFold(strings.TrimSpace(s), string(v)) {
+			return v, true
+		}
+	}
+	return "", false
+}
 
 // ClientTemplate represents a text template with parameters.
 // Used for dynamic text content in widgets like DynamicText and ActionButton captions.
@@ -70,6 +103,9 @@ type DynamicText struct {
 	AttributePath string          `json:"attributePath,omitempty"`
 	Content       *ClientTemplate `json:"content,omitempty"`
 	RenderMode    TextRenderMode  `json:"renderMode,omitempty"`
+	// NativeTextStyle is the text's style on a native page, where RenderMode
+	// does not apply. Empty means not authored; the writer stores Text.
+	NativeTextStyle NativeTextStyle `json:"nativeTextStyle,omitempty"`
 }
 
 // Label represents a label widget.

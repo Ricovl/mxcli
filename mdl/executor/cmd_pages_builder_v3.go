@@ -90,6 +90,13 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 			log.Printf("warning: layout %s not found", s.Layout)
 		} else {
 			page.LayoutID = layoutID
+			// A native page's widgets take the native design-property
+			// definitions; typed against the web ones, Atlas's native `'Color':
+			// 'Brand primary'` option was stored as a custom colour
+			// (ako/mxcli#1679). The layout decides, as it does in Studio Pro.
+			if pb.layoutIsNative(layoutID) {
+				pb.themeRegistry = pb.themeRegistry.ForPlatform(true)
+			}
 
 			// Create LayoutCall with arguments for placeholders
 			page.LayoutCall = &pages.LayoutCall{
@@ -101,6 +108,17 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 				LayoutName: s.Layout, // Qualified name for "Form" field in BSON
 			}
 		}
+	}
+
+	// The page's own design properties, typed against the theme's "Page" group —
+	// after the layout, which decides the platform (ako/mxcli#1678).
+	if len(s.DesignProperties) > 0 {
+		dps, err := designPropertyValuesV3(&ast.WidgetV3{Name: s.Name.Name,
+			Properties: map[string]any{"DesignProperties": s.DesignProperties}}, pageThemeKey, pb.themeRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("page %s: %w", s.Name.String(), err)
+		}
+		page.DesignProperties = dps
 	}
 
 	// Build parameters

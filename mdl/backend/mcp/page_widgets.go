@@ -109,6 +109,10 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 		if renderMode == "" {
 			renderMode = "Text"
 		}
+		nativeTextStyle := string(wd.NativeTextStyle)
+		if nativeTextStyle == "" {
+			nativeTextStyle = "Text"
+		}
 		return map[string]any{
 			"$Type":           "Pages$DynamicText",
 			"name":            wd.Name,
@@ -116,7 +120,7 @@ func (b *Backend) mapPageWidgetBody(w pages.Widget) (map[string]any, error) {
 			"ct:content":      content,
 			"tabIndex":        wd.TabIndex,
 			"renderMode":      renderMode,
-			"nativeTextStyle": "Text",
+			"nativeTextStyle": nativeTextStyle,
 		}, nil
 	case *pages.DataView:
 		src, err := mapDataViewSource(wd.DataSource)

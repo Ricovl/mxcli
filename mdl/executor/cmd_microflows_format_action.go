@@ -1796,10 +1796,33 @@ func formatImportXmlAction(ctx *ExecContext, a *microflows.ImportXmlAction, enti
 	sb.WriteString("($")
 	sb.WriteString(a.XmlDocumentVariable)
 	sb.WriteString(")")
+	sb.WriteString(formatImportMappingSettings(a.ResultHandling))
 	sb.WriteString(formatImportMappingRange(a.ResultHandling))
 	sb.WriteString(";")
 
 	return sb.String()
+}
+
+// formatImportMappingSettings renders the activity's settings list, `
+// (Parameter: $Obj, Commit: No)`, or "" when it has neither. Unprinted, a
+// rewrite dropped the input object and the commit mode (ako/mxcli#1681).
+// YesWithoutEvents is what the writer stores for an unwritten Commit, so it is
+// not printed.
+func formatImportMappingSettings(h *microflows.ResultHandlingMapping) string {
+	if h == nil {
+		return ""
+	}
+	var parts []string
+	if h.ParameterVariable != "" {
+		parts = append(parts, "Parameter: $"+h.ParameterVariable)
+	}
+	if h.Commit != "" && h.Commit != "YesWithoutEvents" {
+		parts = append(parts, "Commit: "+h.Commit)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 // formatImportMappingRange renders the activity's Range — Studio Pro's

@@ -1,0 +1,32 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1680 (reported on v0.28.0) — a Data grid 2 column's text-template
+-- parameter lost its association path on describe → exec. describe printed the
+-- column's `Attribute: Stormglass_Weer/Hour` with the path but the template as
+-- `ContentParams: ({1} = Hour format (dateFormat: DateTime))`, so exec resolved
+-- Hour against the grid's entity and mxbuild reported CE1613 "The selected
+-- attribute '….Weer.Hour' no longer exists".
+--
+-- Fixed after v0.28.0 by the mendixlabs/mxcli#1494 change to the one
+-- template-parameter reader. Measured on 11.13.0:
+--
+--   the v0.28.0 description, executed       → CE1613 at the column
+--   this page, described and re-executed    → describe prints
+--                                              `{1} = MyFirstModule.Stormglass_Weer/Hour`;
+--                                              "Unchanged page"; mx check 0 errors
+-- ============================================================================
+
+create module BugGridTemplatePath;
+
+create persistent entity BugGridTemplatePath.Stormglass (Hour: DateTime);
+create persistent entity BugGridTemplatePath.Weer (Plaats: String(100));
+create association BugGridTemplatePath.Stormglass_Weer
+  from BugGridTemplatePath.Weer to BugGridTemplatePath.Stormglass;
+
+create page BugGridTemplatePath.Weer_Overview (Title: 'Weer', Layout: Atlas_Core.Atlas_Default) {
+  datagrid grid1 (DataSource: database BugGridTemplatePath.Weer) {
+    column (Attribute: Plaats, Caption: 'Plaats')
+    column (Attribute: Stormglass_Weer/Hour, Caption: 'Hour', ShowContentAs: dynamicText, Content: '{1}',
+            ContentParams: ({1} = Stormglass_Weer/Hour format (dateFormat: DateTime)))
+  }
+};
