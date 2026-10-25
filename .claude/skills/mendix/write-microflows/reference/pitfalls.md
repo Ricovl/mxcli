@@ -300,32 +300,26 @@ the same CE0117, and mxcli refuses the statement rather than writing it.
 
 ### 11. Changing Something Inside a Loop Body
 
-**What is spliced** (both modes, ako/mxcli#1106): an activity in the body replaced by
-one activity **of the same kind**, in place — a new expression in a `set`, a new
-message in a `log`, `commit $Car` → `commit $Car without events`. Re-running a
-`create or modify` whose loop body has the same statements in the same order, each
-as stored or with new values, writes just those activities; the loop and everything
-else keep their `$ID`s and positions. The loop's iterator is in scope.
+**What is spliced** (both modes): **plain activities** inside a loop body — one
+inserted, dropped, moved (dropped and inserted again) or replaced by one or more
+others (ako/mxcli#1693), and one replaced by one of the same kind in place
+(ako/mxcli#1106). The new activities are laid out among the body's nodes; when the
+body no longer fits, the loop box grows on its far side and what is drawn past the
+loop moves along. Only the changed activities get new `$ID`s — the loop, the rest of
+its body and everything outside it keep theirs. The loop's iterator is in scope, and
+a nested loop's body is edited the same way. `create or modify` does this for a body
+whose statements change; `alter` for an activity of the body addressed by its handle.
 
-**Refusal** for anything else inside the body — a statement added, removed,
-reordered or moved, one kind swapped for another, an `if` or `return` changed, a
-custom error handler, a note or connector redrawn: `create or modify` under
-`mdl 1;` — "the Loop at (x, y) changes inside its body; the splice does not edit
-inside a loop"; `alter` aimed at an activity in the loop — "… is inside the body of
-loop $Car in $Cars; alter does not splice inside a loop body but to replace one
-activity by one of the same kind". A body node's coordinates are relative to the
-loop box, so those changes would need the body laid out again. Both refusals spell
-out the statement below.
+**Refusal** for a change of the body's *shape* — a decision, a nested loop, a
+`return`, `break`/`continue`, a `raise error` or an activity with a custom error
+handler added, changed or taken out inside the body, or a body node drawn elsewhere:
+`create or modify` under `mdl 1;` — "the Loop at (x, y) changes inside its body: a
+decision is added to it; inside a loop body the splice inserts, drops and replaces
+plain activities only …"; `alter` aimed at an activity in the loop — "… is inside the
+body of loop $Car in $Cars, and the fragment holds a decision …". Both refusals spell
+out the statement below, addressed to the innermost loop around the change.
 
-✅ **SPLICED** in place:
-```mdl
-mdl 1;
-alter microflow MyModule.ACT_SaveAll {
-  replace commit $Car with begin commit $Car without events; end;
-};
-```
-
-❌ **REFUSED** (either way) — the body changes shape:
+✅ **SPLICED** — a plain activity added to the body:
 ```mdl
 mdl 1;
 alter microflow MyModule.ACT_SaveAll {
@@ -333,27 +327,40 @@ alter microflow MyModule.ACT_SaveAll {
 };
 ```
 
-✅ **CORRECT** — replace the loop:
+❌ **REFUSED** (either way) — a decision changes the body's shape:
 ```mdl
 mdl 1;
 alter microflow MyModule.ACT_SaveAll {
-  replace loop $Car in $Cars with begin
-    loop $Car in $Cars
-    begin
-      commit $Car;
-      log info node 'App' 'saved';
-    end loop;
+  insert after commit $Car begin if $Car/Price > 0 then log info node 'App' 'priced'; end if; end;
+};
+```
+
+✅ **CORRECT** — replace the loop's body:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_SaveAll {
+  replace body of loop $Car in $Cars with begin
+    commit $Car;
+    if $Car/Price > 0 then
+      log info node 'App' 'priced';
+    end if;
   end;
 };
 ```
 
-Everything outside the loop keeps its `$ID`s, positions and flows; the loop and its
-body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
-`replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
-nested in another loop, replace the outer one.
+`replace body of` keeps the loop itself — its `$ID`, position, iterator and list, the
+flows into and out of it and the notes on it — and rebuilds only what is inside it
+(new IDs, laid out by mxcli). The box keeps its size when the new body fits, and grows
+when it does not. A `while` loop is addressed by its handle the same way —
+`replace body of while $N < 3 with begin … end;` — and so is a loop nested in another
+loop. The new body is scope-checked like any fragment: a variable it reads must be the
+iterator, declared in the body, or declared before the loop; one it declares must not
+be declared outside the loop. (`replace loop … with begin loop … end loop; end;` still
+works, and rebuilds the loop as well — its `$ID` and position included.)
 
-The replaced loop's body is scope-checked like any fragment: a variable it reads must
-be the iterator, declared in the body, or declared before the loop.
+Under `mdl 1;` a body that states its nodes' `@position` (a `describe` restated) is
+pinned like the top level (§13): an insert that would have to move one of them, or
+grow the loop past a node the script draws where it is, is refused.
 
 ### 12. One Alter Block Is One Change
 

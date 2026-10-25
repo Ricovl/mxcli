@@ -79,6 +79,32 @@ func (m *mcpFlowMutator) Drop(model.ID) error {
 	return fmt.Errorf("drop is not supported by the MCP backend yet: Studio Pro does not roll back a removal when an update fails; run without --mcp to alter %s in the .mpr", m.qn)
 }
 
+// ReplaceLoopBody is refused like a replace: it removes the stored body.
+func (m *mcpFlowMutator) ReplaceLoopBody(model.ID, *backend.MicroflowFragment) error {
+	return fmt.Errorf("replace body is not supported by the MCP backend yet: Studio Pro does not roll back a removal when an update fails; run without --mcp to alter %s in the .mpr", m.qn)
+}
+
+// InsertAfter and InsertBefore inside a loop body are refused: the patch Save
+// sends addresses top-level objects only, so neither the objects added to the
+// body nor a loop box grown to fit them would reach Studio Pro.
+func (m *mcpFlowMutator) InsertAfter(target model.ID, frag *backend.MicroflowFragment) error {
+	if m.InLoopBody(target) {
+		return m.inLoopRefusal()
+	}
+	return m.Mutator.InsertAfter(target, frag)
+}
+
+func (m *mcpFlowMutator) InsertBefore(target model.ID, frag *backend.MicroflowFragment) error {
+	if m.InLoopBody(target) {
+		return m.inLoopRefusal()
+	}
+	return m.Mutator.InsertBefore(target, frag)
+}
+
+func (m *mcpFlowMutator) inLoopRefusal() error {
+	return fmt.Errorf("inserting inside a loop body is not supported by the MCP backend yet: the update it sends addresses top-level objects only; run without --mcp to alter %s in the .mpr", m.qn)
+}
+
 func (m *mcpFlowMutator) RemoveNotes(model.ID) error {
 	return fmt.Errorf("removing notes is not supported by the MCP backend yet: Studio Pro does not roll back a removal when an update fails; run without --mcp to alter %s in the .mpr", m.qn)
 }

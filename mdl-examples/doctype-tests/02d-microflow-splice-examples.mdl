@@ -1,0 +1,105 @@
+mdl 1;
+-- ============================================================================
+-- Microflow Splice Examples — editing a stored flow in place
+-- ============================================================================
+--
+-- `create or modify microflow` of a flow that exists, and `alter microflow`,
+-- splice the change into the stored flow rather than rebuilding it: only the
+-- elements the change touches get new element IDs, and a re-run of the same
+-- script writes nothing.
+--
+-- Patterns:
+--   1. SP_LoopBody      — plain activities inserted, moved and dropped inside
+--                         a loop body, by `create or modify` and by `alter`
+--                         (ako/mxcli#1693)
+--   2. SP_LoopBody      — `alter … replace body of <loop>`: what is inside the
+--                         loop is rebuilt, the loop itself (its element ID,
+--                         position, iterator and list) stays (ako/mxcli#1693)
+--   3. SP_WhileBody     — the same for a while loop, addressed by its handle
+--
+-- Usage:
+--   ./bin/mxcli check mdl-examples/doctype-tests/02d-microflow-splice-examples.mdl
+--   ./bin/mxcli -p app.mpr exec mdl-examples/doctype-tests/02d-microflow-splice-examples.mdl
+-- ============================================================================
+
+create module SpliceExamples;
+
+create persistent entity SpliceExamples.Line (
+  Description: String(200),
+  Quantity: Integer,
+  Processed: Boolean default false
+);
+
+-- ============================================================================
+-- 1. Plain activities inside a loop body
+-- ============================================================================
+
+create microflow SpliceExamples.SP_LoopBody ($Lines: List of SpliceExamples.Line)
+begin
+  declare $Count Integer = 0;
+  loop $Line in $Lines
+  begin
+    set $Count = $Count + 1;
+    change $Line (Processed = true);
+  end loop;
+  log info node 'Splice' 'processed {1}' with ({1} = toString($Count));
+end;
+
+-- An activity added in the body is spliced in; the loop box grows to fit it.
+create or modify microflow SpliceExamples.SP_LoopBody ($Lines: List of SpliceExamples.Line)
+begin
+  declare $Count Integer = 0;
+  loop $Line in $Lines
+  begin
+    set $Count = $Count + 1;
+    log info node 'Splice' 'line {1}' with ({1} = $Line/Description);
+    change $Line (Processed = true);
+  end loop;
+  log info node 'Splice' 'processed {1}' with ({1} = toString($Count));
+end;
+
+-- The same from alter, addressing the activities of the body by their handles
+-- (`describe microflow … with handles` prints them).
+alter microflow SpliceExamples.SP_LoopBody {
+  insert after change $Line (Processed = true) begin commit $Line; end;
+  drop log node 'Splice' 'line {1}' *;
+};
+
+-- ============================================================================
+-- 2. replace body of a loop
+-- ============================================================================
+--
+-- A decision, a nested loop or a return inside a body changes the body's
+-- shape, which the splice does not make in place. `replace body of` states the
+-- whole new body; the loop keeps its element ID, position, iterator and list.
+
+alter microflow SpliceExamples.SP_LoopBody {
+  replace body of loop $Line in $Lines with begin
+    set $Count = $Count + 1;
+    if $Line/Quantity > 0 then
+      change $Line (Processed = true);
+    end if;
+    commit $Line;
+  end;
+};
+
+-- ============================================================================
+-- 3. A while loop, addressed by its handle
+-- ============================================================================
+
+create microflow SpliceExamples.SP_WhileBody ()
+begin
+  declare $N Integer = 0;
+  while $N < 3
+  begin
+    set $N = $N + 1;
+  end while;
+  log info node 'Splice' 'done';
+end;
+
+alter microflow SpliceExamples.SP_WhileBody {
+  replace body of while $N < 3 with begin
+    set $N = $N + 1;
+    log info node 'Splice' 'step {1}' with ({1} = toString($N));
+  end;
+};

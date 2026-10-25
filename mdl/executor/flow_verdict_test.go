@@ -39,12 +39,14 @@ func TestFlowRefusalNamesTheFlowAndTheReason(t *testing.T) {
 		t.Errorf("the rebuild advice must keep drop and create in one script: %q", msg)
 	}
 
-	// Inside a loop alter cannot splice either: the refusal names the alter
-	// that replaces the loop, closing a while with `end while;`.
+	// Inside a loop alter splices what create or modify does: the refusal
+	// names the alter that replaces the loop's body (ako/mxcli#1693), a
+	// while addressed by its handle like any loop.
 	inLoop := &notSpliceable{reason: "the While at (1, 2) changes inside its body", loopHandle: "while $N < 3"}
 	msg = flowRefusal(d, inLoop).Error()
-	want := "`alter microflow M.F { replace while $N < 3 with begin while $N < 3 begin … end while; end; };`"
-	if !strings.Contains(msg, want) || strings.Contains(msg, "Change activities with") {
+	want := "`alter microflow M.F { replace body of while $N < 3 with begin … end; };`"
+	if !strings.Contains(msg, want) || strings.Contains(msg, "Change activities with") ||
+		strings.Contains(msg, "replace while") {
 		t.Errorf("want %q and no generic alter advice in %q", want, msg)
 	}
 	w := flowRebuildWarning(&ExecContext{LanguageVersion: langver.V0}, d, why)

@@ -18,8 +18,8 @@ import (
 // resolves calls to flows the script itself declares.
 
 // verdictActStored is the flow as stored: a log, a loop and a log. The new
-// body calls a sub-flow and also adds an activity to the loop's body, which
-// the splice refuses. (It used to move a retrieve and its reader into the
+// body calls a sub-flow and also adds a decision to the loop's body, which
+// the splice refuses (a plain activity it splices there, ako/mxcli#1693). (It used to move a retrieve and its reader into the
 // sub-flow, refused "$Reporter is still used by" — a false refusal, since
 // the reader goes too, which mendixlabs/mxcli#1517 fixed.)
 const verdictActStored = `mdl 1;
@@ -46,7 +46,9 @@ begin
   loop $It in $Items
   begin
     commit $It;
-    log info node 'X' 'committed';
+    if $It/Subject = empty then
+      log info node 'X' 'committed';
+    end if;
   end loop;
   log info node 'X' 'done';
 end;`

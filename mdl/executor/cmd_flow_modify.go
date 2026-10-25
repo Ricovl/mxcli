@@ -50,8 +50,8 @@ import (
 // differs from the stored one moves the stored node — its position only, its
 // flows keep their ends and curves (cmd_flow_modify_patch.go).
 //
-// What the patch cannot express — a change inside a loop body or an error
-// handler, a redrawn connector, a reordered parameter — is not rebuilt under
+// What the patch cannot express — a decision added or changed inside a loop
+// body, a redrawn connector, a reordered parameter — is not rebuilt under
 // `mdl 1`: the whole-document rebuild is what reset curves, dropped merges and
 // moved element IDs on Studio Pro-authored flows (#721 class A). It is refused
 // with the reason instead. Under mdl 0 the rebuild still runs, with the
@@ -135,7 +135,8 @@ type notSpliceable struct {
 	reason string
 	// loopHandle is the stored loop's handle (`loop $It in $Items`) when the
 	// change is inside that loop's body: the refusal then advises replacing
-	// the loop with alter, the one statement that can make the change.
+	// the loop's body with alter, the one statement that can make the change
+	// (ako/mxcli#1693).
 	loopHandle string
 }
 
@@ -307,6 +308,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var targets []mfmutator.Candidate
 	var moves []flowMove
 	var freeNotes *[]ast.MicroflowAnnotation
+	var bodyPins []bodyPin
 	// A body that states what describe prints for the stored one — the
 	// statement re-run unchanged, or a describe executed back — has nothing to
 	// patch, and needs no build to say so (ako/mxcli#870): every statement
@@ -326,7 +328,7 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 			}
 		}
 		body := describedMemberSpellings(ctx, d.params, d.body, varTypes)
-		if ops, targets, moves, freeNotes, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
+		if ops, targets, moves, freeNotes, bodyPins, err = diffFlowBody(a, body, storedBody(stored), d.returnVar); err != nil {
 			return nil, asNotSpliceable(err)
 		}
 	}
@@ -346,10 +348,12 @@ func planFlowModify(ctx *ExecContext, d *flowDecl) (*flowPlan, error) {
 	var stated []model.Point
 	if flowRebuildRefused.Applies(ctx.LanguageVersion) {
 		stated = statedPoints(d)
+	} else {
+		bodyPins = nil
 	}
 	p := &flowPlan{a: a, ops: ops, moves: moves, storedFolder: storedFolderOf(stored)}
 	if len(ops) > 0 || len(moves) > 0 || headerChanged || freeNotes != nil {
-		if p.mut, err = patch(ctx, a, ops, targets, moves, stated); err != nil {
+		if p.mut, err = patch(ctx, a, ops, targets, moves, stated, bodyPins); err != nil {
 			return nil, cannotSplice("%v", err)
 		}
 		if headerChanged {
@@ -777,7 +781,7 @@ func nanoflowDecl(s *ast.CreateNanoflowStmt) *flowDecl {
 // Targets are the stored activities, located by the @position describe printed
 // for each statement. A run whose stored end cannot be located, or that the
 // splice cannot express, is a notSpliceable error.
-func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, []flowMove, *[]ast.MicroflowAnnotation, error) {
+func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement, returnVar string) ([]*ast.AlterFlowOperation, []mfmutator.Candidate, []flowMove, *[]ast.MicroflowAnnotation, []bodyPin, error) {
 	// Free annotations — notes wired to nothing — belong to the flow, not to
 	// the statement describe happens to print them above (the first one), so
 	// they are compared as a whole and kept out of the statement match: an
@@ -792,11 +796,11 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 	var freeNotes *[]ast.MicroflowAnnotation
 	if !declaredMatches(declaredFree, storedFree) {
 		if hint := misplacedNote(declaredFree, storedFree, stored); hint != "" {
-			return nil, nil, nil, nil, cannotSplice("%s", hint)
+			return nil, nil, nil, nil, nil, cannotSplice("%s", hint)
 		}
 		for _, n := range declaredFree {
 			if n.Label != "" {
-				return nil, nil, nil, nil, cannotSplice("the free annotations change (%s), and one of them has an id (%s); "+
+				return nil, nil, nil, nil, nil, cannotSplice("the free annotations change (%s), and one of them has an id (%s); "+
 					"the splice sets free notes that are attached to nothing", freeNoteChange(declaredFree, storedFree), n.Label)
 			}
 		}
@@ -818,11 +822,11 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 
 	pd := &patchDiff{loc: newStoredLocator(a)}
 	if err := pd.statements(declared, stored); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	pd.startEvent(a, declared, declaredStart)
 	if err := pd.followingEnd(declared, stored); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 	// Drops go last. Each operation's scope check runs against the flow as the
 	// earlier operations left it, so a stored activity whose output only a
@@ -839,7 +843,7 @@ func diffFlowBody(a *alterFlowContext, declared, stored []ast.MicroflowStatement
 			}
 		}
 	}
-	return ops, targets, pd.moves, freeNotes, nil
+	return ops, targets, pd.moves, freeNotes, pd.bodyPins, nil
 }
 
 // withImplicitEnd states the end a declared body falls through to as the
@@ -874,6 +878,9 @@ type patchDiff struct {
 	ops     []*ast.AlterFlowOperation
 	targets []mfmutator.Candidate
 	moves   []flowMove
+	// bodyPins are the points the declared loop bodies state their nodes at
+	// (pinBody).
+	bodyPins []bodyPin
 }
 
 func (pd *patchDiff) add(op ast.AlterFlowOpKind, c mfmutator.Candidate, body []ast.MicroflowStatement) {
@@ -992,16 +999,18 @@ func (pd *patchDiff) gap(ins []ast.MicroflowStatement, stored []ast.MicroflowSta
 		}
 	}
 	// A stored loop declared again with a new body, in a run with other
-	// changes: replacing the run would rebuild the loop just as replacing it
-	// alone would, so it is refused the same way. Asked only of the 1:1 run,
-	// the refusal depended on what happened to change NEXT to the loop
-	// (ako/mxcli#942).
-	for _, d := range ins {
-		for _, st := range del {
-			if sameLoopShell(d, st) {
-				return pd.loopBodyChanged(st)
-			}
+	// changes: replacing the run would rebuild the loop, so the run is split
+	// at the loop, which is diffed in place like a loop on its own, and the
+	// changes on either side of it are runs of their own (ako/mxcli#942,
+	// ako/mxcli#1693).
+	if i, j, ok := loopPair(ins, del); ok {
+		if err := pd.gap(ins[:i], stored, si, si+j); err != nil {
+			return err
 		}
+		if err := pd.gap(ins[i:i+1], stored, si+j, si+j+1); err != nil {
+			return err
+		}
+		return pd.gap(ins[i+1:], stored, si+j+1, sEnd)
 	}
 	// A stored `if` declared again with its condition but neither as the same
 	// shell nor with only its condition changed has its else or a branch's
@@ -1254,9 +1263,8 @@ func (pd *patchDiff) conditionEdit(declared, stored *ast.IfStmt) error {
 // diffed branch by branch, rather than left to merge with the changes around
 // it into one run: a change before a guard and one inside its then-branch were
 // one replace whose fragment held the guard's return, which the splice cannot
-// insert (#859). A loop is paired this way only when its body can be edited in
-// place (editableLoopBody, ako/mxcli#1106); any other change inside a loop is
-// refused either way.
+// insert (#859). A loop is paired the same way (lcsStatements), and its body
+// diffed inside it (inLoopBody, ako/mxcli#1693).
 func sameBlockShell(declared, stored ast.MicroflowStatement) bool {
 	if _, _, ok := sameIfShell(declared, stored); ok {
 		return true
@@ -1302,16 +1310,10 @@ func sameLoopShell(declared, stored ast.MicroflowStatement) bool {
 }
 
 // loopBody diffs a stored loop declared again with a change inside its body
-// (ako/mxcli#1106). A body of the same shape — the same statements in the same
-// order, each as stored or the same kind of activity with new values, drawn
-// and annotated as stored — is spliced: each changed activity is replaced in
-// place, inside the loop, and needs no layout. Anything else would add,
-// remove, move or redraw a node whose coordinates are relative to the loop
-// box, and is refused (loopBodyChanged), naming the top-level loop.
+// (ako/mxcli#1106, ako/mxcli#1693). The loop itself stays — its $ID, where it
+// is drawn, its iterator and list — and its body is diffed as a statement list
+// of its own (inLoopBody).
 func (pd *patchDiff) loopBody(declared, stored ast.MicroflowStatement) error {
-	if !editableLoopBody(declared, stored) {
-		return pd.loopBodyChanged(stored)
-	}
 	c, err := pd.loc.locate(stored)
 	if err != nil {
 		return err
@@ -1320,92 +1322,282 @@ func (pd *patchDiff) loopBody(declared, stored ast.MicroflowStatement) error {
 	if !ok {
 		return cannotSplice("the stored %s is not drawn as a loop", describeAt(stored))
 	}
+	if !sameExceptPositions(loopShell(declared), loopShell(stored)) {
+		return redrawn(stored)
+	}
 	if err := pd.movedNode(declared, stored); err != nil {
 		return err
 	}
-	return pd.inLoopBody(loop, loopStatements(declared), loopStatements(stored))
+	return pd.inLoopBody(c, loop, stored, loopStatements(declared), loopStatements(stored))
 }
 
-// inLoopBody adds the in-place replaces of one loop body, already shown to be
-// of the same shape (editableLoopBody), recursing into a nested loop.
-func (pd *patchDiff) inLoopBody(loop *microflows.LoopedActivity, declared, stored []ast.MicroflowStatement) error {
-	loc := pd.loc.within(loop)
-	for i := range declared {
-		d, s := declared[i], stored[i]
-		if declaredMatches(d, s) {
-			continue
+// loopShell is a copy of a loop or while statement without its body.
+func loopShell(st ast.MicroflowStatement) ast.MicroflowStatement {
+	switch l := st.(type) {
+	case *ast.LoopStmt:
+		c := *l
+		c.Body = nil
+		return &c
+	case *ast.WhileStmt:
+		c := *l
+		c.Body = nil
+		return &c
+	}
+	return st
+}
+
+// loopPair finds, in a run of unmatched statements, a declared loop that is a
+// stored one restated (sameLoopShell): its index in ins and in del.
+func loopPair(ins, del []ast.MicroflowStatement) (int, int, bool) {
+	for i, d := range ins {
+		for j, st := range del {
+			if sameLoopShell(d, st) {
+				return i, j, true
+			}
 		}
-		if sameLoopShell(d, s) {
-			c, err := loc.locate(s)
+	}
+	return 0, 0, false
+}
+
+// inLoopBody diffs the body of the stored loop lc (drawn as loop, described
+// as at) the way the top level is diffed — statements matched by a longest
+// common subsequence, each run between two matched ones an insert, replace or
+// drop aimed at the stored body activity — but for plain activities only
+// (ako/mxcli#1693). The mutator lays an inserted run out among the body's
+// nodes, in the loop box's coordinates, and grows the box when the body no
+// longer fits it. A nested loop restated with a new body is diffed the same
+// way, inside its own box.
+//
+// What changes the body's shape — a decision, a loop, a return, break or
+// continue, a raise error or an error handler added, changed or taken out —
+// and a body node drawn elsewhere are refused (bodyRefusal), naming
+// `replace body of` the loop. A stored body that is empty has no activity to
+// insert next to: the declared one is put in it by replace body, which loses
+// nothing there.
+func (pd *patchDiff) inLoopBody(lc mfmutator.Candidate, loop *microflows.LoopedActivity, at ast.MicroflowStatement,
+	declared, stored []ast.MicroflowStatement) error {
+	outer := pd.loc
+	pd.loc = outer.within(loop)
+	defer func() { pd.loc = outer }()
+	pd.pinBody(lc.ID, declared)
+	if len(stored) == 0 {
+		if len(declared) > 0 {
+			pd.add(ast.AlterFlowReplaceBody, lc, declared)
+		}
+		return nil
+	}
+	pairs := lcsStatements(declared, stored)
+	di, si := 0, 0
+	for p := 0; p <= len(pairs); p++ {
+		dEnd, sEnd := len(declared), len(stored)
+		if p < len(pairs) {
+			dEnd, sEnd = pairs[p][0], pairs[p][1]
+		}
+		if err := pd.bodyGap(lc, at, declared[di:dEnd], stored, si, sEnd); err != nil {
+			return err
+		}
+		if p < len(pairs) {
+			d, st := declared[pairs[p][0]], stored[pairs[p][1]]
+			if !declaredMatches(d, st) {
+				if sameExceptPositions(d, st) {
+					return bodyRefusal(lc, at, fmt.Sprintf("the %s in it is drawn elsewhere, and the splice moves no node "+
+						"inside a loop body", describeAt(st)))
+				}
+				if err := pd.bodyGap(lc, at, []ast.MicroflowStatement{d}, stored, pairs[p][1], pairs[p][1]+1); err != nil {
+					return err
+				}
+			}
+			di, si = pairs[p][0]+1, pairs[p][1]+1
+		}
+	}
+	return nil
+}
+
+// bodyGap is gap for a run of unmatched statements inside the body of the
+// stored loop lc: declared ins where stored[si:sEnd] is stored.
+func (pd *patchDiff) bodyGap(lc mfmutator.Candidate, at ast.MicroflowStatement, ins, stored []ast.MicroflowStatement, si, sEnd int) error {
+	del := stored[si:sEnd]
+	if len(ins) == 0 && len(del) == 0 {
+		return nil
+	}
+	if len(ins) == 1 && len(del) == 1 {
+		if sameLoopShell(ins[0], del[0]) {
+			// A nested loop restated with a change in its body: the same rules,
+			// inside its own box. The loop is a body node, so it is not moved.
+			c, err := pd.loc.locate(del[0])
 			if err != nil {
 				return err
 			}
 			inner, ok := c.Object.(*microflows.LoopedActivity)
 			if !ok {
-				return cannotSplice("the stored %s is not drawn as a loop", describeAt(s))
+				return cannotSplice("the stored %s is not drawn as a loop", describeAt(del[0]))
 			}
-			if err := pd.inLoopBody(inner, loopStatements(d), loopStatements(s)); err != nil {
+			if !declaredMatches(loopShell(ins[0]), loopShell(del[0])) {
+				return bodyRefusal(lc, at, fmt.Sprintf("the %s in it is drawn elsewhere or its connectors are redrawn, and "+
+					"the splice moves no node inside a loop body", describeAt(del[0])))
+			}
+			return pd.inLoopBody(c, inner, del[0], loopStatements(ins[0]), loopStatements(del[0]))
+		}
+		if replaceableInPlace(ins[0], del[0]) {
+			// One activity changed: replaced in place, drawn where it is
+			// (ako/mxcli#1106). The stored notes stay on the replacement.
+			c, err := pd.loc.locate(del[0])
+			if err != nil {
 				return err
 			}
-			continue
+			body, _, err := keepStoredNotes(del[0], ins)
+			if err != nil {
+				return err
+			}
+			pd.add(ast.AlterFlowReplace, c, body)
+			return nil
 		}
-		c, err := loc.locate(s)
+	}
+	if i, j, ok := loopPair(ins, del); ok {
+		if err := pd.bodyGap(lc, at, ins[:i], stored, si, si+j); err != nil {
+			return err
+		}
+		if err := pd.bodyGap(lc, at, ins[i:i+1], stored, si+j, si+j+1); err != nil {
+			return err
+		}
+		return pd.bodyGap(lc, at, ins[i+1:], stored, si+j+1, sEnd)
+	}
+	for _, st := range del {
+		if what := notPlainInBody(st); what != "" {
+			return bodyRefusal(lc, at, fmt.Sprintf("%s in it (the %s) is changed or taken out", what, describeAt(st)))
+		}
+	}
+	for _, st := range ins {
+		if what := notPlainInBody(st); what != "" {
+			return bodyRefusal(lc, at, fmt.Sprintf("%s is added to it", what))
+		}
+	}
+	cands := make([]mfmutator.Candidate, len(del))
+	for i, st := range del {
+		c, err := pd.loc.locate(st)
 		if err != nil {
 			return err
 		}
-		// The stored notes stay on the replacement (editableLoopBody showed
-		// the declared ones are the same), so the builder does not draw them.
-		body, _, err := keepStoredNotes(s, []ast.MicroflowStatement{d})
+		cands[i] = c
+	}
+	if len(del) == 0 {
+		op, c, err := insertAnchor(pd.loc, stored, si, sEnd)
 		if err != nil {
 			return err
 		}
-		pd.add(ast.AlterFlowReplace, c, body)
+		pd.add(op, c, ins)
+		return nil
+	}
+	rest, restStmts := cands, del
+	if len(ins) > 0 {
+		body, replaceNotes, err := keepStoredNotes(del[0], ins)
+		if err != nil {
+			return err
+		}
+		pd.add(ast.AlterFlowReplace, cands[0], body)
+		pd.ops[len(pd.ops)-1].ReplaceNotes = replaceNotes
+		rest, restStmts = cands[1:], del[1:]
+	}
+	for i, c := range rest {
+		var notes []ast.MicroflowAnnotation
+		if ann := statementAnnotations(restStmts[i]); ann != nil {
+			notes = ann.Notes
+		}
+		for _, n := range notes {
+			if n.Label != "" {
+				return cannotSplice("the %s dropped at (%d, %d) carries an annotation shared with another activity (id: %s), "+
+					"which dropping it would take from that activity too",
+					statementKind(restStmts[i]), c.Object.GetPosition().X, c.Object.GetPosition().Y, n.Label)
+			}
+		}
+		pd.add(ast.AlterFlowDrop, c, nil)
+		pd.ops[len(pd.ops)-1].ReplaceNotes = len(notes) > 0
 	}
 	return nil
 }
 
-// editableLoopBody reports whether the declared loop differs from the stored
-// one only by activities that can be replaced in place: the same number of
-// statements, each matching its stored one, or a nested loop of which the
-// same holds, or the same kind of plain activity — not a decision, a return,
-// a break or continue, nor one with a custom error handler — whose
-// annotations (where it is drawn, its connectors, caption, colour and notes)
-// state nothing the stored one does not have.
-func editableLoopBody(declared, stored ast.MicroflowStatement) bool {
-	if !sameLoopShell(declared, stored) {
-		return false
+// notPlainInBody says what a statement is when it is not a plain activity —
+// one the splice inserts, drops or replaces inside a loop body — and "" when
+// it is one. Each of the others changes where the body's paths split, end or
+// rejoin.
+func notPlainInBody(st ast.MicroflowStatement) string {
+	switch st.(type) {
+	case *ast.IfStmt, *ast.EnumSplitStmt, *ast.InheritanceSplitStmt:
+		return "a decision"
+	case *ast.LoopStmt, *ast.WhileStmt:
+		return "a loop"
+	case *ast.ReturnStmt:
+		return "a return"
+	case *ast.RaiseErrorStmt:
+		return "a raise error"
+	case *ast.BreakStmt:
+		return "a break"
+	case *ast.ContinueStmt:
+		return "a continue"
+	case *ast.MergeStmt, *ast.JoinStmt:
+		return "a merge"
 	}
-	dBody, sBody := loopStatements(declared), loopStatements(stored)
-	if len(dBody) != len(sBody) {
-		return false
+	if customErrorHandler(st) {
+		return "an activity with an error handler"
 	}
-	for i := range dBody {
-		d, s := dBody[i], sBody[i]
-		if declaredMatches(d, s) {
-			continue
-		}
-		if sameLoopShell(d, s) {
-			if !editableLoopBody(d, s) {
-				return false
-			}
-			continue
-		}
-		if !replaceableInPlace(d, s) {
-			return false
-		}
-	}
-	return true
+	return ""
 }
 
+// plainInBodyNote is the part of every in-body refusal that says what the
+// splice does make there.
+const plainInBodyNote = "inside a loop body the splice inserts, drops and replaces plain activities only — not a " +
+	"decision, a loop, a return, break or continue, a raise error, or an activity with an error handler"
+
+// bodyRefusal refuses a change inside the body of the stored loop lc,
+// described as at, saying why; the refusal names `replace body of` the loop,
+// which makes any change of a body (ako/mxcli#1693).
+func bodyRefusal(lc mfmutator.Candidate, at ast.MicroflowStatement, why string) error {
+	return &notSpliceable{
+		reason:     fmt.Sprintf("the %s changes inside its body: %s; %s", describeAt(at), why, plainInBodyNote),
+		loopHandle: lc.Statement,
+	}
+}
+
+// pinBody records the points the declared body of the stored loop lc states
+// its nodes are drawn at, in the loop box's coordinates: each statement's
+// @position and its notes' positions. Making room in that body then moves no
+// node away from where the script draws it — under mdl 1, as at top level
+// (statedPoints).
+func (pd *patchDiff) pinBody(loop model.ID, declared []ast.MicroflowStatement) {
+	for _, st := range declared {
+		ann := statementAnnotations(st)
+		if ann == nil {
+			continue
+		}
+		if ann.Position != nil {
+			pd.bodyPins = append(pd.bodyPins, bodyPin{loop: loop, at: model.Point{X: ann.Position.X, Y: ann.Position.Y}})
+		}
+		for _, n := range ann.Notes {
+			if n.Position != nil {
+				pd.bodyPins = append(pd.bodyPins, bodyPin{loop: loop, at: model.Point{X: n.Position.X, Y: n.Position.Y}})
+			}
+		}
+	}
+}
+
+// bodyPin is a point a declared loop body states one of its nodes is drawn
+// at, in the box of the stored loop.
+type bodyPin struct {
+	loop model.ID
+	at   model.Point
+}
+
+// replaceableInPlace reports whether a declared statement is the stored one
+// changed so that it can be swapped in place inside a loop body: the same kind
+// of plain activity — not a decision, a return, a break or continue, nor one
+// with a custom error handler — whose annotations (where it is drawn, its
+// connectors, caption, colour and notes) state nothing the stored one does
+// not have (ako/mxcli#1106).
 func replaceableInPlace(declared, stored ast.MicroflowStatement) bool {
 	if statementKind(declared) != statementKind(stored) || sameExceptPositions(declared, stored) {
 		return false
 	}
-	switch declared.(type) {
-	case *ast.IfStmt, *ast.ReturnStmt, *ast.LoopStmt, *ast.WhileStmt, *ast.BreakStmt, *ast.ContinueStmt:
-		return false
-	}
-	if customErrorHandler(declared) || customErrorHandler(stored) {
+	if notPlainInBody(declared) != "" || notPlainInBody(stored) != "" {
 		return false
 	}
 	if da := statementAnnotations(declared); da != nil {
@@ -1444,20 +1636,6 @@ func loopStatements(st ast.MicroflowStatement) []ast.MicroflowStatement {
 		return l.Body
 	}
 	return nil
-}
-
-// loopBodyChanged refuses a change inside the body of the stored loop. The
-// splice does not edit inside a loop, and the engine would take it as a replace
-// of the whole loop: every node in it rebuilt, renumbered and redrawn — the
-// rebuild's loss, confined to the loop but no less silent. An explicit
-// `alter … replace loop` states that loss, so the refusal names it.
-func (pd *patchDiff) loopBodyChanged(stored ast.MicroflowStatement) error {
-	why := &notSpliceable{reason: fmt.Sprintf("the %s changes inside its body; the splice does not edit inside a loop, "+
-		"and replacing the whole loop would rebuild every node it holds", describeAt(stored))}
-	if c, err := pd.loc.locate(stored); err == nil {
-		why.loopHandle = c.Statement
-	}
-	return why
 }
 
 // describeAt names a stored statement and where it is drawn, for a message.
@@ -1684,9 +1862,11 @@ func lcsStatements(declared, stored []ast.MicroflowStatement) [][2]int {
 				// (mendixlabs/mxcli#1489): a change beside it must not merge
 				// with it into a replace, which would take the handler out.
 				w[i][j] = 2
-			case editableLoopBody(declared[i], stored[j]):
-				// A loop edited in place inside is that loop: a change beside
-				// it must not merge with it into a replace (ako/mxcli#1106).
+			case sameLoopShell(declared[i], stored[j]):
+				// A loop with a change in its body is that loop: a change
+				// beside it must not merge with it into a replace, which would
+				// rebuild it (ako/mxcli#1106, ako/mxcli#1693). Whether the
+				// change can be made inside it is inLoopBody's to say.
 				w[i][j] = 2
 			case conditionChanged(declared[i], stored[j]):
 				w[i][j] = 1
@@ -1815,7 +1995,7 @@ func patchSummary(ops []*ast.AlterFlowOperation, moves []flowMove, set []string)
 		switch op.Op {
 		case ast.AlterFlowInsertAfter, ast.AlterFlowInsertBefore:
 			ins++
-		case ast.AlterFlowReplace:
+		case ast.AlterFlowReplace, ast.AlterFlowReplaceBody:
 			rep++
 		case ast.AlterFlowDrop:
 			drop++

@@ -94,20 +94,23 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 		fail := func(err error) error {
 			return mdlerrors.NewValidation(fmt.Sprintf("alter %s %s: %s %s: %v", s.Kind(), s.Name, op.Op, op.Target, err))
 		}
-		// An activity inside a loop body is refused by the splice for any
-		// change of the body's shape. Say so first: the checks below see only the flow
-		// around the loop, so a fragment reading the iterator would otherwise
-		// be refused as reading an undeclared variable, which is not why.
-		// The one exception is an activity replaced by one activity, in place
-		// (ako/mxcli#1106): nothing in the body moves, so it needs no layout.
-		loop := a.enclosingLoop(target.ID)
-		inLoop := func() error {
-			return fail(fmt.Errorf("%s is inside the body of %s; alter does not splice inside a loop body "+
-				"but to replace one activity by one of the same kind. %s",
-				target.Statement, loop.Statement, replaceLoopAdvice(s.Kind(), s.Name.String(), loop.Statement)))
+		if op.Op == ast.AlterFlowReplaceBody {
+			// What is inside a loop, replaced; the loop itself stays
+			// (ako/mxcli#1693).
+			if err := a.replaceBody(ctx, mut, op, target); err != nil {
+				return fail(err)
+			}
+			continue
 		}
-		if loop != nil && (op.Op != ast.AlterFlowReplace || op.SetCondition || op.SetNotes || op.ReplaceNotes || len(op.Body) != 1) {
-			return inLoop()
+		// Inside a loop body the splice inserts, drops and replaces plain
+		// activities (ako/mxcli#1693). Anything else changes the body's shape
+		// and is refused first, naming `replace body of` the loop — the
+		// checks below would otherwise refuse it for a reason that is not why.
+		inLoop := a.inLoopRefusal(target)
+		if inLoop != nil {
+			if why := inBodyTarget(op, target); why != "" {
+				return fail(inLoop(why))
+			}
 		}
 		if op.ReplaceNotes {
 			// The statement states the activity's notes, so the stored ones
@@ -174,8 +177,10 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 		}
-		if loop != nil && (len(frag.Objects) != 1 || len(frag.Flows) > 0 || len(frag.AnnotationFlows) > 0) {
-			return inLoop()
+		if inLoop != nil {
+			if what := notPlainFragment(frag); what != "" {
+				return fail(inLoop("the fragment holds " + what))
+			}
 		}
 		// A stated @position on the fragment is where it goes (ako/mxcli#818).
 		frag.Placed = firstStatementPlaced(op.Body)
@@ -277,23 +282,101 @@ type alterFlowContext struct {
 	storedDesc ast.Statement
 }
 
-// enclosingLoop returns the top-level loop whose body holds the stored
-// object id, at any depth, or nil when id is not inside a loop. The top-level
-// loop is the one to replace: the splice addresses nothing inside a loop,
-// a nested loop included.
-func (a *alterFlowContext) enclosingLoop(id model.ID) *mfmutator.Candidate {
-	for _, obj := range a.mf.ObjectCollection.Objects {
-		loop, ok := obj.(*microflows.LoopedActivity)
-		if !ok || !loopHolds(loop, id) {
-			continue
-		}
-		for i := range a.cands {
-			if a.cands[i].ID == loop.ID {
-				return &a.cands[i]
-			}
+// inLoopRefusal returns, for a target inside a loop body, the refusal of an
+// operation the splice cannot make there, given why; nil at top level. The
+// refusal names the innermost loop around the target and `replace body of`
+// it, which makes any change of that body (ako/mxcli#1693).
+func (a *alterFlowContext) inLoopRefusal(target mfmutator.Candidate) func(why string) error {
+	loops := a.loopsAround(target.ID)
+	if len(loops) == 0 {
+		return nil
+	}
+	handle := "the loop"
+	for i := range a.cands {
+		if a.cands[i].ID == loops[0].ID {
+			handle = a.cands[i].Statement
 		}
 	}
-	return nil
+	s := a.stmt
+	return func(why string) error {
+		return fmt.Errorf("%s is inside the body of %s, and %s; %s. %s", target.Statement, handle, why,
+			strings.Replace(plainInBodyNote, "the splice", "alter", 1), replaceBodyAdvice(s.Kind(), s.Name.String(), handle))
+	}
+}
+
+// inBodyTarget says why an operation aimed at target, inside a loop body, is
+// not one the splice makes there, or "" when it may be: an insert next to an
+// activity or a loop, or a drop or replace of an activity without a custom
+// error handler. A decision's condition, notes set in place on a decision or
+// an end event, or an operation on any other node change the body's shape.
+func inBodyTarget(op *ast.AlterFlowOperation, target mfmutator.Candidate) string {
+	if op.SetCondition {
+		return "its condition would change"
+	}
+	switch o := target.Object.(type) {
+	case *microflows.ActionActivity:
+		if microflows.IsCustomErrorHandling(microflows.ObjectErrorHandlingType(o)) &&
+			(op.Op == ast.AlterFlowDrop || op.Op == ast.AlterFlowReplace) {
+			return "it has an error handler"
+		}
+		if op.SetNotes {
+			return "its notes would be set in place"
+		}
+		return ""
+	case *microflows.LoopedActivity:
+		if op.Op == ast.AlterFlowInsertAfter || op.Op == ast.AlterFlowInsertBefore {
+			return ""
+		}
+		return "it is a loop"
+	case *microflows.ExclusiveSplit, *microflows.InheritanceSplit:
+		return "it is a decision"
+	case *microflows.EndEvent:
+		return "it is a return"
+	case *microflows.ErrorEvent:
+		return "it is a raise error"
+	case *microflows.BreakEvent:
+		return "it is a break"
+	case *microflows.ContinueEvent:
+		return "it is a continue"
+	}
+	return "it is not an activity"
+}
+
+// notPlainFragment says what a built fragment holds that is not a plain
+// activity — the first decision, loop, event or error handler — or "" when it
+// is a run of plain activities (with their notes), the only fragment the
+// splice puts into a loop body (ako/mxcli#1693).
+func notPlainFragment(frag *backend.MicroflowFragment) string {
+	for _, obj := range frag.Objects {
+		switch obj.(type) {
+		case *microflows.ActionActivity, *microflows.Annotation:
+		case *microflows.ExclusiveSplit, *microflows.InheritanceSplit:
+			return "a decision"
+		case *microflows.LoopedActivity:
+			return "a loop"
+		case *microflows.EndEvent:
+			return "a return"
+		case *microflows.ErrorEvent:
+			return "a raise error"
+		case *microflows.BreakEvent:
+			return "a break"
+		case *microflows.ContinueEvent:
+			return "a continue"
+		case *microflows.ExclusiveMerge:
+			return "a merge"
+		default:
+			return "a " + strings.TrimPrefix(fmt.Sprintf("%T", obj), "*microflows.")
+		}
+	}
+	for _, f := range frag.Flows {
+		if f.IsErrorHandler {
+			return "an activity with an error handler"
+		}
+	}
+	if frag.ExitCase != nil {
+		return "a decision"
+	}
+	return ""
 }
 
 // loopsAround returns the loops whose body holds the stored object id, the

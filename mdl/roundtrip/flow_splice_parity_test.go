@@ -150,10 +150,11 @@ func TestPedAppSpliceParity_AuthoredSpellings(t *testing.T) {
 
 	// Control: a change exec refuses under mdl 1 is a refusal in diff too.
 	t.Run("diff reports the refusal exec makes", func(t *testing.T) {
-		// A statement added inside the loop body: a change of its shape (a
-		// value edit there is spliced in place, ako/mxcli#1106).
+		// A decision added inside the loop body: a change of its shape (a
+		// value edit there is spliced in place, ako/mxcli#1106, and so is a
+		// plain activity added, ako/mxcli#1693).
 		inLoop := strings.Replace(spliceParityFlow, "set $Total = $Total + $R/MonthKey;",
-			"set $Total = $Total + $R/MonthKey;\n    set $Total = $Total + 1;", 1)
+			"set $Total = $Total + $R/MonthKey;\n    if $R/MonthKey > 0 then\n      set $Total = $Total + 1;\n    end if;", 1)
 		if inLoop == spliceParityFlow {
 			t.Fatal("the flow has no loop-body set")
 		}

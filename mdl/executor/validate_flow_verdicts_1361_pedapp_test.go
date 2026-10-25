@@ -123,7 +123,9 @@ begin
   loop $It in $Items
   begin
     set $S = $S + 'a';
-    log info node 'X' 'added in loop';
+    if $It/Subject = empty then
+      log info node 'X' 'added in loop';
+    end if;
     commit $It;
   end loop;
   %s

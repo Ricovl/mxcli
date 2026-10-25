@@ -60,8 +60,9 @@ func TestCheckFlowVerdicts_ChainedOnTheSameFlow(t *testing.T) {
 	}
 
 	t.Run("a refusal after an earlier change is predicted", func(t *testing.T) {
-		// Step 2 changes the loop body's shape: refused, whatever step 1 did.
-		step2 := strings.Replace(chainedStep1, "'in loop';", "'in loop';\n    log info node 'X' 'again';", 1)
+		// Step 2 adds a decision to the loop body: refused, whatever step 1 did
+		// (a plain activity is spliced there, ako/mxcli#1693).
+		step2 := strings.Replace(chainedStep1, "'in loop';", "'in loop';\n    if $It/Subject = empty then log info node 'X' 'again'; end if;", 1)
 		r := report(t, chainedStep1+"\n"+strings.TrimPrefix(step2, "mdl 1;\n"))
 		if len(r.Violations) != 1 || !strings.Contains(r.Violations[0].Message, "changes inside its body") {
 			t.Errorf("want statement 2's refusal predicted, got violations %v, unpredicted %+v", r.Violations, r.Unpredicted)
@@ -80,7 +81,7 @@ func TestCheckFlowVerdicts_ChainedOnTheSameFlow(t *testing.T) {
 		}
 	})
 	t.Run("control: a refusal of the first statement is still reported", func(t *testing.T) {
-		step := strings.Replace(chainedBase, "'in loop';", "'in loop';\n    log info node 'X' 'again';", 1)
+		step := strings.Replace(chainedBase, "'in loop';", "'in loop';\n    if $It/Subject = empty then log info node 'X' 'again'; end if;", 1)
 		r := report(t, step)
 		if len(r.Violations) != 1 {
 			t.Errorf("want the refusal, got %v", r.Violations)
@@ -95,7 +96,7 @@ func TestCheckFlowVerdicts_ChainedOnTheSameFlow(t *testing.T) {
 	// exec agrees with the first prediction: it refuses statement 2. (Run
 	// last: ExecuteProgram writes statement 1; the rollback is cmd exec's.)
 	t.Run("exec refuses what check predicted", func(t *testing.T) {
-		step2 := strings.Replace(chainedStep1, "'in loop';", "'in loop';\n    log info node 'X' 'again';", 1)
+		step2 := strings.Replace(chainedStep1, "'in loop';", "'in loop';\n    if $It/Subject = empty then log info node 'X' 'again'; end if;", 1)
 		err := agreeExec(t, exec, chainedStep1+"\n"+strings.TrimPrefix(step2, "mdl 1;\n"))
 		if err == nil || !strings.Contains(err.Error(), "changes inside its body") {
 			t.Errorf("want exec to refuse statement 2, got %v", err)

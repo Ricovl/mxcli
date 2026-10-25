@@ -67,7 +67,7 @@ const endSpacing = HorizontalSpacing + HorizontalSpacing/2
 // point the script states a node at is pinned, so an operation that would
 // have to move one to make room is refused (mendixlabs/mxcli#1598, case 6).
 func patch(ctx *ExecContext, a *alterFlowContext, ops []*ast.AlterFlowOperation, targets []mfmutator.Candidate,
-	moves []flowMove, stated []model.Point) (backend.MicroflowMutator, error) {
+	moves []flowMove, stated []model.Point, bodyPins []bodyPin) (backend.MicroflowMutator, error) {
 	mut, err := ctx.Backend.OpenMicroflowForMutation(a.mf.ID)
 	if err != nil {
 		return nil, err
@@ -85,6 +85,11 @@ func patch(ctx *ExecContext, a *alterFlowContext, ops []*ast.AlterFlowOperation,
 	}
 	for _, p := range stated {
 		if err := mut.Pin(p); err != nil {
+			return nil, err
+		}
+	}
+	for _, p := range bodyPins {
+		if err := mut.PinInLoop(p.loop, p.at); err != nil {
 			return nil, err
 		}
 	}

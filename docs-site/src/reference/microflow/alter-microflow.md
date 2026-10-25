@@ -1,0 +1,111 @@
+# ALTER MICROFLOW / NANOFLOW
+
+## Synopsis
+
+```sql
+mdl 1;
+ALTER MICROFLOW module.Name {
+  INSERT AFTER | BEFORE <target> BEGIN <statements> END;
+  REPLACE <target> WITH BEGIN <statements> END;
+  REPLACE BODY OF <loop> WITH BEGIN <statements> END;
+  DROP <target>;
+};
+
+ALTER NANOFLOW module.Name { … };
+```
+
+## Description
+
+Patches a stored microflow or nanoflow in place: the operations are spliced
+into the stored graph rather than rebuilding it. Only the new activities, the
+flows rewired around them and the nodes moved to make room change; every other
+element keeps its element ID (`$ID`), position and curve, so Studio Pro shows
+the change and nothing else.
+
+A target addresses one stored activity by content, as
+`DESCRIBE MICROFLOW module.Name WITH HANDLES` prints it above each activity:
+`$Var` for the activity that outputs `$Var`, `'Caption'` for a decision or an
+activity with a custom caption, or a statement pattern in which `*` matches any
+run of tokens — followed by `@n` when several match. Every target is resolved
+against the flow as stored before any operation runs.
+
+A fragment is written exactly as the same statements are in `CREATE
+MICROFLOW`, between `BEGIN` and `END`.
+
+### Inside a loop body
+
+Inside a loop body, plain activities are inserted, replaced and dropped the
+same way — the body's first and last activity included. The new activities are
+laid out among the body's nodes; when the body no longer fits, the loop box
+grows on its far side, and what is drawn past the loop moves along. The loop's
+iterator is in scope.
+
+What would change the body's *shape* — a decision, a nested loop, a `RETURN`,
+`BREAK` or `CONTINUE`, a `RAISE ERROR` or an activity with a custom error
+handler put in, changed or taken out — is refused there, and the refusal names
+`REPLACE BODY OF`.
+
+### REPLACE BODY OF
+
+`REPLACE BODY OF <loop>` keeps the stored loop itself — its element ID, its
+position, its iterator and list, the flows into and out of it and the notes on
+it — and replaces only what is inside it. The new body is laid out as `CREATE
+MICROFLOW` lays out a loop body; the loop box keeps its size when the new body
+fits it, and grows on its far side when it does not.
+
+`<loop>` is the loop's handle: `loop $It in $Items`, or `while $N < 3` for a
+while loop, at any depth of nesting. The new body is scope-checked like any
+fragment: it may read the iterator, what it declares itself and what is
+declared before the loop, and it may not declare a variable the flow already
+has outside the loop.
+
+`REPLACE <loop handle> WITH BEGIN LOOP … END LOOP; END;` also works, and
+rebuilds the loop as well — its element ID and position included.
+
+### CREATE OR MODIFY
+
+`CREATE OR MODIFY MICROFLOW` of a flow that exists derives the same operations
+from the difference between the script and the stored flow. A plain activity
+added, removed, reordered or changed inside a loop body is spliced; under
+`mdl 1;` a change the splice cannot make is refused with the operation that
+makes it — for a decision inside a loop body, `REPLACE BODY OF` that loop.
+
+## Examples
+
+Insert, replace and drop at top level:
+
+```sql
+mdl 1;
+ALTER MICROFLOW FeedbackModule.VAL_Feedback {
+  INSERT AFTER $IsValidEmail BEGIN LOG INFO NODE 'Feedback' 'Email checked'; END;
+  REPLACE COMMIT $Order WITH BEGIN COMMIT $Order WITH EVENTS; END;
+  DROP LOG DEBUG NODE 'Feedback' *;
+};
+```
+
+Add an activity inside a loop body:
+
+```sql
+mdl 1;
+ALTER MICROFLOW Shop.ACT_ProcessLines {
+  INSERT AFTER COMMIT $Line BEGIN LOG INFO NODE 'Shop' 'line saved'; END;
+};
+```
+
+Put a decision inside a loop body, keeping the loop:
+
+```sql
+mdl 1;
+ALTER MICROFLOW Shop.ACT_ProcessLines {
+  REPLACE BODY OF LOOP $Line IN $Lines WITH BEGIN
+    IF $Line/Quantity > 0 THEN
+      CHANGE $Line (Processed = true);
+    END IF;
+    COMMIT $Line;
+  END;
+};
+```
+
+## See Also
+
+[CREATE MICROFLOW](create-microflow.md), [DESCRIBE MICROFLOW](/reference/query/describe-microflow.md)

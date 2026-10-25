@@ -468,9 +468,15 @@ alterTarget
  *   insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;
  *   insert before 'Email is Valid?' begin … end;
  *   replace commit $Order with begin commit $Order with events; end;
+ *   replace body of loop $Line in $Lines with begin commit $Line; end;
  *   drop log * node 'Debug' *;
  * }
  * ```
+ *
+ * `replace body of <loop>` keeps the stored loop — its element ID, position,
+ * iterator and list — and replaces only what is inside it (ako/mxcli#1693).
+ * Its alternative comes first: a pattern target is any run of tokens, so
+ * `body of loop …` would otherwise also read as the target of a plain replace.
  *
  * A fragment is written exactly as the same statements are in `create
  * microflow`. A target is a content address, resolved by mfmutator: `$Var`
@@ -481,6 +487,7 @@ alterTarget
  */
 alterFlowOperation
     : INSERT (AFTER | BEFORE) alterFlowTarget alterFlowFragment SEMICOLON?
+    | REPLACE BODY OF alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | REPLACE alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | DROP alterFlowTarget SEMICOLON
     ;

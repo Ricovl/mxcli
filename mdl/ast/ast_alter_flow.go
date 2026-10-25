@@ -9,8 +9,9 @@ package ast
 // AlterFlowStmt represents:
 //
 //	alter microflow|nanoflow Module.Name {
-//	  insert after|before <target> { <statements> }
-//	  replace <target> with { <statements> }
+//	  insert after|before <target> begin <statements> end;
+//	  replace <target> with begin <statements> end;
+//	  replace body of <loop> with begin <statements> end;
 //	  drop <target>;
 //	}
 //
@@ -40,6 +41,10 @@ const (
 	AlterFlowInsertBefore AlterFlowOpKind = "insert before"
 	AlterFlowReplace      AlterFlowOpKind = "replace"
 	AlterFlowDrop         AlterFlowOpKind = "drop"
+	// AlterFlowReplaceBody replaces what is inside a stored loop and keeps
+	// the loop itself — its $ID, position, iterator and list
+	// (ako/mxcli#1693). Target addresses the loop; Body is its new body.
+	AlterFlowReplaceBody AlterFlowOpKind = "replace body of"
 )
 
 // AlterFlowOperation is one operation of an AlterFlowStmt.
