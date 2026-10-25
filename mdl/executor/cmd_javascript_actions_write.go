@@ -20,6 +20,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A text template is a Java action type only (MDL-JSA01).
+	if bad := unsupportedJavaScriptActionTypes(s); len(bad) > 0 {
+		return mdlerrors.NewValidationf("%s", strings.Join(bad, "\n"))
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {

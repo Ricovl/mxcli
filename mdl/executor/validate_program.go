@@ -109,6 +109,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		if jaStmt, ok := stmt.(*ast.CreateJavaActionStmt); ok {
 			violations = append(violations, validateJavaActionTypeNames(jaStmt)...)
 		}
+		// A text template is a Java action type only (MDL-JSA01).
+		if jsStmt, ok := stmt.(*ast.CreateJavaScriptActionStmt); ok {
+			violations = append(violations, validateJavaScriptActionTypes(jsStmt)...)
+		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
 			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)
