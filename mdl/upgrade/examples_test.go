@@ -89,10 +89,11 @@ func TestFormatterKeepsMeaning(t *testing.T) {
 	}
 }
 
-// foldModeFlags erases the one AST difference between `or replace` and
-// `or modify` that means nothing: pages, snippets and layouts keep both flags,
-// and every reader in the executor tests `IsModify || IsReplace` (pinned by
-// mdl/visitor's TestCreateOrReplaceMatchesModifyExceptExemptKinds).
+// foldModeFlags erases the AST differences between `or replace` and `or
+// modify` that mean nothing: pages, snippets and layouts keep both flags, and
+// every reader in the executor tests `IsModify || IsReplace`; microflows and
+// nanoflows keep the spelling, which only messages read (ako/mxcli#1681). Pinned
+// by mdl/visitor's TestCreateOrReplaceMatchesModifyExceptExemptKinds.
 func foldModeFlags(stmts []ast.Statement) {
 	for _, s := range stmts {
 		switch n := s.(type) {
@@ -102,6 +103,10 @@ func foldModeFlags(stmts []ast.Statement) {
 			n.IsModify, n.IsReplace = n.IsModify || n.IsReplace, false
 		case *ast.CreateLayoutStmt:
 			n.IsModify, n.IsReplace = n.IsModify || n.IsReplace, false
+		case *ast.CreateMicroflowStmt:
+			n.CreateOrReplace = false
+		case *ast.CreateNanoflowStmt:
+			n.CreateOrReplace = false
 		}
 	}
 }
