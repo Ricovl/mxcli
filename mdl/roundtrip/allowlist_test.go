@@ -75,13 +75,5 @@ var knownFailures = map[string]knownFailure{
 	// AlternativeText and Items).
 
 	// Pages: #705 item 1 plus #721 C.
-	"page Administration.Account_Overview":   {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.PopupFailure":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.PopupSuccess":       {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.ShareFeedback":      {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page FeedbackModule.ShareFeedback_Logo": {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-	"page MyFirstModule.Home_Web":            {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
-
-	// Snippets: #705 item 4 plus #721 D.
-	"snippet Administration.ReadMe": {laws: []law{lawGetPut}, issue: "#705 #721", why: "snippet Type (#705 item 4); widget content (#721 D)"},
+	"page Administration.Account_Overview": {laws: []law{lawGetPut}, issue: "#705 #721", why: "texts and translations (#705 item 1); widget properties (#721 C)"},
 }
