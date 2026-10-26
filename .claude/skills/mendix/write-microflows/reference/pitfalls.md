@@ -408,6 +408,7 @@ note by its **text**, exactly as `describe` prints it (ako/mxcli#1695):
 ❌ **REFUSED** — "refers to a note that has not been declared above it":
 ```mdl
 mdl 1;
+-- ❌ WRONG: a describe-time id: label names no stored note
 alter microflow MyModule.ACT_Process {
   insert after log node 'App' 'start' begin
     @annotation(id: n1)
