@@ -1493,6 +1493,7 @@ MDL uses explicit property declarations for pages:
 | Pop-up dimensions | `PopupWidth: n, PopupHeight: n, PopupResizable: bool` | `(Layout: Atlas_Core.PopupLayout, PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` — case-sensitive; default 600×600 |
 | Page design properties | `DesignProperties: ( 'Key': 'Value', … )` | `(Layout: Atlas_Core.NativePhone_Default, DesignProperties: ('Spacing top': 'Inner large'))` — the page's own, from the theme's Document and Page groups |
 | Pop-up close button | `PopupCloseAction: <widgetName>` | `(Layout: Atlas_Core.PopupLayout, PopupCloseAction: cancelButton1)` — names a widget on this page. Not carried from the stored document on a rewrite: the statement rebuilds the widget tree, so a carried name could dangle |
+| Input read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `textbox t (Attribute: Name, ReadOnlyStyle: Text)` — on a text box, text area, date picker, check box and radio buttons. **Inherit** is the default; also `alter page … set (ReadOnlyStyle: Text) on t` |
 | DataView read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `dataview dv (datasource: $O, ReadOnlyStyle: Text)` — a DataView's own, distinct from a checkbox's. **Control** is Studio Pro's default here, not Inherit |
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
 | Page variables | `variables: ( $name: type = <expr> )` | `variables: ( $show: boolean = true )` |

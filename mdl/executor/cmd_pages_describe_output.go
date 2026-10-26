@@ -670,6 +670,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
@@ -691,6 +692,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
@@ -720,6 +722,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		// The picker's mode — without it a date-time picker described as a
 		// date-only one, and describe → exec wrote it that way (ako/mxcli#968).
 		props = append(props, w.Formatting...)
@@ -738,6 +741,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
@@ -753,10 +757,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
-		// Show ReadOnlyStyle if not default "Inherit"
-		if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
-			props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
-		}
+		props = appendReadOnlyStyle(props, w)
 		// Show ShowLabel if false (not showing label)
 		if !w.ShowLabel {
 			props = append(props, "ShowLabel: No")
@@ -2239,4 +2240,15 @@ func layoutGridAlignmentMDL(a string) string {
 		return ""
 	}
 	return a
+}
+
+// appendReadOnlyStyle prints an input widget's ReadOnlyStyle unless it is
+// Inherit, Studio Pro's default. Read on the check box only until
+// ako/mxcli#977, so a text box, text area, date picker or radio button group
+// stored with Text or Control came back from describe → exec as Inherit.
+func appendReadOnlyStyle(props []string, w rawWidget) []string {
+	if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
+		props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
+	}
+	return props
 }

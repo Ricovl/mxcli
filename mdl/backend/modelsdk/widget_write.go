@@ -587,7 +587,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterKeyPressAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
@@ -694,7 +694,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
@@ -730,7 +730,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -748,7 +748,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetRenderHorizontal(x.RenderDirection != pages.RenderDirectionVertical)
 		onChange, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {

@@ -3321,6 +3321,13 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return setDynamicTextNativeTextStyleMut(widget, value)
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "readonlystyle":
+		// Stored on the built-in input widgets and the data view; a pluggable
+		// widget with its own "readOnlyStyle" key keeps that path (ako/mxcli#977).
+		if bsonnav.DGet(widget, "ReadOnlyStyle") != nil {
+			return setReadOnlyStyleMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
@@ -3394,6 +3401,19 @@ func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
 		return fmt.Errorf("dynamic text %q has no stored NativeTextStyle property to set",
 			bsonnav.DGetString(widget, "Name"))
 	}
+	return nil
+}
+
+// setReadOnlyStyleMut writes a widget's ReadOnlyStyle in place, canonically
+// spelled; an unknown member is refused before the document is touched.
+func setReadOnlyStyleMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	style, ok := pages.CanonicalReadOnlyStyle(s)
+	if !ok {
+		return fmt.Errorf("invalid ReadOnlyStyle %q for widget %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(pages.ReadOnlyStyles, ", "))
+	}
+	bsonnav.DSet(widget, "ReadOnlyStyle", style)
 	return nil
 }
 
