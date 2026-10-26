@@ -4,7 +4,6 @@ package executor
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -76,49 +75,11 @@ const (
 // error this exists to catch.
 func resolveMemberOnEntity(ctx *ExecContext, entityQN, memberName string) memberResolution {
 	b, ok := ctx.Backend.(entityLookupBackend)
-	if !ok || entityQN == "" || memberName == "" {
+	if !ok {
 		return memberUnknown
 	}
-	seen := map[string]bool{}
-	for currentQN := entityQN; currentQN != ""; {
-		if seen[currentQN] {
-			// A generalization cycle is not a model mxcli should reason about.
-			return memberUnknown
-		}
-		seen[currentQN] = true
-
-		parts := strings.SplitN(currentQN, ".", 2)
-		if len(parts) != 2 {
-			return memberUnknown
-		}
-		mod, err := b.GetModuleByName(parts[0])
-		if err != nil || mod == nil {
-			return memberUnknown
-		}
-		dm, err := b.GetDomainModel(mod.ID)
-		if err != nil || dm == nil {
-			// The System module lands here. Silence, not a report.
-			return memberUnknown
-		}
-		entity := dm.FindEntityByName(parts[1])
-		if entity == nil {
-			return memberUnknown
-		}
-		for _, attr := range entity.Attributes {
-			if attr != nil && attr.Name == memberName {
-				return memberFound
-			}
-		}
-		// An association is a legal member of a CREATE / CHANGE too, and it is
-		// named on the entity that OWNS it rather than on either end, so it is
-		// checked against the module's whole association list rather than the
-		// entity's attributes.
-		if associationNamedInModule(dm, memberName) {
-			return memberFound
-		}
-		currentQN = entity.GeneralizationRef
-	}
-	return memberMissing
+	res, _ := entityMemberKind(b, entityQN, memberName)
+	return res
 }
 
 // backendRefusesModule reports whether the project's module list answers,
@@ -604,40 +565,9 @@ func authoredMembers(prog *ast.Program) map[string]bool {
 // nearMembers lists what the entity does have, capped so a wide entity does not
 // bury the error. A typo is cheap to fix only when you can see what is there.
 func nearMembers(ctx *ExecContext, entityQN string) string {
-	const max = 10
 	b, ok := ctx.Backend.(entityLookupBackend)
 	if !ok {
 		return ""
 	}
-	parts := strings.SplitN(entityQN, ".", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-	mod, err := b.GetModuleByName(parts[0])
-	if err != nil || mod == nil {
-		return ""
-	}
-	dm, err := b.GetDomainModel(mod.ID)
-	if err != nil || dm == nil {
-		return ""
-	}
-	entity := dm.FindEntityByName(parts[1])
-	if entity == nil {
-		return ""
-	}
-	var names []string
-	for _, a := range entity.Attributes {
-		if a != nil {
-			names = append(names, a.Name)
-		}
-	}
-	if len(names) == 0 {
-		return ""
-	}
-	sort.Strings(names)
-	if len(names) > max {
-		return fmt.Sprintf(" — it has %s and %d more",
-			strings.Join(names[:max], ", "), len(names)-max)
-	}
-	return fmt.Sprintf(" — it has %s", strings.Join(names, ", "))
+	return nearMembersFor(b, entityQN)
 }

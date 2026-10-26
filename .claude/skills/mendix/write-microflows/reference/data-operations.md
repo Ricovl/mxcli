@@ -251,6 +251,14 @@ through to the build:
 idiom is written: inside `loop $item in $L`, `find $Others by Key = $item/Key`
 navigates the **loop's** variable on the right-hand side.
 
+A `by` member, a `sort` key and an aggregate's attribute must be a member of the
+list's entity or of an entity it extends. One that is not — a typo, a wrong case,
+`owner` for `System.owner` — is refused by `check -p --references` and by exec,
+naming the entity and what it has; it used to be written as the attribute
+`Module.Entity.Typo` and fail the build with CE1613 (ako/mxcli#1646). A `sort`
+may use the system dates `createdDate` / `changedDate` where the entity's root
+stores them; an aggregate never can (`maximum $L by createdDate` is CE0226).
+
 **`sort` is not an expression.** It takes attribute names directly —
 `sort $Orders by CreateDate desc` — and any word works as a name there, so an
 attribute called `Count` or `Date` needs no quotes. Writing `$currentObject/`

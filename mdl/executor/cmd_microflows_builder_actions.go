@@ -1869,6 +1869,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 				if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, spec.Attribute); ok {
 					attrQN = declared
 				} else {
+					fb.refuseMissingListMember("sort", s.InputVariable, entityType, spec.Attribute)
 					attrQN = entityType + "." + spec.Attribute
 				}
 			}
@@ -1992,6 +1993,13 @@ func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter b
 		return nil
 	}
 
+	verb := "find"
+	if filter {
+		verb = "filter"
+	}
+	if fb.refuseMissingListMember(verb, s.InputVariable, fb.listElementEntity(s.InputVariable), fieldName) {
+		return nil
+	}
 	attributeName, associationName := fb.resolveListOperationMember(s.InputVariable, fieldName)
 	if associationName == "" && !strings.Contains(attributeName, ".") {
 		return nil
@@ -2091,11 +2099,15 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		action.UseExpression = true
 		action.Expression = expressionToString(s.Expression)
 	} else if s.Attribute != "" {
-		// For SUM/AVG/MIN/MAX, build qualified attribute name from variable type
-		if fb.varTypes != nil {
-			listType := fb.varTypes[s.InputVariable]
-			if after, ok := strings.CutPrefix(listType, "List of "); ok {
-				entityType := after
+		// For SUM/AVG/MIN/MAX, qualify the attribute with the entity that
+		// DECLARES it, as a sort does: an inherited one qualified with the
+		// list's own entity is CE1613 "The selected attribute 'M.Sub.Total' no
+		// longer exists" (measured on 11.13.0, ako/mxcli#1646).
+		if entityType := fb.listElementEntity(s.InputVariable); entityType != "" {
+			if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, s.Attribute); ok && !strings.Contains(s.Attribute, ".") {
+				action.AttributeQualifiedName = declared
+			} else {
+				fb.refuseMissingListMember(strings.ToLower(s.Operation.String()), s.InputVariable, entityType, s.Attribute)
 				action.AttributeQualifiedName = entityType + "." + s.Attribute
 			}
 		}
@@ -2672,6 +2684,25 @@ func (fb *flowBuilder) entityIsSubtypeOf(candidateQN, ancestorQN string) bool {
 		currentQN = entity.GeneralizationRef
 	}
 	return false
+}
+
+// refuseMissingListMember records the refusal for a list operation's or an
+// aggregate's member that the list's entity provably does not have, and
+// reports whether it did. Without it the builder wrote `<entity>.<name>`
+// anyway, which mxbuild rejects with CE1613 (ako/mxcli#1646). The verdict and
+// the message are check --references' own (flowMemberVerdict,
+// listMemberRefusal), so exec without the preflight says what check says. A
+// member that cannot be judged — the entity unknown, a module unreadable, a
+// qualified name — is written as before.
+func (fb *flowBuilder) refuseMissingListMember(verb, list, entityQN, member string) bool {
+	if fb == nil || fb.backend == nil || entityQN == "" || member == "" || strings.Contains(member, ".") {
+		return false
+	}
+	if res, _ := flowMemberVerdict(fb.backend, entityQN, member, !isAggregateVerb(verb)); res != memberMissing {
+		return false
+	}
+	fb.addError("%s", listMemberRefusal(listMemberWhere(verb, list, member), entityQN, member, nearMembersFor(fb.backend, entityQN)))
+	return true
 }
 
 // qualifyBareRetrieveAssociation resolves the association a retrieve names by
