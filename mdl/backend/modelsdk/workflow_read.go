@@ -478,6 +478,8 @@ func userSourceFromGen(source, targeting element.Element) workflows.UserSource {
 		return &workflows.XPathBasedUserSource{XPath: s.XPathConstraint()}
 	case *genWf.XPathUserTargeting:
 		return &workflows.XPathBasedUserSource{XPath: s.XPathConstraint()}
+	case *genWf.XPathGroupTargeting:
+		return &workflows.XPathGroupSource{XPath: s.XPathConstraint()}
 	default:
 		return &workflows.NoUserSource{}
 	}

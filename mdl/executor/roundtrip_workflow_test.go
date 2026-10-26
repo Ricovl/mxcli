@@ -425,3 +425,49 @@ end workflow;`
 		t.Errorf("Expected describe output to bind the argument in R4's form, got:\n%s", output)
 	}
 }
+
+// Issue ako/mxcli#1722. A task targeted with `groups xpath` described without
+// its targeting clause, so replaying the description removed the targeting.
+// The users-xpath task is the control: it always described.
+func TestRoundtripWorkflow_XPathTargeting(t *testing.T) {
+	env := setupTestEnv(t)
+	defer env.teardown()
+
+	if err := env.executeMDL(`create or modify persistent entity ` + testModule + `.WfTargetCtx (Name: String(100));`); err != nil {
+		t.Fatalf("create entity: %v", err)
+	}
+	createTaskPages(t, env, testModule, "TargetPage")
+
+	if err := env.executeMDL(`create workflow ` + testModule + `.WfXPathTargeting
+  parameter $WorkflowContext: ` + testModule + `.WfTargetCtx
+begin
+  user task ByUsers 'By users' page ` + testModule + `.TargetPage targeting users xpath [Active = true()] outcomes 'Done' { };
+  user task ByGroups 'By groups' page ` + testModule + `.TargetPage targeting groups xpath [Name = 'Reviewers'] outcomes 'Done' { };
+end workflow;`); err != nil {
+		t.Fatalf("create workflow: %v", err)
+	}
+
+	describe := func() string {
+		t.Helper()
+		out, err := env.describeMDL(`describe workflow ` + testModule + `.WfXPathTargeting;`)
+		if err != nil {
+			t.Fatalf("describe workflow: %v", err)
+		}
+		return out
+	}
+	want := []string{"targeting users xpath [Active = true()]", "targeting groups xpath [Name = 'Reviewers']"}
+	first := describe()
+	for _, w := range want {
+		if !strings.Contains(first, w) {
+			t.Errorf("describe lost %q:\n%s", w, first)
+		}
+	}
+
+	// Replaying the description (it is `create or modify`) must keep both.
+	if err := env.executeMDL(first); err != nil {
+		t.Fatalf("replay describe output: %v\n%s", err, first)
+	}
+	if second := describe(); second != first {
+		t.Errorf("describe -> create or modify changed the workflow:\nbefore:\n%s\nafter:\n%s", first, second)
+	}
+}
