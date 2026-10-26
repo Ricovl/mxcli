@@ -43,6 +43,11 @@ func (fb *flowBuilder) addLogMessageAction(s *ast.LogStmt) model.ID {
 	var templateText string
 	var templateParams []string
 
+	// The same function `mxcli check` runs (MDL-TEMPLATE01): an expression
+	// that also states `with (…)` has no template for the parameters to fill;
+	// its source text used to become the template (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
+
 	if len(s.Template) > 0 {
 		// Use provided template parameters
 		if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
@@ -1261,6 +1266,11 @@ func (fb *flowBuilder) addShowMessageAction(s *ast.ShowMessageStmt) model.ID {
 	var templateText string
 	var templateParams []string
 
+	// MDL-TEMPLATE01: an expression followed by `with (…)` stored '{1}' with
+	// the expression and then the parameters, which no placeholder read
+	// (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
+
 	if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
 		templateText = fmt.Sprintf("%v", lit.Value)
 	} else {
@@ -1465,6 +1475,9 @@ func (fb *flowBuilder) addValidationFeedbackAction(s *ast.ValidationFeedbackStmt
 	// use {1} placeholder with the expression as a parameter (same pattern as LogMessageAction).
 	var templateText string
 	var templateParams []string
+
+	// MDL-TEMPLATE01, as show message (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
 
 	if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
 		// Simple string literal - use raw value directly as template text
@@ -2304,6 +2317,9 @@ func mappingRootPathCrossesArray(jsonPath string) bool {
 
 // addSendEmailAction creates a SEND EMAIL activity (Microflows$SendEmailAction).
 func (fb *flowBuilder) addSendEmailAction(s *ast.SendEmailStmt) model.ID {
+	// MDL-TEMPLATE01: a subject or body written as an expression with
+	// `with (…)` (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
 	action := &microflows.SendEmailAction{
 		BaseElement:         model.BaseElement{ID: model.ID(types.GenerateID())},
 		ErrorHandlingType:   microflows.ErrorHandlingTypeRollback,
@@ -2389,7 +2405,13 @@ func (fb *flowBuilder) emailTemplate(c *ast.EmailTemplateClause) microflows.Emai
 		if len(c.Params) == 0 {
 			return microflows.EmailTemplate{Text: "{1}", Parameters: []string{fb.exprToString(c.Text)}}
 		}
-		return microflows.EmailTemplate{Text: fb.exprToString(c.Text), Parameters: fb.templateParamStrings(c.Params)}
+		// With parameters the text must be a string: a literal kept with its
+		// source because it spans lines is still one, stored as its value —
+		// its source, quotes and all, was the template. Any other expression
+		// is refused (MDL-TEMPLATE01, ako/mxcli#1683); its source text used to
+		// be stored as the template.
+		text, _ := restTemplateText(c.Text)
+		return microflows.EmailTemplate{Text: text, Parameters: fb.templateParamStrings(c.Params)}
 	}
 	return microflows.EmailTemplate{Text: fmt.Sprintf("%v", lit.Value), Parameters: fb.templateParamStrings(c.Params)}
 }

@@ -126,6 +126,9 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkRetrieveLimitOneAsList(body)
 	v.checkRetrieveListAsObject(body)
 	v.checkShowMessageType(body)
+	// MDL-TEMPLATE01: a message written as an expression with `with (…)`
+	// (ako/mxcli#1683). Same function exec calls.
+	v.checkMessageTemplates(body)
 	v.checkRetrieveOverSystemAssociation(body)
 	v.checkSetOnObjectVariable(v.params, body)
 	v.checkSystemMemberChange(body)

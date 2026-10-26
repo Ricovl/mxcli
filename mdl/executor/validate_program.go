@@ -139,6 +139,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 				ValidateFlowParameterAnnotations("rule '"+ruleStmt.Name.String()+"'", ruleStmt.Parameters)...)
 			violations = append(violations,
 				setTargetViolations("rule", ruleStmt.Name.String(), ruleStmt.Parameters, ruleStmt.Body)...)
+			// A rule logs and may send email (MDL-TEMPLATE01, ako/mxcli#1683).
+			violations = append(violations,
+				messageTemplateViolations("rule", ruleStmt.Name.String(), ruleStmt.Body)...)
 		}
 		// Check workflow for constructs MxBuild rejects (missing page,
 		// single-outcome-with-activities, invalid decision outcome names)

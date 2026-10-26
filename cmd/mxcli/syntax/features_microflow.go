@@ -61,7 +61,8 @@ func init() {
 			"template '...', like a REST body. Placeholders {1}, {2} ... are filled by\n" +
 			"WITH; each parameter must be a String (CE0117) and every placeholder needs\n" +
 			"one (CE0720). Any other expression is stored as '{1}' with the expression\n" +
-			"as its parameter.\n\n" +
+			"as its parameter, so an expression followed by WITH is refused: it has no\n" +
+			"{n} to fill (MDL-TEMPLATE01).\n\n" +
 			"Headers are plain strings, not expressions: letters, digits and hyphens in\n" +
 			"the name, one line in the value (MDL-EMAIL03). Attachment names a\n" +
 			"System.FileDocument variable, a list of them, or a specialization.\n" +
@@ -596,7 +597,7 @@ func init() {
 			"trace", "critical", "node", "message template",
 			"stacktrace", "stack trace", "include latest stack trace",
 		},
-		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).\n-- An expression message (LOG $Msg;) is stored as '{1}' with it as the parameter,\n-- so an expression followed by WITH (...) has no {n} to fill and is refused\n-- (MDL-TEMPLATE01) — as for SHOW MESSAGE, VALIDATION FEEDBACK and SEND EMAIL.",
 		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);\nLOG ERROR NODE 'OrderService' 'Failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;",
 	})
 
@@ -856,7 +857,7 @@ func init() {
 			"validation", "feedback", "validation feedback",
 			"error message", "field error", "form validation",
 		},
-		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);",
+		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);\n\n-- The message is a template: an expression (MESSAGE $Text) is stored as '{1}'\n-- with it as the parameter, and one followed by WITH is refused (MDL-TEMPLATE01).",
 		Example: "VALIDATION FEEDBACK $Order/Quantity MESSAGE 'Quantity must be positive';\nVALIDATION FEEDBACK $Customer/Email MESSAGE '{1} is not valid'\n  WITH ({1} = $Customer/Email);",
 		SeeAlso: []string{"microflow.error-handling"},
 	})
