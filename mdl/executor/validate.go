@@ -555,6 +555,10 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// `Module.Enum.Key` in any expression: the key must be one of the
 	// enumeration's values (mendixlabs/mxcli#1472).
 	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
+	// `[%UserRole_X%]` in any XPath constraint: X must be a user role, matched
+	// case-sensitively, or mxbuild reports CE1613 — and then no CE0161 at all
+	// (ako/mxcli#1723).
+	errors = append(errors, validateUserRoleTokens(ctx, prog, sc)...)
 	// A reference into a Protected (add-on) module's Hidden element, and a
 	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
 	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
