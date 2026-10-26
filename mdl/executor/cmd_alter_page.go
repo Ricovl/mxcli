@@ -557,7 +557,7 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 		}
 		return &pages.DatabaseSource{EntityName: ds.Reference}, nil
 	case "microflow":
-		return &pages.MicroflowSource{Microflow: ds.Reference}, nil
+		return &pages.MicroflowSource{Microflow: ds.Reference, FormValidations: ds.FormValidations}, nil
 	case "nanoflow":
 		return &pages.NanoflowSource{Nanoflow: ds.Reference}, nil
 	case "parameter":

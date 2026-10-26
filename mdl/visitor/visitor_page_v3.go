@@ -1105,6 +1105,11 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		if argsCtx := dsCtx.MicroflowArgsV3(); argsCtx != nil {
 			ds.Args = buildMicroflowArgsV3(argsCtx)
 		}
+		if sc := dsCtx.ActionSettingsV3(); sc != nil {
+			if s := buildActionSettingsV3(sc); s != nil {
+				ds.FormValidations = s.FormValidations
+			}
+		}
 	} else if dsCtx.NANOFLOW() != nil {
 		// NANOFLOW Module.Flow
 		ds.Type = "nanoflow"

@@ -998,6 +998,7 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			MicroflowID:       mfID,
 			Microflow:         ds.Reference,
 			ParameterMappings: pb.flowArgsToParameterMappings(ds.Args),
+			FormValidations:   ds.FormValidations,
 		}, entityName, nil
 
 	case "nanoflow":

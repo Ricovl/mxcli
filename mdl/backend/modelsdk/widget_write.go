@@ -1685,7 +1685,7 @@ func dataViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1834,7 +1834,7 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1917,7 +1917,7 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -2057,8 +2057,8 @@ func bindParameterMappingValue(m parameterMappingTarget, variable, kind, express
 // left a parameterized button/row invoking its microflow with no argument — the
 // widget no-ops at runtime yet mx check passes clean (Bug 1).
 //
-// settings carries what a call-microflow action's `with ( … )` says; nil (the
-// data-source case, which has no MDL spelling for them) writes Mendix's defaults.
+// settings carries what a call-microflow action's `with ( … )` says, or for a
+// data source its FormValidations (ako/mxcli#1729); nil writes Mendix's defaults.
 // outputs are its `returns ( … )` mappings (ako/mxcli#977 item 3).
 func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings, outputs []*pages.FlowOutputMapping) element.Element {
 	if settings == nil {

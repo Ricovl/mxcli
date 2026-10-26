@@ -276,6 +276,9 @@ func formatDataSourceV3(ds *ast.DataSourceV3) string {
 	case "database":
 		return "database " + databaseSourceFrom(ds)
 	case "microflow":
+		if ds.FormValidations != "" {
+			return "microflow " + ds.Reference + formatFlowArgsV3(ds.Args) + " with (FormValidations: " + ds.FormValidations + ")"
+		}
 		return "microflow " + ds.Reference + formatFlowArgsV3(ds.Args)
 	case "nanoflow":
 		return "nanoflow " + ds.Reference + formatFlowArgsV3(ds.Args)

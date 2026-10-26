@@ -356,6 +356,12 @@ func menuItemActionMDL(ctx *ExecContext, item *types.NavMenuItem) (onClick, note
 	typeName, _ := doc["$Type"].(string)
 	rendered := renderClientActionMDL(ctx, doc)
 	switch {
+	case strings.HasSuffix(rendered, unsetTargetNoteTail):
+		// A stored action with its target unset (ako/mxcli#1728): say so and
+		// keep it.
+		what := strings.TrimSuffix(strings.TrimPrefix(rendered, "-- NOT re-executable: the action "), unsetTargetNoteTail)
+		return "", fmt.Sprintf("-- menu item %s: its action (%s) %s, so it has no target MDL can name; "+
+			"a rewrite keeps the stored action while the item states none", menuCaptionNote(item.Caption), typeName, what)
 	case strings.HasPrefix(rendered, "--"):
 		return "", fmt.Sprintf("-- menu item %s: %s; a rewrite keeps the stored action while the item states none",
 			menuCaptionNote(item.Caption), strings.TrimSpace(strings.TrimPrefix(rendered, "--")))

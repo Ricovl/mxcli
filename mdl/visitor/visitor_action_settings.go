@@ -141,6 +141,10 @@ func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 			kind = "nanoflow"
 		}
 	}
+	// A microflow data source stores the same Forms$MicroflowSettings, but of
+	// its settings only FormValidations ever differs from the default in a
+	// Studio Pro-authored page (ako/mxcli#1729): the rest are an action's.
+	_, dataSource := ctx.GetParent().(*parser.DataSourceExprV3Context)
 	seen := map[string]bool{}
 	for _, raw := range ctx.AllActionSettingV3() {
 		s := raw.(*parser.ActionSettingV3Context)
@@ -161,11 +165,16 @@ func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 			continue
 		}
 		seen[key] = true
-		if spec.mfOnly && kind != "microflow" {
+		if dataSource && key != "formvalidations" {
+			b.addError(fmt.Errorf("%s: %s is a setting of a flow call, not of a data source; "+
+				"a microflow data source takes FormValidations only", pos, spec.canonical))
+			continue
+		}
+		if spec.mfOnly && kind != "microflow" && !dataSource {
 			b.addError(fmt.Errorf("%s: %s is a setting of `call microflow` only", pos, spec.canonical))
 			continue
 		}
-		if spec.flowOnly && kind == "other" {
+		if spec.flowOnly && kind == "other" && !dataSource {
 			b.addError(fmt.Errorf("%s: %s is a setting of `call microflow` and `call nanoflow` only",
 				pos, spec.canonical))
 			continue
