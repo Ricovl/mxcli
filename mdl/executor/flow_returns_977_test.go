@@ -99,7 +99,7 @@ func openPedAppFixtureAt(t *testing.T, version string) (*Executor, *bytes.Buffer
 // storedOutputMapping is one Forms$OutputMapping, flattened to the four slots.
 type storedOutputMapping struct {
 	Button, AttributeRef, SourceAttributeRef, SourceVariable, Expression string
-	Keys                                                                string
+	Keys                                                                 string
 }
 
 func attributeOf(v any) string {
