@@ -73,7 +73,7 @@ workflowEventSubProcess
  */
 workflowEventSubProcessTrigger
     : NOTIFICATION workflowActivityName? STRING_LITERAL?
-    | TIMER workflowExpression (AS workflowActivityName)? workflowCaption?
+    | TIMER workflowExpression workflowRecurrence? (AS workflowActivityName)? workflowCaption?
     ;
 
 /**
@@ -185,10 +185,22 @@ workflowExpression
  * grammar admits as a name: `interrupting timer non interrupting timer 'x'` is
  * two events, the first without a delay, as it was when only a string could be
  * the delay (ako/mxcli#753). Nor may it start with the `caption` (or its alias
- * `comment`) of a timer with no delay: `interrupting timer caption 'Escalate'`.
+ * `comment`) of a timer with no delay: `interrupting timer caption 'Escalate'`,
+ * or with its `repeat`.
  */
 workflowTimerDelay
-    : {p.GetTokenStream().LA(1) != MDLParserNON && p.GetTokenStream().LA(1) != MDLParserCAPTION && p.GetTokenStream().LA(1) != MDLParserCOMMENT}? workflowExpression
+    : {p.GetTokenStream().LA(1) != MDLParserNON && p.GetTokenStream().LA(1) != MDLParserCAPTION && p.GetTokenStream().LA(1) != MDLParserCOMMENT && p.GetTokenStream().LA(1) != MDLParserREPEAT}? workflowExpression
+    ;
+
+/**
+ * A non-interrupting timer's recurrence, Workflows$LinearRecurrence
+ * (ako/mxcli#1716): after its first firing the timer fires every <interval>
+ * <unit>, <max> times in all — the first firing counts, as Studio Pro's
+ * MaxExecutions does. The unit is a name (minute(s) … month(s)), not a
+ * keyword, and the visitor and MDL-WF22 check it.
+ */
+workflowRecurrence
+    : REPEAT EVERY interval=NUMBER_LITERAL unit=identifierOrKeyword AT_KW MOST maxExecutions=NUMBER_LITERAL TIMES
     ;
 
 /**
@@ -271,9 +283,9 @@ workflowFallbackClause
  * with two boundary events did not parse.
  */
 workflowBoundaryEventClause
-    : INTERRUPTING TIMER workflowTimerDelay? workflowCaption? (LBRACE workflowBody RBRACE)?
-    | NON INTERRUPTING TIMER workflowTimerDelay? workflowCaption? (LBRACE workflowBody RBRACE)?
-    | TIMER workflowTimerDelay? workflowCaption? (LBRACE workflowBody RBRACE)?
+    : INTERRUPTING TIMER workflowTimerDelay? workflowRecurrence? workflowCaption? (LBRACE workflowBody RBRACE)?
+    | NON INTERRUPTING TIMER workflowTimerDelay? workflowRecurrence? workflowCaption? (LBRACE workflowBody RBRACE)?
+    | TIMER workflowTimerDelay? workflowRecurrence? workflowCaption? (LBRACE workflowBody RBRACE)?
     // A notification boundary event is triggered by `notify workflow … target
     // <name>`, so its name is what matters; the string is its caption.
     | INTERRUPTING NOTIFICATION workflowActivityName? STRING_LITERAL? (LBRACE workflowBody RBRACE)?

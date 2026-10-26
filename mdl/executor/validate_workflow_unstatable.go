@@ -16,17 +16,17 @@ import (
 //	a user task's task name 'Review {1}' (caption 'Review')   reset to 'Review' (stated since #1714)
 //	its parameter {1} = $WorkflowContext/Name                 dropped (stated since #1714)
 //	a timer boundary event's caption                          blanked (stated since #1715)
-//	a non-interrupting timer's recurrence                     dropped (a one-shot reminder)
+//	a non-interrupting timer's recurrence                     dropped (stated since #1716)
 //
-// The rebuild writes a timer boundary event without a recurrence, and a
-// boundary event without its annotation; each is refused until MDL can state it
-// — the issue named after the reason adds the syntax. A user task's task name
-// and the texts' parameters are stated since ako/mxcli#1714 (`task name '…'`,
-// `… with ({1} = …)`), and printed by describe.
+// The rebuild writes a boundary event without its annotation, which is refused
+// until MDL can state it. A user task's task name and the texts' parameters
+// are stated since ako/mxcli#1714 (`task name '…'`, `… with ({1} = …)`), and a
+// timer's recurrence since ako/mxcli#1716 (`repeat every …`); describe prints
+// them.
 
 // rawBoundaryEventLosses lists what rebuilding a stored activity resets on its
-// boundary events: a timer's recurrence, and an annotation. A timer's caption
-// is stated with `caption '…'` and printed by describe (ako/mxcli#1715).
+// boundary events: an annotation. A timer's caption (ako/mxcli#1715) and
+// recurrence (#1716) are stated, and printed by describe.
 func rawBoundaryEventLosses(d map[string]any) []string {
 	var out []string
 	for _, be := range rawList(d["BoundaryEvents"]) {
@@ -35,10 +35,6 @@ func rawBoundaryEventLosses(d map[string]any) []string {
 			continue
 		}
 		kind := rawBoundaryEventKind(bm)
-		if r, ok := bm["Recurrence"].(map[string]any); ok {
-			out = append(out, fmt.Sprintf("its %s boundary event repeats (every %v %v, at most %v times), which MDL cannot state yet (ako/mxcli#1716)",
-				kind, r["Interval"], r["IntervalType"], r["MaxExecutions"]))
-		}
 		if a, ok := bm["Annotation"].(map[string]any); ok {
 			text, _ := a["Description"].(string)
 			out = append(out, fmt.Sprintf("its %s boundary event has annotation '%s', which MDL cannot state", kind, text))

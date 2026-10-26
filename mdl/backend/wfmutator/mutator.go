@@ -604,7 +604,7 @@ func (m *Mutator) DropBranch(activityRef string, atPos int, branchName string) e
 // Boundary event operations
 // ---------------------------------------------------------------------------
 
-func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, activities []workflows.WorkflowActivity) error {
+func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	actDoc, err := m.findMemberTarget(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -637,7 +637,19 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc = append(eventDoc, bson.E{Key: "PersistentId", Value: bsonutil.NewIDBsonBinary()})
 
 	if typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
-		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: nil})
+		var rec any // null: fires once
+		if recurrence != nil {
+			rec = bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "Workflows$LinearRecurrence"},
+				{Key: "Interval", Value: int32(recurrence.Interval)},
+				{Key: "IntervalType", Value: recurrence.IntervalType},
+				{Key: "MaxExecutions", Value: int32(recurrence.MaxExecutions)},
+			}
+		}
+		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: rec})
+	} else if recurrence != nil {
+		return fmt.Errorf("insert boundary event: only a non-interrupting timer repeats")
 	}
 
 	events := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "BoundaryEvents"))

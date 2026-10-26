@@ -989,6 +989,9 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 	case *workflows.NotificationActivity:
 		return map[string]any{"$Type": "Workflows$NotificationActivity", "name": act.Name, "caption": act.Caption}, nil
 	case *workflows.EventSubProcessStartActivity:
+		if act.Recurrence != nil {
+			return nil, errMCPRecurrence("event sub-process start " + act.Name)
+		}
 		m := map[string]any{"$Type": act.StorageType(), "name": act.Name, "caption": act.Caption}
 		if act.Timer {
 			m["firstExecutionTime"] = act.FirstExecutionTime
@@ -2034,7 +2037,7 @@ func (m *mcpWorkflowMutator) DropBranch(activityRef string, atPos int, branchNam
 
 // InsertBoundaryEvent attaches a (non-)interrupting timer boundary event, with an
 // optional handler sub-flow, to a user task or call-microflow activity.
-func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay, caption string, activities []workflows.WorkflowActivity) error {
+func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	loc, err := m.resolveMember(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -2047,7 +2050,7 @@ func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, 
 		return ""
 	}).Activities
 	wfnames.Dedup(activities, loc.taken)
-	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay, Caption: caption}
+	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay, Caption: caption, Recurrence: recurrence}
 	if be.IsNotification() {
 		// The op carries no name, and a notification event is reached by its name.
 		return fmt.Errorf("insert boundary event: %q boundary events cannot be inserted by ALTER WORKFLOW", eventType)
@@ -2267,6 +2270,9 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 		}
 		return el, nil
 	}
+	if be.Recurrence != nil {
+		return nil, errMCPRecurrence("a boundary event")
+	}
 	el := map[string]any{"$Type": typeName, "caption": be.Caption}
 	switch typeName {
 	case "Workflows$InterruptingTimerBoundaryEvent":
@@ -2283,4 +2289,13 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 func errMCPTemplateParams(what string) error {
 	return fmt.Errorf("%s has template parameters (`with ({1} = …)`), which the MCP backend cannot write yet — "+
 		"create the workflow without --mcp, or set the parameters in Studio Pro", what)
+}
+
+// errMCPRecurrence refuses a recurring timer over MCP: PED's timer constructors
+// drop properties they do not take (firstExecutionTime, measured on 11.14), and
+// whether they take a recurrence is unmeasured — writing the timer without it
+// would make a repeating reminder fire once (ako/mxcli#1716).
+func errMCPRecurrence(what string) error {
+	return fmt.Errorf("%s repeats (`repeat every …`), which the MCP backend cannot write yet — "+
+		"create the workflow without --mcp, or set the recurrence in Studio Pro", what)
 }

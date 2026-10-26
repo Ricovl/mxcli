@@ -130,6 +130,7 @@ func ValidateWorkflow(stmt *ast.CreateWorkflowStmt) []linter.Violation {
 	out = append(out, ValidateWorkflowEventSubProcesses(stmt)...)
 	out = append(out, ValidateWorkflowExpressionScope(stmt)...)
 	out = append(out, checkWorkflowTemplates(workflowTemplateSites(stmt), loc)...)
+	out = append(out, checkWorkflowRecurrences(workflowRecurrenceSites(stmt), loc)...)
 	return out
 }
 
@@ -437,5 +438,6 @@ func ValidateAlterWorkflow(stmt *ast.AlterWorkflowStmt) []linter.Violation {
 	// header's declared context name, so only $WorkflowContext is accepted for it.
 	out = append(out, checkWorkflowExprScope(alterWorkflowExprSites(stmt), "", loc)...)
 	out = append(out, checkWorkflowTemplates(alterWorkflowTemplateSites(stmt), loc)...)
+	out = append(out, checkWorkflowRecurrences(alterWorkflowRecurrenceSites(stmt), loc)...)
 	return append(out, ValidateAlterWorkflowEnds(stmt)...)
 }

@@ -396,7 +396,7 @@ func jumpShadowFake(t *testing.T) (*fakePED, *mcpWorkflowMutator) {
 // caption matched the reference as well as the target's name.
 func TestWFResolve_NameBeatsJumpCaption(t *testing.T) {
 	f, m := jumpShadowFake(t)
-	if err := m.InsertBoundaryEvent("bugSplitJump", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil); err != nil {
+	if err := m.InsertBoundaryEvent("bugSplitJump", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if ops := wfUpdateOps(t, f); !strings.Contains(ops, `"path":"/flow/activities/0/boundaryEvents"`) {
@@ -526,7 +526,7 @@ func TestWFDropBranch(t *testing.T) {
 
 func TestWFBoundaryEvent(t *testing.T) {
 	f, m := wfMutatorFake(t)
-	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil); err != nil {
+	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	ops := wfUpdateOps(t, f)
@@ -739,5 +739,22 @@ func TestMCPWorkflow_RefusesTemplateParameters(t *testing.T) {
 	plain.Name, plain.Caption = "Plain", "Plain"
 	if _, err := mapWorkflowActivity(plain); err != nil {
 		t.Errorf("a task without parameters: %v", err)
+	}
+}
+
+// ako/mxcli#1716: PED's timer constructors drop what they do not take, so a
+// recurrence is refused over MCP rather than written as a one-shot timer.
+func TestMCPWorkflow_RefusesRecurrence(t *testing.T) {
+	r := &workflows.Recurrence{IntervalType: "Day", Interval: 1, MaxExecutions: 3}
+	if _, err := boundaryEventElement(&workflows.BoundaryEvent{EventType: "NonInterruptingTimer", Recurrence: r}); err == nil {
+		t.Error("a repeating boundary event must be refused over MCP")
+	}
+	start := &workflows.EventSubProcessStartActivity{Timer: true, Recurrence: r}
+	start.Name = "S"
+	if _, err := mapWorkflowActivity(start); err == nil {
+		t.Error("a repeating event sub-process start must be refused over MCP")
+	}
+	if _, err := boundaryEventElement(&workflows.BoundaryEvent{EventType: "NonInterruptingTimer"}); err != nil {
+		t.Errorf("control, no recurrence: %v", err)
 	}
 }

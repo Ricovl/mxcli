@@ -376,6 +376,9 @@ func activityToGen(act workflows.WorkflowActivity) element.Element {
 			addStr(g, "FirstExecutionTime", a.FirstExecutionTime)
 		}
 		addStr(g, "Name", a.Name)
+		if a.Recurrence != nil && a.Timer && !a.Interrupting {
+			addPart(g, "Recurrence", linearRecurrenceToGen(a.Recurrence))
+		}
 		return g
 	default:
 		return nil
@@ -731,7 +734,10 @@ func boundaryEventsToGen(events []*workflows.BoundaryEvent) []element.Element {
 			addStr(g, "Name", ev.Name)
 		}
 		addFreshPersistentID(g)
-		// Recurrence: null on NonInterrupting (via NullFields).
+		// Recurrence: null on NonInterrupting (via NullFields) unless it repeats.
+		if ev.Recurrence != nil && typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
+			addPart(g, "Recurrence", linearRecurrenceToGen(ev.Recurrence))
+		}
 		out = append(out, g)
 	}
 	return out
@@ -845,4 +851,15 @@ func activityIDOrFresh(id string) string {
 
 func outcomeID(id model.ID) string {
 	return activityIDOrFresh(string(id))
+}
+
+// linearRecurrenceToGen builds a Workflows$LinearRecurrence (ako/mxcli#1716):
+// the shape mx check accepts on 11.15.0, with IntervalType read by the runtime
+// as the scheduled-event enumeration (Minute, Hour, Day, Week, Month).
+func linearRecurrenceToGen(r *workflows.Recurrence) element.Element {
+	g := newElem("Workflows$LinearRecurrence", "")
+	addInt32(g, "Interval", int32(r.Interval))
+	addStr(g, "IntervalType", r.IntervalType)
+	addInt32(g, "MaxExecutions", int32(r.MaxExecutions))
+	return g
 }

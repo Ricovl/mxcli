@@ -316,6 +316,8 @@ type EventSubProcessStartActivity struct {
 	Interrupting       bool   `json:"interrupting"`
 	Timer              bool   `json:"timer"`
 	FirstExecutionTime string `json:"firstExecutionTime,omitempty"` // timer starts only
+	// Recurrence repeats a non-interrupting timer start; nil fires it once.
+	Recurrence *Recurrence `json:"recurrence,omitempty"`
 }
 
 // ActivityType returns the type name, e.g. "InterruptingNotificationEventSubProcessStart".
@@ -635,6 +637,49 @@ type BoundaryEvent struct {
 	// EventType is "InterruptingTimer", "NonInterruptingTimer", "Timer",
 	// "InterruptingNotification" or "NonInterruptingNotification".
 	EventType string `json:"eventType,omitempty"`
+	// Recurrence repeats a non-interrupting timer; nil fires it once.
+	Recurrence *Recurrence `json:"recurrence,omitempty"`
+}
+
+// Recurrence is a non-interrupting timer's repetition, Workflows$LinearRecurrence
+// (ako/mxcli#1716): after its first firing it fires every Interval IntervalType,
+// MaxExecutions times in all — the first firing included. Studio Pro allows
+// IntervalType Minute, Hour, Day, Week or Month (MW0005), Interval at least 1
+// and MaxExecutions at least 2 (MW0004); mx check enforces none of them.
+type Recurrence struct {
+	IntervalType  string `json:"intervalType"`
+	Interval      int    `json:"interval"`
+	MaxExecutions int    `json:"maxExecutions"`
+}
+
+// recurrenceUnits maps the unit words MDL accepts, singular and plural, to the
+// stored IntervalType: the scheduled-event enumeration the runtime reads it as
+// (com.mendix.model.scheduledevents.ModelIntervalType, 11.15.0). Second and
+// Year are in that enumeration but not allowed for a recurrence.
+var recurrenceUnits = map[string]string{
+	"second": "Second", "minute": "Minute", "hour": "Hour", "day": "Day",
+	"week": "Week", "month": "Month", "year": "Year",
+}
+
+// RecurrenceIntervalType is the stored IntervalType for a unit word — "day",
+// "Days", … — and whether the word names one.
+func RecurrenceIntervalType(word string) (string, bool) {
+	w := strings.ToLower(word)
+	if t, ok := recurrenceUnits[w]; ok {
+		return t, true
+	}
+	t, ok := recurrenceUnits[strings.TrimSuffix(w, "s")]
+	return t, ok
+}
+
+// RecurrenceUnitWord is how MDL writes an IntervalType after a count:
+// "day" for 1, "days" otherwise.
+func RecurrenceUnitWord(intervalType string, count int) string {
+	w := strings.ToLower(intervalType)
+	if count != 1 {
+		w += "s"
+	}
+	return w
 }
 
 // boundaryEventStorageTypes maps EventType to the stored $Type. Every writer

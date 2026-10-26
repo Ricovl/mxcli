@@ -114,7 +114,7 @@ func TestAlterInsertBoundaryEvent_InterruptingPathEndsLikeStudioPro(t *testing.T
 		ResolveAlterTargetFunc: func(tg backend.AlterTarget) (backend.AlterTargetMatch, error) {
 			return backend.AlterTargetMatch{Kind: "user task", Name: backend.WorkflowTargetText(tg)}, nil
 		},
-		InsertBoundaryEventFunc: func(ref string, _ int, eventType, _, _ string, acts []workflows.WorkflowActivity) error {
+		InsertBoundaryEventFunc: func(ref string, _ int, eventType, _, _ string, _ *workflows.Recurrence, acts []workflows.WorkflowActivity) error {
 			got[ref+" "+eventType] = acts
 			return nil
 		},

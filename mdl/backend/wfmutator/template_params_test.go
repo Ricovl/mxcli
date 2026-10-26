@@ -5,6 +5,8 @@ package wfmutator
 import (
 	"testing"
 
+	"github.com/mendixlabs/mxcli/sdk/workflows"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -77,5 +79,26 @@ func TestWorkflowMutator_SetTemplateParameters(t *testing.T) {
 	actDoc, _ = m.findActivityByCaption("Review", 0)
 	if got := templateExprs(t, bsonnav.DGetDoc(actDoc, "TaskName")); len(got) != 0 {
 		t.Errorf("cleared task name params = %q", got)
+	}
+}
+
+// ako/mxcli#1716: ALTER's insert writes a non-interrupting timer's recurrence,
+// and refuses one on an interrupting timer.
+func TestWorkflowMutator_InsertBoundaryEvent_Recurrence(t *testing.T) {
+	act := makeWfActivity("Workflows$UserTask", "Review", "task1")
+	act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
+	m := newMutator(makeWorkflowDoc(act))
+	r := &workflows.Recurrence{IntervalType: "Week", Interval: 1, MaxExecutions: 4}
+	if err := m.InsertBoundaryEvent("Review", 0, "NonInterruptingTimer", "PT1H", "", r, nil); err != nil {
+		t.Fatal(err)
+	}
+	actDoc, _ := m.findActivityByCaption("Review", 0)
+	ev := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "BoundaryEvents"))[0].(bson.D)
+	rec := bsonnav.DGetDoc(ev, "Recurrence")
+	if rec == nil || bsonnav.DGetString(rec, "$Type") != "Workflows$LinearRecurrence" || bsonnav.DGetString(rec, "IntervalType") != "Week" {
+		t.Errorf("recurrence = %v", rec)
+	}
+	if err := m.InsertBoundaryEvent("Review", 0, "InterruptingTimer", "PT1H", "", r, nil); err == nil {
+		t.Error("a repeating interrupting timer must be refused")
 	}
 }

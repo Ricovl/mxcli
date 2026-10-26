@@ -923,6 +923,11 @@ AWAIT: A W A I T;
 // `auto assign single user` on a user task (AutoAssignSingleTargetUser).
 AUTO: A U T O;
 ASSIGN: A S S I G N;
+// `repeat every 1 day at most 5 times` on a non-interrupting timer
+// (Workflows$LinearRecurrence, ako/mxcli#1716). Words, so still usable as names.
+REPEAT: R E P E A T;
+EVERY: E V E R Y;
+TIMES: T I M E S;
 
 // Data transformer tokens
 DATA: D A T A;

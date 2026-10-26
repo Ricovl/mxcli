@@ -54,7 +54,18 @@ type WorkflowEventSubProcessNode struct {
 	StartCaption string
 	// FirstExecutionTime is a timer start's expression.
 	FirstExecutionTime string
-	Activities         []WorkflowActivityNode
+	// Recurrence is a non-interrupting timer start's `repeat every …`.
+	Recurrence *WorkflowRecurrenceNode
+	Activities []WorkflowActivityNode
+}
+
+// WorkflowRecurrenceNode is `repeat every <interval> <unit> at most <max> times`
+// on a non-interrupting timer (ako/mxcli#1716). Unit is the word as written —
+// "day", "days", … — checked by MDL-WF22.
+type WorkflowRecurrenceNode struct {
+	Interval      int
+	Unit          string
+	MaxExecutions int
 }
 
 // WorkflowEventHandlerNode is one `on workflow events (…) microflow M as '…'` or
@@ -285,6 +296,8 @@ type WorkflowBoundaryEventNode struct {
 	Name       string                 // notification events: what `notify workflow … target` names
 	Caption    string                 // notification events
 	Activities []WorkflowActivityNode // Sub-flow activities inside the boundary event
+	// Recurrence is a timer's `repeat every …` (a non-interrupting one's only).
+	Recurrence *WorkflowRecurrenceNode
 }
 
 // WorkflowAnnotationActivityNode represents an ANNOTATION activity in a workflow.
@@ -452,6 +465,7 @@ type InsertBoundaryEventOp struct {
 	EventType   string // "InterruptingTimer", "NonInterruptingTimer"
 	Delay       string
 	Caption     string
+	Recurrence  *WorkflowRecurrenceNode
 	Activities  []WorkflowActivityNode
 }
 

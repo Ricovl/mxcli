@@ -183,6 +183,14 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 				break
 			}
 		}
+		for _, esp := range s.EventSubProcesses {
+			if esp.Recurrence != nil {
+				gates = append(gates, versionGate{"workflows", "recurring_timer_event_subprocesses", "event subprocess … repeat every",
+					"a repeating event sub-process start needs Mendix 11.15 or later — the 11.13 runtime ignores the recurrence and starts it once; " +
+						"repeat a non-interrupting boundary timer instead (`boundary event non interrupting timer … repeat every …`)"})
+				break
+			}
+		}
 		if workflowUsesNotificationEvents(activities) {
 			gates = append(gates, notificationEventsGate)
 		}

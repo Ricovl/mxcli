@@ -668,6 +668,7 @@ keyword
     // Workflow user task settings — words, so still usable as names
     | DECIDE | CONSENSUS | MAJORITY | MORE_KW | THAN | HALF | MOST | CHOSEN | THRESHOLD
     | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT | AUTO | ASSIGN
+    | REPEAT | EVERY | TIMES
 
     // Microflow / Nanoflow
     | MICROFLOW | MICROFLOWS | NANOFLOW | NANOFLOWS

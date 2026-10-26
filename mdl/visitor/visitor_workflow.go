@@ -988,6 +988,7 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 		}
 		// A timer's caption is the clause every activity takes (ako/mxcli#1715).
 		be.Caption = workflowCaptionText(beCtx2.WorkflowCaption())
+		be.Recurrence = buildWorkflowRecurrence(beCtx2.WorkflowRecurrence())
 	}
 	if notification {
 		be.Name = workflowActivityNameText(beCtx2.WorkflowActivityName())
@@ -1027,6 +1028,7 @@ func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) as
 		if node.Timer {
 			node.FirstExecutionTime = workflowExpressionText(t.WorkflowExpression())
 			node.StartCaption = workflowCaptionText(t.WorkflowCaption())
+			node.Recurrence = buildWorkflowRecurrence(t.WorkflowRecurrence())
 		} else if s := t.STRING_LITERAL(); s != nil {
 			node.StartCaption = unquoteStringLit(s)
 		}
