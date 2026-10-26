@@ -880,6 +880,9 @@ type rawWidget struct {
 	// (ako/mxcli#977).
 	NumberOfLines *int64
 	Autocomplete  *bool
+	// OutputMappings counts the output mappings (Mendix 11.5) of a button's
+	// flow call, which MDL cannot show (ako/mxcli#977).
+	OutputMappings int
 	// ValidationExpression / ValidationMessage are the two fields of
 	// Forms$WidgetValidation, the per-widget validation Studio Pro stores on
 	// input widgets.

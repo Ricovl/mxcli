@@ -1,0 +1,31 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 3 — "A button's `OutputMappings` are not round-tripped."
+--
+-- The empty list Studio Pro stores on every flow call is written since
+-- 2026-10-10 (widget_write_mapping_markers_test.go). A NON-empty list — Mendix
+-- 11.5's mapping of a flow's result back onto the page — has no MDL, so a
+-- describe → exec of a page whose button had one reported "Replaced page" and
+-- dropped it; mx check is silent about it.
+--
+-- A rebuild now keeps the stored mappings while the button still calls the
+-- same flow (canon.CarryOutputMappings), and describe prints a comment under
+-- the button:
+--
+--   -- btnGo: 1 output mapping, which MDL cannot show; kept on a rewrite while
+--      the button calls the same flow
+--
+-- Calling another flow drops them, since they read the old flow's result. The
+-- mappings themselves are authored in Studio Pro; this script makes the button
+-- they hang on.
+-- ============================================================================
+
+create module BugOutputMappings;
+
+create microflow BugOutputMappings.ACT_Go ()
+begin
+end;
+
+create page BugOutputMappings.Go_Page (Title: 'Go', Layout: Atlas_Core.Atlas_Default) {
+  actionbutton btnGo (Caption: 'Go', Action: call microflow BugOutputMappings.ACT_Go)
+};
