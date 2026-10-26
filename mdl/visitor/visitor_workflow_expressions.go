@@ -185,3 +185,23 @@ func buildWorkflowTemplateParams(ctx parser.ITemplateParamsContext) []ast.Workfl
 	}
 	return out
 }
+
+// buildWorkflowRecurrence reads `repeat every <n> <unit> at most <m> times`
+// (ako/mxcli#1716); nil when the timer has none. The unit is kept as written.
+func buildWorkflowRecurrence(ctx parser.IWorkflowRecurrenceContext) *ast.WorkflowRecurrenceNode {
+	rc, ok := ctx.(*parser.WorkflowRecurrenceContext)
+	if !ok || rc == nil {
+		return nil
+	}
+	r := &ast.WorkflowRecurrenceNode{}
+	if t := rc.GetInterval(); t != nil {
+		r.Interval, _ = strconv.Atoi(t.GetText())
+	}
+	if t := rc.GetMaxExecutions(); t != nil {
+		r.MaxExecutions, _ = strconv.Atoi(t.GetText())
+	}
+	if u := rc.GetUnit(); u != nil {
+		r.Unit = identifierOrKeywordText(u)
+	}
+	return r
+}

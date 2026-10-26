@@ -166,7 +166,7 @@ func buildAlterWorkflowMember(ctx *parser.AlterWorkflowMemberContext, ref string
 		be := buildBoundaryEventNode(ctx.WorkflowBoundaryEventClause())
 		return []ast.AlterWorkflowOp{&ast.InsertBoundaryEventOp{
 			ActivityRef: ref, AtPosition: pos,
-			EventType: be.EventType, Delay: be.Delay, Caption: be.Caption, Activities: be.Activities,
+			EventType: be.EventType, Delay: be.Delay, Caption: be.Caption, Recurrence: be.Recurrence, Activities: be.Activities,
 		}}
 	}
 	return nil

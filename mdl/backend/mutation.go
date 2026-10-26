@@ -345,7 +345,7 @@ type WorkflowMutator interface {
 	// --- Boundary event operations ---
 
 	// InsertBoundaryEvent adds a boundary event to the referenced activity.
-	InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, activities []workflows.WorkflowActivity) error
+	InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error
 
 	// DropBoundaryEvent removes the boundary event from the referenced activity.
 	DropBoundaryEvent(activityRef string, atPos int) error

@@ -264,6 +264,9 @@ func formatBoundaryEvents(ctx *ExecContext, events []*workflows.BoundaryEvent, i
 			if event.TimerDelay != "" {
 				header += " " + workflowExpressionMDL(event.TimerDelay)
 			}
+			if event.Recurrence != nil {
+				header += " " + recurrenceMDL(event.Recurrence)
+			}
 			if event.Caption != "" {
 				header += " caption " + mdlQuoted(event.Caption)
 			}
@@ -302,6 +305,9 @@ func formatEventSubProcesses(ctx *ExecContext, esps []*workflows.EventSubProcess
 		}
 		if start.Timer {
 			header += fmt.Sprintf(" on %s timer %s", trigger, workflowExpressionMDL(start.FirstExecutionTime))
+			if start.Recurrence != nil {
+				header += " " + recurrenceMDL(start.Recurrence)
+			}
 			if start.Name != "" {
 				header += " as " + mdlIdent(start.Name)
 			}
@@ -960,6 +966,11 @@ func targetingXPathMDL(ctx *ExecContext, xpath string) string {
 // the MDL expression grammar cannot parse) is written in the deprecated string
 // form, which carries it byte for byte: describe must never alter a stored
 // expression.
+// recurrenceMDL is a timer's recurrence as MDL writes it (ako/mxcli#1716).
+func recurrenceMDL(r *workflows.Recurrence) string {
+	return fmt.Sprintf("repeat every %d %s at most %d times", r.Interval, workflows.RecurrenceUnitWord(r.IntervalType, r.Interval), r.MaxExecutions)
+}
+
 // workflowTemplateMDL is a workflow text as MDL writes it: the quoted text, then
 // `with ({1} = …, …)` when expressions fill its placeholders (ako/mxcli#1714).
 func workflowTemplateMDL(text string, params []string) string {

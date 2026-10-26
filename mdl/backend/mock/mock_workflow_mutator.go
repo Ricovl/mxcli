@@ -28,7 +28,7 @@ type MockWorkflowMutator struct {
 	InsertBranchFunc          func(activityRef string, atPos int, condition string, activities []workflows.WorkflowActivity) error
 	DropBranchFunc            func(activityRef string, atPos int, branchName string) error
 	SetTemplateParametersFunc func(activityRef string, atPos int, prop string, params []string) error
-	InsertBoundaryEventFunc   func(activityRef string, atPos int, eventType string, delay string, caption string, activities []workflows.WorkflowActivity) error
+	InsertBoundaryEventFunc   func(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error
 	DropBoundaryEventFunc     func(activityRef string, atPos int) error
 	SaveFunc                  func() error
 }
@@ -134,9 +134,9 @@ func (m *MockWorkflowMutator) DropBranch(activityRef string, atPos int, branchNa
 	return nil
 }
 
-func (m *MockWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, activities []workflows.WorkflowActivity) error {
+func (m *MockWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	if m.InsertBoundaryEventFunc != nil {
-		return m.InsertBoundaryEventFunc(activityRef, atPos, eventType, delay, caption, activities)
+		return m.InsertBoundaryEventFunc(activityRef, atPos, eventType, delay, caption, recurrence, activities)
 	}
 	return nil
 }

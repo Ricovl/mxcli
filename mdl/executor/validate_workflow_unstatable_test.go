@@ -60,9 +60,6 @@ func TestWorkflowRewrite_RefusesResettingUnstatableSettings(t *testing.T) {
 		set  func(wf, task, timer, reminder map[string]any)
 		want string
 	}{
-		{"recurrence", func(_, _, _, reminder map[string]any) {
-			reminder["Recurrence"] = map[string]any{"$Type": "Workflows$LinearRecurrence", "Interval": int32(1), "IntervalType": "Day", "MaxExecutions": int32(5)}
-		}, "repeats (every 1 Day, at most 5 times)"},
 		{"boundary event annotation", func(_, _, _, reminder map[string]any) {
 			reminder["Annotation"] = map[string]any{"$Type": "Workflows$Annotation", "Description": "nudge"}
 		}, "annotation 'nudge'"},
@@ -159,5 +156,17 @@ func TestWorkflowRewrite_AllowsTemplateParameters(t *testing.T) {
 		"description '{1}' with ({1} = $WorkflowContext/Title) outcomes", 1)
 	if err := checkNoDroppedWorkflowConstructs(rawWorkflowCtx(t, wf), "wf1", "M.W", parseWorkflowStmt(t, restated)); err != nil {
 		t.Errorf("restated templates must be allowed, got %v", err)
+	}
+}
+
+// ako/mxcli#1716: a recurrence is stated now, so a stored one no longer refuses
+// the rewrite — describe prints it and the statement restates it.
+func TestWorkflowRewrite_AllowsARecurrence(t *testing.T) {
+	wf, _, _, reminder := unstatableWorkflow()
+	reminder["Recurrence"] = map[string]any{"$Type": "Workflows$LinearRecurrence", "Interval": int32(1), "IntervalType": "Day", "MaxExecutions": int32(5)}
+	restated := strings.Replace(wfUnstatableRestated, "non interrupting timer addDays([%CurrentDateTime%], 1) { }",
+		"non interrupting timer addDays([%CurrentDateTime%], 1) repeat every 1 day at most 5 times { }", 1)
+	if err := checkNoDroppedWorkflowConstructs(rawWorkflowCtx(t, wf), "wf1", "M.W", parseWorkflowStmt(t, restated)); err != nil {
+		t.Errorf("a restated recurrence must be allowed, got %v", err)
 	}
 }

@@ -49,6 +49,9 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	if vs := checkWorkflowTemplates(alterWorkflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
+	if vs := checkWorkflowRecurrences(alterWorkflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 	if refErrors := validateAlterWorkflowRefs(ctx, s, nil); len(refErrors) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 			s.Name.String(), strings.Join(refErrors, "\n  - "))
@@ -235,7 +238,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
 			acts := ends.endInsertedBoundaryPath(buildAndBindActivities(ctx, o.Activities), o.EventType, o.ActivityRef, o.AtPosition)
-			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), o.Caption, acts); err != nil {
+			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), o.Caption, recurrenceFromNode(o.Recurrence), acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
 

@@ -362,6 +362,9 @@ func workflowSimpleActivityFromGen(el element.Element) workflows.WorkflowActivit
 			setBase(&a.BaseWorkflowActivity)
 			if timer {
 				a.FirstExecutionTime = genWf.RawFieldString(raw, "FirstExecutionTime")
+				if child, err := codec.DecodeChild(raw, "Recurrence"); err == nil {
+					a.Recurrence = recurrenceFromGen(child)
+				}
 			}
 			return a
 		}
@@ -631,11 +634,12 @@ func boundaryEventFromGen(el element.Element) *workflows.BoundaryEvent {
 	if be.TimerDelay == "" {
 		be.TimerDelay = t.Delay()
 	}
-	switch el.(type) {
+	switch ni := el.(type) {
 	case *genWf.InterruptingTimerBoundaryEvent:
 		be.EventType = "InterruptingTimer"
 	case *genWf.NonInterruptingTimerBoundaryEvent:
 		be.EventType = "NonInterruptingTimer"
+		be.Recurrence = recurrenceFromGen(ni.Recurrence())
 	case *genWf.TimerBoundaryEvent:
 		be.EventType = "Timer"
 	default:
@@ -645,4 +649,14 @@ func boundaryEventFromGen(el element.Element) *workflows.BoundaryEvent {
 		be.Flow = workflowFlowFromGen(f)
 	}
 	return be
+}
+
+// recurrenceFromGen reads a stored Workflows$LinearRecurrence; nil for none
+// (ako/mxcli#1716).
+func recurrenceFromGen(el element.Element) *workflows.Recurrence {
+	lr, ok := el.(*genWf.LinearRecurrence)
+	if !ok || lr == nil {
+		return nil
+	}
+	return &workflows.Recurrence{IntervalType: lr.IntervalType(), Interval: int(lr.Interval()), MaxExecutions: int(lr.MaxExecutions())}
 }

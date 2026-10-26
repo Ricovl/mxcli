@@ -90,6 +90,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	if vs := checkWorkflowTemplates(workflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
+	// MDL-WF22: a recurrence Studio Pro refuses and mx check lets through
+	// (ako/mxcli#1716).
+	if vs := checkWorkflowRecurrences(workflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
@@ -348,6 +353,7 @@ func buildBoundaryEvents(nodes []ast.WorkflowBoundaryEventNode) []*workflows.Bou
 			TimerDelay: be.Delay,
 			Name:       be.Name,
 			Caption:    be.Caption,
+			Recurrence: recurrenceFromNode(be.Recurrence),
 		}
 		if event.IsNotification() {
 			// Mendix requires both: the name is what a notify action targets
@@ -881,6 +887,7 @@ func buildEventSubProcesses(nodes []ast.WorkflowEventSubProcessNode) []*workflow
 			Interrupting:       n.Interrupting,
 			Timer:              n.Timer,
 			FirstExecutionTime: n.FirstExecutionTime,
+			Recurrence:         recurrenceFromNode(n.Recurrence),
 		}
 		start.ID = model.ID(generateWorkflowUUID())
 		start.Name = n.StartName
@@ -1402,4 +1409,14 @@ func hasStandaloneWorkflowAnnotation(acts []ast.WorkflowActivityNode) bool {
 		}
 	})
 	return found
+}
+
+// recurrenceFromNode is a `repeat every …` as stored; nil for none. An unknown
+// unit is refused before this by MDL-WF22.
+func recurrenceFromNode(n *ast.WorkflowRecurrenceNode) *workflows.Recurrence {
+	if n == nil {
+		return nil
+	}
+	unit, _ := workflows.RecurrenceIntervalType(n.Unit)
+	return &workflows.Recurrence{IntervalType: unit, Interval: n.Interval, MaxExecutions: n.MaxExecutions}
 }

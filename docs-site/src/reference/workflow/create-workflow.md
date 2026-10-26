@@ -117,7 +117,10 @@ USER TASK name 'caption'
     OUTCOMES 'Done' { }
     BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) CAPTION 'Escalate' { activities }
     BOUNDARY EVENT NON INTERRUPTING TIMER addMinutes([%CurrentDateTime%], 30) { activities }
+    BOUNDARY EVENT NON INTERRUPTING TIMER addDays([%CurrentDateTime%], 1) REPEAT EVERY 1 DAY AT MOST 5 TIMES { activities }
 ```
+
+`REPEAT EVERY <n> <unit> AT MOST <m> TIMES` makes a non-interrupting timer a repeating reminder: it fires at the delay, then every `<n>` minutes, hours, days, weeks or months, `<m>` times in all (the first firing counts, so `<m>` is at least 2). A timer-started event sub-process takes the same clause on Mendix 11.15 and later.
 
 `CAPTION '<caption>'` after the delay is the text Studio Pro shows on the timer; it is optional.
 
