@@ -1,0 +1,35 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1704 — describe → exec rewrote JTSBootLogboek.Home_Native although
+-- nothing was lost: "only the order of its two placeholders and of some
+-- English/Dutch texts changed".
+--
+-- Two causes, each enough on its own to make the write go ahead (the canonical
+-- form compares lists in order):
+--
+--   placeholders  describe prints `placeholder X { … }` blocks in stored order;
+--                 the builder put Main first whatever the blocks said, so a page
+--                 stored [Header, Main] came back [Main, Header].
+--   translations  the rebuild writes the one language MDL carries and the carry
+--                 appended the stored others in sorted order, so a text stored
+--                 [nl_NL, en_US] came back [en_US, nl_NL]. Studio Pro's order is
+--                 not sorted: 129 texts in PedApp and TestApp are stored Dutch
+--                 first. (Covered by modelsdk/canon/translations_order_1704_test.go;
+--                 MDL writes one language, so this script cannot set up the
+--                 stored order.)
+--
+-- After the fix the arguments follow the blocks, so this page is stored
+-- [Header, Main]; describe → exec of it reports "Unchanged page" and mx check
+-- is 0 errors.
+-- ============================================================================
+
+create module BugArgumentOrder;
+
+create page BugArgumentOrder.Home_Native (Title: 'Home', Layout: Atlas_Core.NativePhone_Default) {
+  placeholder "Header" {
+    dynamictext textHeader (Content: 'Header')
+  }
+  placeholder Main {
+    dynamictext textMain (Content: 'Welcome')
+  }
+};
