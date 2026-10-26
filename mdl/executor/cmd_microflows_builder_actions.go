@@ -1225,14 +1225,25 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// Association retrieve: RETRIEVE $List FROM $Parent/Module.AssocName
 		// Always use AssociationRetrieveSource to preserve the original syntax.
 		// The runtime resolves traversal direction from association metadata.
-		assocQN := s.Source.Module + "." + s.Source.Name
+		//
+		// A bare name (`$O/Ord_Cust`) resolves against the start variable's
+		// entity, or is refused: joined as it stands it was stored as ".Ord_Cust",
+		// with an empty module — CE1613, and a describe that does not parse
+		// (ako/mxcli#1690).
+		assocModule, assocName := s.Source.Module, s.Source.Name
+		if assocModule == "" {
+			if qn, ok := fb.qualifyBareRetrieveAssociation(s); ok {
+				assocModule, assocName, _ = strings.Cut(qn, ".")
+			}
+		}
+		assocQN := assocModule + "." + assocName
 
 		// Look up association to determine type and direction.
 		// For Reference associations, AssociationRetrieveSource always returns a single
 		// object (the entity on the other end). When the user navigates from the child
 		// (non-owner) side, the intent is to get a list of parent entities — we must use
 		// a DatabaseRetrieveSource with XPath constraint instead.
-		assocInfo := fb.lookupAssociation(s.Source.Module, s.Source.Name)
+		assocInfo := fb.lookupAssociation(assocModule, assocName)
 		startVarType := ""
 		if fb.varTypes != nil {
 			startVarType = fb.varTypes[s.StartVariable]
@@ -2661,6 +2672,37 @@ func (fb *flowBuilder) entityIsSubtypeOf(candidateQN, ancestorQN string) bool {
 		currentQN = entity.GeneralizationRef
 	}
 	return false
+}
+
+// qualifyBareRetrieveAssociation resolves the association a retrieve names by
+// its bare name — `retrieve $C from $O/Ord_Cust` — against the entity the start
+// variable holds, and records the refusal when it cannot. The answer is
+// resolveBareAssociation's, which check --references asks too.
+func (fb *flowBuilder) qualifyBareRetrieveAssociation(s *ast.RetrieveStmt) (string, bool) {
+	entity := ""
+	if fb.varTypes != nil {
+		entity = strings.TrimPrefix(fb.varTypes[s.StartVariable], "List of ")
+	}
+	qn, matches, verdict := fb.resolveBareAssociationFrom(entity, s.Source.Name)
+	if verdict == bareAssocResolved {
+		return qn, true
+	}
+	fb.addError("%s", bareRetrieveAssociationRefusal(s.Variable, s.StartVariable, s.Source.Name, entity, matches, verdict))
+	return "", false
+}
+
+// resolveBareAssociationFrom is resolveBareAssociation over the project as the
+// builder sees it: the statements before this one already written.
+func (fb *flowBuilder) resolveBareAssociationFrom(entityQN, name string) (string, []string, bareAssocVerdict) {
+	if fb == nil || fb.backend == nil || entityQN == "" || name == "" {
+		return "", nil, bareAssocUnknown
+	}
+	if fb.assocCatalog == nil {
+		cat := associationCatalogFor(fb.backend)
+		fb.assocCatalog = &cat
+	}
+	chain, complete := generalizationChainFor(fb.backend, entityQN)
+	return resolveBareAssociation(name, chain, complete, *fb.assocCatalog)
 }
 
 // resolveMemberChangeFallback preserves the authored member name shape when the

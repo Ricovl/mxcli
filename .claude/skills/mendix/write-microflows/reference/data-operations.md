@@ -404,9 +404,17 @@ end loop;
   it. Looping a single object passes `mxcli check` but produces an invalid project
   (mxbuild `StorageLoadException` — the loop's `change` writes an unqualified
   attribute). Loop only over the list-valued (reverse / ReferenceSet) form.
-- The association is always fully qualified (`Module.Association`), and the start
-  variable is an object you already have (a parameter, a prior retrieve/create, or
-  a loop iterator). Both forms above are mxbuild-verified (0 errors).
+- Write the association qualified (`Module.Association`); the start variable is
+  an object you already have (a parameter, a prior retrieve/create, or a loop
+  iterator). Both forms above are mxbuild-verified (0 errors).
+- A **bare** association name (`retrieve $C from $O/Order_Customer;`) is resolved
+  against the start variable's entity — through its generalizations, from either
+  end — when exactly one association of that name fits, and is stored and
+  described qualified. One that fits no association, or two (two modules may
+  each have one of the name), is refused by `check -p --references` and by exec
+  with the qualified spelling to write; so is a bare name on a variable whose
+  entity exec cannot tell. It used to be stored as `.Order_Customer`, with an
+  empty module — CE1613, and a describe that does not parse (ako/mxcli#1690).
 
 **Enumeration attributes in WHERE**: XPath is a database query, so enum values are stored as plain strings. Both forms are valid — mxcli converts the qualified name to a string literal in BSON:
 

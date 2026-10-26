@@ -108,7 +108,11 @@ RETRIEVE $Lines FROM $Order/Sales.OrderLine_Order;
 RETRIEVE $Customer FROM $Order/Sales.Order_Customer;
 ```
 
-The association path uses the format `$Variable/Module.AssociationName`.
+The association path uses the format `$Variable/Module.AssociationName`. A bare
+name (`$Order/Order_Customer`) is resolved against the variable's entity — through
+its generalizations, from either end of the association — when exactly one
+association of that name fits, and stored qualified; a name that fits none, or
+more than one, is refused by `mxcli check -p --references` and by `exec`.
 
 ### RETRIEVE from Variable List
 

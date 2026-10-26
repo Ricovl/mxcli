@@ -1,0 +1,41 @@
+-- ako/mxcli#1690: `retrieve $C from $O/Ord_Cust;` — an association path written
+-- with the association's SHORT name — passed `check -p --references` and exec,
+-- and was stored as the association ".Ord_Cust" (empty module). Mendix 11.13.0:
+--
+--   [CE1613] "The selected association '.Ord_Cust' no longer exists."
+--            at Retrieve object(s) activity 'Retrieve from association'
+--
+-- and describe printed `retrieve $C from $O/.Ord_Cust;`, which does not parse.
+--
+-- Now a bare name resolves against the start variable's entity — through its
+-- generalization chain, from either end of the association — when exactly one
+-- association of that name fits, and is stored qualified: every retrieve below
+-- is stored as the association in the comment, describe prints that, and
+-- `mx check` reports 0 errors (measured on 11.13.0).
+--
+-- A bare name that fits no association, or more than one, is refused by
+-- `check -p --references` and by exec, with the qualified spelling to write:
+--
+--   retrieve $C from $O/Ord_Kust;   -- no association called "Ord_Kust" has RefB1690.Ord ...
+--
+-- It is never written with an empty module.
+mdl 1;
+
+create module RefB1690;
+create module RefO1690;
+create persistent entity RefB1690.Cust (Name: String(50));
+create persistent entity RefB1690.Ord (Number: String(20));
+create persistent entity RefB1690.SubOrd extends RefB1690.Ord (Extra: String(20));
+create association RefB1690.Ord_Cust from RefB1690.Ord to RefB1690.Cust;
+create persistent entity RefO1690.Base (BaseName: String(20));
+create persistent entity RefO1690.Thing (ThingName: String(20));
+create association RefO1690.Base_Thing from RefO1690.Base to RefO1690.Thing;
+create persistent entity RefB1690.Spec extends RefO1690.Base (SpecName: String(20));
+
+create microflow RefB1690.BareAssociations ($O: RefB1690.Ord, $C: RefB1690.Cust, $S: RefB1690.SubOrd, $Sp: RefB1690.Spec)
+begin
+  retrieve $Cust from $O/Ord_Cust;       -- RefB1690.Ord_Cust (the owner)
+  retrieve $Orders from $C/Ord_Cust;     -- RefB1690.Ord_Cust (the TO end)
+  retrieve $SubCust from $S/Ord_Cust;    -- RefB1690.Ord_Cust (a specialization)
+  retrieve $Thing from $Sp/Base_Thing;   -- RefO1690.Base_Thing (inherited from another module)
+end;

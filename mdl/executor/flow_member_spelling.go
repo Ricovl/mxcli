@@ -93,6 +93,14 @@ func (s *memberSpeller) respell(st ast.MicroflowStatement) {
 	switch x := st.(type) {
 	case *ast.RetrieveStmt:
 		if x.StartVariable != "" {
+			// describe prints the stored association, which is qualified; a
+			// bare one is the same retrieve when the builder resolves it to
+			// that association (ako/mxcli#1690).
+			if x.Source.Module == "" {
+				if qn, _, v := s.fb.resolveBareAssociationFrom(s.entities[x.StartVariable], x.Source.Name); v == bareAssocResolved {
+					x.Source.Module, x.Source.Name, _ = strings.Cut(qn, ".")
+				}
+			}
 			return
 		}
 		for i := range x.SortColumns {
