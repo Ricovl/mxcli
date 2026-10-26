@@ -876,6 +876,10 @@ type rawWidget struct {
 	// IsPassword is Forms$TextBox.IsPasswordBox. Security-relevant: a text box
 	// that round-trips without it renders the value in plaintext (ako/mxcli#550).
 	IsPassword bool
+	// NumberOfLines and Autocomplete are a text area's; nil when not stored
+	// (ako/mxcli#977).
+	NumberOfLines *int64
+	Autocomplete  *bool
 	// ValidationExpression / ValidationMessage are the two fields of
 	// Forms$WidgetValidation, the per-widget validation Studio Pro stores on
 	// input widgets.

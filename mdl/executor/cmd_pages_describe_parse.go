@@ -428,6 +428,13 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		if v, ok := w["NumberOfLines"]; ok {
+			n := int64(extractInt(v))
+			widget.NumberOfLines = &n
+		}
+		if b, ok := w["Autocomplete"].(bool); ok {
+			widget.Autocomplete = &b
+		}
 		return []rawWidget{widget}
 
 	case "Forms$FileManager", "Pages$FileManager":

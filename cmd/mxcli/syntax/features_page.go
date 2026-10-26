@@ -153,6 +153,8 @@ LIST IMPACT OF htmlelement;
 			"-- Read-only style of TEXTBOX, TEXTAREA, DATEPICKER, CHECKBOX, RADIOBUTTONS (and DATAVIEW):\n" +
 			"--   Inherit (default) | Control | Text — how the widget renders when it is read-only.\n" +
 			"TEXTBOX name (Attribute: Name, Editable: Never, ReadOnlyStyle: Text)\n" +
+			"-- A text area's height and autocomplete: NumberOfLines (default 5, 0 allowed), Autocomplete (default true).\n" +
+			"TEXTAREA name (Attribute: Notes, NumberOfLines: 2, Autocomplete: false)\n" +
 			"-- A date picker's DateFormat is its mode: Date (default) | Time | DateTime | Custom.\n" +
 			"DATEPICKER name (Attribute: Start, DateFormat: DateTime)\n" +
 			"-- File upload/download: inside a data view on a System.FileDocument specialization (CE6810 otherwise).\n" +

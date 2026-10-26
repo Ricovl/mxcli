@@ -700,6 +700,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
 		props = describeSubmitBehaviour(props, w)
+		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
+		// a text area authored without them describes as it did (ako/mxcli#977).
+		if w.NumberOfLines != nil && *w.NumberOfLines != 5 {
+			props = append(props, fmt.Sprintf("NumberOfLines: %d", *w.NumberOfLines))
+		}
+		if w.Autocomplete != nil && !*w.Autocomplete {
+			props = append(props, "Autocomplete: false")
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 

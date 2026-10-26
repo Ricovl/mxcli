@@ -681,11 +681,15 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
 		g.SetMaxLengthCode(maxLengthCodeFor(x.SourceVariable))
-		lines := int32(x.Rows)
-		if lines == 0 {
-			lines = 5
+		// Unset writes Studio Pro's defaults: 5 lines and Autocomplete on, as on
+		// all 58 text areas in PedApp and TestApp. Autocomplete was not written
+		// at all, and a stored 0 lines came back as 5 (ako/mxcli#977).
+		lines := int32(5)
+		if x.NumberOfLines != nil {
+			lines = int32(*x.NumberOfLines)
 		}
 		g.SetNumberOfLines(lines)
+		g.SetAutocomplete(x.Autocomplete == nil || *x.Autocomplete)
 		onChangeTA, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
 			return nil, err

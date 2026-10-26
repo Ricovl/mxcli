@@ -3321,6 +3321,12 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return setDynamicTextNativeTextStyleMut(widget, value)
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "numberoflines", "autocomplete":
+		// A text area's (ako/mxcli#977). Any other widget keeps the pluggable path.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$TextArea" || typ == "Pages$TextArea" {
+			return setTextAreaPropertyMut(widget, propName, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "readonlystyle":
 		// Stored on the built-in input widgets and the data view; a pluggable
 		// widget with its own "readOnlyStyle" key keeps that path (ako/mxcli#977).
@@ -3400,6 +3406,33 @@ func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
 	if !bsonnav.DSet(widget, "NativeTextStyle", string(style)) {
 		return fmt.Errorf("dynamic text %q has no stored NativeTextStyle property to set",
 			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
+}
+
+// setTextAreaPropertyMut writes a text area's NumberOfLines or Autocomplete in
+// place. NumberOfLines keeps the stored integer width: Studio Pro writes an
+// int64, mxcli's codec an int32, and swapping one for the other is a change of
+// its own.
+func setTextAreaPropertyMut(widget bson.D, propName string, value any) error {
+	if strings.EqualFold(propName, "NumberOfLines") {
+		n, ok := formattingInt(value)
+		if !ok || n < 0 {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		if _, isInt32 := bsonnav.DGet(widget, "NumberOfLines").(int32); isInt32 {
+			bsonnav.DSet(widget, "NumberOfLines", int32(n))
+		} else {
+			bsonnav.DSet(widget, "NumberOfLines", int64(n))
+		}
+		return nil
+	}
+	b, ok := editableBool(value)
+	if !ok {
+		return fmt.Errorf("Autocomplete is true or false, not %v", value)
+	}
+	if !bsonnav.DSet(widget, "Autocomplete", b) {
+		return fmt.Errorf("text area %q stores no Autocomplete property to set", bsonnav.DGetString(widget, "Name"))
 	}
 	return nil
 }

@@ -618,6 +618,23 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		}
 	}
 
+	// NumberOfLines and Autocomplete; unset keeps Studio Pro's 5 lines and
+	// Autocomplete on (ako/mxcli#977).
+	if raw, ok := lookupPropCI(w, "NumberOfLines"); ok {
+		n, ok := nonNegativeInt(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidationf("textarea %q: NumberOfLines is a whole number of 0 or more, not %v", w.Name, raw)
+		}
+		ta.NumberOfLines = &n
+	}
+	if raw, ok := lookupPropCI(w, "Autocomplete"); ok {
+		v, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("textarea Autocomplete", err)
+		}
+		ta.Autocomplete = &v
+	}
+
 	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
 	taStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textarea", w.Name)
 	if err != nil {
@@ -1815,6 +1832,22 @@ func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// nonNegativeInt reads a whole-number property value of 0 or more.
+func nonNegativeInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, n >= 0
+	case int64:
+		return int(n), n >= 0
+	case float64:
+		return int(n), n >= 0 && n == float64(int(n))
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		return i, err == nil && i >= 0
+	}
+	return 0, false
 }
 
 // propBool coerces a widget property value to a bool. GetBoolProp cannot be used
