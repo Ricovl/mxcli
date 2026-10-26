@@ -294,13 +294,13 @@ func TestFlowModify_UnspliceableChange(t *testing.T) {
 	}
 }
 
-// A change of a loop body's shape is not a splice: a body node's coordinates
-// are relative to the loop box, and replacing the whole loop would renumber and
-// redraw every node it holds — the rebuild's loss, confined to the loop but
-// just as silent. So under mdl 1 it is refused, and under mdl 0 it takes the
-// warned rebuild. A value edit of a body activity is spliced in place
-// (ako/mxcli#1106), here beside an `if` in the body. Control: a change after
-// the loop in the same flow is spliced.
+// A decision added inside a loop body is not a splice: the splice puts plain
+// activities in a body (ako/mxcli#1693), and replacing the whole loop would
+// renumber and redraw every node it holds — the rebuild's loss, confined to the
+// loop but just as silent. So under mdl 1 it is refused (naming `replace body
+// of` the loop), and under mdl 0 it takes the warned rebuild. A value edit of a
+// body activity is spliced in place (ako/mxcli#1106), here beside an `if` in
+// the body. Control: a change after the loop in the same flow is spliced.
 func TestFlowModify_LoopBodyChangeIsNotSpliced(t *testing.T) {
 	h := newHarness(t)
 	defer h.close()
@@ -338,8 +338,10 @@ end;`
 		t.Errorf("a value edit in the loop body: want a splice, got:\n%s", h.out.String())
 	}
 	described = h.mustDescribeMdl0(t, target)
+	// A decision added in the body: a change of its shape the splice does not
+	// make (a plain activity it does, ako/mxcli#1693).
 	inLoop := strings.Replace(described, "log node 'X' 'in the loop';",
-		"log node 'X' 'in the loop';\n    log node 'X' 'grown';", 1)
+		"log node 'X' 'in the loop';\n    if $It/Subject = empty then\n      log node 'X' 'grown';\n    end if;", 1)
 	if inLoop == described {
 		t.Fatalf("describe output has no 'in the loop':\n%s", described)
 	}

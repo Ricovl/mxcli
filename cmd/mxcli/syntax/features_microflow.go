@@ -602,15 +602,17 @@ func init() {
 
 	Register(SyntaxFeature{
 		Path:    "microflow.alter",
-		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place",
+		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place, or replace a loop's body",
 		Keywords: []string{
 			"alter microflow", "alter nanoflow", "insert after", "insert before",
 			"replace", "drop activity", "patch microflow", "splice", "handle",
+			"replace body", "loop body", "replace body of",
 			"existing note", "attach stored note",
 		},
 		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
 			"  INSERT AFTER|BEFORE <target> BEGIN <statements> END;\n" +
 			"  REPLACE <target> WITH BEGIN <statements> END;\n" +
+			"  REPLACE BODY OF <loop> WITH BEGIN <statements> END;\n" +
 			"  DROP <target>;\n" +
 			"};\n\n" +
 			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
@@ -621,10 +623,18 @@ func init() {
 			"-- stored flow before any operation runs; an ambiguous or unknown target is an error.\n" +
 			"-- Only the new activities, the rewired flows and the objects moved to make room change;\n" +
 			"-- every other element keeps its $ID, position and curve.\n" +
+			"-- Inside a loop body, plain activities are inserted, replaced and dropped the same way,\n" +
+			"-- the loop box growing when the body no longer fits (ako/mxcli#1693).\n" +
+			"-- REPLACE BODY OF <loop> keeps the loop itself (its $ID, position, iterator and list)\n" +
+			"-- and rebuilds only what is inside it: the way to put a decision, a nested loop or a\n" +
+			"-- return in a loop body. <loop> is the loop's handle: loop $It in $Items, while $N < 3.\n" +
+			"-- DROP/REPLACE of a decision takes it out whole when it has the shape INSERT produces:\n" +
+			"-- two paths of plain activities, or none, rejoining at one merge (ako/mxcli#1694).\n" +
 			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
-			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
-			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
-			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.\n" +
+			"-- drop/replace of any other decision or of an activity with an error handler, a decision, loop,\n" +
+			"-- return or error handler put in a loop body (use REPLACE BODY OF), a fragment that\n" +
+			"-- returns, and a fragment variable that clashes with one the flow has or reads one not\n" +
+			"-- declared on the path. Over --mcp only insert is supported, and not inside a loop body.\n" +
 			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
 			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.\n" +
 			"-- A fragment statement joins a note ALREADY in the flow with\n" +
@@ -641,6 +651,14 @@ func init() {
 			"    log warning node 'Feedback' 'Email rejected';\n" +
 			"  end;\n" +
 			"  drop log debug node 'Feedback' *;\n" +
+			"};\n\n" +
+			"alter microflow Shop.ACT_ProcessLines {\n" +
+			"  replace body of loop $Line in $Lines with begin\n" +
+			"    if $Line/Quantity > 0 then\n" +
+			"      change $Line (Processed = true);\n" +
+			"    end if;\n" +
+			"    commit $Line;\n" +
+			"  end;\n" +
 			"};\n\n" +
 			"-- The new statement joins the note the flow already has.\n" +
 			"alter microflow Shop.ACT_ProcessOrder {\n" +

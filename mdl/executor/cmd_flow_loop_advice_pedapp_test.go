@@ -11,15 +11,16 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// A change of a loop body's shape is refused by both editing modes: `create or
-// modify` under mdl 1 (the splice does not edit inside a loop) and `alter`
-// (the mutator does not splice inside a loop). Each refusal used to send the
-// reader to the other — create or modify said "change activities with alter",
-// alter said "rewrite the loop with create or modify" — and an alter of an
-// activity inside the loop that reads the iterator failed first on "the
-// fragment uses $It, which is not declared on the path", before the real
-// reason. What works is replacing the whole loop with alter, so both
-// refusals name that statement, with the stored loop's own handle.
+// A change of a loop body's shape the splice cannot make — a decision added
+// in it — is refused by both editing modes: `create or modify` under mdl 1
+// and `alter`. Each refusal used to send the reader to the other — create or
+// modify said "change activities with alter", alter said "rewrite the loop
+// with create or modify" — and an alter of an activity inside the loop that
+// reads the iterator failed first on "the fragment uses $It, which is not
+// declared on the path", before the real reason. Both refusals now name the
+// statement that makes the change, `replace body of` the loop, by the stored
+// loop's own handle (ako/mxcli#1693; replacing the whole loop, which they
+// named before, re-minted every identity in it).
 
 const loopAdviceFlow = `mdl 1;
 create microflow MyFirstModule.LoopAdvice ($Items: List of FeedbackModule.Feedback)
@@ -57,9 +58,13 @@ func loopAdviceUnit(t *testing.T, exec *Executor) []byte {
 	return nil
 }
 
-// The advice both refusals give: the alter that replaces the stored loop,
-// addressed by its handle.
-const loopAdviceReplace = "replace loop $It in $Items with begin"
+// The advice both refusals give: the alter that replaces the stored loop's
+// body, addressed by its handle.
+const loopAdviceReplace = "replace body of loop $It in $Items with begin"
+
+// loopAdviceDecision is a decision for the loop body, which the splice does
+// not put in one.
+const loopAdviceDecision = "if $It/Subject = empty then log info node 'X' 'no subject'; end if;"
 
 // checkSays asserts `check -p`'s flow verdict for src carries want.
 func checkSays(t *testing.T, exec *Executor, src, want string) {
@@ -77,18 +82,18 @@ func checkSays(t *testing.T, exec *Executor, src, want string) {
 	}
 }
 
-func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
+func TestFlowLoopRefusals_PointAtReplaceBody(t *testing.T) {
 	exec, out, _ := openPedAppCopy(t)
 	if err := agreeExec(t, exec, loopAdviceFlow); err != nil {
 		t.Fatalf("setup: %v\n%s", err, out.String())
 	}
 	stored := loopAdviceUnit(t, exec)
 
-	t.Run("create or modify names alter replace loop", func(t *testing.T) {
+	t.Run("create or modify names alter replace body", func(t *testing.T) {
 		src := strings.Replace(loopAdviceFlow, "create microflow", "create or modify microflow", 1)
-		// An insert inside the body: a change of the body's shape, which
-		// needs a layout (an in-place edit is spliced, ako/mxcli#1106).
-		src = strings.Replace(src, "commit $It;", "commit $It;\n    log info node 'X' 'committed';", 1)
+		// A decision inside the body: a change of the body's shape the
+		// splice does not make (a plain activity it splices, ako/mxcli#1693).
+		src = strings.Replace(src, "commit $It;", "commit $It;\n    "+loopAdviceDecision, 1)
 		// check predicts exec's refusal, with the same advice.
 		checkSays(t, exec, src, loopAdviceReplace)
 		err := agreeExec(t, exec, src)
@@ -96,8 +101,11 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 			t.Fatal("want the in-loop change refused under mdl 1")
 		}
 		msg := err.Error()
-		if !strings.Contains(msg, "alter microflow MyFirstModule.LoopAdvice {") {
+		if !strings.Contains(msg, "alter microflow MyFirstModule.LoopAdvice {") || !strings.Contains(msg, loopAdviceReplace) {
 			t.Errorf("the refusal does not spell out the alter to run: %s", msg)
+		}
+		if !strings.Contains(msg, "a decision is added to it") {
+			t.Errorf("the refusal does not say what is out of reach: %s", msg)
 		}
 		// mendixlabs/mxcli#1517: the deliberate rebuild is named too, as
 		// every other splice refusal names it.
@@ -114,12 +122,10 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 		}
 	})
 
-	t.Run("alter of an activity in the loop names replace loop, not scope", func(t *testing.T) {
+	t.Run("alter of an activity in the loop names replace body, not scope", func(t *testing.T) {
 		for _, op := range []string{
-			// Replaced by two activities: the body changes shape.
-			"replace commit $It with begin commit $It; log info node 'X' 'committed'; end;",
-			"insert after commit $It begin log info node 'X' 'committed'; end;",
-			"drop commit $It;",
+			"replace commit $It with begin " + loopAdviceDecision + " end;",
+			"insert after commit $It begin " + loopAdviceDecision + " end;",
 		} {
 			src := "mdl 1;\nalter microflow MyFirstModule.LoopAdvice {\n  " + op + "\n};"
 			checkSays(t, exec, src, loopAdviceReplace)
@@ -131,8 +137,9 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 			if strings.Contains(msg, "not declared on the path") {
 				t.Errorf("%s: the loop iterator is reported out of scope before the real reason: %s", op, msg)
 			}
-			if !strings.Contains(msg, "inside the body of loop $It in $Items") || !strings.Contains(msg, loopAdviceReplace) {
-				t.Errorf("%s: want the in-loop reason and the replace-loop advice, got: %s", op, msg)
+			if !strings.Contains(msg, "inside the body of loop $It in $Items") || !strings.Contains(msg, loopAdviceReplace) ||
+				!strings.Contains(msg, "the fragment holds a decision") {
+				t.Errorf("%s: want the in-loop reason and the replace-body advice, got: %s", op, msg)
 			}
 			if strings.Contains(msg, "create or modify") {
 				t.Errorf("%s: alter's refusal sends the reader back to create or modify: %s", op, msg)
@@ -143,9 +150,9 @@ func TestFlowLoopRefusals_PointAtReplaceLoop(t *testing.T) {
 		}
 	})
 
-	// In a nested loop the loop to replace is the top-level one: the splice
-	// addresses nothing inside a loop, the inner loop included.
-	t.Run("nested loop names the top-level loop", func(t *testing.T) {
+	// In a nested loop the loop named is the one whose body the change is
+	// in: replace body addresses any loop, a nested one included.
+	t.Run("nested loop names the inner loop", func(t *testing.T) {
 		if err := agreeExec(t, exec, `mdl 1;
 create microflow MyFirstModule.LoopAdviceNested ($Items: List of FeedbackModule.Feedback, $Others: List of FeedbackModule.Feedback)
 begin
@@ -159,10 +166,11 @@ begin
 end;`); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
-		err := agreeExec(t, exec, "mdl 1;\nalter microflow MyFirstModule.LoopAdviceNested {\n  drop commit $Other;\n};")
-		if err == nil || !strings.Contains(err.Error(), "inside the body of loop $It in $Items") ||
-			!strings.Contains(err.Error(), loopAdviceReplace) {
-			t.Fatalf("want the top-level loop named, got %v", err)
+		err := agreeExec(t, exec, "mdl 1;\nalter microflow MyFirstModule.LoopAdviceNested {\n"+
+			"  insert after commit $Other begin if $Other/Subject = empty then log info node 'X' 'none'; end if; end;\n};")
+		if err == nil || !strings.Contains(err.Error(), "inside the body of loop $Other in $Others") ||
+			!strings.Contains(err.Error(), "replace body of loop $Other in $Others with begin") {
+			t.Fatalf("want the inner loop named, got %v", err)
 		}
 	})
 
@@ -195,16 +203,14 @@ end;`); err != nil {
 		}
 	})
 
-	// Control: the advice works — the replace-loop alter is accepted and writes
-	// the change.
+	// Control: the advice works — the replace-body alter is accepted and
+	// writes the decision into the stored loop.
 	t.Run("control: the advised alter applies", func(t *testing.T) {
 		err := agreeExec(t, exec, `mdl 1;
 alter microflow MyFirstModule.LoopAdvice {
-  replace loop $It in $Items with begin
-    loop $It in $Items
-    begin
-      commit $It without events;
-    end loop;
+  replace body of loop $It in $Items with begin
+    commit $It without events;
+    `+loopAdviceDecision+`
   end;
 };`)
 		if err != nil {
@@ -215,7 +221,7 @@ alter microflow MyFirstModule.LoopAdvice {
 		if err := afRun(t, exec, "describe microflow MyFirstModule.LoopAdvice;"); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(buf.String(), "commit $It without events;") {
+		if !strings.Contains(buf.String(), "commit $It without events;") || !strings.Contains(buf.String(), "if $It/Subject = empty then") {
 			t.Errorf("the alter did not write the change:\n%s", buf.String())
 		}
 	})

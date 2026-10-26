@@ -167,14 +167,16 @@ func TestCreateOrModify_EditInsideLoopBody(t *testing.T) {
 		edited = src
 	})
 
-	// Controls: a change to the body's shape still refuses, writing nothing.
+	// Controls: a change to the body's shape the splice does not make — a
+	// decision or a loop added in it — still refuses, writing nothing. (An
+	// activity inserted, dropped or moved is spliced since ako/mxcli#1693,
+	// flow_splice_loop_body_1693_pedapp_test.go.)
 	stored := loopEditBytes(t, exec)
 	for name, src := range map[string]string{
-		"insert": strings.Replace(edited, "log info node 'X' 'in loop';", "log info node 'X' 'in loop';\n    log info node 'X' 'more';", 1),
-		"drop":   strings.Replace(edited, "log info node 'X' 'in loop';", "", 1),
-		"kind":   strings.Replace(edited, "log info node 'X' 'in loop';", "declare $T string = 'x';", 1),
-		"swap": strings.Replace(edited, "set $S = $S + toString(length($S));\n    log info node 'X' 'in loop';",
-			"log info node 'X' 'in loop';\n    set $S = $S + toString(length($S));", 1),
+		"decision": strings.Replace(edited, "log info node 'X' 'in loop';",
+			"if $It/Subject = empty then\n      log info node 'X' 'in loop';\n    end if;", 1),
+		"loop": strings.Replace(edited, "log info node 'X' 'in loop';",
+			"loop $Inner in $Items\n    begin\n      log info node 'X' 'in loop';\n    end loop;", 1),
 	} {
 		t.Run("control: "+name+" refused", func(t *testing.T) {
 			if src == edited {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -366,8 +367,23 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 		if len(op.Body) == 0 {
 			continue
 		}
+		body := op.Body
+		if op.Op == ast.AlterFlowReplaceBody {
+			// A loop's new body is built inside the loop restated, as exec
+			// builds it (replaceBody): its iterator is typed from the list.
+			// A target that is no stored loop is the plan's to refuse.
+			c, err := mfmutator.ResolveText(a.cands, op.Target)
+			if err != nil {
+				continue
+			}
+			header, err := a.storedLoopStatement(ctx, c)
+			if err != nil {
+				continue
+			}
+			body = []ast.MicroflowStatement{withLoopBody(header, op.Body)}
+		}
 		fb := a.fragmentBuilder(ctx)
-		oc := fb.buildFlowGraph(op.Body, nil)
+		oc := fb.buildFlowGraph(body, nil)
 		if errs := fb.GetErrors(); len(errs) > 0 {
 			return nil, buildDependency(strings.Join(errs, "\n")), nil
 		}

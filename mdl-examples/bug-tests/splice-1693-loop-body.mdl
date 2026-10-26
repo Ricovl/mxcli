@@ -1,0 +1,110 @@
+-- ============================================================================
+-- ako/mxcli#1693 (mendixlabs/mxcli#1517) — plain activities spliced inside a
+-- loop body, and `alter … replace body of` the loop
+-- ============================================================================
+--
+-- `create or modify microflow` and `alter microflow` refused any change of a
+-- loop body's shape — an activity inserted, dropped or moved — with
+--
+--   this change cannot be spliced into the stored flow: the Loop at (…)
+--   changes inside its body; the splice does not edit inside a loop …
+--
+-- and named `alter … replace loop`, which re-minted every identity in the
+-- loop. The splice now inserts, drops and replaces plain activities inside a
+-- body, laid out in the loop box's coordinates (the box grows on its far side
+-- when the body no longer fits, and what is drawn past it moves along); only
+-- the changed activities get new element IDs. What changes the body's shape —
+-- a decision, a nested loop, a return — is still refused, and the refusal
+-- names `alter … replace body of <loop>`, which keeps the loop itself (its
+-- element ID, position, iterator and list) and rebuilds only what is inside.
+--
+-- To reproduce: exec this file against any project. Expected:
+--   Created microflow: BugTest1693.LoopFlow            (first run)
+--   Modified microflow: BugTest1693.LoopFlow (spliced: 1 inserted)
+--   Modified microflow: BugTest1693.LoopFlow (spliced: 1 inserted, 1 dropped)
+--   Altered microflow BugTest1693.LoopFlow             (three times)
+-- Before the fix the first `create or modify` was refused "the Loop … changes
+-- inside its body", and so was every alter below (`insert after commit $It:
+-- commit $It is inside the body of loop $It in $Items; alter does not splice
+-- inside a loop body …`). mx check: 0 errors.
+--
+-- Still refused, by check and exec alike (try it): adding an `if` inside the
+-- loop in a `create or modify` —
+--   the Loop at (…) changes inside its body: a decision is added to it; inside
+--   a loop body the splice inserts, drops and replaces plain activities only …
+--   Replace the loop's body instead, … `alter microflow BugTest1693.LoopFlow
+--   { replace body of loop $It in $Items with begin … end; };`
+--
+-- The file can be run again: LoopFlow is dropped and made afresh, and every
+-- statement after the create reports what it did the first time.
+
+mdl 1;
+
+create module BugTest1693;
+
+create or modify persistent entity BugTest1693.Item (
+  Name: String(100),
+  Count: Integer
+);
+
+drop microflow if exists BugTest1693.LoopFlow;
+
+create microflow BugTest1693.LoopFlow ($Items: List of BugTest1693.Item)
+begin
+  declare $S String = '';
+  loop $It in $Items
+  begin
+    set $S = $S + 'a';
+    change $It (Count = 1);
+  end loop;
+  log info node 'BugTest1693' $S;
+end;
+
+-- An activity inserted in the body: spliced, the loop box grows.
+create or modify microflow BugTest1693.LoopFlow ($Items: List of BugTest1693.Item)
+begin
+  declare $S String = '';
+  loop $It in $Items
+  begin
+    set $S = $S + 'a';
+    log info node 'BugTest1693' 'in the loop';
+    change $It (Count = 1);
+  end loop;
+  log info node 'BugTest1693' $S;
+end;
+
+-- Two activities swapped: the moved one is dropped and inserted again.
+create or modify microflow BugTest1693.LoopFlow ($Items: List of BugTest1693.Item)
+begin
+  declare $S String = '';
+  loop $It in $Items
+  begin
+    log info node 'BugTest1693' 'in the loop';
+    set $S = $S + 'a';
+    change $It (Count = 1);
+  end loop;
+  log info node 'BugTest1693' $S;
+end;
+
+-- The same from alter: insert after the body's last activity, drop one.
+alter microflow BugTest1693.LoopFlow {
+  insert after change $It (Count = 1) begin commit $It; end;
+  drop log node 'BugTest1693' 'in the loop';
+};
+
+-- A decision in the body is the one change the splice does not make there:
+-- replace the loop's body, keeping the loop.
+alter microflow BugTest1693.LoopFlow {
+  replace body of loop $It in $Items with begin
+    set $S = $S + 'a';
+    if $It/Count = empty then
+      change $It (Count = 0);
+    end if;
+    commit $It;
+  end;
+};
+
+-- One activity of the new body changed in place (ako/mxcli#1106).
+alter microflow BugTest1693.LoopFlow {
+  replace commit $It with begin commit $It without events; end;
+};
