@@ -115,9 +115,11 @@ User tasks, call microflow activities, and wait-for-notification activities supp
 USER TASK name 'caption'
     PAGE module.Page
     OUTCOMES 'Done' { }
-    BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) { activities }
+    BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) CAPTION 'Escalate' { activities }
     BOUNDARY EVENT NON INTERRUPTING TIMER addMinutes([%CurrentDateTime%], 30) { activities }
 ```
+
+`CAPTION '<caption>'` after the delay is the text Studio Pro shows on the timer; it is optional.
 
 ## Parameters
 

@@ -768,7 +768,7 @@ mandatory and a misplaced clause failed with a token error
 - `notification [<name>] [caption '<caption>'];` — an intermediate notification event (Mendix 11.11+)
 - `end workflow [caption '<caption>'];` — only inside a `{ }` block; ends the whole workflow
 - `caption '…'` sets the caption Studio Pro shows on an activity; `comment '…'`, the old spelling, is a deprecated alias (`MDL-DEPR104`)
-- Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
+- Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> [caption '<caption>'] { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
 - **Variables in a workflow expression**: `$WorkflowContext` (or the header's declared name) and `$WorkflowInstance`, the running `System.Workflow` — `call microflow M.ACT(Workflow = $WorkflowInstance)`. Anything else (`$Workflow`, `$currentUser`, `$WorkflowUserTask`, …) is CE0117 (MDL-WF19); the workflow's own `due date` sees only the context.
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
@@ -862,7 +862,7 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 | Insert user-task outcome | `insert into activity { outcomes 'name' { body } }` | User task only |
 | Insert decision outcome | `insert into activity { outcomes 'Module.Enum.Value' -> { body } }` (or `true`, `false`, `default`) | Decision or call microflow |
 | Insert path | `insert into activity { path { body } }` | Parallel split; `path n` must be the next number |
-| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> { body } }` | Boundary timer |
+| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> [caption '<caption>'] { body } }` | Boundary timer |
 | Drop outcome | `drop activity outcome 'name';` / `drop activity outcome true;` | `true`, `false`, `default` for a decision's Boolean or default outcome |
 | Drop path | `drop activity path 2;` | Parallel split path by number, as `describe` numbers them; refused on any other activity (a user task's branches are its outcomes) |
 | Drop boundary event | `drop activity boundary event;` | For an activity with one boundary event; with several, refused under `mdl 1` and the first dropped with warning MDL-V1-BOUNDARYDROP under `mdl 0` |

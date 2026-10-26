@@ -17,13 +17,13 @@ import (
 //
 //	a user task's task name 'Review {1}' (caption 'Review')   reset to 'Review'
 //	its parameter {1} = $WorkflowContext/Name                 dropped
-//	a timer boundary event's caption                          blanked
+//	a timer boundary event's caption                          blanked (stated since #1715)
 //	a non-interrupting timer's recurrence                     dropped (a one-shot reminder)
 //
 // The rebuild takes a user task's name from its caption, writes a template's
-// text without its parameters, and writes a timer boundary event with neither a
-// caption nor a recurrence. Each is refused until MDL can state it — the issue
-// named after each reason adds the syntax.
+// text without its parameters, and writes a timer boundary event without a
+// recurrence. Each is refused until MDL can state it — the issue named after
+// each reason adds the syntax.
 
 // workflowTemplateLabel names a stored string template by its key, as MDL calls
 // the clause that states its text.
@@ -98,7 +98,8 @@ func rawUserTaskTemplateLosses(d map[string]any, caption string) []string {
 }
 
 // rawBoundaryEventLosses lists what rebuilding a stored activity resets on its
-// boundary events: a timer's caption and recurrence, and an annotation.
+// boundary events: a timer's recurrence, and an annotation. A timer's caption
+// is stated with `caption '…'` and printed by describe (ako/mxcli#1715).
 func rawBoundaryEventLosses(d map[string]any) []string {
 	var out []string
 	for _, be := range rawList(d["BoundaryEvents"]) {
@@ -107,11 +108,6 @@ func rawBoundaryEventLosses(d map[string]any) []string {
 			continue
 		}
 		kind := rawBoundaryEventKind(bm)
-		if strings.HasSuffix(kind, "timer") {
-			if c, _ := bm["Caption"].(string); c != "" {
-				out = append(out, fmt.Sprintf("its %s boundary event has caption '%s', which MDL cannot state for a timer yet (ako/mxcli#1715)", kind, c))
-			}
-		}
 		if r, ok := bm["Recurrence"].(map[string]any); ok {
 			out = append(out, fmt.Sprintf("its %s boundary event repeats (every %v %v, at most %v times), which MDL cannot state yet (ako/mxcli#1716)",
 				kind, r["Interval"], r["IntervalType"], r["MaxExecutions"]))

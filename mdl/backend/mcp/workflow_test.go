@@ -396,7 +396,7 @@ func jumpShadowFake(t *testing.T) (*fakePED, *mcpWorkflowMutator) {
 // caption matched the reference as well as the target's name.
 func TestWFResolve_NameBeatsJumpCaption(t *testing.T) {
 	f, m := jumpShadowFake(t)
-	if err := m.InsertBoundaryEvent("bugSplitJump", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", nil); err != nil {
+	if err := m.InsertBoundaryEvent("bugSplitJump", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	if ops := wfUpdateOps(t, f); !strings.Contains(ops, `"path":"/flow/activities/0/boundaryEvents"`) {
@@ -526,7 +526,7 @@ func TestWFDropBranch(t *testing.T) {
 
 func TestWFBoundaryEvent(t *testing.T) {
 	f, m := wfMutatorFake(t)
-	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", nil); err != nil {
+	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "NonInterruptingTimer", "addHours([%CurrentDateTime%], 1)", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	ops := wfUpdateOps(t, f)

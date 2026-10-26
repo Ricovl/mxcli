@@ -2016,7 +2016,7 @@ func (m *mcpWorkflowMutator) DropBranch(activityRef string, atPos int, branchNam
 
 // InsertBoundaryEvent attaches a (non-)interrupting timer boundary event, with an
 // optional handler sub-flow, to a user task or call-microflow activity.
-func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay string, activities []workflows.WorkflowActivity) error {
+func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay, caption string, activities []workflows.WorkflowActivity) error {
 	loc, err := m.resolveMember(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -2029,7 +2029,7 @@ func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, 
 		return ""
 	}).Activities
 	wfnames.Dedup(activities, loc.taken)
-	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay}
+	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay, Caption: caption}
 	if be.IsNotification() {
 		// The op carries no name, and a notification event is reached by its name.
 		return fmt.Errorf("insert boundary event: %q boundary events cannot be inserted by ALTER WORKFLOW", eventType)
@@ -2249,7 +2249,7 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 		}
 		return el, nil
 	}
-	el := map[string]any{"$Type": typeName, "caption": ""}
+	el := map[string]any{"$Type": typeName, "caption": be.Caption}
 	switch typeName {
 	case "Workflows$InterruptingTimerBoundaryEvent":
 		el["isInsideOfParallelSplit"] = false

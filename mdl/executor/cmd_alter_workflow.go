@@ -220,7 +220,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
 			acts := ends.endInsertedBoundaryPath(buildAndBindActivities(ctx, o.Activities), o.EventType, o.ActivityRef, o.AtPosition)
-			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), acts); err != nil {
+			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), o.Caption, acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
 
