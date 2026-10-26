@@ -793,7 +793,10 @@ end;
   that module is **CE5400**. `check -p --references` reports both
   (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
   association — a change / create member, an association retrieve, an XPath
-  step or a `$v/…` path — with the `alter` statement that makes it usable.
+  step or a `$v/…` path — and the Hidden entity a database `retrieve`, a
+  `create` or a `create list of` names (ako/mxcli#1699), with the `alter`
+  statement that makes it usable. Inside the Protected module itself every one
+  of these is fine.
   Page widgets binding a Hidden member are not checked yet. A page there cannot
   be made usable (mxbuild refuses it even when stored as API) — reach it through
   an `api` microflow in the module that shows it. Entities, attributes,
