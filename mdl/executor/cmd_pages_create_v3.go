@@ -20,6 +20,11 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	// Version pre-check: page parameters exist from Mendix 9.4, not 11.0. The
 	// registry used to say 11.0 — a figure that came from an illustrative sample
@@ -202,6 +207,11 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
+	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
 	}
 
 	// Find or auto-create module

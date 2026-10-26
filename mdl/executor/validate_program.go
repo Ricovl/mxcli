@@ -96,6 +96,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// so this was reachable straight from `mxcli syntax snippet.create`
 		// (mendixlabs/mxcli#1028).
 		violations = append(violations, validateSnippetParameters(stmt)...)
+		// A page, snippet, Java action or JavaScript action parameter named with
+		// a platform-reserved word (`Context`, `Type`, `Id`, …): CE7247 at build
+		// time, after exec wrote the document and its callers (MDL-PARAM01,
+		// ako/mxcli#1651). The list attributes and enumeration values use.
+		violations = append(violations, validateReservedParameterNames(stmt)...)
 		// A microflow's URL / export level / concurrency clauses, against the
 		// same rules the writer applies (MDL-MF01..MF04).
 		violations = append(violations, validateMicroflowDocumentProperties(stmt)...)

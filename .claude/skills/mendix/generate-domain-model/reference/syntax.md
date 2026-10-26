@@ -709,8 +709,9 @@ create persistent entity Module."VATRate" (
 > quoted** (the check strips the quotes and still flags them): `Type` (CE7247, MDL021),
 > the audit attributes `CreatedDate` / `ChangedDate` / `Owner` / `ChangedBy` (MDL020 — use
 > the `AutoCreatedDate` / `AutoChangedDate` / `AutoOwner` / `AutoChangedBy` pseudo-types
-> instead), plus `ID`, `GUID`, `CurrentUser` and the Java-keyword list. `"Type": String`
-> fails MDL021 — rename to `ResourceType` / `TypeValue`.
+> instead), plus `ID`, `GUID`, `CurrentUser`, `Object` and the Java-keyword list. `"Type": String`
+> fails MDL021 — rename to `ResourceType` / `TypeValue`. The same list applies to page,
+> snippet, Java action and JavaScript action **parameters** (MDL-PARAM01).
 
 > **Caveat 2 — a third grammar: OQL, where quoting DOES work.** `Year`, `Month`,
 > `Quarter`, `Week`, `Day`, `Hour`, `Minute`, `Second`, `Weekday`, `DayOfYear`,
