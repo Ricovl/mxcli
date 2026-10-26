@@ -1742,8 +1742,16 @@ func (pb *pageBuilder) getNanoflowReturnEntityName(qualifiedName string) string 
 // buildClientActionV3 converts a V3 Action AST to a pages.ClientAction.
 func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAction, error) {
 	a, err := pb.buildClientActionV3Base(action)
-	if err != nil || a == nil || action.Settings == nil {
+	if err != nil || a == nil {
 		return a, err
+	}
+	if len(action.Returns) > 0 {
+		if err := pb.applyFlowReturns(a, action.Returns); err != nil {
+			return nil, err
+		}
+	}
+	if action.Settings == nil {
+		return a, nil
 	}
 	if err := applyActionSettings(a, action.Settings); err != nil {
 		return nil, err

@@ -470,6 +470,9 @@ func mapClientAction(a pages.ClientAction) (map[string]any, error) {
 	case nil, *pages.NoClientAction:
 		return map[string]any{"$Type": "Pages$NoClientAction"}, nil
 	case *pages.MicroflowClientAction:
+		if len(act.OutputMappings) > 0 {
+			return nil, fmt.Errorf("call microflow %s: returns ( … ) is not yet supported by the MCP backend", act.MicroflowName)
+		}
 		return map[string]any{
 			"$Type":     "Pages$MicroflowClientAction",
 			"microflow": act.MicroflowName,

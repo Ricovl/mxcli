@@ -1655,6 +1655,9 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				if params != "" {
 					result += "(" + params + ")"
 				}
+				if returns, ok := storedFlowReturns(settings); ok {
+					result += returns
+				}
 				return result
 			}
 		}
@@ -1666,6 +1669,9 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 			params := extractNanoflowParameters(ctx, action)
 			if params != "" {
 				result += "(" + params + ")"
+			}
+			if returns, ok := storedFlowReturns(action); ok {
+				result += returns
 			}
 			return result
 		}
@@ -2267,16 +2273,15 @@ func appendReadOnlyStyle(props []string, w rawWidget) []string {
 }
 
 // outputMappingsNote says a button's flow call has output mappings (Mendix
-// 11.5), which MDL has no syntax for. A rewrite keeps the stored ones while the
-// button calls the same flow (canon.CarryOutputMappings), so the description
-// still re-executes; the note is there so a reader knows they exist
-// (ako/mxcli#977).
+// 11.5) that describe could not print as `returns ( … )` — a shape that syntax
+// does not write, such as a path over an association. Nothing carries them
+// through a rewrite, so the note says re-running drops them (ako/mxcli#977).
 func outputMappingsNote(w rawWidget) string {
-	switch w.OutputMappings {
+	switch w.UnsayableOutputMappings {
 	case 0:
 		return ""
 	case 1:
-		return fmt.Sprintf("-- %s: 1 output mapping, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name)
+		return fmt.Sprintf("-- %s: 1 output mapping has no MDL form; re-running this statement drops it", w.Name)
 	}
-	return fmt.Sprintf("-- %s: %d output mappings, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name, w.OutputMappings)
+	return fmt.Sprintf("-- %s: %d output mappings have no MDL form; re-running this statement drops them", w.Name, w.UnsayableOutputMappings)
 }

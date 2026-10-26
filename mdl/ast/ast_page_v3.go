@@ -339,6 +339,19 @@ type ActionV3 struct {
 	OutcomeValue  string // For COMPLETE_TASK
 	// Settings is the action's `with ( … )` list, nil when none was written.
 	Settings *ActionSettingsV3
+	// Returns is a flow call's `returns ( … )` list: Studio Pro's "Return value
+	// mappings" (Mendix 11.5), nil when none was written.
+	Returns []FlowReturnV3
+}
+
+// FlowReturnV3 is one `returns ( … )` entry, `Target = Source`. Target is an
+// attribute of the data container's object (`Brand`) or, with Variable set, a
+// page variable (`$result`, stored without the `$`). Source is the expression
+// text: `$ActionReturnValue`, `$ActionReturnValue/Attr`, or any expression.
+type FlowReturnV3 struct {
+	Target   string
+	Variable bool
+	Source   string
 }
 
 // ActionSettingsV3 holds the client-action settings Studio Pro shows under an

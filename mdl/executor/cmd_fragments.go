@@ -10,6 +10,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
@@ -59,7 +60,15 @@ func describeFragment(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewNotFound("fragment", name.Name)
 	}
 
-	fmt.Fprintf(ctx.Output, "create fragment %s as {\n", frag.Name)
+	params := ""
+	if len(frag.Params) > 0 {
+		parts := make([]string, 0, len(frag.Params))
+		for _, p := range frag.Params {
+			parts = append(parts, "$"+p.Name+": "+p.Kind)
+		}
+		params = " (" + strings.Join(parts, ", ") + ")"
+	}
+	fmt.Fprintf(ctx.Output, "create fragment %s%s as {\n", frag.Name, params)
 	for _, w := range frag.Widgets {
 		outputASTWidgetMDL(ctx.Output, w, 1)
 	}
@@ -227,7 +236,7 @@ func formatASTWidgetProps(w *ast.WidgetV3) string {
 func formatASTPropertyValue(v interface{}) string {
 	switch val := v.(type) {
 	case string:
-		return fmt.Sprintf("'%s'", val)
+		return quoteExpressionLiteral(val)
 	case int:
 		return fmt.Sprintf("%d", val)
 	case int64:
@@ -242,7 +251,7 @@ func formatASTPropertyValue(v interface{}) string {
 	case *ast.DataSourceV3:
 		return formatDataSourceV3(val)
 	case *ast.ActionV3:
-		return formatActionV3(val) + formatActionSettingsV3(val.Settings)
+		return formatActionV3(val) + formatFlowReturnsV3(val.Returns) + formatActionSettingsV3(val.Settings)
 	case *ast.WidgetExpressionV3:
 		return val.Text
 	default:
@@ -267,9 +276,9 @@ func formatDataSourceV3(ds *ast.DataSourceV3) string {
 	case "database":
 		return "database " + databaseSourceFrom(ds)
 	case "microflow":
-		return "microflow " + ds.Reference
+		return "microflow " + ds.Reference + formatFlowArgsV3(ds.Args)
 	case "nanoflow":
-		return "nanoflow " + ds.Reference
+		return "nanoflow " + ds.Reference + formatFlowArgsV3(ds.Args)
 	case "association":
 		return "association " + ds.Reference
 	case "selection":
@@ -277,6 +286,19 @@ func formatDataSourceV3(ds *ast.DataSourceV3) string {
 	default:
 		return ds.Reference
 	}
+}
+
+// formatFlowArgsV3 renders a flow or page call's arguments as written,
+// `(Name = value, …)`, or "" when there are none.
+func formatFlowArgsV3(args []ast.FlowArgV3) string {
+	if len(args) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		parts = append(parts, visitor.ParameterNameSpelling(arg.Name)+" = "+fmt.Sprint(arg.Value))
+	}
+	return "(" + strings.Join(parts, ", ") + ")"
 }
 
 func formatActionV3(a *ast.ActionV3) string {
@@ -300,12 +322,24 @@ func formatActionV3(a *ast.ActionV3) string {
 			return "delete close page"
 		}
 		return "delete"
+	case "param":
+		return "$" + a.Target
+	case "create":
+		if a.ThenAction != nil {
+			return "create object " + a.Target + " then " + formatActionV3(a.ThenAction)
+		}
+		return "create object " + a.Target
 	case "showPage":
-		return "show page " + a.Target
+		return "show page " + a.Target + formatFlowArgsV3(a.Args)
 	case "microflow":
-		return "call microflow " + a.Target
+		return "call microflow " + a.Target + formatFlowArgsV3(a.Args)
 	case "nanoflow":
-		return "call nanoflow " + a.Target
+		return "call nanoflow " + a.Target + formatFlowArgsV3(a.Args)
+	case "openLink":
+		if a.LinkVariable != "" {
+			return "open link " + a.LinkVariable + "/" + a.LinkAttribute
+		}
+		return "open link " + quoteExpressionLiteral(a.LinkURL)
 	case "signOut":
 		return "sign out"
 	case "completeTask":
