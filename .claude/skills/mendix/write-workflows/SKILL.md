@@ -10,19 +10,20 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 
 | lines | section |
 |---|---|
-| 35-46 | When to Use This Skill |
-| 47-117 | Syntax — CREATE WORKFLOW |
-| 118-300 | Activities |
-| 301-307 | DROP WORKFLOW |
-| 308-373 | ALTER WORKFLOW |
-| 374-394 | DESCRIBE round-trip |
-| 395-415 | Activity names, and why `jump to` depends on them |
-| 416-436 | Rewriting an existing workflow |
-| 437-524 | Microflow statements for workflow tasks |
-| 525-545 | System-module enumerations are synthesized, not stored |
-| 546-670 | Platform rules |
-| 671-701 | Observing a running workflow |
-| 702-711 | Validate before presenting |
+| 36-47 | When to Use This Skill |
+| 48-118 | Syntax — CREATE WORKFLOW |
+| 119-301 | Activities |
+| 302-308 | DROP WORKFLOW |
+| 309-374 | ALTER WORKFLOW |
+| 375-395 | DESCRIBE round-trip |
+| 396-416 | Activity names, and why `jump to` depends on them |
+| 417-437 | Rewriting an existing workflow |
+| 438-447 | Task pages |
+| 448-535 | Microflow statements for workflow tasks |
+| 536-556 | System-module enumerations are synthesized, not stored |
+| 557-681 | Platform rules |
+| 682-712 | Observing a running workflow |
+| 713-722 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -434,14 +435,24 @@ mxcli refuses the two cases where that would lose something:
 The safe way to change one activity in a workflow carrying hand-placed structure
 is `ALTER WORKFLOW`, which mutates in place and touches nothing else.
 
+## Task pages
+
+A task page needs **a claim button and one `complete task '<Outcome>'` button per
+outcome**. Mendix adds none, and without them every instance waits at the task
+while mx check and the build pass. The button is the page's own action, no
+microflow needed — but the user must have claimed the task: on 11.13.0 an
+unclaimed task's button fails, "it is not assigned to you". Do not add a microflow
+per outcome to mirror progress into a status attribute; the workflow records it.
+Template and the measurement: [reference/task-pages.md](reference/task-pages.md).
+
 ## Microflow statements for workflow tasks
 
 These run **inside a microflow** (not in the workflow body) and drive a running
-workflow / its tasks. They are easy to miss — there is no `complete task`:
+workflow / its tasks (on a page, a task is finished with `complete task`, above):
 
 - `set task outcome $Task 'Approve';` — completes a `System.WorkflowUserTask` with a
-  named outcome. This is how a microflow (e.g. a task page's button) finishes a task
-  and does the domain work; the outcome branches still record which one was chosen.
+  named outcome, when completing it is part of other work a microflow does; the
+  outcome branches still record which one was chosen.
 - `$Notified = notify workflow $Wf target Module.Workflow.Name;` resumes the element
   it names — a notification-started event sub-process, a notification activity, a
   notification boundary event or a wait for notification. **The target is
@@ -454,9 +465,9 @@ workflow / its tasks. They are easy to miss — there is no `complete task`:
   `pause all` / `unpause all` after it is Studio Pro's "Pause / Unpause instances".
   A bare `lock workflow all` is refused (MDL-WF17) — it built as CE1825.
 
-A common shape: the task page's buttons call a microflow that does the change and
-then `set task outcome $Task '<Outcome>'`, leaving the workflow's outcome branch
-bodies empty.
+When one click must do domain work and complete the task, a button calls a
+microflow that does the change and then `set task outcome $Task '<Outcome>'` —
+a microflow per outcome, so prefer `complete task` buttons otherwise.
 
 **The outcome is a literal, by design.** Mendix stores
 `Microflows$SetTaskOutcomeAction.Outcome` by name — a reference to one outcome of
@@ -619,7 +630,7 @@ values. The full list and the System **entities** are in `system-module`.
     Pro stores a list, not a flag), so it needs Mendix 11.6+; name the types on
     older projects.
 - A user task needs a **task page** to be useful; without one Mendix flags the
-  task (`CE1834`). Bind the page to `System.WorkflowUserTask`.
+  task (`CE1834`). Bind it to `System.WorkflowUserTask`; see "Task pages" above.
 - **The task page takes the TASK, not the workflow's context object.** It must
   declare a `System.WorkflowUserTask` parameter: a page with no parameters is
   `CE7410`, a page whose parameters are all something else (the usual mistake:

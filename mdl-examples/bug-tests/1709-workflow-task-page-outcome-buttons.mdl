@@ -1,0 +1,55 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1709 — "write-workflows skill steers agents away from `complete
+-- task` buttons: generated task pages cannot complete their tasks, and every
+-- outcome gets its own microflow"
+-- ============================================================================
+--
+-- The skill's task-page template. A page's `complete task '<Outcome>'` button
+-- finishes a task without a microflow — but only for a user who has CLAIMED it.
+-- Measured on the 11.13.0 runtime: clicked by a targeted user who has not, it
+-- shows "You can't complete this user task, it is not assigned to you." and the
+-- task stays open; after the Assign-to-me button, the same click completes it
+-- and the outcome branch runs.
+--
+-- EXPECTED: `mxcli check` passes; exec then mx check: 0 errors (11.15.0).
+-- In the running app: open the task, click Assign to me, then Approve — the
+-- workflow completes.
+-- ============================================================================
+
+create module BugTaskPage1709;
+create module role BugTaskPage1709.User;
+create persistent entity BugTaskPage1709.Request ( Title: String(200) );
+-- One per app, shared by every task page.
+create microflow BugTaskPage1709.ACT_Task_AssignToMe ($WorkflowUserTask: System.WorkflowUserTask)
+begin
+  change $WorkflowUserTask (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+  commit $WorkflowUserTask;
+end;
+
+create page BugTaskPage1709.WF_ReviewRequest
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review request',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    dynamictext txtTask (Content: '{1}', ContentParams: ({1} = Name))
+    actionbutton btnAssign (Caption: 'Assign to me',
+      Action: call microflow BugTaskPage1709.ACT_Task_AssignToMe(WorkflowUserTask = $WorkflowUserTask))
+    actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve', ButtonStyle: Success)
+    actionbutton btnReject (Caption: 'Reject', Action: complete task 'Reject', ButtonStyle: Danger)
+  }
+};
+
+grant view on page BugTaskPage1709.WF_ReviewRequest to BugTaskPage1709.User;
+grant execute on microflow BugTaskPage1709.ACT_Task_AssignToMe to BugTaskPage1709.User;
+
+create or modify workflow BugTaskPage1709.WF_Request
+  parameter $Context: BugTaskPage1709.Request
+begin
+  user task Review 'Review request' page BugTaskPage1709.WF_ReviewRequest
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Approve' { } 'Reject' { };
+end workflow;
