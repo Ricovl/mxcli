@@ -1,0 +1,68 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1711 — "User task targeting XPath is never validated:
+-- `targeting users xpath [System.User/Name = 'MxAdmin']` passes check, Studio
+-- Pro reports CE0161"
+-- ============================================================================
+--
+-- A targeting constraint is evaluated on the user (System.User, or the
+-- specialization App Settings > Workflows names) — or on System.WorkflowGroup
+-- for group targeting — so it names that entity's members directly. Measured
+-- with mx check on mxbuild 11.15.0:
+--
+--   users  [System.User/Name = 'MxAdmin']             CE0161  (entity as a path step)
+--   users  [NoSuchAttr = 'x']                         CE0161
+--   groups [System.WorkflowGroup/Name = 'Reviewers']  CE0161
+--
+-- and the same leading entity step is CE0161 in a microflow retrieve and a list
+-- view's database source. Every constraint below builds clean.
+--
+-- EXPECTED: `mxcli check` passes this file. With -p <app.mpr> --references,
+-- replacing any constraint below with one of the three above is reported,
+-- naming the task and the fix (`drop the leading System.User/: [Name = …]`).
+-- Guard: mdl/executor/validate_workflow_targeting_xpath_test.go,
+--        mdl/executor/xpath_leading_entity_step_test.go.
+-- ============================================================================
+
+create module BugTargeting1711;
+
+create persistent entity BugTargeting1711.Request (
+  Title: String(200)
+);
+
+create page BugTargeting1711.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve')
+    actionbutton btnReject (Caption: 'Reject', Action: complete task 'Reject')
+  }
+};
+
+create or modify workflow BugTargeting1711.WF_Approve
+  parameter $Context: BugTargeting1711.Request
+begin
+  user task ByRole 'Review by role' page BugTargeting1711.WF_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Approve' { } 'Reject' { };
+  user task ByRolePath 'Review by role name' page BugTargeting1711.WF_Review
+    targeting users xpath [System.UserRoles/System.UserRole/Name = 'User']
+    outcomes 'Approve' { } 'Reject' { };
+  user task ByAttribute 'Review by active users' page BugTargeting1711.WF_Review
+    targeting users xpath [Active = true()]
+    outcomes 'Approve' { } 'Reject' { };
+  user task ByGroup 'Review by group' page BugTargeting1711.WF_Review
+    targeting groups xpath [Name = 'Reviewers']
+    outcomes 'Approve' { } 'Reject' { };
+end workflow;
+
+create microflow BugTargeting1711.ACT_ActiveUsers ()
+returns Boolean
+begin
+  retrieve $Users from System.User where [Active = true()];
+  return true;
+end;

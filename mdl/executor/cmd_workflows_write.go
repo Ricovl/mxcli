@@ -219,6 +219,9 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// a start event named like a main-flow activity is CE0495 — so they are
 	// deduplicated together with the main flow's.
 	wf.EventSubProcesses = buildEventSubProcesses(s.EventSubProcesses)
+	// An interrupting boundary path ends in an End where Studio Pro writes one,
+	// before names are carried and deduplicated (ako/mxcli#1712).
+	endBoundaryPathsLikeStudioPro(userActivities, wf.EventSubProcesses)
 	named := append([]workflows.WorkflowActivity{}, userActivities...)
 	for _, esp := range wf.EventSubProcesses {
 		autoBindWorkflowParameters(ctx, esp.Flow.Activities, s.ParameterVar)

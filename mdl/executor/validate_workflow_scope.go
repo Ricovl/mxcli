@@ -42,8 +42,8 @@ import (
 // `$WorkflowContext` (contextExprNormalizer), and any casing of
 // `$WorkflowInstance` (lower case is CE0117 as written, measured on 11.6.6).
 //
-// XPath targeting is not scanned: it is an XPath constraint, not an expression,
-// and its scope was not measured.
+// XPath targeting is not scanned here: it is an XPath constraint, not an
+// expression, and validateWorkflowTargetingXPath checks its members instead.
 const wfExprScopeRule = "MDL-WF19"
 
 // workflowInstanceVar is the System.Workflow object of the running instance —

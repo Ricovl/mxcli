@@ -91,6 +91,10 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return err
 	}
 
+	// Where an inserted interrupting boundary path may end in an End, as
+	// Studio Pro ends it (ako/mxcli#1712).
+	ends := newAlterEndPlacement(ctx, s)
+
 	// Apply operations sequentially
 	for _, op := range s.Operations {
 		switch o := op.(type) {
@@ -143,6 +147,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertAfterActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert after", err)
 			}
@@ -152,6 +157,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBeforeActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert before", err)
 			}
@@ -166,12 +172,14 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build replacement activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.ReplaceActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("replace activity", err)
 			}
 
 		case *ast.InsertOutcomeOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertOutcome(o.ActivityRef, o.AtPosition, o.OutcomeName, acts); err != nil {
 				return mdlerrors.NewBackend("insert outcome", err)
 			}
@@ -194,6 +202,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 
 		case *ast.InsertBranchOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBranch(o.ActivityRef, o.AtPosition, o.Condition, acts); err != nil {
 				return mdlerrors.NewBackend("insert branch", err)
 			}
@@ -210,7 +219,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				return mdlerrors.NewUnsupported("insert boundary event: a notification boundary event cannot be inserted with ALTER WORKFLOW yet — " +
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
-			acts := buildAndBindActivities(ctx, o.Activities)
+			acts := ends.endInsertedBoundaryPath(buildAndBindActivities(ctx, o.Activities), o.EventType, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
