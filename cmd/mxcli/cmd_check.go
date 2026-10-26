@@ -336,6 +336,7 @@ func runCheckFileAgainst(cmd *cobra.Command, filePath, against string) int {
 			// already stored that way: re-applying it changes nothing.
 			violations = executor.SettleStoredVoidReturnValues(violations, prog, executor.NewStoredVoidReturns(b))
 			violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
+			violations = append(violations, executor.StoredTaskPageOutcomeViolations(prog, b)...)
 			// MDL-VERSION01: a statement the project's Mendix version cannot
 			// store. The gates are the ones exec's handlers refuse with, from
 			// one table (executor.statementVersionGates), so check -p no

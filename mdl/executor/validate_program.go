@@ -236,6 +236,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// appearing to do nothing.
 	violations = append(violations, ValidateTaskClaims(prog)...)
 
+	// Warn (MDL-WF20) when a user task's page has no button that completes one
+	// of its outcomes: the instance waits at the task and nothing reports it.
+	violations = append(violations, ValidateTaskPageOutcomes(prog)...)
+
 	// Flag control-bar buttons that pass $currentObject — a control bar is
 	// not row-scoped, so the argument is unbound (CE1571) at build time.
 	violations = append(violations, ValidatePageButtonContext(prog)...)

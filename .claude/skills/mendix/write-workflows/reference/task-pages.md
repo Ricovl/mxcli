@@ -2,7 +2,9 @@
 
 A task page is how a user finishes a task, so it needs a button for every
 outcome. Mendix does not add them: a page that only shows the task leaves every
-instance waiting at it, and mx check and the build pass. The button action is
+instance waiting at it, and mx check and the build pass. `mxcli check` warns
+**MDL-WF20** when a task's page has no button that completes one of its outcomes
+(a `complete task` button, or a microflow that reaches `set task outcome`). The button action is
 the page's own **`complete task '<Outcome>'`**; no microflow is needed to complete
 a task.
 

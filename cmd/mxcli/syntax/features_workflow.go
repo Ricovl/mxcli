@@ -518,9 +518,14 @@ func init() {
 		Keywords: []string{
 			"set task outcome", "task outcome", "complete task", "complete user task",
 			"outcome variable", "dynamic outcome", "claim and complete", "claim task",
-			"MDL-WORKFLOW10",
+			"MDL-WORKFLOW10", "task page", "outcome button", "MDL-WF20",
 		},
 		Syntax: "SET TASK OUTCOME $UserTask 'OutcomeName';\n\n" +
+			"-- On a task page the same is a button action, with no microflow:\n" +
+			"--   actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve')\n" +
+			"-- A task page needs one per outcome; check warns MDL-WF20 when a task's\n" +
+			"-- page cannot complete one of its outcomes. Either way the user must\n" +
+			"-- have claimed the task.\n\n" +
 			"-- A microflow statement (not a nanoflow one). $UserTask is a\n" +
 			"-- System.WorkflowUserTask; the outcome is one of that task's outcomes.\n" +
 			"-- The outcome is a quoted LITERAL, by design: Mendix stores it by name\n" +

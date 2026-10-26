@@ -438,12 +438,12 @@ is `ALTER WORKFLOW`, which mutates in place and touches nothing else.
 ## Task pages
 
 A task page needs **a claim button and one `complete task '<Outcome>'` button per
-outcome**. Mendix adds none, and without them every instance waits at the task
-while mx check and the build pass. The button is the page's own action, no
-microflow needed — but the user must have claimed the task: on 11.13.0 an
-unclaimed task's button fails, "it is not assigned to you". Do not add a microflow
-per outcome to mirror progress into a status attribute; the workflow records it.
-Template and the measurement: [reference/task-pages.md](reference/task-pages.md).
+outcome**. Mendix adds none; without them every instance waits at the task while
+mx check and the build pass (`mxcli check` warns MDL-WF20). The button is the
+page's own action, no microflow needed — but the user must have claimed the task:
+on 11.13.0 an unclaimed task's button fails, "it is not assigned to you". Do not
+add a microflow per outcome to mirror progress into a status attribute; the
+workflow records it. Template and the measurement: [reference/task-pages.md](reference/task-pages.md).
 
 ## Microflow statements for workflow tasks
 
