@@ -1265,6 +1265,9 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 			action.OutcomeValue = unquoteStringLit(str)
 		}
 	}
+	if rc := actCtx.ActionReturnsV3(); rc != nil {
+		action.Returns = buildActionReturnsV3(rc)
+	}
 	if sc := actCtx.ActionSettingsV3(); sc != nil {
 		action.Settings = buildActionSettingsV3(sc)
 	}
@@ -1276,6 +1279,26 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	}
 
 	return action
+}
+
+// buildActionReturnsV3 builds a flow call's `returns ( … )` list.
+func buildActionReturnsV3(ctx parser.IActionReturnsV3Context) []ast.FlowReturnV3 {
+	var out []ast.FlowReturnV3
+	for _, rc := range ctx.(*parser.ActionReturnsV3Context).AllActionReturnV3() {
+		r := rc.(*parser.ActionReturnV3Context)
+		var ret ast.FlowReturnV3
+		if v := r.VARIABLE(); v != nil {
+			ret.Target = strings.TrimPrefix(v.GetText(), "$")
+			ret.Variable = true
+		} else if pn := r.ParameterName(); pn != nil {
+			ret.Target = parameterNameText(pn)
+		}
+		if expr := r.Expression(); expr != nil {
+			ret.Source = expressionSourceText(expr)
+		}
+		out = append(out, ret)
+	}
+	return out
 }
 
 // buildMicroflowArgsV3 builds flow arguments from the parse context.

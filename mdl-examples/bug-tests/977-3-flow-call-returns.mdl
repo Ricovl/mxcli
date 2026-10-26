@@ -1,0 +1,72 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 3 — "A button's `OutputMappings` are not round-tripped."
+--
+-- Mendix 11.5 lets a call microflow / call nanoflow action map the flow's
+-- result back onto the page: Studio Pro's "Return value mappings", stored as
+-- Forms$OutputMapping in MicroflowSettings.OutputMappings (microflow) or the
+-- action's own OutputMappings (nanoflow). MDL had no syntax for them, so a
+-- describe → exec of a Studio Pro page dropped every mapping ("Replaced page",
+-- mx check silent), and a script could not write one.
+--
+-- `returns ( … )` after the arguments spells them, target = source:
+--
+--   Brand = $ActionReturnValue/Brand     AttributeRef + SourceAttributeRef
+--   $stringResult = $ActionReturnValue   SourceVariable (the target variable)
+--   Brand = 'Demo brand'                 AttributeRef + Expression
+--
+-- the three shapes Studio Pro 11.15 stores on ako/TestApp's
+-- Pages.OutputMappingButton. An attribute target belongs to the data
+-- container's object; `$name` is a page variable.
+--
+-- Run it on a Mendix 11.15+ app. A mapping INTO AN ATTRIBUTE needs 11.15:
+-- mx 11.13.0 and 11.14.0 report CE7006 "Selected value is not valid for
+-- attribute 'Brand'" on the same bytes 11.15.0-rc.4 accepts, so on an older
+-- project check -p and exec refuse it (MDL-VERSION01). A page-variable target
+-- checks clean from 11.13 on.
+--
+--   mxcli exec mdl-examples/bug-tests/977-3-flow-call-returns.mdl -p app.mpr
+--   mxcli describe page BugFlowReturns.OM_Page   -- prints the four returns
+--   (re-exec the description)                     -- Unchanged page
+--   mx check app.mpr                              -- 0 errors (11.15.0-rc.4)
+--
+-- Removing a returns clause removes that mapping: the statement is the
+-- authority (the stopgap that carried stored mappings through a rewrite is
+-- gone, because it restored mappings a script had deliberately removed).
+-- ============================================================================
+
+create module BugFlowReturns;
+
+create persistent entity BugFlowReturns.Vehicle (Brand: String(200));
+
+create microflow BugFlowReturns.ACT_Vehicle_Get () returns BugFlowReturns.Vehicle
+begin
+  $Vehicle = create BugFlowReturns.Vehicle;
+  return $Vehicle;
+end;
+
+create microflow BugFlowReturns.ACT_String_Get () returns String
+begin
+  return 'from the flow';
+end;
+
+create nanoflow BugFlowReturns.NF_Vehicle_Get () returns BugFlowReturns.Vehicle
+begin
+  $Vehicle = create BugFlowReturns.Vehicle;
+  return $Vehicle;
+end;
+
+create page BugFlowReturns.OM_Page (
+  Title: 'Output mappings',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ($Vehicle: BugFlowReturns.Vehicle),
+  Variables: ($stringResult: String = empty)
+) {
+  dataview dvVehicle (DataSource: $Vehicle) {
+    actionbutton btnAttributeToAttribute (Caption: 'Attribute', Action: call microflow BugFlowReturns.ACT_Vehicle_Get returns (Brand = $ActionReturnValue/Brand))
+    actionbutton btnToPageVariable (Caption: 'Variable', Action: call microflow BugFlowReturns.ACT_String_Get returns ($stringResult = $ActionReturnValue))
+    actionbutton btnExpressionMapping (Caption: 'Expression', Action: call microflow BugFlowReturns.ACT_Vehicle_Get returns (Brand = 'Demo brand'))
+    actionbutton btnNanoflowMapping (Caption: 'Nanoflow', Action: call nanoflow BugFlowReturns.NF_Vehicle_Get returns (Brand = $ActionReturnValue/Brand))
+    actionbutton btnControlNoMapping (Caption: 'Control', Action: call microflow BugFlowReturns.ACT_Vehicle_Get)
+  }
+};

@@ -437,6 +437,9 @@ func customWidgetClientAction(a pages.ClientAction) (map[string]any, error) {
 		if len(act.ParameterMappings) > 0 {
 			return nil, fmt.Errorf("microflow action parameter mappings are not yet supported over MCP")
 		}
+		if len(act.OutputMappings) > 0 {
+			return nil, fmt.Errorf("microflow action output mappings (returns ( … )) are not yet supported over MCP")
+		}
 		return map[string]any{
 			"$Type": "Pages$MicroflowClientAction",
 			"microflowSettings": map[string]any{

@@ -126,12 +126,6 @@ func Reconcile(contents, stored []byte, opts ...Option) (out []byte, unchanged b
 		contents = CarryTranslations(contents, stored)
 	}
 
-	// A flow call's output mappings (Mendix 11.5), which MDL has no syntax for:
-	// a rebuild wrote the empty list and dropped them (ako/mxcli#977). Like the
-	// translations, it changes the document's length, so it runs before the
-	// transplant.
-	contents = CarryOutputMappings(contents, stored)
-
 	// The same reasoning one level down, for the writes that do land: a rebuild
 	// mints a fresh $ID for every sub-element, so a two-line change reads in
 	// version control as a whole-document replacement. TransplantIDs puts the
