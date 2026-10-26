@@ -927,6 +927,11 @@ type rawWidget struct {
 	// TabControl parsing — preserves the original tab page name/caption so
 	// DESCRIBE output shows which tab each nested widget belongs to).
 	TabCaption string
+	// The tab page's badge (mendixlabs/mxcli#1644): set when one is stored,
+	// with its template text and parameters. See tabpage_badge.go.
+	TabBadgeSet    bool
+	TabBadge       string
+	TabBadgeParams []string
 	// Scroll-container region properties, set only on the synthetic wrappers
 	// the region walk emits (the slot name goes in Name). Same shape as
 	// TabCaption: a nameless container whose identity DESCRIBE has to put back.

@@ -442,6 +442,11 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			if tp.ConditionalVisibility != nil {
 				tpg.SetConditionalVisibilitySettings(conditionalVisibilityToGen(tp.ConditionalVisibility))
 			}
+			// Its badge, a client template like a dynamic text's content
+			// (mendixlabs/mxcli#1644); null otherwise, as Studio Pro writes it.
+			if tp.Badge != nil {
+				tpg.SetBadge(clientTemplateToGen(tp.Badge))
+			}
 			for _, c := range tp.Widgets {
 				cg, err := widgetToGen(c)
 				if err != nil {

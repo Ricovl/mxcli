@@ -1,0 +1,45 @@
+-- mendixlabs/mxcli#1644 (ako/mxcli#1653): a tab page's Badge had no MDL
+-- spelling.
+--
+-- Symptom: `check` warned MDL-WIDGET07 "property `Badge` is not recognized and
+-- will be silently dropped on write", `describe page` printed
+--   tabpage tpOne (Caption: 'One') {
+-- for a tab page whose Badge Studio Pro had set, and executing that output
+-- answered "Replaced page" with the stored Badge now null — mx check clean
+-- before and after.
+--
+-- Fix: `Badge: '{1}', BadgeParams: ({1} = Attribute)` on a tab page, the
+-- shape of a dynamic text's Content / ContentParams, written to
+-- Forms$TabPage.Badge and printed by describe, so the round trip keeps it.
+-- The parameters resolve against the data container around the tab container.
+-- On any other widget `Badge:` still draws MDL-WIDGET07; BadgeParams without a
+-- Badge, or a Badge that is not a quoted template, is refused (MDL-WIDGET51).
+--
+-- To verify in Studio Pro: run this script, open Chores.Panel_Tabs —
+-- tab One shows the panel's Total as its badge, tab Two shows "new" — then run
+-- `describe page Chores.Panel_Tabs` and execute its output: "Unchanged page".
+
+mdl 1;
+
+create module Chores;
+
+create non-persistent entity Chores.Panel (
+  Total: integer
+);
+
+create page Chores.Panel_Tabs (
+  Title: 'Tabs',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Panel: Chores.Panel )
+) {
+  dataview dvPanel (DataSource: $Panel) {
+    tabcontainer tcMain {
+      tabpage tpOne (Caption: 'One', Badge: '{1}', BadgeParams: ({1} = Total)) {
+        dynamictext txtOne (Content: 'one')
+      }
+      tabpage tpTwo (Caption: 'Two', Badge: 'new') {
+        dynamictext txtTwo (Content: 'two')
+      }
+    }
+  }
+};

@@ -119,6 +119,10 @@ type TabPage struct {
 	// tab page is not a widget (no BaseWidget, no Appearance), so it carries
 	// its own (mendixlabs/mxcli#1465).
 	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
+	// Badge is Forms$TabPage.Badge, the text template shown beside the caption
+	// (a counter, say); nil writes none, as Studio Pro stores an unset one
+	// (mendixlabs/mxcli#1644).
+	Badge *ClientTemplate `json:"badge,omitempty"`
 }
 
 // GetName returns the tab page's name.
