@@ -3417,7 +3417,7 @@ func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
 func setTextAreaPropertyMut(widget bson.D, propName string, value any) error {
 	if strings.EqualFold(propName, "NumberOfLines") {
 		n, ok := formattingInt(value)
-		if !ok || n < 0 {
+		if !ok || n < 0 || n > math.MaxInt32 {
 			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
 		}
 		if _, isInt32 := bsonnav.DGet(widget, "NumberOfLines").(int32); isInt32 {

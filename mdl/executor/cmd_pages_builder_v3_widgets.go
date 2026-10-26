@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1834,20 +1835,33 @@ func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 	return nil, false
 }
 
-// nonNegativeInt reads a whole-number property value of 0 or more.
+// nonNegativeInt reads a whole-number property value from 0 up to the largest
+// value the stored 32-bit integer holds.
 func nonNegativeInt(v any) (int, bool) {
+	var i int
 	switch n := v.(type) {
 	case int:
-		return n, n >= 0
+		i = n
 	case int64:
-		return int(n), n >= 0
+		if n > math.MaxInt32 {
+			return 0, false
+		}
+		i = int(n)
 	case float64:
-		return int(n), n >= 0 && n == float64(int(n))
+		if n != math.Trunc(n) || n > math.MaxInt32 {
+			return 0, false
+		}
+		i = int(n)
 	case string:
-		i, err := strconv.Atoi(strings.TrimSpace(n))
-		return i, err == nil && i >= 0
+		parsed, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil {
+			return 0, false
+		}
+		i = parsed
+	default:
+		return 0, false
 	}
-	return 0, false
+	return i, i >= 0 && i <= math.MaxInt32
 }
 
 // propBool coerces a widget property value to a bool. GetBoolProp cannot be used

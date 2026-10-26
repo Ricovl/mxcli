@@ -120,3 +120,22 @@ func TestTextAreaNumberOfLinesAndAutocomplete_StudioProValuesSurviveDescribeExec
 		t.Errorf("after describe → exec: NumberOfLines %v, Autocomplete %v; want 0, false", lines, auto)
 	}
 }
+
+// NumberOfLines is stored as a 32-bit integer, so a larger value is refused
+// rather than truncated on the way to the writer.
+func TestNonNegativeIntBounds(t *testing.T) {
+	for _, tc := range []struct {
+		in   any
+		want int
+		ok   bool
+	}{
+		{2, 2, true}, {0, 0, true}, {"7", 7, true}, {float64(3), 3, true},
+		{-1, 0, false}, {"x", 0, false}, {1.5, 0, false},
+		{"2147483647", 2147483647, true}, {"2147483648", 0, false}, {int64(1) << 40, 0, false},
+	} {
+		got, ok := nonNegativeInt(tc.in)
+		if ok != tc.ok || (ok && got != tc.want) {
+			t.Errorf("nonNegativeInt(%v) = %d, %v; want %d, %v", tc.in, got, ok, tc.want, tc.ok)
+		}
+	}
+}

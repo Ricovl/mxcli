@@ -4,6 +4,7 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -685,8 +686,8 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		// all 58 text areas in PedApp and TestApp. Autocomplete was not written
 		// at all, and a stored 0 lines came back as 5 (ako/mxcli#977).
 		lines := int32(5)
-		if x.NumberOfLines != nil {
-			lines = int32(*x.NumberOfLines)
+		if n := x.NumberOfLines; n != nil && *n >= 0 && *n <= math.MaxInt32 {
+			lines = int32(*n)
 		}
 		g.SetNumberOfLines(lines)
 		g.SetAutocomplete(x.Autocomplete == nil || *x.Autocomplete)
