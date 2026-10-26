@@ -35,8 +35,8 @@ func init() {
 		Syntax: "CREATE [OR MODIFY] WORKFLOW Module.Name\n" +
 			"  [FOLDER 'path']\n" +
 			"  PARAMETER $Context: Module.Entity\n" +
-			"  [DISPLAY '<name>']\n" +
-			"  [DESCRIPTION '<text>']\n" +
+			"  [DISPLAY '<name>' [WITH ({1} = <expression>, ...)]]\n" +
+			"  [DESCRIPTION '<text>' [WITH ({1} = <expression>, ...)]]\n" +
 			"  [EXPORT LEVEL Hidden | API]\n" +
 			"  [OVERVIEW PAGE Module.OverviewPage]\n" +
 			"  [DUE DATE <expression>]\n" +
@@ -49,10 +49,13 @@ func init() {
 			"-- rule.) The event handlers are the exception and may repeat.\n" +
 			"-- A clause written twice is reported by name, e.g.\n" +
 			"--   duplicate DISPLAY clause on workflow M.W (already given on line 3)\n\n" +
+			"-- DISPLAY and DESCRIPTION are templates: WITH fills their {1}, {2}, ...\n" +
+			"-- from expressions over $WorkflowContext only ($WorkflowInstance is CE0117\n" +
+			"-- here, MDL-WF19). A placeholder no parameter fills is CE0720 (MDL-WF21).\n\n" +
 			"-- The OVERVIEW PAGE must accept a System.Workflow parameter, or the\n" +
 			"-- build fails CE7410 \"The selected page should accept a parameter of\n" +
 			"-- type 'Workflow'\" (measured on mxbuild 11.6.6).",
-		Example: "CREATE WORKFLOW Module.ApprovalFlow\n  PARAMETER $Context: Module.Request\n  OVERVIEW PAGE Module.WF_Overview\nBEGIN\n  USER TASK ReviewTask 'Review the request'\n    PAGE Module.ReviewPage\n    OUTCOMES 'Approve' { } 'Reject' { };\nEND WORKFLOW;",
+		Example: "CREATE WORKFLOW Module.ApprovalFlow\n  PARAMETER $Context: Module.Request\n  DISPLAY 'Approval for {1}' WITH ({1} = $Context/Title)\n  OVERVIEW PAGE Module.WF_Overview\nBEGIN\n  USER TASK ReviewTask 'Review the request'\n    PAGE Module.ReviewPage\n    OUTCOMES 'Approve' { } 'Reject' { };\nEND WORKFLOW;",
 		SeeAlso: []string{"workflow.user-task", "workflow.event-handlers", "workflow.decision", "workflow.drop"},
 	})
 
@@ -129,12 +132,17 @@ func init() {
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE <expression>]\n" +
-			"  [DESCRIPTION '<text>']\n" +
+			"  [TASK NAME '<text>' [WITH ({1} = <expression>, ...)]]  -- what the task inbox shows; default: the caption\n" +
+			"  [DESCRIPTION '<text>' [WITH ({1} = <expression>, ...)]]\n" +
 			"  OUTCOMES '<outcome1>' { <activities> } '<outcome2>' { <activities> };\n\n" + "-- The clauses are a SET: write them in ANY order, each at most once\n" +
 			"-- (ako/mxcli#586). The two TARGETING spellings are ONE clause — a task\n" +
 			"-- stores one user source — so writing both is refused rather than\n" +
 			"-- letting the second silently win. OUTCOMES and BOUNDARY EVENT are\n" +
 			"-- list-valued and may repeat.\n\n" +
+			"-- TASK NAME and DESCRIPTION are templates: WITH fills {1}, {2}, ... from\n" +
+			"-- expressions over $WorkflowContext and $WorkflowInstance ($WorkflowUserTask\n" +
+			"-- is CE0117, MDL-WF19); a placeholder no parameter fills is CE0720\n" +
+			"-- (MDL-WF21). ALTER sets them with SET (TaskName: '…' WITH (…)) ON <task>.\n\n" +
 			"-- AUTO ASSIGN SINGLE USER is Studio Pro's \"Auto-assign when targeting\n" +
 			"-- results in one user\". Omitted, it is off, as Studio Pro creates a task;\n" +
 			"-- CREATE OR MODIFY refuses to turn a stored one off unless restated.\n\n" +
@@ -145,7 +153,7 @@ func init() {
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
 			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: ( $WorkflowUserTask: System.WorkflowUserTask )\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Active = true()]\n  TASK NAME 'Review {1}' WITH ({1} = $WorkflowContext/Title)\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 

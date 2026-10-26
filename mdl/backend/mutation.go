@@ -301,6 +301,11 @@ type WorkflowMutator interface {
 	// caption and optional position index.
 	SetActivityProperty(activityRef string, atPos int, prop string, value string) error
 
+	// SetTemplateParameters sets the expressions filling a text's {1}, {2}, …
+	// in order: the workflow's "display" or "description" when activityRef is
+	// "", else a user task's "task_name" or "description". Empty clears them.
+	SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error
+
 	// InsertAfterActivity inserts new activities after the referenced activity.
 	InsertAfterActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
 

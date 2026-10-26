@@ -60,18 +60,6 @@ func TestWorkflowRewrite_RefusesResettingUnstatableSettings(t *testing.T) {
 		set  func(wf, task, timer, reminder map[string]any)
 		want string
 	}{
-		{"task name parameter", func(_, task, _, _ map[string]any) {
-			task["TaskName"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Name")
-		}, "'Review' with ({1} = $WorkflowContext/Name)"},
-		{"task name other than the caption", func(_, task, _, _ map[string]any) {
-			task["TaskName"].(map[string]any)["Text"] = "Review the request"
-		}, "task name 'Review the request' is not its caption 'Review'"},
-		{"task description parameter", func(_, task, _, _ map[string]any) {
-			task["TaskDescription"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Title")
-		}, "description '' with ({1} = $WorkflowContext/Title)"},
-		{"workflow display parameter", func(wf, _, _, _ map[string]any) {
-			wf["WorkflowName"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Title")
-		}, "display 'W' with ({1} = $WorkflowContext/Title)"},
 		{"recurrence", func(_, _, _, reminder map[string]any) {
 			reminder["Recurrence"] = map[string]any{"$Type": "Workflows$LinearRecurrence", "Interval": int32(1), "IntervalType": "Day", "MaxExecutions": int32(5)}
 		}, "repeats (every 1 Day, at most 5 times)"},
@@ -154,5 +142,22 @@ func TestWorkflowRewrite_AllowsATimerCaption(t *testing.T) {
 		"interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' { }", 1)
 	if err := checkNoDroppedWorkflowConstructs(rawWorkflowCtx(t, wf), "wf1", "M.W", parseWorkflowStmt(t, restated)); err != nil {
 		t.Errorf("a restated timer caption must be allowed, got %v", err)
+	}
+}
+
+// ako/mxcli#1714: a task name, and the texts' parameters, are stated now, so a
+// stored one no longer refuses the rewrite — describe prints them and the
+// statement restates them.
+func TestWorkflowRewrite_AllowsTemplateParameters(t *testing.T) {
+	wf, task, _, _ := unstatableWorkflow()
+	wf["WorkflowName"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Title")
+	task["TaskName"].(map[string]any)["Text"] = "Review {1}"
+	task["TaskName"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Name")
+	task["TaskDescription"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Title")
+	restated := strings.Replace(wfUnstatableRestated, "  display 'W'\n", "  display 'W {1}' with ({1} = $WorkflowContext/Title)\n", 1)
+	restated = strings.Replace(restated, "page M.P outcomes", "page M.P task name 'Review {1}' with ({1} = $WorkflowContext/Name) "+
+		"description '{1}' with ({1} = $WorkflowContext/Title) outcomes", 1)
+	if err := checkNoDroppedWorkflowConstructs(rawWorkflowCtx(t, wf), "wf1", "M.W", parseWorkflowStmt(t, restated)); err != nil {
+		t.Errorf("restated templates must be allowed, got %v", err)
 	}
 }

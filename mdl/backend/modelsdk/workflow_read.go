@@ -54,6 +54,9 @@ func workflowFromGen(g *genWf.Workflow, containerID model.ID) *workflows.Workflo
 		DueDate:             g.DueDate(),
 		WorkflowName:        workflowTemplateText(g.WorkflowName()),
 		WorkflowDescription: workflowTemplateText(g.WorkflowDescription()),
+
+		WorkflowNameParams:        workflowTemplateParams(g.WorkflowName()),
+		WorkflowDescriptionParams: workflowTemplateParams(g.WorkflowDescription()),
 	}
 	w.ID = model.ID(g.ID())
 	w.TypeName = "Workflows$Workflow"
@@ -173,13 +176,15 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 	switch a := el.(type) {
 	case *genWf.UserTask:
 		t := &workflows.UserTask{
-			Page:            a.PageQualifiedName(),
-			UserTaskEntity:  a.UserTaskEntityQualifiedName(),
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), nil),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
+			Page:                  a.PageQualifiedName(),
+			UserTaskEntity:        a.UserTaskEntityQualifiedName(),
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), nil),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$UserTask")
 		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
@@ -190,12 +195,14 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 		return t
 	case *genWf.SingleUserTaskActivity:
 		t := &workflows.UserTask{
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), a.UserTargeting()),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
-			Page:            taskPageName(a.TaskPage()),
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), a.UserTargeting()),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
+			Page:                  taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$SingleUserTaskActivity")
 		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
@@ -204,13 +211,15 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 		return t
 	case *genWf.MultiUserTaskActivity:
 		t := &workflows.UserTask{
-			IsMulti:         true,
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), a.UserTargeting()),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
-			Page:            taskPageName(a.TaskPage()),
+			IsMulti:               true,
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), a.UserTargeting()),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
+			Page:                  taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$MultiUserTaskActivity")
 		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
@@ -535,6 +544,23 @@ func workflowTemplateText(el element.Element) string {
 		return st.Text()
 	}
 	return ""
+}
+
+// workflowTemplateParams is the expressions filling a workflow text's {1},
+// {2}, … in order. The stored Microflows$TemplateParameter decodes as gen's
+// TemplateArgument, whose storage name it is.
+func workflowTemplateParams(el element.Element) []string {
+	st, ok := el.(*genMf.StringTemplate)
+	if !ok || st == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range st.ArgumentsItems() {
+		if ta, ok := a.(*genMf.TemplateArgument); ok && ta != nil {
+			out = append(out, ta.Expression())
+		}
+	}
+	return out
 }
 
 // setWfBase fills a semantic BaseWorkflowActivity from common gen accessors.

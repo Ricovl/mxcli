@@ -6,6 +6,7 @@ package executor
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -83,6 +84,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// time (mendixlabs/mxcli#1529).
 	if vs := ValidateWorkflowExpressionScope(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
+	}
+	// MDL-WF21: a placeholder no parameter fills is CE0720 at build time
+	// (ako/mxcli#1714).
+	if vs := checkWorkflowTemplates(workflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
@@ -178,6 +184,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// Display metadata
 	wf.WorkflowName = s.DisplayName
 	wf.WorkflowDescription = s.Description
+	// Their parameters are expressions over the context, normalized like the
+	// due date's (ako/mxcli#1714).
+	headerNorm := newContextExprNormalizer(s.ParameterVar)
+	wf.WorkflowNameParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DisplayParams))
+	wf.WorkflowDescriptionParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DescriptionParams))
 	wf.Annotation = s.Annotation
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
@@ -505,6 +516,9 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 	task.Caption = n.Caption
 	task.DueDate = n.DueDate
 	task.TaskDescription = n.TaskDescription
+	task.TaskDescriptionParams = workflowTemplateExprs(n.TaskDescriptionParams)
+	task.TaskName = n.TaskName // "" is the caption, which the writer falls back to
+	task.TaskNameParams = workflowTemplateExprs(n.TaskNameParams)
 	task.IsMulti = n.IsMultiUser
 	task.AutoAssignSingleTargetUser = n.AutoAssign
 	if n.IsMultiUser {
@@ -1119,6 +1133,8 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			// Sanitize name
 			a.Name = sanitizeActivityName(a.Name)
 			a.DueDate = norm.rewrite(a.DueDate)
+			a.TaskNameParams = norm.rewriteAll(a.TaskNameParams)
+			a.TaskDescriptionParams = norm.rewriteAll(a.TaskDescriptionParams)
 			if xp, ok := a.UserSource.(*workflows.XPathBasedUserSource); ok {
 				xp.XPath = norm.rewrite(xp.XPath)
 			}
@@ -1303,6 +1319,30 @@ func (n contextExprNormalizer) rewrite(expr string) string {
 		expr = n.alias.ReplaceAllString(expr, "$$"+workflowContextVar)
 	}
 	return normalizeWorkflowContextExpr(expr)
+}
+
+// rewriteAll rewrites each expression of a template's parameter list.
+func (n contextExprNormalizer) rewriteAll(exprs []string) []string {
+	for i, e := range exprs {
+		exprs[i] = n.rewrite(e)
+	}
+	return exprs
+}
+
+// workflowTemplateExprs is a text template's parameter expressions in
+// placeholder order. Numbering gaps and repeats are refused at check time
+// (MDL-WF21); here the lowest index simply comes first.
+func workflowTemplateExprs(params []ast.WorkflowTemplateParam) []string {
+	if len(params) == 0 {
+		return nil
+	}
+	sorted := append([]ast.WorkflowTemplateParam(nil), params...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Index < sorted[j].Index })
+	out := make([]string, len(sorted))
+	for i, p := range sorted {
+		out[i] = p.Expression
+	}
+	return out
 }
 
 // autoBindCallWorkflow resolves workflow parameters and generates ParameterMappings.

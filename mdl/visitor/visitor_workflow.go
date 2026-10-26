@@ -53,10 +53,12 @@ func (b *Builder) ExitCreateWorkflowStatement(ctx *parser.CreateWorkflowStatemen
 			if tok := hc.GetDisplay(); tok != nil {
 				stmt.DisplayName = unquoteStringLit(tok)
 			}
+			stmt.DisplayParams = buildWorkflowTemplateParams(hc.TemplateParams())
 		case hc.DESCRIPTION() != nil:
 			if tok := hc.GetDescription(); tok != nil {
 				stmt.Description = unquoteStringLit(tok)
 			}
+			stmt.DescriptionParams = buildWorkflowTemplateParams(hc.TemplateParams())
 		case hc.EXPORT() != nil && hc.LEVEL() != nil:
 			// HIDDEN_KW is read alongside IDENTIFIER because `Hidden` was an
 			// ordinary identifier here until the microflow header clauses made it
@@ -696,6 +698,13 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		if str := c.STRING_LITERAL(); str != nil {
 			node.TaskDescription = unquoteStringLit(str)
 		}
+		node.TaskDescriptionParams = buildWorkflowTemplateParams(c.TemplateParams())
+	case c.TASK() != nil:
+		// The word after TASK is checked by ExitWorkflowUserTaskClause.
+		if str := c.STRING_LITERAL(); str != nil {
+			node.TaskName = unquoteStringLit(str)
+		}
+		node.TaskNameParams = buildWorkflowTemplateParams(c.TemplateParams())
 	case c.OUTCOMES() != nil:
 		for _, outcomeCtx := range c.AllWorkflowUserTaskOutcome() {
 			node.Outcomes = append(node.Outcomes, buildWorkflowUserTaskOutcome(outcomeCtx))

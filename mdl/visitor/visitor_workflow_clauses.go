@@ -120,6 +120,8 @@ func workflowUserTaskClauseKind(c *parser.WorkflowUserTaskClauseContext) string 
 		return "DUE DATE"
 	case c.DESCRIPTION() != nil:
 		return "DESCRIPTION"
+	case c.TASK() != nil:
+		return "TASK NAME"
 	case c.OUTCOMES() != nil:
 		return "OUTCOMES"
 	case c.AUTO() != nil:

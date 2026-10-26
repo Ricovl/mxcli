@@ -57,7 +57,7 @@ named neither the clause nor the rule. See `ako/mxcli#586`.)
 mdl 1;
 create workflow Module.ApprovalFlow
   parameter $Context: Module.Request        -- REQUIRED: must be a $-variable + context entity
-  display 'Request Approval'                 -- optional human-readable name
+  display 'Approval for {1}' with ({1} = $Context/Title)  -- optional; `with` fills {n}
   description 'Approves incoming requests'   -- optional
   export level Hidden                        -- optional: Hidden | API (default Hidden)
   overview page Module.WF_Overview           -- optional; takes a System.Workflow param

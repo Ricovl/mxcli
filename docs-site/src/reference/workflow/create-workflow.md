@@ -6,8 +6,8 @@
 CREATE [ OR MODIFY ] WORKFLOW module.Name
     PARAMETER $Variable: module.Entity
     [ OVERVIEW PAGE module.PageName ]
-    [ DISPLAY 'caption' ]
-    [ DESCRIPTION 'text' ]
+    [ DISPLAY 'caption' [ WITH ( {1} = expression, ... ) ] ]
+    [ DESCRIPTION 'text' [ WITH ( {1} = expression, ... ) ] ]
 BEGIN
     activities
 END WORKFLOW
@@ -137,6 +137,9 @@ USER TASK name 'caption'
 
 `DESCRIPTION 'text'`
 :   Optional description of the workflow's purpose.
+
+`WITH ( {1} = expression, ... )`
+:   Fills the `{1}`, `{2}`, … placeholders of `DISPLAY` or `DESCRIPTION` from expressions over `$WorkflowContext`, as a log message's template does: `DISPLAY 'Approval for {1}' WITH ({1} = $WorkflowContext/Title)`. A user task's `TASK NAME '…'` (what the task inbox shows; the caption when omitted) and `DESCRIPTION '…'` take the same clause, and may also use `$WorkflowInstance`. A placeholder no parameter fills is CE0720, which `mxcli check` reports as MDL-WF21.
 
 ## Examples
 

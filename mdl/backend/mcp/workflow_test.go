@@ -714,3 +714,30 @@ func TestWFNestedActivityResolution(t *testing.T) {
 		t.Errorf("nested drop op wrong: %s", raw)
 	}
 }
+
+// ako/mxcli#1714: how PED takes a template's parameter list is unmeasured, so
+// a text with parameters is refused over MCP rather than written without them.
+func TestMCPWorkflow_RefusesTemplateParameters(t *testing.T) {
+	task := &workflows.UserTask{Page: "M.P", TaskName: "Review {1}", TaskNameParams: []string{"$WorkflowContext/Title"}}
+	task.Name, task.Caption = "Review", "Review"
+	if _, err := mapWorkflowActivity(task); err == nil || !strings.Contains(err.Error(), "template parameters") {
+		t.Errorf("create with task name parameters: got %v, want a refusal", err)
+	}
+	wf := &workflows.Workflow{Name: "W", WorkflowName: "W {1}", WorkflowNameParams: []string{"$WorkflowContext/Title"}}
+	if _, err := (&Backend{}).mapWorkflowContent(wf, true); err == nil || !strings.Contains(err.Error(), "template parameters") {
+		t.Errorf("create with display parameters: got %v, want a refusal", err)
+	}
+	m := &mcpWorkflowMutator{backend: &Backend{}, moduleName: "M", workflowName: "WF"}
+	if err := m.SetTemplateParameters("", 0, "display", []string{"$WorkflowContext/Title"}); err == nil {
+		t.Error("alter with display parameters must be refused")
+	}
+	// CONTROL: no parameters is what MCP wrote before.
+	if err := m.SetTemplateParameters("", 0, "display", nil); err != nil {
+		t.Errorf("alter without parameters: %v", err)
+	}
+	plain := &workflows.UserTask{Page: "M.P"}
+	plain.Name, plain.Caption = "Plain", "Plain"
+	if _, err := mapWorkflowActivity(plain); err != nil {
+		t.Errorf("a task without parameters: %v", err)
+	}
+}

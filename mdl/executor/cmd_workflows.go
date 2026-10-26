@@ -144,13 +144,13 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// Display name
-	if targetWf.WorkflowName != "" {
-		lines = append(lines, fmt.Sprintf("  display %s", mdlQuoted(targetWf.WorkflowName)))
+	if targetWf.WorkflowName != "" || len(targetWf.WorkflowNameParams) > 0 {
+		lines = append(lines, "  display "+workflowTemplateMDL(targetWf.WorkflowName, targetWf.WorkflowNameParams))
 	}
 
 	// Description
-	if targetWf.WorkflowDescription != "" {
-		lines = append(lines, fmt.Sprintf("  description %s", mdlQuoted(targetWf.WorkflowDescription)))
+	if targetWf.WorkflowDescription != "" || len(targetWf.WorkflowDescriptionParams) > 0 {
+		lines = append(lines, "  description "+workflowTemplateMDL(targetWf.WorkflowDescription, targetWf.WorkflowDescriptionParams))
 	}
 
 	// Export level (only emit when non-empty)
@@ -551,9 +551,15 @@ func formatUserTask(ctx *ExecContext, a *workflows.UserTask, indent string) []st
 		lines = append(lines, fmt.Sprintf("%s  due date %s", indent, workflowExpressionMDL(a.DueDate)))
 	}
 
+	// Task name: printed only when it is not what a task without the clause
+	// gets, its caption (ako/mxcli#1714).
+	if (a.TaskName != "" && a.TaskName != caption) || len(a.TaskNameParams) > 0 {
+		lines = append(lines, indent+"  task name "+workflowTemplateMDL(a.TaskName, a.TaskNameParams))
+	}
+
 	// Task description
-	if a.TaskDescription != "" {
-		lines = append(lines, fmt.Sprintf("%s  description %s", indent, mdlQuoted(a.TaskDescription)))
+	if a.TaskDescription != "" || len(a.TaskDescriptionParams) > 0 {
+		lines = append(lines, indent+"  description "+workflowTemplateMDL(a.TaskDescription, a.TaskDescriptionParams))
 	}
 
 	if a.IsMulti {
@@ -954,6 +960,20 @@ func targetingXPathMDL(ctx *ExecContext, xpath string) string {
 // the MDL expression grammar cannot parse) is written in the deprecated string
 // form, which carries it byte for byte: describe must never alter a stored
 // expression.
+// workflowTemplateMDL is a workflow text as MDL writes it: the quoted text, then
+// `with ({1} = …, …)` when expressions fill its placeholders (ako/mxcli#1714).
+func workflowTemplateMDL(text string, params []string) string {
+	out := mdlQuoted(text)
+	if len(params) == 0 {
+		return out
+	}
+	parts := make([]string, len(params))
+	for i, p := range params {
+		parts[i] = fmt.Sprintf("{%d} = %s", i+1, p)
+	}
+	return out + " with (" + strings.Join(parts, ", ") + ")"
+}
+
 func workflowExpressionMDL(expr string) string {
 	if visitor.BareExpression(expr) {
 		return expr

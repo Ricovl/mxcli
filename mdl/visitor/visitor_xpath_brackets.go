@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/antlr4-go/antlr/v4"
@@ -211,6 +212,15 @@ func (b *Builder) recordQuotedTargetingXPath(lit antlr.TerminalNode) {
 func (b *Builder) ExitWorkflowUserTaskClause(ctx *parser.WorkflowUserTaskClauseContext) {
 	if ctx.TARGETING() != nil && ctx.XPATH() != nil {
 		b.recordQuotedTargetingXPath(ctx.STRING_LITERAL())
+	}
+	// `task name '…'`: `name` is read as an identifier, so any other word
+	// parses here and is refused (ako/mxcli#1714).
+	if ctx.TASK() != nil {
+		if w := ctx.GetTaskNameWord(); w != nil && !strings.EqualFold(w.GetText(), "name") {
+			b.addErrorWithExample(fmt.Sprintf("line %d:%d: a user task's `task %s` is not a clause — did you mean `task name '…'`, the text the task inbox shows?",
+				w.GetLine(), w.GetColumn(), w.GetText()),
+				"user task Review 'Review'\n  task name 'Review {1}' with ({1} = $WorkflowContext/Title)\n  outcomes 'Done' { };")
+		}
 	}
 }
 

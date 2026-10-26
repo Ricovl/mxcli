@@ -54,7 +54,7 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 		cannotExpress = append(cannotExpress, fmt.Sprintf("%d event sub-process(es) with no start event, which it would delete", n))
 	}
 	cannotExpress = append(cannotExpress, studioProOnlyWorkflowState(raw)...)
-	cannotExpress = append(cannotExpress, rawUnstatableWorkflowState(raw, stmt)...)
+	cannotExpress = append(cannotExpress, rawUnstatableWorkflowState(raw)...)
 	if len(cannotExpress) > 0 {
 		return mdlerrors.NewUnsupported(fmt.Sprintf(
 			"workflow %s holds state MDL cannot express, and rewriting it would delete or reset it silently:\n  - %s\n"+
@@ -469,7 +469,7 @@ func validateAlterReplaceKeepsStudioProState(ctx *ExecContext, s *ast.AlterWorkf
 			if n, _ := d["Name"].(string); n != "" && n == act.GetName() {
 				repl := replacementFor(o.NewActivities, n)
 				reasons = append(reasons, rawReplaceLosses(d, repl)...)
-				reasons = append(reasons, rawUnstatableActivityState(d, repl)...)
+				reasons = append(reasons, rawUnstatableActivityState(d)...)
 				if mf := rawOnCreatedMicroflow(d); mf != "" && !restatesOnCreated(repl) {
 					reasons = append(reasons, fmt.Sprintf(
 						"it runs on-created microflow %s, which the replacement does not restate (add `on created microflow %s`)", mf, mf))

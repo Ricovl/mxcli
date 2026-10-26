@@ -19,6 +19,9 @@ type Workflow struct {
 	Excluded            bool     `json:"excluded"`
 	WorkflowName        string   `json:"workflowName,omitempty"`        // Template string for display name
 	WorkflowDescription string   `json:"workflowDescription,omitempty"` // Template string for description
+	// The expressions filling {1}, {2}, … of the two templates, in order.
+	WorkflowNameParams        []string `json:"workflowNameParams,omitempty"`
+	WorkflowDescriptionParams []string `json:"workflowDescriptionParams,omitempty"`
 
 	// OverviewPage is the qualified name of the workflow's overview page — the
 	// `overview page` clause. It is stored under the BSON key **AdminPage**, as a
@@ -152,10 +155,13 @@ type UserTask struct {
 	Outcomes        []*UserTaskOutcome `json:"outcomes,omitempty"`        // Task outcomes
 	TaskName        string             `json:"taskName,omitempty"`        // Template string for task display name
 	TaskDescription string             `json:"taskDescription,omitempty"` // Template string for task description
-	DueDate         string             `json:"dueDate,omitempty"`         // Due date expression
-	UserTaskEntity  string             `json:"userTaskEntity,omitempty"`  // Qualified name of user task entity
-	OnCreated       string             `json:"onCreated,omitempty"`       // Microflow called on task creation
-	BoundaryEvents  []*BoundaryEvent   `json:"boundaryEvents,omitempty"`  // Boundary events (e.g., timers)
+	// The expressions filling {1}, {2}, … of the two templates, in order.
+	TaskNameParams        []string         `json:"taskNameParams,omitempty"`
+	TaskDescriptionParams []string         `json:"taskDescriptionParams,omitempty"`
+	DueDate               string           `json:"dueDate,omitempty"`        // Due date expression
+	UserTaskEntity        string           `json:"userTaskEntity,omitempty"` // Qualified name of user task entity
+	OnCreated             string           `json:"onCreated,omitempty"`      // Microflow called on task creation
+	BoundaryEvents        []*BoundaryEvent `json:"boundaryEvents,omitempty"` // Boundary events (e.g., timers)
 
 	// AutoAssignSingleTargetUser is Studio Pro's "Auto-assign when targeting
 	// results in one user". Off by default, as Studio Pro creates a task.
