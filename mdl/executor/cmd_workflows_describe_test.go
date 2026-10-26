@@ -367,3 +367,30 @@ func TestDescribeWorkflow_NestedEndIsEmitted(t *testing.T) {
 		t.Errorf("a nested End with the default caption must describe as a bare `end workflow;`, got:\n%s", out)
 	}
 }
+
+// ako/mxcli#1715: describe prints a timer boundary event's caption, and the
+// output re-parses with it, so describe -> create or modify keeps it.
+func TestWorkflowDescribe_TimerBoundaryEventCaptionReparses(t *testing.T) {
+	task := &workflows.UserTask{Page: "M.P", Outcomes: []*workflows.UserTaskOutcome{{Value: "Ok"}}}
+	task.Name, task.Caption = "T", "Task"
+	task.BoundaryEvents = []*workflows.BoundaryEvent{
+		{EventType: "InterruptingTimer", TimerDelay: "addDays([%CurrentDateTime%], 3)", Caption: "Escalate"},
+		{EventType: "NonInterruptingTimer", Caption: "It's late"},
+		{EventType: "NonInterruptingTimer", TimerDelay: "addDays([%CurrentDateTime%], 1)"}, // control: no caption
+	}
+	body := strings.Join(formatSingleActivity(task, "  "), "\n")
+	src := "create workflow M.W parameter $C: M.E\nbegin\n" + body + "\nend workflow;"
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("describe output does not parse: %v\n%s", errs, src)
+	}
+	got := prog.Statements[0].(*ast.CreateWorkflowStmt).Activities[0].(*ast.WorkflowUserTaskNode).BoundaryEvents
+	if len(got) != 3 {
+		t.Fatalf("boundary events after re-parse = %d, want 3\n%s", len(got), src)
+	}
+	for i, want := range []string{"Escalate", "It's late", ""} {
+		if got[i].Caption != want {
+			t.Errorf("event %d caption = %q, want %q\n%s", i, got[i].Caption, want, src)
+		}
+	}
+}

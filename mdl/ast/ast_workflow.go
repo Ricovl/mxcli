@@ -430,6 +430,7 @@ type InsertBoundaryEventOp struct {
 	AtPosition  int
 	EventType   string // "InterruptingTimer", "NonInterruptingTimer"
 	Delay       string
+	Caption     string
 	Activities  []WorkflowActivityNode
 }
 

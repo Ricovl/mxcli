@@ -540,7 +540,7 @@ func (m *Mutator) DropBranch(activityRef string, atPos int, branchName string) e
 // Boundary event operations
 // ---------------------------------------------------------------------------
 
-func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, activities []workflows.WorkflowActivity) error {
+func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, activities []workflows.WorkflowActivity) error {
 	actDoc, err := m.findMemberTarget(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -556,7 +556,7 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: typeName},
-		{Key: "Caption", Value: ""},
+		{Key: "Caption", Value: caption},
 	}
 
 	if delay != "" {

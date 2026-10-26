@@ -977,6 +977,8 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 		if d := beCtx2.WorkflowTimerDelay(); d != nil {
 			be.Delay = workflowExpressionText(d.WorkflowExpression())
 		}
+		// A timer's caption is the clause every activity takes (ako/mxcli#1715).
+		be.Caption = workflowCaptionText(beCtx2.WorkflowCaption())
 	}
 	if notification {
 		be.Name = workflowActivityNameText(beCtx2.WorkflowActivityName())

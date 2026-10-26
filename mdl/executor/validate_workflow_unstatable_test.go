@@ -72,8 +72,6 @@ func TestWorkflowRewrite_RefusesResettingUnstatableSettings(t *testing.T) {
 		{"workflow display parameter", func(wf, _, _, _ map[string]any) {
 			wf["WorkflowName"].(map[string]any)["Parameters"] = templateParam("$WorkflowContext/Title")
 		}, "display 'W' with ({1} = $WorkflowContext/Title)"},
-		{"timer caption", func(_, _, timer, _ map[string]any) { timer["Caption"] = "Escalate" },
-			"interrupting timer boundary event has caption 'Escalate'"},
 		{"recurrence", func(_, _, _, reminder map[string]any) {
 			reminder["Recurrence"] = map[string]any{"$Type": "Workflows$LinearRecurrence", "Interval": int32(1), "IntervalType": "Day", "MaxExecutions": int32(5)}
 		}, "repeats (every 1 Day, at most 5 times)"},
@@ -140,9 +138,21 @@ func TestAlterWorkflow_ReplaceRefusesToResetUnstatableSettings(t *testing.T) {
 	if got := validateAlterReplaceKeepsStudioProState(storedReplaceCtx(t, wf), replace()); len(got) != 0 {
 		t.Fatalf("control: nothing to lose, got %v", got)
 	}
-	timer["Caption"] = "Escalate"
+	timer["Annotation"] = map[string]any{"$Type": "Workflows$Annotation", "Description": "escalation"}
 	got := validateAlterReplaceKeepsStudioProState(storedReplaceCtx(t, wf), replace())
-	if len(got) != 1 || !strings.Contains(got[0], "caption 'Escalate'") {
-		t.Errorf("must be refused naming the timer's caption, got %v", got)
+	if len(got) != 1 || !strings.Contains(got[0], "annotation 'escalation'") {
+		t.Errorf("must be refused naming the timer's annotation, got %v", got)
+	}
+}
+
+// ako/mxcli#1715: a timer's caption is stated now, so a stored one no longer
+// refuses the rewrite — describe prints it, and the statement restates it.
+func TestWorkflowRewrite_AllowsATimerCaption(t *testing.T) {
+	wf, _, timer, _ := unstatableWorkflow()
+	timer["Caption"] = "Escalate"
+	restated := strings.Replace(wfUnstatableRestated, "interrupting timer addDays([%CurrentDateTime%], 3) { }",
+		"interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' { }", 1)
+	if err := checkNoDroppedWorkflowConstructs(rawWorkflowCtx(t, wf), "wf1", "M.W", parseWorkflowStmt(t, restated)); err != nil {
+		t.Errorf("a restated timer caption must be allowed, got %v", err)
 	}
 }

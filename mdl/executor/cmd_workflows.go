@@ -259,10 +259,15 @@ func formatBoundaryEvents(ctx *ExecContext, events []*workflows.BoundaryEvent, i
 				header += " " + mdlQuoted(event.Caption)
 			}
 			lines = append(lines, header)
-		} else if event.TimerDelay != "" {
-			lines = append(lines, fmt.Sprintf("%s%s %s", indent, keyword, workflowExpressionMDL(event.TimerDelay)))
 		} else {
-			lines = append(lines, fmt.Sprintf("%s%s", indent, keyword))
+			header := indent + keyword
+			if event.TimerDelay != "" {
+				header += " " + workflowExpressionMDL(event.TimerDelay)
+			}
+			if event.Caption != "" {
+				header += " caption " + mdlQuoted(event.Caption)
+			}
+			lines = append(lines, header)
 		}
 		if event.Flow != nil && len(event.Flow.Activities) > 0 {
 			lines = append(lines, fmt.Sprintf("%s{", indent))

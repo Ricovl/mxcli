@@ -306,7 +306,7 @@ func TestUpdateWorkflow_TimerOnSingleUserTaskIsReaddedThenFinished(t *testing.T)
 func TestWFInsertBoundaryEvent_InterruptingTimerJump(t *testing.T) {
 	f, m := wfMutatorFake(t)
 	jump := timerJump("jumpBack", "ReviewOrder")
-	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 3)", []workflows.WorkflowActivity{jump}); err != nil {
+	if err := m.InsertBoundaryEvent("ReviewOrder", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 3)", "", []workflows.WorkflowActivity{jump}); err != nil {
 		t.Fatal(err)
 	}
 	// The activity already had one event; the store prepends, so the new one is at 0.
@@ -324,7 +324,7 @@ func TestWFInsertBoundaryEvent_InterruptingTimerJump(t *testing.T) {
 // marker) is refused before anything is sent, naming the endings that work.
 func TestWFInsertBoundaryEvent_InterruptingTimerRunningToItsEndIsRefused(t *testing.T) {
 	f, m := wfMutatorFake(t)
-	err := m.InsertBoundaryEvent("ReviewOrder", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 3)", nil)
+	err := m.InsertBoundaryEvent("ReviewOrder", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 3)", "", nil)
 	if err == nil || !strings.Contains(err.Error(), "`end workflow;` or `jump to <activity>`") || !strings.Contains(err.Error(), "on ReviewOrder") {
 		t.Fatalf("want a refusal naming the endings and the activity, got %v", err)
 	}
@@ -358,7 +358,7 @@ func TestWFInsertBoundaryEvent_InsideSplit(t *testing.T) {
 	})
 	m := &mcpWorkflowMutator{backend: &Backend{client: f.connectClient(t)}, moduleName: "M", workflowName: "WF"}
 	jump := timerJump("jumpSplit", "splitWait")
-	if err := m.InsertBoundaryEvent("splitWait", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 4)", []workflows.WorkflowActivity{jump}); err != nil {
+	if err := m.InsertBoundaryEvent("splitWait", 0, "InterruptingTimer", "addDays([%CurrentDateTime%], 4)", "", []workflows.WorkflowActivity{jump}); err != nil {
 		t.Fatal(err)
 	}
 	const ev = "/flow/activities/0/outcomes/0/flow/activities/0/boundaryEvents"

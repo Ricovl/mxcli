@@ -1102,7 +1102,7 @@ func TestWorkflowMutator_InsertBoundaryEvent_InterruptingTimer(t *testing.T) {
 	act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
 	m := newMutator(makeWorkflowDoc(act))
 
-	if err := m.InsertBoundaryEvent("Review", 0, "InterruptingTimer", "PT1H", nil); err != nil {
+	if err := m.InsertBoundaryEvent("Review", 0, "InterruptingTimer", "PT1H", "", nil); err != nil {
 		t.Fatalf("InsertBoundaryEvent failed: %v", err)
 	}
 
@@ -1120,12 +1120,29 @@ func TestWorkflowMutator_InsertBoundaryEvent_InterruptingTimer(t *testing.T) {
 	}
 }
 
+// ako/mxcli#1715: ALTER's insert writes a timer's caption; it was always "".
+func TestWorkflowMutator_InsertBoundaryEvent_Caption(t *testing.T) {
+	for _, caption := range []string{"Escalate", ""} {
+		act := makeWfActivity("Workflows$UserTask", "Review", "task1")
+		act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
+		m := newMutator(makeWorkflowDoc(act))
+		if err := m.InsertBoundaryEvent("Review", 0, "InterruptingTimer", "PT1H", caption, nil); err != nil {
+			t.Fatalf("InsertBoundaryEvent failed: %v", err)
+		}
+		actDoc, _ := m.findActivityByCaption("Review", 0)
+		eDoc := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "BoundaryEvents"))[0].(bson.D)
+		if got := bsonnav.DGetString(eDoc, "Caption"); got != caption {
+			t.Errorf("Caption = %q, want %q", got, caption)
+		}
+	}
+}
+
 func TestWorkflowMutator_InsertBoundaryEvent_NonInterruptingTimer(t *testing.T) {
 	act := makeWfActivity("Workflows$UserTask", "Review", "task1")
 	act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
 	m := newMutator(makeWorkflowDoc(act))
 
-	if err := m.InsertBoundaryEvent("Review", 0, "NonInterruptingTimer", "PT30M", nil); err != nil {
+	if err := m.InsertBoundaryEvent("Review", 0, "NonInterruptingTimer", "PT30M", "", nil); err != nil {
 		t.Fatalf("InsertBoundaryEvent NonInterrupting failed: %v", err)
 	}
 
@@ -1153,7 +1170,7 @@ func TestWorkflowMutator_InsertBoundaryEvent_WithActivities(t *testing.T) {
 	m := newMutator(makeWorkflowDoc(act))
 
 	subAct := makeTestWorkflowActivity("evt_act", "EventAct")
-	if err := m.InsertBoundaryEvent("Review", 0, "Timer", "", []workflows.WorkflowActivity{subAct}); err != nil {
+	if err := m.InsertBoundaryEvent("Review", 0, "Timer", "", "", []workflows.WorkflowActivity{subAct}); err != nil {
 		t.Fatalf("InsertBoundaryEvent with activities failed: %v", err)
 	}
 
@@ -1171,7 +1188,7 @@ func TestWorkflowMutator_InsertBoundaryEvent_NoDelay(t *testing.T) {
 	act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
 	m := newMutator(makeWorkflowDoc(act))
 
-	if err := m.InsertBoundaryEvent("Review", 0, "Timer", "", nil); err != nil {
+	if err := m.InsertBoundaryEvent("Review", 0, "Timer", "", "", nil); err != nil {
 		t.Fatalf("InsertBoundaryEvent no delay failed: %v", err)
 	}
 
@@ -1518,7 +1535,7 @@ func TestWorkflowMutator_InsertBoundaryEvent_EndsWithMarker(t *testing.T) {
 		act := makeWfActivity("Workflows$UserTask", "Review", "task1")
 		act = append(act, bson.E{Key: "BoundaryEvents", Value: bson.A{int32(3)}})
 		m := newMutator(makeWorkflowDoc(act))
-		if err := m.InsertBoundaryEvent("Review", 0, tc.eventType, "addHours([%CurrentDateTime%], 1)", tc.acts); err != nil {
+		if err := m.InsertBoundaryEvent("Review", 0, tc.eventType, "addHours([%CurrentDateTime%], 1)", "", tc.acts); err != nil {
 			t.Fatalf("%s: InsertBoundaryEvent: %v", name, err)
 		}
 		actDoc, _ := m.findActivityByCaption("Review", 0)

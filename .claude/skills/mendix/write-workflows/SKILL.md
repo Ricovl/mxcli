@@ -235,7 +235,7 @@ begin
   user task Review 'Review'
     page Module.ReviewPage
     outcomes 'Done' { }
-    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' {
       call microflow Module.ACT_Escalate;
     };
 end workflow;
