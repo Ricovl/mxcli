@@ -44,13 +44,14 @@ var workflowPropertyKeys = map[string]string{
 var activityPropertyKeys = map[string]string{
 	"page":        "page",
 	"description": "description",
+	"taskname":    "task_name",
 	"targeting":   "targeting",
 	"duedate":     "due_date",
 }
 
 const (
 	workflowKeysText = "Display, Description, ExportLevel, DueDate, OverviewPage, Parameter"
-	activityKeysText = "Page, Description, Targeting, DueDate"
+	activityKeysText = "Page, Description, TaskName, Targeting, DueDate"
 )
 
 // buildAlterWorkflowOperation builds one generic operation. A `set` list and a
@@ -274,7 +275,22 @@ func alterWorkflowStringValue(v *parser.AlterWorkflowValueContext) (string, bool
 	if we := v.WorkflowExpression(); we != nil && we.STRING_LITERAL() != nil {
 		return unquoteStringLit(we.STRING_LITERAL()), true
 	}
+	if v.TemplateParams() != nil && v.XPATH() == nil && v.STRING_LITERAL() != nil {
+		return unquoteStringLit(v.STRING_LITERAL()), true
+	}
 	return "", false
+}
+
+// alterWorkflowTemplateValue reads a text with the parameters that fill its
+// placeholders: `Display: 'Approval for {1}' with ({1} = $WorkflowContext/Title)`
+// (ako/mxcli#1714). A text written without them has none, so setting it clears
+// any it had — the statement states the whole value.
+func alterWorkflowTemplateValue(v *parser.AlterWorkflowValueContext) (string, []ast.WorkflowTemplateParam, bool) {
+	s, ok := alterWorkflowStringValue(v)
+	if !ok {
+		return "", nil, false
+	}
+	return s, buildWorkflowTemplateParams(v.TemplateParams()), true
 }
 
 // alterWorkflowExpressionValue reads an expression-valued property (a due
@@ -299,12 +315,12 @@ func (b *Builder) buildWorkflowSet(key, prop string, v *parser.AlterWorkflowValu
 	op := &ast.SetWorkflowPropertyOp{Property: prop}
 	switch prop {
 	case "display", "description":
-		s, ok := alterWorkflowStringValue(v)
+		s, params, ok := alterWorkflowTemplateValue(v)
 		if !ok {
-			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`")
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": '… {1}' with ({1} = $WorkflowContext/Attr)`")
 			return nil
 		}
-		op.Value = s
+		op.Value, op.Params = s, params
 	case "export_level":
 		qn := v.QualifiedName()
 		if qn == nil || v.VARIABLE() != nil || v.MICROFLOW() != nil || strings.Contains(qn.GetText(), ".") {
@@ -350,13 +366,13 @@ func (b *Builder) buildActivitySet(key, prop string, v *parser.AlterWorkflowValu
 			return nil
 		}
 		op.PageName = buildQualifiedName(qn)
-	case "description":
-		s, ok := alterWorkflowStringValue(v)
+	case "description", "task_name":
+		s, params, ok := alterWorkflowTemplateValue(v)
 		if !ok {
-			b.alterWorkflowValueError(key, "a string: `Description: '…'`")
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": '… {1}' with ({1} = $WorkflowContext/Attr)`")
 			return nil
 		}
-		op.Value = s
+		op.Value, op.Params = s, params
 	case "targeting":
 		switch {
 		case v.MICROFLOW() != nil:

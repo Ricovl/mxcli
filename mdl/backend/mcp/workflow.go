@@ -418,6 +418,9 @@ func (b *Backend) mapWorkflow(wf *workflows.Workflow) (map[string]any, error) {
 // in the context shape (Studio Pro 11.14: `context`, `caption`, string
 // `workflowName`) or the parameter-element shape older servers take.
 func (b *Backend) mapWorkflowContent(wf *workflows.Workflow, contextShape bool) (map[string]any, error) {
+	if len(wf.WorkflowNameParams)+len(wf.WorkflowDescriptionParams) > 0 {
+		return nil, errMCPTemplateParams("the workflow's display or description")
+	}
 	flow, err := b.mapWorkflowFlow(wf.Flow)
 	if err != nil {
 		return nil, err
@@ -1097,6 +1100,9 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 			"outcomes":   outcomes,
 		}, nil
 	case *workflows.UserTask:
+		if len(act.TaskNameParams)+len(act.TaskDescriptionParams) > 0 {
+			return nil, errMCPTemplateParams(fmt.Sprintf("user task %q's task name or description", act.Name))
+		}
 		bevents, err := mapBoundaryEvents(act.BoundaryEvents)
 		if err != nil {
 			return nil, err
@@ -1754,17 +1760,29 @@ func (m *mcpWorkflowMutator) apply(ops ...pedOpEntry) error {
 // PED forbids replacing a nested element wholesale, so a property whose change
 // would swap an element's *kind* (e.g. switching user targeting from XPath to
 // Microflow) is rejected rather than silently dropped.
+// SetTemplateParameters: PED's list editing for a template's parameters has
+// not been measured, so a text with parameters is refused rather than written
+// without them (ako/mxcli#1714). Setting a text without parameters is a no-op
+// here; one the stored text already had is left as it was.
+func (m *mcpWorkflowMutator) SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error {
+	if len(params) == 0 {
+		return nil
+	}
+	return fmt.Errorf("ALTER WORKFLOW: a %s with template parameters (`with ({1} = …)`) is not supported by the MCP backend yet", prop)
+}
+
 func (m *mcpWorkflowMutator) SetActivityProperty(activityRef string, atPos int, prop, value string) error {
 	// Reject an unsupported property before the (live) index resolution.
 	leaf := map[string]string{
 		"page":        "/taskPage/page",
 		"description": "/taskDescription/text",
+		"task_name":   "/taskName/text",
 		"due_date":    "/dueDate",
 	}[strings.ToLower(prop)]
 	switch strings.ToLower(prop) {
-	case "page", "description", "due_date", "targeting_microflow", "targeting_xpath":
+	case "page", "description", "task_name", "due_date", "targeting_microflow", "targeting_xpath":
 	default:
-		return fmt.Errorf("ALTER WORKFLOW set activity %s is not supported by the MCP backend (supported: page, description, due_date, targeting_microflow, targeting_xpath)", prop)
+		return fmt.Errorf("ALTER WORKFLOW set activity %s is not supported by the MCP backend (supported: page, description, task_name, due_date, targeting_microflow, targeting_xpath)", prop)
 	}
 	loc, err := m.resolve(activityRef, atPos)
 	if err != nil {
@@ -2257,4 +2275,12 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 		el["recurrence"] = nil
 	}
 	return el, nil
+}
+
+// errMCPTemplateParams refuses a workflow text with template parameters over
+// MCP: how PED takes a StringTemplate's parameter list has not been measured,
+// and writing the text without them would drop them silently (ako/mxcli#1714).
+func errMCPTemplateParams(what string) error {
+	return fmt.Errorf("%s has template parameters (`with ({1} = …)`), which the MCP backend cannot write yet — "+
+		"create the workflow without --mcp, or set the parameters in Studio Pro", what)
 }

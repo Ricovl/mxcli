@@ -12,7 +12,9 @@ import (
 )
 
 // MDL-WF19: a variable a workflow expression cannot see (mendixlabs/mxcli#1529,
-// #1523).
+// #1523). A text template's parameters are expressions too (ako/mxcli#1714):
+// the workflow's display and description are header scope, a user task's task
+// name and description activity scope — measured on 11.15.0.
 //
 // A workflow declares no variables. What an expression in it can name is fixed
 // by Mendix, and anything else is CE0117 "Error(s) in expression." at build time
@@ -130,12 +132,14 @@ func ValidateWorkflowExpressionScope(stmt *ast.CreateWorkflowStmt) []linter.Viol
 	if stmt.DueDate != "" {
 		sites = append(sites, wfExprSite{where: "the workflow's due date", expr: stmt.DueDate, header: true})
 	}
+	sites = append(sites, workflowTemplateExprSites(workflowTemplateSites(stmt), isWorkflowHeaderTemplate)...)
 	return checkWorkflowExprScope(sites, stmt.ParameterVar, workflowLocation(stmt.Name))
 }
 
 // alterWorkflowExprSites collects the expressions an ALTER WORKFLOW writes.
 func alterWorkflowExprSites(stmt *ast.AlterWorkflowStmt) []wfExprSite {
 	sites := workflowActivityExprSites(alterWorkflowAddedActivities(stmt))
+	sites = append(sites, workflowTemplateExprSites(alterWorkflowTemplateSites(stmt), isWorkflowHeaderTemplate)...)
 	for _, op := range stmt.Operations {
 		switch o := op.(type) {
 		case *ast.InsertBoundaryEventOp:
@@ -192,10 +196,10 @@ func workflowScopeSuggestion(name string, header, isInstance bool) string {
 	const scope = "A workflow expression can name only the context, $WorkflowContext (or the name the header declares for it), and the running workflow, $WorkflowInstance (System.Workflow)."
 	switch {
 	case isInstance && header:
-		return "The workflow's own due date is evaluated before the instance exists: only $WorkflowContext is in scope there. Use [%CurrentDateTime%] or an attribute of the context, e.g. addDays([%CurrentDateTime%], 3)."
+		return "The workflow's own due date, display and description see only $WorkflowContext, not the running instance. Use an attribute of the context — for a due date, e.g. addDays([%CurrentDateTime%], 3)."
 	case strings.EqualFold(name, "Workflow"):
 		if header {
-			return "Only $WorkflowContext is in scope in the workflow's own due date."
+			return "Only $WorkflowContext is in scope in the workflow's own due date, display and description."
 		}
 		return "The running workflow is $WorkflowInstance, not $Workflow — pass it to a System.Workflow parameter as `(Workflow = $WorkflowInstance)`. " + scope
 	case strings.EqualFold(name, "currentUser"), strings.EqualFold(name, "currentSession"):

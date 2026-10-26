@@ -32,8 +32,10 @@ createWorkflowStatement
 workflowHeaderClause
     : FOLDER folder=STRING_LITERAL
     | PARAMETER VARIABLE COLON qualifiedName
-    | DISPLAY display=STRING_LITERAL
-    | DESCRIPTION description=STRING_LITERAL
+    // `with ({1} = <expression>, …)` fills the placeholders, as a log message's
+    // template does (ako/mxcli#1714).
+    | DISPLAY display=STRING_LITERAL templateParams?
+    | DESCRIPTION description=STRING_LITERAL templateParams?
     // HIDDEN_KW is listed beside IDENTIFIER because `Hidden` used to lex as an
     // identifier and stopped when the microflow clauses made it a keyword.
     // Anything matching a bare IDENTIFIER here is one token away from the same
@@ -214,7 +216,11 @@ workflowUserTaskClause
     | ON CREATED MICROFLOW qualifiedName
     | ENTITY qualifiedName
     | DUE DATE_TYPE workflowExpression
-    | DESCRIPTION STRING_LITERAL
+    | DESCRIPTION STRING_LITERAL templateParams?
+    // `task name '…'`: what the task inbox shows, when it is not the caption.
+    // `name` is not a keyword — it is an attribute name everywhere — so the
+    // word is read as an identifier and checked by the visitor (ako/mxcli#1714).
+    | TASK taskNameWord=IDENTIFIER STRING_LITERAL templateParams?
     | OUTCOMES workflowUserTaskOutcome+
     | BOUNDARY EVENT workflowBoundaryEventClause ((BOUNDARY EVENT)? workflowBoundaryEventClause)*
     | AUTO ASSIGN SINGLE USER   // "Auto-assign when targeting results in one user"
@@ -438,6 +444,7 @@ alterWorkflowValue
     | XPATH xpathConstraint+                        // Targeting: xpath [Active = true()]
     | XPATH STRING_LITERAL /* @alias MDL-DEPR031 */ // Targeting: xpath '[Active = true()]'
     | qualifiedName                                 // Page: M.P, ExportLevel: API
+    | STRING_LITERAL templateParams                 // Display: 'x {1}' with ({1} = …)
     | workflowExpression                            // Display: 'x', DueDate: addDays(…)
     ;
 

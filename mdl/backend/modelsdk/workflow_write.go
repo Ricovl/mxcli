@@ -292,9 +292,9 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 		title = wf.Name
 	}
 	addStr(g, "Title", title)
-	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription))
+	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription, wf.WorkflowDescriptionParams))
 	// WorkflowMetaData: null (via NullFields).
-	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName))
+	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName, wf.WorkflowNameParams))
 	addBool(g, "WorkflowV2", false)
 	return g
 }
@@ -442,12 +442,12 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 	addFreshPersistentID(g)
 	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
 	addStr(g, "Size", workflowZeroPoint)
-	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription))
+	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription, a.TaskDescriptionParams))
 	taskName := a.TaskName
 	if taskName == "" {
 		taskName = a.Caption
 	}
-	addPart(g, "TaskName", workflowStringTemplate(taskName))
+	addPart(g, "TaskName", workflowStringTemplate(taskName, a.TaskNameParams))
 	addPart(g, "TaskPage", pageReferenceElem(a.Page))
 	if a.IsMulti {
 		addPart(g, "TargetUserInput", targetUserInputToGen(a.TargetUserInput))
@@ -791,12 +791,12 @@ func annotationElem(text string) element.Element {
 	return g
 }
 
-// workflowStringTemplate builds a minimal Microflows$StringTemplate (empty
-// Parameters list via MandatoryListMarkers + Text).
-func workflowStringTemplate(text string) element.Element {
-	g := newElem("Microflows$StringTemplate", "")
-	addStr(g, "Text", text)
-	return g
+// workflowStringTemplate builds a workflow text: a Microflows$StringTemplate
+// whose Parameters are Microflows$TemplateParameter children, one Expression
+// each — the shape mx check parses (an invalid expression is CE0117 at the
+// task, 11.15.0) — or an empty list via MandatoryListMarkers (ako/mxcli#1714).
+func workflowStringTemplate(text string, params []string) element.Element {
+	return stringTemplateElem(text, params)
 }
 
 // addActivityBaseFields adds the common Annotation(null)/PersistentId/

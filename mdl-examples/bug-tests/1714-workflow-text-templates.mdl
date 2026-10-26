@@ -1,0 +1,63 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1714 — "Workflow and user-task names and descriptions cannot take
+-- parameters: `display 'Review {1}' with ({1} = $WorkflowContext/Title)` is a
+-- parse error"
+-- ============================================================================
+--
+-- The workflow's display and description, and a user task's task name (what
+-- the task inbox shows; the caption when omitted) and description, are
+-- templates. `with ({1} = <expression>, …)` fills their placeholders, as a log
+-- message's does. Measured with mx check on mxbuild 11.15.0:
+--
+--   display / description parameters   $WorkflowContext only ($WorkflowInstance CE0117)
+--   task name / description parameters $WorkflowContext and $WorkflowInstance
+--   $WorkflowUserTask, $currentUser     CE0117 everywhere (MDL-WF19)
+--   a placeholder no parameter fills    CE0720 (MDL-WF21); {0} is CE0716
+--
+-- The workflow below builds with 0 errors, describe prints every template, and
+-- replaying describe reports "Unchanged workflow".
+--
+-- EXPECTED: `mxcli check` passes this file. Changing `'Review {1}'` to
+-- `'Review {1} {2}'` is refused as MDL-WF21; `$WorkflowInstance` in the
+-- workflow's display as MDL-WF19.
+-- Guard: mdl/executor/validate_workflow_templates_test.go,
+--        mdl/visitor/visitor_workflow_templates_test.go,
+--        mdl/backend/modelsdk/workflow_templates_test.go.
+-- ============================================================================
+
+create module BugTemplates1714;
+
+create persistent entity BugTemplates1714.Request (
+  Title: String(200),
+  Amount: Decimal
+);
+
+create page BugTemplates1714.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+  }
+};
+
+create workflow BugTemplates1714.Approval
+  parameter $WorkflowContext: BugTemplates1714.Request
+  display 'Approval for {1}' with ({1} = $WorkflowContext/Title)
+  description 'Worth {1}' with ({1} = toString($WorkflowContext/Amount))
+begin
+  user task Review 'Review'
+    page BugTemplates1714.WF_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    task name 'Review {1}' with ({1} = $WorkflowContext/Title)
+    description 'Started as {1}' with ({1} = $WorkflowInstance/Name)
+    outcomes 'Done' { };
+end workflow;
+
+alter workflow BugTemplates1714.Approval {
+  set (TaskName: 'Check {1}' with ({1} = $WorkflowContext/Title)) on Review;
+};
