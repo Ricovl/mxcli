@@ -12,17 +12,17 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 |---|---|
 | 35-46 | When to Use This Skill |
 | 47-117 | Syntax — CREATE WORKFLOW |
-| 118-299 | Activities |
-| 300-306 | DROP WORKFLOW |
-| 307-372 | ALTER WORKFLOW |
-| 373-393 | DESCRIBE round-trip |
-| 394-414 | Activity names, and why `jump to` depends on them |
-| 415-435 | Rewriting an existing workflow |
-| 436-523 | Microflow statements for workflow tasks |
-| 524-544 | System-module enumerations are synthesized, not stored |
-| 545-669 | Platform rules |
-| 670-700 | Observing a running workflow |
-| 701-710 | Validate before presenting |
+| 118-300 | Activities |
+| 301-307 | DROP WORKFLOW |
+| 308-373 | ALTER WORKFLOW |
+| 374-394 | DESCRIBE round-trip |
+| 395-415 | Activity names, and why `jump to` depends on them |
+| 416-436 | Rewriting an existing workflow |
+| 437-524 | Microflow statements for workflow tasks |
+| 525-545 | System-module enumerations are synthesized, not stored |
+| 546-670 | Platform rules |
+| 671-701 | Observing a running workflow |
+| 702-711 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -247,12 +247,13 @@ end workflow;
   on Mendix 11 (MDL-WF07).
 - **The delay is a DateTime expression**, such as `'addDays([%CurrentDateTime%], 3)'`
   — not an ISO duration like `'P3D'`.
-- **Every boundary path must end** in a jump, an end, or Mendix's end-of-path
-  marker, and mxcli now appends the marker for you — so a path may end in a
-  `call microflow`, as above. Without it the two kinds fail in different places:
-  an interrupting path is **CE0105** at build, and a non-interrupting one builds
-  cleanly and then stops the runtime from starting ("Expected the flow to end with
-  an end event"). Use `jump to <task>` when the path should return to the task.
+- **Every boundary path must end**, and mxcli ends one that runs to its last
+  activity as Studio Pro does (ako/mxcli#1712): an **interrupting** path with an
+  End — the timeout ends the workflow; `describe` shows `end workflow;` — and a
+  non-interrupting one with the end-of-path marker, as an interrupting one under a
+  parallel split or a non-interrupting path, where an End is CE1844. Unended, an
+  interrupting path is **CE0105** and a non-interrupting one stops the runtime from
+  starting. To carry on, end the path with `jump to <activity>` (or `<task>`).
 - **A notification boundary event** (Mendix 11.11+) fires when `notify workflow`
   targets it, so it takes a **name** instead of a delay:
   `boundary event interrupting notification Withdrawn 'Request withdrawn' { end workflow; }`.
