@@ -185,6 +185,15 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Check for intra-script duplicate definitions (CREATE X … CREATE X without DROP)
 	violations = append(violations, CheckScriptDuplicates(prog)...)
 
+	// A member named like one already on its entity's generalization chain
+	// (CE0069, ako/mxcli#1645), among what the script declares and the System
+	// module. With a project, the reference pass judges it against the whole
+	// model instead (validateMemberNameClashes) — running both would report it
+	// twice.
+	if projectPath == "" {
+		violations = append(violations, scriptMemberNameClashes(prog)...)
+	}
+
 	// Validate design properties against the project's theme registry
 	// (themesource design-properties.json) — flags unknown keys and invalid
 	// option values, listing the allowed values. Only runs with --project.
