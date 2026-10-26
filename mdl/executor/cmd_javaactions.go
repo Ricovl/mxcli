@@ -690,7 +690,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	// module's compiled one. The statement says nothing about the code, so the
 	// file is left alone.
 	if s.JavaCode != "" && strings.TrimSpace(s.JavaCode) != javaSourceOmittedBody {
-		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, s.ExtraCode); err != nil {
+		// ja.Documentation, not the statement's: a rewrite without a doc
+		// comment carries the stored one, and mxbuild writes it as the class
+		// javadoc — leaving it out removed the block a build had written, and
+		// the next build put it back (ako/mxcli#1700).
+		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, s.ExtraCode, ja.Documentation); err != nil {
 			return mdlerrors.NewBackend("write java source file", err)
 		}
 	}

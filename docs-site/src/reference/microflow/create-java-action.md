@@ -40,6 +40,15 @@ On `CREATE OR MODIFY`, leaving either out keeps what is stored; an empty `/** */
 clears a description. A new action gets no descriptions and the return value name
 `ReturnValueName`, as in Studio Pro.
 
+### The Java Source File
+
+The statement writes `javasource/<module>/actions/<Name>.java` the way mxbuild
+generates it, byte for byte, so the next build leaves it unchanged. The action's
+documentation -- the `/** ... */` before `CREATE` -- is the class javadoc above
+`public class`; a rewrite without one keeps the stored documentation, in the model
+and in the file. (Before ako/mxcli#1700 the file had no javadoc, so every rewrite
+removed the one a build had written and the next build put it back.)
+
 ### Exposed Actions
 
 The optional `EXPOSED AS` clause makes the action visible in the Studio Pro toolbox under the specified category, allowing modelers to use it directly in microflows.

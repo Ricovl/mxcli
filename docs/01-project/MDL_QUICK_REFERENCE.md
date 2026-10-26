@@ -1449,7 +1449,7 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 |-----------|--------|-------|
 | Show Java actions | `list java actions [in module];` | List all or filtered by module |
 | Describe Java action | `describe java action Module.Name;` | Full MDL output with signature |
-| Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID |
+| Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID. The `.java` file is written as mxbuild writes it, the action's `/** … */` documentation as the class javadoc (ako/mxcli#1700) |
 | Create with type params | `create java action Module.Name(EntityType: entity <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
 | Describe a parameter, name the return value | `create java action Module.Name(/** The text. */ Input: String) returns String as $Result as $$ ... $$;` | `/** … */` before a parameter is its description; `as $Name` the return value's name. Omitted on `or modify`, both keep what is stored |
 | Create exposed action | `... exposed as 'caption' in 'Category' as $$ ... $$;` | Toolbox-visible in Studio Pro |

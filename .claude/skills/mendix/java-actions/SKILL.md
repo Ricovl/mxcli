@@ -101,6 +101,12 @@ A trailing `-- text` after a parameter is an ordinary comment and is **not store
 On `create or modify`, leaving either out keeps what is stored; a new action gets
 no descriptions and `ReturnValueName`. The same forms apply to JavaScript actions.
 
+The action's own `/** … */` (before `create`) is its documentation, and the `.java`
+file carries it as the class javadoc above `public class`, byte for byte as mxbuild
+writes it — so a rewrite followed by a build leaves the file unchanged
+(ako/mxcli#1700). A rewrite without one keeps the stored documentation, in the
+model and in the file.
+
 ### Type Parameters (Generics)
 
 Type parameters let Java actions accept any entity type dynamically. Use `entity <pEntity>` in a parameter type to declare the type parameter inline. That parameter becomes the **entity type selector** (receives the entity type name, e.g., `'Module.Entity'`). Bare `pEntity` parameters become **parameterized entity** params (receive entity instances, e.g., `$Variable`).

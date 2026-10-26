@@ -33,7 +33,10 @@ const (
 // RetainSections. The imports the generated code needs and the list lacks are
 // appended, sorted. That is what mxbuild does: it never reorders or drops an
 // import, so for a new file it writes just the needed ones, sorted.
-func GenerateSource(moduleName, actionName string, userCode string, params []*JavaActionParameter, returnType CodeActionReturnType, imports []string, extraCode string) string {
+//
+// documentation is the action's, written as the class javadoc (classJavadoc);
+// "" writes none.
+func GenerateSource(moduleName, actionName string, userCode string, params []*JavaActionParameter, returnType CodeActionReturnType, imports []string, extraCode string, documentation string) string {
 	moduleNameLower := strings.ToLower(moduleName)
 	returnTypeStr := javaReturnType(returnType)
 
@@ -56,6 +59,7 @@ func GenerateSource(moduleName, actionName string, userCode string, params []*Ja
 	}
 	sb.WriteString("\n")
 
+	sb.WriteString(classJavadoc(documentation))
 	sb.WriteString(fmt.Sprintf("public class %s extends UserAction<%s>\n", actionName, returnTypeStr))
 	sb.WriteString("{\n")
 
@@ -152,6 +156,63 @@ func GenerateSource(moduleName, actionName string, userCode string, params []*Ja
 	// file again. User and extra code may arrive with either ending.
 	src := strings.ReplaceAll(sb.String(), "\r\n", "\n")
 	return strings.ReplaceAll(src, "\n", "\r\n")
+}
+
+// classJavadoc is the javadoc block mxbuild writes above the class for an
+// action's documentation, LF-terminated like the rest of the builder's output:
+// `/**`, one ` * <line>` per line, ` */` (ako/mxcli#1700). Measured on
+// mxbuild 11.13.0 (testdata/mxbuild/JA_Doc*): `\r\n`, `\r` and `\n` each end
+// a line, so a leading or trailing break is an empty ` * ` line, and spaces
+// and tabs are kept as they stand; a backslash is doubled unless a unicode
+// escape (`u` or `U` and four hex digits) follows it, so javac cannot read
+// one as a broken escape. No documentation is no block; whitespace alone is
+// documentation. (mxbuild refuses a documentation holding `*/` as a model
+// error, so the block is never closed early by a project that builds.)
+func classJavadoc(documentation string) string {
+	if documentation == "" {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("/**\n")
+	text := strings.ReplaceAll(documentation, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	for line := range strings.SplitSeq(text, "\n") {
+		sb.WriteString(" * ")
+		sb.WriteString(escapeJavadocBackslashes(line))
+		sb.WriteString("\n")
+	}
+	sb.WriteString(" */\n")
+	return sb.String()
+}
+
+// escapeJavadocBackslashes doubles every backslash in s that does not start a
+// unicode escape — `u` or `U` followed by four hex digits — as mxbuild does.
+func escapeJavadocBackslashes(s string) string {
+	if !strings.Contains(s, "\\") {
+		return s
+	}
+	var sb strings.Builder
+	for i := 0; i < len(s); i++ {
+		sb.WriteByte(s[i])
+		if s[i] == '\\' && !startsUnicodeEscape(s[i+1:]) {
+			sb.WriteByte('\\')
+		}
+	}
+	return sb.String()
+}
+
+// startsUnicodeEscape reports whether s begins with `u` or `U` and four hex
+// digits.
+func startsUnicodeEscape(s string) bool {
+	if len(s) < 5 || (s[0] != 'u' && s[0] != 'U') {
+		return false
+	}
+	for _, c := range []byte(s[1:5]) {
+		if !('0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 // completeImports returns imports, deduplicated, with the ones the generated
