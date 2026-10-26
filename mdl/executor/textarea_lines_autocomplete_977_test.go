@@ -126,16 +126,16 @@ func TestTextAreaNumberOfLinesAndAutocomplete_StudioProValuesSurviveDescribeExec
 func TestNonNegativeIntBounds(t *testing.T) {
 	for _, tc := range []struct {
 		in   any
-		want int
+		want int32
 		ok   bool
 	}{
 		{2, 2, true}, {0, 0, true}, {"7", 7, true}, {float64(3), 3, true},
 		{-1, 0, false}, {"x", 0, false}, {1.5, 0, false},
 		{"2147483647", 2147483647, true}, {"2147483648", 0, false}, {int64(1) << 40, 0, false},
 	} {
-		got, ok := nonNegativeInt(tc.in)
+		got, ok := nonNegativeInt32(tc.in)
 		if ok != tc.ok || (ok && got != tc.want) {
-			t.Errorf("nonNegativeInt(%v) = %d, %v; want %d, %v", tc.in, got, ok, tc.want, tc.ok)
+			t.Errorf("nonNegativeInt32(%v) = %d, %v; want %d, %v", tc.in, got, ok, tc.want, tc.ok)
 		}
 	}
 }

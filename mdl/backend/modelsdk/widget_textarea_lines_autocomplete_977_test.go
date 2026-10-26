@@ -15,11 +15,11 @@ import (
 // Measured in PedApp and TestApp: NumberOfLines 5 on 52 of 58 text areas, 2 on
 // 4 and 0 on 2; Autocomplete true on all 58.
 func TestTextAreaNumberOfLinesAndAutocomplete_Written(t *testing.T) {
-	n := func(v int) *int { return &v }
+	n := func(v int32) *int32 { return &v }
 	b := func(v bool) *bool { return &v }
 	for _, tc := range []struct {
 		name         string
-		lines        *int
+		lines        *int32
 		autocomplete *bool
 		wantLines    int64
 		wantAuto     bool

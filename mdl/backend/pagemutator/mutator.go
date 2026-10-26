@@ -3417,13 +3417,17 @@ func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
 func setTextAreaPropertyMut(widget bson.D, propName string, value any) error {
 	if strings.EqualFold(propName, "NumberOfLines") {
 		n, ok := formattingInt(value)
-		if !ok || n < 0 || n > math.MaxInt32 {
+		if !ok {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		lines, err := strconv.ParseInt(strconv.Itoa(n), 10, 32)
+		if err != nil || lines < 0 {
 			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
 		}
 		if _, isInt32 := bsonnav.DGet(widget, "NumberOfLines").(int32); isInt32 {
-			bsonnav.DSet(widget, "NumberOfLines", int32(n))
+			bsonnav.DSet(widget, "NumberOfLines", int32(lines))
 		} else {
-			bsonnav.DSet(widget, "NumberOfLines", int64(n))
+			bsonnav.DSet(widget, "NumberOfLines", lines)
 		}
 		return nil
 	}

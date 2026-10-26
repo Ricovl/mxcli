@@ -84,7 +84,7 @@ type TextArea struct {
 	// NumberOfLines is Forms$TextArea.NumberOfLines; nil writes Studio Pro's
 	// default, 5 (52 of 58 text areas in PedApp and TestApp). Studio Pro also
 	// stores 0, which an int defaulting on zero could not express (ako/mxcli#977).
-	NumberOfLines *int `json:"numberOfLines,omitempty"`
+	NumberOfLines *int32 `json:"numberOfLines,omitempty"`
 	// Autocomplete is Forms$TextArea.Autocomplete; nil writes true, the
 	// default (ako/mxcli#977).
 	Autocomplete *bool `json:"autocomplete,omitempty"`
