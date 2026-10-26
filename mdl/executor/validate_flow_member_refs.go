@@ -3,6 +3,8 @@
 package executor
 
 import (
+	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -114,6 +116,13 @@ func (r *flowMemberRefs) statementMembers(flowQN string, st ast.MicroflowStateme
 	report := func(msg string) {
 		if msg != "" {
 			out = append(out, flowQN+": "+msg)
+		}
+	}
+	seen := map[string]bool{}
+	for _, p := range statementAttributePaths(st) {
+		if msg := r.expressionPath(p, vars); !seen[msg] {
+			seen[msg] = true
+			report(msg)
 		}
 	}
 	switch s := st.(type) {
@@ -266,4 +275,192 @@ func (r *flowMemberRefs) nearMembers(entityQN string) string {
 		}
 	}
 	return nearMembersFor(r.backend(), entityQN)
+}
+
+// expressionPath reports a `$Var/<member>` path in an expression that names a
+// member the variable's entity does not have (ako/mxcli#1697): an attribute
+// that is not there (the system `id` above all, which no expression can read),
+// an association written by its bare name, or one that does not exist or does
+// not start at the entity. mxbuild rejects each with CE0117 "Error(s) in
+// expression." (measured on 11.13.0). Each step is resolved through
+// flowMemberRefs.member — the verdict exec's builder asks for a list member —
+// and the path is followed across association hops as far as it resolves;
+// anything not established is silence.
+func (r *flowMemberRefs) expressionPath(p *ast.AttributePathExpr, vars map[string]string) string {
+	cur := vars[strings.TrimPrefix(p.Variable, "$")]
+	steps := expressionPathSteps(p)
+	if cur == "" || len(steps) == 0 {
+		return ""
+	}
+	text := "$" + strings.TrimPrefix(p.Variable, "$") + "/" + strings.Join(steps, "/")
+	const rejected = " — mxbuild rejects the expression with CE0117 \"Error(s) in expression.\""
+	for i := 0; i < len(steps); i++ {
+		step := steps[i]
+		switch strings.Count(step, ".") {
+		case 0:
+			res, kind := r.member(cur, step, true)
+			switch {
+			case res == memberMissing:
+				msg := fmt.Sprintf("%s: %s has no attribute %q%s%s", text, cur, step, flowSystemMemberHint(step), rejected)
+				if strings.EqualFold(step, "id") {
+					return msg + " An object's id is not readable in an expression: compare the objects " +
+						"themselves (`$A = $B`), or read a GUID with CommunityCommons.getGUID(item = $X)"
+				}
+				return msg + r.nearMembers(cur)
+			case res == memberFound && kind == memberIsAssociation:
+				qualified := "Module." + step
+				chain, complete := r.chain(cur)
+				if qn, _, v := resolveBareAssociation(step, chain, complete, r.catalog()); v == bareAssocResolved {
+					qualified = qn
+				}
+				return fmt.Sprintf("%s: %s is an association: an expression names it qualified, `$%s/%s/…`%s",
+					text, step, strings.TrimPrefix(p.Variable, "$"), qualified, rejected)
+			}
+			// An attribute: whatever follows it is not a member question.
+			return ""
+		case 1:
+			if _, ok := builtinSystemMemberAssociation(step); ok {
+				return "" // System.owner / System.changedBy: no domain model lists them
+			}
+			if r.isEntity(step) {
+				return "" // an entity step that is not the hop's target: not modelled
+			}
+			to, res := r.associationHop(step, cur)
+			switch res {
+			case assocMissing:
+				return fmt.Sprintf("%s: there is no association %s%s", text, step, rejected)
+			case assocNotAnEnd:
+				return fmt.Sprintf("%s: %s is not an end of %s, nor of anything it extends%s", text, cur, step, rejected)
+			case assocResolved:
+			default:
+				return ""
+			}
+			cur = to
+			// `$O/Mod.Assoc/Mod.Target/Attr` names the target after the hop,
+			// and the builder qualifies a bare `Target` in place (#829).
+			if i+1 < len(steps) && (steps[i+1] == to || strings.HasSuffix(to, "."+steps[i+1])) {
+				i++
+			}
+		default:
+			return ""
+		}
+	}
+	return ""
+}
+
+// associationHop follows a qualified association from an object of entityQN:
+// an association the script creates by its declared ends, one the project has
+// by resolveAssociationFrom — which also answers "missing" for an association
+// in a module the script creates and does not declare it in. A module whose
+// entities come from a service contract is not judged.
+func (r *flowMemberRefs) associationHop(assocQN, entityQN string) (string, assocResolution) {
+	if r.sc == nil {
+		return resolveAssociationFrom(r.ctx, assocQN, entityQN)
+	}
+	chain, complete := r.chain(entityQN)
+	if ends, ok := r.sc.associationEnds[strings.ToLower(assocQN)]; ok {
+		for _, e := range chain {
+			switch e {
+			case ends[0]:
+				return ends[1], assocResolved
+			case ends[1]:
+				return ends[0], assocResolved
+			}
+		}
+		if complete {
+			return "", assocNotAnEnd
+		}
+		return "", assocUnknown
+	}
+	if module, _, _ := strings.Cut(assocQN, "."); r.sc.externalEntityModules[module] {
+		return "", assocUnknown
+	}
+	// A link the script declares is not in the project, so the project cannot
+	// say whether it is an end; the first stored link answers for itself and
+	// everything it extends.
+	for _, e := range chain {
+		to, res := resolveAssociationFrom(r.ctx, assocQN, e)
+		if res == assocResolved || res == assocMissing || !r.sc.entities[e] {
+			return to, res
+		}
+	}
+	if complete {
+		return "", assocNotAnEnd
+	}
+	return "", assocUnknown
+}
+
+// isEntity reports a qualified name the script or the project has as an entity.
+func (r *flowMemberRefs) isEntity(qn string) bool {
+	if r.sc != nil && r.sc.entities[qn] {
+		return true
+	}
+	_, ok := findEntityByQN(r.backend(), qn)
+	return ok
+}
+
+// expressionPathSteps are the member steps of `$v/A/B`.
+func expressionPathSteps(p *ast.AttributePathExpr) []string {
+	if len(p.Path) > 0 {
+		return p.Path
+	}
+	steps := make([]string, 0, len(p.Segments))
+	for _, sg := range p.Segments {
+		steps = append(steps, sg.Name)
+	}
+	return steps
+}
+
+var (
+	flowBodyType    = reflect.TypeOf([]ast.MicroflowStatement(nil))
+	errorHandlerPtr = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))
+)
+
+// statementAttributePaths collects the `$Var/…` paths in one statement's own
+// expressions — every field, so a statement kind added later is covered
+// without a case here. Nested bodies and error handlers are left out: the
+// typed walk visits their statements itself, with the variables in scope
+// there. A retrieve's constraint is XPath, judged by validateRetrieveMembers,
+// and a validation feedback's target is a member reference, not an expression.
+func statementAttributePaths(st ast.MicroflowStatement) []*ast.AttributePathExpr {
+	if _, ok := st.(*ast.RetrieveStmt); ok {
+		return nil
+	}
+	var out []*ast.AttributePathExpr
+	var walk func(rv reflect.Value, top bool)
+	walk = func(rv reflect.Value, top bool) {
+		if rv.Type() == flowBodyType || rv.Type() == errorHandlerPtr {
+			return
+		}
+		switch rv.Kind() {
+		case reflect.Interface:
+			if !rv.IsNil() {
+				walk(rv.Elem(), false)
+			}
+		case reflect.Pointer:
+			if rv.IsNil() {
+				return
+			}
+			if p, ok := rv.Interface().(*ast.AttributePathExpr); ok {
+				out = append(out, p)
+				return
+			}
+			walk(rv.Elem(), top)
+		case reflect.Struct:
+			_, feedback := st.(*ast.ValidationFeedbackStmt)
+			for i := 0; i < rv.NumField(); i++ {
+				f := rv.Type().Field(i)
+				if !f.IsExported() || (top && feedback && f.Name == "AttributePath") {
+					continue
+				}
+				walk(rv.Field(i), false)
+			}
+		case reflect.Slice, reflect.Array:
+			for i := 0; i < rv.Len(); i++ {
+				walk(rv.Index(i), false)
+			}
+		}
+	}
+	walk(reflect.ValueOf(st), true)
+	return out
 }

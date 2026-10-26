@@ -469,6 +469,16 @@ set $Order/Shop.Order_Product = $Product;
 
 **Critical**: Always use fully qualified association names (`Module.AssociationName`).
 
+`check -p --references` (and exec, which runs it first) resolves every
+`$Var/<member>` path against the entity the variable holds, through its
+generalizations and across association hops, and reports what mxbuild would
+reject with CE0117 "Error(s) in expression.": an attribute the entity does not
+have (names are case-sensitive), a bare association (`$Order/Order_Customer/Name`),
+an association that does not exist or does not start at the entity, and
+`$Obj/id` — an object's id is not readable in an expression. Compare the objects
+themselves (`$A = $B`), or read a GUID with `CommunityCommons.getGUID(item = $Obj)`
+(ako/mxcli#1697). A variable whose entity check cannot tell is not judged.
+
 ### XPath in Expressions
 
 ```mdl
