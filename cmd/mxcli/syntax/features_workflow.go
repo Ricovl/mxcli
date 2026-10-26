@@ -145,7 +145,7 @@ func init() {
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
 			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: ( $WorkflowUserTask: System.WorkflowUserTask )\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 
@@ -169,12 +169,16 @@ func init() {
 			"-- The XPath is written in brackets, as everywhere else, so quotes inside\n" +
 			"-- it are written once. The quoted form XPATH '[...]' still parses and\n" +
 			"-- warns MDL-DEPR031; `mxcli fmt --upgrade` rewrites it.\n\n" +
+			"-- The constraint is evaluated on the user (System.User, or the App Settings\n" +
+			"-- > Workflows user entity), so it names the user's members directly:\n" +
+			"-- [Name = 'x'], [System.UserRoles = '[%UserRole_Manager%]']. An entity as\n" +
+			"-- the first step ([System.User/Name = 'x']) is CE0161; check -p reports it.\n\n" +
 			"-- A targeting microflow takes EXACTLY two parameters, in either order:\n" +
 			"--   System.Workflow\n" +
 			"--   the workflow's context entity, or a generalization of it\n" +
 			"-- One parameter, none, a third, or a specialization of the context\n" +
 			"-- entity is CE6677.",
-		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [HR.Employee/Role = 'Manager' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
+		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [System.UserRoles = '[%UserRole_Manager%]' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
 			"-- Microflow targeting: the microflow takes the workflow AND its context object\n" +
 			"CREATE MICROFLOW HR.GetApprovers ($Workflow: System.Workflow, $Request: HR.Request)\nRETURNS List of System.User AS $Approvers\nBEGIN\n  RETRIEVE $Approvers FROM System.User;\n  RETURN $Approvers;\nEND;\n\n" +
 			"USER TASK Approve 'Approve request'\n  TARGETING MICROFLOW HR.GetApprovers\n  OUTCOMES 'Done' { };",

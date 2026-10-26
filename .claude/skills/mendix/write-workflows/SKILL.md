@@ -12,17 +12,17 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 |---|---|
 | 35-46 | When to Use This Skill |
 | 47-117 | Syntax — CREATE WORKFLOW |
-| 118-293 | Activities |
-| 294-300 | DROP WORKFLOW |
-| 301-366 | ALTER WORKFLOW |
-| 367-387 | DESCRIBE round-trip |
-| 388-408 | Activity names, and why `jump to` depends on them |
-| 409-429 | Rewriting an existing workflow |
-| 430-517 | Microflow statements for workflow tasks |
-| 518-538 | System-module enumerations are synthesized, not stored |
-| 539-663 | Platform rules |
-| 664-694 | Observing a running workflow |
-| 695-704 | Validate before presenting |
+| 118-299 | Activities |
+| 300-306 | DROP WORKFLOW |
+| 307-372 | ALTER WORKFLOW |
+| 373-393 | DESCRIBE round-trip |
+| 394-414 | Activity names, and why `jump to` depends on them |
+| 415-435 | Rewriting an existing workflow |
+| 436-523 | Microflow statements for workflow tasks |
+| 524-544 | System-module enumerations are synthesized, not stored |
+| 545-669 | Platform rules |
+| 670-700 | Observing a running workflow |
+| 701-710 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -195,6 +195,12 @@ end workflow;
 A `call workflow` mapping is always keyed `WorkflowContext` — the one parameter a
 workflow has, whatever its header calls it: `(WorkflowContext = $WorkflowContext/M.A_B/M.B)`.
 Any other key is CE1613 (`MDL-WF18`); a path must name the target entity (else CE0117).
+
+**Targeting by role:** the constraint is evaluated on the user, so it names the
+user's members with no entity in front — `targeting users xpath
+[System.UserRoles = '[%UserRole_Manager%]']`. `[System.User/Name = …]` is CE0161
+(`check -p --references` reports it, ako/mxcli#1711); an unknown role is CE1613,
+which hides every CE0161 from mx check. Measured: [reference/targeting.md](reference/targeting.md).
 
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
 as in a microflow; the workflow's own note is the header clause
