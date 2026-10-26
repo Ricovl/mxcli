@@ -429,6 +429,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.TabCaption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.TabCaption)))
 		}
+		props = describeTabPageBadge(ctx, props, w)
 		// A tab page's visibility (#1465). Its Forms$TabPage has no Appearance,
 		// so appendAppearanceProps would print nothing else either.
 		if w.VisibleIf != "" {
