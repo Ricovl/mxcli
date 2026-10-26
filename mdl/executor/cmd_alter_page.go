@@ -350,6 +350,9 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 	if err := applySetProperties(ctx, mutator, op, moduleName, moduleID); err != nil {
 		return err
 	}
+	if err := checkDateFormatAfterSet(mutator, op); err != nil {
+		return err
+	}
 	if op.Target.IsColumn() || op.Target.Item != nil {
 		names := make([]string, 0, len(op.Properties))
 		for k := range op.Properties {
@@ -360,6 +363,32 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 			return resetHiddenItemProperties(ctx, mutator, op.Target, names)
 		}
 		return resetHiddenColumnProperties(ctx, mutator, op.Target, names)
+	}
+	return nil
+}
+
+// dateFormatChecker is the page mutator capability behind
+// checkDateFormatAfterSet; engines without it are left as they were.
+type dateFormatChecker interface {
+	CheckDateFormat(widgetRef string) error
+}
+
+// checkDateFormatAfterSet refuses a SET that leaves a picker Custom with no
+// pattern (CE0493). Only a statement that sets DateFormat or CustomDateFormat
+// is checked, so an unrelated edit to a widget already in that state still
+// goes through (ako/mxcli#977).
+func checkDateFormatAfterSet(mutator backend.PageMutator, op *ast.SetPropertyOp) error {
+	checker, ok := mutator.(dateFormatChecker)
+	if !ok || op.Target.IsColumn() || op.Target.Item != nil || op.Target.Widget == "" {
+		return nil
+	}
+	for name := range op.Properties {
+		if strings.EqualFold(name, "DateFormat") || strings.EqualFold(name, "CustomDateFormat") {
+			if err := checker.CheckDateFormat(op.Target.Widget); err != nil {
+				return mdlerrors.NewValidation("set on " + op.Target.Name() + ": " + err.Error())
+			}
+			return nil
+		}
 	}
 	return nil
 }

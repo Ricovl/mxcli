@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -616,6 +617,23 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 			},
 			Translations: map[string]string{pb.textLang(): ph},
 		}
+	}
+
+	// NumberOfLines and Autocomplete; unset keeps Studio Pro's 5 lines and
+	// Autocomplete on (ako/mxcli#977).
+	if raw, ok := lookupPropCI(w, "NumberOfLines"); ok {
+		n, ok := nonNegativeInt32(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidationf("textarea %q: NumberOfLines is a whole number of 0 or more, not %v", w.Name, raw)
+		}
+		ta.NumberOfLines = &n
+	}
+	if raw, ok := lookupPropCI(w, "Autocomplete"); ok {
+		v, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("textarea Autocomplete", err)
+		}
+		ta.Autocomplete = &v
 	}
 
 	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
@@ -1815,6 +1833,33 @@ func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// nonNegativeInt32 reads a whole-number property value of 0 or more that fits
+// the 32-bit integer Mendix stores. A string is parsed at that width, so no
+// value is narrowed after the fact.
+func nonNegativeInt32(v any) (int32, bool) {
+	var s string
+	switch n := v.(type) {
+	case int:
+		s = strconv.Itoa(n)
+	case int64:
+		s = strconv.FormatInt(n, 10)
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		s = strconv.FormatFloat(n, 'f', -1, 64)
+	case string:
+		s = strings.TrimSpace(n)
+	default:
+		return 0, false
+	}
+	i, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || i < 0 {
+		return 0, false
+	}
+	return int32(i), true
 }
 
 // propBool coerces a widget property value to a bool. GetBoolProp cannot be used

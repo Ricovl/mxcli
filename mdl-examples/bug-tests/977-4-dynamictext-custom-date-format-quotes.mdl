@@ -1,0 +1,26 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 4 — "Describe does not escape `'` in a dynamic-text
+-- `customDateFormat`, so a pattern with quoted literal text (`'at'`) does not
+-- round-trip."
+--
+-- A Java date pattern quotes literal text: `h 'at' mm`. Two halves were wrong:
+--   write     the format block's string kept its doubled quotes, so
+--             'h ''at'' mm' was stored as `h ''at'' mm` — in a date pattern a
+--             literal apostrophe, not the quoted word "at";
+--   describe  printed the stored pattern unescaped, `customDateFormat:
+--             'h 'at' mm'`, which ends the string at `h `.
+--
+-- After the fix the pattern is stored as `h 'at' mm`, describe prints it as
+-- below, and describe → exec reports "Unchanged page".
+-- ============================================================================
+
+create module BugCustomDateQuotes;
+
+create persistent entity BugCustomDateQuotes.Shift (Starts: DateTime);
+
+create page BugCustomDateQuotes.Shift_View (Title: 'Shift', Layout: Atlas_Core.Atlas_Default, Params: ($Shift: BugCustomDateQuotes.Shift)) {
+  dataview dvShift (DataSource: $Shift) {
+    dynamictext textStarts (Content: '{1}', ContentParams: ({1} = Starts format (dateFormat: Custom, customDateFormat: 'h ''at'' mm')))
+  }
+};

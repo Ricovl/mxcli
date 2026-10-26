@@ -111,13 +111,13 @@ func TestFormatParamFormatSuffix(t *testing.T) {
 	def := map[string]any{"FormattingInfo": map[string]any{
 		"DecimalPrecision": int64(2), "GroupDigits": false, "DateFormat": "Date", "EnumFormat": "Text", "CustomDateFormat": "",
 	}}
-	if s := formatParamFormatSuffix(def); s != "" {
+	if s := formatParamFormatSuffix(nil, def); s != "" {
 		t.Errorf("default FormattingInfo must yield empty suffix, got %q", s)
 	}
 	non := map[string]any{"FormattingInfo": map[string]any{
 		"DecimalPrecision": int64(4), "GroupDigits": true, "DateFormat": "DateTime", "EnumFormat": "Text", "CustomDateFormat": "",
 	}}
-	s := formatParamFormatSuffix(non)
+	s := formatParamFormatSuffix(nil, non)
 	for _, want := range []string{" format (", "decimalPrecision: 4", "groupDigits: true", "dateFormat: DateTime"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("suffix %q missing %q", s, want)

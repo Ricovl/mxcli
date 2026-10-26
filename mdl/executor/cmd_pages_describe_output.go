@@ -700,6 +700,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
 		props = describeSubmitBehaviour(props, w)
+		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
+		// a text area authored without them describes as it did (ako/mxcli#977).
+		if w.NumberOfLines != nil && *w.NumberOfLines != 5 {
+			props = append(props, fmt.Sprintf("NumberOfLines: %d", *w.NumberOfLines))
+		}
+		if w.Autocomplete != nil && !*w.Autocomplete {
+			props = append(props, "Autocomplete: false")
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -2000,7 +2008,7 @@ func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldNa
 // DecimalPrecision=2, EnumFormat=Text, GroupDigits=false, CustomDateFormat=""),
 // so an unformatted parameter round-trips as before (empty string). Mirrors the
 // writer defaults in formattingInfoFromParamFormat / formattingInfoToGen.
-func formatParamFormatSuffix(pMap map[string]any) string {
+func formatParamFormatSuffix(ctx *ExecContext, pMap map[string]any) string {
 	fi, ok := pMap["FormattingInfo"].(map[string]any)
 	if !ok || fi == nil {
 		return ""
@@ -2016,7 +2024,9 @@ func formatParamFormatSuffix(pMap map[string]any) string {
 		parts = append(parts, "dateFormat: "+df)
 	}
 	if cdf := extractString(fi["CustomDateFormat"]); cdf != "" {
-		parts = append(parts, "customDateFormat: '"+cdf+"'")
+		// Quoted like every other string: a Java date pattern quotes literal
+		// text with apostrophes (ako/mxcli#977).
+		parts = append(parts, "customDateFormat: "+mdlQuote(ctx, cdf))
 	}
 	if ef := extractString(fi["EnumFormat"]); ef != "" && ef != "Text" {
 		parts = append(parts, "enumFormat: "+ef)

@@ -81,7 +81,13 @@ type TextArea struct {
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
 	CounterMessage    *model.Text        `json:"counterMessage,omitempty"`
-	Rows              int                `json:"rows,omitempty"`
+	// NumberOfLines is Forms$TextArea.NumberOfLines; nil writes Studio Pro's
+	// default, 5 (52 of 58 text areas in PedApp and TestApp). Studio Pro also
+	// stores 0, which an int defaulting on zero could not express (ako/mxcli#977).
+	NumberOfLines *int32 `json:"numberOfLines,omitempty"`
+	// Autocomplete is Forms$TextArea.Autocomplete; nil writes true, the
+	// default (ako/mxcli#977).
+	Autocomplete *bool `json:"autocomplete,omitempty"`
 	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
 	// Studio Pro's default, Inherit (ako/mxcli#977).
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
