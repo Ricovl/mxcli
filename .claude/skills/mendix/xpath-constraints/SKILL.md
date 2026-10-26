@@ -13,12 +13,12 @@ description: "XPath constraint syntax for MDL — retrieve WHERE clauses, page d
 | 28-34 | When to Use This Skill |
 | 35-75 | XPath vs Mendix Expressions |
 | 76-119 | Syntax Reference |
-| 120-292 | How a Constraint Is Laid Out on Disk |
-| 293-343 | Usage Contexts |
-| 344-383 | Enumeration Attributes |
-| 384-425 | Common Patterns |
-| 426-437 | Validation |
-| 438-447 | Troubleshooting |
+| 120-297 | How a Constraint Is Laid Out on Disk |
+| 298-348 | Usage Contexts |
+| 349-388 | Enumeration Attributes |
+| 389-430 | Common Patterns |
+| 431-442 | Validation |
+| 443-452 | Troubleshooting |
 
 <!-- /skill-index -->
 # XPath Constraints in MDL
@@ -279,6 +279,11 @@ where [System.owner = '[%CurrentUser%]']
 > `check --references` flags this). Same for `changedBy`/`changedDate`/`createdDate`.
 
 Common tokens: `[%CurrentUser%]`, `[%CurrentDateTime%]`, `[%CurrentObject%]`, `[%UserRole_RoleName%]`, `[%DayLength%]`
+
+> **`[%UserRole_RoleName%]` names a project user role, case-sensitively** (`show user
+> roles`). One that does not exist is CE1613 at the retrieve, data source or access
+> rule — and while any CE1613 is in the app, mx check reports no CE0161 at all.
+> `check --references` refuses it.
 
 ### ID Pseudo-Attribute
 
