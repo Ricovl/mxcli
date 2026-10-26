@@ -1484,6 +1484,12 @@ func buildParamFormatV3(ctx parser.IParamFormatV3Context) *ast.ParamFormatV3 {
 			continue
 		}
 		val := strings.Trim(vc.GetText(), "'\"")
+		// A string value is unescaped like any other literal: a date pattern
+		// quotes literal text (`h ''at'' mm` is `h 'at' mm`), and stripping the
+		// outer quotes alone stored the doubled ones (ako/mxcli#977).
+		if pv, ok := vc.(*parser.PropertyValueV3Context); ok && pv.STRING_LITERAL() != nil {
+			val = unquoteStringLit(pv.STRING_LITERAL())
+		}
 		f.Props = append(f.Props, ast.ParamFormatProp{
 			Key:   strings.ToLower(id.GetText()),
 			Value: val,
