@@ -63,6 +63,12 @@ type MicroflowMutator interface {
 	// relative to the stand-in, but relative to target, and its line runs to
 	// target.
 	AddNotes(target model.ID, frag *MicroflowFragment) error
+	// LinkNote draws a line from note, a note already in the flow, to object,
+	// an object in the flow — one an earlier call added included — unless one
+	// is drawn already. The note keeps its $ID, text and place; the line
+	// attaches at the sides of the two that face each other where they are
+	// drawn now (ako/mxcli#1695).
+	LinkNote(note, object model.ID) error
 	// SetFreeNotes replaces the flow's free notes — notes on the canvas,
 	// attached to nothing — by the ones frag holds (its Annotation objects
 	// that no line in it attaches; its other objects are ignored). Nothing

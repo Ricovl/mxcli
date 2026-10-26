@@ -671,7 +671,7 @@ Geometry is `position: (x, y)` and `size: (w, h)`; omitted, the note goes 100px
 above the activity at 200×50 (60px per extra), and DESCRIBE omits it again.
 **An `@annotation` before a statement's `@position`/`@caption`/`@color`/`@anchor`
 is a free note**, attached to nothing (where DESCRIBE prints one): put an
-activity's own notes after them.
+activity's own notes after them. In an `alter` fragment, attach a note the flow already has by its text, `@annotation(existing: '…')` — never by a describe `id:` ([pitfalls §14](reference/pitfalls.md#14-attaching-an-inserted-statement-to-a-note-the-flow-already-has)).
 
 ### Page Navigation Pattern
 ```mdl

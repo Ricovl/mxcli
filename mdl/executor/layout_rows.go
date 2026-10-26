@@ -134,9 +134,22 @@ func (fb *flowBuilder) shouldWrap(stmt ast.MicroflowStatement, rest []ast.Microf
 }
 
 // startsWithNote reports whether a statement carries a note, which is drawn above it.
+// A stored note it is attached to (`existing:`) is drawn where it is, not above
+// it (ako/mxcli#1695).
 func startsWithNote(stmt ast.MicroflowStatement) bool {
 	ann := getStatementAnnotations(stmt)
-	return ann != nil && (len(ann.Notes) > 0 || len(ann.FreeNotes) > 0)
+	if ann == nil {
+		return false
+	}
+	if len(ann.FreeNotes) > 0 {
+		return true
+	}
+	for _, n := range ann.Notes {
+		if n.Existing == "" {
+			return true
+		}
+	}
+	return false
 }
 
 // wrapRow moves the cursor to the start of a new row, below everything the current
