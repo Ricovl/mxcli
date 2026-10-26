@@ -143,8 +143,22 @@ xpathComparisonExpr
 xpathValueExpr
     : xpathFunctionCall
     | MINUS xpathValueExpr
+    | xpathConstantRef
     | xpathPath
     | LPAREN xpathExpr RPAREN
+    ;
+
+/** A constant, `@Module.Constant`, spelled as an expression spells one: a value,
+ * never a path step, so it takes no predicate and no `/`.
+ *
+ * Before this rule `@` was an xpathWord, a one-word name of its own, so
+ * `[Total > @Shop.C_Limit]` failed at `Shop` — and the lenient re-parse that
+ * describe and the long-constraint layout use recovered to an attribute called
+ * "@" and wrote the constraint back without the constant (ako/mxcli#1685).
+ * Parsing it is what lets `mxcli check` say what is actually wrong: mxbuild
+ * rejects a constant in an XPath constraint (CE0161), see validateXPathConstants. */
+xpathConstantRef
+    : AT xpathQualifiedName
     ;
 
 xpathPath
@@ -176,13 +190,17 @@ xpathQualifiedName
  * HYPHENATED_ID (`starts-with`), so a standalone `-` is never part of a name.
  * While it was admissible here, `[Amount > -7]` parsed the sign as a name word
  * and left the digits stranded — reported as "negative literals truncate to -"
- * (issuetracker finding #18). It is a unary operator; see xpathValueExpr. */
+ * (issuetracker finding #18). It is a unary operator; see xpathValueExpr.
+ *
+ * AT is excluded for the same reason: `@` is never part of a name, it opens a
+ * constant (xpathConstantRef). Admitted here, `[Name = @]` compared with an
+ * attribute called "@" (ako/mxcli#1685). */
 xpathWord
     : ~( DOT | SLASH | LBRACKET | RBRACKET | LPAREN | RPAREN | COMMA
        | EQUALS | NOT_EQUALS | LESS_THAN | LESS_THAN_OR_EQUAL
        | GREATER_THAN | GREATER_THAN_OR_EQUAL
        | AND | OR | NOT
-       | SEMICOLON | MINUS
+       | SEMICOLON | MINUS | AT
        | STRING_LITERAL | NUMBER_LITERAL | VARIABLE | MENDIX_TOKEN | DOLLAR_STRING
        )
     ;

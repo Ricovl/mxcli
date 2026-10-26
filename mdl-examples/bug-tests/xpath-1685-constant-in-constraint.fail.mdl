@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1685 — a constant inside an XPath constraint
+-- ============================================================================
+--
+-- NEGATIVE TEST (.fail.mdl): `mxcli check` MUST reject this file
+-- (MDL-XPATH03). An unexpected pass means the refusal has regressed.
+--
+-- Symptom: `where [Total > @Shop.C_Limit]` was a parse error,
+--   line 4:49 mismatched input 'Shop' expecting ']'
+-- which reads as "MDL cannot spell this". `@` was an XPath name word of its
+-- own, so the lenient re-parse behind describe and the long-constraint layout
+-- turned a stored `[Total > @Shop.C_Limit]` into `Total > @` (and wrote
+-- `[Total > @]` back for a long one), and a data source written
+-- `where Total > @Shop.C_Limit` stored `[Total > ]`.
+--
+-- The constraint now parses, and check gives mxbuild's answer: an XPath
+-- constraint cannot reference a constant. Measured on 11.13.0, each slot below
+-- alone in a fresh app (production security, or access rules are not checked):
+--
+--   [error] [CE0161] "Error(s) in XPath constraint." at Retrieve object(s) activity …
+--   [error] [CE0161] "Error(s) in XPath constraint." at List view 'lvItems'
+--   [error] [CE0161] "Error(s) in XPath constraint." at Access rule of entity 'Bug1685.Item'
+--
+-- An unknown constant is the same CE0161, not CE1613: XPath never resolves
+-- the name. The variable form that builds is
+-- xpath-1685-constant-through-variable.mdl.
+--
+--   mxcli check mdl-examples/bug-tests/xpath-1685-constant-in-constraint.fail.mdl
+-- ============================================================================
+
+create module Bug1685;
+create constant Bug1685.C_Limit (Type: Integer, DefaultValue: 10);
+create persistent entity Bug1685.Item (Total: Integer, Name: String(100));
+create module role Bug1685.User;
+
+create microflow Bug1685.FetchAboveLimit ()
+begin
+  retrieve $Items from Bug1685.Item where [Total > @Bug1685.C_Limit];
+end;
+
+create page Bug1685.Items (Title: 'Items', Layout: Atlas_Core.Atlas_Default) {
+  listview lvItems (DataSource: database from Bug1685.Item where [Total > @Bug1685.C_Limit]) {
+    dynamictext txtName (Content: 'x')
+  }
+};
+
+grant read * on entity Bug1685.Item to Bug1685.User where [Total > @Bug1685.C_Limit];

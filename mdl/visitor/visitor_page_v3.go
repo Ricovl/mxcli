@@ -2006,6 +2006,10 @@ func xpathExprToString(expr ast.Expression) string {
 		return e.Name + "(" + strings.Join(args, ", ") + ")"
 	case *ast.TokenExpr:
 		return "[%" + e.Token + "%]"
+	case *ast.ConstantRefExpr:
+		// Without a case the constant rendered as "": a data source written
+		// `where Total > @Shop.C_Limit` stored `[Total > ]` (ako/mxcli#1685).
+		return "@" + e.QualifiedName.String()
 	case *ast.ParenExpr:
 		return "(" + xpathExprToString(e.Inner) + ")"
 	case *ast.IdentifierExpr:

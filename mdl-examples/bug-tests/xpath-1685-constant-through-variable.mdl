@@ -1,0 +1,24 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1685 — a constant in a retrieve's constraint, the way that builds
+-- ============================================================================
+--
+-- An XPath constraint cannot reference a constant: `[Total > @Bug1685V.C_Limit]`
+-- is refused by `mxcli check` (MDL-XPATH03) because mxbuild rejects it with
+-- CE0161 — see xpath-1685-constant-in-constraint.fail.mdl. Assign the constant
+-- to a variable and compare with the variable.
+--
+--   mxcli exec mdl-examples/bug-tests/xpath-1685-constant-through-variable.mdl -p app.mpr
+--   mx check app.mpr      # 0 errors (measured on 11.13.0 and 11.15.0)
+--   mxcli -p app.mpr -c "describe microflow Bug1685V.FetchAboveLimit"
+-- ============================================================================
+
+create module Bug1685V;
+create constant Bug1685V.C_Limit (Type: Integer, DefaultValue: 10);
+create persistent entity Bug1685V.Item (Total: Integer, Name: String(100));
+
+create microflow Bug1685V.FetchAboveLimit ()
+begin
+  declare $Limit Integer = @Bug1685V.C_Limit;
+  retrieve $Items from Bug1685V.Item where [Total > $Limit];
+end;
