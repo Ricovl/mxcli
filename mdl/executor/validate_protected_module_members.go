@@ -36,6 +36,13 @@ import (
 // end is Hidden, or a commit, delete or aggregate of such an object — none of
 // them names the entity.
 //
+// A member read on the result of `call microflow` is no different: measured on
+// 11.13.0, a declare, an end event and a change on the result of a Usable
+// microflow, and a change on a loop over a returned list, were each refused on
+// a Hidden attribute (ako/mxcli#1701). walkTypedFlow types such a variable from
+// the callee's return type — the script's definition first, else the stored
+// one.
+//
 // A member is reported only when it is established: its variable's entity is
 // known, the member resolves on it (an association hop through
 // associationTargetFrom), and its level is known — a level the script states,
@@ -63,7 +70,7 @@ func (r *protectedRefResolver) checkFlowMembers(name ast.QualifiedName, params [
 		}
 	}
 
-	walkTypedFlow(r.ctx, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+	walkTypedFlow(r.ctx, r.sc, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
 		switch s := st.(type) {
 		case *ast.CreateObjectStmt:
 			who := "create " + s.EntityType.String()

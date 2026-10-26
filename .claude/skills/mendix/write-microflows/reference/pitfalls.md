@@ -793,7 +793,9 @@ end;
   that module is **CE5400**. `check -p --references` reports both
   (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
   association — a change / create member, an association retrieve, an XPath
-  step or a `$v/…` path — and the Hidden entity a database `retrieve`, a
+  step or a `$v/…` path, on a parameter, a retrieved or created object, a loop
+  iterator or a `call microflow` result (ako/mxcli#1701) — and the Hidden
+  entity a database `retrieve`, a
   `create` or a `create list of` names (ako/mxcli#1699), with the `alter`
   statement that makes it usable. Inside the Protected module itself every one
   of these is fine.

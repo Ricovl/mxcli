@@ -43,7 +43,7 @@ import (
 // ("add-on modules cannot reference hidden elements in add-on modules",
 // measured on 11.13.0 for a retrieve, a create and a member read), and which
 // this check does not judge yet.
-func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
+func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program, sc *scriptContext) []error {
 	if prog == nil || !ctx.Connected() || !hasProtectedModuleCandidates(prog) {
 		return nil
 	}
@@ -53,6 +53,7 @@ func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
 	}
 	r := &protectedRefResolver{
 		ctx:          ctx,
+		sc:           sc,
 		protected:    protected,
 		scriptFlows:  map[string]*string{},
 		scriptEntity: map[string]*string{},
@@ -134,6 +135,7 @@ func moduleProtections(ctx *ExecContext) map[string]string {
 
 type protectedRefResolver struct {
 	ctx       *ExecContext
+	sc        *scriptContext // what the script defines, for typing call results
 	protected map[string]bool
 
 	// What the script defines: a flow's stated export level (nil = not stated),
