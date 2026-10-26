@@ -609,6 +609,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if note := widgetIconNote(ctx, w); note != "" {
 			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
 		}
+		if note := outputMappingsNote(w); note != "" {
+			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
+		}
 
 	case "Forms$Text", "Pages$Text":
 		props := []string{}
@@ -2261,4 +2264,19 @@ func appendReadOnlyStyle(props []string, w rawWidget) []string {
 		props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
 	}
 	return props
+}
+
+// outputMappingsNote says a button's flow call has output mappings (Mendix
+// 11.5), which MDL has no syntax for. A rewrite keeps the stored ones while the
+// button calls the same flow (canon.CarryOutputMappings), so the description
+// still re-executes; the note is there so a reader knows they exist
+// (ako/mxcli#977).
+func outputMappingsNote(w rawWidget) string {
+	switch w.OutputMappings {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("-- %s: 1 output mapping, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name)
+	}
+	return fmt.Sprintf("-- %s: %d output mappings, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name, w.OutputMappings)
 }
