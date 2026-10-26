@@ -344,6 +344,20 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 	if err != nil {
 		return nil, "", nil // no such flow: reference validation reports it
 	}
+	refusal := func(err error) []linter.Violation {
+		return []linter.Violation{{
+			RuleID:   alterFlowRefusedRule,
+			Severity: linter.SeverityError,
+			Message:  "exec would refuse this statement and write nothing: " + err.Error(),
+			Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
+		}}
+	}
+	// A stored note named by a text that names none, or several, is a
+	// refusal, not something the script could still declare: resolved before
+	// a fragment is built, by the function exec's plan calls (ako/mxcli#1695).
+	if err := a.resolveStoredNotes(); err != nil {
+		return refusal(err), "", nil
+	}
 	// A fragment that does not build against the stored project is not
 	// predictable (see CheckFlowVerdicts). Only the builder's own errors say
 	// so; a fragment that builds and cannot be spliced is a refusal. Each is
@@ -386,12 +400,7 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 	if errors.As(err, &nf) {
 		return nil, "", nil
 	}
-	return []linter.Violation{{
-		RuleID:   alterFlowRefusedRule,
-		Severity: linter.SeverityError,
-		Message:  "exec would refuse this statement and write nothing: " + err.Error(),
-		Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
-	}}, "", nil
+	return refusal(err), "", nil
 }
 
 // FormatUnpredictedFlows is the note check and exec's preflight print for

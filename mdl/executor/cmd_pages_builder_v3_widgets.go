@@ -551,6 +551,13 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 		}
 	}
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	tbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textbox", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	tb.ReadOnlyStyle = tbStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
 		return nil, err
@@ -611,6 +618,13 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		}
 	}
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	taStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textarea", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	ta.ReadOnlyStyle = taStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &ta.OnChangeAction); err != nil {
 		return nil, err
@@ -660,6 +674,13 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 		return nil, err
 	}
 	dp.FormattingInfo = fi
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	dpStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "datepicker", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	dp.ReadOnlyStyle = dpStyle
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {
@@ -860,10 +881,8 @@ func readOnlyStyleValue(raw, kind, widgetName string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
-	for _, member := range []string{"Inherit", "Control", "Text"} {
-		if strings.EqualFold(raw, member) {
-			return member, nil
-		}
+	if member, ok := pages.CanonicalReadOnlyStyle(raw); ok {
+		return member, nil
 	}
 	return "", mdlerrors.NewValidationf(
 		"%s %q: ReadOnlyStyle %q is not a Mendix read-only style — use Inherit, Control or Text",
@@ -897,6 +916,13 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	rbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "radiobuttons", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	rb.ReadOnlyStyle = rbStyle
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &rb.OnChangeAction); err != nil {

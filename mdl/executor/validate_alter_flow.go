@@ -24,10 +24,16 @@ import (
 // Only the annotation rules: the rest of the microflow rule set reads the whole
 // flow — its parameters, its declares, what a later statement uses — and a
 // fragment is a piece of a stored flow that this pass cannot see.
+//
+// The note labels are checked per fragment, as each fragment's builder keeps
+// them: an `@annotation(id: n1)` no earlier mention in the fragment declares
+// names nothing — the labels describe prints are not stored — and was left to
+// exec to refuse, check passing it as "not predicted" (ako/mxcli#1695).
 func ValidateAlterFlow(s *ast.AlterFlowStmt) []linter.Violation {
-	v := &microflowValidator{mfName: s.Name.String(), docType: s.Kind()}
+	v := &microflowValidator{mfName: s.Name.String(), docType: s.Kind(), fragment: true}
 	for _, op := range s.Operations {
 		v.walkAnnotations(op.Body)
+		v.checkAnnotationLabels(op.Body)
 	}
 	return v.violations
 }

@@ -741,6 +741,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		// is the same split mxcli already ships for an ordinary loop-body note,
 		// whose flow is hoisted to the parent a few lines below. (#1077)
 		annotationsByLabel: fb.annotationsByLabel,
+		storedNotes:        fb.storedNotes,
 	}
 
 	// Process loop body statements and connect them with flows.
@@ -1120,6 +1121,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		// is the same split mxcli already ships for an ordinary loop-body note,
 		// whose flow is hoisted to the parent a few lines below. (#1077)
 		annotationsByLabel: fb.annotationsByLabel,
+		storedNotes:        fb.storedNotes,
 	}
 
 	// Body bookkeeping is addLoopStatement's, verbatim: a WHILE body is a loop

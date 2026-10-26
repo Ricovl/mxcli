@@ -144,8 +144,16 @@ func (fb *flowBuilder) applyAnnotations(activityID model.ID, ann *ast.ActivityAn
 
 	// @annotation — attach the notes. All of them: an activity can carry more
 	// than one, and keeping only the last silently deleted the others (#1077).
-	for i, note := range ann.Notes {
+	//
+	// A stored note (`existing:`) takes no place in the stack: it is drawn
+	// where it is, and its line is drawn after the fragment's own, so describe
+	// counts it after them too (ako/mxcli#1695).
+	i := 0
+	for _, note := range ann.Notes {
 		fb.attachAnnotation(note, activityID, i)
+		if note.Existing == "" {
+			i++
+		}
 	}
 }
 
@@ -325,6 +333,10 @@ func objectHeight(obj microflows.MicroflowObject) int {
 // index is the note's ordinal among those attached to this activity, used only
 // to place unpositioned notes so they stack instead of overlapping.
 func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID model.ID, index int) {
+	if note.Existing != "" {
+		fb.attachStoredNote(note, activityID)
+		return
+	}
 	if note.Label != "" {
 		if existing, ok := fb.annotationsByLabel[note.Label]; ok {
 			if note.Text != "" && note.Text != existing.Caption {
@@ -338,8 +350,8 @@ func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID
 		}
 		if note.Text == "" {
 			fb.addError("@annotation(id: %s) refers to an annotation that has not been declared — "+
-				"the first mention must carry the text, as @annotation(id: %s, text: '…')",
-				note.Label, note.Label)
+				"the first mention must carry the text, as @annotation(id: %s, text: '…')%s",
+				note.Label, note.Label, fb.storedNoteHint())
 			return
 		}
 	}
@@ -381,6 +393,12 @@ func (fb *flowBuilder) recordStatedNote(note ast.MicroflowAnnotation, id model.I
 // activity. A label on one is accepted and reused, so a note can be shared
 // between the canvas and an activity.
 func (fb *flowBuilder) attachFreeAnnotation(note ast.MicroflowAnnotation) {
+	if note.Existing != "" {
+		// A stored note is on the canvas already; the mention can only mean
+		// attaching it, and there is nothing here to attach it to.
+		fb.addError("%s", existingNoteUnattached(note.Existing))
+		return
+	}
 	if note.Label != "" {
 		if _, ok := fb.annotationsByLabel[note.Label]; ok {
 			// Already created; a free mention adds no flow, so there is
@@ -471,20 +489,13 @@ func collectCanvasBoxes(objects []microflows.MicroflowObject, origin model.Point
 }
 
 // facingSides returns the sides at which a line from note to target attaches.
-// Vertical separation wins over horizontal; boxes that overlap fall back to the
-// note-above drawing the writer has always used.
+// The formula is microflows.FacingSides, which the splice also uses for a line
+// it draws from a stored note (ako/mxcli#1695): two copies would drift.
 func facingSides(note, target canvasBox) *microflows.ConnectionSides {
-	switch {
-	case note.bottom < target.top:
-		return &microflows.ConnectionSides{Origin: AnchorBottom, Destination: AnchorTop}
-	case note.top > target.bottom:
-		return &microflows.ConnectionSides{Origin: AnchorTop, Destination: AnchorBottom}
-	case note.right < target.left:
-		return &microflows.ConnectionSides{Origin: AnchorRight, Destination: AnchorLeft}
-	case note.left > target.right:
-		return &microflows.ConnectionSides{Origin: AnchorLeft, Destination: AnchorRight}
-	}
-	return &microflows.ConnectionSides{Origin: AnchorBottom, Destination: AnchorTop}
+	s := microflows.FacingSides(
+		microflows.CanvasBox{Left: note.left, Top: note.top, Right: note.right, Bottom: note.bottom},
+		microflows.CanvasBox{Left: target.left, Top: target.top, Right: target.right, Bottom: target.bottom})
+	return &s
 }
 
 func (fb *flowBuilder) linkAnnotation(annotationID, activityID model.ID) {

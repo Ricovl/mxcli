@@ -220,6 +220,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			// Forms$TabPage carries its own visibility (#1465); it has no
 			// editability, so only the visibility half is read.
 			extractConditionalSettings(ctx, &tabPage, tpMap)
+			readTabPageBadge(ctx, tpMap, &tabPage)
 			for _, tw := range getBsonArrayElements(tpMap["Widgets"]) {
 				if twMap, ok := tw.(map[string]any); ok {
 					tabPage.Children = append(tabPage.Children, parseRawWidget(ctx, twMap, inheritedCtx)...)
@@ -409,6 +410,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
@@ -423,6 +425,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// textarea's placeholder with all its translations (ako/mxcli#705).
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
@@ -439,6 +442,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Caption = extractLabelText(ctx, w)
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		widget.Formatting = describeInputFormatting(ctx, "datepicker", w)
 		return []rawWidget{widget}
@@ -448,6 +452,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Caption = extractLabelText(ctx, w)
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
 		return []rawWidget{widget}
 

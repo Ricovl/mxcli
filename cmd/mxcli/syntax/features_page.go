@@ -128,7 +128,7 @@ LIST IMPACT OF htmlelement;
 			"statictext", "staticimage", "dynamicimage", "dropdown", "referenceselector",
 			"legacydatagrid", "visible", "editable", "conditional visibility",
 		},
-		Syntax: "-- Containers\nLAYOUTGRID name { ROW { COLUMN (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\n\n" +
+		Syntax: "-- Containers\nLAYOUTGRID name { ROW { COLUMN (DesktopWidth: 6) { ... } } }\nCONTAINER name (Class: 'cls') { ... }\nCONTAINER name (OnClick: CALL MICROFLOW Module.MF) { ... }   -- clickable container\nCUSTOMCONTAINER name (Class: 'cls') { ... }\nGROUPBOX name (Caption: 'C') { ... }\nTABCONTAINER name { TABPAGE tp (Caption: 'One') { ... } TABPAGE tp2 (Caption: 'Two') { ... } }\nTABPAGE tp (Caption: 'Open', Badge: '{1}', BadgeParams: ({1} = OpenCount)) { ... }   -- tab badge (a text template)\n\n" +
 			"-- Data widgets\nDATAVIEW name (DataSource: $Param) { ... FOOTER { ... } }\nDATAGRID name (DataSource: DATABASE Module.Entity) { COLUMN (Attribute: A) }\nGALLERY name (DataSource: DATABASE Module.Entity, DesktopColumns: 3) { ... }\nLISTVIEW name (DataSource: DATABASE Module.Entity) { ... }\nLISTVIEW name (...) { ... TEMPLATE FOR Module.Specialization { ... } }\n\n" +
 			"-- Data grid 2 column filters go INSIDE the column's own braces\nDATAGRID dg (...) { COLUMN (Attribute: A) { TEXTFILTER tf (Attribute: A) } }\nTEXTFILTER | NUMBERFILTER | DATEFILTER | DROPDOWNFILTER | DROPDOWNSORT\n" +
 			"--   Match the filter to the column's type, or MxBuild refuses it: String ->\n" +
@@ -150,6 +150,9 @@ LIST IMPACT OF htmlelement;
 			"--   container the grid declares — it used to be dropped on write with no\n" +
 			"--   diagnostic, and is now refused (MDL-WIDGET30).\n\n" +
 			"-- Inputs\nTEXTBOX name (Label: 'L', Attribute: Attr)\nTEXTAREA | DATEPICKER | COMBOBOX | CHECKBOX | RADIOBUTTONS\n" +
+			"-- Read-only style of TEXTBOX, TEXTAREA, DATEPICKER, CHECKBOX, RADIOBUTTONS (and DATAVIEW):\n" +
+			"--   Inherit (default) | Control | Text — how the widget renders when it is read-only.\n" +
+			"TEXTBOX name (Attribute: Name, Editable: Never, ReadOnlyStyle: Text)\n" +
 			"-- A date picker's DateFormat is its mode: Date (default) | Time | DateTime | Custom.\n" +
 			"DATEPICKER name (Attribute: Start, DateFormat: DateTime)\n" +
 			"-- File upload/download: inside a data view on a System.FileDocument specialization (CE6810 otherwise).\n" +

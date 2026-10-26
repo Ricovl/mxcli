@@ -72,7 +72,7 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   patched in place (a move keeps the node's flows), as are plain activities added, removed, reordered or changed in a loop body ([an insert needing room past a stated `@position`](reference/pitfalls.md#13-inserting-where-the-script-states-every-position)). A redrawn
   `@anchor`/`@curve`, a decision/loop/`return` added or changed inside a loop body, error handler or other `return` added/taken away rebuilds under
   mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves lost) and is refused under `mdl 1;`. **To put a
-  decision or loop in a loop body, `alter … replace body of loop $X in $Xs with begin … end;`** — the loop keeps its `$ID` ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)); a decision `alter … insert` put in is taken out by a re-run, `drop` or `replace` ([pitfalls](reference/pitfalls.md#14-taking-out-a-decision-another-script-put-in)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
+  decision or loop in a loop body, `alter … replace body of loop $X in $Xs with begin … end;`** — the loop keeps its `$ID` ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)); a decision `alter … insert` put in is taken out by a re-run, `drop` or `replace` ([pitfalls](reference/pitfalls.md#15-taking-out-a-decision-another-script-put-in)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -671,7 +671,7 @@ Geometry is `position: (x, y)` and `size: (w, h)`; omitted, the note goes 100px
 above the activity at 200×50 (60px per extra), and DESCRIBE omits it again.
 **An `@annotation` before a statement's `@position`/`@caption`/`@color`/`@anchor`
 is a free note**, attached to nothing (where DESCRIBE prints one): put an
-activity's own notes after them.
+activity's own notes after them. In an `alter` fragment, attach a note the flow already has by its text, `@annotation(existing: '…')` — never by a describe `id:` ([pitfalls §14](reference/pitfalls.md#14-attaching-an-inserted-statement-to-a-note-the-flow-already-has)).
 
 ### Page Navigation Pattern
 ```mdl

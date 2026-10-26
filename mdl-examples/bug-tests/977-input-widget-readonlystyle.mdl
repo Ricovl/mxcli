@@ -1,0 +1,49 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 1 — `ReadOnlyStyle` was a silent drop on text box, text
+-- area, date picker and radio buttons. Reported from the JTSBootLogboek round
+-- trip on v0.28.0: "`Dashboard_Fullscreen_web` `radioButtons1` stores
+-- `Forms$RadioButtonGroup.ReadOnlyStyle: Text`; `describe` prints
+-- `radiobuttons radioButtons1 (Attribute: IsAanwezig)`, and `exec` stores
+-- `Inherit`."
+--
+-- The writer hard-coded Inherit on all four and describe never read the key;
+-- only the check box (#490) and the data view (#550) carried it. `alter page …
+-- set (ReadOnlyStyle: …)` was refused on every built-in widget.
+--
+-- Inherit is Studio Pro's default: 236 of 237 text boxes, 57 of 58 text areas,
+-- 51 of 59 date pickers and 4 of 4 radio button groups in PedApp and TestApp.
+-- The others store Text, as Studio Pro wrote them.
+--
+-- Measured on 11.13.0: this script, then describe → exec of the page —
+--   before the fix: describe prints no ReadOnlyStyle; exec → Inherit on all four
+--   after:          describe prints it; exec → "Unchanged page"; mx check 0 errors
+-- ============================================================================
+
+create module BugReadOnlyStyle;
+
+create persistent entity BugReadOnlyStyle.Crew (
+  Name: String(100),
+  Notes: String(unlimited),
+  Joined: DateTime,
+  Present: Boolean
+);
+
+create microflow BugReadOnlyStyle.DS_Crew () returns BugReadOnlyStyle.Crew as $Crew
+begin
+  $Crew = create BugReadOnlyStyle.Crew (Name = 'Ann');
+  return $Crew;
+end;
+
+create page BugReadOnlyStyle.Crew_Overview (Title: 'Crew', Layout: Atlas_Core.Atlas_Default) {
+  dataview dvCrew (DataSource: microflow BugReadOnlyStyle.DS_Crew, Editable: Never) {
+    textbox textBox1 (Label: 'Name', Attribute: Name, ReadOnlyStyle: Text)
+    textarea textArea1 (Label: 'Notes', Attribute: Notes, ReadOnlyStyle: Text)
+    datepicker datePicker1 (Label: 'Joined', Attribute: Joined, ReadOnlyStyle: Control)
+    radiobuttons radioButtons1 (Label: 'Present', Attribute: Present, ReadOnlyStyle: Text)
+  }
+};
+
+alter page BugReadOnlyStyle.Crew_Overview {
+  set (ReadOnlyStyle: Text) on datePicker1
+};

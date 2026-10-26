@@ -2448,6 +2448,30 @@ begin
   return;
 end;
 
+/**
+ * M081b: A note already in the flow, joined to a statement an ALTER inserts.
+ *
+ * An alter fragment is built on its own and cannot see the `id:` labels
+ * describe prints (they are not stored), so it names a stored note by its
+ * text with `existing:`. The text must match exactly one note of the flow; the
+ * note keeps its $ID, text and place, and is joined to the new activity too
+ * (ako/mxcli#1695). `existing:` stands alone and only an alter fragment takes it.
+ */
+create microflow MfTest.M081b_AnnotationStoredNote ()
+begin
+  @annotation 'Validates the order'
+  log info node 'App' 'validating';
+  log info node 'App' 'done';
+  return;
+end;
+
+alter microflow MfTest.M081b_AnnotationStoredNote {
+  insert after log node 'App' 'validating' begin
+    @annotation(existing: 'Validates the order')
+    log info node 'App' 'validated';
+  end;
+};
+
 create microflow MfTest.M082_ShowMessage_2 ()
 begin
   show message 'Hello {1}' type Information with ({1} = 'World');
@@ -2690,6 +2714,7 @@ end;
 --    - Multiple annotations can be stacked before a single activity
 --    - Free-floating annotations (not followed by an activity)
 --    - Single quotes escaped by doubling: 'Don''t forget'
+--    - @annotation(existing: 'text') in an ALTER fragment joins a note the flow already has
 -- ✅ MOVE - Organize elements into folders and across modules:
 --    - MOVE MICROFLOW Module.Name TO FOLDER 'path' - move to folder
 --    - MOVE MICROFLOW Module.Name TO FOLDER 'a/b/c' - nested folders (auto-created)
