@@ -636,7 +636,7 @@ func init() {
 			"-- declared on the path. Over --mcp only insert is supported, and not inside a loop body.\n" +
 			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
 			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.",
-		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+		Example: "mdl 1;\nalter microflow FeedbackModule.VAL_Feedback {\n" +
 			"  insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;\n" +
 			"  replace set $ValidFeedback = false @3 with begin\n" +
 			"    set $ValidFeedback = false;\n" +

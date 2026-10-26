@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-```sql
+```text
 mdl 1;
 ALTER MICROFLOW module.Name {
   INSERT AFTER | BEFORE <target> BEGIN <statements> END;
