@@ -3474,6 +3474,29 @@ func setLegacyImageRefMut(widget bson.D, propName string, value any) (bool, erro
 	return true, nil
 }
 
+// CheckDateFormat refuses a widget a SET left with DateFormat Custom and no
+// pattern — mxbuild CE0493, "Date format is custom but no format string is
+// specified". It is judged on the statement's result, not per property:
+// properties are applied one at a time, so clearing the pattern of a picker
+// already Custom went through, while clearing it and switching to Date in the
+// same statement is valid (ako/mxcli#977).
+func (m *Mutator) CheckDateFormat(widgetRef string) error {
+	result := m.widgetFinder(m.rawData, widgetRef)
+	if result == nil || len(result.colPropKeys) > 0 {
+		return nil
+	}
+	fi := bsonnav.DGetDoc(result.widget, "FormattingInfo")
+	if fi == nil {
+		return nil
+	}
+	if bsonnav.DGetString(fi, "DateFormat") == "Custom" && strings.TrimSpace(bsonnav.DGetString(fi, "CustomDateFormat")) == "" {
+		return fmt.Errorf("the %s would be left with `DateFormat: Custom` and no pattern (mxbuild CE0493): "+
+			"set a CustomDateFormat such as 'dd-MM-yyyy HH:mm', or another DateFormat in the same statement",
+			widgetTypeLabel(bsonnav.DGetString(result.widget, "$Type")))
+	}
+	return nil
+}
+
 // setWidgetFormattingMut sets one field of an input widget's
 // Forms$FormattingInfo — a date picker's DateFormat / CustomDateFormat, a text
 // box's DecimalPrecision / GroupDigits (ako/mxcli#968). Which widget carries
