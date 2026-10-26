@@ -88,7 +88,11 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 	switch {
 	case dsType == dsTypeMicroflow:
 		if mf := microflowSourceRef(ds); mf != "" {
-			return &rawDataSource{Type: "microflow", Reference: mf, Args: flowSourceArgs(ds, "MicroflowSettings", mf)}
+			raw := &rawDataSource{Type: "microflow", Reference: mf, Args: flowSourceArgs(ds, "MicroflowSettings", mf)}
+			if settings, ok := ds["MicroflowSettings"].(map[string]any); ok {
+				raw.FormValidations = extractString(settings["FormValidations"])
+			}
+			return raw
 		}
 	case dsType == dsTypeNanoflow:
 		if nf := nanoflowSourceRef(ds); nf != "" {
@@ -502,6 +506,9 @@ func dataSourceExpr(ctx *ExecContext, ds *rawDataSource) string {
 				parts = append(parts, visitor.ParameterNameSpelling(arg.Name)+" = "+arg.Value)
 			}
 			expr += "(" + strings.Join(parts, ", ") + ")"
+		}
+		if ds.FormValidations != "" && ds.FormValidations != "All" {
+			expr += " with (FormValidations: " + ds.FormValidations + ")"
 		}
 		return expr
 	case "parameter":

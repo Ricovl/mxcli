@@ -404,6 +404,7 @@ column (caption: 'Actions') {
 | `datasource: $Variable` | Variable bound (requires DATAVIEW parent with entity) |
 | `datasource: microflow Module.GetData` | Microflow datasource with **no parameters** — the name alone |
 | `datasource: microflow Module.GetData(Param = $Param)` | Microflow datasource **with** parameters — one **named** argument per parameter, required. Mendix does not auto-map an object in scope, so leaving it out is **CE1571**. The positional form `GetData($Param)` is refused: write `Param = …` naming the parameter |
+| `datasource: microflow Module.GetData with (FormValidations: None)` | The source call's FormValidations (`All` default, `Widget`, `None`) — the only setting a data source takes; the others are an action's and are refused |
 | `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — same rule: the name alone only when it takes no parameters |
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |

@@ -111,7 +111,7 @@ The `DataSource` property determines how a data widget obtains its data:
 | Parameter | `DataSource: $ParamName` | Binds to a page parameter or enclosing data view |
 | Database | `DataSource: DATABASE Module.Entity` | Retrieves from database |
 | Selection | `DataSource: SELECTION widgetName` | Listens to selection on another widget |
-| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data |
+| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data. Takes `with (FormValidations: All\|Widget\|None)` like a microflow action (default `All`); no other setting |
 
 ### Action Types
 

@@ -299,6 +299,11 @@ type DataSourceV3 struct {
 	// (`$Ctx/Mod.Assoc`), which is an in-memory retrieve with no XPath, sort or
 	// search (ako/mxcli#721 L5).
 	AssociationPath string
+	// FormValidations is a microflow source's `with (FormValidations: …)`: All,
+	// Widget or None, "" when not written (All). A data source stores its call
+	// settings in a Forms$MicroflowSettings as an action does, and this is the
+	// one that differs in Studio Pro-authored pages (ako/mxcli#1729).
+	FormValidations string
 }
 
 // FlowArgV3 represents an argument for microflow/nanoflow/page calls.

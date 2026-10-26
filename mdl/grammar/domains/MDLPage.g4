@@ -671,7 +671,7 @@ dataSourceExprV3
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?
-    | MICROFLOW qualifiedName microflowArgsV3?        // MICROFLOW Module.Flow
+    | MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3? // MICROFLOW Module.Flow [with (FormValidations: None)]
     | NANOFLOW qualifiedName microflowArgsV3?         // NANOFLOW Module.Flow
     | ASSOCIATION associationPathV3                   // ASSOCIATION Module.Assoc (explicit form)
     | ASSOCIATION VARIABLE SLASH associationPathV3    // ASSOCIATION $currentObject/Module.Assoc (keyword + sugar)
