@@ -93,7 +93,7 @@ func (b *Backend) UpdateJavaAction(ja *javaactions.JavaAction) error {
 // javasource/<module>/actions/<Action>.java, using the shared generator so the
 // output is byte-identical to what mxbuild generates — the action's
 // documentation as the class javadoc included (ako/mxcli#1700).
-func (b *Backend) WriteJavaSourceFile(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode string, documentation string) error {
+func (b *Backend) WriteJavaSourceFile(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode *string, documentation string) error {
 	if b.path == "" {
 		return fmt.Errorf("WriteJavaSourceFile: no project path")
 	}
@@ -103,12 +103,13 @@ func (b *Backend) WriteJavaSourceFile(moduleName, actionName string, javaCode st
 	}
 	path := filepath.Join(javaDir, actionName+".java")
 	// Regenerate the way Studio Pro does: the existing file's import list and
-	// EXTRA CODE section are retained, since MDL cannot express either. Keeping
-	// only the user code turned an action that calls a helper in its extra code
-	// into Java that does not compile (ako/mxcli#705).
+	// EXTRA CODE section are retained — the section unless the statement states
+	// it (extraCode non-nil, ako/mxcli#1702). Keeping only the user code turned
+	// an action that calls a helper in its extra code into Java that does not
+	// compile (ako/mxcli#705).
 	existing, _ := os.ReadFile(path)
-	extraImports, extraCode = javaactions.RetainSections(string(existing), extraImports, extraCode)
-	source := javaactions.GenerateSource(moduleName, actionName, javaCode, params, returnType, extraImports, extraCode, documentation)
+	extraImports, extra := javaactions.RetainSections(string(existing), extraImports, extraCode)
+	source := javaactions.GenerateSource(moduleName, actionName, javaCode, params, returnType, extraImports, extra, documentation)
 	changed, err := javaactions.WriteSourceIfChanged(path, source)
 	b.noteFileWrite(changed)
 	if err != nil {

@@ -63,7 +63,7 @@ func TestGenerateSource_ClassJavadocMatchesMxbuild(t *testing.T) {
 			if userCode == "" {
 				existing, userCode = "", stub
 			}
-			imports, extra := RetainSections(existing, nil, "")
+			imports, extra := RetainSections(existing, nil, nil)
 			got := GenerateSource("MyFirstModule", c.name, userCode, c.params, &StringType{}, imports, extra, c.doc)
 			if c.userCode == "" {
 				// mxcli pads the user code with a blank line on each side.
@@ -82,7 +82,7 @@ func TestGenerateSource_ClassJavadocMatchesMxbuild(t *testing.T) {
 // is the model's, not one of the sections a regeneration retains.
 func TestGenerateSource_ClassJavadocIsRegeneratedNotRetained(t *testing.T) {
 	golden := readGolden(t, "JA_Doc2")
-	imports, extra := RetainSections(golden, nil, "")
+	imports, extra := RetainSections(golden, nil, nil)
 	got := GenerateSource("MyFirstModule", "JA_Doc2", "return null;", nil, &StringType{}, imports, extra, "Other.")
 	if n := strings.Count(got, "/**\r\n * "); n != 1 || !strings.Contains(got, "/**\r\n * Other.\r\n */\r\npublic class JA_Doc2") {
 		t.Errorf("want one block holding the new documentation (%d found):\n%s", n, got)

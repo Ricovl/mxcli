@@ -45,7 +45,7 @@ func writtenJavaDoc(t *testing.T, s *ast.CreateJavaActionStmt, stored *javaactio
 		CreateJavaActionFunc:     func(*javaactions.JavaAction) error { return nil },
 		UpdateJavaActionFunc:     func(*javaactions.JavaAction) error { return nil },
 		WriteJavaSourceFileFunc: func(_, _, _ string, _ []*javaactions.JavaActionParameter,
-			_ javaactions.CodeActionReturnType, _ []string, _ string, documentation string) error {
+			_ javaactions.CodeActionReturnType, _ []string, _ *string, documentation string) error {
 			written, called = documentation, true
 			return nil
 		},

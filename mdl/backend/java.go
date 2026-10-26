@@ -21,8 +21,9 @@ type JavaBackend interface {
 	UpdateJavaAction(ja *javaactions.JavaAction) error
 	DeleteJavaAction(id model.ID) error
 	// WriteJavaSourceFile writes javasource/<module>/actions/<Action>.java as
-	// mxbuild generates it, documentation as the class javadoc.
-	WriteJavaSourceFile(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode string, documentation string) error
+	// mxbuild generates it, documentation as the class javadoc. extraCode nil
+	// keeps the file's EXTRA CODE section; anything else replaces it.
+	WriteJavaSourceFile(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode *string, documentation string) error
 	DeleteJavaSourceFile(moduleName, actionName string) error
 	RenameJavaSourceFile(moduleName, oldName, newName string) error
 	ReadJavaSourceFile(moduleName, actionName string) (string, error)

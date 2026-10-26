@@ -7,6 +7,7 @@ CREATE [ OR MODIFY ] JAVA ACTION module.Name [ < T [, ...] > ] [ FOLDER 'folder_
     RETURNS type [ AS $return_name ]
     [ EXPOSED AS 'caption' IN 'category' ]
     AS $$ java_code $$
+    [ EXTRA CODE $$ helper_code $$ ]
 
 DROP JAVA ACTION module.Name;
 ```
@@ -49,6 +50,16 @@ documentation -- the `/** ... */` before `CREATE` -- is the class javadoc above
 and in the file. (Before ako/mxcli#1700 the file had no javadoc, so every rewrite
 removed the one a build had written and the next build put it back.)
 
+Studio Pro keeps three parts of the file when it regenerates it, and the statement
+states all three: the code between `BEGIN USER CODE` and `END USER CODE` is the
+`AS $$ ... $$` body; an `import` line in the body goes to the file's import list;
+and `EXTRA CODE $$ ... $$` is the section between `BEGIN EXTRA CODE` and
+`END EXTRA CODE` -- helper methods, constants and nested classes the body calls.
+On `CREATE OR MODIFY` an omitted `EXTRA CODE` keeps the stored section, as an
+omitted `EXPOSED AS` keeps the toolbox entry; `EXTRA CODE $$ $$` clears it.
+`DESCRIBE JAVA ACTION` prints the imports a developer added and the section, so
+executing its output on another project rebuilds the same file (ako/mxcli#1702).
+
 ### Exposed Actions
 
 The optional `EXPOSED AS` clause makes the action visible in the Studio Pro toolbox under the specified category, allowing modelers to use it directly in microflows.
@@ -85,7 +96,10 @@ The optional `EXPOSED AS` clause makes the action visible in the Studio Pro tool
 :   Optional. Makes the action visible in the toolbox with the given caption and category.
 
 `AS $$ java_code $$`
-:   The Java code body, enclosed in `$$` delimiters. **Mandatory** — the body cannot be omitted.
+:   The Java code body, enclosed in `$$` delimiters. **Mandatory** — the body cannot be omitted. An `import` line in it goes to the file's import list.
+
+`EXTRA CODE $$ helper_code $$`
+:   Optional. The file's EXTRA CODE section, beside `executeAction()`. Omitted, the stored section is kept; empty, it is cleared.
 
 `OR MODIFY`
 :   Makes the statement idempotent. If the Java action already exists, updates its parameters, return type, exposed-as settings, and body. Without this clause, creating a duplicate Java action is an error.
@@ -116,6 +130,24 @@ CREATE JAVA ACTION MyModule.JA_ToUpper (
 ) RETURNS String AS $UpperText
 AS $$
     return Input.toUpperCase();
+$$;
+```
+
+Java action with a helper in the EXTRA CODE section, and the import it needs:
+
+```sql
+CREATE JAVA ACTION MyModule.JA_Twice (
+    N: Integer NOT NULL
+) RETURNS Integer
+AS $$
+    import java.util.Objects;
+
+    return twice(Objects.requireNonNull(N));
+$$
+EXTRA CODE $$
+private static long twice(long n) {
+	return n * 2L;
+}
 $$;
 ```
 

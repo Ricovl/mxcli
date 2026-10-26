@@ -108,7 +108,7 @@ func TestGenerateSource_RegeneratesWhatMxbuildWrote(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			golden := readGolden(t, c.name)
-			imports, extra := RetainSections(golden, nil, "")
+			imports, extra := RetainSections(golden, nil, nil)
 			got := GenerateSource("MyFirstModule", c.name, c.userCode, c.params, c.ret, imports, extra, "")
 			if got != golden {
 				t.Errorf("generated source differs from mxbuild's:\n%s", lineDiff(golden, got))
@@ -128,7 +128,7 @@ func TestGenerateSource_NewFileMatchesMxbuild(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			golden := readGolden(t, c.name)
-			imports, extra := RetainSections("", nil, "")
+			imports, extra := RetainSections("", nil, nil)
 			got := GenerateSource("MyFirstModule", c.name, stub, c.params, c.ret, imports, extra, "")
 			// mxcli pads the user code with a blank line on each side.
 			got = strings.Replace(got, "// BEGIN USER CODE\r\n\r\n", "// BEGIN USER CODE\r\n", 1)
