@@ -40,7 +40,9 @@ type Workflow struct {
 
 	DueDate string `json:"dueDate,omitempty"` // Due date expression
 
-	// Annotation
+	// Annotation is the workflow's own note. Studio Pro 11.15 shows it nowhere:
+	// the note on the start is the start activity's (StartNote). mxcli wrote
+	// the header `annotation '…'` here before ako/mxcli#1717.
 	Annotation string `json:"annotation,omitempty"` // Annotation description text
 
 	// Context parameter
@@ -121,6 +123,23 @@ func (a *BaseWorkflowActivity) SetName(name string) {
 }
 
 // GetCaption returns the activity's caption.
+// StartNote is the note on the workflow's start, which describe prints as the
+// header's `annotation '…'`: the start activity's, as Studio Pro stores and
+// shows it — the workflow editor draws the start's note from
+// StartWorkflowActivity.Annotation and the workflow's own Annotation nowhere
+// (11.15.0, ako/mxcli#1717) — or else the workflow's own, where mxcli wrote it
+// before.
+func (w *Workflow) StartNote() string {
+	if w.Flow != nil {
+		for _, a := range w.Flow.Activities {
+			if s, ok := a.(*StartWorkflowActivity); ok && s.Annotation != "" {
+				return s.Annotation
+			}
+		}
+	}
+	return w.Annotation
+}
+
 // SetAnnotation sets the note attached to the activity.
 func (a *BaseWorkflowActivity) SetAnnotation(s string) {
 	a.Annotation = s

@@ -855,8 +855,9 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity);` | Any subset of the keys |
+| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity, Annotation: 'note');` | Any subset of the keys. `Annotation` is the header's `annotation '…'`, the note on the start; `''` removes it |
 | Set activity properties | `set (Page: Module.Page, Description: 'text', DueDate: <expr>) on activity;` | User task page, description, due date |
+| Set an activity's note | `set (Annotation: 'note') on activity;` | The `@annotation '…'` before it; `''` removes it. On the start it is the header's note; an end takes none (Studio Pro shows no note there) |
 | Set activity targeting | `set (Targeting: microflow Module.MF) on activity;` / `set (Targeting: xpath [<xpath>]) on activity;` | XPath in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
 | Insert activities | `insert after activity { … }` / `insert before activity { … }` | One or more activities, as in `create workflow` |
 | Replace activity | `replace activity with { … }` | Replace in place |

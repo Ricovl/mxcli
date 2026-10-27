@@ -1,0 +1,80 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1717 — "`alter workflow … set (Annotation: '…')` is refused for the
+-- workflow and for an activity"
+-- ============================================================================
+--
+-- CREATE writes two notes: the header's `annotation '…'` (the note on the
+-- workflow's start) and `@annotation '…'` before an activity. ALTER now sets
+-- both as `Annotation`: without `on` (or `on Start`) the start's, with `on X`
+-- activity X's. `Annotation: ''` removes the note. Before, both were refused —
+-- "a workflow has no property Annotation" — and the error did not name the
+-- CREATE spellings, so an agent concluded workflow notes were unsupported.
+--
+-- The start's note is the START ACTIVITY's: Studio Pro 11.15's workflow editor
+-- (ide-client/workflow-editor, shipped with mxbuild) draws note badges on
+-- activities, boundary events, event sub-processes and the start — from
+-- StartWorkflowActivity.Annotation — and the workflow's own Annotation nowhere.
+-- The header clause wrote the workflow's own (since ako/mxcli#707), so it now
+-- writes the start's, describe reads the start's (the workflow's own still
+-- reads for workflows written before), and a Studio Pro note on the start is no
+-- longer dropped by describe -> replay.
+--
+-- Written without the braces, `alter workflow M.W set (Annotation: '…');` was
+-- diagnosed as "`set (annotation` is a session command"; it is now a syntax
+-- error that shows the braced statement.
+--
+-- Measured on 11.15.0: CREATE stores the header note on the start activity and
+-- null on the workflow; after the ALTER below the project checks clean and
+-- describe -> replay reports "Unchanged workflow". A workflow written by the
+-- previous build (note on the workflow) describes the same, and its replay
+-- moves the note to the start once ("Modified", then "Unchanged"). `on End` is
+-- refused: Studio Pro draws no note on an end.
+--
+-- EXPECTED: `mxcli check` passes this file.
+-- Guard: mdl/visitor/visitor_alter_workflow_annotation_test.go,
+--        mdl/visitor/alter_workflow_braces_hint_test.go,
+--        mdl/backend/wfmutator/annotation_test.go,
+--        mdl/backend/modelsdk/workflow_start_note_test.go,
+--        mdl/executor/workflow_start_note_test.go.
+-- ============================================================================
+
+create module BugAnnotation1717;
+
+create persistent entity BugAnnotation1717.Request (
+  Title: String(200)
+);
+
+create page BugAnnotation1717.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+  }
+};
+
+create microflow BugAnnotation1717.ACT_Log ($WorkflowContext: BugAnnotation1717.Request)
+begin
+  log info node 'WF' 'logged';
+end;
+
+create workflow BugAnnotation1717.DocumentApproval
+  parameter $WorkflowContext: BugAnnotation1717.Request
+begin
+  user task Review 'Review'
+    page BugAnnotation1717.WF_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Done' { };
+  @annotation 'Logs it'
+  call microflow BugAnnotation1717.ACT_Log;
+end workflow;
+
+alter workflow BugAnnotation1717.DocumentApproval {
+  set (Annotation: 'Started from the request form');
+  set (Annotation: 'Check the attachment first') on Review;
+  set (Annotation: '') on ACT_Log;
+};

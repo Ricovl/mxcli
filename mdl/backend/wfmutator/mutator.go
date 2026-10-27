@@ -96,9 +96,64 @@ func (m *Mutator) SetProperty(prop string, value string) error {
 		bsonnav.DSet(m.rawData, "DueDate", value)
 		return nil
 
+	case "annotation":
+		return m.setStartNote(value)
+
 	default:
 		return fmt.Errorf("unsupported workflow property: %s", prop)
 	}
+}
+
+// setStartNote sets the note on the workflow's start, the header's
+// `annotation '…'` (ako/mxcli#1717): the start activity's, where Studio Pro
+// stores and shows it. The workflow's own Annotation — shown nowhere, and where
+// mxcli wrote the note before — is cleared, or describe would still print the
+// note the statement replaced or removed.
+func (m *Mutator) setStartNote(text string) error {
+	var start bson.D
+	for _, el := range bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(m.rawData, "Flow"), "Activities")) {
+		if d, ok := el.(bson.D); ok && bsonnav.DGetString(d, "$Type") == "Workflows$StartWorkflowActivity" {
+			start = d
+			break
+		}
+	}
+	if start == nil {
+		return fmt.Errorf("the workflow has no start activity to hold its note")
+	}
+	if err := setNote(start, "the workflow's start activity", text); err != nil {
+		return err
+	}
+	bsonnav.DSet(m.rawData, "Annotation", nil)
+	return nil
+}
+
+// setNote writes the note Studio Pro attaches to an activity (ako/mxcli#1717):
+// a Workflows$Annotation holding Description — the shape CREATE writes for
+// `@annotation '…'` — or null for "".
+// An existing note keeps its $ID. A document without the Annotation slot is
+// refused: every type with a note stores the slot, null when empty (11.15.0),
+// so a missing one is a type or version that has no note to write.
+func setNote(owner bson.D, what, text string) error {
+	for i := range owner {
+		if owner[i].Key != "Annotation" {
+			continue
+		}
+		note, _ := owner[i].Value.(bson.D)
+		switch {
+		case text == "":
+			owner[i].Value = nil
+		case note != nil && bsonnav.DSet(note, "Description", text):
+			// Edited in place, keeping the note's $ID.
+		default:
+			owner[i].Value = bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "Workflows$Annotation"},
+				{Key: "Description", Value: text},
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("%s has no annotation to set", what)
 }
 
 func (m *Mutator) SetPropertyWithEntity(prop string, value string, entity string) error {
@@ -271,6 +326,18 @@ func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string
 	case "due_date":
 		bsonnav.DSet(actDoc, "DueDate", value)
 		return nil
+
+	case "annotation":
+		switch bsonnav.DGetString(actDoc, "$Type") {
+		case "Workflows$StartWorkflowActivity":
+			// The workflow's note, which describe prints in the header.
+			return m.setStartNote(value)
+		case "Workflows$EndWorkflowActivity", "Workflows$EndOfParallelSplitPathActivity", "Workflows$EndOfBoundaryEventPathActivity":
+			// Studio Pro's workflow editor draws no note on an end (11.15.0),
+			// and describe prints none: a note there is one nothing shows.
+			return fmt.Errorf("activity %q is an end of the flow, which shows no note", activityRef)
+		}
+		return setNote(actDoc, fmt.Sprintf("activity %q", activityRef), value)
 
 	default:
 		return fmt.Errorf("unsupported activity property: %s", prop)

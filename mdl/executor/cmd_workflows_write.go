@@ -194,7 +194,6 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	headerNorm := newContextExprNormalizer(s.ParameterVar)
 	wf.WorkflowNameParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DisplayParams))
 	wf.WorkflowDescriptionParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DescriptionParams))
-	wf.Annotation = s.Annotation
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
 	}
@@ -218,6 +217,10 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	startAct.ID = model.ID(generateWorkflowUUID())
 	startAct.Caption = "Start"
 	startAct.Name = "Start"
+	// The header's `annotation '…'` is the note on the start, which Studio Pro
+	// stores on the start activity and shows from there; the workflow's own
+	// Annotation, where it was written before, it shows nowhere (ako/mxcli#1717).
+	startAct.Annotation = s.Annotation
 
 	// Add implicit end activity
 	endAct := &workflows.EndWorkflowActivity{}

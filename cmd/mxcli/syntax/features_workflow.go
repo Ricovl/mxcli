@@ -580,9 +580,10 @@ func init() {
 		// Mendix cannot LOAD, ako/mxcli#415).
 		Syntax: "ALTER WORKFLOW Module.Name {\n" +
 			"  SET ( Display: '<text>', Description: '<text>', ExportLevel: API | Hidden,\n" +
-			"        DueDate: <expression>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity );\n" +
-			"  SET ( Page: Module.Page, Description: '<text>', DueDate: <expression>,\n" +
-			"        Targeting: microflow Module.Mf | Targeting: xpath [<xpath>] ) ON <activity>;\n" +
+			"        DueDate: <expression>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity,\n" +
+			"        Annotation: '<note>' );\n" +
+			"  SET ( Page: Module.Page, Description: '<text>', TaskName: '<text>', DueDate: <expression>,\n" +
+			"        Targeting: microflow Module.Mf | Targeting: xpath [<xpath>], Annotation: '<note>' ) ON <activity>;\n" +
 			"  INSERT BEFORE | AFTER <activity> { <activities> }\n" +
 			"  INSERT INTO <user-task> { OUTCOMES '<name>' { <activities> } }\n" +
 			"  INSERT INTO <decision | call-microflow> { OUTCOMES true | false | default | '<value>' -> { <activities> } }\n" +
@@ -593,7 +594,9 @@ func init() {
 			"       <parallel-split> PATH <n>, <activity> BOUNDARY EVENT;\n" +
 			"};\n\n" +
 			"-- <activity> is a name (ReviewTask) or a caption ('Review the request'),\n" +
-			"-- optionally @n to choose one of several matches: describe workflow prints the names.",
+			"-- optionally @n to choose one of several matches: describe workflow prints the names.\n" +
+			"-- Annotation is the note CREATE writes: the header's ANNOTATION '…' without ON, the\n" +
+			"-- @annotation '…' before the activity with ON; '' removes it.",
 		Example: "alter workflow HR.LeaveApproval {\n" +
 			"  set (DueDate: addDays([%CurrentDateTime%], 7));\n" +
 			"  set (Page: HR.ReviewPage) on ReviewTask;\n" +
