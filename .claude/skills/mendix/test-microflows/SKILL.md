@@ -16,14 +16,14 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 | 180-222 | Test File Formats |
 | 223-238 | string Operations |
 | 239-262 | Running Tests |
-| 263-450 | How It Works |
-| 451-489 | Check a test file before you run it |
-| 490-611 | Writing Good Tests |
-| 612-626 | Test File Organization |
-| 627-639 | Interpreting Failures |
-| 640-661 | CI Integration |
-| 662-668 | Related Skills |
-| 669-671 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 263-456 | How It Works |
+| 457-495 | Check a test file before you run it |
+| 496-617 | Writing Good Tests |
+| 618-632 | Test File Organization |
+| 633-645 | Interpreting Failures |
+| 646-667 | CI Integration |
+| 668-674 | Related Skills |
+| 675-677 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -314,6 +314,12 @@ This is why a suite behaves the same under `--local` and `--attach`. Before it
 chained, `--local` ran with the app's startup logic suppressed, and a suite that
 depended on startup state passed under `--attach` and failed under `--local` for
 reasons unrelated to the code.
+
+`MxTest.RegisterEndpoint` applies entity access, so it can call a startup
+microflow that does or does not (CE0114 only forbids a non-applying microflow
+calling an applying one); yours still runs with its own setting. A build error
+located in `MxTest.RegisterEndpoint` or `MxTest.RegisterTestEndpoint` is reported
+as an mxcli defect, not as an error in your project.
 
 One thing rollback does **not** cover: whatever the startup microflow writes
 happens at boot, outside any test's transaction, so `@cleanup rollback` does not
