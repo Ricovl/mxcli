@@ -240,9 +240,16 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID))
 	}
 
-	// Generate structural changes
-	if !result.IsNew && !result.IsDeleted && result.Current != result.Proposed {
-		result.Changes = compareGeneric(ctx, result.Current, result.Proposed)
+	// Generate structural changes. Renderings that agree while the documents
+	// differ mean the renderer does not show what changed; list the changed
+	// fields rather than report "(no changes)" under "1 modified" (#1602).
+	if !result.IsNew && !result.IsDeleted {
+		if result.Current != result.Proposed {
+			result.Changes = compareGeneric(ctx, result.Current, result.Proposed)
+		} else if changes := rawFieldChanges(oldRaw, newRaw); len(changes) > 0 {
+			result.Proposed = strings.TrimRight(result.Proposed, "\n") + "\n" + fieldChangesMDL(changes)
+			result.Changes = fieldStructuralChanges(changes)
+		}
 	}
 
 	return &result, nil
@@ -374,7 +381,9 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 		return snippetBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Layout"):
 		return layoutBsonToMDL(ctx, raw, qualifiedName)
-	case strings.Contains(unitType, "Module"):
+	// Exact, not Contains: Security$ModuleSecurity and Projects$ModuleSettings
+	// contain "Module" too, and rendered as `create module ;` on both sides.
+	case unitType == "Projects$ModuleImpl" || unitType == "Projects$Module":
 		return moduleBsonToMDL(ctx, raw)
 	default:
 		// Generic representation

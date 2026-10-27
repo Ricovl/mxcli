@@ -99,7 +99,16 @@ The command generates MDL representations for:
 - **Modules**: Shows module name
 - **Project settings**: Shows the `alter settings` statements `describe settings` prints. Configuration constant values and the database password are **masked** as `<masked #1a2b3c4d>`: the fingerprint changes when the value does, so a changed value still shows as a changed line, but it is keyed per run and cannot be checked against a guess
 
-Other unit types show a generic representation with the type name.
+Other unit types show a generic representation with the type name. Whenever
+the two renderings of a modified unit come out the same while the stored unit
+differs — a type with no renderer, or a property a renderer does not print — the
+diff lists the changed fields instead, by path, type and size and never by value:
+
+```
+-- Changed fields this view does not render (values not shown):
+--   DefaultValue (string, 1 → 7 chars)
+--   ModuleRoles["Auditor"] (added)
+```
 
 ## Summary Output
 
