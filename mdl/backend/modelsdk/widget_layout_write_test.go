@@ -241,3 +241,26 @@ func TestMenuWidgetToGen_MenuSourceKind(t *testing.T) {
 		t.Error("a menu widget naming both a menu document and a profile was accepted")
 	}
 }
+
+// A scroll container's LayoutMode, under the key Atlas_SideBar stores it
+// (ako/mxcli#1703). Unsaid, the key is not written and Studio Pro's default
+// (Headline) applies — so a layout that never said it encodes as before.
+func TestScrollContainerToGen_LayoutMode(t *testing.T) {
+	for _, tc := range []struct{ mode, want string }{{"Sidebar", "Sidebar"}, {"Headline", "Headline"}, {"", ""}} {
+		g, err := widgetToGen(&pages.ScrollContainer{BaseWidget: pages.BaseWidget{Name: "layoutContainer"}, LayoutMode: tc.mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := encodeToMap(t, g)
+		v, present := m["LayoutMode"]
+		if tc.want == "" {
+			if present {
+				t.Errorf("an unset LayoutMode encodes as %v; leave the key to Studio Pro's default", v)
+			}
+			continue
+		}
+		if got, _ := v.(string); got != tc.want {
+			t.Errorf("LayoutMode %q encodes as %v, want %q", tc.mode, v, tc.want)
+		}
+	}
+}

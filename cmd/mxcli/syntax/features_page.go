@@ -496,9 +496,14 @@ LIST IMPACT OF htmlelement;
 			"  [, style: '...']\n" +
 			"  [, Layout: Module.Outer]   -- built on another layout: see layout.nested\n" +
 			") {\n" +
-			"  SCROLLCONTAINER name {\n" +
+			"  SCROLLCONTAINER name [( LayoutMode: 'Headline' | 'Sidebar' )] {\n" +
+			"    -- Headline (the default): the top region runs the full width and the\n" +
+			"    -- left region starts under it. Sidebar: the left region runs the full\n" +
+			"    -- height and the top bar sits beside it (Atlas_SideBar, Atlas_TopBar).\n" +
 			"    REGION top | right | bottom | left | center\n" +
-			"      [( Size: 60, SizeMode: 'Fixed' | 'Pixels' | 'Auto', Class: '…' )] {\n" +
+			"      [( Size: 60, SizeMode: 'Fixed' | 'Pixels' | 'Auto', Class: '…',\n" +
+			"         ToggleMode: 'None' | 'PushContentAside' | 'SlideOverContent'\n" +
+			"                   | 'ShrinkContentInitiallyOpen' | 'ShrinkContentInitiallyClosed' )] {\n" +
 			"      -- widgets, plus:\n" +
 			"      NAVIGATIONTREE name (Profile: 'Responsive')   -- vertical, for a sidebar\n" +
 			"      MENUBAR name (Profile: 'Responsive')          -- horizontal, for a topbar\n" +

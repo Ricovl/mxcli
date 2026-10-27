@@ -117,6 +117,10 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 	for _, child := range w.Children {
 		// Check if this is a FOOTER widget - its children go to FooterWidgets
 		if child.Type == "footer" {
+			// The block is a slot; nothing of its own is stored (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "dataview footer", child); err != nil {
+				return nil, err
+			}
 			if !showFooterSet {
 				dv.ShowFooter = true
 			}
@@ -398,6 +402,10 @@ func (pb *pageBuilder) buildListViewV3(w *ast.WidgetV3) (*pages.ListView, error)
 			}
 			lv.Widgets = append(lv.Widgets, widget)
 			continue
+		}
+		// A specialization template stores its widgets only (ako/mxcli#1698).
+		if err := refuseNativeWidgetProps(pb.ctx, "listview template", child); err != nil {
+			return nil, err
 		}
 		tpl, err := pb.buildListViewTemplateV3(child, w.Name, listEntity, seen)
 		if err != nil {
@@ -1406,6 +1414,10 @@ func (pb *pageBuilder) buildNavigationListV3(w *ast.WidgetV3) (*pages.Navigation
 	// Build items from children (ITEM widgets)
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "item" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "navigationlist item", child); err != nil {
+				return nil, err
+			}
 			item, err := pb.buildNavigationListItemV3(child)
 			if err != nil {
 				return nil, err

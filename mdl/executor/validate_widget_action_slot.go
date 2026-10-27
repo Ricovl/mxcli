@@ -32,6 +32,7 @@ package executor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -82,25 +83,49 @@ func validateWidgetActionSlot(w *ast.WidgetV3, locationPrefix string) []linter.V
 	// Iterated over a fixed slice rather than over w.Properties: map order is
 	// not stable, and a widget with two faulty slots must report them the same
 	// way every run (CLAUDE.md, determinism).
-	for _, key := range actionSlotKeys {
-		raw, present := w.Properties[key]
-		if !present {
-			continue
+	for _, slot := range actionSlotKeys {
+		for _, key := range actionSlotSpellings(w, slot) {
+			raw := w.Properties[key]
+			if _, ok := raw.(*ast.ActionV3); ok {
+				continue
+			}
+			out = append(out, linter.Violation{
+				RuleID:   "MDL-WIDGET28",
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: widget `%s` has `%s: %s`, which is not an action — the widget is written with "+
+						"no action at all and renders as a dead control (Mendix accepts it, so the build stays clean)",
+					locationPrefix, w.Name, key, renderActionSlotValue(raw)),
+				Suggestion: actionSlotSuggestion(raw),
+			})
 		}
-		if _, ok := raw.(*ast.ActionV3); ok {
-			continue
-		}
-		out = append(out, linter.Violation{
-			RuleID:   "MDL-WIDGET28",
-			Severity: linter.SeverityError,
-			Message: fmt.Sprintf(
-				"%s: widget `%s` has `%s: %s`, which is not an action — the widget is written with "+
-					"no action at all and renders as a dead control (Mendix accepts it, so the build stays clean)",
-				locationPrefix, w.Name, key, renderActionSlotValue(raw)),
-			Suggestion: actionSlotSuggestion(raw),
-		})
 	}
 	return out
+}
+
+// actionSlotSpellings are the property keys on w that spell slot. A value that
+// does not parse keeps its key AS WRITTEN, so `onClick: TOTALLY_MADE_UP` — the
+// spelling the skills teach — is stored under "onClick", and an exact lookup of
+// "OnClick" missed it: the widget was written with no action and nothing said
+// so (found with ako/mxcli#1698, whose per-widget rule now leaves these to this
+// one). On a built-in widget every case of the slot's name is that slot. On a
+// pluggable widget only the exact spelling is: its keys are its package's own,
+// and one of them may be an `action` that is not an action slot.
+func actionSlotSpellings(w *ast.WidgetV3, slot string) []string {
+	if _, native := nativeWidgetKinds[strings.ToLower(w.Type)]; !native {
+		if _, ok := w.Properties[slot]; ok {
+			return []string{slot}
+		}
+		return nil
+	}
+	var keys []string
+	for k := range w.Properties {
+		if strings.EqualFold(k, slot) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // renderActionSlotValue prints the offending value the way the author wrote it,

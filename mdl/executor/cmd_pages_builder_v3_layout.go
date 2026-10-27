@@ -33,6 +33,10 @@ func (pb *pageBuilder) buildLayoutGridV3(w *ast.WidgetV3) (*pages.LayoutGrid, er
 	// Build rows from children
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "row" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "layoutgrid row", child); err != nil {
+				return nil, err
+			}
 			row, err := pb.buildLayoutGridRowV3(child)
 			if err != nil {
 				return nil, err
@@ -82,6 +86,10 @@ func (pb *pageBuilder) buildLayoutGridRowV3(w *ast.WidgetV3) (*pages.LayoutGridR
 	// Build columns from children
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "column" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "layoutgrid column", child); err != nil {
+				return nil, err
+			}
 			col, err := pb.buildLayoutGridColumnV3(child)
 			if err != nil {
 				return nil, err

@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-206 | Syntax |
-| 207-277 | Basic Examples |
-| 278-299 | Modifying Existing Pages |
-| 300-403 | Conditional Visibility and Editability |
-| 404-568 | Known Limitations |
-| 569-577 | Tips |
-| 578-604 | Related Commands |
-| 605-629 | PLUGGABLEWIDGET Escape Hatch |
-| 630-633 | See Also |
+| 47-217 | Syntax |
+| 218-288 | Basic Examples |
+| 289-310 | Modifying Existing Pages |
+| 311-414 | Conditional Visibility and Editability |
+| 415-579 | Known Limitations |
+| 580-588 | Tips |
+| 589-615 | Related Commands |
+| 616-640 | PLUGGABLEWIDGET Escape Hatch |
+| 641-644 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -199,10 +199,21 @@ container ctnHero (
 }
 ```
 
-> `mxcli check` **warns** (MDL-WIDGET07) when a built-in widget carries an
-> unrecognized property (a typo, or a property mxcli doesn't persist) — it would
-> otherwise be silently dropped on write. It is a warning, not an error, so the
-> check still passes; fix the spelling or remove the property.
+> **Each built-in widget takes its own properties, not every widget's.** An
+> input widget's label is `Label:`; `Caption:` is a button's (and a data grid
+> column's). A property the widget does not take — `Caption:` on a `textbox`,
+> `Label:` on an `actionbutton`, `Visible:` on a `snippetcall`, a misspelt key —
+> is **refused** under `mdl 1;` (MDL-WIDGET52, by `check` and by `exec`, with
+> nothing written) and warned about without the header (MDL-V1-WIDGETPROP); it
+> used to be silently dropped. The message names what was most likely meant and
+> lists the properties that widget takes.
+>
+> ```sql
+> -- ❌ WRONG: a text box has no Caption — refused (MDL-WIDGET52)
+> textbox tbName (Attribute: Name, Caption: 'Name')
+> -- ✅ an input's label is Label:
+> textbox tbName (Attribute: Name, Label: 'Name')
+> ```
 
 ## Basic Examples
 

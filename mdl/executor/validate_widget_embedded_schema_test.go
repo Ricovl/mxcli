@@ -29,7 +29,7 @@ func noProjectFindings(t *testing.T, script string) []linter.Violation {
 	t.Helper()
 	var out []linter.Violation
 	for _, v := range ValidateProgram(parseMDL(t, script), "") {
-		if v.RuleID == "MDL-WIDGET07" || v.RuleID == "MDL-WIDGET42" {
+		if v.RuleID == "MDL-WIDGET07" || v.RuleID == "MDL-WIDGET42" || v.RuleID == nativeWidgetPropDropped.Code {
 			out = append(out, v)
 		}
 	}
@@ -150,14 +150,15 @@ func TestCheckWithoutProject_UndeclaredKeyIsNotClaimedToBeDropped(t *testing.T) 
 	}
 }
 
-// A built-in widget has no embedded template; its message is the one it always
-// had, so the widgets the vocabulary was written for are judged as before.
+// A built-in widget has no embedded template: it is judged by the properties
+// its own builder writes (ako/mxcli#1698), not by a data grid's schema.
 func TestCheckWithoutProject_BuiltInWidgetUnknownKeyIsUnchanged(t *testing.T) {
 	got := noProjectFindings(t, `create page Shop.P ( Title: 'P', Layout: Atlas_Core.Atlas_Default ) {
   textbox tb (Attribute: Code, columnsHidable: false)
 };`)
-	if len(got) != 1 || !strings.Contains(got[0].Message, "is not recognized and will be silently dropped on write") {
-		t.Errorf("want the unchanged MDL-WIDGET07 message for a text box, got:\n  %s", describeFindings(got))
+	if len(got) != 1 || got[0].RuleID != nativeWidgetPropDropped.Code ||
+		!strings.Contains(got[0].Message, "`columnsHidable` is not a property mxcli writes on a textbox") {
+		t.Errorf("want the text box's own verdict (%s), got:\n  %s", nativeWidgetPropDropped.Code, describeFindings(got))
 	}
 }
 

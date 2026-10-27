@@ -231,7 +231,7 @@ refuse the spelling; until then it only warns.
 
 ### Changes of meaning (`MDL-V1-*`)
 
-23 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
+24 constructs mean something different under the `mdl 1;` header. Without the header each keeps the meaning in the second column and warns with its code.
 
 | Code | Without the header (mdl 0) | Under `mdl 1;` | Decided at | Rewritten by `fmt --upgrade` |
 |---|---|---|---|---|
@@ -258,6 +258,7 @@ refuse the spelling; until then it only warns.
 | `MDL-V1-TEMPLATEATTR` | a text-template parameter bound to a non-String attribute (`{1} = $Order.Total`) was stored as `toString($Order/Total)` by earlier mxcli releases | an attribute reference, rendered with the attribute's formatting, as Studio Pro stores it | exec | no: decided by exec against the project; `check -p` reports it |
 | `MDL-V1-VIEWAUTONUMBER` | a view entity attribute declared `autonumber` over an AutoNumber column passes check, and mxbuild reports CE6770 "View Entity is out of sync with the OQL Query" | a check error that names the attribute and suggests `long`, the type the view gives the column | exec | no: decided by exec against the project; `check -p` reports it |
 | `MDL-V1-WHILE` | `while <condition>` accepts a body without `begin` and an `end` without `while` | an error: a while loop is `while <condition> begin … end while;`, like `loop … begin … end loop;` | parse | yes: `fmt --upgrade --header` |
+| `MDL-V1-WIDGETPROP` | A property a built-in page element does not take (`Caption:` on a textbox, `Label:` on a button, a misspelt key) is accepted and dropped on write | a refusal (MDL-WIDGET52), with nothing written | exec | no: decided by exec against the project; `check -p` reports it |
 
 ### Deprecated spellings (`MDL-DEPR*`)
 
