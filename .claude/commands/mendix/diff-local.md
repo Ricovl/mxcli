@@ -89,16 +89,34 @@ Entity: MyModule.Customer
 
 The command generates MDL representations for:
 
-- **Entities**: Shows attributes, constraints, and entity type
-- **Microflows**: Shows parameters and return type
-- **Nanoflows**: Shows parameters and return type
-- **Enumerations**: Shows values and captions
-- **Pages**: Shows title and layout reference
-- **Snippets**: Shows basic structure
-- **Layouts**: Shows basic structure
-- **Modules**: Shows module name
+- **Domain models**: each entity's attributes, constraints and entity type, its access rules as `grant` statements (as `describe entity` prints them), and the associations
+- **Microflows / Nanoflows**: the whole body, as `describe` prints it, `grant execute` included
+- **Pages / Snippets / Layouts**: the header properties and the widget tree, as `describe` prints them
+- **Enumerations**: values and captions
+- **Project settings**: as `describe settings` prints them, with configuration constant values masked
+- **Modules**: module name
 
-Other unit types show a generic representation with the type name.
+Configuration constant values often hold secrets, so they are never printed. A
+changed value still shows, as a masked pair:
+
+```diff
+-alter settings constant 'MyModule.ApiKey' value <masked: old value>
++alter settings constant 'MyModule.ApiKey' value <masked: new value>
+   in configuration 'Default';
+```
+
+### Changes the MDL does not show
+
+A unit can change only in properties its rendering leaves out — navigation,
+project or module security, a page's allowed roles, an entity index, a
+constant's default value. Such a unit is printed as one line, in every format,
+naming the properties that changed (never their values):
+
+```
+Modified: ModuleSecurity MyModule: changed in properties the MDL rendering does not show: ModuleRoles (1 -> 2 items)
+```
+
+Run `describe` on the element before and after to see the change itself.
 
 ## Summary Output
 

@@ -63,6 +63,7 @@ type MockBackend struct {
 	ListDomainModelsFunc                       func() ([]*domainmodel.DomainModel, error)
 	GetDomainModelFunc                         func(moduleID model.ID) (*domainmodel.DomainModel, error)
 	GetDomainModelByIDFunc                     func(id model.ID) (*domainmodel.DomainModel, error)
+	ParseDomainModelFromRawFunc                func(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModelFunc                      func(dm *domainmodel.DomainModel) error
 	SetDomainModelAnnotationsFunc              func(domainModelID model.ID, annotations []*domainmodel.Annotation) error
 	SetDomainModelDocumentationFunc            func(domainModelID model.ID, documentation string) error
@@ -279,9 +280,10 @@ type MockBackend struct {
 	DeleteWorkflowFunc func(id model.ID) error
 
 	// SettingsBackend
-	GetProjectSettingsFunc    func() (*model.ProjectSettings, error)
-	AddNavigationProfileFunc  func(navDocID model.ID, name string) error
-	UpdateProjectSettingsFunc func(ps *model.ProjectSettings) error
+	GetProjectSettingsFunc          func() (*model.ProjectSettings, error)
+	AddNavigationProfileFunc        func(navDocID model.ID, name string) error
+	UpdateProjectSettingsFunc       func(ps *model.ProjectSettings) error
+	ParseProjectSettingsFromRawFunc func(raw map[string]any) (*model.ProjectSettings, error)
 
 	// ImageBackend
 	ListImageCollectionsFunc func() ([]*types.ImageCollection, error)

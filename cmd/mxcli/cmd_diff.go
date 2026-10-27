@@ -131,6 +131,11 @@ var diffLocalCmd = &cobra.Command{
 This command finds modified mxunit files in the mprcontents/ folder and shows
 the differences as MDL. Only works with MPR v2 format (Mendix 10.18+).
 
+A unit that changed only in properties the MDL does not show (navigation,
+security, an index, …) is listed on one line naming those properties.
+Configuration constant values are masked: a changed one shows as
+<masked: old value> against <masked: new value>.
+
 The --ref flag accepts any git ref or range (e.g., HEAD, main, main..feature-branch).
 
 Examples:

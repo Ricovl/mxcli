@@ -143,6 +143,19 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		fmt.Fprintf(ctx.Output, "-- Project ID: %s (read-only; Business Events uses it as the app id, and a copy of the model shares it)\n\n", id)
 	}
 
+	writeProjectSettingsMDL(ctx, ps, nil)
+	return nil
+}
+
+// constantValueFunc renders the value of a configuration's constant override
+// in a settings description; nil prints it as a quoted literal.
+type constantValueFunc func(configuration, constant, value string) string
+
+// writeProjectSettingsMDL prints the settings document as DESCRIBE SETTINGS
+// does, below the project id (which is not part of the document). diff-local
+// renders the settings unit with it, passing a constantValue that masks the
+// values, so the two cannot drift apart (ako/mxcli#1512).
+func writeProjectSettingsMDL(ctx *ExecContext, ps *model.ProjectSettings, constantValue constantValueFunc) {
 	// Model settings
 	if ps.Model != nil {
 		ms := ps.Model
@@ -200,7 +213,7 @@ func describeSettings(ctx *ExecContext, configName string) error {
 	// Configuration settings
 	if ps.Configuration != nil {
 		for _, cfg := range ps.Configuration.Configurations {
-			writeSettingsConfiguration(ctx, cfg)
+			writeSettingsConfiguration(ctx, cfg, constantValue)
 		}
 	}
 
@@ -277,8 +290,6 @@ func describeSettings(ctx *ExecContext, configName string) error {
 			fmt.Fprintf(ctx.Output, "alter settings webui (\n  OptimizedClient: %s\n);\n\n", mdlQuoted(ps.WebUI.UseOptimizedClient))
 		}
 	}
-
-	return nil
 }
 
 // modelSettingKeys names every property the ALTER SETTINGS MODEL switch below
@@ -1165,7 +1176,7 @@ func settingsValueToString(val any) string {
 }
 
 // writeSettingsConfiguration emits one configuration as re-executable MDL.
-func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration) {
+func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration, constantValue constantValueFunc) {
 	var parts []string
 	parts = append(parts, "  DatabaseType: "+mdlQuoted(cfg.DatabaseType))
 	parts = append(parts, "  DatabaseUrl: "+mdlQuoted(cfg.DatabaseUrl))
@@ -1211,8 +1222,12 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 				cv.ConstantId, cfg.Name)
 			continue
 		}
+		value := mdlQuoted(cv.Value)
+		if constantValue != nil {
+			value = constantValue(cfg.Name, cv.ConstantId, cv.Value)
+		}
 		fmt.Fprintf(ctx.Output, "alter settings constant %s value %s\n  in configuration %s;\n\n",
-			mdlQuoted(cv.ConstantId), mdlQuoted(cv.Value), mdlQuoted(cfg.Name))
+			mdlQuoted(cv.ConstantId), value, mdlQuoted(cfg.Name))
 	}
 }
 
@@ -1223,7 +1238,7 @@ func describeSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, 
 	if ps.Configuration != nil {
 		for _, cfg := range ps.Configuration.Configurations {
 			if strings.EqualFold(cfg.Name, name) {
-				writeSettingsConfiguration(ctx, cfg)
+				writeSettingsConfiguration(ctx, cfg, nil)
 				return nil
 			}
 			available = append(available, "'"+cfg.Name+"'")

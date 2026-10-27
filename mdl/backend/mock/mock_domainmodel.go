@@ -31,6 +31,13 @@ func (m *MockBackend) GetDomainModelByID(id model.ID) (*domainmodel.DomainModel,
 	return nil, nil
 }
 
+func (m *MockBackend) ParseDomainModelFromRaw(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error) {
+	if m.ParseDomainModelFromRawFunc != nil {
+		return m.ParseDomainModelFromRawFunc(raw, unitID, containerID)
+	}
+	return nil, fmt.Errorf("MockBackend.ParseDomainModelFromRaw not configured")
+}
+
 func (m *MockBackend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 	if m.UpdateDomainModelFunc != nil {
 		return m.UpdateDomainModelFunc(dm)

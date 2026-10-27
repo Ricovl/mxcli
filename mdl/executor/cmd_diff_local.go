@@ -15,6 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -84,17 +85,9 @@ func diffLocal(ctx *ExecContext, ref string, opts DiffOptions) error {
 		}
 	}
 
-	// Output results
-	for _, result := range results {
-		switch opts.Format {
-		case DiffFormatUnified:
-			outputUnifiedDiff(ctx, result, opts.UseColor)
-		case DiffFormatSideBySide:
-			outputSideBySideDiff(ctx, result, opts.Width, opts.UseColor)
-		case DiffFormatStructural:
-			outputStructuralDiff(ctx, result, opts.UseColor)
-		}
-	}
+	// Output results. A unit whose rendering is the same at both revisions is
+	// printed as one line saying what changed (Writes), in every format.
+	WriteDiffResults(ctx.Output, results, opts)
 
 	// Output summary
 	fmt.Fprintf(ctx.Output, "\nSummary: %d new, %d modified, %d deleted\n",
@@ -231,17 +224,31 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 	qualifiedName := unitQualifiedName(ctx, nameSource, unitID)
 	result.ObjectName = splitQualifiedName(qualifiedName)
 
+	// Values the rendering must not print are masked so that a change still
+	// shows: each side needs to know the other's value.
+	var oldMask, newMask constantValueFunc
+	if unitType == projectSettingsType {
+		oldMask, newMask = constantValueMasks(ctx, oldRaw, newRaw)
+	}
+
 	// Generate MDL for both versions based on type
 	if len(currentContent) > 0 {
-		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent, unitQualifiedName(ctx, newRaw, unitID))
+		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent, unitQualifiedName(ctx, newRaw, unitID), newMask)
 	}
 	if len(gitContent) > 0 {
-		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID))
+		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID), oldMask)
 	}
 
 	// Generate structural changes
 	if !result.IsNew && !result.IsDeleted && result.Current != result.Proposed {
 		result.Changes = compareGeneric(ctx, result.Current, result.Proposed)
+	}
+
+	// git says the unit changed, so identical renderings mean the change is in
+	// what the rendering leaves out. Say so, rather than print nothing under a
+	// summary that counts it (ako/mxcli#1512, ako/mxcli#1562).
+	if !result.IsNew && !result.IsDeleted && result.Current == result.Proposed {
+		result.Writes = unrenderedChangeNote(gitContent, currentContent)
 	}
 
 	return &result, nil
@@ -341,8 +348,30 @@ func unitQualifiedName(ctx *ExecContext, raw map[string]any, unitID string) stri
 	return modName + "." + name
 }
 
-// bsonToMDL converts BSON content to MDL representation based on type
-func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string) string {
+// unrenderedChangeNote names what changed in a unit whose MDL rendering is the
+// same at both revisions: the property paths that differ, never their values.
+// Without it the unit was counted as modified and printed nothing — every
+// format, every unit type the rendering is lossy for (settings, access rules,
+// navigation, security, …).
+func unrenderedChangeNote(before, after []byte) string {
+	const shown = 4
+	paths := ChangedPaths(before, after, shown+1)
+	if len(paths) == 0 {
+		return "rewritten with no property change (element $IDs, pointers or property order only)"
+	}
+	if len(paths) > shown {
+		paths = append(paths[:shown], "…")
+	}
+	return "changed in properties the MDL rendering does not show: " + strings.Join(paths, ", ")
+}
+
+// projectSettingsType is the storage type of the project settings unit.
+const projectSettingsType = "Settings$ProjectSettings"
+
+// bsonToMDL converts BSON content to MDL representation based on type.
+// constantValue renders a configuration constant's value in the settings unit
+// (see constantValueMasks); other unit types ignore it.
+func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string, constantValue constantValueFunc) string {
 	var raw map[string]any
 	if err := bsoncompat.UnmarshalDocMap(content, &raw); err != nil {
 		return fmt.Sprintf("-- Error parsing BSON: %v", err)
@@ -352,6 +381,10 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 	}
 
 	switch {
+	// An exact match, first: the dispatch below is by containment, and
+	// "Settings" is in "Projects$ModuleSettings" too.
+	case unitType == projectSettingsType:
+		return projectSettingsBsonToMDL(ctx, raw, constantValue)
 	case strings.Contains(unitType, "DomainModel"):
 		return domainModelBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Entity"):
@@ -379,12 +412,90 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 	}
 }
 
+// projectSettingsBsonToMDL renders the project settings unit with DESCRIBE
+// SETTINGS' own writer. The unit had no case here, so it fell to the generic
+// two-comment rendering, which is the same at every revision: a changed
+// constant value or runtime setting counted as modified and printed nothing
+// (mendixlabs/mxcli#1602, ako/mxcli#1512). Configuration constant values are
+// masked — they often hold secrets, and diff output lands in reviews and CI
+// logs — so constantValue is never left to print them.
+func projectSettingsBsonToMDL(ctx *ExecContext, raw map[string]any, constantValue constantValueFunc) string {
+	ps, err := ctx.Backend.ParseProjectSettingsFromRaw(raw)
+	if err != nil {
+		return "-- project settings could not be read: " + err.Error()
+	}
+	if constantValue == nil {
+		constantValue = func(_, _, _ string) string { return maskedValue }
+	}
+	return strings.TrimRight(renderToString(ctx, func() {
+		writeProjectSettingsMDL(ctx, ps, constantValue)
+	}), "\n")
+}
+
+// maskedValue stands in for a configuration constant's value. It is not a
+// string literal on purpose: pasted into a script, it fails to parse instead
+// of setting the constant to the text "masked".
+const maskedValue = "<masked>"
+
+// constantValueMasks returns the value renderers for the old and the new
+// revision of the settings unit. A value is printed as <masked> — except where
+// the same constant in the same configuration holds a different value on the
+// other side, where it is "<masked: old value>" / "<masked: new value>", so
+// the change shows as a -/+ pair without either value appearing.
+func constantValueMasks(ctx *ExecContext, oldRaw, newRaw map[string]any) (oldMask, newMask constantValueFunc) {
+	oldVals, newVals := constantValues(ctx, oldRaw), constantValues(ctx, newRaw)
+	mask := func(other map[string]string, label string) constantValueFunc {
+		return func(configuration, constant, value string) string {
+			if o, ok := other[configuration+"\x00"+constant]; ok && o != value {
+				return "<masked: " + label + ">"
+			}
+			return maskedValue
+		}
+	}
+	return mask(newVals, "old value"), mask(oldVals, "new value")
+}
+
+// constantValues maps configuration + "\x00" + constant to the shared value
+// the settings document holds for it; private values have none.
+func constantValues(ctx *ExecContext, raw map[string]any) map[string]string {
+	vals := map[string]string{}
+	if raw == nil {
+		return vals
+	}
+	ps, err := ctx.Backend.ParseProjectSettingsFromRaw(raw)
+	if err != nil || ps.Configuration == nil {
+		return vals
+	}
+	for _, cfg := range ps.Configuration.Configurations {
+		for _, cv := range cfg.ConstantValues {
+			if !cv.IsPrivate {
+				vals[cfg.Name+"\x00"+cv.ConstantId] = cv.Value
+			}
+		}
+	}
+	return vals
+}
+
 // domainModelBsonToMDL converts a domain model BSON to MDL.
-// Includes full entity definitions (attributes) so diffs show schema changes.
+// Includes full entity definitions (attributes) so diffs show schema changes,
+// each followed by its access rules as DESCRIBE ENTITY prints them.
 func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("-- Domain Model: %s", name))
 	lines = append(lines, "")
+
+	// The access rules are rendered by DESCRIBE ENTITY's own grant writer, so
+	// they need the semantic entity, not the raw map the rest of this renderer
+	// reads. Without them a GRANT or REVOKE changed the unit but nothing this
+	// printed, so it diffed to nothing (mendixlabs/mxcli#1630, ako/mxcli#1562).
+	accessByEntity := map[string]*domainmodel.Entity{}
+	if dm, err := ctx.Backend.ParseDomainModelFromRaw(raw, "", ""); err != nil {
+		lines = append(lines, "-- access rules not shown: "+err.Error(), "")
+	} else {
+		for _, e := range dm.Entities {
+			accessByEntity[e.Name] = e
+		}
+	}
 
 	// Render full entity definitions so attribute changes show up in diffs
 	entities := extractBsonArray(raw["Entities"])
@@ -396,6 +507,14 @@ func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) str
 			}
 			qn := name + "." + entName
 			lines = append(lines, entityBsonToMDL(ctx, entMap, qn))
+			if e := accessByEntity[entName]; e != nil {
+				grants := renderToString(ctx, func() {
+					outputEntityAccessGrants(ctx, e, name, entName)
+				})
+				if grants = strings.TrimRight(grants, "\n"); grants != "" {
+					lines = append(lines, grants)
+				}
+			}
 			lines = append(lines, "")
 		}
 	}

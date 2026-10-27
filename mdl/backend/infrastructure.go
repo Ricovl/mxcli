@@ -112,6 +112,11 @@ type AgentEditorBackend interface {
 type SettingsBackend interface {
 	GetProjectSettings() (*model.ProjectSettings, error)
 	UpdateProjectSettings(ps *model.ProjectSettings) error
+	// ParseProjectSettingsFromRaw converts a Settings$ProjectSettings document
+	// that is not in storage — diff-local's historical revision of the unit,
+	// read back with `git show` — the way GetProjectSettings converts the
+	// stored one. Read-only.
+	ParseProjectSettingsFromRaw(raw map[string]any) (*model.ProjectSettings, error)
 }
 
 // ImageBackend provides image collection operations.

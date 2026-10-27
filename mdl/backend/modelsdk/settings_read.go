@@ -55,6 +55,12 @@ func (b *Backend) readSettingsRawParts(unitID string) []map[string]any {
 	if err != nil {
 		return nil
 	}
+	return settingsRawParts(raw)
+}
+
+// settingsRawParts returns each element of a Settings$ProjectSettings
+// document's Settings array as a map, skipping the versioned-array marker.
+func settingsRawParts(raw []byte) []map[string]any {
 	var doc bson.M
 	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
