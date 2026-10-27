@@ -7,9 +7,12 @@
 #   - Work in progress that was forgotten
 #
 # Checks:
-#   - Microflows with no callers (except ACT_ which are UI entry points)
-#   - Pages with no show_page references (except entry pages)
-#   - Entities with no references at all
+#   - Microflows, nanoflows and rules nothing references (except entry-point
+#     prefixes such as ACT_)
+#   - Pages nothing references (except likely entry pages)
+#
+# "Referenced" means what `mxcli refs` and CATALOG.GRAPH_DEAD_ASSETS mean: any
+# edge in the catalog's reference graph that points at the document.
 #
 # This rule requires REFRESH CATALOG FULL to populate the refs table.
 #
@@ -34,13 +37,23 @@ ENTRY_POINT_PREFIXES = ["ACT_", "SCH_", "WS_", "REST_", "OData_"]
 # Page name patterns that are likely entry points
 ENTRY_PAGE_PATTERNS = ["Home", "Login", "Index", "Dashboard"]
 
-# Reference kinds that mean "something causes this microflow to run". These are
-# catalog RefKind values (mdl/catalog/builder_references.go); a kind missing here
-# turns a live document into a false "not called from anywhere" finding.
-MICROFLOW_ENTRY_KINDS = ["call", "schedule", "publish", "datasource", "action", "calculate", "settings", "event"]
+# There is deliberately no list of the reference kinds that "count". Every edge
+# into a microflow or a page is something that runs or opens it — a call, a
+# widget, a calculated attribute, a scheduled event, a published service, an
+# event handler, a project setting, the navigation — and the catalog keeps
+# adding ways. A hand-kept list of them fell behind: it had the page kinds for a
+# home page and a menu item but not the microflow ones, so a microflow started
+# only from the navigation was reported with "Remove if unused" while
+# `mxcli refs` listed the reference (ako/mxcli#1484). With no list, a new kind
+# counts the day the catalog emits it.
+#
+# TestQUAL004CountsEveryRefKind (mdl/linter) drives every kind the catalog
+# declares at a microflow, a nanoflow and a page, and fails on one that does not
+# count.
 
-# Reference kinds that mean "something opens this page".
-PAGE_ENTRY_KINDS = ["show_page", "home_page", "login_page", "menu_item", "action"]
+def is_referenced(qualified_name):
+    """True when anything in the catalog's reference graph points at the document."""
+    return len(refs_to(qualified_name)) > 0
 
 def is_entry_point_microflow(name, prefixes):
     """Check if a microflow name suggests it's a UI/scheduled entry point."""
@@ -70,34 +83,14 @@ def check():
         if is_entry_point_microflow(mf.name, entry_prefixes):
             continue
 
-        # Get references to this microflow
-        refs = refs_to(mf.qualified_name)
-
         # Anything that causes the microflow to run counts as a caller, not just
-        # a literal "call" edge. A microflow reached only through one of the other
-        # kinds was reported as orphaned with the suggestion "Remove if unused":
-        #
-        #   schedule    a scheduled event runs it (Mendix's cron)
-        #   datasource  a page or widget uses it as a data source
-        #   action      a widget button calls it
-        #   calculate   a calculated attribute computes with it
-        #   settings    a project setting names it (after-startup, before-shutdown,
-        #               health-check) — the RUNTIME calls it, and nothing in the
-        #               model does
-        #
-        # The banking-app report hit the 'datasource' case: DS_CurrentCustomer and
-        # DS_MyAccounts are both page data sources and both were flagged. The
-        # CapTrackV4 report hit 'settings': the project's own AfterStartupMicroflow
-        # was reported as "not called from anywhere. Remove if unused", and taking
-        # that advice left a dangling name mx check did not catch either — only the
-        # runtime refused to start.
-        has_callers = False
-        for ref in refs:
-            if ref.ref_kind in MICROFLOW_ENTRY_KINDS:
-                has_callers = True
-                break
-
-        if not has_callers:
+        # a literal "call" edge. Each of these once reached a live microflow
+        # that this rule then advised deleting: a page data source (DS_ microflows in
+        # the banking-app report), the project's AfterStartupMicroflow (whose
+        # removal mx check did not catch — the runtime refused to start), a
+        # scheduled event, a published REST operation, an entity event handler,
+        # and a home or menu-item microflow (ako/mxcli#1484).
+        if not is_referenced(mf.qualified_name):
             loc = location(
                 module=mf.module_name,
                 document_type=mf.document_noun_title,
@@ -116,21 +109,10 @@ def check():
         if is_entry_point_page(page.name):
             continue
 
-        # Get references to this page
-        refs = refs_to(page.qualified_name)
-
         # A page is reachable if anything opens it. Navigation counts: a page that
         # is only a home page, a login page or a menu item is reached by the
-        # client, not by a microflow. Counting only 'show_page' reported those as
-        # orphaned — masked until now by ENTRY_PAGE_PATTERNS, which happens to
-        # cover the pages most likely to be navigation targets.
-        is_shown = False
-        for ref in refs:
-            if ref.ref_kind in PAGE_ENTRY_KINDS:
-                is_shown = True
-                break
-
-        if not is_shown:
+        # client, not by a microflow.
+        if not is_referenced(page.qualified_name):
             loc = location(
                 module=page.module_name,
                 document_type="Page",

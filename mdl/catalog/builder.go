@@ -121,6 +121,12 @@ type Builder struct {
 	// cataloguing the handlers and emitted by buildReferences.
 	eventHandlerRefs []eventHandlerRef
 
+	// Integration service → microflow edges (published OData resources,
+	// actions and authentication; published REST authentication; business
+	// event handlers; consumed OData configuration microflows), collected by
+	// the service builders and emitted by buildReferences (ako/mxcli#1639).
+	serviceMicroflowRefs []serviceMicroflowRef
+
 	// Page/snippet → document edges a widget makes beyond its single
 	// widgets_data columns (a data grid 2's datasource AND on-click
 	// microflow), collected by buildPages/buildSnippets and emitted by

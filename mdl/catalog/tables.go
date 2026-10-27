@@ -7,6 +7,14 @@ package catalog
 //
 // History:
 //
+//	29 (service microflow edges): refs gains the edges from an integration
+//	    service to the microflows it runs — a published OData resource's
+//	    read/change microflows, its actions and authentication microflow, a
+//	    published REST service's authentication microflow (`publish`), a
+//	    business event handler (`event`), a consumed OData service's
+//	    configuration microflows (`call`) (ako/mxcli#1639). No column changes,
+//	    but a cached catalog would keep answering "no references" for every one
+//	    of them until something else rebuilt it.
 //	28 (message definitions): message_definition_collections and
 //	    message_definitions, unioned into objects as
 //	    MESSAGE_DEFINITION_COLLECTION / MESSAGE_DEFINITION, so documents()
@@ -148,7 +156,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "28"
+const CatalogSchemaVersion = "29"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
