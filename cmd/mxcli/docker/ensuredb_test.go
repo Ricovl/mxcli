@@ -166,6 +166,10 @@ func newStubPATH(t *testing.T) (dir, logPath string) {
 	// too: this host really does have /usr/lib/postgresql/*/bin, so a test that
 	// asserts "the tools are missing" would otherwise run a real initdb.
 	withServerBinGlobs(t)
+	// The same holds for the system-cluster probe: this host may well have a
+	// stopped /var/lib/postgresql/16/main, which would refuse every fallback
+	// test below (ako/mxcli#866). Each test opts in to a system cluster.
+	withSystemClusterRoot(t, t.TempDir())
 	// Pin the privilege level as well, so the same attempts are made whether the
 	// suite runs as root in a container or as a user on a laptop.
 	withEUID(t, 0)

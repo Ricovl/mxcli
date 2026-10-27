@@ -101,6 +101,16 @@ again` when it happens, so a browser test knows to sign in before its next step.
     `~/.mxcli/postgres/server.log`. Stop it with
     `pg_ctl -D "$HOME/.mxcli/postgres/data" stop`. To remove it, stop it first and
     then delete `~/.mxcli/postgres` (this permanently deletes its databases).
+    The fallback never replaces a **stopped system cluster** for the same port
+    (`/var/lib/postgresql/<ver>/<name>`, `/var/lib/pgsql/data`,
+    `/var/lib/postgres/data`, Homebrew's): a new cluster there would hold none of the
+    app's data while looking healthy, so `--ensure-db` stops, names the data
+    directory and prints the command that starts it (e.g.
+    `sudo pg_ctlcluster 16 main start`). If that cluster is not this app's and cannot
+    be started, `MXCLI_ENSURE_DB_NEW_CLUSTER=1` creates the user-owned cluster anyway.
+    Whenever a new cluster is initialized, the output says
+    `WARNING: created a NEW, EMPTY PostgreSQL cluster`; an existing user-owned cluster
+    is restarted without it.
     A server whose `postgres` superuser has a password — **every Windows install**,
     where the installer always sets one — needs that login:
     `--ensure-db --db-admin-user postgres --db-admin-password <password>`, or set

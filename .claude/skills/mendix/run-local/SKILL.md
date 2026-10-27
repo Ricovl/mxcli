@@ -14,25 +14,25 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 48-60 | When to Use This Skill |
 | 61-118 | Usage |
 | 119-131 | How apply is chosen |
-| 132-201 | Prerequisites |
-| 202-219 | The intended loop |
-| 220-247 | Editing themes (SCSS) — rebuild, never clear caches |
-| 248-274 | `--watch` waits for a write to finish before it builds |
-| 275-303 | "My edit didn't show up" — stale process, not stale cache |
-| 304-334 | Flags |
-| 335-388 | Metrics and OpenTelemetry |
-| 389-446 | Pages render in the browser |
-| 447-464 | Pixel-perfect page loop |
-| 465-485 | Debugging a server-side error |
-| 486-509 | "Sign in failed" that is not about the password |
-| 510-542 | The same licence also stops the app after a few hours |
-| 543-622 | External browser preview (`--hub`) |
-| 623-631 | Validation checklist |
-| 632-688 | Constant values come from a configuration |
-| 689-692 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 693-696 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 697-700 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 701-703 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 132-214 | Prerequisites |
+| 215-232 | The intended loop |
+| 233-260 | Editing themes (SCSS) — rebuild, never clear caches |
+| 261-287 | `--watch` waits for a write to finish before it builds |
+| 288-316 | "My edit didn't show up" — stale process, not stale cache |
+| 317-347 | Flags |
+| 348-401 | Metrics and OpenTelemetry |
+| 402-459 | Pages render in the browser |
+| 460-477 | Pixel-perfect page loop |
+| 478-498 | Debugging a server-side error |
+| 499-522 | "Sign in failed" that is not about the password |
+| 523-555 | The same licence also stops the app after a few hours |
+| 556-635 | External browser preview (`--hub`) |
+| 636-644 | Validation checklist |
+| 645-701 | Constant values come from a configuration |
+| 702-705 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 706-709 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 710-713 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 714-716 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -153,6 +153,19 @@ association catalog only at startup; behavioural changes are hot-reloaded.
     `~/.mxcli/postgres/server.log`. Stop it with
     `pg_ctl -D "$HOME/.mxcli/postgres/data" stop`. To remove it, stop it first and
     then delete `~/.mxcli/postgres` (this permanently deletes its databases).
+    **A stopped system cluster is never replaced silently.** When a package-made
+    cluster for the same port exists (`/var/lib/postgresql/<ver>/<name>`,
+    `/var/lib/pgsql/data`, `/var/lib/postgres/data`, Homebrew's) and the service
+    manager did not bring it up, `--ensure-db` **stops** with *refusing to create a
+    new, empty PostgreSQL cluster: the cluster in <dir> … is not running* and the
+    command that starts it (`sudo pg_ctlcluster 16 main start`). A new cluster on
+    that port would answer every probe while holding none of the app's data — an
+    empty database looks exactly like a new one (ako/mxcli#866). Start it and rerun;
+    if it is not this app's and cannot be started, `MXCLI_ENSURE_DB_NEW_CLUSTER=1`
+    creates the user-owned cluster anyway. Whenever `initdb` does run, the output
+    says **WARNING: created a NEW, EMPTY PostgreSQL cluster** — if you see that and
+    expected your data, stop: the data is in another server. An existing user-owned
+    cluster is simply restarted (with a note naming any stopped system cluster).
   - Without `--ensure-db`, create it once and the command errors if it's unreachable:
 
     ```bash
