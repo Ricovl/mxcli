@@ -938,6 +938,11 @@ func (unimplemented) PageLayoutName(_ model.ID) (string, error) {
 	return r0, errUnimplemented("PageLayoutName")
 }
 
+func (unimplemented) ParseDomainModelFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) *domainmodel.DomainModel {
+	var r0 *domainmodel.DomainModel
+	return r0
+}
+
 func (unimplemented) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (*microflows.Microflow, error) {
 	var r0 *microflows.Microflow
 	return r0, errUnimplemented("ParseMicroflowBSON")

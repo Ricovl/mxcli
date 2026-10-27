@@ -1042,6 +1042,10 @@ func (unsupportedBackend) PageLayoutName(_ model.ID) (r0 string, err1 error) {
 	return
 }
 
+func (unsupportedBackend) ParseDomainModelFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *domainmodel.DomainModel) {
+	return
+}
+
 func (unsupportedBackend) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (r0 *microflows.Microflow, err1 error) {
 	err1 = errUnsupported("ParseMicroflowBSON")
 	return

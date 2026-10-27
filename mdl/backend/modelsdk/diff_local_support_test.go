@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 )
 
@@ -135,5 +136,63 @@ func TestParseNanoflowFromRawDecodesRealUnit(t *testing.T) {
 	}
 	if mf := b.ParseMicroflowFromRaw(picked, "", ""); mf != nil {
 		t.Error("ParseMicroflowFromRaw accepted a nanoflow document")
+	}
+}
+
+// TestParseDomainModelFromRawCarriesAccessRules is mendixlabs/mxcli#1630: a
+// `grant` changes only an entity's access rules, and diff-local counted the
+// domain model as modified with no hunk because its renderer never printed
+// them. The rules are read through this method, so it has to agree with the
+// storage read on exactly what a grant writes — roles (stored under
+// "AllowedModuleRoles", not the SDK's "ModuleRoles"), rights and members.
+func TestParseDomainModelFromRawCarriesAccessRules(t *testing.T) {
+	b := New()
+	if err := b.Connect(fixture); err != nil {
+		t.Fatalf("Connect(%s): %v", fixture, err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	refs, err := b.reader.ListUnitsByType("DomainModels$DomainModel")
+	if err != nil {
+		t.Fatalf("ListUnitsByType: %v", err)
+	}
+	checked := 0
+	for _, ref := range refs {
+		var raw map[string]any
+		if err := bsoncompat.UnmarshalDocMap(ref.Contents, &raw); err != nil {
+			t.Fatalf("unmarshal %s: %v", ref.ID, err)
+		}
+		got := b.ParseDomainModelFromRaw(raw, "", "")
+		if got == nil {
+			t.Fatalf("ParseDomainModelFromRaw(%s) = nil — diff-local cannot render its access rules", ref.ID)
+		}
+		want, err := b.GetDomainModelByID(model.ID(ref.ID))
+		if err != nil {
+			t.Fatalf("GetDomainModelByID(%s): %v", ref.ID, err)
+		}
+		for _, we := range want.Entities {
+			ge := got.FindEntityByName(we.Name)
+			if ge == nil {
+				t.Fatalf("entity %s missing from the raw parse", we.Name)
+			}
+			if len(ge.AccessRules) != len(we.AccessRules) {
+				t.Fatalf("%s: %d access rules from raw, %d from storage", we.Name, len(ge.AccessRules), len(we.AccessRules))
+			}
+			for i, wr := range we.AccessRules {
+				gr := ge.AccessRules[i]
+				if strings.Join(gr.ModuleRoleNames, ",") != strings.Join(wr.ModuleRoleNames, ",") ||
+					gr.DefaultMemberAccessRights != wr.DefaultMemberAccessRights ||
+					gr.AllowCreate != wr.AllowCreate || gr.AllowDelete != wr.AllowDelete ||
+					gr.XPathConstraint != wr.XPathConstraint || len(gr.MemberAccesses) != len(wr.MemberAccesses) {
+					t.Errorf("%s rule %d: raw %+v, storage %+v", we.Name, i, gr, wr)
+				}
+				if len(wr.ModuleRoleNames) > 0 {
+					checked++
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("the fixture has no access rule naming a role; the comparison proved nothing")
 	}
 }

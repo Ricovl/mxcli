@@ -31,6 +31,15 @@ func (m *MockBackend) GetDomainModelByID(id model.ID) (*domainmodel.DomainModel,
 	return nil, nil
 }
 
+// ParseDomainModelFromRaw returns nil when unset, which callers read as "does
+// not decode" — the same answer the real backend gives a foreign document.
+func (m *MockBackend) ParseDomainModelFromRaw(raw map[string]any, unitID, containerID model.ID) *domainmodel.DomainModel {
+	if m.ParseDomainModelFromRawFunc != nil {
+		return m.ParseDomainModelFromRawFunc(raw, unitID, containerID)
+	}
+	return nil
+}
+
 func (m *MockBackend) UpdateDomainModel(dm *domainmodel.DomainModel) error {
 	if m.UpdateDomainModelFunc != nil {
 		return m.UpdateDomainModelFunc(dm)

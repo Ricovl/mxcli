@@ -17,6 +17,12 @@ type DomainModelBackend interface {
 	GetDomainModelByID(id model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModel(dm *domainmodel.DomainModel) error
 
+	// ParseDomainModelFromRaw builds a DomainModel from an already-unmarshalled
+	// unit that need not be in this project's storage — diff-local hands it a
+	// revision read back with `git show`. nil when the map is not a domain
+	// model or does not decode.
+	ParseDomainModelFromRaw(raw map[string]any, unitID, containerID model.ID) *domainmodel.DomainModel
+
 	// SetDomainModelAnnotations replaces the canvas notes on a domain model.
 	//
 	// Separate from UpdateDomainModel because that one deliberately carries

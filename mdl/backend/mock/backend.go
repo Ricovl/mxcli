@@ -64,6 +64,7 @@ type MockBackend struct {
 	GetDomainModelFunc                         func(moduleID model.ID) (*domainmodel.DomainModel, error)
 	GetDomainModelByIDFunc                     func(id model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModelFunc                      func(dm *domainmodel.DomainModel) error
+	ParseDomainModelFromRawFunc                func(raw map[string]any, unitID, containerID model.ID) *domainmodel.DomainModel
 	SetDomainModelAnnotationsFunc              func(domainModelID model.ID, annotations []*domainmodel.Annotation) error
 	SetDomainModelDocumentationFunc            func(domainModelID model.ID, documentation string) error
 	CreateEntityFunc                           func(domainModelID model.ID, entity *domainmodel.Entity) error

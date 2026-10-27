@@ -15,6 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -380,11 +381,23 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 }
 
 // domainModelBsonToMDL converts a domain model BSON to MDL.
-// Includes full entity definitions (attributes) so diffs show schema changes.
+// Includes full entity definitions (attributes) so diffs show schema changes,
+// and each entity's access rules as the grants DESCRIBE ENTITY prints.
 func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("-- Domain Model: %s", name))
 	lines = append(lines, "")
+
+	// The access rules come from the backend's decode, not from map keys: they
+	// are stored under storage names ("AllowedModuleRoles"). Without them a
+	// script that only grants or revokes rendered the same on both sides —
+	// "1 modified" and no hunk (mendixlabs/mxcli#1630).
+	decoded := map[string]*domainmodel.Entity{}
+	if dm := ctx.Backend.ParseDomainModelFromRaw(raw, "", ""); dm != nil {
+		for _, e := range dm.Entities {
+			decoded[e.Name] = e
+		}
+	}
 
 	// Render full entity definitions so attribute changes show up in diffs
 	entities := extractBsonArray(raw["Entities"])
@@ -396,6 +409,12 @@ func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) str
 			}
 			qn := name + "." + entName
 			lines = append(lines, entityBsonToMDL(ctx, entMap, qn))
+			if e := decoded[entName]; e != nil {
+				grants := renderToString(ctx, func() { outputEntityAccessGrants(ctx, e, name, entName) })
+				if grants = strings.TrimSpace(grants); grants != "" {
+					lines = append(lines, grants)
+				}
+			}
 			lines = append(lines, "")
 		}
 	}
