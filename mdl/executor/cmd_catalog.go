@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -117,27 +116,13 @@ var communitiesOnlyTables = map[string]bool{
 	"graph_integration_surface": true,
 }
 
-// extractTableFromQuery extracts the table name after FROM in a converted catalog query.
-func extractTableFromQuery(query string) string {
-	lower := strings.ToLower(query)
-	idx := strings.Index(lower, "from ")
-	if idx == -1 {
-		return ""
-	}
-	rest := strings.TrimSpace(lower[idx+5:])
-	// Table name is the next word
-	end := strings.IndexAny(rest, " \t\n;,)")
-	if end == -1 {
-		return rest
-	}
-	return rest[:end]
-}
-
-// warnIfCatalogModeInsufficient checks if the query targets a table that requires
-// a higher catalog build mode than what's currently cached, and prints a warning.
-func warnIfCatalogModeInsufficient(ctx *ExecContext, query string) {
-	table := extractTableFromQuery(query)
-	if table == "" {
+// warnIfCatalogModeInsufficient warns for each queried table that requires a
+// higher catalog build mode than what's currently cached. tables are the ones
+// rewriteCatalogTableRefs found, so every table of a join or subquery is
+// checked, and a literal containing "from" cannot stand in for one — the old
+// guess took the word after the first "from " in the text (ako/mxcli#1450).
+func warnIfCatalogModeInsufficient(ctx *ExecContext, tables []string) {
+	if len(tables) == 0 {
 		return
 	}
 
@@ -156,14 +141,17 @@ func warnIfCatalogModeInsufficient(ctx *ExecContext, query string) {
 	modeRank := map[string]int{"fast": 1, "full": 2, "source": 3}
 	currentRank := modeRank[buildMode]
 
-	if communitiesOnlyTables[table] && !graphAnalysis {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
-		return
-	}
-	if sourceOnlyTables[table] && currentRank < modeRank["source"] {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
-	} else if fullOnlyTables[table] && currentRank < modeRank["full"] {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
+	for _, table := range tables {
+		switch {
+		case communitiesOnlyTables[table]:
+			if !graphAnalysis {
+				fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
+			}
+		case sourceOnlyTables[table] && currentRank < modeRank["source"]:
+			fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		case fullOnlyTables[table] && currentRank < modeRank["full"]:
+			fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		}
 	}
 }
 
@@ -177,10 +165,10 @@ func execCatalogQuery(ctx *ExecContext, query string) error {
 	}
 
 	// Convert CATALOG.xxx table names to actual table names
-	query = convertCatalogTableNames(query)
+	query, tables := rewriteCatalogTableRefs(query)
 
 	// Warn if querying a table that requires a higher build mode
-	warnIfCatalogModeInsufficient(ctx, query)
+	warnIfCatalogModeInsufficient(ctx, tables)
 
 	// Execute query
 	result, err := ctx.Catalog.Query(query)
@@ -881,16 +869,12 @@ func writeCatalogStatusJSON(ctx *ExecContext) error {
 	return enc.Encode(status)
 }
 
-// catalogTableRefRe matches a `CATALOG.<name>` table reference (case-insensitive).
-var catalogTableRefRe = regexp.MustCompile(`(?i)\bcatalog\.([a-z_][a-z0-9_]*)`)
-
 // convertCatalogTableNames strips the CATALOG. prefix from table references so the
-// query runs against the underlying SQLite views/tables. Generic by design: any
-// CATALOG.<name> is rewritten, so new catalog views (e.g. the graph_* analysis
-// views) work without maintaining a per-name allowlist. An unknown name simply
-// yields SQLite's "no such table" rather than a silent passthrough.
+// query runs against the underlying SQLite views/tables; string literals, quoted
+// identifiers and comments are left alone. See rewriteCatalogTableRefs.
 func convertCatalogTableNames(query string) string {
-	return catalogTableRefRe.ReplaceAllString(query, "$1")
+	converted, _ := rewriteCatalogTableRefs(query)
+	return converted
 }
 
 // outputCatalogResults outputs query results in table or JSON format.
