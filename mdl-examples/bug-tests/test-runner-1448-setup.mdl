@@ -1,0 +1,26 @@
+-- ako/mxcli#1448 (upstream mendixlabs/mxcli#1550): the setup script for
+-- test-runner-1448-own-error-handler.test.mdl. Apply it before running the tests:
+--
+--   mxcli exec mdl-examples/bug-tests/test-runner-1448-setup.mdl -p app.mpr
+--
+-- JA_Fail throws on every call, so each clause's verdict on an exception can be
+-- read off one run.
+mdl 1;
+create module Shop;
+
+create java action Shop.JA_Upper (Text: String not null) returns String
+as $$
+        return Text.toUpperCase();
+$$;
+
+create java action Shop.JA_Fail (Text: String not null) returns String
+as $$
+        throw new Exception("boom: " + Text);
+$$;
+
+create microflow Shop.Order_Label ($Text: String)
+  returns String as $Label
+begin
+  declare $Label String = 'Order ' + $Text;
+  return $Label;
+end;

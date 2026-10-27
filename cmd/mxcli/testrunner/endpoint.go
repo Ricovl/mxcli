@@ -67,12 +67,21 @@ func testFlowName(tc TestCase) string { return testFlowPrefix + tc.ID }
 //
 // chainAfterStartup, when non-empty, is a microflow the generated startup flow
 // calls after registering the endpoint — the project's own after-startup
-// microflow, which this one displaces.
+// microflow, which this one displaces. The test runner passes it so tests see
+// the app as it really boots, and "" under --skip-app-startup; a dev loop
+// hosting the endpoint (`run --local --test-endpoint`) always passes it.
 //
-// The test runner passes "" : a test run wants a known starting state, and the
-// suite is the only thing that should execute. A dev loop hosting the endpoint
-// (`run --local --test-endpoint`) passes the real one, because the developer's
-// app must still seed its data and do whatever else it does at boot.
+// The startup flow applies entity access, whatever the chained microflow does.
+// MxBuild refuses a microflow that does not apply entity access calling one
+// that does (CE0114), and the flow used to be written without the setting, so
+// no project whose after-startup microflow applies entity access could run a
+// single test (ako/mxcli#1654). The rule has one direction — measured with mx
+// check on 11.13.0, an applying microflow may call an applying or a
+// non-applying one at 0 errors, under security Off and Production alike (and
+// MDL-SEC22 records the same table for 11.14.0) — so a constant serves every
+// project, with nothing to read from the chained microflow first. The setting
+// governs only this flow's own two activities: the Java action ignores it, and
+// the chained microflow runs with its own.
 func GenerateEndpointMDL(chainAfterStartup string) string {
 	var b strings.Builder
 
@@ -91,6 +100,7 @@ func GenerateEndpointMDL(chainAfterStartup string) string {
 	b.WriteString("\n$$;\n\n")
 
 	b.WriteString("/** Registers the mxcli test endpoint at boot. Runs no tests. */\n")
+	b.WriteString("@applyentityaccess\n")
 	b.WriteString(createFlow(langver.V1) + " " + endpointStartupFlow + " ()\n")
 	b.WriteString("RETURNS Boolean AS $Registered\n")
 	b.WriteString("BEGIN\n")

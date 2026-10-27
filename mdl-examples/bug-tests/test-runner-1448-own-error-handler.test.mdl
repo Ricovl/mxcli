@@ -1,0 +1,166 @@
+-- ako/mxcli#1448 (upstream mendixlabs/mxcli#1550): a call in a test body that
+-- had its own `on error` clause got a second `ON ERROR BEGIN … END ERROR`
+-- appended by the generator, and the generated MDL did not parse ("mismatched
+-- input 'ON' expecting ';'") — the run stopped at injection, before the app
+-- started. A call now keeps the author's clause and gets no second one;
+-- `on error rollback`, Mendix's default spelled out, is treated like no clause.
+--
+-- Setup: test-runner-1448-setup.mdl. Then:
+--
+--   mxcli test mdl-examples/bug-tests/test-runner-1448-own-error-handler.test.mdl -p app.mpr --local
+--
+-- Measured on 11.13.0 (--local --db-type hsqldb). Before the fix: the parse
+-- error above and no test runs. After:
+--
+--   01 FAIL  exception during execution: boom: a
+--   02 FAIL  exception during execution: boom: a      (rollback = no clause)
+--   03 FAIL  expected $r = 'X', actual:               (continue swallowed it)
+--   04 FAIL  not every assertion was evaluated: …     (handler skipped the @expect)
+--   05 ERROR boom: a                                   (the handler re-raised)
+--   06 ERROR boom: a
+--   07 PASS  08 PASS
+--   09 FAIL  expected an exception but none was thrown
+--   10 FAIL  expected an exception but none was thrown
+--   11 ERROR boom: a
+--   12-16 PASS
+--
+-- 04 is the false green the fix had to close: a custom handler that ends
+-- normally rejoins the flow past every statement reading the failed call's
+-- output, so the assertion was never evaluated and the test reported PASS. 16 is
+-- its control — an assertion on what the handler did is still evaluated.
+--
+-- Under --legacy-runner a test whose error leaves the runner (05, 06, 11) ends
+-- the whole run; 05 was reported PASS there (a RUN line with no verdict read as
+-- the zero status) and is now an ERROR. That runner also needs a distinct
+-- variable name per test.
+mdl 1;
+/**
+ * @test 01 plain call that throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a');
+/
+
+/**
+ * @test 02 on error rollback, call throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error rollback;
+/
+
+/**
+ * @test 03 on error continue, call throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error continue;
+/
+
+/**
+ * @test 04 custom handler that logs, call throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error begin
+  log error node 'T' 'handled';
+end error;
+/
+
+/**
+ * @test 05 custom handler that re-raises, call throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error begin
+  log error node 'T' 'handled';
+  raise error;
+end error;
+/
+
+/**
+ * @test 06 custom handler without rollback that re-raises, call throws
+ * @expect $r = 'X'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error without rollback begin
+  log error node 'T' 'handled';
+  raise error;
+end error;
+/
+
+/**
+ * @test 07 throws: plain call
+ * @throws 'boom'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a');
+/
+
+/**
+ * @test 08 throws: on error rollback
+ * @throws 'boom'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error rollback;
+/
+
+/**
+ * @test 09 throws: on error continue
+ * @throws 'boom'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error continue;
+/
+
+/**
+ * @test 10 throws: custom handler that logs
+ * @throws 'boom'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error begin
+  log error node 'T' 'handled';
+end error;
+/
+
+/**
+ * @test 11 throws: custom handler that re-raises
+ * @throws 'boom'
+ */
+$r = call java action Shop.JA_Fail(Text = 'a') on error begin
+  log error node 'T' 'handled';
+  raise error;
+end error;
+/
+
+/**
+ * @test 12 the report: java action with on error rollback, call succeeds
+ * @expect $Result = 'ABC'
+ */
+$Result = call java action Shop.JA_Upper(Text = 'abc') on error rollback;
+/
+
+/**
+ * @test 13 the report: microflow with on error rollback, call succeeds
+ * @expect $Result = 'Order 1'
+ */
+$Result = call microflow Shop.Order_Label(Text = '1') on error rollback;
+/
+
+/**
+ * @test 14 on error continue, call succeeds
+ * @expect $r = 'ABC'
+ */
+$r = call java action Shop.JA_Upper(Text = 'abc') on error continue;
+/
+
+/**
+ * @test 15 custom handler, call succeeds
+ * @expect $r = 'ABC'
+ */
+$r = call java action Shop.JA_Upper(Text = 'abc') on error begin
+  log error node 'T' 'handled';
+  raise error;
+end error;
+/
+
+/**
+ * @test 16 custom handler path, asserted on what the handler did
+ * @expect $Handled = true
+ */
+declare $Handled Boolean = false;
+$r = call java action Shop.JA_Fail(Text = 'a') on error begin
+  set $Handled = true;
+end error;
+/

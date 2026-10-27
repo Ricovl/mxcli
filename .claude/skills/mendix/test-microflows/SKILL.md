@@ -16,14 +16,14 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 | 180-222 | Test File Formats |
 | 223-238 | string Operations |
 | 239-262 | Running Tests |
-| 263-450 | How It Works |
-| 451-489 | Check a test file before you run it |
-| 490-596 | Writing Good Tests |
-| 597-611 | Test File Organization |
-| 612-624 | Interpreting Failures |
-| 625-646 | CI Integration |
-| 647-653 | Related Skills |
-| 654-656 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 263-456 | How It Works |
+| 457-495 | Check a test file before you run it |
+| 496-617 | Writing Good Tests |
+| 618-632 | Test File Organization |
+| 633-645 | Interpreting Failures |
+| 646-667 | CI Integration |
+| 668-674 | Related Skills |
+| 675-677 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -315,6 +315,12 @@ chained, `--local` ran with the app's startup logic suppressed, and a suite that
 depended on startup state passed under `--attach` and failed under `--local` for
 reasons unrelated to the code.
 
+`MxTest.RegisterEndpoint` applies entity access, so it can call a startup
+microflow that does or does not (CE0114 only forbids a non-applying microflow
+calling an applying one); yours still runs with its own setting. A build error
+located in `MxTest.RegisterEndpoint` or `MxTest.RegisterTestEndpoint` is reported
+as an mxcli defect, not as an error in your project.
+
 One thing rollback does **not** cover: whatever the startup microflow writes
 happens at boot, outside any test's transaction, so `@cleanup rollback` does not
 undo it. Under `--local` that lands in the scratch `<project>_test` database;
@@ -584,6 +590,21 @@ call microflow Sales.ValidateOrder(Total = -1);
 
 Anything else after the tag is an error, not a message: `@throws not found` is
 refused rather than read as an unquoted one.
+
+A call that already has its own `on error` clause keeps it — the runner adds
+its handler only to calls without one, so the test runs the statement exactly as
+production does:
+
+- `on error rollback` is Mendix's default spelled out and behaves like no clause:
+  FAIL `exception during execution: …`, or PASS under a matching `@throws`.
+- `on error continue` swallows the error; the assertions decide. `@throws` FAILs
+  (`expected an exception but none was thrown`).
+- A custom handler that ends normally skips every statement reading the failed
+  call's result — the assertions — so the test FAILs with `not every assertion
+  was evaluated`. Assert on something the handler sets instead.
+- A custom handler that re-raises lets the error leave the test: ERROR with the
+  message, also under `@throws`. Under Docker / `--legacy-runner` it ends the
+  whole run.
 
 `@throws` and `@expect` cannot be combined. A `@throws` test compiles to a
 different shape — the verdict starts as a failure and only the error handler

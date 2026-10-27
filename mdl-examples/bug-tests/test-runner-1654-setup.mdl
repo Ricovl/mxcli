@@ -1,0 +1,31 @@
+-- ako/mxcli#1654 (upstream mendixlabs/mxcli#1645): the setup script for
+-- test-runner-1654-startup-applies-entity-access.test.mdl. Apply it before
+-- running the tests:
+--
+--   mxcli exec mdl-examples/bug-tests/test-runner-1654-setup.mdl -p app.mpr
+--
+-- The project's after-startup microflow applies entity access, which is what
+-- the generated MxTest.RegisterEndpoint (it calls this one) could not call. It
+-- leaves a marker, so a test can show that it ran at boot.
+mdl 1;
+create module MyModule;
+
+create persistent entity MyModule.StartupMarker (
+  Note: String(100)
+);
+
+/** Startup flow that applies entity access. */
+@applyentityaccess(true)
+create microflow MyModule.ASU_Startup () returns Boolean
+begin
+  $Marker = create MyModule.StartupMarker (Note = 'startup ran') commit;
+  return true;
+end;
+
+/** Adds two integers. */
+create microflow MyModule.SUB_Add ($A: Integer, $B: Integer) returns Integer
+begin
+  return $A + $B;
+end;
+
+alter settings runtime (AfterStartupMicroflow: 'MyModule.ASU_Startup');

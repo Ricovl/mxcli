@@ -356,6 +356,14 @@ This keeps a suite behaving the same under `--local` and `--attach`. Note that
 what the startup microflow writes is not covered by `@cleanup rollback` — it
 runs at boot, outside any test's transaction.
 
+The generated startup flow, `MxTest.RegisterEndpoint`, **applies entity
+access**, so it can call your after-startup microflow whichever way that one is
+set: Mendix refuses a microflow that does not apply entity access calling one
+that does (CE0114), and allows the other direction. Your microflow still runs
+with its own setting. A build error located in `MxTest.RegisterEndpoint` or
+`MxTest.RegisterTestEndpoint` is reported as mxcli's, not your project's — those
+documents exist only for the run.
+
 ### `@cleanup`: what happens to a test's data
 
 `rollback` is the **default**, so a test's database writes do not survive it.
