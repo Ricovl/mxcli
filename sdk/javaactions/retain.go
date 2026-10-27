@@ -51,15 +51,17 @@ func importList(source string) []string {
 // retains, the way mxbuild regenerates an action: the stored import list is kept
 // as it stands — order included, and the imports the generator needs wherever
 // they sit — with the statement's new imports added after it, and the stored
-// extra code is kept unless the statement supplies its own. existing is "" when
-// there is no source file yet. GenerateSource appends whatever the generated
-// code needs that the list still lacks.
+// extra code is kept unless the statement supplies its own: extraCode nil keeps
+// it, anything else replaces it, "" included (`extra code $$ $$` clears the
+// section, ako/mxcli#1702). existing is "" when there is no source file yet.
+// GenerateSource appends whatever the generated code needs that the list still
+// lacks.
 //
 // Before this, a rewrite kept only the user code, so an action whose user code
 // calls a helper in its EXTRA CODE section — FeedbackModule.XSS_Sanitizer in the
 // Blank template — was regenerated into Java that does not compile
 // (ako/mxcli#705).
-func RetainSections(existing string, imports []string, extraCode string) ([]string, string) {
+func RetainSections(existing string, imports []string, extraCode *string) ([]string, string) {
 	kept := importList(existing)
 	_, keptExtra := RetainedSections(existing)
 	seen := make(map[string]bool, len(kept)+len(imports))
@@ -72,10 +74,41 @@ func RetainSections(existing string, imports []string, extraCode string) ([]stri
 		seen[imp] = true
 		out = append(out, imp)
 	}
-	if extraCode == "" {
-		extraCode = keptExtra
+	if extraCode != nil {
+		keptExtra = *extraCode
 	}
-	return out, extraCode
+	return out, keptExtra
+}
+
+// StatedImports is the import list describe states for source: the shortest
+// leading part of the file's list that the generator turns back into the whole
+// of it — nil for the list mxbuild writes on its own, and the generated
+// imports too when one a developer added follows them, since the generator
+// appends what a list lacks rather than inserting it. A list no leading part
+// regenerates (one missing an import the code needs) is stated whole.
+func StatedImports(source string, params []*JavaActionParameter, returnType CodeActionReturnType) []string {
+	list := importList(source)
+	for k := 0; k <= len(list); k++ {
+		if equalStrings(completeImports(list[:k], params, returnType), list) {
+			if k == 0 {
+				return nil
+			}
+			return list[:k]
+		}
+	}
+	return list
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // trimSection drops the blank lines around a marker section and the one tab of

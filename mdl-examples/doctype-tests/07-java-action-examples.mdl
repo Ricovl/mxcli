@@ -156,6 +156,24 @@ return InputText.toUpperCase();
 $$;
 
 
+/**
+ * Doubles a number. The helper lives in the .java file's EXTRA CODE section,
+ * beside executeAction(); `extra code $$ ... $$` states it, and an import line
+ * goes to the file's import list (ako/mxcli#1702). Leaving the clause out of a
+ * later `create or modify` keeps the section as it is.
+ */
+create java action JaTest.Twice(N: integer not null) returns integer
+as $$
+import java.util.Objects;
+
+return twice(Objects.requireNonNull(N));
+$$
+extra code $$
+private static long twice(long n) {
+	return n * 2L;
+}
+$$;
+
 /** Concatenates two strings with an optional separator. */
 create java action JaTest.Concatenate(FirstPart: string not null, SecondPart: string not null, Separator: string) returns string
 as $$

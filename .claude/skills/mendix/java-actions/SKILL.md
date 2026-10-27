@@ -13,12 +13,12 @@ description: "Create and call custom Java actions — extending Mendix with serv
 | 28-39 | Reference files |
 | 40-48 | When to Use This Skill |
 | 49-55 | Overview |
-| 56-355 | Part 2.5: Creating Java Actions in MDL |
-| 356-549 | Part 3: Calling Java Actions from MDL |
-| 550-563 | Validation Checklist |
-| 564-574 | Common Errors |
-| 575-582 | Related Documentation |
-| 583-664 | Quick Reference |
+| 56-385 | Part 2.5: Creating Java Actions in MDL |
+| 386-579 | Part 3: Calling Java Actions from MDL |
+| 580-593 | Validation Checklist |
+| 594-604 | Common Errors |
+| 605-612 | Related Documentation |
+| 613-694 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Java Actions Skill
@@ -100,6 +100,36 @@ $$;
 A trailing `-- text` after a parameter is an ordinary comment and is **not stored**.
 On `create or modify`, leaving either out keeps what is stored; a new action gets
 no descriptions and `ReturnValueName`. The same forms apply to JavaScript actions.
+
+The action's own `/** … */` (before `create`) is its documentation, and the `.java`
+file carries it as the class javadoc above `public class`, byte for byte as mxbuild
+writes it — so a rewrite followed by a build leaves the file unchanged
+(ako/mxcli#1700). A rewrite without one keeps the stored documentation, in the
+model and in the file.
+
+### Helper Code and Imports
+
+A helper the body calls goes in the file's EXTRA CODE section, beside
+`executeAction()`: `extra code $$ … $$` after the body. An `import` line in the
+body goes to the file's import list. Studio Pro keeps both when it regenerates
+the file, and so does `create or modify` without the clause — `extra code $$ $$`
+clears the section. `describe java action` prints both, so its output rebuilds
+the same file on another project (ako/mxcli#1702):
+
+```mdl
+mdl 1;
+create java action Module.Twice(N: integer not null) returns integer
+as $$
+import java.util.Objects;
+
+return twice(Objects.requireNonNull(N));
+$$
+extra code $$
+private static long twice(long n) {
+	return n * 2L;
+}
+$$;
+```
 
 ### Type Parameters (Generics)
 

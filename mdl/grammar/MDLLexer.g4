@@ -719,6 +719,10 @@ EXEC: E X E C;
 TABLES: T A B L E S;
 VIEWS: V I E W S;
 EXPOSED: E X P O S E D;
+// `extra code $$ … $$`: a Java action's EXTRA CODE section (ako/mxcli#1702).
+// Both stay names (keyword rule): `Code` is a common attribute.
+EXTRA: E X T R A;
+CODE: C O D E;
 PLATFORM: P L A T F O R M;
 PARAMETER: P A R A M E T E R;
 PARAMETERS: P A R A M E T E R S;

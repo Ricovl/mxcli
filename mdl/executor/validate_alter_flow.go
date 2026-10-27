@@ -34,6 +34,9 @@ func ValidateAlterFlow(s *ast.AlterFlowStmt) []linter.Violation {
 	for _, op := range s.Operations {
 		v.walkAnnotations(op.Body)
 		v.checkAnnotationLabels(op.Body)
+		// One statement at a time, so a fragment is judged as a whole flow
+		// is (MDL-TEMPLATE01, ako/mxcli#1683).
+		v.checkMessageTemplates(op.Body)
 	}
 	return v.violations
 }
