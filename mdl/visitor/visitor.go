@@ -188,6 +188,14 @@ func enhanceErrorMessageAt(msg, offendingLine string, site errorSite) string {
 			"    drop microflow if exists M.F;    (correct)\n"+
 			"    drop microflow M.F if exists;    (SQL order, not MDL)", msg)
 	}
+	// `alter workflow M.W set (…);` without the braces (ako/mxcli#1717). The
+	// old per-action form takes `set display '…'` unbraced, so the parser
+	// tries that, fails at the parenthesis, and recovers into the session
+	// command `set <name> = <value>`: no error so far names the braces.
+	if m := alterWorkflowNoBracesRe.FindStringSubmatch(offendingLine); m != nil {
+		return fmt.Sprintf("%s\n\n  The generic `alter workflow` takes its operations in braces:\n"+
+			"    alter workflow %s { %s; };    (correct)", msg, m[1], strings.TrimRight(m[2], "; \t"))
+	}
 	// An icon name with a hyphen (`add-circle`): it is not an identifier, so
 	// the last segment is quoted — and only that segment, since an icon is a
 	// qualified name, not a string. Unquoted the error points at a dot; quoted
@@ -463,6 +471,11 @@ func enhanceErrorMessageAt(msg, offendingLine string, site errorSite) string {
 // dropIfExistsAfterNameRe matches `drop <type> <qualified name> if exists` —
 // the clause after the name rather than before it.
 var dropIfExistsAfterNameRe = regexp.MustCompile(`(?i)^\s*drop\s+[a-z][a-z ]*?\s+[\w."]+\.[\w."]+\s+if\s+exists\b`)
+
+// alterWorkflowNoBracesRe matches the generic `set ( … )` operation written
+// straight after `alter workflow <name>`, without the braces: the name, and
+// the operation.
+var alterWorkflowNoBracesRe = regexp.MustCompile(`(?i)^\s*alter\s+workflow\s+([\w."]+)\s+(set\s*\(.*)$`)
 
 // hyphenatedIconRe matches an icon reference whose last segment has a hyphen,
 // unquoted or quoted as one string: `Icon: Mod.Coll.add-circle` or
