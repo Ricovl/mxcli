@@ -123,6 +123,11 @@ type scriptContext struct {
 	// widget over one can be judged before it is built (MDL-ASSOCDS01).
 	associationShapes map[string]assocShape
 
+	// storedReturns caches the entity each stored microflow a call names
+	// returns, for typing a call result (microflowReturnEntity); filled on
+	// demand.
+	storedReturns map[string]string
+
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
 	// that relaxing the check hides nothing.
@@ -562,7 +567,7 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// A reference into a Protected (add-on) module's Hidden element, and a
 	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
 	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
-	errors = append(errors, validateProtectedModuleRefs(ctx, prog)...)
+	errors = append(errors, validateProtectedModuleRefs(ctx, prog, sc)...)
 	// A business event message attribute named like a member its entity
 	// inherits (BusinessEvents.PublishedBusinessEvent's, read from the project):
 	// mxbuild reports the duplicate after exec wrote it (mendixlabs/mxcli#1525).

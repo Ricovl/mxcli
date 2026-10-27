@@ -35,12 +35,23 @@ func protectedModuleFixture(t *testing.T, settingsErr error) *ExecContext {
 		e.ExportLevel = level
 		return e
 	}
+	// Usable microflows returning a Usable entity, one object and one list, for
+	// the members read on a call result (ako/mxcli#1701); Open.GetE is the
+	// ordinary-module control.
+	returning := func(m *microflows.Microflow, ret microflows.DataType) *microflows.Microflow {
+		m.ReturnType = ret
+		return m
+	}
 	flows := []*microflows.Microflow{
 		mf(addOn, "ACT_Home", "API"),
 		mf(addOn, "ACT_HomeHidden", "Hidden"),
 		mf(addOn, "Hidden_MF", ""), // unset is Hidden: mxcli and mxbuild both read it so
 		mf(addOn, "API_MF", "API"),
 		mf(open, "MF", "Hidden"),
+		returning(mf(addOn, "API_GetPub", "API"), &microflows.ObjectType{EntityQualifiedName: "MyAddOn.Pub"}),
+		returning(mf(addOn, "API_ListPub", "API"), &microflows.ListType{EntityQualifiedName: "MyAddOn.Pub"}),
+		returning(mf(addOn, "API_Flag", "API"), &microflows.BooleanType{}),
+		returning(mf(open, "GetE", "Hidden"), &microflows.ObjectType{EntityQualifiedName: "Open.E"}),
 	}
 	// Members, for the CE1406 member cases: Pub and Pub2 are Usable entities
 	// with one Usable and one Hidden attribute each, joined by a Hidden and a
@@ -266,6 +277,88 @@ func TestValidateProtectedModuleRefs(t *testing.T) {
 			[]string{"statement 2", "CE1406", "association 'MyAddOn.Pub_Fresh'"}},
 		{"inside the add-on a hidden member is fine",
 			"create microflow MyAddOn.Inner ($p: MyAddOn.Pub) begin change $p (Inner = 'x'); retrieve $q from $p/MyAddOn.Pub_Pub2; end;", nil},
+
+		// --- ako/mxcli#1699: the ENTITY a database retrieve, a create object or a
+		// create list names (measured 11.13.0, one microflow per shape: each
+		// refused into the Hidden AddOn.Internal, the Usable AddOn.Request
+		// beside it clean, all of them clean inside the add-on)
+		{"retrieve of hidden entity",
+			"create microflow MyFirstModule.R () begin retrieve $l from MyAddOn.Request; end;",
+			[]string{"CE1406", "retrieve $l is not allowed to use entity 'MyAddOn.Request'", "app modules cannot reference hidden elements",
+				"alter entity MyAddOn.Request set export level api"}},
+		{"retrieve first of hidden entity",
+			"create microflow MyFirstModule.R () begin retrieve $o from MyAddOn.Request limit 1; end;",
+			[]string{"CE1406", "entity 'MyAddOn.Request'"}},
+		{"retrieve of hidden entity with a where",
+			"create microflow MyFirstModule.R () begin retrieve $l from MyAddOn.Secret where id = empty; end;",
+			[]string{"CE1406", "entity 'MyAddOn.Secret'"}},
+		{"retrieve of usable entity", "create microflow MyFirstModule.R () begin retrieve $l from MyAddOn.Pub; end;", nil},
+		{"bare create of hidden entity",
+			"create microflow MyFirstModule.C () begin $r = create MyAddOn.Request; end;",
+			[]string{"CE1406", "create MyAddOn.Request is not allowed to use entity 'MyAddOn.Request'"}},
+		{"bare create of usable entity", "create microflow MyFirstModule.C () begin $r = create MyAddOn.Pub; end;", nil},
+		{"create list of hidden entity",
+			"create microflow MyFirstModule.C () begin $l = create list of MyAddOn.Request; end;",
+			[]string{"CE1406", "create list $l is not allowed to use entity 'MyAddOn.Request'"}},
+		{"create list of usable entity", "create microflow MyFirstModule.C () begin $l = create list of MyAddOn.Pub; end;", nil},
+		{"nanoflow create of hidden entity",
+			"create nanoflow MyFirstModule.N () begin $r = create MyAddOn.Request; end;",
+			[]string{"CE1406", "entity 'MyAddOn.Request'"}},
+		{"hidden entity in a nested block",
+			"create microflow MyFirstModule.C () begin if true then retrieve $l from MyAddOn.Request; end if; end;",
+			[]string{"CE1406", "entity 'MyAddOn.Request'"}},
+		{"inside the add-on a hidden entity is fine",
+			"create microflow MyAddOn.Inner () begin retrieve $l from MyAddOn.Request; $r = create MyAddOn.Request; $k = create list of MyAddOn.Request; end;", nil},
+		{"open module hidden entity retrieve and create",
+			"create microflow MyFirstModule.C () begin retrieve $l from Open.E; $e = create Open.E; end;", nil},
+		{"script makes the entity usable",
+			"alter entity MyAddOn.Request set export level api;\ncreate microflow MyFirstModule.C () begin retrieve $l from MyAddOn.Request; $r = create MyAddOn.Request; end;", nil},
+		{"script-created entity is hidden",
+			"create persistent entity MyAddOn.Fresh (X: String(10));\ncreate microflow MyFirstModule.C () begin $f = create MyAddOn.Fresh; end;",
+			[]string{"statement 2", "CE1406", "entity 'MyAddOn.Fresh'"}},
+		{"unknown entity is the not-found check's",
+			"create microflow MyFirstModule.C () begin retrieve $l from MyAddOn.Nope; $n = create MyAddOn.Nope; end;", nil},
+
+		// --- ako/mxcli#1701: the members read on a CALL MICROFLOW result, typed
+		// from the callee's return type (measured 11.13.0: a declare, an end
+		// event, a change and a change on a loop over a returned list were each
+		// refused on the Hidden attribute; the Usable one beside it was clean)
+		{"hidden attribute on a call result",
+			"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.API_GetPub(); declare $s String = $p/Inner; return $s; end;",
+			[]string{"CE1406", "declare $s is not allowed to use attribute 'MyAddOn.Pub.Inner'"}},
+		{"usable attribute on a call result",
+			"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.API_GetPub(); declare $s String = $p/Shown; return $s; end;", nil},
+		{"hidden attribute returned from a call result",
+			"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.API_GetPub(); return $p/Inner; end;",
+			[]string{"CE1406", "the end event is not allowed to use attribute 'MyAddOn.Pub.Inner'"}},
+		{"change of a hidden attribute on a call result",
+			"create microflow MyFirstModule.G () begin $p = call microflow MyAddOn.API_GetPub(); change $p (Inner = 'x'); end;",
+			[]string{"CE1406", "change $p is not allowed to use attribute 'MyAddOn.Pub.Inner'"}},
+		{"hidden attribute on a loop over a returned list",
+			"create microflow MyFirstModule.G () begin $l = call microflow MyAddOn.API_ListPub(); loop $x in $l begin change $x (Inner = 'x'); end loop; end;",
+			[]string{"CE1406", "change $x is not allowed to use attribute 'MyAddOn.Pub.Inner'"}},
+		{"hidden association on a call result",
+			"create microflow MyFirstModule.G () returns Boolean begin $p = call microflow MyAddOn.API_GetPub(); return $p/MyAddOn.Pub_Pub2 != empty; end;",
+			[]string{"CE1406", "association 'MyAddOn.Pub_Pub2'"}},
+		{"call result of a script-created callee",
+			"create microflow MyAddOn.API_New () returns MyAddOn.Pub export level api begin $n = create MyAddOn.Pub; return $n; end;\n" +
+				"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.API_New(); return $p/Inner; end;",
+			[]string{"statement 2", "CE1406", "attribute 'MyAddOn.Pub.Inner'"}},
+		// The script's signature is the one exec writes: a rewrite of the stored
+		// API_GetPub returning Pub2 types $p as Pub2, so Hid (Pub2's) is reported
+		// and Inner (Pub's, the stored return type) is not resolvable — silent.
+		{"script rewrite of the callee's return type wins",
+			"create or modify microflow MyAddOn.API_GetPub () returns MyAddOn.Pub2 export level api begin $n = create MyAddOn.Pub2; return $n; end;\n" +
+				"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.API_GetPub(); return $p/Hid + $p/Inner; end;",
+			[]string{"statement 2", "CE1406", "attribute 'MyAddOn.Pub2.Hid'"}},
+		{"call result inside the add-on is fine",
+			"create microflow MyAddOn.Inner () returns String begin $p = call microflow MyAddOn.API_GetPub(); return $p/Inner; end;", nil},
+		{"call result of an open module",
+			"create microflow MyFirstModule.G () returns String begin $e = call microflow Open.GetE(); return $e/Inner; end;", nil},
+		{"call result of a non-object return is silent",
+			"create microflow MyFirstModule.G () returns Boolean begin $p = call microflow MyAddOn.API_Flag(); return $p; end;", nil},
+		{"call result of an unknown microflow is silent",
+			"create microflow MyFirstModule.G () returns String begin $p = call microflow MyAddOn.Nope(); return $p/Inner; end;", nil},
 		{"open module hidden attribute", "create microflow MyFirstModule.C ($e: Open.E) begin change $e (Inner = 'x'); end;", nil},
 		{"untyped variable is silent", "create microflow MyFirstModule.C () begin change $nobody (Inner = 'x'); end;", nil},
 
@@ -282,7 +375,7 @@ func TestValidateProtectedModuleRefs(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var got []string
-			for _, err := range validateProtectedModuleRefs(ctx, parseMDL(t, c.src)) {
+			for _, err := range protectedRefErrors(t, ctx, c.src) {
 				got = append(got, err.Error())
 			}
 			if c.want == nil {
@@ -303,12 +396,21 @@ func TestValidateProtectedModuleRefs(t *testing.T) {
 	}
 }
 
+// protectedRefErrors runs the check on src the way validateProgram does, with
+// the script's definitions collected.
+func protectedRefErrors(t *testing.T, ctx *ExecContext, src string) []error {
+	t.Helper()
+	prog := parseMDL(t, src)
+	sc := newScriptContext()
+	sc.collectDefinitions(prog)
+	return validateProtectedModuleRefs(ctx, prog, sc)
+}
+
 // Unreadable module settings mean no module can be shown to be Protected, so
 // nothing is reported — a false refusal would be worse than no check.
 func TestValidateProtectedModuleRefs_SilentWithoutSettings(t *testing.T) {
 	ctx := protectedModuleFixture(t, errors.New("boom"))
-	prog := parseMDL(t, "create or modify navigation Responsive home page MyAddOn.Home_Page;")
-	if errs := validateProtectedModuleRefs(ctx, prog); len(errs) != 0 {
+	if errs := protectedRefErrors(t, ctx, "create or modify navigation Responsive home page MyAddOn.Home_Page;"); len(errs) != 0 {
 		t.Fatalf("want no errors without module settings, got %v", errs)
 	}
 }

@@ -346,7 +346,7 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 	flowQN string, params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
 
 	var out []string
-	walkTypedFlow(ctx, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+	walkTypedFlow(ctx, sc, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
 		switch s := st.(type) {
 		case *ast.CreateObjectStmt:
 			out = append(out, checkMembers(ctx, sc, authored, flowQN,
@@ -373,7 +373,10 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 // (checkFlowMembers, the Protected-module member check): two copies of it would
 // drift on which statements type a variable, and a check that loses a variable
 // goes silent rather than wrong.
-func walkTypedFlow(ctx *ExecContext, params []ast.MicroflowParam, body []ast.MicroflowStatement,
+//
+// sc resolves a `call microflow` output against the script's own definition of
+// the callee before the stored one; nil leaves call results untyped.
+func walkTypedFlow(ctx *ExecContext, sc *scriptContext, params []ast.MicroflowParam, body []ast.MicroflowStatement,
 	visit func(st ast.MicroflowStatement, vars map[string]string)) {
 
 	vars := map[string]string{}
@@ -419,6 +422,14 @@ func walkTypedFlow(ctx *ExecContext, params []ast.MicroflowParam, body []ast.Mic
 						}
 					}
 				}
+			case *ast.CallMicroflowStmt:
+				// The callee's return type (ako/mxcli#1701): untyped, every
+				// member read on a call result was silent, in both checks.
+				if s.OutputVariable != "" && sc != nil {
+					if qn := sc.microflowReturnEntity(ctx, s.MicroflowName); qn != "" {
+						vars[s.OutputVariable] = qn
+					}
+				}
 			case *ast.IfStmt:
 				walk(s.ThenBody)
 				walk(s.ElseBody)
@@ -440,6 +451,49 @@ func walkTypedFlow(ctx *ExecContext, params []ast.MicroflowParam, body []ast.Mic
 		}
 	}
 	walk(body)
+}
+
+// microflowReturnEntity is the entity a call of qn yields — its object or list
+// return type — or "" when that is not established. The script's definition
+// wins: a `create or modify` is the signature exec writes, and typing the
+// call from the stored one would judge members against an entity the callee
+// no longer returns. Else the stored microflow, read once per name.
+func (sc *scriptContext) microflowReturnEntity(ctx *ExecContext, qn ast.QualifiedName) string {
+	if qn.Module == "" {
+		return ""
+	}
+	if sc.microflows[qn.String()] {
+		if sig := sc.flowParams[strings.ToLower(qn.String())]; sig != nil {
+			return sig.Returns
+		}
+		return ""
+	}
+	if e, ok := sc.storedReturns[qn.String()]; ok {
+		return e
+	}
+	e := storedMicroflowReturnEntity(ctx, qn)
+	if sc.storedReturns == nil {
+		sc.storedReturns = map[string]string{}
+	}
+	sc.storedReturns[qn.String()] = e
+	return e
+}
+
+func storedMicroflowReturnEntity(ctx *ExecContext, qn ast.QualifiedName) string {
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return ""
+	}
+	mfs, err := microflowsNamed(ctx, qn.Name)
+	if err != nil {
+		return ""
+	}
+	for _, mf := range mfs {
+		if mf != nil && h.GetModuleName(h.FindModuleID(mf.ContainerID)) == qn.Module {
+			return sdkDataTypeEntity(mf.ReturnType)
+		}
+	}
+	return ""
 }
 
 // checkMembers resolves each member of one CREATE / CHANGE.

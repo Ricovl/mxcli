@@ -33,13 +33,17 @@ import (
 //
 // Covered shapes: navigation home pages, home flows, login / not-found pages and
 // menu items; menu documents; microflow and nanoflow parameter and return
-// types, call microflow and show page in their bodies; and the attributes and
+// types, call microflow and show page in their bodies; and the entities a
+// database retrieve, create object and create list name and the attributes and
 // associations a flow uses (checkFlowMembers). Everything else is left
 // alone, and so is anything whose level cannot be established — settings that
 // do not read, a target that does not resolve (the not-found checks own that),
 // a nanoflow target (mxcli does not read a nanoflow's export level), or a
-// reference between two Protected modules (not measured).
-func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
+// reference from one Protected module into another — which mxbuild does refuse
+// ("add-on modules cannot reference hidden elements in add-on modules",
+// measured on 11.13.0 for a retrieve, a create and a member read), and which
+// this check does not judge yet.
+func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program, sc *scriptContext) []error {
 	if prog == nil || !ctx.Connected() || !hasProtectedModuleCandidates(prog) {
 		return nil
 	}
@@ -49,6 +53,7 @@ func validateProtectedModuleRefs(ctx *ExecContext, prog *ast.Program) []error {
 	}
 	r := &protectedRefResolver{
 		ctx:          ctx,
+		sc:           sc,
 		protected:    protected,
 		scriptFlows:  map[string]*string{},
 		scriptEntity: map[string]*string{},
@@ -130,6 +135,7 @@ func moduleProtections(ctx *ExecContext) map[string]string {
 
 type protectedRefResolver struct {
 	ctx       *ExecContext
+	sc        *scriptContext // what the script defines, for typing call results
 	protected map[string]bool
 
 	// What the script defines: a flow's stated export level (nil = not stated),
