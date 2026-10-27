@@ -79,7 +79,7 @@ Entity: MyModule.Customer
 
 ## How It Works
 
-1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder
+1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder. Git runs in the project's own directory, so `-p` may point into a repository from anywhere
 2. **Reads both versions**: Current version from disk, git version using `git show`
 3. **Parses BSON**: Extracts the unit type and content from the binary BSON format
 4. **Generates MDL**: Converts both versions to MDL for human-readable comparison

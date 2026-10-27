@@ -62,7 +62,7 @@ func stubGitRevisions(t *testing.T, unitPath string, revs map[string]map[string]
 			return exec.Command("printf", "M\t%s\n", unitPath)
 		}
 		if len(args) == 2 && args[0] == "show" {
-			if f, ok := files[args[1]]; ok {
+			if f, ok := files[strings.Replace(args[1], ":./", ":", 1)]; ok {
 				return exec.Command("cat", f)
 			}
 		}
