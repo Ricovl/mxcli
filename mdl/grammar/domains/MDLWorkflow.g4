@@ -443,8 +443,9 @@ alterWorkflowTargetMember
     ;
 
 // `Key: value`, the key naming a workflow property (Display, Description,
-// ExportLevel, DueDate, OverviewPage, Parameter) or, with `on <activity>`, an
-// activity property (Page, Description, Targeting, DueDate). Which keys exist
+// ExportLevel, DueDate, OverviewPage, Parameter, Annotation) or, with `on
+// <activity>`, an activity property (Page, Description, TaskName, Targeting,
+// DueDate, Annotation). Which keys exist
 // is the visitor's call, so an unknown key is refused with the list.
 alterWorkflowAssignment
     : identifierOrKeyword COLON alterWorkflowValue

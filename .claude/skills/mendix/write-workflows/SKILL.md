@@ -14,16 +14,16 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 | 48-118 | Syntax — CREATE WORKFLOW |
 | 119-300 | Activities |
 | 301-307 | DROP WORKFLOW |
-| 308-373 | ALTER WORKFLOW |
-| 374-394 | DESCRIBE round-trip |
-| 395-415 | Activity names, and why `jump to` depends on them |
-| 416-436 | Rewriting an existing workflow |
-| 437-446 | Task pages |
-| 447-534 | Microflow statements for workflow tasks |
-| 535-555 | System-module enumerations are synthesized, not stored |
-| 556-680 | Platform rules |
-| 681-711 | Observing a running workflow |
-| 712-721 | Validate before presenting |
+| 308-375 | ALTER WORKFLOW |
+| 376-396 | DESCRIBE round-trip |
+| 397-417 | Activity names, and why `jump to` depends on them |
+| 418-438 | Rewriting an existing workflow |
+| 439-448 | Task pages |
+| 449-536 | Microflow statements for workflow tasks |
+| 537-557 | System-module enumerations are synthesized, not stored |
+| 558-682 | Platform rules |
+| 683-713 | Observing a running workflow |
+| 714-723 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -204,7 +204,7 @@ user's members with no entity in front — `targeting users xpath
 which hides every CE0161 from mx check. Measured: [reference/targeting.md](reference/targeting.md).
 
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
-as in a microflow; the workflow's own note is the header clause
+as in a microflow; the note on the workflow's start is the header clause
 `annotation '…'`, and an event sub-process takes `@annotation` before
 `event subprocess`. One note per activity; no other `@` annotation is accepted.
 
@@ -336,9 +336,11 @@ caption `'Start'`) is addressable too, but nothing goes before it — `insert
 before start1` is refused (it would be `CE9526`); use `insert after start1`.
 
 Workflow keys: `Display`, `Description`, `ExportLevel`, `DueDate`,
-`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`. Activity keys
-(with `on <activity>`): `Page`, `Description`, `Targeting: microflow M.F` /
-`Targeting: xpath [ … ]`, `DueDate`.
+`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`, `Annotation` (the
+header's `annotation '…'`, the start's note). Activity keys (with `on
+<activity>`): `Page`, `Description`, `TaskName`, `Targeting: microflow M.F` /
+`Targeting: xpath [ … ]`, `DueDate`, `Annotation` (its `@annotation '…'`; `''`
+removes a note, and an end takes none).
 
 **Adding to an activity: `insert into`.** What goes in the braces is the
 activity's own clause, as `create workflow` writes it — and it has to match the
