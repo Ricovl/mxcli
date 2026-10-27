@@ -151,7 +151,19 @@ func resolveFolder(ctx *ExecContext, moduleID model.ID, folderPath string) (mode
 	return currentContainerID, nil
 }
 
-// createFolder creates a new folder in the project.
+// createFolder creates a new folder in the project, and is the only place the
+// executor does (TestFolderCreationHasOneCallSite).
+//
+// It also records the folder in the cached container hierarchy. Every document
+// lookup by qualified name walks up from the document's container through that
+// cache to find its module, and the cache is commonly built by the very CREATE
+// that is about to make the folder — its own existence check runs first. A
+// folder the cache has not seen ends the walk at the folder, the module name
+// comes back "", and the document is "not found": a GRANT on a published REST
+// service created in a new folder earlier in the same script was rolled back
+// that way, and a re-run CREATE OR MODIFY fell through to creating a duplicate
+// (ako/mxcli#1486). Every other write that changes containers already kept the
+// cache in step; this one did not.
 func createFolder(ctx *ExecContext, name string, containerID model.ID) (model.ID, error) {
 	folder := &model.Folder{
 		BaseElement: model.BaseElement{
@@ -164,6 +176,9 @@ func createFolder(ctx *ExecContext, name string, containerID model.ID) (model.ID
 
 	if err := ctx.Backend.CreateFolder(folder); err != nil {
 		return "", err
+	}
+	if ctx.Cache != nil && ctx.Cache.hierarchy != nil {
+		ctx.Cache.hierarchy.addFolder(folder.ID, containerID, name)
 	}
 
 	return folder.ID, nil
