@@ -27,7 +27,7 @@ A replace (`OR REPLACE` or `OR MODIFY`) is refused when the stored page holds a 
 
 The page declaration block `( ... )` contains comma-separated key-value properties:
 
-- **Params** -- Page parameters. Each parameter has a `$`-prefixed name and a type — either an entity (`Module.Entity`) or a primitive (`String`, `Integer`, `Decimal`, `Boolean`, `DateTime`). Parameters are passed when the page is opened (e.g., from a microflow `SHOW PAGE` or from a data view). Primitive parameters require Mendix 11.6+.
+- **Params** -- Page parameters. Each parameter has a `$`-prefixed name and a type — either an entity (`Module.Entity`) or a primitive (`String`, `Integer`, `Decimal`, `Boolean`, `DateTime`). Parameters are passed when the page is opened (e.g., from a microflow `SHOW PAGE` or from a data view). Primitive parameters require Mendix 11.6+. A parameter cannot be named with a platform-reserved word — `Context`, `Type`, `Id`, `Owner`, `Object`, `CurrentUser` or a Java keyword, in any case and even quoted: Mendix reports CE7247 "The name 'Context' is a reserved word.", and `mxcli check` refuses it (MDL-PARAM01). The same holds for snippet, Java action and JavaScript action parameters.
 - **Title** -- The page title displayed in the browser tab or page header.
 - **Layout** -- The layout the page is based on. Must be a qualified name referring to an existing layout (e.g., `Atlas_Core.Atlas_Default`, `Atlas_Core.PopupLayout`).
 - **Folder** -- Optional folder path within the module. Nested folders use `/` separator.

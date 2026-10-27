@@ -23,6 +23,11 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {

@@ -39,6 +39,17 @@ func execAlterEntities(ctx *ExecContext, s *ast.AlterEntitiesStmt) error {
 		return nil
 	}
 
+	// Judge every target before writing to any: the per-entity path refuses a
+	// name on the chain too, but only after the targets before it were written
+	// (CE0069, ako/mxcli#1645).
+	names := make([]string, len(targets))
+	for i, qn := range targets {
+		names[i] = qn.String()
+	}
+	if err := projectMemberWorld(ctx).bulkClash(names, s.Actions); err != nil {
+		return err
+	}
+
 	for _, qn := range targets {
 		for _, action := range s.Actions {
 			// Copy per entity: execAlterEntity reads Name, and the parsed

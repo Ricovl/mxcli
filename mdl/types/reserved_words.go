@@ -40,6 +40,11 @@ var PlatformReservedWords = map[string]bool{
 	"changedby": true, "changeddate": true, "con": true, "context": true,
 	"createddate": true, "currentuser": true, "guid": true,
 	"id": true, "mendixobject": true, "owner": true, "submetaobjectname": true,
+	// Not a Java keyword, and missing here until measured: CE7247 on mx
+	// 11.13.0 for an attribute, an enumeration value, an entity and a page,
+	// snippet, Java action and JavaScript action parameter named `Object`
+	// (ako/mxcli#1651). `String`, `System`, `User`, `List` are not reserved.
+	"object": true,
 }
 
 // SystemAttributeNames are attribute names the Mendix runtime manages itself on
