@@ -15,6 +15,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -476,11 +477,25 @@ func constantValues(ctx *ExecContext, raw map[string]any) map[string]string {
 }
 
 // domainModelBsonToMDL converts a domain model BSON to MDL.
-// Includes full entity definitions (attributes) so diffs show schema changes.
+// Includes full entity definitions (attributes) so diffs show schema changes,
+// each followed by its access rules as DESCRIBE ENTITY prints them.
 func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("-- Domain Model: %s", name))
 	lines = append(lines, "")
+
+	// The access rules are rendered by DESCRIBE ENTITY's own grant writer, so
+	// they need the semantic entity, not the raw map the rest of this renderer
+	// reads. Without them a GRANT or REVOKE changed the unit but nothing this
+	// printed, so it diffed to nothing (mendixlabs/mxcli#1630, ako/mxcli#1562).
+	accessByEntity := map[string]*domainmodel.Entity{}
+	if dm, err := ctx.Backend.ParseDomainModelFromRaw(raw, "", ""); err != nil {
+		lines = append(lines, "-- access rules not shown: "+err.Error(), "")
+	} else {
+		for _, e := range dm.Entities {
+			accessByEntity[e.Name] = e
+		}
+	}
 
 	// Render full entity definitions so attribute changes show up in diffs
 	entities := extractBsonArray(raw["Entities"])
@@ -492,6 +507,14 @@ func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) str
 			}
 			qn := name + "." + entName
 			lines = append(lines, entityBsonToMDL(ctx, entMap, qn))
+			if e := accessByEntity[entName]; e != nil {
+				grants := renderToString(ctx, func() {
+					outputEntityAccessGrants(ctx, e, name, entName)
+				})
+				if grants = strings.TrimRight(grants, "\n"); grants != "" {
+					lines = append(lines, grants)
+				}
+			}
 			lines = append(lines, "")
 		}
 	}

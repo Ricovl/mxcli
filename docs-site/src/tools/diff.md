@@ -124,8 +124,9 @@ mxcli diff-local -p app.mpr --ref main...feature-branch
 
 Each changed `.mxunit` is rendered as MDL at both revisions and the two
 renderings are diffed. Domain models, microflows, nanoflows, pages, snippets,
-layouts, enumerations, modules and the project settings render as MDL — the
-settings as `describe settings` prints them, except that configuration
+layouts, enumerations, modules and the project settings render as MDL — a
+domain model's entity access rules as the `grant` statements `describe entity`
+prints, the settings as `describe settings` prints them, except that configuration
 constant values are masked, since they often hold secrets. A changed value
 still shows, as `value <masked: old value>` against `value <masked: new value>`.
 

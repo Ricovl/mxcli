@@ -89,7 +89,7 @@ Entity: MyModule.Customer
 
 The command generates MDL representations for:
 
-- **Domain models**: each entity's attributes, constraints and entity type, and the associations
+- **Domain models**: each entity's attributes, constraints and entity type, its access rules as `grant` statements (as `describe entity` prints them), and the associations
 - **Microflows / Nanoflows**: the whole body, as `describe` prints it, `grant execute` included
 - **Pages / Snippets / Layouts**: the header properties and the widget tree, as `describe` prints them
 - **Enumerations**: values and captions

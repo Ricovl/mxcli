@@ -10,7 +10,9 @@ import (
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
+	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
 	genSet "github.com/mendixlabs/mxcli/modelsdk/gen/settings"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
 // decodeRaw decodes a unit document that did NOT come from this project's
@@ -48,4 +50,24 @@ func (b *Backend) ParseProjectSettingsFromRaw(raw map[string]any) (*model.Projec
 	ps := projectSettingsFromGen(g)
 	ps.RawParts = settingsRawParts(data)
 	return ps, nil
+}
+
+// ParseDomainModelFromRaw converts a DomainModels$DomainModel document to the
+// semantic domain model, under the same read-only reasoning. diff-local reads
+// each entity's access rules from it, so a GRANT renders the way DESCRIBE
+// ENTITY prints it (mendixlabs/mxcli#1630, ako/mxcli#1562).
+func (b *Backend) ParseDomainModelFromRaw(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error) {
+	elem, _, err := decodeRaw(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode domain model: %w", err)
+	}
+	g, ok := elem.(*genDm.DomainModel)
+	if !ok {
+		return nil, fmt.Errorf("not a domain model document: %T", elem)
+	}
+	dm := domainModelFromGen(g, containerID)
+	if unitID != "" {
+		dm.ID = unitID
+	}
+	return dm, nil
 }

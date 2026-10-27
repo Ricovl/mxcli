@@ -1,0 +1,29 @@
+mdl 1;
+-- ako/mxcli#1562 (mendixlabs/mxcli#1630) — after a `grant` on an entity,
+-- `mxcli diff-local` counted the domain model as modified and printed
+--     Summary: 0 new, 1 modified, 0 deleted
+-- and nothing else. Its domain-model rendering printed each entity's
+-- attributes and the associations, but not the entity access rules, so a
+-- script that only changed access had nothing to review.
+--
+-- The rules now render after each entity with DESCRIBE ENTITY's own grant
+-- writer, read from a parse of each revision of the unit.
+--
+-- Repro on an MPR v2 app in git:
+--   1. mxcli exec this script, commit.
+--   2. Run the commented statement below (uncommented), then from the app's
+--      folder: mxcli diff-local -p App.mpr
+-- Expected after the fix:
+--      create persistent entity MyFirstModule.DiffLocalItem (
+--        Name: String(100)
+--      );
+--
+--     -grant read * on entity MyFirstModule.DiffLocalItem to MyFirstModule.DiffLocalUser;
+--     +grant read *, write * on entity MyFirstModule.DiffLocalItem to MyFirstModule.DiffLocalUser;
+
+create module role MyFirstModule.DiffLocalUser;
+create or modify persistent entity MyFirstModule.DiffLocalItem (Name: String(100));
+grant read * on entity MyFirstModule.DiffLocalItem to MyFirstModule.DiffLocalUser;
+
+-- Step 2:
+-- grant read *, write * on entity MyFirstModule.DiffLocalItem to MyFirstModule.DiffLocalUser;

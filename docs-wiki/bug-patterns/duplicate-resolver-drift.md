@@ -88,8 +88,9 @@ units, so there is no second answer left to drift.
 is not a project anything can DESCRIBE, so it renders each unit's BSON with its
 own per-doctype renderers, and every doctype they render lossily was counted
 as modified and printed nothing — a stub body (mendixlabs/mxcli#1080, #1393),
-a type with no case (project settings, ako/mxcli#1512). A probe of one
-statement per kind found nine more silent unit kinds. The class is bounded at
+a type with no case (project settings, ako/mxcli#1512), a member never printed
+(entity access rules, ako/mxcli#1562). A probe of one statement per kind found
+nine more silent unit kinds. The class is bounded at
 the comparison, not per renderer: git has already said the bytes differ, so
 identical renderings can only mean a lossy renderer, and the unit is reported
 with the property paths that changed — the walker `mxcli diff` uses, now
