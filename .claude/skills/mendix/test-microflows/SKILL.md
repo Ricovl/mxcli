@@ -12,18 +12,18 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 |---|---|
 | 33-39 | Reference files |
 | 40-50 | When to Use This Skill |
-| 51-179 | Prerequisites |
-| 180-222 | Test File Formats |
-| 223-238 | string Operations |
-| 239-262 | Running Tests |
-| 263-450 | How It Works |
-| 451-489 | Check a test file before you run it |
-| 490-596 | Writing Good Tests |
-| 597-611 | Test File Organization |
-| 612-624 | Interpreting Failures |
-| 625-646 | CI Integration |
-| 647-653 | Related Skills |
-| 654-656 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 51-180 | Prerequisites |
+| 181-223 | Test File Formats |
+| 224-239 | string Operations |
+| 240-263 | Running Tests |
+| 264-451 | How It Works |
+| 452-490 | Check a test file before you run it |
+| 491-597 | Writing Good Tests |
+| 598-612 | Test File Organization |
+| 613-625 | Interpreting Failures |
+| 626-647 | CI Integration |
+| 648-654 | Related Skills |
+| 655-657 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -103,7 +103,8 @@ app looks half-working. Only Java-backed resources are affected, which is why it
 does not look like the test run did it.
 
 mxcli warns when it sees a dev loop serving the same project (`run --local`
-records itself in `.mxcli/run-local.json`, removed on exit). **If something the
+records itself in `.mxcli/run-local.json`, removed when that run ends — see the
+run-local skill for its lifecycle). **If something the
 app serves stops returning data after a test run, restart that app.** That is the
 whole remedy.
 

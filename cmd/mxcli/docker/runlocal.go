@@ -1075,18 +1075,31 @@ func RunLocal(opts LocalRunOptions) error {
 // still answers" the only evidence available. A non-zero exit is what any
 // supervisor — a shell loop, systemd, a container restart policy — already knows
 // how to act on.
+//
+// The reason is read from the runtime log FILE as well as from the JVM's own
+// output: the application log — where the licence's "Maximum run time
+// exceeded" is written — reaches only the file subscriber, never stdout
+// (ako/mxcli#1542). It travels as RuntimeStoppedError.Reason so the run state
+// can record it for `run status`.
 func runtimeStoppedError(rt *LocalRuntime) error {
+	fileLog := currentRuntimeLog(rt.opts.RuntimeLogPath)
+	reason := stopReason(fileLog, filepath.Base(rt.opts.RuntimeLogPath))
+	if reason == "" {
+		reason = stopReason(rt.Log(), "runtime output")
+	}
 	detail := ""
-	if reason := runtimeExitReason(rt.Log()); reason != "" {
+	if long := runtimeExitReason(rt.Log() + "\n" + fileLog); long != "" {
+		detail = "\n  " + long
+	} else if reason != "" {
 		detail = "\n  " + reason
 	}
 	if err := rt.ExitErr(); err != nil {
 		detail += "\n  the runtime process exited with: " + err.Error()
 	}
-	return fmt.Errorf("the app stopped: the Mendix runtime is no longer running%s\n"+
+	return &RuntimeStoppedError{Reason: reason, msg: fmt.Sprintf("the app stopped: the Mendix runtime is no longer running%s\n"+
 		"  mxcli is exiting rather than staying up over a dead app — a tunnel or reverse proxy\n"+
 		"  keeps answering after the runtime is gone, so \"the URL responds\" is not evidence\n"+
-		"  the app is alive. Re-run to restart it.", detail)
+		"  the app is alive. Restart it: mxcli run restart -p <app.mpr>, or re-run.", detail)}
 }
 
 // maybeScreenshot captures the app (best-effort) when --screenshot is set. A

@@ -189,25 +189,34 @@ func logAdminOptions(cmd *cobra.Command) docker.M2EEOptions {
 	pass, _ := cmd.Flags().GetString("admin-pass")
 	projectPath, _ := cmd.Flags().GetString("project")
 	opts := docker.M2EEOptions{Host: host, Port: port, Token: pass, Direct: true}
-	return devLoopAdminOptions(projectPath, opts, adminFlagsSet{
+	return devLoopAdminOptions(projectPath, opts, logAdminFlagsSet(cmd))
+}
+
+// logAdminFlagsSet records which admin connection settings `mxcli log` was
+// given explicitly.
+func logAdminFlagsSet(cmd *cobra.Command) adminFlagsSet {
+	return adminFlagsSet{
 		host:  cmd.Flags().Changed("admin-host"),
 		port:  cmd.Flags().Changed("admin-port"),
 		token: cmd.Flags().Changed("admin-pass") || os.Getenv("MXCLI_ADMIN_PASS") != "",
-	})
+	}
 }
 
 // logConnectionHint names the most likely cause when nothing is listening — but
 // ONLY then. The runtime rejecting a request (an unknown node, a bad level) is
 // not a connection problem, and telling someone to start an app they clearly
-// already have running buries the sentence that matters.
+// already have running buries the sentence that matters. When -p names a
+// project whose run --local did not supply the connection, it says that too:
+// a 403 is then a stopped run, not a bad password (ako/mxcli#1542).
 func logConnectionHint(cmd *cobra.Command, err error) string {
 	if !errors.Is(err, docker.ErrAdminUnreachable) {
 		return ""
 	}
 	opts := logAdminOptions(cmd)
+	projectPath, _ := cmd.Flags().GetString("project")
 	return fmt.Sprintf("  Log levels come from a RUNNING app's admin API (%s:%d).\n"+
 		"  Start one with 'mxcli run --local -p <app.mpr>' (and pass the same -p here), or point at another with --admin-host/--admin-port/--admin-pass.\n",
-		opts.Host, opts.Port)
+		opts.Host, opts.Port) + devLoopAdminHint(projectPath, logAdminFlagsSet(cmd), err)
 }
 
 func init() {

@@ -34,7 +34,7 @@ stopped: pid 30133 in 300ms
 | Command | Does | Exit |
 |---|---|---|
 | `run --local … --detach` | starts the loop in its own session (it survives the calling shell), writes `.mxcli/run-state.json` and `.mxcli/run.log`, returns once the app serves. A failed boot prints the reason and the last log lines. A second run for the same project is refused. | 0 / 1 |
-| `run status` | one line: URL, pid, uptime, last build and how it was applied, a build in progress, a change still pending. A state file whose process is gone is reported as stopped, with any leftover processes. | 0 running, 3 stopped, 4 starting |
+| `run status` | one line: URL, pid, uptime, last build and how it was applied, a build in progress, a change still pending. A state file whose process is gone is reported as stopped, with any leftover processes. A run whose runtime stopped on its own says why when its log does — `stopped: trial licence time limit reached at 18:43:16 (runtime.log); restart with mxcli run restart -p …`. | 0 running, 3 stopped, 4 starting |
 | `run wait [--timeout 5m]` | blocks until the watch loop has applied the model as it is now, or failed to; prints `applied: build #N via reload\|restart in …` or `failed:` with the CE codes / SCSS error lines. `--ready` waits for the boot instead; `--since N` for any build newer than N. | 0 applied, 1 failed, 2 timeout, 3 not running |
 | `run stop` | asks the run to shut down, waits until it is gone, then stops anything left in its process session — so no orphaned `runtimelauncher` or mxbuild JVM, even from a run killed with `-9`. Nothing running is a no-op. | 0 |
 | `run restart` | `run stop`, then `--detach` again with the arguments recorded in the state file. | as `--detach` |
@@ -52,6 +52,24 @@ a change, and `wait` says so (exit 1).
 `run status|wait|stop` also work on a foreground `run --local` started in another
 terminal — every run publishes its state. On Windows, `run stop` ends the process
 tree without a graceful shutdown.
+
+### `.mxcli/run-local.json`
+
+Besides `run-state.json`, a run publishes **`.mxcli/run-local.json`** (mode 0600): the
+app and admin ports, the admin password and the boot configuration — how `mxcli oql`,
+`mxcli log`, `constant set --apply`, and any tool that calls the admin API, reach the
+app.
+
+- **Written** once the app serves, carrying the run's pid.
+- **Removed** when that run ends — a requested stop, or the runtime stopping on its own
+  (the trial licence's time limit, a crash) — immediately after `run-state.json`
+  records `"phase": "stopped"`, `"ended"` and a one-line `"reason"`. `run stop`
+  removes it for a run that was killed outright. No other process removes it: a
+  `run --local --setup` (the SessionStart hook) or a refused second run leaves it alone.
+- **Missing?** Check `mxcli run status -p app.mpr`, not the credentials. It reports a
+  stopped run with its reason, or a live run whose handshake is gone (`mxcli run
+  restart` republishes it). A 401/403 from the admin API without the handshake means
+  the connection fell back to default settings; `oql` and `log` say so.
 
 ## Why
 
