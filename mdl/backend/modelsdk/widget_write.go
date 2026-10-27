@@ -777,6 +777,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 	case *pages.ScrollContainer:
 		g := genPg.NewScrollContainer()
 		applyWidgetBase(g, &x.BaseWidget)
+		// Only when stated: unset, the key is left to Studio Pro's default
+		// (Headline, canon's measured property defaults), so a layout that
+		// never said it is written as before (ako/mxcli#1703).
+		if x.LayoutMode != "" {
+			g.SetLayoutMode(x.LayoutMode)
+		}
 		for _, r := range x.Regions {
 			rg, err := scrollRegionToGen(r)
 			if err != nil {

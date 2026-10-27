@@ -196,8 +196,8 @@ create or modify layout MyModule.Layout_Framed (
 
 | Element | MDL | Notes |
 |---------|-----|-------|
-| Scroll container | `scrollcontainer name { … }` | The layout's root. Its children are **regions**, never widgets |
-| Region | `region top \| right \| bottom \| left \| center` | Five **named slots**, not a list. One region per slot; a repeat is refused |
+| Scroll container | `scrollcontainer name [(layoutmode: 'Sidebar')] { … }` | The layout's root. Its children are **regions**, never widgets. `layoutmode` is the frame: `'Headline'` (the default — the top region runs the full width, the left one starts under it) or `'Sidebar'` (the left region runs the full height, the top bar beside it; Atlas_SideBar and Atlas_TopBar). `describe` prints it only when it is Sidebar |
+| Region | `region top \| right \| bottom \| left \| center` | Five **named slots**, not a list. One region per slot; a repeat is refused. Takes `size`, `sizemode`, `togglemode` and `class` — no other appearance key is written for a region, so `style:` on one is refused (MDL-WIDGET52) |
 | Placeholder | `placeholder Main` | The hole a page's content goes into. No properties, no body |
 | Navigation tree | `navigationtree name (profile: 'Responsive')` | The sidebar menu — vertical. The profile is a navigation profile name |
 | Menu bar | `menubar name (profile: 'Responsive')` | The topbar menu — horizontal. Same stored shape as a navigation tree |

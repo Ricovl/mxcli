@@ -7,8 +7,7 @@ covers:
 sources:
   - .claude/skills/fix-issue/findings/mdl-executor/
   - mdl/executor/cmd_diff_local.go
-  - mdl/executor/cmd_diff_local_fields.go
-  - mdl/executor/cmd_diff_local_settings.go
+  - mdl/executor/cmd_diff.go
   - mdl/executor/cmd_diff_mdl.go
 ---
 
@@ -45,18 +44,20 @@ for.** Each stub (`-- (page widgets)`, `-- parse failed --`, the generic
 `-- <Type>: <name>` header) was written to degrade visibly. Both sides degrade
 the same way, so the comparison sees nothing. The same trap applies to masking
 a secret: a fixed `'***'` hides a changed value as completely as no renderer at
-all. A mask for a diff must be different for different values and still give
-nothing away. The settings renderer uses an HMAC under a key that is drawn once
-per process and never printed.
+all. A mask for a diff must differ where the values differ and still give
+nothing away. The settings renderer renders each side knowing the other's value,
+so a changed constant prints as `<masked: old value>` / `<masked: new value>`
+and an unchanged one as `<masked>`.
 
 **Close the class, not the case.** Adding renderers one doctype at a time (#1080,
 #1393, #1602, #1630) never ends, because the next unprinted property is silent
-again. `diff-local` holds both decoded documents. So when the two renderings
-agree but the documents do not, it can walk them and list the differing paths
-(`cmd_diff_local_fields.go`). It prints only type and size, never the value,
-because the doctypes without a renderer include the ones that hold secrets. The
-renderers still matter, because a path list is no review. The fallback makes
-sure that a missing renderer is visible, not silent.
+again. Git has already said the bytes differ, so when the two renderings agree
+the documents are compared instead, and the unit prints one line naming the
+property paths that changed (`ChangedPaths` in `cmd_diff.go`, shared with
+`mxcli diff`). It never prints the values, because the doctypes without a
+renderer include the ones that hold secrets. The renderers still matter, because
+a path list is no review. The note makes sure that a missing renderer is
+visible, not silent.
 
 **Decode through the backend, never off the map.** BSON keys are storage names:
 an access rule's roles are `AllowedModuleRoles`, an attribute's type is
@@ -79,11 +80,15 @@ Make mocks refuse foreign documents the way the backend does. The cheapest real
 repro is a copy of `testdata/pedapp`, `git init`, exec and commit, then
 `diff-local --ref X~1..X`. The pre-fix binary prints the bare summary.
 
-**Where git runs is part of the contract.** Git's paths are relative to the
-repository root, and git used to run in the process's working directory. The
-two only line up when the working directory is the root and the project sits
-at it. That is where every early repro ran, so `-p` from anywhere else failed or
-read the wrong files.
+**Where git runs, and what it is asked, are part of the contract.** Git's paths
+are relative to the repository root, and git used to run in the process's
+working directory. The two only line up when the working directory is the root
+and the project sits at it. That is where every early repro ran, so `-p` from
+anywhere else failed or read the wrong files. The same goes for the range: the
+old side of `a...b` is the merge base, not `a`, and only a repository where both
+branches changed the same unit after the split tells the two apart. Rename
+detection is a third: a unit's file name is its ID, so a "renamed" file is one
+unit deleted and another added.
 
 ## See also
 

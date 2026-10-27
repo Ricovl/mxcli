@@ -285,6 +285,9 @@ func TestEveryObjectTypeConstantIsInAPublishedList(t *testing.T) {
 		published    []string
 	}{
 		{"builder_references.go", "RefObject", append(append([]string{}, RefSourceObjectTypes...), RefTargetObjectTypes...)},
+		// RefKinds is what TestQUAL004CountsEveryRefKind (mdl/linter) drives at
+		// the orphan rule, so a kind missing from it is a kind nothing checks.
+		{"builder_references.go", "RefKind", RefKinds},
 		{"builder_permissions.go", "PermissionElement", PermissionElementTypes},
 		{"builder_permissions.go", "AccessType", PermissionAccessTypes},
 	} {

@@ -63,8 +63,8 @@ type MockBackend struct {
 	ListDomainModelsFunc                       func() ([]*domainmodel.DomainModel, error)
 	GetDomainModelFunc                         func(moduleID model.ID) (*domainmodel.DomainModel, error)
 	GetDomainModelByIDFunc                     func(id model.ID) (*domainmodel.DomainModel, error)
+	ParseDomainModelFromRawFunc                func(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModelFunc                      func(dm *domainmodel.DomainModel) error
-	ParseDomainModelFromRawFunc                func(raw map[string]any, unitID, containerID model.ID) *domainmodel.DomainModel
 	SetDomainModelAnnotationsFunc              func(domainModelID model.ID, annotations []*domainmodel.Annotation) error
 	SetDomainModelDocumentationFunc            func(domainModelID model.ID, documentation string) error
 	CreateEntityFunc                           func(domainModelID model.ID, entity *domainmodel.Entity) error
@@ -284,7 +284,7 @@ type MockBackend struct {
 	GetProjectSettingsFunc          func() (*model.ProjectSettings, error)
 	AddNavigationProfileFunc        func(navDocID model.ID, name string) error
 	UpdateProjectSettingsFunc       func(ps *model.ProjectSettings) error
-	ParseProjectSettingsFromRawFunc func(raw map[string]any) *model.ProjectSettings
+	ParseProjectSettingsFromRawFunc func(raw map[string]any) (*model.ProjectSettings, error)
 
 	// ImageBackend
 	ListImageCollectionsFunc func() ([]*types.ImageCollection, error)

@@ -951,6 +951,9 @@ type rawWidget struct {
 	// RegionToggleMode is a scroll container region's ToggleMode — how a
 	// sidebar toggle opens it. None (the default) is not printed.
 	RegionToggleMode string
+	// ScrollLayoutMode is a scroll container's LayoutMode, Headline (the
+	// default, not printed) or Sidebar (ako/mxcli#1703).
+	ScrollLayoutMode string
 	// NavigationProfile is a Forms$NavigationTree's profile, which the document
 	// keeps one level down in MenuSource rather than on the tree.
 	NavigationProfile string

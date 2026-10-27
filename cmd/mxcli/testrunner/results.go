@@ -229,14 +229,21 @@ func ParseLogResults(logReader io.Reader, suite *TestSuite, requireAssertions bo
 			if len(parts) >= 4 {
 				name = parts[3]
 			}
+			// Not the zero status, which is PASS. A test that logs RUN and no
+			// verdict did not finish: an error left the runner flow, which
+			// stops it here — a call whose own handler re-raises does exactly
+			// that (ako/mxcli#1448). Its PASS or FAIL line replaces this.
 			resultMap[id] = &TestResult{
-				ID:   id,
-				Name: name,
+				ID:      id,
+				Name:    name,
+				Status:  StatusError,
+				Message: "started and reported no verdict: an error left the test runner here, which stopped it (the runtime log has the error)",
 			}
 
 		case "PASS":
 			if r, ok := resultMap[id]; ok {
 				r.Status = StatusPass
+				r.Message = ""
 				if t, ok := runTimes[id]; ok {
 					r.Duration = time.Since(t)
 				}

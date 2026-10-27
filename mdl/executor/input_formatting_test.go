@@ -31,10 +31,11 @@ func TestValidateInputFormatting(t *testing.T) {
 		{"custom without pattern", `datepicker d (Attribute: Moment, DateFormat: Custom)`, "MDL-WIDGET18", "needs a non-empty CustomDateFormat"},
 		// -1 is Studio Pro's "no fixed precision" and is accepted (mendixlabs/mxcli#1407).
 		{"precision below -1", `textbox t (Attribute: Amount, DecimalPrecision: -2)`, "MDL-WIDGET18", "non-negative integer"},
-		// A widget with no FormattingInfo still drops the key, and says so.
-		{"DateFormat on a text area", `textarea a (Attribute: Notes, DateFormat: Time)`, "MDL-WIDGET07", "DateFormat"},
+		// A widget with no FormattingInfo does not take the key, and says so
+		// (MDL-V1-WIDGETPROP: a warning here, without the header; ako/mxcli#1698).
+		{"DateFormat on a text area", `textarea a (Attribute: Notes, DateFormat: Time)`, "MDL-V1-WIDGETPROP", "DateFormat"},
 		// A text box binds no dates (CE2421), so DateFormat means nothing there.
-		{"DateFormat on a text box", `textbox t (Attribute: Amount, DateFormat: Time)`, "MDL-WIDGET07", "DateFormat"},
+		{"DateFormat on a text box", `textbox t (Attribute: Amount, DateFormat: Time)`, "MDL-V1-WIDGETPROP", "DateFormat"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			prog, errs := visitor.Build(page(c.widget))
@@ -44,7 +45,8 @@ func TestValidateInputFormatting(t *testing.T) {
 			vs := ValidateWidgetProperties(prog, "")
 			var hit []string
 			for _, v := range vs {
-				if strings.HasPrefix(v.RuleID, "MDL-WIDGET18") || strings.HasPrefix(v.RuleID, "MDL-WIDGET07") {
+				if strings.HasPrefix(v.RuleID, "MDL-WIDGET18") || strings.HasPrefix(v.RuleID, "MDL-WIDGET07") ||
+					v.RuleID == nativeWidgetPropDropped.Code || v.RuleID == "MDL-WIDGET52" {
 					hit = append(hit, v.RuleID+": "+v.Message)
 				}
 			}

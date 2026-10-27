@@ -6,6 +6,8 @@ A widget is declared with a type keyword, a unique name, properties in parenthes
 WIDGET_TYPE widgetName (Property: value, ...) [{ children }]
 ```
 
+**Each built-in widget takes its own properties.** A property the widget does not take — `Caption:` on a `TEXTBOX` (an input's label is `Label:`), `Label:` on an `ACTIONBUTTON`, `Visible:` on a `SNIPPETCALL` (Mendix stores no visibility for one), a misspelt key — is refused under `mdl 1;` by `check` and by `exec`, with nothing written (MDL-WIDGET52). Without the header it is dropped as before and warned about (MDL-V1-WIDGETPROP). The message lists the properties that widget takes.
+
 **The list below is not the boundary.** The built-in Mendix widgets are documented here because they have fixed, hand-written property sets. Every **pluggable or custom widget** installed in the project is also written by its own name, with a body derived from the widget's definition — see [Any installed widget](#any-installed-widget) below. If a widget is in `widgets/`, MDL can name it.
 
 ## Widget Categories
@@ -106,7 +108,7 @@ CREATE PAGE MyModule.Task_Tabs (
 | `BadgeParams` | The badge template's parameters, resolved against the enclosing data container | `BadgeParams: ({1} = OpenCount)` |
 | `Visible` | Visibility condition | `Visible: $Panel/ShowDone` |
 
-A tab page has no `Class`, `Style` or `CaptionParams`: Mendix stores none for it. A `BadgeParams` without a `Badge`, or a `Badge` that is not a quoted template, is refused (MDL-WIDGET51); `Badge` on any other widget is not stored, and `check` says so (MDL-WIDGET07).
+A tab page has no `Class`, `Style` or `CaptionParams`: Mendix stores none for it. A `BadgeParams` without a `Badge`, or a `Badge` that is not a quoted template, is refused (MDL-WIDGET51); `Badge` on any other widget is not stored, and is refused (MDL-WIDGET52).
 
 ## Data Widgets
 
@@ -322,7 +324,7 @@ All input widgets share common properties:
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `Label` | Field label text | `Label: 'Customer Name'` |
+| `Label` | Field label text — not `Caption:`, which is a button's (MDL-WIDGET52) | `Label: 'Customer Name'` |
 | `Attribute` | Entity attribute to bind to | `Attribute: Name` |
 | `Editable` | Editability: `Always`, `Never`, `true`/`false`, or a condition expression (bare or quoted) | `Editable: Never` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |

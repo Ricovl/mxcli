@@ -1042,7 +1042,8 @@ func (unsupportedBackend) PageLayoutName(_ model.ID) (r0 string, err1 error) {
 	return
 }
 
-func (unsupportedBackend) ParseDomainModelFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *domainmodel.DomainModel) {
+func (unsupportedBackend) ParseDomainModelFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *domainmodel.DomainModel, err1 error) {
+	err1 = errUnsupported("ParseDomainModelFromRaw")
 	return
 }
 
@@ -1059,7 +1060,8 @@ func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ m
 	return
 }
 
-func (unsupportedBackend) ParseProjectSettingsFromRaw(_ map[string]any) (r0 *model.ProjectSettings) {
+func (unsupportedBackend) ParseProjectSettingsFromRaw(_ map[string]any) (r0 *model.ProjectSettings, err1 error) {
+	err1 = errUnsupported("ParseProjectSettingsFromRaw")
 	return
 }
 

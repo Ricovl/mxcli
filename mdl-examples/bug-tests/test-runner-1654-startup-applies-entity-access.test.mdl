@@ -1,0 +1,41 @@
+-- ako/mxcli#1654 (upstream mendixlabs/mxcli#1645): `mxcli test --local`
+-- generates the startup microflow MxTest.RegisterEndpoint, which registers the
+-- test endpoint and then calls the project's own after-startup microflow. It was
+-- written without "apply entity access", and MxBuild refuses a microflow that
+-- does not apply entity access calling one that does (CE0114) — so in a project
+-- whose after-startup microflow applies entity access no test could run, and the
+-- error said it was "in the project, not in this run's tests".
+--
+-- Setup: test-runner-1654-setup.mdl. Then:
+--
+--   mxcli test mdl-examples/bug-tests/test-runner-1654-startup-applies-entity-access.test.mdl -p app.mpr --local
+--
+-- Measured on 11.13.0 (--local --db-type hsqldb). Before the fix: "build failed
+-- … [CE0114] … at MxTest / Microflow 'RegisterEndpoint' / Call microflow
+-- activity 'ASU_Startup'" and no test runs. After: both tests PASS — the second
+-- one shows the project's startup microflow ran at boot, through the generated
+-- flow. It consumes the marker it counts (`@cleanup none`), so it cannot pass on
+-- an earlier boot's: its control, the same run with --skip-app-startup, FAILs
+-- it ("expected $Count > 0, actual: 0").
+--
+-- CE0114 has one direction (mx check, 11.13.0): non-applying → applying is the
+-- error; applying → non-applying and applying → applying are 0 errors, at
+-- security Off and Production. So RegisterEndpoint now always applies entity
+-- access, and calls a startup microflow of either kind.
+mdl 1;
+/**
+ * @test Addition returns the sum
+ * @expect $result = 4
+ */
+$result = call microflow MyModule.SUB_Add(A = 2, B = 2);
+/
+
+/**
+ * @test the app's own after-startup microflow ran at boot
+ * @cleanup none
+ * @expect $Count > 0
+ */
+retrieve $Markers from MyModule.StartupMarker;
+$Count = count $Markers;
+delete $Markers;
+/

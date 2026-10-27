@@ -543,8 +543,8 @@ picker with `alter page … { set (DateFormat: DateTime) on dpStart; }`.
 ```sql
 textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
 ```
-A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned about
-(MDL-WIDGET07), as on any widget other than a date picker.
+A text box binds no dates (CE2421), so it does not take `DateFormat`: under `mdl 1;`
+it is refused (MDL-WIDGET52), as on any widget other than a date picker.
 
 **COMBOBOX** - Combo box (pluggable widget):
 ```sql

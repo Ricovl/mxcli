@@ -1,0 +1,46 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1450 (mendixlabs/mxcli#1553): CATALOG. stripped inside literals
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   A catalog query removed the text `Catalog.` everywhere in the query, not
+--   only from the CATALOG.<table> prefix, so a module named Catalog could not
+--   be filtered on by qualified name:
+--     select QualifiedName, 'Catalog.Product' as lit ...  -> lit = 'Product'
+--     ... where QualifiedName = 'Catalog.Product'         -> 0 rows
+--   The same rewrite also touched quoted identifiers and comments, and
+--   `CATALOG . ENTITIES` (whitespace around the dot, which the grammar
+--   accepts) failed with "no such table: CATALOG.ENTITIES". Every entry point
+--   was affected: -c, scripts, the REPL, and the LSP (which runs -c).
+--
+-- After fix:
+--   Only the table prefix is rewritten; string literals, quoted identifiers
+--   and comments reach SQLite verbatim. The first select returns
+--   lit = 'Catalog.Product', the count is 1, and the last two each return the
+--   one row Catalog.Product.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/catalog-1450-prefix-in-string-literals.mdl -p app.mpr
+-- ============================================================================
+
+create module Catalog;
+
+create persistent entity Catalog.Product (
+  Name: String(100)
+);
+
+-- A module whose name merely contains the word: must not be confused with it.
+create module ProductCatalog;
+
+create persistent entity ProductCatalog.Item (
+  Code: String(50)
+);
+
+-- The issue's two queries.
+select QualifiedName, 'Catalog.Product' as lit from CATALOG.ENTITIES where ModuleName = 'Catalog';
+select count(*) as n from CATALOG.ENTITIES where QualifiedName = 'Catalog.Product';
+
+-- Lower-case prefix, a join of two catalog tables, and whitespace at the dot.
+select e.QualifiedName from catalog.entities e join CATALOG.MODULES m on m.Name = e.ModuleName where e.QualifiedName = 'Catalog.Product';
+select QualifiedName as "Catalog.Name" from CATALOG . ENTITIES where QualifiedName = 'Catalog.Product';

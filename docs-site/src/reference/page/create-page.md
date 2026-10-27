@@ -141,6 +141,12 @@ mistake.
 
 The same values serve `OnClick:` (an alias of `Action:`) and `OnChange:`.
 
+A flow or page that takes no parameters may be called with an empty argument
+list, as a flow body writes it: `Action: CALL MICROFLOW Module.Name()` stores
+exactly what `Action: CALL MICROFLOW Module.Name` stores, and `DESCRIBE` writes
+it without the brackets. The same holds for a microflow or nanoflow data source
+and for `USE FRAGMENT Name()`.
+
 #### Action settings
 
 Any action but `NOTHING` takes a `with ( … )` list of the settings Studio Pro

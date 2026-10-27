@@ -180,7 +180,7 @@ func TestIssue1653_CheckAcceptsTheBadgeOnATabPageOnly(t *testing.T) {
 	got := issue1653Violations(t, `create page M.P (Title: 'x', Layout: Atlas_Core.Atlas_Default) {
   dynamictext txt (Content: 'a', Badge: 'b')
 };`)
-	if len(got) == 0 || !strings.Contains(strings.Join(got, "\n"), "MDL-WIDGET07") {
+	if len(got) == 0 || !strings.Contains(strings.Join(got, "\n"), nativeWidgetPropDropped.Code) {
 		t.Errorf("Badge on a dynamic text is not reported: %v", got)
 	}
 }

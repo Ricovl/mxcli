@@ -161,6 +161,11 @@ func (b *Builder) buildPublishedRestServices() error {
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + svc.Name
 
+		// The custom authentication microflow runs on every authenticated
+		// request; the operation edges below do not cover it (ako/mxcli#1639).
+		b.addServiceMicroflowRefs(RefObjectPublishedRestService, svc.ID, qualifiedName, moduleName,
+			RefKindPublish, svc.AuthenticationMicroflow)
+
 		// Count total operations across all resources
 		opCount := 0
 		for _, res := range svc.Resources {

@@ -415,22 +415,10 @@ func (pb *pageBuilder) resolveFolder(folderPath string) (model.ID, error) {
 	return currentContainerID, nil
 }
 
-// createFolder creates a new folder in the project.
+// createFolder creates a new folder in the project through the executor's one
+// folder creator, which also keeps the cached hierarchy in step (ako/mxcli#1486).
 func (pb *pageBuilder) createFolder(name string, containerID model.ID) (model.ID, error) {
-	folder := &model.Folder{
-		BaseElement: model.BaseElement{
-			ID:       model.ID(types.GenerateID()),
-			TypeName: "Projects$Folder",
-		},
-		ContainerID: containerID,
-		Name:        name,
-	}
-
-	if err := pb.backend.CreateFolder(folder); err != nil {
-		return "", err
-	}
-
-	return folder.ID, nil
+	return createFolder(pb.ctx, name, containerID)
 }
 
 // execDropPage handles DROP PAGE statement.

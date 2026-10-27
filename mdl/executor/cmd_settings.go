@@ -147,12 +147,15 @@ func describeSettings(ctx *ExecContext, configName string) error {
 	return nil
 }
 
-// writeProjectSettingsMDL prints settings as the `alter settings` statements
-// DESCRIBE SETTINGS emits. mask, when set, replaces every stored secret value —
-// configuration constant values and the database password — with what it
-// returns; diff-local passes one so a changed value shows without being printed
-// (mendixlabs/mxcli#1602). nil prints constant values as stored.
-func writeProjectSettingsMDL(ctx *ExecContext, ps *model.ProjectSettings, mask func(string) string) {
+// constantValueFunc renders the value of a configuration's constant override
+// in a settings description; nil prints it as a quoted literal.
+type constantValueFunc func(configuration, constant, value string) string
+
+// writeProjectSettingsMDL prints the settings document as DESCRIBE SETTINGS
+// does, below the project id (which is not part of the document). diff-local
+// renders the settings unit with it, passing a constantValue that masks the
+// values, so the two cannot drift apart (ako/mxcli#1512).
+func writeProjectSettingsMDL(ctx *ExecContext, ps *model.ProjectSettings, constantValue constantValueFunc) {
 	// Model settings
 	if ps.Model != nil {
 		ms := ps.Model
@@ -210,7 +213,7 @@ func writeProjectSettingsMDL(ctx *ExecContext, ps *model.ProjectSettings, mask f
 	// Configuration settings
 	if ps.Configuration != nil {
 		for _, cfg := range ps.Configuration.Configurations {
-			writeSettingsConfiguration(ctx, cfg, mask)
+			writeSettingsConfiguration(ctx, cfg, constantValue)
 		}
 	}
 
@@ -1172,9 +1175,8 @@ func settingsValueToString(val any) string {
 	}
 }
 
-// writeSettingsConfiguration emits one configuration as re-executable MDL;
-// mask is writeProjectSettingsMDL's.
-func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration, mask func(string) string) {
+// writeSettingsConfiguration emits one configuration as re-executable MDL.
+func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration, constantValue constantValueFunc) {
 	var parts []string
 	parts = append(parts, "  DatabaseType: "+mdlQuoted(cfg.DatabaseType))
 	parts = append(parts, "  DatabaseUrl: "+mdlQuoted(cfg.DatabaseUrl))
@@ -1198,14 +1200,8 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 		parts = append(parts, fmt.Sprintf("  MaxJavaHeapSize: %d", cfg.MaxJavaHeapSize))
 	}
 	if cfg.DatabasePassword != "" {
-		// Masked, the comment carries the fingerprint, so a changed password
-		// still shows as a changed line in a diff.
-		fingerprint := ""
-		if mask != nil {
-			fingerprint = " " + mask(cfg.DatabasePassword)
-		}
-		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed%s; "+
-			"add `DatabasePassword: '…'` to set it on a project that lacks it.\n", mdlQuoted(cfg.Name), fingerprint)
+		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+
+			"add `DatabasePassword: '…'` to set it on a project that lacks it.\n", mdlQuoted(cfg.Name))
 	}
 	// CREATE OR MODIFY, not ALTER: a described project has to replay onto a
 	// target that does not have this configuration yet. ALTER answered
@@ -1227,8 +1223,8 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 			continue
 		}
 		value := mdlQuoted(cv.Value)
-		if mask != nil {
-			value = mask(cv.Value)
+		if constantValue != nil {
+			value = constantValue(cfg.Name, cv.ConstantId, cv.Value)
 		}
 		fmt.Fprintf(ctx.Output, "alter settings constant %s value %s\n  in configuration %s;\n\n",
 			mdlQuoted(cv.ConstantId), value, mdlQuoted(cfg.Name))

@@ -14,7 +14,7 @@ import (
 
 // Reference kinds for the refs table
 const (
-	RefKindCall       = "call"       // Microflow calls microflow
+	RefKindCall       = "call"       // Microflow calls microflow (also: a workflow's handler, a consumed OData service's configuration microflow)
 	RefKindCreate     = "create"     // Microflow creates entity
 	RefKindRetrieve   = "retrieve"   // Microflow retrieves entity
 	RefKindShowPage   = "show_page"  // Microflow shows page
@@ -37,14 +37,31 @@ const (
 	RefKindWidget     = "widget"     // Page/snippet uses a pluggable or custom widget
 	RefKindSettings   = "settings"   // A project setting names a microflow
 	RefKindSync       = "sync"       // An offline navigation profile synchronizes an entity
-	RefKindPublish    = "publish"    // A published REST operation runs a microflow
-	RefKindEvent      = "event"      // An entity event handler runs a microflow
+	RefKindPublish    = "publish"    // A published service runs a microflow (REST operation, OData resource or action, authentication)
+	RefKindEvent      = "event"      // An event handler runs a microflow (entity event, or a business event a service subscribes to)
 	RefKindMember     = "member"     // A document binds, reads or writes an attribute, or navigates an association
 	RefKindXPath      = "xpath"      // An XPath constraint names an attribute, association or enumeration value
 	RefKindType       = "type"       // An attribute, parameter or variable is typed as an enumeration
 	RefKindValue      = "value"      // An expression names an enumeration value
 	RefKindMapping    = "mapping"    // An import or export mapping maps an entity
 )
+
+// RefKinds is every value that reaches refs.RefKind. It is the vocabulary a
+// consumer of the reference graph iterates when it must decide something per
+// kind: TestQUAL004CountsEveryRefKind drives each one at the orphan rule, so an
+// edge kind added here is covered there without anyone remembering the rule.
+// TestEveryObjectTypeConstantIsInAPublishedList holds it complete against the
+// RefKind constants above.
+var RefKinds = []string{
+	RefKindCall, RefKindCreate, RefKindRetrieve, RefKindShowPage,
+	RefKindGeneralize, RefKindAssociate, RefKindLayout, RefKindDatasource,
+	RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
+	RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCommit,
+	RefKindCalculate, RefKindReturn, RefKindSchedule, RefKindValidate,
+	RefKindWidget, RefKindSettings, RefKindSync, RefKindPublish,
+	RefKindEvent, RefKindMember, RefKindXPath, RefKindType,
+	RefKindValue, RefKindMapping,
+}
 
 // Object types recorded in refs.SourceType and refs.TargetType — the catalog's
 // name for "what kind of document is at this end of the edge". They are the SDK
@@ -71,6 +88,10 @@ const (
 	RefObjectJavaScriptAction       = "JAVASCRIPT_ACTION"
 	RefObjectRestOperation          = "REST_OPERATION"
 	RefObjectPublishedRestOperation = "PUBLISHED_REST_OPERATION"
+	RefObjectPublishedRestService   = "PUBLISHED_REST_SERVICE"
+	RefObjectPublishedODataService  = "PUBLISHED_ODATA_SERVICE"
+	RefObjectConsumedODataService   = "CONSUMED_ODATA_SERVICE"
+	RefObjectBusinessEventService   = "BUSINESS_EVENT_SERVICE"
 	RefObjectRegularExpression      = "REGULAR_EXPRESSION"
 	RefObjectScheduledEvent         = "SCHEDULED_EVENT"
 	RefObjectProjectSettings        = "PROJECT_SETTINGS"
@@ -99,6 +120,10 @@ var (
 		RefObjectNavigation,
 		RefObjectScheduledEvent,
 		RefObjectPublishedRestOperation,
+		RefObjectPublishedRestService,
+		RefObjectPublishedODataService,
+		RefObjectConsumedODataService,
+		RefObjectBusinessEventService,
 		RefObjectProjectSettings,
 		RefObjectImportMapping,
 		RefObjectExportMapping,
@@ -798,6 +823,14 @@ func (b *Builder) buildReferences() error {
 	// reported model, 92 of 93 operations name a microflow and all 92 were listed
 	// by GRAPH_DEAD_ASSETS, whose advice is to delete them (#1126).
 	refCount += b.extractPublishedRestRefs(stmt, projectID, snapshotID)
+
+	// The other microflows an integration service names: a published OData
+	// resource's read/change microflow and actions, a published service's
+	// authentication microflow, a business event handler, a consumed OData
+	// service's configuration microflows. Same class again — the platform runs
+	// them — and found the same way: 34 Read_ microflows and the authentication
+	// microflow of six published OData services read as dead (ako/mxcli#1639).
+	refCount += b.extractServiceMicroflowRefs(stmt, projectID, snapshotID)
 
 	// Members, enumerations and mapped entities. Without these the graph ended
 	// at documents, so `impact` on an attribute, an enumeration or a value said

@@ -60,20 +60,18 @@ func (m *MockBackend) GetProjectSettings() (*model.ProjectSettings, error) {
 	return nil, nil
 }
 
-// ParseProjectSettingsFromRaw returns nil when unset, which callers read as
-// "does not decode" — the real backend's answer for a foreign document.
-func (m *MockBackend) ParseProjectSettingsFromRaw(raw map[string]any) *model.ProjectSettings {
-	if m.ParseProjectSettingsFromRawFunc != nil {
-		return m.ParseProjectSettingsFromRawFunc(raw)
-	}
-	return nil
-}
-
 func (m *MockBackend) UpdateProjectSettings(ps *model.ProjectSettings) error {
 	if m.UpdateProjectSettingsFunc != nil {
 		return m.UpdateProjectSettingsFunc(ps)
 	}
 	return nil
+}
+
+func (m *MockBackend) ParseProjectSettingsFromRaw(raw map[string]any) (*model.ProjectSettings, error) {
+	if m.ParseProjectSettingsFromRawFunc != nil {
+		return m.ParseProjectSettingsFromRawFunc(raw)
+	}
+	return nil, fmt.Errorf("MockBackend.ParseProjectSettingsFromRaw not configured")
 }
 
 // ---------------------------------------------------------------------------
