@@ -14,25 +14,25 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 48-60 | When to Use This Skill |
 | 61-118 | Usage |
 | 119-131 | How apply is chosen |
-| 132-214 | Prerequisites |
-| 215-232 | The intended loop |
-| 233-260 | Editing themes (SCSS) — rebuild, never clear caches |
-| 261-287 | `--watch` waits for a write to finish before it builds |
-| 288-316 | "My edit didn't show up" — stale process, not stale cache |
-| 317-347 | Flags |
-| 348-401 | Metrics and OpenTelemetry |
-| 402-459 | Pages render in the browser |
-| 460-477 | Pixel-perfect page loop |
-| 478-498 | Debugging a server-side error |
-| 499-522 | "Sign in failed" that is not about the password |
-| 523-555 | The same licence also stops the app after a few hours |
-| 556-635 | External browser preview (`--hub`) |
-| 636-644 | Validation checklist |
-| 645-701 | Constant values come from a configuration |
-| 702-705 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 706-709 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 710-713 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 714-716 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 132-222 | Prerequisites |
+| 223-240 | The intended loop |
+| 241-268 | Editing themes (SCSS) — rebuild, never clear caches |
+| 269-295 | `--watch` waits for a write to finish before it builds |
+| 296-324 | "My edit didn't show up" — stale process, not stale cache |
+| 325-355 | Flags |
+| 356-409 | Metrics and OpenTelemetry |
+| 410-467 | Pages render in the browser |
+| 468-485 | Pixel-perfect page loop |
+| 486-506 | Debugging a server-side error |
+| 507-530 | "Sign in failed" that is not about the password |
+| 531-563 | The same licence also stops the app after a few hours |
+| 564-643 | External browser preview (`--hub`) |
+| 644-652 | Validation checklist |
+| 653-709 | Constant values come from a configuration |
+| 710-713 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 714-717 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 718-721 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 722-724 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -211,6 +211,14 @@ mxbuild from the Mendix CDN is a Linux binary and cannot run natively on darwin
   install directory (usually `C:\Program Files\Mendix`). A "Gradle not found"
   from a local run therefore points at an incomplete or foreign mxbuild bundle —
   check which mxbuild was resolved before looking for a system Gradle.
+  The **one-shot** runs — `Resolving N managed Java dependency…` (`mx
+  sync-java-dependencies`), `mxcli new`'s first build, `docker build` — run Gradle
+  **without a daemon** (`-Dorg.gradle.daemon=false` appended to your
+  `GRADLE_OPTS`, which is otherwise kept). An idle daemon an earlier run left
+  behind made the dependency step hang 10+ minutes in silence (ako/mxcli#1340); it
+  now prints `still resolving…` every 30s and gives up after 10 minutes
+  (`MXCLI_SYNC_JAVA_DEPS_TIMEOUT`) naming that cause. `mxbuild --serve` keeps its
+  daemon: it builds on every change, which is what a daemon is for.
 
 ## The intended loop
 

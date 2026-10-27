@@ -65,7 +65,7 @@ var mxbuildCmd = func(mxbuildPath, javaHome, outputDir, mprPath string, w, stder
 	)
 	cmd.Stdout = w
 	cmd.Stderr = stderr
-	PrepareMxCommand(cmd)
+	prepareOneShotMxCommand(cmd) // one build, so no Gradle daemon (ako/mxcli#1340)
 	return runWithWatchdog(cmd, mxbuildWatchdogLimits(), javaHome)
 }
 
