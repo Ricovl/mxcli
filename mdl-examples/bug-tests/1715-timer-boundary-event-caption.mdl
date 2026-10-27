@@ -1,0 +1,54 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1715 — "Timer boundary events cannot be given a caption"
+-- ============================================================================
+--
+-- A timer boundary event takes the `caption '…'` clause every activity takes,
+-- after its delay — the text Studio Pro shows in "Edit Interrupting Timer
+-- Boundary Event". Before, `caption` there was a parse error ("mismatched input
+-- 'caption' expecting ';'"), and every timer mxcli wrote had an empty caption.
+-- Measured on mxbuild 11.15.0: the captions below are stored as written, mx
+-- check reports 0 errors, describe prints them, and replaying describe reports
+-- "Unchanged workflow". `alter workflow … insert into Review { boundary event …
+-- caption '…' { … } }` writes one too.
+--
+-- EXPECTED: `mxcli check` passes this file; `describe workflow` prints both
+-- `caption` clauses.
+-- Guard: mdl/visitor/visitor_workflow_timer_caption_test.go,
+--        mdl/executor/cmd_workflows_describe_test.go (TimerBoundaryEventCaptionReparses).
+-- ============================================================================
+
+create module BugTimerCaption1715;
+
+create persistent entity BugTimerCaption1715.Request (
+  Title: String(200)
+);
+
+create page BugTimerCaption1715.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+  }
+};
+
+create microflow BugTimerCaption1715.ACT_Remind ($Context: BugTimerCaption1715.Request)
+begin
+  log info node 'WF' 'remind';
+end;
+
+create workflow BugTimerCaption1715.Approval
+  parameter $WorkflowContext: BugTimerCaption1715.Request
+begin
+  user task Review 'Review' page BugTimerCaption1715.WF_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Done' { }
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' { }
+    boundary event non interrupting timer addDays([%CurrentDateTime%], 1) caption 'Remind' {
+      call microflow BugTimerCaption1715.ACT_Remind;
+    };
+end workflow;

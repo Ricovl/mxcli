@@ -690,6 +690,9 @@ type rawDataSource struct {
 	// exactly as a call action does (#835) — describing it without them yields
 	// MDL that rebuilds into CE1571 (mxcli-formula1 §57.2).
 	Args []rawDataSourceArg
+	// FormValidations is a microflow source's MicroflowSettings setting, "" when
+	// not stored (ako/mxcli#1729).
+	FormValidations string
 	// Unsupported carries the stored $Type of a datasource that has no MDL
 	// spelling. Set instead of guessing a Type: describe reports it as a
 	// comment, so the binding is visible in the output without producing a
@@ -880,9 +883,10 @@ type rawWidget struct {
 	// (ako/mxcli#977).
 	NumberOfLines *int64
 	Autocomplete  *bool
-	// OutputMappings counts the output mappings (Mendix 11.5) of a button's
-	// flow call, which MDL cannot show (ako/mxcli#977).
-	OutputMappings int
+	// UnsayableOutputMappings counts the output mappings (Mendix 11.5) of a
+	// button's flow call that describe could not print as `returns ( … )`
+	// (ako/mxcli#977).
+	UnsayableOutputMappings int
 	// ValidationExpression / ValidationMessage are the two fields of
 	// Forms$WidgetValidation, the per-widget validation Studio Pro stores on
 	// input widgets.

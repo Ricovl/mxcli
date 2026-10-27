@@ -465,7 +465,7 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 		} else if propName == "Action" {
 			// Action is a polymorphic node, not a scalar — it goes through the
 			// same builder CREATE PAGE uses rather than being written as a value.
-			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID, op.Target.Widget)
 			if err != nil {
 				return err
 			}
@@ -478,7 +478,7 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 			// Same builder as `Action`; the mutator checks the key is an
 			// action-typed property of the stored widget. Through
 			// SetWidgetProperty it would be stringified into a PrimitiveValue.
-			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID, op.Target.Widget)
 			if err != nil {
 				return err
 			}
@@ -557,7 +557,7 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 		}
 		return &pages.DatabaseSource{EntityName: ds.Reference}, nil
 	case "microflow":
-		return &pages.MicroflowSource{Microflow: ds.Reference}, nil
+		return &pages.MicroflowSource{Microflow: ds.Reference, FormValidations: ds.FormValidations}, nil
 	case "nanoflow":
 		return &pages.NanoflowSource{Nanoflow: ds.Reference}, nil
 	case "parameter":
@@ -589,7 +589,10 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 // buildWidgetsFromAST is. Without them a `$Param` argument cannot be told from an
 // expression and is written as one, which Studio Pro does not bind
 // (mendixlabs/mxcli#1317, the #1140 rule).
-func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, moduleName string, moduleID model.ID) (pages.ClientAction, error) {
+//
+// widgetRef is the widget the action is set on: a `returns ( … )` attribute
+// target belongs to the object of the data container around it.
+func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, moduleName string, moduleID model.ID, widgetRef string) (pages.ClientAction, error) {
 	action, ok := value.(*ast.ActionV3)
 	if !ok {
 		return nil, mdlerrors.NewValidation("Action value must be an action expression, " +
@@ -610,6 +613,9 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 		localVariables:   storedPageVariables(mutator),
 		isDocumentWidget: alterDocumentWidgets(mutator, nil),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
+	}
+	if len(action.Returns) > 0 {
+		pb.entityContext, _ = alterEntityContext(ctx, mutator, widgetRef, false, moduleName, moduleID)
 	}
 	return pb.buildClientActionV3(action)
 }

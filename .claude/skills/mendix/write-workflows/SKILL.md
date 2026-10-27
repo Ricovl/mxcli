@@ -12,18 +12,18 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 |---|---|
 | 36-47 | When to Use This Skill |
 | 48-118 | Syntax — CREATE WORKFLOW |
-| 119-301 | Activities |
-| 302-308 | DROP WORKFLOW |
-| 309-374 | ALTER WORKFLOW |
-| 375-395 | DESCRIBE round-trip |
-| 396-416 | Activity names, and why `jump to` depends on them |
-| 417-437 | Rewriting an existing workflow |
-| 438-447 | Task pages |
-| 448-535 | Microflow statements for workflow tasks |
-| 536-556 | System-module enumerations are synthesized, not stored |
-| 557-681 | Platform rules |
-| 682-712 | Observing a running workflow |
-| 713-722 | Validate before presenting |
+| 119-300 | Activities |
+| 301-307 | DROP WORKFLOW |
+| 308-373 | ALTER WORKFLOW |
+| 374-394 | DESCRIBE round-trip |
+| 395-415 | Activity names, and why `jump to` depends on them |
+| 416-436 | Rewriting an existing workflow |
+| 437-446 | Task pages |
+| 447-534 | Microflow statements for workflow tasks |
+| 535-555 | System-module enumerations are synthesized, not stored |
+| 556-680 | Platform rules |
+| 681-711 | Observing a running workflow |
+| 712-721 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -57,7 +57,7 @@ named neither the clause nor the rule. See `ako/mxcli#586`.)
 mdl 1;
 create workflow Module.ApprovalFlow
   parameter $Context: Module.Request        -- REQUIRED: must be a $-variable + context entity
-  display 'Request Approval'                 -- optional human-readable name
+  display 'Approval for {1}' with ({1} = $Context/Title)  -- optional; `with` fills {n}
   description 'Approves incoming requests'   -- optional
   export level Hidden                        -- optional: Hidden | API (default Hidden)
   overview page Module.WF_Overview           -- optional; takes a System.Workflow param
@@ -235,7 +235,7 @@ begin
   user task Review 'Review'
     page Module.ReviewPage
     outcomes 'Done' { }
-    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' {
       call microflow Module.ACT_Escalate;
     };
 end workflow;
@@ -246,8 +246,7 @@ end workflow;
   runtime then **refuses to start the application** ("Class
   'Workflows$TimerBoundaryEvent' could not be found"). mxcli refuses the bare form
   on Mendix 11 (MDL-WF07).
-- **The delay is a DateTime expression**, such as `'addDays([%CurrentDateTime%], 3)'`
-  — not an ISO duration like `'P3D'`.
+- **The delay is a DateTime expression** (`addDays([%CurrentDateTime%], 3)`, not `'P3D'`). A **reminder** repeats a non-interrupting timer: `… timer addDays([%CurrentDateTime%], 1) repeat every 1 day at most 5 times { … }` — minute(s) to month(s), the count includes the first firing and is at least 2 (MDL-WF22); a timer event sub-process start takes it on 11.15+.
 - **Every boundary path must end**, and mxcli ends one that runs to its last
   activity as Studio Pro does (ako/mxcli#1712): an **interrupting** path with an
   End — the timeout ends the workflow; `describe` shows `end workflow;` — and a

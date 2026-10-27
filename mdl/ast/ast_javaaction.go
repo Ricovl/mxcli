@@ -34,7 +34,8 @@ type CreateJavaActionStmt struct {
 	ReturnType       DataType          // Return type (can be nil for void)
 	ReturnName       string            // `returns T as $Name`: the return value's name; "" keeps the stored one (mendixlabs/mxcli#1588)
 	JavaCode         string            // The executeAction() body
-	ExtraCode        string            // Optional extra code section
+	ExtraCode        string            // `extra code $$ … $$`: the EXTRA CODE section
+	ExtraCodeSet     bool              // the clause was written: absent keeps the stored section, empty clears it (ako/mxcli#1702)
 	Imports          []string          // Optional additional imports
 	Documentation    string            // Optional documentation comment
 	DocumentationSet bool              // see mendixlabs/mxcli#1018: absent preserves, empty clears

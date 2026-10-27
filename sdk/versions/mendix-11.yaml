@@ -99,6 +99,22 @@ features:
       mdl: "CREATE PAGE Module.Name (Param: Type, ...) { ... }"
     page_variables:
       min_version: "11.0.0"
+    flow_call_output_mappings:
+      # Studio Pro's "Return value mappings" on a call microflow / call
+      # nanoflow action: Forms$MicroflowSettings.OutputMappings and
+      # Forms$CallNanoflowClientAction.OutputMappings are introduced in 11.5.0
+      # (modelsdk/gen/pages/version.go, from the reflection data).
+      min_version: "11.5.0"
+      mdl: "call microflow M.F returns ($var = $ActionReturnValue)"
+    flow_call_output_mappings_to_attribute:
+      # A return value mapping whose target is an attribute of the data
+      # container's object. Measured, not from the metamodel (the property set
+      # is the same from 11.5): the identical bytes check clean on mx
+      # 11.15.0-rc.4 and fail CE7006 "Selected value is not valid for
+      # attribute" on mx 11.13.0 and 11.14.0, before and after `mx convert`.
+      # A page-variable target checks clean on all three (ako/mxcli#977).
+      min_version: "11.15.0"
+      mdl: "call microflow M.F returns (Attr = $ActionReturnValue/Attr)"
     pluggable_widgets:
       min_version: "10.0.0"
       notes: "Widget templates are currently extracted from 11.6; may cause CE0463 on 10.x"
@@ -240,6 +256,10 @@ features:
       min_version: "11.13.0"
       mdl: "EVENT SUBPROCESS ESP_Remind ON NON INTERRUPTING TIMER 'addDays([%CurrentDateTime%], 1)' { … };"
       notes: "(Non)InterruptingTimerEventSubProcessStartActivity: TypeCacheUnknownTypeException on the 11.10, 11.11 and 11.12 mxbuilds, loads on 11.13."
+    recurring_timer_event_subprocesses:
+      min_version: "11.15.0"
+      mdl: "EVENT SUBPROCESS ESP_Remind ON NON INTERRUPTING TIMER addDays([%CurrentDateTime%], 1) REPEAT EVERY 1 DAY AT MOST 5 TIMES { … };"
+      notes: "NonInterruptingTimerEventSubProcessStartActivity.recurrence (ako/mxcli#1716). The 11.13 runtime model has no recurrence on the start (com.mendix.workflows-metamodel.jar) and fires it once — mx check passes; the 11.15 runtime has it. 11.14 unmeasured. A non-interrupting timer BOUNDARY event's recurrence is in the 11.12, 11.13 and 11.15 runtimes."
     notification_events:
       min_version: "11.11.0"
       mdl: "NOTIFICATION Received; … BOUNDARY EVENT INTERRUPTING NOTIFICATION Withdrawn { … }"

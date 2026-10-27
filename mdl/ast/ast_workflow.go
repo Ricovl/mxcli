@@ -18,7 +18,11 @@ type CreateWorkflowStmt struct {
 	// Display metadata
 	DisplayName string // from DISPLAY 'text'
 	Description string // from DESCRIPTION 'text'
-	ExportLevel string // "Hidden" or "API", from EXPORT LEVEL identifier
+	// DisplayParams and DescriptionParams fill the {n} placeholders of the two
+	// texts: `display 'Approval for {1}' with ({1} = $WorkflowContext/Title)`.
+	DisplayParams     []WorkflowTemplateParam
+	DescriptionParams []WorkflowTemplateParam
+	ExportLevel       string // "Hidden" or "API", from EXPORT LEVEL identifier
 
 	// Optional metadata
 	OverviewPage QualifiedName // qualified name of overview page
@@ -50,7 +54,18 @@ type WorkflowEventSubProcessNode struct {
 	StartCaption string
 	// FirstExecutionTime is a timer start's expression.
 	FirstExecutionTime string
-	Activities         []WorkflowActivityNode
+	// Recurrence is a non-interrupting timer start's `repeat every …`.
+	Recurrence *WorkflowRecurrenceNode
+	Activities []WorkflowActivityNode
+}
+
+// WorkflowRecurrenceNode is `repeat every <interval> <unit> at most <max> times`
+// on a non-interrupting timer (ako/mxcli#1716). Unit is the word as written —
+// "day", "days", … — checked by MDL-WF22.
+type WorkflowRecurrenceNode struct {
+	Interval      int
+	Unit          string
+	MaxExecutions int
 }
 
 // WorkflowEventHandlerNode is one `on workflow events (…) microflow M as '…'` or
@@ -109,7 +124,12 @@ type WorkflowUserTaskNode struct {
 	IsMultiUser     bool                        // Issue #8: true if MULTI USER TASK
 	BoundaryEvents  []WorkflowBoundaryEventNode // Issue #7
 	TaskDescription string                      // from DESCRIPTION 'text'
-	AutoAssign      bool                        // `auto assign single user` (AutoAssignSingleTargetUser)
+	// TaskName is `task name '…'`, what the task inbox shows; "" means the
+	// caption, which is what a task without the clause is given.
+	TaskName              string
+	TaskNameParams        []WorkflowTemplateParam
+	TaskDescriptionParams []WorkflowTemplateParam
+	AutoAssign            bool // `auto assign single user` (AutoAssignSingleTargetUser)
 
 	// Multi-user task only.
 	Participants  *WorkflowParticipantsNode   // `participants …`; nil = all
@@ -276,6 +296,8 @@ type WorkflowBoundaryEventNode struct {
 	Name       string                 // notification events: what `notify workflow … target` names
 	Caption    string                 // notification events
 	Activities []WorkflowActivityNode // Sub-flow activities inside the boundary event
+	// Recurrence is a timer's `repeat every …` (a non-interrupting one's only).
+	Recurrence *WorkflowRecurrenceNode
 }
 
 // WorkflowAnnotationActivityNode represents an ANNOTATION activity in a workflow.
@@ -311,18 +333,30 @@ type SetWorkflowPropertyOp struct {
 	Property string        // "DISPLAY", "DESCRIPTION", "EXPORT_LEVEL", "DUE_DATE", "OVERVIEW_PAGE", "PARAMETER"
 	Value    string        // string value
 	Entity   QualifiedName // for OVERVIEW_PAGE / PARAMETER: the qualified name
+	// Params fills a DISPLAY or DESCRIPTION text's placeholders.
+	Params []WorkflowTemplateParam
 }
 
 func (o *SetWorkflowPropertyOp) alterWorkflowOp() {}
+
+// WorkflowTemplateParam is one `{n} = <expression>` of a workflow text template
+// (ako/mxcli#1714). The expression is kept as written, as every workflow
+// expression is.
+type WorkflowTemplateParam struct {
+	Index      int
+	Expression string
+}
 
 // SetActivityPropertyOp sets a property on a named activity.
 type SetActivityPropertyOp struct {
 	ActivityRef string        // activity caption
 	AtPosition  int           // positional disambiguation (0 = no disambiguation)
-	Property    string        // "PAGE", "DESCRIPTION", "TARGETING_MICROFLOW", "TARGETING_XPATH", "DUE_DATE"
+	Property    string        // "PAGE", "DESCRIPTION", "TASK_NAME", "TARGETING_MICROFLOW", "TARGETING_XPATH", "DUE_DATE"
 	Value       string        // string value
 	PageName    QualifiedName // for PAGE property
 	Microflow   QualifiedName // for TARGETING MICROFLOW
+	// Params fills a TASK_NAME or DESCRIPTION text's placeholders.
+	Params []WorkflowTemplateParam
 }
 
 func (o *SetActivityPropertyOp) alterWorkflowOp() {}
@@ -430,6 +464,8 @@ type InsertBoundaryEventOp struct {
 	AtPosition  int
 	EventType   string // "InterruptingTimer", "NonInterruptingTimer"
 	Delay       string
+	Caption     string
+	Recurrence  *WorkflowRecurrenceNode
 	Activities  []WorkflowActivityNode
 }
 

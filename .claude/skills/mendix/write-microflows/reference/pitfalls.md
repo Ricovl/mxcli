@@ -471,6 +471,28 @@ has 3 paths". Those change where the flow's paths end or meet; rebuild the flow
 deliberately (drop the microflow and create it in the same script) or edit it in Studio
 Pro. Inside a loop body a decision is the loop's to replace (§11).
 
+### 16. A Message Template Is a String, Not an Expression With `with (…)`
+
+The text of a `log` message, a `send email` subject or body, a `show message` and a
+`validation feedback` message is a **template**: a string with `{n}` placeholders that
+`with (…)` fills. An expression is the whole text — stored as the template `'{1}'`
+with the expression as its parameter — so there is nothing left for `with (…)` to
+fill, and Mendix cannot store an expression as a template's text. An expression
+followed by `with (…)` is refused by `check` and `exec` (MDL-TEMPLATE01,
+ako/mxcli#1683); it used to log the characters `$Msg`.
+
+```mdl
+-- ❌ WRONG: $Msg is not a template; this is refused (MDL-TEMPLATE01)
+log info node 'Orders' $Msg with ({1} = $Order/Number);
+
+-- ✅ CORRECT: the template is a string, or the expression stands alone
+log info node 'Orders' 'Order {1} shipped' with ({1} = $Order/Number);
+log info node 'Orders' 'Order ' + $Order/Number + ' shipped';
+```
+
+A template kept in a variable cannot be filled by `with (…)` at run time: write the
+template in the statement, or build the whole text in the expression.
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:
@@ -793,7 +815,12 @@ end;
   that module is **CE5400**. `check -p --references` reports both
   (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
   association — a change / create member, an association retrieve, an XPath
-  step or a `$v/…` path — with the `alter` statement that makes it usable.
+  step or a `$v/…` path, on a parameter, a retrieved or created object, a loop
+  iterator or a `call microflow` result (ako/mxcli#1701) — and the Hidden
+  entity a database `retrieve`, a
+  `create` or a `create list of` names (ako/mxcli#1699), with the `alter`
+  statement that makes it usable. Inside the Protected module itself every one
+  of these is fine.
   Page widgets binding a Hidden member are not checked yet. A page there cannot
   be made usable (mxbuild refuses it even when stored as API) — reach it through
   an `api` microflow in the module that shows it. Entities, attributes,

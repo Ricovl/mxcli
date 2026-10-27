@@ -41,7 +41,7 @@ func TestWFInsertMember_OnWrongKindIsRefused(t *testing.T) {
 		"outcome on a decision": func(m *mcpWorkflowMutator) error { return m.InsertOutcome("Decision", 0, "X", nil) },
 		"branch on a user task": func(m *mcpWorkflowMutator) error { return m.InsertBranch("ReviewOrder", 0, "true", nil) },
 		"boundary on a decision": func(m *mcpWorkflowMutator) error {
-			return m.InsertBoundaryEvent("Decision", 0, "InterruptingTimer", "", nil)
+			return m.InsertBoundaryEvent("Decision", 0, "InterruptingTimer", "", "", nil, nil)
 		},
 	}
 	for name, op := range cases {

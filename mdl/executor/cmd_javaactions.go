@@ -120,14 +120,32 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	// The grammar requires an `as $$ ... $$` body for CREATE JAVA ACTION, so always
 	// emit one. When the .java source can't be read (e.g. add-on modules ship without
 	// source on disk), emit a placeholder body so DESCRIBE output still re-parses (#637).
-	javaCode := readJavaActionUserCode(ctx.MprPath, name.Module, name.Name)
+	//
+	// Everything else a regeneration keeps is printed too, so that executing the
+	// output rebuilds the same file (ako/mxcli#1702): the imports a developer
+	// added, at the top of the body — exec moves an import line to the import
+	// list — and the EXTRA CODE section as `extra code $$ … $$`. Without them a
+	// describe run on another project wrote a body calling a helper that no
+	// longer existed.
+	source := readJavaActionSource(ctx.MprPath, name.Module, name.Name)
+	javaCode := javaActionUserCode(source)
 	sb.WriteString("\nas $$\n")
 	if javaCode != "" {
+		if imports := javaactions.StatedImports(source, ja.Parameters, ja.ReturnType); len(imports) > 0 {
+			sb.WriteString(strings.Join(imports, "\n"))
+			sb.WriteString("\n\n")
+		}
 		sb.WriteString(javaCode)
 	} else {
 		sb.WriteString(javaSourceOmittedBody)
 	}
-	sb.WriteString("\n$$;")
+	sb.WriteString("\n$$")
+	if _, extra := javaactions.RetainedSections(source); javaCode != "" && extra != "" {
+		sb.WriteString("\nextra code $$\n")
+		sb.WriteString(extra)
+		sb.WriteString("\n$$")
+	}
+	sb.WriteString(";")
 
 	// Output the complete statement. A shape MDL has no form for is printed
 	// commented out: a statement that parses into something else is worse than
@@ -225,27 +243,31 @@ const javaSourceOmittedBody = "// Java source not available from this project; b
 
 // readJavaActionUserCode reads the Java source file and extracts the user code section.
 func readJavaActionUserCode(mprPath, moduleName, actionName string) string {
+	return javaActionUserCode(readJavaActionSource(mprPath, moduleName, actionName))
+}
+
+// readJavaActionSource reads an action's .java file with LF line endings (Studio
+// Pro and mxbuild write CRLF), or "" when it cannot.
+func readJavaActionSource(mprPath, moduleName, actionName string) string {
 	if mprPath == "" {
 		return ""
 	}
-
-	// Build path to Java source file
-	projectRoot := filepath.Dir(mprPath)
-	moduleNameLower := strings.ToLower(moduleName)
-	javaPath := filepath.Join(projectRoot, "javasource", moduleNameLower, "actions", actionName+".java")
-
-	// Read the file
+	javaPath := filepath.Join(filepath.Dir(mprPath), "javasource", strings.ToLower(moduleName), "actions", actionName+".java")
 	content, err := os.ReadFile(javaPath)
 	if err != nil {
 		return ""
 	}
+	return strings.ReplaceAll(string(content), "\r\n", "\n")
+}
 
+// javaActionUserCode extracts the user code section of an action's source.
+func javaActionUserCode(source string) string {
 	// Extract user code between the BEGIN USER CODE and END USER CODE markers.
 	// Matched case-insensitively, as for JavaScript actions: a sweep that
 	// lowercased MDL keywords in output also lowercased these literals, so no
 	// Studio Pro file matched, DESCRIBE always printed the placeholder body, and
 	// re-executing that output replaced the action's code with it (#705).
-	userCode, ok := sliceBetweenFold(string(content), "// BEGIN USER CODE", "// END USER CODE")
+	userCode, ok := sliceBetweenFold(source, "// BEGIN USER CODE", "// END USER CODE")
 	if !ok {
 		return ""
 	}
@@ -690,7 +712,17 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	// module's compiled one. The statement says nothing about the code, so the
 	// file is left alone.
 	if s.JavaCode != "" && strings.TrimSpace(s.JavaCode) != javaSourceOmittedBody {
-		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, s.ExtraCode); err != nil {
+		// ja.Documentation, not the statement's: a rewrite without a doc
+		// comment carries the stored one, and mxbuild writes it as the class
+		// javadoc — leaving it out removed the block a build had written, and
+		// the next build put it back (ako/mxcli#1700).
+		// `extra code $$ … $$` states the EXTRA CODE section; without it the
+		// file's section is kept (ako/mxcli#1702).
+		var extraCode *string
+		if s.ExtraCodeSet {
+			extraCode = &s.ExtraCode
+		}
+		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, extraCode, ja.Documentation); err != nil {
 			return mdlerrors.NewBackend("write java source file", err)
 		}
 	}

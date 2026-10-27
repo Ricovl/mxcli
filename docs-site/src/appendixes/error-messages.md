@@ -443,6 +443,30 @@ ignored or the header fails only when a mail is sent.
 `CheckServerIdentity`; rename the header, e.g.
 `Headers: ('X-Correlation-Id': 'value')`.
 
+### MDL-TEMPLATE01: A message written as an expression followed by `with (…)`
+
+```
+log: the message is an expression, so `with (…)` has no template to fill — the
+parameters fill the {n} placeholders of a message written as a string. [MDL-TEMPLATE01]
+```
+
+**Cause:** The text of a `log` message, a `send email` subject or body, a `show message`
+and a `validation feedback` message is a template: a string whose `{n}` placeholders
+`with (…)` fills. An expression is the whole text, stored as the template `'{1}'` with the
+expression as its parameter, so it has no placeholder for further parameters, and Mendix
+cannot store an expression as a template's text. Before ako/mxcli#1683, `log` and
+`send email` stored the expression's source as the template — the log line read `$Msg` —
+and `show message` / `validation feedback` stored the parameters where no placeholder read
+them. `check`, `exec` and `mx check` passed all four. `check` and `exec` now refuse it with
+one shared function, as MDL-REST05 does for `call rest service`.
+
+**Solution:** Write the template as a string, or the expression without `with (…)`:
+
+```mdl
+log info node 'Orders' 'Order {1} shipped' with ({1} = $Order/Number);
+log info node 'Orders' $Msg;
+```
+
 ### MDL-JSONNUM01: A locale-dependent number in hand-built JSON
 
 ```

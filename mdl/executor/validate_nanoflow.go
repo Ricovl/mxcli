@@ -50,6 +50,9 @@ func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) 
 	v.checkDuplicateVariableNames(v.params, stmt.Body)
 	// A nanoflow's show message has the same ShowMessageType (mendixlabs/mxcli#1280).
 	v.checkShowMessageType(stmt.Body)
+	// MDL-TEMPLATE01: a nanoflow's log, show message and validation feedback
+	// store the same templates (ako/mxcli#1683).
+	v.checkMessageTemplates(stmt.Body)
 	v.checkVoidCallOutputUse(v.params, stmt.Body)
 	// MDL-SET01: a nanoflow's Change variable is as primitive-only (CE7247).
 	v.checkSetOnObjectVariable(v.params, stmt.Body)

@@ -671,7 +671,7 @@ dataSourceExprV3
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?
-    | MICROFLOW qualifiedName microflowArgsV3?        // MICROFLOW Module.Flow
+    | MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3? // MICROFLOW Module.Flow [with (FormValidations: None)]
     | NANOFLOW qualifiedName microflowArgsV3?         // NANOFLOW Module.Flow
     | ASSOCIATION associationPathV3                   // ASSOCIATION Module.Assoc (explicit form)
     | ASSOCIATION VARIABLE SLASH associationPathV3    // ASSOCIATION $currentObject/Module.Assoc (keyword + sugar)
@@ -709,10 +709,10 @@ actionExprV3
     | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3 | actionSettingsV3)?
     | SHOW PAGE qualifiedName microflowArgsV3? actionSettingsV3?        // show page Module.Page (Param: val)
     | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
-    | CALL MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3?   // call microflow Module.Flow
-    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
-    | CALL NANOFLOW qualifiedName microflowArgsV3? actionSettingsV3?    // call nanoflow Module.Flow
-    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL MICROFLOW qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?   // call microflow Module.Flow
+    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?
+    | CALL NANOFLOW qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?    // call nanoflow Module.Flow
+    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?
     | openLinkV3 STRING_LITERAL actionSettingsV3?                       // open link 'https://...'
     | openLinkV3 VARIABLE SLASH attributePathV3 actionSettingsV3?       // open link $currentObject/URL (address read from an attribute)
     | SIGN_OUT actionSettingsV3?                                        // sign out
@@ -732,6 +732,19 @@ actionExprV3
 //     Confirmation: 'Delete this order?', ProceedCaption: 'Delete', CancelCaption: 'Keep')
 actionSettingsV3
     : WITH LPAREN actionSettingV3 (COMMA actionSettingV3)* COMMA? RPAREN
+    ;
+
+// A flow call's return value mappings (Mendix 11.5, Studio Pro's "Return value
+// mappings"): `returns (Brand = $ActionReturnValue/Brand, $result = $ActionReturnValue,
+// Brand = 'fixed')`. Target = source, like the argument list: the target is an
+// attribute of the data container's object or a page variable, the source the
+// return value, one of its attributes, or an expression (ako/mxcli#977).
+actionReturnsV3
+    : RETURNS LPAREN actionReturnV3 (COMMA actionReturnV3)* COMMA? RPAREN
+    ;
+
+actionReturnV3
+    : (VARIABLE | parameterName) EQUALS expression
     ;
 
 actionSettingV3

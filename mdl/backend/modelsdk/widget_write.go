@@ -237,6 +237,13 @@ func init() {
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})
+	// One return value mapping: Studio Pro writes all four slots on every row,
+	// null where the row does not use them and Expression "" (ako/TestApp
+	// Pages.OutputMappingButton, 11.15).
+	codec.RegisterTypeDefaults("Forms$OutputMapping", codec.TypeDefaults{
+		NullFields:        []string{"AttributeRef", "SourceAttributeRef", "SourceVariable"},
+		EmptyStringFields: []string{"Expression"},
+	})
 	// A nanoflow DATA SOURCE is flat — no settings child — and carries its
 	// (possibly empty) mapping list directly, marker 2. Measured: 5 of 5 Studio
 	// Pro-authored Forms$NanoflowSource in Feedback v4.0.2 at 11.13.0.
@@ -1678,7 +1685,7 @@ func dataViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1827,7 +1834,7 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1910,7 +1917,7 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -2050,9 +2057,10 @@ func bindParameterMappingValue(m parameterMappingTarget, variable, kind, express
 // left a parameterized button/row invoking its microflow with no argument — the
 // widget no-ops at runtime yet mx check passes clean (Bug 1).
 //
-// settings carries what a call-microflow action's `with ( … )` says; nil (the
-// data-source case, which has no MDL spelling for them) writes Mendix's defaults.
-func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings) element.Element {
+// settings carries what a call-microflow action's `with ( … )` says, or for a
+// data source its FormValidations (ako/mxcli#1729); nil writes Mendix's defaults.
+// outputs are its `returns ( … )` mappings (ako/mxcli#977 item 3).
+func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings, outputs []*pages.FlowOutputMapping) element.Element {
 	if settings == nil {
 		settings = &pages.FlowCallSettings{}
 	}
@@ -2076,7 +2084,30 @@ func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowPar
 		bindParameterMappingValue(gm, pm.Variable, pm.VariableKind, pm.Expression)
 		s.AddParameterMappings(gm)
 	}
+	for _, om := range outputs {
+		s.AddOutputMappings(outputMappingToGen(om))
+	}
 	return s
+}
+
+// outputMappingToGen builds a Forms$OutputMapping, one row of a flow call's
+// return value mappings (ako/mxcli#977 item 3). The slots a row does not use
+// stay null, Expression empty — the shape Studio Pro stores for each of the
+// three kinds of row on ako/TestApp's Pages.OutputMappingButton.
+func outputMappingToGen(om *pages.FlowOutputMapping) element.Element {
+	g := genPg.NewOutputMapping()
+	assignID(g)
+	if r := attributeRefToGen(om.TargetAttribute); r != nil {
+		g.SetAttributeRef(r)
+	}
+	if om.TargetVariable != "" {
+		g.SetSourceVariable(pageVariableToGen("", om.TargetVariable, "local"))
+	}
+	if r := attributeRefToGen(om.SourceAttribute); r != nil {
+		g.SetSourceAttributeRef(r)
+	}
+	g.SetExpression(om.Expression)
+	return g
 }
 
 // formSettingsToGen builds the Forms$FormSettings (PageSettings) shared by the
@@ -2302,7 +2333,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		}
 		assignID(g)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
-		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings))
+		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings, x.OutputMappings))
 		return g, nil
 	case *pages.NanoflowClientAction:
 		// call_nanoflow → Forms$CallNanoflowClientAction. Unlike the microflow
@@ -2330,6 +2361,9 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			m.SetParameterQualifiedName(x.NanoflowName + "." + pm.ParameterName)
 			bindParameterMappingValue(m, pm.Variable, pm.VariableKind, pm.Expression)
 			g.AddParameterMappings(m)
+		}
+		for _, om := range x.OutputMappings {
+			g.AddOutputMappings(outputMappingToGen(om))
 		}
 		return g, nil
 	case *pages.CreateObjectClientAction:

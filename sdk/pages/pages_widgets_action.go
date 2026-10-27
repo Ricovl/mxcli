@@ -191,6 +191,21 @@ type FlowCallSettings struct {
 	FormValidations string            `json:"formValidations,omitempty"` // microflow only: "" (All) | All | Widget | None
 }
 
+// FlowOutputMapping is Forms$OutputMapping, one row of Studio Pro's "Return
+// value mappings": a value read from the flow's result into the page.
+//
+// The target is an attribute of the data container's object (TargetAttribute,
+// qualified) or a page variable (TargetVariable, stored in the mapping's
+// SourceVariable despite the name). The source is an attribute of the returned
+// object (SourceAttribute, qualified) or an Expression; neither set means the
+// return value itself.
+type FlowOutputMapping struct {
+	TargetAttribute string `json:"targetAttribute,omitempty"`
+	TargetVariable  string `json:"targetVariable,omitempty"`
+	SourceAttribute string `json:"sourceAttribute,omitempty"`
+	Expression      string `json:"expression,omitempty"`
+}
+
 // ConfirmationInfo is Forms$ConfirmationInfo: the question asked before a flow
 // call runs, and the captions of its two buttons.
 type ConfirmationInfo struct {
@@ -280,6 +295,9 @@ type MicroflowClientAction struct {
 	MicroflowID       model.ID                     `json:"microflowId"`
 	MicroflowName     string                       `json:"microflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*MicroflowParameterMapping `json:"parameterMappings,omitempty"`
+	// OutputMappings are the call's return value mappings (Mendix 11.5),
+	// stored in its MicroflowSettings.
+	OutputMappings []*FlowOutputMapping `json:"outputMappings,omitempty"`
 }
 
 func (MicroflowClientAction) isClientAction() {}
@@ -305,6 +323,8 @@ type NanoflowClientAction struct {
 	NanoflowID        model.ID                    `json:"nanoflowId"`
 	NanoflowName      string                      `json:"nanoflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*NanoflowParameterMapping `json:"parameterMappings,omitempty"`
+	// OutputMappings are the call's return value mappings (Mendix 11.5).
+	OutputMappings []*FlowOutputMapping `json:"outputMappings,omitempty"`
 }
 
 func (NanoflowClientAction) isClientAction() {}

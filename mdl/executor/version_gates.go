@@ -127,11 +127,15 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateAgentStmt:
 		return []versionGate{agentDocumentGate("agent", "create agent")}
 	case *ast.CreatePageStmtV3:
+		var gates []versionGate
 		// Pages$PageParameter is 9.4+ (mendixlabs/mxcli#1121): 9.0–9.3 has none.
 		if len(s.Parameters) > 0 {
-			return []versionGate{{"pages", "page_parameters", "create page with parameters",
-				"pass data via a non-persistent entity or microflow parameter instead"}}
+			gates = append(gates, versionGate{"pages", "page_parameters", "create page with parameters",
+				"pass data via a non-persistent entity or microflow parameter instead"})
 		}
+		return append(gates, flowReturnsGates(s)...)
+	case *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
+		return flowReturnsGates(s)
 	case *ast.CreateMicroflowStmt:
 		var gates []versionGate
 		// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
@@ -179,6 +183,14 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 				break
 			}
 		}
+		for _, esp := range s.EventSubProcesses {
+			if esp.Recurrence != nil {
+				gates = append(gates, versionGate{"workflows", "recurring_timer_event_subprocesses", "event subprocess … repeat every",
+					"a repeating event sub-process start needs Mendix 11.15 or later — the 11.13 runtime ignores the recurrence and starts it once; " +
+						"repeat a non-interrupting boundary timer instead (`boundary event non interrupting timer … repeat every …`)"})
+				break
+			}
+		}
 		if workflowUsesNotificationEvents(activities) {
 			gates = append(gates, notificationEventsGate)
 		}
@@ -197,6 +209,53 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		return gates
 	}
 	return nil
+}
+
+// The floors of a flow call's `returns ( … )` mappings (ako/mxcli#977). The
+// builder applies the same two, for the widgets this walk cannot see (a
+// fragment's, expanded at build time).
+var (
+	flowReturnsGate = versionGate{"pages", "flow_call_output_mappings",
+		"returns ( … ) on a flow call", "set the values from inside the flow instead"}
+	flowReturnsToAttributeGate = versionGate{"pages", "flow_call_output_mappings_to_attribute",
+		"returns ( … ) into an attribute", "map into a page variable ($name = …) instead"}
+)
+
+// flowReturnsGates are the gates of the `returns ( … )` mappings a page,
+// snippet or alter page statement writes: 11.5 for any, 11.15 for one into an
+// attribute — mx 11.13 and 11.14 report CE7006 on it.
+func flowReturnsGates(stmt ast.Statement) []versionGate {
+	var mapped, toAttribute bool
+	visit := func(v any) {
+		for a, _ := v.(*ast.ActionV3); a != nil; a = a.ThenAction {
+			for _, r := range a.Returns {
+				mapped = true
+				toAttribute = toAttribute || !r.Variable
+			}
+		}
+	}
+	forEachWidget(stmt, func(w *ast.WidgetV3, _ string) {
+		for _, v := range w.Properties {
+			visit(v)
+		}
+	})
+	if s, ok := stmt.(*ast.AlterPageStmt); ok {
+		for _, op := range s.Operations {
+			if o, ok := op.(*ast.SetPropertyOp); ok {
+				for _, v := range o.Properties {
+					visit(v)
+				}
+			}
+		}
+	}
+	var gates []versionGate
+	if mapped {
+		gates = append(gates, flowReturnsGate)
+	}
+	if toAttribute {
+		gates = append(gates, flowReturnsToAttributeGate)
+	}
+	return gates
 }
 
 // oqlStringAggCallRe is a STRING_AGG call in query text as written.

@@ -1,0 +1,62 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1716 — "Non-interrupting timer boundary events cannot recur
+-- (Studio Pro's repeating reminder)"
+-- ============================================================================
+--
+-- `repeat every <n> <unit> at most <m> times` repeats a non-interrupting timer:
+-- it fires at the delay, then every <n> <unit>, <m> times in all — the first
+-- firing counts, as Studio Pro's MaxExecutions does. Studio Pro 11.15's model
+-- validation (shipped with mxbuild) allows minute, hour, day, week or month
+-- (MW0005) and at least 2 executions (MW0004); mx check enforces neither, so
+-- MDL-WF22 does.
+--
+-- Measured: the workflow below builds with 0 errors on 11.15.0, describe prints
+-- the recurrence, replaying describe reports "Unchanged workflow". At runtime
+-- (every 1 minute, at most 3 times) the boundary timer fired exactly 3 times on
+-- 11.13 and on 11.15. A repeating event sub-process start fired twice of 2 on
+-- 11.15 but ONCE on 11.13, whose runtime model has no recurrence on the start —
+-- so that form is gated at 11.15.
+--
+-- EXPECTED: `mxcli check` passes this file. `repeat every 30 seconds` or
+-- `at most 1 times`, or a recurrence on an interrupting timer, is refused as
+-- MDL-WF22.
+-- Guard: mdl/executor/validate_workflow_recurrence_test.go,
+--        mdl/visitor/visitor_workflow_recurrence_test.go,
+--        mdl/backend/modelsdk/workflow_recurrence_test.go.
+-- ============================================================================
+
+create module BugRecurrence1716;
+
+create persistent entity BugRecurrence1716.Request (
+  Title: String(200)
+);
+
+create page BugRecurrence1716.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+  }
+};
+
+create microflow BugRecurrence1716.ACT_Remind ($Context: BugRecurrence1716.Request)
+begin
+  log info node 'WF' 'reminder';
+end;
+
+create workflow BugRecurrence1716.Approval
+  parameter $WorkflowContext: BugRecurrence1716.Request
+begin
+  user task Review 'Review'
+    page BugRecurrence1716.WF_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Done' { }
+    boundary event non interrupting timer addDays([%CurrentDateTime%], 1) repeat every 1 day at most 5 times caption 'Daily reminder' {
+      call microflow BugRecurrence1716.ACT_Remind;
+    };
+end workflow;

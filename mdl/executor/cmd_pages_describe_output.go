@@ -969,7 +969,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 						itemProps = appendDataSourceProp(ctx, itemProps, item.DataSource)
 						for _, p := range item.Props {
 							if p.IsRef {
-								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, p.Value))
+								// An action that renders as a note stands on its own line.
+								itemProps = append(itemProps, actionProp(p.Key, p.Value))
 							} else {
 								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, mdlQuote(ctx, p.Value)))
 							}
@@ -1566,6 +1567,21 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 
 // renderClientActionBaseMDL renders the action itself; renderClientActionMDL
 // adds its `with ( … )` settings.
+// unsetTargetNoteTail ends every note unsetTargetNote writes, so a caller that
+// says something else about such an action can tell it apart.
+const unsetTargetNoteTail = "; MDL cannot name a missing target, so re-running this script drops the action"
+
+// unsetTargetNote describes an action whose flow, page or entity is not
+// selected yet. Studio Pro stores that state for a placeholder: its page
+// templates ship them, and a page made from one inherits them until a target
+// is picked. mx check reports each (CE0571 no nanoflow or microflow, CE0566 no
+// page, CE0460 no entity). The bare `call nanoflow` describe used to print does
+// not parse, so one unwired button made the whole page's description unusable
+// (ako/mxcli#1728); a note, which actionProp puts on its own line, does.
+func unsetTargetNote(what string) string {
+	return "-- NOT re-executable: the action " + what + unsetTargetNoteTail
+}
+
 func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
 		return ""
@@ -1593,13 +1609,14 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 		}
 		return result
 	case "Forms$CreateObjectClientAction", "Pages$CreateObjectClientAction":
-		result := "create object"
-		// Extract entity reference
+		entityName := ""
 		if entityRef, ok := action["EntityRef"].(map[string]any); ok {
-			if entityName, ok := entityRef["Entity"].(string); ok && entityName != "" {
-				result += " " + entityName
-			}
+			entityName, _ = entityRef["Entity"].(string)
 		}
+		if entityName == "" {
+			return unsetTargetNote("creates an object but no entity is selected (CE0460)")
+		}
+		result := "create object " + entityName
 		// Extract page reference from PageSettings (Forms$FormSettings)
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			// The page is stored in "Form" field as a qualified name string (BY_NAME_REFERENCE)
@@ -1644,7 +1661,7 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				return "show page " + pageName
 			}
 		}
-		return "show page"
+		return unsetTargetNote("shows a page but none is selected (CE0566)")
 	case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 		// Extract microflow reference from MicroflowSettings
 		if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
@@ -1655,10 +1672,13 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				if params != "" {
 					result += "(" + params + ")"
 				}
+				if returns, ok := storedFlowReturns(settings); ok {
+					result += returns
+				}
 				return result
 			}
 		}
-		return "call microflow"
+		return unsetTargetNote("calls a microflow but none is selected (CE0571)")
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		if nfName, ok := action["Nanoflow"].(string); ok && nfName != "" {
 			result := "call nanoflow " + nfName
@@ -1667,9 +1687,12 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 			if params != "" {
 				result += "(" + params + ")"
 			}
+			if returns, ok := storedFlowReturns(action); ok {
+				result += returns
+			}
 			return result
 		}
-		return "call nanoflow"
+		return unsetTargetNote("calls a nanoflow but none is selected (CE0571)")
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
 		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
@@ -2108,7 +2131,7 @@ func dataViewHasFooterBlock(w rawWidget) bool {
 // emitted as `onClick:` / `OnChange:` (#956).
 func appendNamedActionProps(props []string, w rawWidget) []string {
 	for _, na := range w.NamedActions {
-		props = append(props, fmt.Sprintf("%s: %s", na.Key, na.MDL))
+		props = append(props, actionProp(na.Key, na.MDL))
 	}
 	return props
 }
@@ -2267,16 +2290,15 @@ func appendReadOnlyStyle(props []string, w rawWidget) []string {
 }
 
 // outputMappingsNote says a button's flow call has output mappings (Mendix
-// 11.5), which MDL has no syntax for. A rewrite keeps the stored ones while the
-// button calls the same flow (canon.CarryOutputMappings), so the description
-// still re-executes; the note is there so a reader knows they exist
-// (ako/mxcli#977).
+// 11.5) that describe could not print as `returns ( … )` — a shape that syntax
+// does not write, such as a path over an association. Nothing carries them
+// through a rewrite, so the note says re-running drops them (ako/mxcli#977).
 func outputMappingsNote(w rawWidget) string {
-	switch w.OutputMappings {
+	switch w.UnsayableOutputMappings {
 	case 0:
 		return ""
 	case 1:
-		return fmt.Sprintf("-- %s: 1 output mapping, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name)
+		return fmt.Sprintf("-- %s: 1 output mapping has no MDL form; re-running this statement drops it", w.Name)
 	}
-	return fmt.Sprintf("-- %s: %d output mappings, which MDL cannot show; kept on a rewrite while the button calls the same flow", w.Name, w.OutputMappings)
+	return fmt.Sprintf("-- %s: %d output mappings have no MDL form; re-running this statement drops them", w.Name, w.UnsayableOutputMappings)
 }

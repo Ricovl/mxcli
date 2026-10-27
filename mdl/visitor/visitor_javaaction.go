@@ -80,6 +80,17 @@ func (b *Builder) ExitCreateJavaActionStatement(ctx *parser.CreateJavaActionStat
 		stmt.JavaCode, stmt.Imports = extractJavaImports(code)
 	}
 
+	// `extra code $$ … $$`: the file's EXTRA CODE section (ako/mxcli#1702).
+	// Kept as written apart from the blank lines around it — describe prints
+	// the section as the file holds it, so trimming indentation would shift
+	// every round trip. An import line goes to the import list, as in the body.
+	if ec := ctx.JavaActionExtraCode(); ec != nil && ec.DOLLAR_STRING() != nil {
+		var imports []string
+		stmt.ExtraCode, imports = extractJavaExtraCode(ec.DOLLAR_STRING().GetText())
+		stmt.Imports = append(stmt.Imports, imports...)
+		stmt.ExtraCodeSet = true
+	}
+
 	// Check for documentation comment and OR MODIFY/REPLACE from parent createStatement
 	if parent, ok := ctx.GetParent().(*parser.CreateStatementContext); ok {
 		if docComment := parent.DocComment(); docComment != nil {
@@ -247,6 +258,30 @@ func extractJavaImports(code string) (body string, imports []string) {
 		}
 	}
 	return strings.TrimSpace(strings.Join(bodyLines, "\n")), imports
+}
+
+// extractJavaExtraCode returns the text of an `extra code $$ … $$` clause, its
+// import lines taken out, with the blank lines at either end dropped and every
+// other line as written — apart from the spaces between a `$$` and text on its
+// own line, which are not indentation.
+func extractJavaExtraCode(dollar string) (code string, imports []string) {
+	dollar = strings.TrimSuffix(strings.TrimPrefix(dollar, "$$"), "$$")
+	dollar = strings.TrimRight(strings.TrimLeft(dollar, " \t"), " \t")
+	var lines []string
+	for _, line := range strings.Split(strings.ReplaceAll(dollar, "\r\n", "\n"), "\n") {
+		if t := strings.TrimSpace(line); strings.HasPrefix(t, "import ") && strings.HasSuffix(t, ";") {
+			imports = append(imports, t)
+			continue
+		}
+		lines = append(lines, line)
+	}
+	for len(lines) > 0 && strings.TrimSpace(lines[0]) == "" {
+		lines = lines[1:]
+	}
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n"), imports
 }
 
 // buildJavaActionParams reads a Java or JavaScript action's parameter list —

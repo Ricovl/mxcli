@@ -65,7 +65,14 @@ createJavaActionStatement
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
       javaActionExposedClause?
-      AS DOLLAR_STRING SEMICOLON?
+      AS DOLLAR_STRING javaActionExtraCode? SEMICOLON?
+    ;
+
+/** The .java file's EXTRA CODE section — helper methods, constants and nested
+ *  classes beside executeAction(), which a regeneration keeps. Omitted, the
+ *  stored section is kept; `extra code $$ $$` clears it (ako/mxcli#1702). */
+javaActionExtraCode
+    : EXTRA CODE DOLLAR_STRING
     ;
 
 javaActionParameterList

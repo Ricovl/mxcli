@@ -345,7 +345,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			widget.RenderMode = rt
 		}
 		widget.Icon, widget.IconType, widget.IconCode = extractButtonIcon(w)
-		widget.OutputMappings = countOutputMappings(w["Action"])
+		widget.UnsayableOutputMappings = unsayableOutputMappings(w["Action"])
 		return []rawWidget{widget}
 
 	case "Forms$Header", "Pages$Header":
@@ -1554,25 +1554,4 @@ func describeFileManagerProps(ctx *ExecContext, w map[string]any) []string {
 		props = append(props, "ShowFileInBrowser: true")
 	}
 	return props
-}
-
-// countOutputMappings counts the output mappings of a button's action: a
-// microflow call holds them in its MicroflowSettings, a nanoflow call directly
-// (ako/mxcli#977).
-func countOutputMappings(action any) int {
-	a, ok := action.(map[string]any)
-	if !ok {
-		return 0
-	}
-	holder := a
-	if ms, ok := a["MicroflowSettings"].(map[string]any); ok {
-		holder = ms
-	}
-	n := 0
-	for _, e := range getBsonArrayElements(holder["OutputMappings"]) {
-		if _, ok := e.(map[string]any); ok {
-			n++
-		}
-	}
-	return n
 }
