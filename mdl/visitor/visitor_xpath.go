@@ -133,6 +133,12 @@ func buildXPathValueExpr(ctx parser.IXpathValueExprContext) ast.Expression {
 		}
 	}
 
+	// Constant: @Module.Constant (ako/mxcli#1685). Before it had a rule, `@`
+	// parsed as an attribute name and the constant was dropped on re-render.
+	if c := valCtx.XpathConstantRef(); c != nil {
+		return buildXPathConstantRef(c)
+	}
+
 	// Path: step/step/step
 	if path := valCtx.XpathPath(); path != nil {
 		return buildXPathPath(path)
@@ -270,6 +276,29 @@ func buildXPathQualifiedName(ctx parser.IXpathQualifiedNameContext) ast.Expressi
 			Name:   strings.Join(remaining, "."),
 		},
 	}
+}
+
+// buildXPathConstantRef builds a ConstantRefExpr from xpathConstantRef, split
+// the way an expression's `@Module.Name` is: the first word is the module.
+// A recovered parse may hand over the `@` alone; that yields an empty name
+// rather than a nil dereference (see the-visitor-walks-a-failed-parse).
+func buildXPathConstantRef(ctx parser.IXpathConstantRefContext) ast.Expression {
+	ref := &ast.ConstantRefExpr{}
+	c, ok := ctx.(*parser.XpathConstantRefContext)
+	if !ok || c.XpathQualifiedName() == nil {
+		return ref
+	}
+	words := c.XpathQualifiedName().(*parser.XpathQualifiedNameContext).AllXpathWord()
+	parts := make([]string, len(words))
+	for i, w := range words {
+		parts[i] = unquoteIdentifier(w.GetText())
+	}
+	if len(parts) == 1 {
+		ref.QualifiedName.Name = parts[0]
+	} else if len(parts) > 1 {
+		ref.QualifiedName = ast.QualifiedName{Module: parts[0], Name: strings.Join(parts[1:], ".")}
+	}
+	return ref
 }
 
 // buildXPathFunctionCall builds a FunctionCallExpr from xpathFunctionCall.

@@ -221,6 +221,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// answer first; the project, when there is one, for the rest.
 	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
 
+	// A constant in any XPath constraint (MDL-XPATH03): mxbuild rejects
+	// `[Total > @Mod.C]` with CE0161 whether or not the constant exists, so this
+	// needs no project (ako/mxcli#1685).
+	violations = append(violations, validateXPathConstants(prog)...)
+
 	// An association between a persistable and a non-persistable entity must
 	// start in the non-persistable one and have owner Default — CE0001
 	// (MDL-ASSOC01, ako/mxcli#819). The script's declarations answer first.

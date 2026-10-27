@@ -96,6 +96,14 @@ RETRIEVE $RecentOrders FROM Sales.Order
 
 With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` is a list of one (a script file without the header reads it differently; see [Language Versions and Migration](versions.md)). `describe` prints the object range as `FIRST`.
 
+A WHERE clause cannot reference a constant. `WHERE Total > @Sales.MinimumTotal` parses, and `mxcli check` refuses it (MDL-XPATH03): Mendix rejects a constant in any XPath constraint with CE0161, in a data source and an access rule as much as in a retrieve. Assign the constant to a variable and compare with the variable:
+
+```sql
+DECLARE $Minimum Decimal = @Sales.MinimumTotal;
+RETRIEVE $LargeOrders FROM Sales.Order
+  WHERE Total > $Minimum;
+```
+
 ### RETRIEVE by Association
 
 Retrieves objects by following an association from an existing object:

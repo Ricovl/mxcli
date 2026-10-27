@@ -11,14 +11,14 @@ description: "XPath constraint syntax for MDL — retrieve WHERE clauses, page d
 | lines | section |
 |---|---|
 | 28-34 | When to Use This Skill |
-| 35-75 | XPath vs Mendix Expressions |
-| 76-119 | Syntax Reference |
-| 120-297 | How a Constraint Is Laid Out on Disk |
-| 298-348 | Usage Contexts |
-| 349-388 | Enumeration Attributes |
-| 389-430 | Common Patterns |
-| 431-442 | Validation |
-| 443-452 | Troubleshooting |
+| 35-87 | XPath vs Mendix Expressions |
+| 88-131 | Syntax Reference |
+| 132-309 | How a Constraint Is Laid Out on Disk |
+| 310-360 | Usage Contexts |
+| 361-400 | Enumeration Attributes |
+| 401-442 | Common Patterns |
+| 443-454 | Validation |
+| 455-464 | Troubleshooting |
 
 <!-- /skill-index -->
 # XPath Constraints in MDL
@@ -45,6 +45,7 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 | Token quoting | `'[%CurrentUser%]'` (quoted) | `[%CurrentUser%]` (unquoted) |
 | Nested filter | `Assoc/entity[pred]` | Not applicable |
 | Arithmetic on value | **not supported** — pre-compute into a variable | `+`, `-`, `*`, `div`, `mod` |
+| Constant | **not supported** — assign it to a variable | `@Module.Constant` |
 
 > **XPath constraints cannot compute values.** `where [Seq = $Game/MoveSeq + 1]`
 > is a parse error (Mendix XPath has no arithmetic on the value side). Compute the
@@ -71,6 +72,17 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > ```mdl
 > declare $Cutoff datetime = addDays([%CurrentDateTime%], -7);
 > retrieve $L from Mod.T where [DueDate > $Cutoff];
+> ```
+
+> **Constants are not available in XPath either.** `[Total > @Mod.C_Limit]`
+> parses, but mxbuild rejects a constant in a retrieve, a data source, an access
+> rule and a user task's targeting alike (`CE0161`, measured on 11.13.0) — an
+> unknown one too, so it is never a missing-constant error. `mxcli check`
+> refuses it (**MDL-XPATH03**). In a flow, assign it to a variable first:
+> ```mdl
+> -- ❌ WRONG: retrieve $L from Mod.T where [Total > @Mod.C_Limit];
+> declare $Limit integer = @Mod.C_Limit;
+> retrieve $L from Mod.T where [Total > $Limit];
 > ```
 
 ## Syntax Reference
