@@ -46,6 +46,23 @@ const (
 	RefKindMapping    = "mapping"    // An import or export mapping maps an entity
 )
 
+// RefKinds is every value that reaches refs.RefKind. It is the vocabulary a
+// consumer of the reference graph iterates when it must decide something per
+// kind: TestQUAL004CountsEveryRefKind drives each one at the orphan rule, so an
+// edge kind added here is covered there without anyone remembering the rule.
+// TestEveryObjectTypeConstantIsInAPublishedList holds it complete against the
+// RefKind constants above.
+var RefKinds = []string{
+	RefKindCall, RefKindCreate, RefKindRetrieve, RefKindShowPage,
+	RefKindGeneralize, RefKindAssociate, RefKindLayout, RefKindDatasource,
+	RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
+	RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCommit,
+	RefKindCalculate, RefKindReturn, RefKindSchedule, RefKindValidate,
+	RefKindWidget, RefKindSettings, RefKindSync, RefKindPublish,
+	RefKindEvent, RefKindMember, RefKindXPath, RefKindType,
+	RefKindValue, RefKindMapping,
+}
+
 // Object types recorded in refs.SourceType and refs.TargetType — the catalog's
 // name for "what kind of document is at this end of the edge". They are the SDK
 // names, upper-cased, never Mendix's BSON storage names.

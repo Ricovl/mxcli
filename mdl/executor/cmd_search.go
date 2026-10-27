@@ -30,9 +30,10 @@ import (
 // is a microflow wired as after-startup, before-shutdown or health check, whose
 // edge shipped in v0.22.0 and was added to QUAL004 but not here, so
 // `show callers` stayed blind to it. Every new way for something to run a
-// microflow belongs in this list, in graphRefKinds, and in QUAL004's
-// MICROFLOW_ENTRY_KINDS — three consumers, none of which shares the others'
-// list.
+// microflow belongs in this list and in graphRefKinds — two consumers, neither
+// of which shares the other's list. (QUAL004 had a third, MICROFLOW_ENTRY_KINDS;
+// it fell behind on the navigation kinds and was removed in favour of counting
+// every edge, ako/mxcli#1484.)
 //
 // Deliberately excluded: 'datasource', 'parameter', 'return', 'retrieve',
 // 'create', 'change', 'delete', 'commit', 'associate', 'generalize', 'layout'
