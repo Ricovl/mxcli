@@ -120,6 +120,12 @@ mxcli diff-local -p app.mpr --ref main..feature-branch
 mxcli diff-local -p app.mpr --ref main...feature-branch
 ```
 
+With three dots the old side is the merge base of the two revisions, labelled
+`(merge base of main and feature-branch)`, so the diff shows only what the
+branch changed. With two dots it is `main`'s tip, so anything `main` changed
+since the branch split also shows up, reversed. An empty side means `HEAD`, as
+it does to git (`--ref main..` is `main..HEAD`).
+
 ### MPR v2 Requirement
 
 `diff-local` only works with MPR v2 format (Mendix >= 10.18), where documents are stored as individual files. MPR v1 projects store everything in a single SQLite database, making file-level git diff impractical.

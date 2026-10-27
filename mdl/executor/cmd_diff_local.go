@@ -74,11 +74,16 @@ func diffLocal(ctx *ExecContext, ref string, opts DiffOptions) error {
 		return nil
 	}
 
+	spec, err := resolveRefSpec(projectDir, ref)
+	if err != nil {
+		return err
+	}
+
 	var results []DiffResult
 	var newCount, modifiedCount, deletedCount int
 
 	for _, change := range changedFiles {
-		result, err := diffMxunitFile(ctx, change, projectDir, ref)
+		result, err := diffMxunitFile(ctx, change, projectDir, spec)
 		if err != nil {
 			// Log error but continue with other files
 			fmt.Fprintf(ctx.Output, "Warning: %v\n", err)
@@ -180,17 +185,44 @@ func findChangedMxunitFiles(_ *ExecContext, projectDir, contentsName, ref string
 	return changes, nil
 }
 
+// refSpec is a --ref resolved to the revisions diff-local reads its two sides
+// at, and the labels it names them by.
+type refSpec struct {
+	twoRevision        bool   // both sides from git; otherwise the working tree against a revision
+	base, target       string // revisions to read; target alone in single-ref mode
+	fromLabel, toLabel string
+}
+
+// resolveRefSpec resolves ref once, before any unit is read. The old side of a
+// three-dot range is the merge base, which is what `git diff a...b` lists the
+// changes against; reading it at a would put the other branch's changes into
+// every hunk.
+func resolveRefSpec(projectDir, ref string) (refSpec, error) {
+	base, target, isRange, mergeBase := parseRefRange(ref)
+	if !isRange {
+		return refSpec{target: target, fromLabel: target, toLabel: "working tree"}, nil
+	}
+	spec := refSpec{twoRevision: true, base: base, target: target, fromLabel: base, toLabel: target}
+	if mergeBase {
+		out, err := gitInProject(projectDir, "merge-base", base, target).Output()
+		if err != nil {
+			return refSpec{}, mdlerrors.NewBackend(fmt.Sprintf("find the merge base of %s and %s", base, target), err)
+		}
+		spec.base = strings.TrimSpace(string(out))
+		spec.fromLabel = fmt.Sprintf("merge base of %s and %s", base, target)
+	}
+	return spec, nil
+}
+
 // diffMxunitFile generates a diff for a single mxunit file.
-// For two-revision diffs (ref contains ".."), both sides are read from git.
+// For two-revision diffs (a range), both sides are read from git.
 // For single-ref diffs, the "current" side is read from the working tree.
-func diffMxunitFile(ctx *ExecContext, change gitChange, projectDir, ref string) (*DiffResult, error) {
+func diffMxunitFile(ctx *ExecContext, change gitChange, projectDir string, spec refSpec) (*DiffResult, error) {
 	var currentContent, gitContent []byte
 	var err error
 
-	// Determine if this is a two-revision diff
-	baseRef, targetRef, isTwoRevision := parseRefRange(ref)
-
-	if isTwoRevision {
+	baseRef, targetRef := spec.base, spec.target
+	if spec.twoRevision {
 		// Two-revision mode: both sides from git
 		if change.Status != "D" {
 			cmd := gitInProject(projectDir, "show", gitShowArg(targetRef, change.FilePath))
@@ -215,7 +247,7 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, projectDir, ref string) 
 			}
 		}
 		if change.Status != "A" {
-			cmd := gitInProject(projectDir, "show", gitShowArg(ref, change.FilePath))
+			cmd := gitInProject(projectDir, "show", gitShowArg(targetRef, change.FilePath))
 			gitContent, err = cmd.Output()
 			if err != nil {
 				return nil, mdlerrors.NewBackend(fmt.Sprintf("read git version of %s", change.FilePath), err)
@@ -241,11 +273,7 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, projectDir, ref string) 
 
 	// Name the sides after what they are: both are git revisions in range
 	// mode, and the working tree against a ref otherwise. Neither is a script.
-	if isTwoRevision {
-		result.FromLabel, result.ToLabel = baseRef, targetRef
-	} else {
-		result.FromLabel, result.ToLabel = ref, "working tree"
-	}
+	result.FromLabel, result.ToLabel = spec.fromLabel, spec.toLabel
 
 	// Extract UUID from file path; it is the unit ID.
 	unitID := extractUUIDFromPath(change.FilePath)
@@ -939,13 +967,30 @@ func compareGeneric(_ *ExecContext, current, proposed string) []StructuralChange
 // Helper Functions for Git and BSON Parsing
 // ============================================================================
 
-// parseRefRange splits a ref like "base..target" into its parts.
-// Returns (base, target, true) for ranges, or ("", ref, false) for single refs.
-func parseRefRange(ref string) (base, target string, isRange bool) {
-	if idx := strings.Index(ref, ".."); idx >= 0 {
-		return ref[:idx], ref[idx+2:], true
+// parseRefRange splits a ref like "base..target" or "base...target" into its
+// parts; mergeBase reports the three-dot form, whose old side is the merge base
+// of the two. An empty side is HEAD, as it is to git. Returns ("", ref, false,
+// false) for a single ref.
+//
+// "..." is matched before "..": splitting "a...b" on the first ".." read the
+// target as ".b", and every unit failed to load.
+func parseRefRange(ref string) (base, target string, isRange, mergeBase bool) {
+	sep := ".."
+	if strings.Contains(ref, "...") {
+		sep, mergeBase = "...", true
 	}
-	return "", ref, false
+	idx := strings.Index(ref, sep)
+	if idx < 0 {
+		return "", ref, false, false
+	}
+	base, target = ref[:idx], ref[idx+len(sep):]
+	if base == "" {
+		base = "HEAD"
+	}
+	if target == "" {
+		target = "HEAD"
+	}
+	return base, target, true, mergeBase
 }
 
 // execCommand creates an exec.Cmd for running git commands.
