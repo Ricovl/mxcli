@@ -80,6 +80,10 @@ page /p/Order_Overview  title="Orders"  STILL LOADING  rows=0  text=37  console-
   FAIL   still loading when measured, so the verdict may describe a partly rendered page (raise --wait if it is only slow)
 ```
 
+The sign-in form is not waited for: the client keeps a request open behind it, so
+it would otherwise run out the whole `--wait` and then read as still loading. Once
+the form holds still it is measured, and it fails as the sign-in form.
+
 A page with a list view, data grid or gallery always reports `rows=`, `rows=0`
 included, so an empty list does not read the same as a page without one.
 
@@ -176,7 +180,7 @@ mxcli playwright check /p/Customer_Overview -p app.mpr \
 | `--assert-text` | | Text the page must contain (repeatable) |
 | `--assert-count` | | `SELECTOR OP N` that must hold (repeatable) |
 | `--screenshot` | | Also write a PNG here; the path is printed |
-| `--wait` | `4s` | Longest a page may keep changing after it mounts before it is measured |
+| `--wait` | `15s` | Longest a page may keep loading after it mounts (open requests, changing text) before it is measured; the sign-in form is measured as soon as it holds still |
 | `--fresh-login` | `false` | Sign the saved session out and sign in again |
 | `--sign-out` | `false` | Sign out when the check is done instead of keeping the session |
 | `--allow-console-errors` | `false` | Report console errors without failing on them |
