@@ -24,15 +24,15 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 | 389-446 | Pages render in the browser |
 | 447-464 | Pixel-perfect page loop |
 | 465-485 | Debugging a server-side error |
-| 486-506 | "Sign in failed" that is not about the password |
-| 507-539 | The same licence also stops the app after a few hours |
-| 540-619 | External browser preview (`--hub`) |
-| 620-628 | Validation checklist |
-| 629-685 | Constant values come from a configuration |
-| 686-689 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 690-693 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 694-697 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 698-700 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 486-509 | "Sign in failed" that is not about the password |
+| 510-542 | The same licence also stops the app after a few hours |
+| 543-622 | External browser preview (`--hub`) |
+| 623-631 | Validation checklist |
+| 632-688 | Constant values come from a configuration |
+| 689-692 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 693-696 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 697-700 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 701-703 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -496,13 +496,16 @@ Maximum number of sessions exceeded! (You are currently using a trial license)
 
 So: when a login you know is correct starts failing, `grep -c "Maximum number of
 sessions" .mxcli/runtime.log` before touching the credentials or the user's
-password in the model. `--screenshot-user` does this for you — a rejected sign-in
-now reads the log and says so instead of quietly screenshotting the login page.
+password in the model. `--screenshot-user` and `mxcli playwright check` do this
+for you — a rejected sign-in reads the log and says so instead of quietly
+screenshotting or checking the login page.
 
 Sessions are held until they expire; restarting `run --local` clears them all.
 A script that drives the app through a browser should **sign out at the end**,
 otherwise each run leaks a slot and the fifth or sixth run is the one that fails —
 which makes it look like a change you just made broke authentication.
+`mxcli playwright check` keeps one saved session per host and user and reuses it,
+so repeated checks hold one slot; `--sign-out` releases it at the end of a run.
 
 ## The same licence also stops the app after a few hours
 

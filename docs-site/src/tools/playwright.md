@@ -100,12 +100,34 @@ A warning banner or validation message is shown but does not fail the page.
 | `-p app.mpr` only | a demo user of the project (an administrator first), when demo users are enabled |
 | none | nobody; a secured page fails with "the sign-in form is showing" |
 
+The sign-in happens on the **host of the pages checked**, not on `--base-url`: a
+session's cookies belong to the host they were set on, so one signed in on
+`localhost` is not sent to `127.0.0.1` or to another name for the same app. A page
+given as a full URL on another host (`mxcli playwright check http://frontend.local:8180/
+-p app.mpr`) gets a session of its own; before ako/mxcli#1216 it was checked with
+the base URL's session, showed the sign-in form on every run, and signed in again
+on each.
+
 The session is saved as a Playwright storage state under
 `<project>/.mxcli/playwright-check/<host>-<user>.json` (or `~/.mxcli/playwright-check/`
 without `-p`) and reused by the next check, so repeated checks do not sign in again —
-on the unlicensed runtime every sign-in takes one of a handful of session slots. When
-the runtime no longer knows the session (it restarted), the check signs in once more
-and reloads only the affected pages. `--fresh-login` ignores the saved session.
+on the unlicensed runtime every sign-in takes one of a handful of session slots, and
+a reused session stays one session however many checks run. When the runtime no
+longer knows the session (it restarted), the check signs in once more and reloads
+only the affected pages.
+
+- `--fresh-login` signs the saved session out, then signs in again.
+- `--sign-out` ends the run signed out and keeps nothing for the next check — for a
+  last check in a script that should leave no session behind.
+- A session the run signed in that got no page past the sign-in form (a page the
+  role may not open, say) is signed out rather than kept: kept, every later check
+  would sign in again beside it.
+
+Signing out is best effort and never changes the verdict; a sign-out that does not
+complete is reported on stderr, and that session expires on its own. When the
+runtime refuses a sign-in, the check reads `<project>/.mxcli/runtime.log` for the
+cause — the unlicensed runtime's session cap shows on the sign-in page only as
+"Sign in failed".
 
 The sign-in types into the Mendix login form, so the "setting `.value` leaves the
 field empty" problem of hand-written `eval` logins does not arise. When the app root
@@ -139,7 +161,8 @@ mxcli playwright check /p/Customer_Overview -p app.mpr \
 | `--assert-count` | | `SELECTOR OP N` that must hold (repeatable) |
 | `--screenshot` | | Also write a PNG here; the path is printed |
 | `--wait` | `4s` | Longest a page may keep changing after it mounts before it is measured |
-| `--fresh-login` | `false` | Ignore the saved session |
+| `--fresh-login` | `false` | Sign the saved session out and sign in again |
+| `--sign-out` | `false` | Sign out when the check is done instead of keeping the session |
 | `--allow-console-errors` | `false` | Report console errors without failing on them |
 
 The check needs Node and the Playwright package (`require('playwright')` or the

@@ -11,18 +11,18 @@ description: "Verify a running Mendix app in a browser: `mxcli playwright check`
 | lines | section |
 |---|---|
 | 32-42 | When to Use This Skill |
-| 43-90 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
-| 91-141 | Prerequisites |
-| 142-166 | Quick Start |
-| 167-188 | Widget Name Selectors |
-| 189-304 | Verification Patterns |
-| 305-378 | CI/CD: Test Scripts |
-| 379-422 | Session Management |
-| 423-450 | Debugging |
-| 451-483 | Selector Rules |
-| 484-500 | Known Gotchas |
-| 501-534 | Feedback Loop Workflow |
-| 535-542 | Related Skills |
+| 43-94 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
+| 95-145 | Prerequisites |
+| 146-170 | Quick Start |
+| 171-192 | Widget Name Selectors |
+| 193-308 | Verification Patterns |
+| 309-382 | CI/CD: Test Scripts |
+| 383-426 | Session Management |
+| 427-454 | Debugging |
+| 455-487 | Selector Rules |
+| 488-504 | Known Gotchas |
+| 505-538 | Feedback Loop Workflow |
+| 539-546 | Related Skills |
 
 <!-- /skill-index -->
 # Test App Skill
@@ -71,8 +71,12 @@ FAIL 1 of 2 page(s)
   the answer. A page with a list or grid always prints `rows=`, `rows=0` included.
 - **Login is handled:** `--user U --password P`, or `--role R` (the project's demo user
   holding user role R), or nothing but `-p` (a demo user, an administrator first).
-  The session is saved under `.mxcli/playwright-check/` and reused by the next check;
-  after a runtime restart it is renewed automatically. `--fresh-login` forces it.
+  It signs in on the host of the pages checked (a session for `localhost` is not
+  sent to `127.0.0.1`), saves the session per host under `.mxcli/playwright-check/`
+  and reuses it — one session however many checks run; after a runtime restart it
+  is renewed automatically. `--fresh-login` signs the saved session out and signs
+  in again; `--sign-out` ends the run signed out. A refused sign-in names the
+  unlicensed runtime's session cap when `.mxcli/runtime.log` reports it.
 - **Assertions:** `--assert-text 'Customer overview'` (body text contains),
   `--assert-count '.mx-name-dgCustomers [role=row]>=2'` (ops `>= <= == != > <`; a
   bare selector means at least one). Both repeatable, applied to every page.

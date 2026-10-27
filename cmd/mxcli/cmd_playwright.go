@@ -177,9 +177,17 @@ for -p, else APP_PORT in .docker/.env, else http://localhost:8080.
 
 Login: --user/--password, or --role R to sign in as the project's demo user with
 that user role (needs -p). With only -p, a secured app is signed into as one of
-the project's demo users (an administrator first). The session is saved under
-<project>/.mxcli/playwright-check/ and reused by later checks; it is renewed
-automatically when the runtime has forgotten it (after a restart).
+the project's demo users (an administrator first). The sign-in happens on the
+host of the pages checked — a session signed in on localhost is not sent to
+127.0.0.1 or to another name for the same app — and is saved per host and user
+under <project>/.mxcli/playwright-check/, where later checks reuse it: one
+session however many checks run. It is renewed automatically when the runtime
+has forgotten it (after a restart). --fresh-login signs the saved session out
+before signing in again; --sign-out ends the run signed out, keeping nothing.
+A session that got no page past the sign-in form is signed out, not kept. When
+a sign-in is refused, the runtime log (<project>/.mxcli/runtime.log) is read for
+the cause: the unlicensed local runtime caps concurrent sessions, and its sign-in
+page reports that as a wrong password.
 
 A page is measured once it has settled: no request to the app open for half a
 second, no progress indicator, and its text no longer changing. Waiting for the
@@ -212,6 +220,7 @@ Examples:
 		shot, _ := cmd.Flags().GetString("screenshot")
 		wait, _ := cmd.Flags().GetDuration("wait")
 		fresh, _ := cmd.Flags().GetBool("fresh-login")
+		signOut, _ := cmd.Flags().GetBool("sign-out")
 		allowConsole, _ := cmd.Flags().GetBool("allow-console-errors")
 
 		if user != "" && role != "" {
@@ -236,6 +245,7 @@ Examples:
 			Password:    password,
 			Role:        role,
 			FreshLogin:  fresh,
+			SignOut:     signOut,
 			Spec:        spec,
 			Screenshot:  shot,
 			WaitMs:      int(wait.Milliseconds()),
@@ -292,7 +302,8 @@ func init() {
 	playwrightCheckCmd.Flags().StringArray("assert-count", nil, "Fail unless SELECTOR OP N holds, e.g. '.mx-listview li>=1' (ops >= <= == != > <; bare selector = >=1; repeatable)")
 	playwrightCheckCmd.Flags().String("screenshot", "", "Also write a full-page PNG here (per-page suffix for several pages); only the path is printed")
 	playwrightCheckCmd.Flags().Duration("wait", time.Duration(docker.DefaultPageWaitMs)*time.Millisecond, "Longest a page may keep loading after it mounts (open requests, changing text) before it is measured; a page still loading then fails as STILL LOADING")
-	playwrightCheckCmd.Flags().Bool("fresh-login", false, "Ignore the saved session and sign in again")
+	playwrightCheckCmd.Flags().Bool("fresh-login", false, "Sign the saved session out and sign in again")
+	playwrightCheckCmd.Flags().Bool("sign-out", false, "Sign out when the check is done instead of keeping the session for the next check")
 	playwrightCheckCmd.Flags().Bool("allow-console-errors", false, "Report console errors but do not fail on them")
 
 	playwrightCmd.AddCommand(playwrightCheckCmd)
