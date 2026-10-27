@@ -68,6 +68,13 @@ func newContainerHierarchyImpl(src hierarchySource) (*ContainerHierarchy, error)
 	return h, nil
 }
 
+// addFolder records a folder created after the hierarchy was built, so a
+// cached hierarchy can resolve documents placed in it (ako/mxcli#1486).
+func (h *ContainerHierarchy) addFolder(id, containerID model.ID, name string) {
+	h.folderNames[id] = name
+	h.containerParent[id] = containerID
+}
+
 // FindModuleID finds the module ID for any container by traversing the hierarchy.
 func (h *ContainerHierarchy) FindModuleID(containerID model.ID) model.ID {
 	current := containerID
