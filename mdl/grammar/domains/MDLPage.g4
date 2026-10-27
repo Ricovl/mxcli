@@ -349,8 +349,14 @@ useFragmentPayload
     ;
 
 // Fragment argument list: ($p: $Data, $q: microflow Module.Flow)
+//
+// May be empty, meaning no arguments, as microflowArgsV3 may (ako/mxcli#1516).
+// Unlike the flow calls this was not a syntax error: `use fragment Frag()`
+// failed this rule and the page body re-read it as two generic widgets, one of
+// type `use` named `fragment` and one of type `Frag` — and `mxcli check`
+// without a project passed it.
 fragmentArgs
-    : LPAREN fragmentArg (COMMA fragmentArg)* RPAREN
+    : LPAREN (fragmentArg (COMMA fragmentArg)*)? RPAREN
     ;
 
 fragmentArg
@@ -786,8 +792,19 @@ openLinkV3
 
 // V3 Microflow arguments: (Param = value, ...) — R4, the argument form of every
 // call site. `Param: value` and `$Param = value` are deprecated spellings.
+//
+// The list may be EMPTY, and `M.F()` means exactly what `M.F` means — no
+// mappings (ako/mxcli#1516). A flow body writes `call microflow M.F()`, so the
+// same call on a button was written that way by analogy and was a syntax error
+// at the `)`, reported as "expecting the start of a statement". This one rule
+// serves every page action (call microflow/nanoflow, show page and their
+// deprecated spellings), both flow data sources, and so every site that takes
+// an action: Action/OnClick/OnChange, a pluggable widget's action property,
+// alter page set, a navigation or menu document item, a fragment argument and
+// a building-block override. describe keeps writing a parameterless call
+// without the brackets.
 microflowArgsV3
-    : LPAREN microflowArgV3 (COMMA microflowArgV3)* RPAREN
+    : LPAREN (microflowArgV3 (COMMA microflowArgV3)*)? RPAREN
     ;
 
 microflowArgV3

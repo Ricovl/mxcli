@@ -1,0 +1,105 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1516 (mendixlabs/mxcli#1606) — an empty argument list on a page
+-- action or data source
+-- ============================================================================
+--
+-- Symptom: a flow with no parameters, called from a widget with `()`,
+--   actionbutton btnPing (Caption: 'Ping', Action: call microflow M.Ping())
+-- was a syntax error at the `)`:
+--   mismatched input ')' expecting the start of a statement (create, alter, …)
+-- while the same call parses in a flow body, and the widget action parsed
+-- without the brackets. Every site sharing the page argument rule failed the
+-- same way: call microflow / call nanoflow / show page (and their deprecated
+-- spellings), a microflow or nanoflow data source, OnClick, OnChange, a
+-- pluggable widget's action property, alter page set, and the OnClick of a
+-- navigation or menu document item.
+--
+-- `use fragment Hdr()` was worse: it was not an error at all without a
+-- project. It parsed as two widgets, of types `use` and `Hdr`, and only
+-- `check -p` reported them ("`use` is not a widget in this project").
+--
+-- `M.F()` now means exactly what `M.F` means. Measured on 11.13.0: the two
+-- pages below store the same BSON once element IDs and the page name are set
+-- aside, describe identically (without brackets), re-running a description
+-- reports "Unchanged page", and mx check reports 0 errors.
+--
+--   mxcli check mdl-examples/bug-tests/widget-action-1516-empty-call-args.mdl
+--   mxcli exec  mdl-examples/bug-tests/widget-action-1516-empty-call-args.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page Bug1516.P_Empty"   -- no brackets
+-- ============================================================================
+
+create module Bug1516;
+create persistent entity Bug1516.Item (Name: string(50));
+
+create microflow Bug1516.Ping ()
+begin
+  log info 'ping';
+end;
+
+create nanoflow Bug1516.NPing ()
+begin
+  log info 'nping';
+end;
+
+create microflow Bug1516.DS () returns list of Bug1516.Item
+begin
+  retrieve $Items from Bug1516.Item;
+  return $Items;
+end;
+
+create page Bug1516.Target (Title: 'Target', Layout: Atlas_Core.Atlas_Default) {
+  layoutgrid g { row { column (DesktopWidth: autofill) { dynamictext t (Content: 'target') } } }
+};
+
+create page Bug1516.EditItem (Title: 'Edit', Layout: Atlas_Core.Atlas_Default, Params: ($Item: Bug1516.Item)) {
+  layoutgrid g { row { column (DesktopWidth: autofill) {
+    dataview dv (DataSource: $Item) { textbox tb (Attribute: Name) }
+  } } }
+};
+
+create fragment Hdr as {
+  container hdrWrap { dynamictext hdrText (Content: 'header') }
+};
+
+-- Every call written with an empty argument list.
+create page Bug1516.P_Empty (Title: 'Calls', Layout: Atlas_Core.Atlas_Default) {
+  layoutgrid g {
+    row {
+      column (DesktopWidth: autofill) {
+        actionbutton btnMf (Caption: 'Ping', Action: call microflow Bug1516.Ping())
+        actionbutton btnMfWith (Caption: 'Ping', Action: call microflow Bug1516.Ping() with (ProgressBar: Blocking))
+        actionbutton btnNf (Caption: 'NPing', Action: call nanoflow Bug1516.NPing())
+        actionbutton btnShow (Caption: 'Show', Action: show page Bug1516.Target())
+        actionbutton btnCreate (Caption: 'New', Action: create object Bug1516.Item then show page Bug1516.EditItem())
+        container cClick (OnClick: call nanoflow Bug1516.NPing()) { dynamictext ct (Content: 'click') }
+        listview lvMf (DataSource: microflow Bug1516.DS()) { dynamictext lt (Content: '{1}', ContentParams: ({1} = Name)) }
+        use fragment Hdr() as h_
+      }
+    }
+  }
+};
+
+-- Control: the same page without brackets. It must store the same document.
+create page Bug1516.P_Bare (Title: 'Calls', Layout: Atlas_Core.Atlas_Default) {
+  layoutgrid g {
+    row {
+      column (DesktopWidth: autofill) {
+        actionbutton btnMf (Caption: 'Ping', Action: call microflow Bug1516.Ping)
+        actionbutton btnMfWith (Caption: 'Ping', Action: call microflow Bug1516.Ping with (ProgressBar: Blocking))
+        actionbutton btnNf (Caption: 'NPing', Action: call nanoflow Bug1516.NPing)
+        actionbutton btnShow (Caption: 'Show', Action: show page Bug1516.Target)
+        actionbutton btnCreate (Caption: 'New', Action: create object Bug1516.Item then show page Bug1516.EditItem)
+        container cClick (OnClick: call nanoflow Bug1516.NPing) { dynamictext ct (Content: 'click') }
+        listview lvMf (DataSource: microflow Bug1516.DS) { dynamictext lt (Content: '{1}', ContentParams: ({1} = Name)) }
+        use fragment Hdr as h_
+      }
+    }
+  }
+};
+
+-- A menu document item takes the same action expression.
+create or modify menu Bug1516.Menu_Empty {
+  menu item 'Ping' (OnClick: call microflow Bug1516.Ping(), Icon: Atlas_Core.Atlas.home)
+  menu item 'Show' (OnClick: show page Bug1516.Target(), Icon: Atlas_Core.Atlas.home)
+};
