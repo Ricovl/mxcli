@@ -149,7 +149,11 @@ func gitShowArg(rev, path string) string {
 // contentsName (the mprcontents folder) of projectDir.
 func findChangedMxunitFiles(_ *ExecContext, projectDir, contentsName, ref string) ([]gitChange, error) {
 	// --relative: paths relative to projectDir, the directory git runs in.
-	cmd := gitInProject(projectDir, "diff", "--name-status", "--relative", ref, "--", contentsName)
+	// --no-renames: a unit's file name is its ID, so a file that moved is a
+	// different unit — one deleted, one added. Rename detection reported it as
+	// "R100 old new", read here as a change to the old path, which the new
+	// revision does not have.
+	cmd := gitInProject(projectDir, "diff", "--name-status", "--relative", "--no-renames", ref, "--", contentsName)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, mdlerrors.NewBackend("git diff", err)

@@ -117,3 +117,35 @@ func TestDiffLocal_ThreeDotRangeDiffsFromTheMergeBase(t *testing.T) {
 	}
 }
 
+// A unit whose file moves to another name is a different unit to Mendix — the
+// file name is the unit ID — but git's rename detection reported it as
+// "R100\told\tnew", which diff-local read as a modification of the OLD path:
+// the new revision has no such file, so the unit was skipped with a warning and
+// counted nowhere.
+func TestDiffLocal_RenamedUnitFileIsADeleteAndAnAdd(t *testing.T) {
+	proj := divergedRepo(t)
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com",
+			"-c", "commit.gpgsign=false"}, args...)...)
+		cmd.Dir = proj
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	const moved = "6b6b6b6b-1111-2222-3333-444444444444"
+	if err := os.MkdirAll(filepath.Join(proj, "mprcontents", "6b", "6b"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git("mv", filepath.Join("mprcontents", "5a", "5a", fld1602Unit+".mxunit"),
+		filepath.Join("mprcontents", "6b", "6b", moved+".mxunit"))
+	git("commit", "-q", "-m", "unit gets a new ID")
+
+	ctx, out := set1602Context()
+	ctx.Backend.(*mock.MockBackend).ContentsDirFunc = func() string { return filepath.Join(proj, "mprcontents") }
+	if err := diffLocal(ctx, "HEAD~1..HEAD", DiffOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); strings.Contains(got, "Warning") || !strings.Contains(got, "Summary: 1 new, 0 modified, 1 deleted") {
+		t.Errorf("a unit file moved to a new ID is not reported as one new and one deleted unit:\n%s", got)
+	}
+}
