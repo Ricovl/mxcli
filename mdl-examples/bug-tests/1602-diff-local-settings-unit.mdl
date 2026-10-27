@@ -15,7 +15,7 @@ mdl 1;
 --     +alter settings constant 'MyFirstModule.ApiKey' value <masked #e0f7f850>
 -- The value itself ('secret123') must not appear in the output.
 
-create or modify constant MyFirstModule.ApiKey type String default 'x';
+create or modify constant MyFirstModule.ApiKey ( Type: String, DefaultValue: 'x' );
 
 -- Step 1:
 ALTER SETTINGS CONSTANT @MyFirstModule.ApiKey VALUE 'x' IN CONFIGURATION 'Default';
