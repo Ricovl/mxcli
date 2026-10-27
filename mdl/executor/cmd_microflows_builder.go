@@ -123,6 +123,10 @@ type flowBuilder struct {
 	// is derived from the first annotated activity as before.
 	startPosition *model.Point
 	backend       backend.FullBackend // For looking up page/microflow references
+	// assocCatalog is the project's associations with their ends, read once
+	// per flow for the bare association names a retrieve resolves
+	// (ako/mxcli#1690). nil until first needed.
+	assocCatalog *associationCatalog
 	// quiet silences the builder's own stderr warnings. Set for describe's
 	// layout check (derivedFlowLayout), which rebuilds a flow it only reads and
 	// must not repeat, once per round, a warning nobody asked for.

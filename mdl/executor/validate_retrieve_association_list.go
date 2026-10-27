@@ -236,7 +236,7 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 				if isList {
 					lists[st.Variable] = other
 					bound[st.Variable] = assocListBinding{
-						assoc: shapes[strings.ToLower(qualifyAssoc(st.Source, startEntity))].qn,
+						assoc: shapes[strings.ToLower(qualifyAssoc(ctx, shapes, st.Source, startEntity))].qn,
 						start: start, startEntity: startEntity, elem: other,
 					}
 				} else {
@@ -247,12 +247,23 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 	return out
 }
 
-func qualifyAssoc(assoc ast.QualifiedName, startEntity string) string {
+// qualifyAssoc is the association a retrieve names. A bare name resolves the
+// way the flow builder resolves it (resolveBareAssociation, ako/mxcli#1690),
+// not by assuming the start entity's module; one that does not resolve is "",
+// which no shape matches, so the rule stays silent on it.
+func qualifyAssoc(ctx *ExecContext, shapes map[string]assocShape, assoc ast.QualifiedName, startEntity string) string {
 	if assoc.Module != "" {
 		return assoc.String()
 	}
-	mod, _, _ := strings.Cut(startEntity, ".")
-	return mod + "." + assoc.Name
+	chain, complete := generalizationChain(ctx, startEntity)
+	if len(chain) == 0 {
+		chain = []string{startEntity}
+	}
+	qn, _, verdict := resolveBareAssociation(assoc.Name, chain, complete, associationCatalog{shapes: shapes, complete: true})
+	if verdict != bareAssocResolved {
+		return ""
+	}
+	return qn
 }
 
 // associationRetrieveShape decides what a retrieve over assoc from an object of
@@ -261,7 +272,7 @@ func qualifyAssoc(assoc ast.QualifiedName, startEntity string) string {
 func associationRetrieveShape(ctx *ExecContext, shapes map[string]assocShape,
 	assoc ast.QualifiedName, startEntity string) (other string, isList, known bool) {
 
-	shape, ok := shapes[strings.ToLower(qualifyAssoc(assoc, startEntity))]
+	shape, ok := shapes[strings.ToLower(qualifyAssoc(ctx, shapes, assoc, startEntity))]
 	if !ok || shape.owner == "" || strings.EqualFold(shape.from, shape.to) {
 		return "", false, false
 	}

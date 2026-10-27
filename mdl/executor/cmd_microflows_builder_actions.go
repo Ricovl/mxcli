@@ -1225,14 +1225,25 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// Association retrieve: RETRIEVE $List FROM $Parent/Module.AssocName
 		// Always use AssociationRetrieveSource to preserve the original syntax.
 		// The runtime resolves traversal direction from association metadata.
-		assocQN := s.Source.Module + "." + s.Source.Name
+		//
+		// A bare name (`$O/Ord_Cust`) resolves against the start variable's
+		// entity, or is refused: joined as it stands it was stored as ".Ord_Cust",
+		// with an empty module — CE1613, and a describe that does not parse
+		// (ako/mxcli#1690).
+		assocModule, assocName := s.Source.Module, s.Source.Name
+		if assocModule == "" {
+			if qn, ok := fb.qualifyBareRetrieveAssociation(s); ok {
+				assocModule, assocName, _ = strings.Cut(qn, ".")
+			}
+		}
+		assocQN := assocModule + "." + assocName
 
 		// Look up association to determine type and direction.
 		// For Reference associations, AssociationRetrieveSource always returns a single
 		// object (the entity on the other end). When the user navigates from the child
 		// (non-owner) side, the intent is to get a list of parent entities — we must use
 		// a DatabaseRetrieveSource with XPath constraint instead.
-		assocInfo := fb.lookupAssociation(s.Source.Module, s.Source.Name)
+		assocInfo := fb.lookupAssociation(assocModule, assocName)
 		startVarType := ""
 		if fb.varTypes != nil {
 			startVarType = fb.varTypes[s.StartVariable]
@@ -1858,6 +1869,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 				if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, spec.Attribute); ok {
 					attrQN = declared
 				} else {
+					fb.refuseMissingListMember("sort", s.InputVariable, entityType, spec.Attribute)
 					attrQN = entityType + "." + spec.Attribute
 				}
 			}
@@ -1981,6 +1993,13 @@ func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter b
 		return nil
 	}
 
+	verb := "find"
+	if filter {
+		verb = "filter"
+	}
+	if fb.refuseMissingListMember(verb, s.InputVariable, fb.listElementEntity(s.InputVariable), fieldName) {
+		return nil
+	}
 	attributeName, associationName := fb.resolveListOperationMember(s.InputVariable, fieldName)
 	if associationName == "" && !strings.Contains(attributeName, ".") {
 		return nil
@@ -2080,11 +2099,15 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		action.UseExpression = true
 		action.Expression = expressionToString(s.Expression)
 	} else if s.Attribute != "" {
-		// For SUM/AVG/MIN/MAX, build qualified attribute name from variable type
-		if fb.varTypes != nil {
-			listType := fb.varTypes[s.InputVariable]
-			if after, ok := strings.CutPrefix(listType, "List of "); ok {
-				entityType := after
+		// For SUM/AVG/MIN/MAX, qualify the attribute with the entity that
+		// DECLARES it, as a sort does: an inherited one qualified with the
+		// list's own entity is CE1613 "The selected attribute 'M.Sub.Total' no
+		// longer exists" (measured on 11.13.0, ako/mxcli#1646).
+		if entityType := fb.listElementEntity(s.InputVariable); entityType != "" {
+			if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, s.Attribute); ok && !strings.Contains(s.Attribute, ".") {
+				action.AttributeQualifiedName = declared
+			} else {
+				fb.refuseMissingListMember(strings.ToLower(s.Operation.String()), s.InputVariable, entityType, s.Attribute)
 				action.AttributeQualifiedName = entityType + "." + s.Attribute
 			}
 		}
@@ -2661,6 +2684,56 @@ func (fb *flowBuilder) entityIsSubtypeOf(candidateQN, ancestorQN string) bool {
 		currentQN = entity.GeneralizationRef
 	}
 	return false
+}
+
+// refuseMissingListMember records the refusal for a list operation's or an
+// aggregate's member that the list's entity provably does not have, and
+// reports whether it did. Without it the builder wrote `<entity>.<name>`
+// anyway, which mxbuild rejects with CE1613 (ako/mxcli#1646). The verdict and
+// the message are check --references' own (flowMemberVerdict,
+// listMemberRefusal), so exec without the preflight says what check says. A
+// member that cannot be judged — the entity unknown, a module unreadable, a
+// qualified name — is written as before.
+func (fb *flowBuilder) refuseMissingListMember(verb, list, entityQN, member string) bool {
+	if fb == nil || fb.backend == nil || entityQN == "" || member == "" || strings.Contains(member, ".") {
+		return false
+	}
+	if res, _ := flowMemberVerdict(fb.backend, entityQN, member, !isAggregateVerb(verb)); res != memberMissing {
+		return false
+	}
+	fb.addError("%s", listMemberRefusal(listMemberWhere(verb, list, member), entityQN, member, nearMembersFor(fb.backend, entityQN)))
+	return true
+}
+
+// qualifyBareRetrieveAssociation resolves the association a retrieve names by
+// its bare name — `retrieve $C from $O/Ord_Cust` — against the entity the start
+// variable holds, and records the refusal when it cannot. The answer is
+// resolveBareAssociation's, which check --references asks too.
+func (fb *flowBuilder) qualifyBareRetrieveAssociation(s *ast.RetrieveStmt) (string, bool) {
+	entity := ""
+	if fb.varTypes != nil {
+		entity = strings.TrimPrefix(fb.varTypes[s.StartVariable], "List of ")
+	}
+	qn, matches, verdict := fb.resolveBareAssociationFrom(entity, s.Source.Name)
+	if verdict == bareAssocResolved {
+		return qn, true
+	}
+	fb.addError("%s", bareRetrieveAssociationRefusal(s.Variable, s.StartVariable, s.Source.Name, entity, matches, verdict))
+	return "", false
+}
+
+// resolveBareAssociationFrom is resolveBareAssociation over the project as the
+// builder sees it: the statements before this one already written.
+func (fb *flowBuilder) resolveBareAssociationFrom(entityQN, name string) (string, []string, bareAssocVerdict) {
+	if fb == nil || fb.backend == nil || entityQN == "" || name == "" {
+		return "", nil, bareAssocUnknown
+	}
+	if fb.assocCatalog == nil {
+		cat := associationCatalogFor(fb.backend)
+		fb.assocCatalog = &cat
+	}
+	chain, complete := generalizationChainFor(fb.backend, entityQN)
+	return resolveBareAssociation(name, chain, complete, *fb.assocCatalog)
 }
 
 // resolveMemberChangeFallback preserves the authored member name shape when the
