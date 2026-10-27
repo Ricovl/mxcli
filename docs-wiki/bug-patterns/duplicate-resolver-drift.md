@@ -84,6 +84,18 @@ next rehearsal found phantoms on 66 scripts (#907). The remedy was the general
 one taken literally: diff now runs exec itself on a scratch copy and compares
 units, so there is no second answer left to drift.
 
+`diff-local` is the same shape with no exec to run instead: the older revision
+is not a project anything can DESCRIBE, so it renders each unit's BSON with its
+own per-doctype renderers, and every doctype they render lossily was counted
+as modified and printed nothing — a stub body (mendixlabs/mxcli#1080, #1393),
+a type with no case (project settings, ako/mxcli#1512). A probe of one
+statement per kind found nine more silent unit kinds. The class is bounded at
+the comparison, not per renderer: git has already said the bytes differ, so
+identical renderings can only mean a lossy renderer, and the unit is reported
+with the property paths that changed — the walker `mxcli diff` uses, now
+shared. A renderer is extended by running the describer's own writer on the
+parsed old document (`Parse…FromRaw`), never by writing a second one.
+
 *A hand-kept list of statement kinds.* The most prolific variant found this
 cycle, because a `switch` over AST types is how everything in the executor is
 wired. `check`'s project tier resolves the module of every module-scoped

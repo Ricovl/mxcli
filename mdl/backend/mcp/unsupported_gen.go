@@ -1055,6 +1055,11 @@ func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ m
 	return
 }
 
+func (unsupportedBackend) ParseProjectSettingsFromRaw(_ map[string]any) (r0 *model.ProjectSettings, err1 error) {
+	err1 = errUnsupported("ParseProjectSettingsFromRaw")
+	return
+}
+
 func (unsupportedBackend) Path() (r0 string) {
 	return
 }

@@ -312,7 +312,7 @@ func writesNote(u UnitChange, renderedSame, described bool, errs []string) strin
 		case u.IDChurnOnly:
 			what = append(what, "rewritten with only element $IDs changed (canonically equal)")
 		default:
-			if paths := changedPaths(u.before, u.after, 4); len(paths) > 0 {
+			if paths := executor.ChangedPaths(u.before, u.after, 4); len(paths) > 0 {
 				what = append(what, "changed: "+strings.Join(paths, ", "))
 			} else {
 				what = append(what, "rewritten")
@@ -363,93 +363,6 @@ func memberSet(typ string, raw []byte) map[member]bool {
 		m[e] = true
 	}
 	return m
-}
-
-// changedPaths lists up to max property paths whose values differ between two
-// units, element $IDs aside. A list element is named by its Name where it has
-// one.
-func changedPaths(a, b []byte, max int) []string {
-	var out []string
-	var walk func(path string, x, y bson.RawValue)
-	walk = func(path string, x, y bson.RawValue) {
-		if len(out) >= max {
-			return
-		}
-		if x.Type != y.Type {
-			out = append(out, path)
-			return
-		}
-		switch x.Type {
-		case bson.TypeEmbeddedDocument:
-			dx, dy := x.Document(), y.Document()
-			ex, _ := dx.Elements()
-			keys := map[string]bool{}
-			for _, e := range ex {
-				k := e.Key()
-				keys[k] = true
-				if k == "$ID" {
-					continue
-				}
-				vy, err := dy.LookupErr(k)
-				if err != nil {
-					out = append(out, join(path, k))
-				} else {
-					walk(join(path, k), e.Value(), vy)
-				}
-				if len(out) >= max {
-					return
-				}
-			}
-			ey, _ := dy.Elements()
-			for _, e := range ey {
-				if !keys[e.Key()] && len(out) < max {
-					out = append(out, join(path, e.Key()))
-				}
-			}
-		case bson.TypeArray:
-			vx, _ := x.Array().Values()
-			vy, _ := y.Array().Values()
-			if len(vx) != len(vy) {
-				out = append(out, fmt.Sprintf("%s (%d -> %d items)", path, len(vx), len(vy)))
-				return
-			}
-			for i := range vx {
-				walk(fmt.Sprintf("%s[%s]", path, itemName(vx[i], i)), vx[i], vy[i])
-				if len(out) >= max {
-					return
-				}
-			}
-		case bson.TypeBinary:
-			// A pointer holds an element $ID, so a pointer to an element exec
-			// re-minted differs without anything having changed; canon has
-			// already said whether the unit did. A GUID is reported.
-			if !bytes.Equal(x.Value, y.Value) && !strings.HasSuffix(path, "Pointer") {
-				out = append(out, path)
-			}
-		default:
-			if !bytes.Equal(x.Value, y.Value) {
-				out = append(out, path)
-			}
-		}
-	}
-	walk("", bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: a}, bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: b})
-	return out
-}
-
-func join(path, key string) string {
-	if path == "" {
-		return key
-	}
-	return path + "." + key
-}
-
-func itemName(v bson.RawValue, i int) string {
-	if d, ok := v.DocumentOK(); ok {
-		if n, ok := d.Lookup("Name").StringValueOK(); ok && n != "" {
-			return n
-		}
-	}
-	return fmt.Sprint(i)
 }
 
 // labelOf turns a describe kind into a label: "Java Action".

@@ -953,6 +953,11 @@ func (unimplemented) ParseNanoflowFromRaw(_ map[string]interface{}, _ model.ID, 
 	return r0
 }
 
+func (unimplemented) ParseProjectSettingsFromRaw(_ map[string]interface{}) (*model.ProjectSettings, error) {
+	var r0 *model.ProjectSettings
+	return r0, errUnimplemented("ParseProjectSettingsFromRaw")
+}
+
 func (unimplemented) Path() string {
 	var r0 string
 	return r0
