@@ -213,7 +213,11 @@ rm -f "$st"
 status=0
 [ -f "$st" ] && status=$(cat "$st")
 if [ "$status" -ne 0 ]; then
-  reason=$(grep -i 'error' "$log" | tail -n 1)
+  # mxcli's own failure is its first "Error:" line. Output it quotes after that
+  # line (a service manager's, pg_ctlcluster's) can carry "Error:" lines of its
+  # own, and the last of those is never the reason (ako/mxcli#866).
+  reason=$(grep '^Error:' "$log" | head -n 1)
+  [ -n "$reason" ] || reason=$(grep -i 'error' "$log" | tail -n 1)
   [ -n "$reason" ] || reason=$(grep -v '^[[:space:]]*$' "$log" | tail -n 1)
   reason=$(echo "$reason" | sed 's/^[Ee][Rr][Rr][Oo][Rr]:[[:space:]]*//')
   {

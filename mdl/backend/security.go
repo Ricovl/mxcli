@@ -34,6 +34,10 @@ type ProjectSecurityBackend interface {
 	// (Security$ProjectSecurity.AdminUserName), which lint reads as
 	// project_security().admin_user_name (mendixlabs/mxcli#1314).
 	SetProjectAdminUserName(unitID model.ID, name string) error
+	// SetProjectAdminPassword sets that account's password
+	// (Security$ProjectSecurity.AdminPassword); an empty one is CE0129 at
+	// prototype and production level (mendixlabs/mxcli#624).
+	SetProjectAdminPassword(unitID model.ID, password string) error
 	// SetProjectGuestAccess toggles anonymous access. An empty guestUserRole
 	// leaves the stored role untouched — the caller is responsible for having
 	// established that a role exists, because Mendix raises CE0133 on guest

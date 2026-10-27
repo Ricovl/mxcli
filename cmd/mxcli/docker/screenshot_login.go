@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -246,6 +247,96 @@ func LoginAndSaveStorage(opts LoginOptions) error {
 	}
 	if _, err := os.Stat(opts.StoragePath); err != nil {
 		return fmt.Errorf("login reported success but %s is missing:\n%s", opts.StoragePath, out.String())
+	}
+	return nil
+}
+
+// signOutScript signs a saved session out of the app the way the client's own
+// sign-out does: mx.logout() posts {"action":"logout"} to /xas/ with the
+// client's CSRF token. Measured on 11.13: the runtime's session count
+// (M2EE runtime_statistics, user_sessions) drops by one. Args: appURL,
+// storagePath. Exit 3 when there is no session left to sign out: a session
+// the runtime has forgotten is answered 401 and sent to /login.html, which
+// has no mx (measured on 11.15 after a restart, ~1.6s).
+const signOutScript = `
+const [appURL, storagePath] = process.argv.slice(2);
+const pw = (() => { try { return require("playwright"); } catch (e) { return require("playwright-core"); } })();
+const { chromium } = pw;
+(async () => {
+  const exe = process.env.MXCLI_CHROMIUM_EXE;
+  const b = await chromium.launch(exe ? { executablePath: exe } : {});
+  const ctx = await b.newContext({ storageState: storagePath });
+  const p = await ctx.newPage();
+  await p.goto(appURL, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await p.waitForSelector(".mx-page, #usernameInput", { timeout: 20000 }).catch(() => {});
+  const client = await p.evaluate(() => !!(window.mx && typeof mx.logout === "function")).catch(() => false);
+  if (!client) { await b.close(); process.exit(3); }
+  const done = p.waitForResponse(r => r.request().method() === "POST" &&
+    (r.request().postData() || "").includes('"logout"'), { timeout: 15000 });
+  await p.evaluate(() => { mx.logout(); });
+  const r = await done;
+  await b.close();
+  if (!r.ok()) { process.stderr.write("logout answered HTTP " + r.status() + "\n"); process.exit(2); }
+})().catch((e) => { process.stderr.write(String(e).split("\n")[0] + "\n"); process.exit(1); });
+`
+
+// SignOutOptions configures SignOut.
+type SignOutOptions struct {
+	AppURL      string
+	StoragePath string // the Playwright storage state holding the session
+	MxBuildPath string // fallback node source
+	Timeout     time.Duration
+}
+
+// ErrNoSession is SignOut's answer when the saved session is already gone —
+// the runtime restarted or expired it — so there was nothing to sign out.
+var ErrNoSession = errors.New("no live session to sign out")
+
+// SignOut ends the session saved in opts.StoragePath, so it stops holding one
+// of the unlicensed runtime's few session slots. It does not remove the file.
+func SignOut(opts SignOutOptions) error {
+	node := resolveNodeForScript(opts.MxBuildPath)
+	if node == "" {
+		return fmt.Errorf("node not found to run the sign-out script")
+	}
+	dir, err := os.MkdirTemp("", "mxcli-signout-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	scriptPath := filepath.Join(dir, "signout.cjs")
+	if err := os.WriteFile(scriptPath, []byte(signOutScript), 0o600); err != nil {
+		return err
+	}
+	timeout := opts.Timeout
+	if timeout == 0 {
+		timeout = 60 * time.Second
+	}
+	cmd := exec.Command(node, scriptPath, opts.AppURL, opts.StoragePath)
+	cmd.Env = append(os.Environ(), "NODE_PATH="+playwrightNodePath(node))
+	if exe := headlessShellPath(); exe != "" {
+		cmd.Env = append(cmd.Env, "MXCLI_CHROMIUM_EXE="+exe)
+	}
+	out := &syncBuffer{}
+	cmd.Stdout, cmd.Stderr = out, out
+	done := make(chan error, 1)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("launching the sign-out script: %w", err)
+	}
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		var exit *exec.ExitError
+		if errors.As(err, &exit) && exit.ExitCode() == 3 {
+			return ErrNoSession
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %s", err, clip(out.String(), 200))
+		}
+	case <-time.After(timeout):
+		_ = cmd.Process.Kill()
+		<-done
+		return fmt.Errorf("timed out after %s", timeout)
 	}
 	return nil
 }

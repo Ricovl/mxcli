@@ -68,7 +68,7 @@ type LogNodeLevel struct {
 func GetLogSettings(opts M2EEOptions) ([]LogNodeLevel, error) {
 	resp, err := CallM2EE(opts, "get_log_settings", map[string]any{"sort": "node"})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrAdminUnreachable, err)
+		return nil, fmt.Errorf("%w: %w", ErrAdminUnreachable, err)
 	}
 	if resp.Result != 0 {
 		return nil, fmt.Errorf("reading log settings: %s", resp.M2EEError())
@@ -123,7 +123,7 @@ func SetLogLevels(opts M2EEOptions, levels []LogNodeLevel, force bool) error {
 
 	resp, err := CallM2EE(opts, "set_log_level", params)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrAdminUnreachable, err)
+		return fmt.Errorf("%w: %w", ErrAdminUnreachable, err)
 	}
 	if resp.Result != 0 {
 		// The HTTP response for an AdminException says only "See logging output

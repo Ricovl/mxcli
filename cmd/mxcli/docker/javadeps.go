@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // javadeps.go resolves a project's managed Java (JAR) dependencies.
@@ -52,9 +53,7 @@ func SyncJavaDependencies(projectPath, mxPath, version string, w io.Writer) erro
 		return fmt.Errorf("mx not found for Mendix %s (needed to resolve managed Java dependencies); run 'mxcli setup mxbuild --version %s'", version, version)
 	}
 
-	cmd := exec.Command(mxPath, "sync-java-dependencies", projectPath)
-	cmd.Dir = filepath.Dir(projectPath)
-	PrepareMxCommand(cmd) // FreeType LD_PRELOAD workaround
+	cmd := syncJavaDepsCommand(mxPath, projectPath)
 
 	out := &syncBuffer{}
 	cmd.Stdout = out
@@ -63,7 +62,14 @@ func SyncJavaDependencies(projectPath, mxPath, version string, w io.Writer) erro
 	// (#1396). mx's own exit status is the result — ErrWaitDelay only says the
 	// daemon outlived it.
 	cmd.WaitDelay = orphanPipeWaitDelay
-	if err := cmd.Run(); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
+	// Bounded, and not silent: the step used to wait for as long as Gradle did,
+	// which behind a stale daemon was ten minutes and more with no output at
+	// all (ako/mxcli#1340). The process tree is killed at the bound.
+	if err := runWithWatchdog(cmd, syncJavaDepsLimits(w), ""); err != nil && !errors.Is(err, exec.ErrWaitDelay) {
+		var werr *WatchdogError
+		if errors.As(err, &werr) {
+			return err // already names the step, the cause and the last output
+		}
 		return fmt.Errorf("mx sync-java-dependencies failed: %w\n%s", err, lastLines(out.String(), 20))
 	}
 	if w != nil {
@@ -72,6 +78,51 @@ func SyncJavaDependencies(projectPath, mxPath, version string, w io.Writer) erro
 		}
 	}
 	return nil
+}
+
+// DefaultSyncJavaDepsTimeout bounds one `mx sync-java-dependencies`. A healthy
+// sync takes seconds (6-12s measured in #1340, downloads included); the bound
+// is generous because killing a slow download costs more than a late kill.
+const DefaultSyncJavaDepsTimeout = 10 * time.Minute
+
+// syncJavaDepsTimeoutEnv raises (or, with 0, disables) the sync's overall bound.
+const syncJavaDepsTimeoutEnv = "MXCLI_SYNC_JAVA_DEPS_TIMEOUT"
+
+// syncJavaDepsProgressEvery is how often a sync still running says so. A
+// variable so a test need not wait it out.
+var syncJavaDepsProgressEvery = 30 * time.Second
+
+// staleGradleDaemonHint is the likely cause of a sync that never finishes.
+const staleGradleDaemonHint = "Likely cause: a Gradle daemon left running by an earlier mx or mxbuild run, which this\n" +
+	"sync attached to (ako/mxcli#1340). End the leftover Java processes whose command line\n" +
+	"contains GradleDaemon (Task Manager on Windows; `pkill -f GradleDaemon` elsewhere),\n" +
+	"then retry: mxcli sync-java-deps -p <app.mpr>"
+
+// syncJavaDepsLimits are the sync's bounds: an overall timeout (no stall
+// bound — Gradle can be quiet for a long download) and a progress line to w.
+func syncJavaDepsLimits(w io.Writer) watchdogLimits {
+	lim := watchdogLimits{
+		Timeout:    durationEnv(syncJavaDepsTimeoutEnv, DefaultSyncJavaDepsTimeout),
+		Step:       "mx sync-java-dependencies",
+		TimeoutEnv: syncJavaDepsTimeoutEnv,
+		Hint:       staleGradleDaemonHint,
+	}
+	if w != nil {
+		lim.Progress = syncJavaDepsProgressEvery
+		lim.OnProgress = func(elapsed time.Duration) {
+			fmt.Fprintf(w, "  still resolving Java dependencies... (%s)\n", elapsed.Round(time.Second))
+		}
+	}
+	return lim
+}
+
+// syncJavaDepsCommand builds the `mx sync-java-dependencies` invocation: a
+// one-shot, so Gradle runs without a daemon (see prepareOneShotMxCommand).
+func syncJavaDepsCommand(mxPath, projectPath string) *exec.Cmd {
+	cmd := exec.Command(mxPath, "sync-java-dependencies", projectPath)
+	cmd.Dir = filepath.Dir(projectPath)
+	prepareOneShotMxCommand(cmd) // FreeType LD_PRELOAD workaround + no Gradle daemon
+	return cmd
 }
 
 // UnvendoredJarDependencies returns the coordinates ("group:artifact:version")

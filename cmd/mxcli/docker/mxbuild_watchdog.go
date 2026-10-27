@@ -35,6 +35,20 @@ const (
 type watchdogLimits struct {
 	Timeout time.Duration
 	Stall   time.Duration
+
+	// Progress, when positive, calls OnProgress with the elapsed time every
+	// Progress while the command runs — so a slow step says it is still
+	// working instead of looking exactly like a hung one.
+	Progress   time.Duration
+	OnProgress func(elapsed time.Duration)
+
+	// Step names what is running in a WatchdogError ("mxbuild" when empty);
+	// TimeoutEnv and StallEnv are the variables that raise each bound (the
+	// MXCLI_MXBUILD_* ones when empty); Hint is the likely cause of a kill.
+	Step       string
+	TimeoutEnv string
+	StallEnv   string
+	Hint       string
 }
 
 // mxbuildWatchdogLimits is what the one-shot MxBuild runs use; a variable so a
@@ -67,32 +81,41 @@ func durationEnv(key string, def time.Duration) time.Duration {
 
 // WatchdogError reports a build the watchdog killed.
 type WatchdogError struct {
+	Step     string // what was killed ("mxbuild" when empty)
 	Reason   string // "timed out" or "stalled"
 	Limit    time.Duration
 	Elapsed  time.Duration
 	JavaHome string
 	Tail     string // the last lines of output
 	EnvVar   string // the variable that raises the limit
+	Hint     string // the likely cause, when the step has a known one
 }
 
 func (e *WatchdogError) Error() string {
+	step := e.Step
+	if step == "" {
+		step = "mxbuild"
+	}
 	var b strings.Builder
 	if e.Reason == "stalled" {
-		fmt.Fprintf(&b, "mxbuild stalled: no output for %s (after %s), killed", e.Limit, e.Elapsed.Round(time.Second))
+		fmt.Fprintf(&b, "%s stalled: no output for %s (after %s), killed", step, e.Limit, e.Elapsed.Round(time.Second))
 	} else {
-		fmt.Fprintf(&b, "mxbuild timed out after %s, killed", e.Limit)
+		fmt.Fprintf(&b, "%s timed out after %s, killed", step, e.Limit)
 	}
 	if e.JavaHome != "" {
 		fmt.Fprintf(&b, "\n  Java home used: %s", e.JavaHome)
 	}
-	fmt.Fprintf(&b, "\n  Raise the limit with %s=<duration> (e.g. 30m; 0 disables) if the build is merely slow.", e.EnvVar)
+	if e.Hint != "" {
+		b.WriteString("\n  " + strings.ReplaceAll(e.Hint, "\n", "\n  "))
+	}
+	fmt.Fprintf(&b, "\n  Raise the limit with %s=<duration> (e.g. 30m; 0 disables) if it is merely slow.", e.EnvVar)
 	if e.Tail != "" {
 		b.WriteString("\n  Last output:\n")
 		for _, l := range strings.Split(e.Tail, "\n") {
 			b.WriteString("    " + l + "\n")
 		}
 	} else {
-		b.WriteString("\n  (mxbuild printed nothing)")
+		fmt.Fprintf(&b, "\n  (%s printed nothing)", step)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -159,8 +182,18 @@ func runWithWatchdog(cmd *exec.Cmd, lim watchdogLimits, javaHome string) error {
 	}
 	setProcessGroup(cmd)
 	// Once the tree is killed nothing should hold the pipes, but never let a
-	// stray descendant turn a kill into a second hang.
-	cmd.WaitDelay = 10 * time.Second
+	// stray descendant turn a kill into a second hang. A caller that chose its
+	// own delay (the orphaned-daemon backstop, #1396) keeps it.
+	if cmd.WaitDelay == 0 {
+		cmd.WaitDelay = 10 * time.Second
+	}
+	timeoutEnv, stallEnv := lim.TimeoutEnv, lim.StallEnv
+	if timeoutEnv == "" {
+		timeoutEnv = mxbuildTimeoutEnv
+	}
+	if stallEnv == "" {
+		stallEnv = mxbuildStallEnv
+	}
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
@@ -170,14 +203,14 @@ func runWithWatchdog(cmd *exec.Cmd, lim watchdogLimits, javaHome string) error {
 	go func() { done <- cmd.Wait() }()
 
 	tick := time.Second
-	if lim.Stall > 0 && lim.Stall/4 < tick {
-		tick = max(lim.Stall/4, 10*time.Millisecond)
-	}
-	if lim.Timeout > 0 && lim.Timeout/4 < tick {
-		tick = max(lim.Timeout/4, 10*time.Millisecond)
+	for _, bound := range []time.Duration{lim.Stall, lim.Timeout, lim.Progress} {
+		if bound > 0 && bound/4 < tick {
+			tick = max(bound/4, 10*time.Millisecond)
+		}
 	}
 	ticker := time.NewTicker(tick)
 	defer ticker.Stop()
+	lastProgress := start
 	for {
 		select {
 		case err := <-done:
@@ -186,15 +219,21 @@ func runWithWatchdog(cmd *exec.Cmd, lim watchdogLimits, javaHome string) error {
 			var werr *WatchdogError
 			switch {
 			case lim.Timeout > 0 && now.Sub(start) >= lim.Timeout:
-				werr = &WatchdogError{Reason: "timed out", Limit: lim.Timeout, EnvVar: mxbuildTimeoutEnv}
+				werr = &WatchdogError{Reason: "timed out", Limit: lim.Timeout, EnvVar: timeoutEnv}
 			case lim.Stall > 0 && now.Sub(act.lastWrite()) >= lim.Stall:
-				werr = &WatchdogError{Reason: "stalled", Limit: lim.Stall, EnvVar: mxbuildStallEnv}
+				werr = &WatchdogError{Reason: "stalled", Limit: lim.Stall, EnvVar: stallEnv}
 			}
 			if werr == nil {
+				if lim.Progress > 0 && lim.OnProgress != nil && now.Sub(lastProgress) >= lim.Progress {
+					lastProgress = now
+					lim.OnProgress(now.Sub(start))
+				}
 				continue
 			}
 			_ = killProcessGroup(cmd.Process)
 			<-done
+			werr.Step = lim.Step
+			werr.Hint = lim.Hint
 			werr.Elapsed = time.Since(start)
 			werr.JavaHome = javaHome
 			werr.Tail = act.tailLines(20)

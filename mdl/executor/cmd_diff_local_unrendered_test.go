@@ -52,25 +52,35 @@ func diffLocalAfter(t *testing.T, setup, change string, opts DiffOptions) string
 	}
 	work := readUnits(t, contents)
 
-	// `git diff --name-status HEAD` and `git show HEAD:<path>`, from the snapshot.
+	// `git diff --name-status --relative HEAD` and `git show HEAD:./<path>`,
+	// from the snapshot. Like git run in the project directory, the paths are
+	// relative to it.
 	var status strings.Builder
 	snap := t.TempDir()
 	files := map[string]string{}
+	projectDir := filepath.Dir(contents)
+	rel := func(path string) string {
+		r, err := filepath.Rel(projectDir, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return filepath.ToSlash(r)
+	}
 	for path, data := range head {
 		f := filepath.Join(snap, filepath.Base(path))
 		if err := os.WriteFile(f, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
-		files["HEAD:"+path] = f
+		files["HEAD:./"+rel(path)] = f
 		if w, ok := work[path]; !ok {
-			status.WriteString("D\t" + path + "\n")
+			status.WriteString("D\t" + rel(path) + "\n")
 		} else if !bytes.Equal(w, data) {
-			status.WriteString("M\t" + path + "\n")
+			status.WriteString("M\t" + rel(path) + "\n")
 		}
 	}
 	for path := range work {
 		if _, ok := head[path]; !ok {
-			status.WriteString("A\t" + path + "\n")
+			status.WriteString("A\t" + rel(path) + "\n")
 		}
 	}
 	listing := filepath.Join(snap, "name-status")

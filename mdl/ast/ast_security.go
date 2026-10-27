@@ -211,9 +211,13 @@ type AlterProjectSecurityStmt struct {
 	// from "the statement asked for off".
 	StrictModeEnabled *bool
 	// AdminUserName renames the built-in administrator account (MxAdmin by
-	// default). Empty means "keep what is stored". Its password is deliberately
-	// not settable from MDL (mendixlabs/mxcli#624).
+	// default). Empty means "keep what is stored".
 	AdminUserName string
+	// AdminPassword sets that account's password, which Mendix stores in the
+	// model; empty means "keep what is stored". An empty stored password is
+	// CE0129 at prototype and production level (mendixlabs/mxcli#624), so the
+	// visitor refuses '' rather than letting a script write the error.
+	AdminPassword string
 }
 
 func (s *AlterProjectSecurityStmt) isStatement() {}

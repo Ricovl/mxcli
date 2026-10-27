@@ -47,6 +47,31 @@ type M2EEOptions struct {
 	Timeout time.Duration
 }
 
+// ErrAdminAuth marks the admin API refusing the credentials (HTTP 401/403).
+// Against a `mxcli run --local` that usually means the credentials were not
+// that run's — its .mxcli/run-local.json was missing — rather than a wrong
+// password, so a caller that knows the project can say so (ako/mxcli#1542).
+var ErrAdminAuth = errors.New("admin API refused the credentials")
+
+// adminError keeps an admin-API failure's text while letting errors.Is see
+// what kind of failure it was.
+type adminError struct {
+	msg  string
+	kind error
+}
+
+func (e *adminError) Error() string        { return e.msg }
+func (e *adminError) Is(target error) bool { return target == e.kind }
+
+func adminAuthFailed(status int) error {
+	return &adminError{kind: ErrAdminAuth,
+		msg: fmt.Sprintf("authentication failed (HTTP %d) -- check the admin password (--token or M2EE_ADMIN_PASS)", status)}
+}
+
+func adminUnreachable(msg string) error {
+	return &adminError{kind: ErrAdminUnreachable, msg: msg}
+}
+
 // M2EEResponse is the parsed envelope from the admin API.
 type M2EEResponse struct {
 	Result      int             `json:"result"`
@@ -117,12 +142,12 @@ func callM2EEDirect(opts M2EEOptions, action string, params map[string]any) (*M2
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to Mendix admin API at %s:%d -- is the app running? Start with 'mxcli docker up'", opts.Host, opts.Port)
+		return nil, adminUnreachable(fmt.Sprintf("cannot connect to Mendix admin API at %s:%d -- is the app running? Start with 'mxcli docker up'", opts.Host, opts.Port))
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("authentication failed (HTTP %d) -- check the admin password (--token or M2EE_ADMIN_PASS)", resp.StatusCode)
+		return nil, adminAuthFailed(resp.StatusCode)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -252,7 +277,7 @@ func previewOQLDevDirect(opts M2EEOptions, bodyBytes []byte) (json.RawMessage, e
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to Mendix admin API at %s:%d -- is the app running? Start with 'mxcli docker up'", opts.Host, opts.Port)
+		return nil, adminUnreachable(fmt.Sprintf("cannot connect to Mendix admin API at %s:%d -- is the app running? Start with 'mxcli docker up'", opts.Host, opts.Port))
 	}
 	defer resp.Body.Close()
 
@@ -260,7 +285,7 @@ func previewOQLDevDirect(opts M2EEOptions, bodyBytes []byte) (json.RawMessage, e
 	case resp.StatusCode == http.StatusNotFound:
 		return nil, errDevEndpointNotFound
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, fmt.Errorf("authentication failed (HTTP %d) -- check the admin password (--token or M2EE_ADMIN_PASS)", resp.StatusCode)
+		return nil, adminAuthFailed(resp.StatusCode)
 	case resp.StatusCode != http.StatusOK:
 		return nil, fmt.Errorf("unexpected HTTP %d from admin API", resp.StatusCode)
 	}
@@ -300,13 +325,13 @@ func previewOQLDevDocker(opts M2EEOptions, dockerDir string, bodyBytes []byte) (
 
 	body, status, ok := splitCurlStatus(stdout.Bytes())
 	if !ok || status == 0 {
-		return nil, fmt.Errorf("cannot connect to Mendix admin API -- is the app running? Start with 'mxcli docker up'")
+		return nil, adminUnreachable("cannot connect to Mendix admin API -- is the app running? Start with 'mxcli docker up'")
 	}
 	switch status {
 	case http.StatusNotFound:
 		return nil, errDevEndpointNotFound
 	case http.StatusUnauthorized, http.StatusForbidden:
-		return nil, fmt.Errorf("authentication failed (HTTP %d) -- check the admin password (--token or M2EE_ADMIN_PASS)", status)
+		return nil, adminAuthFailed(status)
 	case http.StatusOK:
 		return body, nil
 	default:

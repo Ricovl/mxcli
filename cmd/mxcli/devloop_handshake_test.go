@@ -109,14 +109,44 @@ func TestReadDevLoopHandshake_CorruptFileIsNamed(t *testing.T) {
 	}
 }
 
-func TestRemoveDevLoopHandshake(t *testing.T) {
+func TestWithdrawDevLoopHandshake(t *testing.T) {
 	p := handshakeProject(t)
 	if err := writeDevLoopHandshake(p, devLoopHandshake{PID: os.Getpid()}); err != nil {
 		t.Fatal(err)
 	}
-	removeDevLoopHandshake(p)
+	withdrawDevLoopHandshake(p, os.Getpid())
 	if _, err := os.Stat(devLoopHandshakePath(p)); !os.IsNotExist(err) {
-		t.Errorf("the handshake survived removal: %v", err)
+		t.Errorf("the handshake survived removal by the run that wrote it: %v", err)
 	}
-	removeDevLoopHandshake(p) // idempotent
+	withdrawDevLoopHandshake(p, os.Getpid()) // idempotent
+}
+
+// ako/mxcli#1542: ".mxcli/run-local.json disappears while the app is believed
+// up ... Callers then got HTTP 403 from the admin API and blamed credentials."
+//
+// The SessionStart hook runs `mxcli run --local --setup --ensure-db` on every
+// session start — resume and compaction included — while a detached run is
+// serving the app. That setup-only process never publishes a handshake, yet on
+// exit it withdrew one: the live run's. Every other `run --local` that failed
+// early did the same. Only the run that wrote the file may remove it.
+func TestWithdrawDevLoopHandshake_LeavesAnotherRunsHandshake(t *testing.T) {
+	p := handshakeProject(t)
+	// The parent (the test driver) stands in for the live detached run: alive
+	// for the whole test, and not this process.
+	live := os.Getppid()
+	if err := writeDevLoopHandshake(p, devLoopHandshake{Project: p, PID: live, AdminPort: 8091, AdminPass: "loop-secret"}); err != nil {
+		t.Fatal(err)
+	}
+
+	withdrawDevLoopHandshake(p, os.Getpid()) // a `run --local --setup` exiting
+
+	hs, err := readDevLoopHandshake(p)
+	if err != nil {
+		t.Fatalf("the live run's handshake was removed by a process that never wrote it (a "+
+			"`run --local --setup` exiting) — oql/log/constant --apply now fall back to default "+
+			"credentials while the app is up (ako/mxcli#1542): %v", err)
+	}
+	if hs.PID != live || hs.AdminPass != "loop-secret" {
+		t.Fatalf("handshake changed: %+v", hs)
+	}
 }

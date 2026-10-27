@@ -342,7 +342,12 @@ Examples:
 				fmt.Fprintf(os.Stderr, "Warning: could not publish the dev-loop handshake: %v\n", err)
 			}
 		}
-		defer removeDevLoopHandshake(projectPath)
+		// Withdrawn only by this process, and only if it published one: a
+		// `--setup` run (the SessionStart hook, on every resume and compaction)
+		// used to delete the handshake of the detached run serving the app
+		// (ako/mxcli#1542). The deferred call covers a panic; the normal paths
+		// withdraw right after recording the end in the run state, below.
+		defer withdrawDevLoopHandshake(projectPath, os.Getpid())
 
 		// Publish the run's state for `mxcli run status/wait/stop` — for a
 		// foreground run too, so another terminal (or an agent) can manage it.
@@ -363,12 +368,16 @@ Examples:
 		}
 
 		err = docker.RunLocal(opts)
+		// One moment, two files: the run state says stopped (with the reason, when
+		// the runtime stopped on its own) before the handshake disappears, so a
+		// caller that finds run-local.json gone finds the explanation in `run
+		// status` (ako/mxcli#1542).
 		state.Exit(err)
+		withdrawDevLoopHandshake(projectPath, os.Getpid())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			// os.Exit skips deferred calls, so remove explicitly here.
 			hosted.Remove()
-			removeDevLoopHandshake(projectPath)
 			os.Exit(1)
 		}
 	},

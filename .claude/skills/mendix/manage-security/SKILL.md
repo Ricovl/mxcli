@@ -13,11 +13,11 @@ description: "Configure Mendix security in MDL — module and user roles, access
 | 27-35 | When to Use This Skill |
 | 36-43 | Security Concepts |
 | 44-120 | The System-module ceiling — decide the role model around this FIRST |
-| 121-553 | Syntax Reference |
-| 554-568 | Starlark Lint Rule APIs |
-| 569-621 | Common Workflow: Setting Up Module Security |
-| 622-631 | Common Mistakes |
-| 632-641 | Validation |
+| 121-558 | Syntax Reference |
+| 559-573 | Starlark Lint Rule APIs |
+| 574-626 | Common Workflow: Setting Up Module Security |
+| 627-636 | Common Mistakes |
+| 637-646 | Validation |
 
 <!-- /skill-index -->
 # Security Management Skill
@@ -491,9 +491,14 @@ alter app security ( SecurityLevel: production );
 alter app security ( EnableDemoUsers: true );
 alter app security ( EnableDemoUsers: false );
 
--- Rename the built-in administrator (default MxAdmin). The password is not
--- settable from MDL.
+-- Rename the built-in administrator (default MxAdmin).
 alter app security ( AdminUserName: 'appadmin' );
+
+-- Set its password. An empty one is CE0129 "Administrator password has not
+-- been set" at prototype/production level; '' is refused. Stored in the model
+-- as written (as Studio Pro stores it), so keep real secrets out of committed
+-- scripts. `describe app security` says whether one is set, never what.
+alter app security ( AdminPassword: 'N3w-Admin-Passw0rd' );
 ```
 
 ### Guest (Anonymous) Access

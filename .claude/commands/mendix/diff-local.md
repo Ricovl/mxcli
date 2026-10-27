@@ -79,7 +79,7 @@ Entity: MyModule.Customer
 
 ## How It Works
 
-1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder
+1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder. Git runs in the project's own directory, so `-p` may point into a repository from anywhere. A unit file moved to another name is another unit ID, so it is reported as one unit deleted and one added
 2. **Reads both versions**: Current version from disk, git version using `git show`
 3. **Parses BSON**: Extracts the unit type and content from the binary BSON format
 4. **Generates MDL**: Converts both versions to MDL for human-readable comparison
@@ -140,6 +140,7 @@ Summary: 2 new, 3 modified, 1 deleted
 - Use `--format side` when comparing large objects with subtle differences
 - Use `--ref HEAD~5` to see what changed in the last 5 commits
 - Use `--ref feature-branch` to compare against a different branch
+- Use `--ref main...feature-branch` (three dots) to review only what a branch changed: the old side is the merge base, so changes made on `main` since do not show
 - After restoring a `.mxunit` with `git checkout`/`git restore`, run
   `mxcli fix hashes -p app.mpr --repair`: git does not update the `.mpr`'s
   ContentsHash index, and `mx check` does not notice the stale entry

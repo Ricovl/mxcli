@@ -562,9 +562,8 @@ func nextToken(stop antlr.Token, ctx antlr.ParserRuleContext) antlr.Token {
 }
 
 // appSecurityKeys are the properties `alter app security ( … )` takes: the
-// Security$ProjectSecurity property names. AdminPassword is deliberately absent
-// (mendixlabs/mxcli#624).
-var appSecurityKeys = []string{"SecurityLevel", "EnableDemoUsers", "EnableGuestAccess", "GuestUserRole", "StrictMode", "AdminUserName"}
+// Security$ProjectSecurity property names.
+var appSecurityKeys = []string{"SecurityLevel", "EnableDemoUsers", "EnableGuestAccess", "GuestUserRole", "StrictMode", "AdminUserName", "AdminPassword"}
 
 // appSecurityProperties reads the property list into stmt. A key or value the
 // list does not take is an error, never an ignored property.
@@ -644,6 +643,20 @@ func (b *Builder) appSecurityProperties(stmt *ast.AlterProjectSecurityStmt, opts
 				continue
 			}
 			stmt.AdminUserName = name
+		case "AdminPassword":
+			if sv.STRING_LITERAL() == nil {
+				b.addError(fmt.Errorf("line %d: AdminPassword takes the administrator's password as a string, not %s", line, sv.GetText()))
+				continue
+			}
+			pw := settingsValueText(sv)
+			if pw == "" {
+				// Measured on 11.13.0: an empty AdminPassword at prototype or
+				// production level is CE0129 "Administrator password has not been
+				// set"; at level off it passes. Either way '' is never the fix.
+				b.addError(fmt.Errorf("line %d: AdminPassword cannot be empty — an empty administrator password is what CE0129 reports", line))
+				continue
+			}
+			stmt.AdminPassword = pw
 		}
 	}
 }

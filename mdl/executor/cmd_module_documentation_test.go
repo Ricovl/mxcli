@@ -156,3 +156,60 @@ func TestAlterProjectSecurity_AdminUserName(t *testing.T) {
 		t.Error("a StrictMode statement wrote the admin user name")
 	}
 }
+
+// mendixlabs/mxcli#624 (ako/mxcli#1259): AdminPassword is written through the
+// backend, and the write report never echoes the value.
+func TestAlterProjectSecurity_AdminPassword(t *testing.T) {
+	const pw = "N3w-Admin-Passw0rd"
+	var gotID model.ID
+	var gotPW string
+	called := false
+	mb := &mock.MockBackend{
+		IsConnectedFunc: func() bool { return true },
+		GetProjectSecurityFunc: func() (*security.ProjectSecurity, error) {
+			return &security.ProjectSecurity{BaseElement: model.BaseElement{ID: "ps-1"}}, nil
+		},
+		SetProjectAdminPasswordFunc: func(id model.ID, password string) error {
+			called, gotID, gotPW = true, id, password
+			return nil
+		},
+	}
+	ctx, buf := newMockCtx(t, withBackend(mb))
+	assertNoError(t, execAlterProjectSecurity(ctx, &ast.AlterProjectSecurityStmt{AdminPassword: pw}))
+	if !called || gotID != "ps-1" || gotPW != pw {
+		t.Fatalf("SetProjectAdminPassword(%q, %q) called=%v, want (ps-1, %s)", gotID, gotPW, called, pw)
+	}
+	if strings.Contains(buf.String(), pw) {
+		t.Errorf("the write report printed the password:\n%s", buf.String())
+	}
+
+	// Control: a statement about something else leaves the password alone.
+	called = false
+	on := true
+	mb.SetProjectStrictModeFunc = func(model.ID, bool) error { return nil }
+	assertNoError(t, execAlterProjectSecurity(ctx, &ast.AlterProjectSecurityStmt{StrictModeEnabled: &on}))
+	if called {
+		t.Error("a StrictMode statement wrote the admin password")
+	}
+}
+
+// describe app security says whether the administrator has a password — the cause
+// of CE0129 — and never what it is.
+func TestShowProjectSecurity_AdminPasswordSetNotShown(t *testing.T) {
+	for pw, want := range map[string]string{"": "Admin Password: not set", "N3w-Admin-Passw0rd": "Admin Password: set"} {
+		mb := &mock.MockBackend{
+			IsConnectedFunc: func() bool { return true },
+			GetProjectSecurityFunc: func() (*security.ProjectSecurity, error) {
+				return &security.ProjectSecurity{AdminUserName: "MxAdmin", AdminPassword: pw}, nil
+			},
+		}
+		ctx, buf := newMockCtx(t, withBackend(mb))
+		assertNoError(t, listProjectSecurity(ctx))
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("password %q: output lacks %q:\n%s", pw, want, buf.String())
+		}
+		if pw != "" && strings.Contains(buf.String(), pw) {
+			t.Errorf("describe app security printed the password:\n%s", buf.String())
+		}
+	}
+}
