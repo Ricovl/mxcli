@@ -21,6 +21,7 @@
 | `bug-patterns/silent-property-drop.md` | bug-pattern | a property parses, passes every check, and never reaches the model |
 | `bug-patterns/check-mxbuild-drift.md` | bug-pattern | `mxcli check` as a model of mxbuild, drifting in both directions |
 | `bug-patterns/platform-semantics-gaps.md` | bug-pattern | legal MDL, illegal Mendix — expression / XPath / variable-scope rules the grammar cannot carry |
+| `bug-patterns/diffs-narrower-than-the-change.md` | bug-pattern | `diff-local` compares rendered MDL, so it shows only what its renderer prints: "N modified" with no hunk, and the field-level fallback that closes the class |
 | `bug-patterns/duplicate-resolver-drift.md` | bug-pattern | one question answered in two places, and the two disagree |
 | `bug-patterns/rewrite-drops-unauthored-state.md` | bug-pattern | CREATE OR REPLACE losing what the statement did not mention |
 | `bug-patterns/flow-graph-geometry.md` | bug-pattern | generated microflow coordinates and sequence-flow wiring |
