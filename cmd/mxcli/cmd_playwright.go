@@ -184,7 +184,9 @@ under <project>/.mxcli/playwright-check/, where later checks reuse it: one
 session however many checks run. It is renewed automatically when the runtime
 has forgotten it (after a restart). --fresh-login signs the saved session out
 before signing in again; --sign-out ends the run signed out, keeping nothing.
-A session that got no page past the sign-in form is signed out, not kept. When
+A session that got no page past the sign-in form is signed out, not kept. A page
+the signed-in user's roles may not open fails as ACCESS DENIED (the client lands
+on /login.html?messageCode=403); its session is valid, so it is kept. When
 a sign-in is refused, the runtime log (<project>/.mxcli/runtime.log) is read for
 the cause: the unlicensed local runtime caps concurrent sessions, and its sign-in
 page reports that as a wrong password.
@@ -203,9 +205,9 @@ that ends elsewhere fails: the client sends a /p/ URL it has no page for to the
 home page, with HTTP 200, so without this an unknown page passed as the home page.
 
 Exit status: 0 every page passed; 1 a page failed (still loading when measured,
-HTTP error, sign-in form instead of the page, a /p/ URL that ended elsewhere,
-error banner or dialog, console error, failed same-origin request, or a failed
-assertion); 2 the check could not run.
+HTTP error, access denied to the signed-in user, sign-in form instead of the
+page, a /p/ URL that ended elsewhere, error banner or dialog, console error,
+failed same-origin request, or a failed assertion); 2 the check could not run.
 
 Examples:
   mxcli playwright check /p/customers /p/orders -p app.mpr

@@ -1,0 +1,74 @@
+-- `mxcli playwright check` signed in, then checked a page the role may not
+-- open, and told the user to sign in.
+--
+-- The runtime refuses the signed-in client's session request for such a page
+-- (POST /xas/ get_session_data, referrer /secret, HTTP 403), and the client
+-- sends the browser to /login.html?messageCode=403#/secret: the sign-in form,
+-- with no message on it (login.js parses the code wrongly, so the "not enough
+-- permissions" text it has never shows). An anonymous browser gets a 401 and
+-- /login.html#/secret, the same form with no messageCode; so does a session
+-- the runtime has forgotten, with guest access on or off. Measured on 11.13.0
+-- and 11.15.0; messageCode=403 in the final URL is the only signal.
+--
+-- Against a blank app, with this script applied:
+--
+--   mxcli exec mdl-examples/bug-tests/pagecheck-403-role-denied.mdl -p app.mpr
+--   mxcli run --local --detach -p app.mpr --db-type hsqldb --app-port 8180
+--   mxcli playwright check /p/secret /p/items -p app.mpr --role User
+--
+-- Before the fix:
+--
+--   login demo_user (--role User)
+--   page /p/secret  url=/login.html?messageCode=403#/secret  LOGIN PAGE  title="Login"  h="Sign in"  text=34  console-errors=1
+--     ERR    [Startup] An error occurred while creating a new session. i_: Internal server error …
+--     HTTP   403 POST /xas/
+--     FAIL   the sign-in form is showing, not the page (pass --user/--password or --role)
+--     FAIL   1 console error(s)
+--     FAIL   1 failed request(s)
+--   page /p/items  title="Mendix - Items"  h="Item overview"  text=191  console-errors=0
+--   FAIL 1 of 2 page(s)
+--
+-- and every later run printed `login demo_user` again: the 403 read as a
+-- session the runtime had forgotten, so the check signed in beside the live
+-- session it had just used (M2EE runtime_statistics: 1, 2, 3 sessions over
+-- three runs). Checked alone, /p/secret had its session signed out after
+-- every run, as one that "got no page past the sign-in form".
+--
+-- After it (first run):
+--
+--   login demo_user (--role User)
+--   page /p/secret  url=/login.html?messageCode=403#/secret  ACCESS DENIED  title="Login"  h="Sign in"  text=34  console-errors=1
+--     ERR    [Startup] An error occurred while creating a new session. i_: Internal server error …
+--     HTTP   403 POST /xas/
+--     FAIL   access denied: signed in as demo_user (user role User), the runtime refused /p/secret (403)
+--   page /p/items  title="Mendix - Items"  h="Item overview"  text=191  console-errors=0
+--   FAIL 1 of 2 page(s)
+--
+-- exit 1 still; later runs print no `login` line and the runtime holds one
+-- session throughout, /p/secret checked alone included.
+mdl 1;
+
+alter app security ( SecurityLevel: prototype );
+
+create or modify module role MyFirstModule.Admin;
+
+create or modify page MyFirstModule.Items_Web (
+  Title: 'Items',
+  Layout: MyFirstModule.App_Default,
+  Url: 'items'
+) {
+  container c1 { dynamictext t1 (Content: 'Item overview', RenderMode: H1) }
+};
+
+create or modify page MyFirstModule.Secret_Web (
+  Title: 'Secret',
+  Layout: MyFirstModule.App_Default,
+  Url: 'secret'
+) {
+  container c1 { dynamictext t1 (Content: 'Secret overview', RenderMode: H1) }
+};
+
+grant view on page MyFirstModule.Home_Web to MyFirstModule.User;
+grant view on page MyFirstModule.Items_Web to MyFirstModule.User;
+-- No user role holds MyFirstModule.Admin, so every demo user is refused this page.
+grant view on page MyFirstModule.Secret_Web to MyFirstModule.Admin;

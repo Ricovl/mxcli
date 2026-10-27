@@ -72,7 +72,21 @@ type PageCheckResult struct {
 // credentials is who to sign in as, and why.
 type credentials struct {
 	user, password string
-	source         string // "", "--role Administrator", "demo user", ...
+	source         string   // "", "--role Administrator", "demo user", ...
+	roles          []string // the demo user's user roles; unknown (nil) for --user
+}
+
+// signedInAs names the user for a verdict: "demo_user (user role User)", or
+// just the name when the roles are not known.
+func (c credentials) signedInAs() string {
+	switch len(c.roles) {
+	case 0:
+		return c.user
+	case 1:
+		return c.user + " (user role " + c.roles[0] + ")"
+	default:
+		return c.user + " (user roles " + strings.Join(c.roles, ", ") + ")"
+	}
 }
 
 // RunPageCheck checks every target and prints one verdict per page. The error
@@ -275,7 +289,10 @@ func checkOrigin(opts PageCheckOptions, creds credentials, pages []PageTarget, m
 
 	// A saved session the runtime no longer knows (it restarted, or the session
 	// timed out) lands every page on the sign-in form. Sign in once and redo
-	// just those pages.
+	// just those pages. A page the user's roles may not open lands there too,
+	// but it is refused with 403, not 401, and does not count: signing in again
+	// would get the same refusal and replace a live session with a new one on
+	// every check, one more session per run.
 	if !loggedIn && anyNeedsLogin(sigs) {
 		if err := login(); err != nil {
 			return nil, err
@@ -303,9 +320,14 @@ func checkOrigin(opts PageCheckOptions, creds credentials, pages []PageTarget, m
 	// worth nothing to the next check, which would only sign in again beside
 	// it — the per-run leak of #1216. Sign it out instead of keeping it; and
 	// sign out whatever session was used when the run is to end signed out.
+	// A session that was only refused pages (403) is not that: the runtime
+	// knows it, and the next check can use it.
 	if opts.SignOut || (loggedIn && allNeedLogin(sigs)) {
 		signOut()
 		_ = os.Remove(storage)
+	}
+	for i := range sigs {
+		sigs[i].SignedInAs = creds.signedInAs()
 	}
 	return sigs, nil
 }
@@ -398,7 +420,7 @@ func pickDemoUser(ps *security.ProjectSecurity, role string) (credentials, error
 		for _, du := range ps.DemoUsers {
 			for _, r := range du.UserRoles {
 				if strings.EqualFold(shortRole(r), role) || strings.EqualFold(r, role) {
-					return credentials{user: du.UserName, password: du.Password, source: "--role " + role}, nil
+					return credentials{user: du.UserName, password: du.Password, source: "--role " + role, roles: du.UserRoles}, nil
 				}
 			}
 			names = append(names, du.UserName)
@@ -416,12 +438,12 @@ func pickDemoUser(ps *security.ProjectSecurity, role string) (credentials, error
 	for _, du := range ps.DemoUsers {
 		for _, r := range du.UserRoles {
 			if admin.MatchString(r) {
-				return credentials{user: du.UserName, password: du.Password, source: "demo user"}, nil
+				return credentials{user: du.UserName, password: du.Password, source: "demo user", roles: du.UserRoles}, nil
 			}
 		}
 	}
 	du := ps.DemoUsers[0]
-	return credentials{user: du.UserName, password: du.Password, source: "demo user"}, nil
+	return credentials{user: du.UserName, password: du.Password, source: "demo user", roles: du.UserRoles}, nil
 }
 
 // shortRole strips a module or project qualifier from a role name.

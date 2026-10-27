@@ -71,8 +71,10 @@ So:
   (while booting it). They answer the question and leave the PNG unread. The exit
   status is the verdict: 0 every page passed; 1 a page showed an error banner or
   dialog, a console error, a failed request, an HTTP error, the sign-in form, a
-  `/p/` URL that ended elsewhere (`url=/`: no page has that URL, so the home page
-  rendered), or a failed `--assert-*`; 2 the check could not run.
+  page the signed-in role may not open (`ACCESS DENIED`, `messageCode=403` — a
+  page-access problem, not a sign-in one), a `/p/` URL that ended elsewhere
+  (`url=/`: no page has that URL, so the home page rendered), or a failed
+  `--assert-*`; 2 the check could not run.
 - **Never hand-roll a playwright-cli login/goto/sleep sequence** to look at a page
   (`playwright-cli open …/login.html; fill …; click …; goto …; sleep 6; eval …;
   screenshot`). `playwright check` does all of it in one call: it signs in with

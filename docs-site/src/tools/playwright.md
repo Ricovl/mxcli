@@ -103,10 +103,28 @@ page /p/doesnotexist  url=/  title="Mendix - Homepage"  h="Welcome to your homep
 A page that ends on the sign-in form (`url=/login.html#/items`) fails for that
 reason only.
 
+A page the signed-in user's roles may not open ends on the sign-in form too, but
+with `messageCode=403` in the URL: the runtime refuses the client's session request
+for that page with 403, and the client sends the browser to
+`/login.html?messageCode=403#/<page>`. The form shows no message, so the URL is the
+only thing that tells it from "not signed in". It fails as access denied, naming who
+the check signed in as; signing in again would get the same answer, so the check
+does not:
+
+```
+page /p/secret  url=/login.html?messageCode=403#/secret  ACCESS DENIED  title="Login"  h="Sign in"  text=34  console-errors=1
+  ERR    [Startup] An error occurred while creating a new session. i_: Internal server error …
+  HTTP   403 POST /xas/
+  FAIL   access denied: signed in as demo_user (user role User), the runtime refused /p/secret (403)
+```
+
+Check the page's allowed module roles (`mxcli -p app.mpr -c "show access on page
+Module.Page"`) against the user role's (`describe user role R`).
+
 | Exit status | Meaning |
 |---|---|
 | 0 | every page passed |
-| 1 | a page failed: still loading when measured, HTTP error, sign-in form instead of the page (or a 401 from the runtime), a `/p/` URL that ended elsewhere (no page has that URL), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
+| 1 | a page failed: still loading when measured, HTTP error, access denied to the signed-in user (403), sign-in form instead of the page (or a 401 from the runtime), a `/p/` URL that ended elsewhere (no page has that URL), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
 | 2 | the check could not run (no Node/Playwright, sign-in rejected, bad flag) |
 
 A warning banner or validation message is shown but does not fail the page.
@@ -139,9 +157,10 @@ only the affected pages.
 - `--fresh-login` signs the saved session out, then signs in again.
 - `--sign-out` ends the run signed out and keeps nothing for the next check — for a
   last check in a script that should leave no session behind.
-- A session the run signed in that got no page past the sign-in form (a page the
-  role may not open, say) is signed out rather than kept: kept, every later check
-  would sign in again beside it.
+- A session the run signed in that got no page past the sign-in form is signed out
+  rather than kept: kept, every later check would sign in again beside it. A page
+  the user's roles may not open does not count — the runtime knew the session and
+  refused the page — so that session is kept and reused, and is not renewed either.
 
 Signing out is best effort and never changes the verdict; a sign-out that does not
 complete is reported on stderr, and that session expires on its own. When the

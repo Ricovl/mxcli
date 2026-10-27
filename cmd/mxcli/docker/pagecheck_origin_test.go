@@ -35,10 +35,16 @@ type cookieJarBrowser struct {
 	probes   []ProbeOptions
 	signOuts []SignOutOptions
 	live     map[string]bool // the runtime's sessions, by cookie value
-	// forbidden pages render the sign-in form even when signed in, as the
-	// client does for a page the user's role may not open (measured on 11.13:
-	// /login.html?messageCode=403#/secret).
-	forbidden  string
+	// formOn pages render the sign-in form even to a signed-in browser: a
+	// session that does not take, such as one whose cookie the browser will
+	// not send back.
+	formOn string
+	// denied pages are refused to a signed-in session, as the runtime does for
+	// a page the user's role may not open: the session request is answered
+	// 403 and the client lands on /login.html?messageCode=403#/<page>, which
+	// is the sign-in form (measured on 11.13 and 11.15). The session stays
+	// live.
+	denied     string
 	signOutErr error
 }
 
@@ -94,9 +100,13 @@ func (f *cookieJarBrowser) install(t *testing.T) {
 					signedIn = true
 				}
 			}
-			if signedIn && (f.forbidden == "" || !strings.HasSuffix(p.URL, f.forbidden)) {
+			switch {
+			case signedIn && f.denied != "" && strings.HasSuffix(p.URL, f.denied):
+				out[i] = deniedSignals(p.URL)
+				continue
+			case signedIn && (f.formOn == "" || !strings.HasSuffix(p.URL, f.formOn)):
 				out[i] = healthy()
-			} else {
+			default:
 				// What the reporter saw: the client's anonymous session attempt
 				// is refused, and the sign-in form renders.
 				out[i] = PageSignals{Title: "Login", Headings: []string{"Sign in"}, TextLen: 34, LoginForm: true,
@@ -342,11 +352,12 @@ func TestRunPageCheck_FailedSignOutKeepsTheVerdict(t *testing.T) {
 	}
 }
 
-// A session this run signed in that got no page past the sign-in form — here a
-// page the role may not open — is signed out and not kept. Kept, every later
-// check re-signed-in beside it, one more session per run.
+// A session this run signed in that got no page past the sign-in form — one
+// that did not take — is signed out and not kept. Kept, every later check
+// re-signed-in beside it, one more session per run. (A page the role may not
+// open is not this case: see pagecheck_denied_test.go.)
 func TestRunPageCheck_SignsOutASessionThatGotNoPage(t *testing.T) {
-	fb := &cookieJarBrowser{forbidden: "/p/secret"}
+	fb := &cookieJarBrowser{formOn: "/p/secret"}
 	fb.install(t)
 	opts := PageCheckOptions{BaseURL: "http://localhost:8180", Targets: []string{"/p/secret"},
 		User: "demo_user", Password: "x", StorageDir: t.TempDir(), Stdout: &bytes.Buffer{}}
@@ -356,14 +367,14 @@ func TestRunPageCheck_SignsOutASessionThatGotNoPage(t *testing.T) {
 			t.Fatal(err)
 		}
 		if res.Failed != 1 {
-			t.Fatalf("run %d: the forbidden page passed", i+1)
+			t.Fatalf("run %d: the page that showed the sign-in form passed", i+1)
 		}
 	}
 	if len(fb.live) != 0 {
-		t.Errorf("%d session(s) left live by three checks of a page the role cannot open", len(fb.live))
+		t.Errorf("%d session(s) left live by three checks that never got past the sign-in form", len(fb.live))
 	}
 	// Control: a page the session does get keeps its session for reuse.
-	fb.forbidden = ""
+	fb.formOn = ""
 	opts.Targets = []string{"/p/items"}
 	for i := 0; i < 2; i++ {
 		if _, err := RunPageCheck(opts); err != nil {

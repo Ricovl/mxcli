@@ -56,6 +56,10 @@ type PageSignals struct {
 	// LoginForm reports that the Mendix sign-in form is on screen: the page
 	// asked for was not rendered, whatever the title says.
 	LoginForm bool `json:"loginForm"`
+	// SignedInAs is who the page was loaded as — "demo_user (user role User)" —
+	// set by `playwright check` when it signed in; empty for an anonymous load.
+	// It is not measured, only used to word a page the user was refused.
+	SignedInAs string `json:"-"`
 	// TextFound and Counts answer the probe's text / count queries, index-aligned
 	// with ProbeOptions.Texts and ProbeOptions.CountSelectors.
 	TextFound []bool `json:"textFound"`
@@ -427,7 +431,12 @@ func formatPageVerdict(label string, s PageSignals) string {
 	if s.Status >= 400 {
 		fmt.Fprintf(&b, "  http=%d", s.Status)
 	}
-	if s.LoginForm {
+	// A page the signed-in user may not open lands on the sign-in form too,
+	// with messageCode=403 in the URL: saying LOGIN PAGE sent readers to sign in.
+	switch {
+	case s.AccessDenied():
+		b.WriteString("  ACCESS DENIED")
+	case s.LoginForm:
 		b.WriteString("  LOGIN PAGE")
 	}
 	if s.Title != "" {
@@ -480,16 +489,22 @@ func (s PageSignals) landedAt() (string, bool) {
 		if pathOrRoot(req.Path) == pathOrRoot(fin.Path) && req.RawQuery == fin.RawQuery && req.Fragment == fin.Fragment {
 			return "", false
 		}
-		where := pathOrRoot(fin.EscapedPath())
-		if fin.RawQuery != "" {
-			where += "?" + fin.RawQuery
-		}
-		if fin.Fragment != "" {
-			where += "#" + fin.EscapedFragment()
-		}
-		return where, true
+		return relativeURL(fin), true
 	}
 	return s.FinalURL, true
+}
+
+// relativeURL is u's path, query and fragment: how a URL on the app's own
+// origin is shown.
+func relativeURL(u *url.URL) string {
+	where := pathOrRoot(u.EscapedPath())
+	if u.RawQuery != "" {
+		where += "?" + u.RawQuery
+	}
+	if u.Fragment != "" {
+		where += "#" + u.EscapedFragment()
+	}
+	return where
 }
 
 // wrongPage reports a /p/ page that the browser did not stay on, and where it
@@ -500,10 +515,11 @@ func (s PageSignals) landedAt() (string, bool) {
 // and /p/items/ landed on / too. Only the path is compared; the query string
 // survives the redirect, and so may a change of scheme in front of the app
 // (http to https), which leaves the page the same. A page that went to the
-// sign-in form is that form's failure, not this one.
+// sign-in form is that form's failure, not this one, and so is a page the
+// user was refused (/login.html?messageCode=403).
 func (s PageSignals) wrongPage() (requested, landed string, home bool) {
 	req, fin, ok := s.locations()
-	if !ok || s.NeedsLogin() || !strings.Contains(req.Path, "/p/") || req.Path == fin.Path {
+	if !ok || s.NeedsLogin() || s.AccessDenied() || !strings.Contains(req.Path, "/p/") || req.Path == fin.Path {
 		return "", "", false
 	}
 	sameOrigin := strings.EqualFold(req.Scheme+"://"+req.Host, fin.Scheme+"://"+fin.Host)

@@ -11,18 +11,18 @@ description: "Verify a running Mendix app in a browser: `mxcli playwright check`
 | lines | section |
 |---|---|
 | 32-42 | When to Use This Skill |
-| 43-99 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
-| 100-150 | Prerequisites |
-| 151-175 | Quick Start |
-| 176-197 | Widget Name Selectors |
-| 198-313 | Verification Patterns |
-| 314-387 | CI/CD: Test Scripts |
-| 388-431 | Session Management |
-| 432-459 | Debugging |
-| 460-492 | Selector Rules |
-| 493-509 | Known Gotchas |
-| 510-543 | Feedback Loop Workflow |
-| 544-551 | Related Skills |
+| 43-104 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
+| 105-155 | Prerequisites |
+| 156-180 | Quick Start |
+| 181-202 | Widget Name Selectors |
+| 203-318 | Verification Patterns |
+| 319-392 | CI/CD: Test Scripts |
+| 393-436 | Session Management |
+| 437-464 | Debugging |
+| 465-497 | Selector Rules |
+| 498-514 | Known Gotchas |
+| 515-548 | Feedback Loop Workflow |
+| 549-556 | Related Skills |
 
 <!-- /skill-index -->
 # Test App Skill
@@ -61,9 +61,14 @@ FAIL 1 of 2 page(s)
 ```
 
 - **Exit status:** 0 all pages passed; 1 a page failed (error banner/dialog, console
-  error, failed request, HTTP error, sign-in form instead of the page, a `/p/` URL
-  that ended elsewhere, failed assertion, or `STILL LOADING`); 2 the check could
-  not run.
+  error, failed request, HTTP error, access denied, sign-in form instead of the page,
+  a `/p/` URL that ended elsewhere, failed assertion, or `STILL LOADING`); 2 the
+  check could not run.
+- **`ACCESS DENIED` is a role problem, not a sign-in one.** A page the signed-in
+  user's roles may not open lands on the sign-in form with `messageCode=403` in the
+  URL and fails as `access denied: signed in as demo_user (user role User), the
+  runtime refused /p/secret (403)`. Compare `show access on page Module.Page` with
+  `describe user role R`; changing credentials or `--fresh-login` will not help.
 - **`url=` is where the browser ended**, printed when that is not where it was
   sent; title and heading then describe that page. A `/p/` URL no page has lands on
   the home page with HTTP 200 (`url=/`) and fails — the match is exact, so check the
