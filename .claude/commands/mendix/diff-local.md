@@ -89,7 +89,7 @@ Entity: MyModule.Customer
 
 The command generates MDL representations for:
 
-- **Entities**: Shows attributes, constraints, and entity type
+- **Domain models**: Shows each entity's attributes, constraints and entity type, followed by its access rules as `grant` statements
 - **Microflows**: Shows parameters and return type
 - **Nanoflows**: Shows parameters and return type
 - **Enumerations**: Shows values and captions
@@ -97,6 +97,7 @@ The command generates MDL representations for:
 - **Snippets**: Shows basic structure
 - **Layouts**: Shows basic structure
 - **Modules**: Shows module name
+- **Project settings**: Shows the `alter settings` statements `describe settings` prints. Configuration constant values and the database password are **masked** as `<masked #1a2b3c4d>`: the fingerprint changes when the value does, so a changed value still shows as a changed line, but it is keyed per run and cannot be checked against a guess
 
 Other unit types show a generic representation with the type name.
 

@@ -280,9 +280,10 @@ type MockBackend struct {
 	DeleteWorkflowFunc func(id model.ID) error
 
 	// SettingsBackend
-	GetProjectSettingsFunc    func() (*model.ProjectSettings, error)
-	AddNavigationProfileFunc  func(navDocID model.ID, name string) error
-	UpdateProjectSettingsFunc func(ps *model.ProjectSettings) error
+	GetProjectSettingsFunc          func() (*model.ProjectSettings, error)
+	AddNavigationProfileFunc        func(navDocID model.ID, name string) error
+	UpdateProjectSettingsFunc       func(ps *model.ProjectSettings) error
+	ParseProjectSettingsFromRawFunc func(raw map[string]any) *model.ProjectSettings
 
 	// ImageBackend
 	ListImageCollectionsFunc func() ([]*types.ImageCollection, error)

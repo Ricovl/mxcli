@@ -196,3 +196,51 @@ func TestParseDomainModelFromRawCarriesAccessRules(t *testing.T) {
 		t.Fatal("the fixture has no access rule naming a role; the comparison proved nothing")
 	}
 }
+
+// TestParseProjectSettingsFromRawMatchesStorageRead is mendixlabs/mxcli#1602:
+// diff-local had no renderer for the settings unit, so an ALTER SETTINGS
+// counted as modified and diffed to nothing. Its renderer is DESCRIBE
+// SETTINGS's, fed from this method, so the raw decode has to agree with
+// GetProjectSettings on what that renderer prints.
+func TestParseProjectSettingsFromRawMatchesStorageRead(t *testing.T) {
+	b := New()
+	if err := b.Connect(fixture); err != nil {
+		t.Fatalf("Connect(%s): %v", fixture, err)
+	}
+	t.Cleanup(func() { _ = b.Disconnect() })
+
+	want, err := b.GetProjectSettings()
+	if err != nil {
+		t.Fatalf("GetProjectSettings: %v", err)
+	}
+	contents, err := b.reader.GetRawUnitBytes(string(want.ID))
+	if err != nil {
+		t.Fatalf("GetRawUnitBytes: %v", err)
+	}
+	var raw map[string]any
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
+		t.Fatal(err)
+	}
+	got := b.ParseProjectSettingsFromRaw(raw)
+	if got == nil {
+		t.Fatal("ParseProjectSettingsFromRaw = nil — diff-local cannot render the settings unit")
+	}
+	if got.Model == nil || want.Model == nil || *got.Model != *want.Model {
+		t.Errorf("model settings: raw %+v, storage %+v", got.Model, want.Model)
+	}
+	if got.Configuration == nil || len(got.Configuration.Configurations) != len(want.Configuration.Configurations) {
+		t.Fatalf("configurations: raw %+v, storage %+v", got.Configuration, want.Configuration)
+	}
+	for i, wc := range want.Configuration.Configurations {
+		gc := got.Configuration.Configurations[i]
+		if gc.Name != wc.Name || len(gc.ConstantValues) != len(wc.ConstantValues) {
+			t.Errorf("configuration %d: raw %s/%d values, storage %s/%d", i, gc.Name, len(gc.ConstantValues), wc.Name, len(wc.ConstantValues))
+		}
+	}
+	if len(got.RawParts) != len(want.RawParts) || len(got.RawParts) == 0 {
+		t.Errorf("RawParts: raw %d, storage %d", len(got.RawParts), len(want.RawParts))
+	}
+	if b.ParseProjectSettingsFromRaw(map[string]any{"$Type": "Microflows$Microflow", "Name": "X"}) != nil {
+		t.Error("ParseProjectSettingsFromRaw accepted a microflow document")
+	}
+}

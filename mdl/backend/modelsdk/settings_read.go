@@ -48,6 +48,31 @@ func (b *Backend) GetProjectSettings() (*model.ProjectSettings, error) {
 	return ps, nil
 }
 
+// ParseProjectSettingsFromRaw decodes a project-settings document that is not
+// read from this project's storage: diff-local hands it a revision from `git
+// show` (mendixlabs/mxcli#1602). Read-only, like ParseMicroflowFromRaw — the
+// result is rendered and thrown away, so the map round-trip cannot reach
+// storage. RawParts are filled the way GetProjectSettings fills them, so the
+// renderer's "does this version store the property" checks agree with a
+// describe of the same document.
+func (b *Backend) ParseProjectSettingsFromRaw(raw map[string]any) *model.ProjectSettings {
+	data, err := bson.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+	elem, err := codec.NewDecoder(codec.DefaultRegistry).Decode(bson.Raw(data))
+	if err != nil {
+		return nil
+	}
+	g, ok := elem.(*genSet.ProjectSettings)
+	if !ok {
+		return nil
+	}
+	ps := projectSettingsFromGen(g)
+	ps.RawParts = settingsRawParts(raw["Settings"])
+	return ps
+}
+
 // readSettingsRawParts decodes the Settings$ProjectSettings unit and returns each
 // element of its Settings array as a map (the versioned-array marker is skipped).
 func (b *Backend) readSettingsRawParts(unitID string) []map[string]any {
@@ -59,8 +84,19 @@ func (b *Backend) readSettingsRawParts(unitID string) []map[string]any {
 	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
-	arr, ok := doc["Settings"].(bson.A)
-	if !ok {
+	return settingsRawParts(doc["Settings"])
+}
+
+// settingsRawParts returns each part of a decoded Settings array as a map,
+// skipping the leading versioned-array marker.
+func settingsRawParts(settings any) []map[string]any {
+	var arr []any
+	switch a := settings.(type) {
+	case bson.A:
+		arr = a
+	case []any:
+		arr = a
+	default:
 		return nil
 	}
 	parts := make([]map[string]any, 0, len(arr))

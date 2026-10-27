@@ -353,6 +353,8 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 	}
 
 	switch {
+	case unitType == "Settings$ProjectSettings":
+		return settingsBsonToMDL(ctx, raw, unitType, qualifiedName)
 	case strings.Contains(unitType, "DomainModel"):
 		return domainModelBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Entity"):
