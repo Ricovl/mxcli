@@ -164,6 +164,11 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
+	case *ast.CreateLayoutStmt:
+		// A layout's widgets were checked by no widget rule at all, so a
+		// property its scroll container does not take passed check and was
+		// refused — or, before ako/mxcli#1698, dropped — only at exec.
+		return validateNativeWidgetPropsTree(s.AllWidgets(), nil, nil, nil, registry, "layout "+s.Name.String())
 	case *ast.AlterPageStmt:
 		var out []linter.Violation
 		for _, op := range s.Operations {
@@ -355,7 +360,14 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// no definition for the project's own widget — the built-in allow-list
 		// would report every property it has.
 		if def == nil && !isObjectListItem && !w.TypeIsGeneric && explicitWidgetID(w) == "" {
-			out = append(out, validateStaticWidgetUnknownPropsIn(w, locationPrefix, embedded, registryProjectPath(registry) != "")...)
+			// A built-in element is judged by the properties ITS builder writes
+			// (ako/mxcli#1698); the cross-widget vocabulary of MDL-WIDGET07 is
+			// kept for the keywords without such a set.
+			if kind := nativeWidgetKindInPosition(w, parent, parentItem, registry, argCtx.known); kind != "" && embedded == nil {
+				out = append(out, validateNativeWidgetProps(kind, w, locationPrefix)...)
+			} else {
+				out = append(out, validateStaticWidgetUnknownPropsIn(w, locationPrefix, embedded, registryProjectPath(registry) != "")...)
+			}
 			// #1465: the vocabulary above is a cross-widget union, so a key a
 			// tab page cannot store (CaptionParams, Class, Style) passes it.
 			out = append(out, validateTabPageProps(w, locationPrefix)...)

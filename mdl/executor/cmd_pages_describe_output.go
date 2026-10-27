@@ -370,7 +370,12 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.RegionToggleMode != "" && w.RegionToggleMode != "None" {
 			props = append(props, fmt.Sprintf("ToggleMode: %s", mdlQuote(ctx, w.RegionToggleMode)))
 		}
-		props = appendAppearanceProps(ctx, props, w)
+		// Class is the one appearance key a region is read with and written
+		// with (buildScrollContainerRegionV3); printing the rest would be
+		// printing what re-execution refuses (ako/mxcli#1698).
+		if w.Class != "" {
+			props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, w.Class)))
+		}
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 			for _, child := range w.Children {
