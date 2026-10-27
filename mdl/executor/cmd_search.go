@@ -25,8 +25,10 @@ import (
 // The recurring shape is an ENTRY POINT: something outside the call graph
 // invokes it, so nothing in the model calls it. 'schedule' was the first (a
 // microflow run only by a scheduled event reported "(no callers found)" on a job
-// that runs nightly); 'publish' is a published REST operation (#1126); 'event'
-// is an entity event handler, run by the entity on commit or delete; 'settings'
+// that runs nightly); 'publish' is a published REST operation (#1126), or a
+// published OData resource, action or authentication microflow
+// (ako/mxcli#1639); 'event' is an entity event handler, run by the entity on
+// commit or delete, or a business event handler; 'settings'
 // is a microflow wired as after-startup, before-shutdown or health check, whose
 // edge shipped in v0.22.0 and was added to QUAL004 but not here, so
 // `show callers` stayed blind to it. Every new way for something to run a
