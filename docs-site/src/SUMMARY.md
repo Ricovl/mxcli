@@ -248,6 +248,7 @@
 - [Microflow Statements](reference/microflow/README.md)
   - [CREATE MICROFLOW](reference/microflow/create-microflow.md)
   - [CREATE NANOFLOW](reference/microflow/create-nanoflow.md)
+  - [ALTER MICROFLOW / NANOFLOW](reference/microflow/alter-microflow.md)
   - [DROP MICROFLOW / NANOFLOW](reference/microflow/drop-microflow.md)
   - [CREATE JAVA ACTION](reference/microflow/create-java-action.md)
   - [CREATE JAVASCRIPT ACTION](reference/microflow/create-javascript-action.md)

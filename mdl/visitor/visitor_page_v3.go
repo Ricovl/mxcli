@@ -1105,6 +1105,11 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		if argsCtx := dsCtx.MicroflowArgsV3(); argsCtx != nil {
 			ds.Args = buildMicroflowArgsV3(argsCtx)
 		}
+		if sc := dsCtx.ActionSettingsV3(); sc != nil {
+			if s := buildActionSettingsV3(sc); s != nil {
+				ds.FormValidations = s.FormValidations
+			}
+		}
 	} else if dsCtx.NANOFLOW() != nil {
 		// NANOFLOW Module.Flow
 		ds.Type = "nanoflow"
@@ -1265,6 +1270,9 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 			action.OutcomeValue = unquoteStringLit(str)
 		}
 	}
+	if rc := actCtx.ActionReturnsV3(); rc != nil {
+		action.Returns = buildActionReturnsV3(rc)
+	}
 	if sc := actCtx.ActionSettingsV3(); sc != nil {
 		action.Settings = buildActionSettingsV3(sc)
 	}
@@ -1276,6 +1284,26 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	}
 
 	return action
+}
+
+// buildActionReturnsV3 builds a flow call's `returns ( … )` list.
+func buildActionReturnsV3(ctx parser.IActionReturnsV3Context) []ast.FlowReturnV3 {
+	var out []ast.FlowReturnV3
+	for _, rc := range ctx.(*parser.ActionReturnsV3Context).AllActionReturnV3() {
+		r := rc.(*parser.ActionReturnV3Context)
+		var ret ast.FlowReturnV3
+		if v := r.VARIABLE(); v != nil {
+			ret.Target = strings.TrimPrefix(v.GetText(), "$")
+			ret.Variable = true
+		} else if pn := r.ParameterName(); pn != nil {
+			ret.Target = parameterNameText(pn)
+		}
+		if expr := r.Expression(); expr != nil {
+			ret.Source = expressionSourceText(expr)
+		}
+		out = append(out, ret)
+	}
+	return out
 }
 
 // buildMicroflowArgsV3 builds flow arguments from the parse context.
@@ -1484,6 +1512,12 @@ func buildParamFormatV3(ctx parser.IParamFormatV3Context) *ast.ParamFormatV3 {
 			continue
 		}
 		val := strings.Trim(vc.GetText(), "'\"")
+		// A string value is unescaped like any other literal: a date pattern
+		// quotes literal text (`h ''at'' mm` is `h 'at' mm`), and stripping the
+		// outer quotes alone stored the doubled ones (ako/mxcli#977).
+		if pv, ok := vc.(*parser.PropertyValueV3Context); ok && pv.STRING_LITERAL() != nil {
+			val = unquoteStringLit(pv.STRING_LITERAL())
+		}
 		f.Props = append(f.Props, ast.ParamFormatProp{
 			Key:   strings.ToLower(id.GetText()),
 			Value: val,

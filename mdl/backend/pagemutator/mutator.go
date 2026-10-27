@@ -3321,6 +3321,19 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return setDynamicTextNativeTextStyleMut(widget, value)
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "numberoflines", "autocomplete":
+		// A text area's (ako/mxcli#977). Any other widget keeps the pluggable path.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$TextArea" || typ == "Pages$TextArea" {
+			return setTextAreaPropertyMut(widget, propName, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "readonlystyle":
+		// Stored on the built-in input widgets and the data view; a pluggable
+		// widget with its own "readOnlyStyle" key keeps that path (ako/mxcli#977).
+		if bsonnav.DGet(widget, "ReadOnlyStyle") != nil {
+			return setReadOnlyStyleMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
@@ -3397,6 +3410,50 @@ func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
 	return nil
 }
 
+// setTextAreaPropertyMut writes a text area's NumberOfLines or Autocomplete in
+// place. NumberOfLines keeps the stored integer width: Studio Pro writes an
+// int64, mxcli's codec an int32, and swapping one for the other is a change of
+// its own.
+func setTextAreaPropertyMut(widget bson.D, propName string, value any) error {
+	if strings.EqualFold(propName, "NumberOfLines") {
+		n, ok := formattingInt(value)
+		if !ok {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		lines, err := strconv.ParseInt(strconv.Itoa(n), 10, 32)
+		if err != nil || lines < 0 {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		if _, isInt32 := bsonnav.DGet(widget, "NumberOfLines").(int32); isInt32 {
+			bsonnav.DSet(widget, "NumberOfLines", int32(lines))
+		} else {
+			bsonnav.DSet(widget, "NumberOfLines", lines)
+		}
+		return nil
+	}
+	b, ok := editableBool(value)
+	if !ok {
+		return fmt.Errorf("Autocomplete is true or false, not %v", value)
+	}
+	if !bsonnav.DSet(widget, "Autocomplete", b) {
+		return fmt.Errorf("text area %q stores no Autocomplete property to set", bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
+}
+
+// setReadOnlyStyleMut writes a widget's ReadOnlyStyle in place, canonically
+// spelled; an unknown member is refused before the document is touched.
+func setReadOnlyStyleMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	style, ok := pages.CanonicalReadOnlyStyle(s)
+	if !ok {
+		return fmt.Errorf("invalid ReadOnlyStyle %q for widget %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(pages.ReadOnlyStyles, ", "))
+	}
+	bsonnav.DSet(widget, "ReadOnlyStyle", style)
+	return nil
+}
+
 // setContainerRenderModeMut writes a container's RenderMode — the HTML element
 // it renders as — in place, canonically spelled; an unknown member is refused
 // before the document is touched (mendixlabs/mxcli#1582).
@@ -3452,6 +3509,29 @@ func setLegacyImageRefMut(widget bson.D, propName string, value any) (bool, erro
 		return true, fmt.Errorf("this %s stores no %s to set", widgetTypeLabel(typ), key)
 	}
 	return true, nil
+}
+
+// CheckDateFormat refuses a widget a SET left with DateFormat Custom and no
+// pattern — mxbuild CE0493, "Date format is custom but no format string is
+// specified". It is judged on the statement's result, not per property:
+// properties are applied one at a time, so clearing the pattern of a picker
+// already Custom went through, while clearing it and switching to Date in the
+// same statement is valid (ako/mxcli#977).
+func (m *Mutator) CheckDateFormat(widgetRef string) error {
+	result := m.widgetFinder(m.rawData, widgetRef)
+	if result == nil || len(result.colPropKeys) > 0 {
+		return nil
+	}
+	fi := bsonnav.DGetDoc(result.widget, "FormattingInfo")
+	if fi == nil {
+		return nil
+	}
+	if bsonnav.DGetString(fi, "DateFormat") == "Custom" && strings.TrimSpace(bsonnav.DGetString(fi, "CustomDateFormat")) == "" {
+		return fmt.Errorf("the %s would be left with `DateFormat: Custom` and no pattern (mxbuild CE0493): "+
+			"set a CustomDateFormat such as 'dd-MM-yyyy HH:mm', or another DateFormat in the same statement",
+			widgetTypeLabel(bsonnav.DGetString(result.widget, "$Type")))
+	}
+	return nil
 }
 
 // setWidgetFormattingMut sets one field of an input widget's

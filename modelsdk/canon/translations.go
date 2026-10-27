@@ -123,17 +123,18 @@ func CarryTranslations(contents, stored []byte) []byte {
 	for _, path := range sortedPaths(newByPath) {
 		text := newByPath[path]
 		var want map[string]bson.D
+		var order []string
 		if byPath {
-			want = textTranslationElems(storedByPath[path])
+			want, order = textTranslationElems(storedByPath[path]), textLanguageOrder(storedByPath[path])
 		} else if stored, ok := storedByElement[newElementOf[path]]; ok {
-			want = textTranslationElems(stored)
+			want, order = textTranslationElems(stored), textLanguageOrder(stored)
 		} else {
-			want = matchBySource(textTranslations(text), sets)
+			want, order = matchBySource(textTranslations(text), sets)
 		}
 		if len(want) == 0 {
 			continue
 		}
-		if mergeText(text, want, path, used) {
+		if mergeText(text, want, order, path, used) {
 			changed = true
 		}
 	}
@@ -233,23 +234,25 @@ func samePathSet(a, b map[string]bson.D) bool {
 }
 
 // matchBySource finds the stored translation set for a rebuilt text, by whichever
-// (language, text) pair the rebuild wrote. Returns nil when nothing matches or
-// the match is ambiguous.
-func matchBySource(have map[string]string, sets map[string]*translationSet) map[string]bson.D {
+// (language, text) pair the rebuild wrote, with its stored language order.
+// Returns nil when nothing matches or the match is ambiguous.
+func matchBySource(have map[string]string, sets map[string]*translationSet) (map[string]bson.D, []string) {
 	for lang, txt := range have {
 		if s, ok := sets[lang+"\x00"+txt]; ok {
 			if s.ambiguous {
-				return nil
+				return nil, nil
 			}
-			return s.byLang
+			return s.byLang, s.order
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // ambiguous marks a key whose stored translation sets disagree.
 type translationSet struct {
 	byLang map[string]bson.D
+	// order is the stored text's language order, which the carry keeps.
+	order []string
 	// text is the language→string view, used only to decide whether two stored
 	// sets sharing a source key actually agree.
 	text      map[string]string
@@ -268,7 +271,7 @@ func storedTranslationSets(doc bson.D) map[string]*translationSet {
 			if ty, _ := docLookup(n, "$Type").(string); ty == "Texts$Text" {
 				byText := textTranslations(n)
 				if len(byText) > 1 {
-					set := &translationSet{byLang: textTranslationElems(n), text: byText}
+					set := &translationSet{byLang: textTranslationElems(n), order: textLanguageOrder(n), text: byText}
 					for lang, text := range byText {
 						k := lang + "\x00" + text
 						prev, seen := out[k]
@@ -299,26 +302,38 @@ func storedTranslationSets(doc bson.D) map[string]*translationSet {
 // anything was added. A language the rebuild wrote is never overwritten: the
 // statement is the authority for what it says.
 //
+// The result follows the stored text's language order. The rebuild writes the
+// one language MDL carries, so appending the others after it — in sorted order,
+// as this did — turned a text Studio Pro stored as [nl_NL, en_US] into [en_US,
+// nl_NL]. The canonical form compares lists in order, so the reorder alone
+// made an unchanged page a write (ako/mxcli#1704).
+//
 // used carries every element id already in the document and is updated as ids
 // are taken, so the same stored element handed to two texts does not put one id
 // on both of them (see reuseSafeID).
-func mergeText(text bson.D, want map[string]bson.D, path string, used map[string]bool) bool {
+func mergeText(text bson.D, want map[string]bson.D, order []string, path string, used map[string]bool) bool {
 	have := textTranslations(text)
 	items, ok := docLookup(text, "Items").(bson.A)
 	if !ok {
 		return false
 	}
 	added := false
-	for _, lang := range sortedLangs(want) {
+	for _, lang := range order {
 		if _, exists := have[lang]; exists {
 			continue
 		}
-		items = append(items, reuseSafeID(want[lang], path, lang, used))
+		elem, ok := want[lang]
+		if !ok {
+			continue
+		}
+		items = append(items, reuseSafeID(elem, path, lang, used))
+		have[lang] = ""
 		added = true
 	}
 	if !added {
 		return false
 	}
+	items = inLanguageOrder(items, order)
 	for i, e := range text {
 		if e.Key == "Items" {
 			text[i].Value = items
@@ -327,14 +342,53 @@ func mergeText(text bson.D, want map[string]bson.D, path string, used map[string
 	return true
 }
 
-// sortedLangs keeps the appended order deterministic, so the same inputs produce
-// the same bytes and no-op elision can fire.
-func sortedLangs(m map[string]bson.D) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
+// inLanguageOrder arranges a text's translation elements in the given language
+// order. The list marker stays first; a language the order does not name keeps
+// its relative place after the named ones.
+func inLanguageOrder(items bson.A, order []string) bson.A {
+	rank := make(map[string]int, len(order))
+	for i, lang := range order {
+		if _, seen := rank[lang]; !seen {
+			rank[lang] = i
+		}
 	}
-	sort.Strings(out)
+	rankOf := func(d bson.D) int {
+		lang, _ := docLookup(d, "LanguageCode").(string)
+		if r, ok := rank[lang]; ok {
+			return r
+		}
+		return len(order)
+	}
+	out := make(bson.A, 0, len(items))
+	var elems []bson.D
+	for _, it := range items {
+		if d, ok := it.(bson.D); ok {
+			elems = append(elems, d)
+		} else {
+			out = append(out, it)
+		}
+	}
+	sort.SliceStable(elems, func(i, j int) bool { return rankOf(elems[i]) < rankOf(elems[j]) })
+	for _, d := range elems {
+		out = append(out, d)
+	}
+	return out
+}
+
+// textLanguageOrder reads a Texts$Text's languages in stored order.
+func textLanguageOrder(text bson.D) []string {
+	items, ok := docLookup(text, "Items").(bson.A)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, it := range items {
+		if d, ok := it.(bson.D); ok {
+			if lang, _ := docLookup(d, "LanguageCode").(string); lang != "" {
+				out = append(out, lang)
+			}
+		}
+	}
 	return out
 }
 

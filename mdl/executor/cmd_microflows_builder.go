@@ -37,6 +37,14 @@ type flowBuilder struct {
 	flows           []*microflows.SequenceFlow
 	annotationFlows []*microflows.AnnotationFlow
 
+	// storedNotes resolves `@annotation(existing: '…')` to the note of the
+	// stored flow with that text, keyed by the text as the script writes it.
+	// Set only for an alter fragment, by resolveStoredNotes, which refuses a
+	// text that names no note or several; nil means there is no stored flow
+	// to attach to — a create body — and the form is refused
+	// (ako/mxcli#1695).
+	storedNotes map[string]*microflows.Annotation
+
 	// annotationsByLabel resolves `@annotation(id: n1)` back to the Annotation
 	// its first mention created, so a note wired to several activities is ONE
 	// object with several flows — the shape Mendix stores and the shape MDL

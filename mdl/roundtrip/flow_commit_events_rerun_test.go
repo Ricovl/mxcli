@@ -21,9 +21,10 @@ import (
 //     loop and the commit together, which bypassed the "changes inside its
 //     body" refusal: under mdl 1 the loop was silently rebuilt with new $IDs.
 //
-// Since ako/mxcli#1106 a value edit inside the body is spliced in place, so the
-// loop-body change these tests use also grows the body (growBody): a change of
-// the body's shape, which is still refused.
+// Since ako/mxcli#1106 a value edit inside the body is spliced in place, and
+// since ako/mxcli#1693 so is a plain activity added to it, so the loop-body
+// change these tests use adds a decision to the body (growBody): a change of
+// the body's shape the splice does not make, which is still refused.
 //
 // The bare-commit spelling is the control for both: it always behaved.
 func commitEventsFlow(name, commit, value string) string {
@@ -39,9 +40,9 @@ end;
 `, name, value, commit)
 }
 
-// growBody adds a statement to the loop body of a commitEventsFlow script.
+// growBody adds a decision to the loop body of a commitEventsFlow script.
 func growBody(script string) string {
-	return strings.Replace(script, "  end loop;", "    log info node 'N' 'more';\n  end loop;", 1)
+	return strings.Replace(script, "  end loop;", "    if $U/Name = empty then\n      log info node 'N' 'more';\n    end if;\n  end loop;", 1)
 }
 
 func TestSpliceRerun_CommitWithEventsIsTheStoredCommit(t *testing.T) {

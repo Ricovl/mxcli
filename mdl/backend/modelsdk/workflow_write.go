@@ -292,9 +292,9 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 		title = wf.Name
 	}
 	addStr(g, "Title", title)
-	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription))
+	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription, wf.WorkflowDescriptionParams))
 	// WorkflowMetaData: null (via NullFields).
-	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName))
+	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName, wf.WorkflowNameParams))
 	addBool(g, "WorkflowV2", false)
 	return g
 }
@@ -376,6 +376,9 @@ func activityToGen(act workflows.WorkflowActivity) element.Element {
 			addStr(g, "FirstExecutionTime", a.FirstExecutionTime)
 		}
 		addStr(g, "Name", a.Name)
+		if a.Recurrence != nil && a.Timer && !a.Interrupting {
+			addPart(g, "Recurrence", linearRecurrenceToGen(a.Recurrence))
+		}
 		return g
 	default:
 		return nil
@@ -442,12 +445,12 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 	addFreshPersistentID(g)
 	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
 	addStr(g, "Size", workflowZeroPoint)
-	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription))
+	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription, a.TaskDescriptionParams))
 	taskName := a.TaskName
 	if taskName == "" {
 		taskName = a.Caption
 	}
-	addPart(g, "TaskName", workflowStringTemplate(taskName))
+	addPart(g, "TaskName", workflowStringTemplate(taskName, a.TaskNameParams))
 	addPart(g, "TaskPage", pageReferenceElem(a.Page))
 	if a.IsMulti {
 		addPart(g, "TargetUserInput", targetUserInputToGen(a.TargetUserInput))
@@ -731,7 +734,10 @@ func boundaryEventsToGen(events []*workflows.BoundaryEvent) []element.Element {
 			addStr(g, "Name", ev.Name)
 		}
 		addFreshPersistentID(g)
-		// Recurrence: null on NonInterrupting (via NullFields).
+		// Recurrence: null on NonInterrupting (via NullFields) unless it repeats.
+		if ev.Recurrence != nil && typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
+			addPart(g, "Recurrence", linearRecurrenceToGen(ev.Recurrence))
+		}
 		out = append(out, g)
 	}
 	return out
@@ -791,12 +797,12 @@ func annotationElem(text string) element.Element {
 	return g
 }
 
-// workflowStringTemplate builds a minimal Microflows$StringTemplate (empty
-// Parameters list via MandatoryListMarkers + Text).
-func workflowStringTemplate(text string) element.Element {
-	g := newElem("Microflows$StringTemplate", "")
-	addStr(g, "Text", text)
-	return g
+// workflowStringTemplate builds a workflow text: a Microflows$StringTemplate
+// whose Parameters are Microflows$TemplateParameter children, one Expression
+// each — the shape mx check parses (an invalid expression is CE0117 at the
+// task, 11.15.0) — or an empty list via MandatoryListMarkers (ako/mxcli#1714).
+func workflowStringTemplate(text string, params []string) element.Element {
+	return stringTemplateElem(text, params)
 }
 
 // addActivityBaseFields adds the common Annotation(null)/PersistentId/
@@ -845,4 +851,15 @@ func activityIDOrFresh(id string) string {
 
 func outcomeID(id model.ID) string {
 	return activityIDOrFresh(string(id))
+}
+
+// linearRecurrenceToGen builds a Workflows$LinearRecurrence (ako/mxcli#1716):
+// the shape mx check accepts on 11.15.0, with IntervalType read by the runtime
+// as the scheduled-event enumeration (Minute, Hour, Day, Week, Month).
+func linearRecurrenceToGen(r *workflows.Recurrence) element.Element {
+	g := newElem("Workflows$LinearRecurrence", "")
+	addInt32(g, "Interval", int32(r.Interval))
+	addStr(g, "IntervalType", r.IntervalType)
+	addInt32(g, "MaxExecutions", int32(r.MaxExecutions))
+	return g
 }

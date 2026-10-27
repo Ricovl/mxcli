@@ -271,6 +271,42 @@ Attach a visual annotation note to the next activity:
 VALIDATION FEEDBACK $Customer/Email MESSAGE 'Email is required';
 ```
 
+A note is a node of its own, so one note can document several activities. Give it
+an `id:` at its first mention and refer to that id afterwards; without the id, two
+notes with the same text stay two notes:
+
+```sql
+@annotation(id: n1, text: 'Both of these touch the same record')
+COMMIT $Order;
+@annotation(id: n1)
+COMMIT $Invoice;
+```
+
+The id is scoped to the statement being written and is not stored in the model:
+`DESCRIBE` numbers shared notes afresh every time.
+
+### Attaching a Note Already in the Flow
+
+`ALTER MICROFLOW` (and `ALTER NANOFLOW`) inserts or replaces a fragment of a stored
+flow. The fragment cannot see the `id:` labels `DESCRIBE` prints, so it names a note
+that is already in the flow by its **text**, with `existing:`:
+
+```sql
+ALTER MICROFLOW Sales.ACT_ProcessOrder {
+  INSERT AFTER LOG NODE 'Sales' 'validated' BEGIN
+    @annotation(existing: 'Validates the order')
+    LOG INFO NODE 'Sales' 'discount applied';
+  END;
+};
+```
+
+The new activity is joined to the stored note, which keeps its identity, text and
+place on the canvas. The text must match exactly one note of the flow, as `DESCRIBE`
+prints it; when no note matches, or several do, the statement is refused and the
+message lists the flow's notes. `existing:` never creates a note and takes no other
+parameter, and only an `ALTER` fragment accepts it — a `CREATE` states the whole
+flow and declares its notes.
+
 ### Combining Annotations
 
 Multiple annotations can be stacked before a single activity:

@@ -46,6 +46,12 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	if vs := checkWorkflowExprScope(alterWorkflowExprSites(s), "", workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
 	}
+	if vs := checkWorkflowTemplates(alterWorkflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
+	if vs := checkWorkflowRecurrences(alterWorkflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
 	if refErrors := validateAlterWorkflowRefs(ctx, s, nil); len(refErrors) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 			s.Name.String(), strings.Join(refErrors, "\n  - "))
@@ -91,6 +97,10 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return err
 	}
 
+	// Where an inserted interrupting boundary path may end in an End, as
+	// Studio Pro ends it (ako/mxcli#1712).
+	ends := newAlterEndPlacement(ctx, s)
+
 	// Apply operations sequentially
 	for _, op := range s.Operations {
 		switch o := op.(type) {
@@ -122,6 +132,13 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				if err := mutator.SetProperty(o.Property, value); err != nil {
 					return mdlerrors.NewBackend("set "+o.Property, err)
 				}
+				// A text states its whole value: its parameters, or none
+				// (ako/mxcli#1714).
+				if o.Property == "display" || o.Property == "description" {
+					if err := mutator.SetTemplateParameters("", 0, o.Property, alterTemplateExprs(o.Params)); err != nil {
+						return mdlerrors.NewBackend("set "+o.Property, err)
+					}
+				}
 			}
 
 		case *ast.SetActivityPropertyOp:
@@ -137,12 +154,18 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if err := mutator.SetActivityProperty(o.ActivityRef, o.AtPosition, o.Property, value); err != nil {
 				return mdlerrors.NewBackend("set activity", err)
 			}
+			if o.Property == "description" || o.Property == "task_name" {
+				if err := mutator.SetTemplateParameters(o.ActivityRef, o.AtPosition, o.Property, alterTemplateExprs(o.Params)); err != nil {
+					return mdlerrors.NewBackend("set activity", err)
+				}
+			}
 
 		case *ast.InsertAfterOp:
 			acts := buildAndBindActivities(ctx, o.NewActivities)
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertAfterActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert after", err)
 			}
@@ -152,6 +175,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBeforeActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert before", err)
 			}
@@ -166,12 +190,14 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build replacement activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.ReplaceActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("replace activity", err)
 			}
 
 		case *ast.InsertOutcomeOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertOutcome(o.ActivityRef, o.AtPosition, o.OutcomeName, acts); err != nil {
 				return mdlerrors.NewBackend("insert outcome", err)
 			}
@@ -194,6 +220,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 
 		case *ast.InsertBranchOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBranch(o.ActivityRef, o.AtPosition, o.Condition, acts); err != nil {
 				return mdlerrors.NewBackend("insert branch", err)
 			}
@@ -210,8 +237,8 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				return mdlerrors.NewUnsupported("insert boundary event: a notification boundary event cannot be inserted with ALTER WORKFLOW yet — " +
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
-			acts := buildAndBindActivities(ctx, o.Activities)
-			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), acts); err != nil {
+			acts := ends.endInsertedBoundaryPath(buildAndBindActivities(ctx, o.Activities), o.EventType, o.ActivityRef, o.AtPosition)
+			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), o.Caption, recurrenceFromNode(o.Recurrence), acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
 
@@ -349,4 +376,15 @@ func workflowActivityNodeLabels(a ast.WorkflowActivityNode) (name, caption strin
 		caption = f.String()
 	}
 	return name, caption
+}
+
+// alterTemplateExprs is an ALTER's template parameters in placeholder order,
+// in the casings MDL-WF19 accepts. ALTER has no header alias to rewrite: the
+// stored context is $WorkflowContext.
+func alterTemplateExprs(params []ast.WorkflowTemplateParam) []string {
+	exprs := workflowTemplateExprs(params)
+	for i, e := range exprs {
+		exprs[i] = normalizeWorkflowContextExpr(e)
+	}
+	return exprs
 }

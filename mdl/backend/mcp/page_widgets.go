@@ -405,6 +405,9 @@ func mapDataViewSource(ds pages.DataSource) (map[string]any, error) {
 		if s.Microflow == "" {
 			return nil, fmt.Errorf("microflow data source has no microflow")
 		}
+		if s.FormValidations != "" && s.FormValidations != "All" {
+			return nil, fmt.Errorf("microflow data source %s: FormValidations %s is not yet supported by the MCP backend", s.Microflow, s.FormValidations)
+		}
 		return map[string]any{
 			"$Type":            "Pages$MicroflowSource",
 			"forceFullObjects": false,
@@ -470,6 +473,9 @@ func mapClientAction(a pages.ClientAction) (map[string]any, error) {
 	case nil, *pages.NoClientAction:
 		return map[string]any{"$Type": "Pages$NoClientAction"}, nil
 	case *pages.MicroflowClientAction:
+		if len(act.OutputMappings) > 0 {
+			return nil, fmt.Errorf("call microflow %s: returns ( … ) is not yet supported by the MCP backend", act.MicroflowName)
+		}
 		return map[string]any{
 			"$Type":     "Pages$MicroflowClientAction",
 			"microflow": act.MicroflowName,

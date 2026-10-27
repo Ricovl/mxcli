@@ -6,6 +6,7 @@ package executor
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -83,6 +84,16 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// time (mendixlabs/mxcli#1529).
 	if vs := ValidateWorkflowExpressionScope(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
+	}
+	// MDL-WF21: a placeholder no parameter fills is CE0720 at build time
+	// (ako/mxcli#1714).
+	if vs := checkWorkflowTemplates(workflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
+	// MDL-WF22: a recurrence Studio Pro refuses and mx check lets through
+	// (ako/mxcli#1716).
+	if vs := checkWorkflowRecurrences(workflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
@@ -178,6 +189,11 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// Display metadata
 	wf.WorkflowName = s.DisplayName
 	wf.WorkflowDescription = s.Description
+	// Their parameters are expressions over the context, normalized like the
+	// due date's (ako/mxcli#1714).
+	headerNorm := newContextExprNormalizer(s.ParameterVar)
+	wf.WorkflowNameParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DisplayParams))
+	wf.WorkflowDescriptionParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DescriptionParams))
 	wf.Annotation = s.Annotation
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
@@ -219,6 +235,9 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// a start event named like a main-flow activity is CE0495 — so they are
 	// deduplicated together with the main flow's.
 	wf.EventSubProcesses = buildEventSubProcesses(s.EventSubProcesses)
+	// An interrupting boundary path ends in an End where Studio Pro writes one,
+	// before names are carried and deduplicated (ako/mxcli#1712).
+	endBoundaryPathsLikeStudioPro(userActivities, wf.EventSubProcesses)
 	named := append([]workflows.WorkflowActivity{}, userActivities...)
 	for _, esp := range wf.EventSubProcesses {
 		autoBindWorkflowParameters(ctx, esp.Flow.Activities, s.ParameterVar)
@@ -334,6 +353,7 @@ func buildBoundaryEvents(nodes []ast.WorkflowBoundaryEventNode) []*workflows.Bou
 			TimerDelay: be.Delay,
 			Name:       be.Name,
 			Caption:    be.Caption,
+			Recurrence: recurrenceFromNode(be.Recurrence),
 		}
 		if event.IsNotification() {
 			// Mendix requires both: the name is what a notify action targets
@@ -502,6 +522,9 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 	task.Caption = n.Caption
 	task.DueDate = n.DueDate
 	task.TaskDescription = n.TaskDescription
+	task.TaskDescriptionParams = workflowTemplateExprs(n.TaskDescriptionParams)
+	task.TaskName = n.TaskName // "" is the caption, which the writer falls back to
+	task.TaskNameParams = workflowTemplateExprs(n.TaskNameParams)
 	task.IsMulti = n.IsMultiUser
 	task.AutoAssignSingleTargetUser = n.AutoAssign
 	if n.IsMultiUser {
@@ -864,6 +887,7 @@ func buildEventSubProcesses(nodes []ast.WorkflowEventSubProcessNode) []*workflow
 			Interrupting:       n.Interrupting,
 			Timer:              n.Timer,
 			FirstExecutionTime: n.FirstExecutionTime,
+			Recurrence:         recurrenceFromNode(n.Recurrence),
 		}
 		start.ID = model.ID(generateWorkflowUUID())
 		start.Name = n.StartName
@@ -1116,6 +1140,8 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			// Sanitize name
 			a.Name = sanitizeActivityName(a.Name)
 			a.DueDate = norm.rewrite(a.DueDate)
+			a.TaskNameParams = norm.rewriteAll(a.TaskNameParams)
+			a.TaskDescriptionParams = norm.rewriteAll(a.TaskDescriptionParams)
 			if xp, ok := a.UserSource.(*workflows.XPathBasedUserSource); ok {
 				xp.XPath = norm.rewrite(xp.XPath)
 			}
@@ -1302,6 +1328,30 @@ func (n contextExprNormalizer) rewrite(expr string) string {
 	return normalizeWorkflowContextExpr(expr)
 }
 
+// rewriteAll rewrites each expression of a template's parameter list.
+func (n contextExprNormalizer) rewriteAll(exprs []string) []string {
+	for i, e := range exprs {
+		exprs[i] = n.rewrite(e)
+	}
+	return exprs
+}
+
+// workflowTemplateExprs is a text template's parameter expressions in
+// placeholder order. Numbering gaps and repeats are refused at check time
+// (MDL-WF21); here the lowest index simply comes first.
+func workflowTemplateExprs(params []ast.WorkflowTemplateParam) []string {
+	if len(params) == 0 {
+		return nil
+	}
+	sorted := append([]ast.WorkflowTemplateParam(nil), params...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Index < sorted[j].Index })
+	out := make([]string, len(sorted))
+	for i, p := range sorted {
+		out[i] = p.Expression
+	}
+	return out
+}
+
 // autoBindCallWorkflow resolves workflow parameters and generates ParameterMappings.
 func autoBindCallWorkflow(ctx *ExecContext, act *workflows.CallWorkflowActivity) {
 	// Sanitize name
@@ -1359,4 +1409,14 @@ func hasStandaloneWorkflowAnnotation(acts []ast.WorkflowActivityNode) bool {
 		}
 	})
 	return found
+}
+
+// recurrenceFromNode is a `repeat every …` as stored; nil for none. An unknown
+// unit is refused before this by MDL-WF22.
+func recurrenceFromNode(n *ast.WorkflowRecurrenceNode) *workflows.Recurrence {
+	if n == nil {
+		return nil
+	}
+	unit, _ := workflows.RecurrenceIntervalType(n.Unit)
+	return &workflows.Recurrence{IntervalType: unit, Interval: n.Interval, MaxExecutions: n.MaxExecutions}
 }

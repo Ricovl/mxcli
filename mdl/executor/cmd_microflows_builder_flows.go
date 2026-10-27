@@ -889,6 +889,7 @@ func (fb *flowBuilder) addErrorHandlerFlow(sourceActivityID model.ID, sourceX in
 		// (or the reverse) lands in one collection — sharing the registry is
 		// sound here in a way it is not across a loop boundary (#1077).
 		annotationsByLabel: fb.annotationsByLabel,
+		storedNotes:        fb.storedNotes,
 		// Same collection, so the same label table: `join recovered` inside a
 		// handler must find the `merge recovered` declared on the main path.
 		// This is the one rejoin MDL could not spell before, and the reason the

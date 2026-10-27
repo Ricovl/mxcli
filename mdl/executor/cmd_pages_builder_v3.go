@@ -7,6 +7,7 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -209,18 +210,26 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 // Shared by pages and by layouts built on another layout (mendixlabs/mxcli#1411):
 // both fill a layout's placeholders through the same Forms$LayoutCall, so the
 // MDL that fills them is the same too.
+//
+// The arguments follow the blocks' order, which is the order describe prints
+// them in — the stored one. Main comes first only when no block names it:
+// putting it first regardless turned a page Studio Pro stored as [Header,
+// Main] into [Main, Header], so describe → exec rewrote it (ako/mxcli#1704).
 func (pb *pageBuilder) buildLayoutCallArguments(layoutQN string, bare []*ast.WidgetV3, blocks []*ast.PagePlaceholderV3) ([]*pages.LayoutCallArgument, error) {
-	order := []string{"Main"}
+	var order []string
 	byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), bare...)}
 	for _, ph := range blocks {
 		name := ph.Name
 		if name == "" {
 			name = "Main"
 		}
-		if _, seen := byName[name]; !seen {
+		if !slices.Contains(order, name) {
 			order = append(order, name)
 		}
 		byName[name] = append(byName[name], ph.Widgets...)
+	}
+	if !slices.Contains(order, "Main") {
+		order = append([]string{"Main"}, order...)
 	}
 
 	var out []*pages.LayoutCallArgument
@@ -989,6 +998,7 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			MicroflowID:       mfID,
 			Microflow:         ds.Reference,
 			ParameterMappings: pb.flowArgsToParameterMappings(ds.Args),
+			FormValidations:   ds.FormValidations,
 		}, entityName, nil
 
 	case "nanoflow":
@@ -1733,8 +1743,16 @@ func (pb *pageBuilder) getNanoflowReturnEntityName(qualifiedName string) string 
 // buildClientActionV3 converts a V3 Action AST to a pages.ClientAction.
 func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAction, error) {
 	a, err := pb.buildClientActionV3Base(action)
-	if err != nil || a == nil || action.Settings == nil {
+	if err != nil || a == nil {
 		return a, err
+	}
+	if len(action.Returns) > 0 {
+		if err := pb.applyFlowReturns(a, action.Returns); err != nil {
+			return nil, err
+		}
+	}
+	if action.Settings == nil {
+		return a, nil
 	}
 	if err := applyActionSettings(a, action.Settings); err != nil {
 		return nil, err

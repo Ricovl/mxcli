@@ -62,10 +62,11 @@ end;`
 		t.Fatalf("setup: %v", err)
 	}
 
-	// A statement added inside the loop body: a change of the body's shape,
-	// which the splice refuses (an in-place edit is spliced, ako/mxcli#1106).
+	// A decision added inside the loop body: a change of the body's shape,
+	// which the splice refuses (an in-place edit is spliced, ako/mxcli#1106,
+	// and so is a plain activity added, ako/mxcli#1693).
 	changed := strings.Replace(strings.Replace(flow, "create microflow", "create or modify microflow", 1),
-		"commit $It;", "commit $It;\n    log info node 'X' 'committed';", 1)
+		"commit $It;", "commit $It;\n    if $It/Subject = empty then log info node 'X' 'committed'; end if;", 1)
 	script := "mdl 1;\ncreate microflow MyFirstModule.Before () begin end;\n" +
 		strings.TrimPrefix(changed, "mdl 1;\n") + "\ncreate microflow MyFirstModule.After () begin end;\n"
 	prog, errs := visitor.Build(script)
@@ -78,7 +79,7 @@ end;`
 	if refusal == "" || !strings.Contains(refusal, "Nothing was written") {
 		t.Fatalf("want the pre-flight to refuse the script, got %q\n%s", refusal, out.String())
 	}
-	if !strings.Contains(out.String(), "replace loop") {
+	if !strings.Contains(out.String(), "replace body of loop $It in $Items") {
 		t.Errorf("the refusal's reason is not printed:\n%s", out.String())
 	}
 

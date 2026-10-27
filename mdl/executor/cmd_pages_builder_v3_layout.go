@@ -367,6 +367,11 @@ func (pb *pageBuilder) buildTabPageV3(w *ast.WidgetV3) (*pages.TabPage, error) {
 	}
 	tp.ConditionalVisibility = cvs
 
+	// Its badge (mendixlabs/mxcli#1644, tabpage_badge.go).
+	if tp.Badge, err = pb.buildTabPageBadge(w); err != nil {
+		return nil, err
+	}
+
 	// Build child widgets
 	for _, child := range w.Children {
 		widget, err := pb.buildWidgetV3(child)

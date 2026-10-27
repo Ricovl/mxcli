@@ -668,6 +668,7 @@ keyword
     // Workflow user task settings — words, so still usable as names
     | DECIDE | CONSENSUS | MAJORITY | MORE_KW | THAN | HALF | MOST | CHOSEN | THRESHOLD
     | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT | AUTO | ASSIGN
+    | REPEAT | EVERY | TIMES
 
     // Microflow / Nanoflow
     | MICROFLOW | MICROFLOWS | NANOFLOW | NANOFLOWS
@@ -781,6 +782,9 @@ keyword
     // OData / REST / API
     | API | SAMPLE | BASE | BODY | CHANNELS | CLIENT | CLIENTS | CONTRACT | OPENAPI
     | DEPRECATED | EXPOSE | EXPOSED | EXTERNAL | HEADERS | JSON
+    // A Java action's `extra code $$ … $$`. CODE has to stay a name: `Code` is
+    // one of the most common attribute names there is.
+    | EXTRA | CODE
     | MAP | MAPPING | MAPPINGS | MESSAGES | METHOD | NAMESPACE_KW
     | NOT_SUPPORTED | ODATA | OAUTH | OPERATION | PAGING
     | PARAMETER | PARAMETERS | PATH | PLATFORM | PUBLISH | PUBLISHED

@@ -359,6 +359,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			// #1465: the vocabulary above is a cross-widget union, so a key a
 			// tab page cannot store (CaptionParams, Class, Style) passes it.
 			out = append(out, validateTabPageProps(w, locationPrefix)...)
+			out = append(out, validateTabPageBadge(w, locationPrefix)...)
 			// #928: `editable:` on a widget Mendix gives no editability — same
 			// "silently dropped on write" family, but the flat property
 			// allow-list cannot see it because it is type-agnostic.
@@ -1172,6 +1173,8 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// box's password flag and its Forms$WidgetValidation. Leaving them out
 		// makes the describe -> create round trip warn about its own output.
 		"Password", "Validation", "ValidationMessage",
+		// a text area's (ako/mxcli#977)
+		"NumberOfLines", "Autocomplete",
 		// button icon-collection reference (issue #602)
 		"Icon",
 		// staticimage's image-collection reference, Module.Collection.Image
@@ -1281,6 +1284,11 @@ func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, 
 		// A text box's or text area's SubmitBehaviour / SubmitOnInputDelay,
 		// per type for the same reason (ako/mxcli-ledger FINDINGS #170).
 		if isInputSubmitProp(w.Type, key) {
+			continue
+		}
+		// A tab page's Badge / BadgeParams, per type for the same reason
+		// (mendixlabs/mxcli#1644).
+		if isTabPageBadgeProp(w.Type, key) {
 			continue
 		}
 		candidates := staticWidgetKnownPropList

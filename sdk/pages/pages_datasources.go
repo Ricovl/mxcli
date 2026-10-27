@@ -96,6 +96,9 @@ type MicroflowSource struct {
 	// argument for every parameter; dropping these builds to CE1571 "No argument
 	// has been selected for parameter 'X'" (#835).
 	ParameterMappings []*MicroflowParameterMapping `json:"parameterMappings,omitempty"`
+	// FormValidations is its MicroflowSettings' setting: "" (All) | All |
+	// Widget | None (ako/mxcli#1729).
+	FormValidations string `json:"formValidations,omitempty"`
 }
 
 func (MicroflowSource) isDataSource() {}

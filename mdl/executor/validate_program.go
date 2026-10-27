@@ -139,6 +139,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 				ValidateFlowParameterAnnotations("rule '"+ruleStmt.Name.String()+"'", ruleStmt.Parameters)...)
 			violations = append(violations,
 				setTargetViolations("rule", ruleStmt.Name.String(), ruleStmt.Parameters, ruleStmt.Body)...)
+			// A rule logs and may send email (MDL-TEMPLATE01, ako/mxcli#1683).
+			violations = append(violations,
+				messageTemplateViolations("rule", ruleStmt.Name.String(), ruleStmt.Body)...)
 		}
 		// Check workflow for constructs MxBuild rejects (missing page,
 		// single-outcome-with-activities, invalid decision outcome names)
@@ -235,6 +238,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// completing an unassigned one fails only at runtime, with the button
 	// appearing to do nothing.
 	violations = append(violations, ValidateTaskClaims(prog)...)
+
+	// Warn (MDL-WF20) when a user task's page has no button that completes one
+	// of its outcomes: the instance waits at the task and nothing reports it.
+	violations = append(violations, ValidateTaskPageOutcomes(prog)...)
 
 	// Flag control-bar buttons that pass $currentObject — a control bar is
 	// not row-scoped, so the argument is unbound (CE1571) at build time.

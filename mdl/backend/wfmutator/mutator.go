@@ -155,6 +155,62 @@ func (m *Mutator) SetPropertyWithEntity(prop string, value string, entity string
 // Activity operations
 // ---------------------------------------------------------------------------
 
+// templateKeys maps SetTemplateParameters' property to the key of the
+// Microflows$StringTemplate it fills, on the workflow and on a user task.
+var templateKeys = map[string][2]string{
+	"display":     {"WorkflowName", ""},
+	"description": {"WorkflowDescription", "TaskDescription"},
+	"task_name":   {"", "TaskName"},
+}
+
+// SetTemplateParameters replaces a text's parameters with one
+// Microflows$TemplateParameter per expression — the shape the create path
+// writes (ako/mxcli#1714).
+func (m *Mutator) SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error {
+	keys, ok := templateKeys[strings.ToLower(prop)]
+	if !ok {
+		return fmt.Errorf("%s is not a text with parameters", prop)
+	}
+	owner, key := m.rawData, keys[0]
+	if activityRef != "" {
+		actDoc, err := m.findActivityByCaption(activityRef, atPos)
+		if err != nil {
+			return err
+		}
+		owner, key = actDoc, keys[1]
+	}
+	if key == "" {
+		return fmt.Errorf("%s has no parameters here", prop)
+	}
+	tmpl := bsonnav.DGetDoc(owner, key)
+	if tmpl == nil {
+		if len(params) == 0 {
+			return nil
+		}
+		return fmt.Errorf("%s has no %s to give parameters", orWorkflow(activityRef), key)
+	}
+	list := bson.A{int32(2)}
+	for _, p := range params {
+		list = append(list, bson.D{
+			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+			{Key: "$Type", Value: "Microflows$TemplateParameter"},
+			{Key: "Expression", Value: p},
+		})
+	}
+	if !bsonnav.DSet(tmpl, "Parameters", list) {
+		return fmt.Errorf("%s's %s has no parameter list", orWorkflow(activityRef), key)
+	}
+	return nil
+}
+
+// orWorkflow names what SetTemplateParameters edits, for its errors.
+func orWorkflow(activityRef string) string {
+	if activityRef == "" {
+		return "the workflow"
+	}
+	return "activity " + activityRef
+}
+
 func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string, value string) error {
 	actDoc, err := m.findActivityByCaption(activityRef, atPos)
 	if err != nil {
@@ -184,6 +240,14 @@ func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string
 		if taskDesc != nil {
 			bsonnav.DSet(taskDesc, "Text", value)
 		}
+		return nil
+
+	case "task_name":
+		taskName := bsonnav.DGetDoc(actDoc, "TaskName")
+		if taskName == nil {
+			return fmt.Errorf("activity %q has no task name", activityRef)
+		}
+		bsonnav.DSet(taskName, "Text", value)
 		return nil
 
 	case "targeting_microflow":
@@ -540,7 +604,7 @@ func (m *Mutator) DropBranch(activityRef string, atPos int, branchName string) e
 // Boundary event operations
 // ---------------------------------------------------------------------------
 
-func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, activities []workflows.WorkflowActivity) error {
+func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	actDoc, err := m.findMemberTarget(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -556,7 +620,7 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: typeName},
-		{Key: "Caption", Value: ""},
+		{Key: "Caption", Value: caption},
 	}
 
 	if delay != "" {
@@ -573,7 +637,19 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc = append(eventDoc, bson.E{Key: "PersistentId", Value: bsonutil.NewIDBsonBinary()})
 
 	if typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
-		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: nil})
+		var rec any // null: fires once
+		if recurrence != nil {
+			rec = bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "Workflows$LinearRecurrence"},
+				{Key: "Interval", Value: int32(recurrence.Interval)},
+				{Key: "IntervalType", Value: recurrence.IntervalType},
+				{Key: "MaxExecutions", Value: int32(recurrence.MaxExecutions)},
+			}
+		}
+		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: rec})
+	} else if recurrence != nil {
+		return fmt.Errorf("insert boundary event: only a non-interrupting timer repeats")
 	}
 
 	events := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "BoundaryEvents"))

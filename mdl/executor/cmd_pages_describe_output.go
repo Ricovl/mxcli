@@ -429,6 +429,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.TabCaption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.TabCaption)))
 		}
+		props = describeTabPageBadge(ctx, props, w)
 		// A tab page's visibility (#1465). Its Forms$TabPage has no Appearance,
 		// so appendAppearanceProps would print nothing else either.
 		if w.VisibleIf != "" {
@@ -608,6 +609,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if note := widgetIconNote(ctx, w); note != "" {
 			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
 		}
+		if note := outputMappingsNote(w); note != "" {
+			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
+		}
 
 	case "Forms$Text", "Pages$Text":
 		props := []string{}
@@ -669,6 +673,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
@@ -690,6 +695,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
@@ -697,6 +703,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
 		props = describeSubmitBehaviour(props, w)
+		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
+		// a text area authored without them describes as it did (ako/mxcli#977).
+		if w.NumberOfLines != nil && *w.NumberOfLines != 5 {
+			props = append(props, fmt.Sprintf("NumberOfLines: %d", *w.NumberOfLines))
+		}
+		if w.Autocomplete != nil && !*w.Autocomplete {
+			props = append(props, "Autocomplete: false")
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -719,6 +733,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		// The picker's mode — without it a date-time picker described as a
 		// date-only one, and describe → exec wrote it that way (ako/mxcli#968).
 		props = append(props, w.Formatting...)
@@ -737,6 +752,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
@@ -752,10 +768,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
-		// Show ReadOnlyStyle if not default "Inherit"
-		if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
-			props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
-		}
+		props = appendReadOnlyStyle(props, w)
 		// Show ShowLabel if false (not showing label)
 		if !w.ShowLabel {
 			props = append(props, "ShowLabel: No")
@@ -956,7 +969,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 						itemProps = appendDataSourceProp(ctx, itemProps, item.DataSource)
 						for _, p := range item.Props {
 							if p.IsRef {
-								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, p.Value))
+								// An action that renders as a note stands on its own line.
+								itemProps = append(itemProps, actionProp(p.Key, p.Value))
 							} else {
 								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, mdlQuote(ctx, p.Value)))
 							}
@@ -1553,6 +1567,21 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 
 // renderClientActionBaseMDL renders the action itself; renderClientActionMDL
 // adds its `with ( … )` settings.
+// unsetTargetNoteTail ends every note unsetTargetNote writes, so a caller that
+// says something else about such an action can tell it apart.
+const unsetTargetNoteTail = "; MDL cannot name a missing target, so re-running this script drops the action"
+
+// unsetTargetNote describes an action whose flow, page or entity is not
+// selected yet. Studio Pro stores that state for a placeholder: its page
+// templates ship them, and a page made from one inherits them until a target
+// is picked. mx check reports each (CE0571 no nanoflow or microflow, CE0566 no
+// page, CE0460 no entity). The bare `call nanoflow` describe used to print does
+// not parse, so one unwired button made the whole page's description unusable
+// (ako/mxcli#1728); a note, which actionProp puts on its own line, does.
+func unsetTargetNote(what string) string {
+	return "-- NOT re-executable: the action " + what + unsetTargetNoteTail
+}
+
 func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
 		return ""
@@ -1580,13 +1609,14 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 		}
 		return result
 	case "Forms$CreateObjectClientAction", "Pages$CreateObjectClientAction":
-		result := "create object"
-		// Extract entity reference
+		entityName := ""
 		if entityRef, ok := action["EntityRef"].(map[string]any); ok {
-			if entityName, ok := entityRef["Entity"].(string); ok && entityName != "" {
-				result += " " + entityName
-			}
+			entityName, _ = entityRef["Entity"].(string)
 		}
+		if entityName == "" {
+			return unsetTargetNote("creates an object but no entity is selected (CE0460)")
+		}
+		result := "create object " + entityName
 		// Extract page reference from PageSettings (Forms$FormSettings)
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			// The page is stored in "Form" field as a qualified name string (BY_NAME_REFERENCE)
@@ -1631,7 +1661,7 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				return "show page " + pageName
 			}
 		}
-		return "show page"
+		return unsetTargetNote("shows a page but none is selected (CE0566)")
 	case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 		// Extract microflow reference from MicroflowSettings
 		if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
@@ -1642,10 +1672,13 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				if params != "" {
 					result += "(" + params + ")"
 				}
+				if returns, ok := storedFlowReturns(settings); ok {
+					result += returns
+				}
 				return result
 			}
 		}
-		return "call microflow"
+		return unsetTargetNote("calls a microflow but none is selected (CE0571)")
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		if nfName, ok := action["Nanoflow"].(string); ok && nfName != "" {
 			result := "call nanoflow " + nfName
@@ -1654,9 +1687,12 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 			if params != "" {
 				result += "(" + params + ")"
 			}
+			if returns, ok := storedFlowReturns(action); ok {
+				result += returns
+			}
 			return result
 		}
-		return "call nanoflow"
+		return unsetTargetNote("calls a nanoflow but none is selected (CE0571)")
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
 		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
@@ -1998,7 +2034,7 @@ func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldNa
 // DecimalPrecision=2, EnumFormat=Text, GroupDigits=false, CustomDateFormat=""),
 // so an unformatted parameter round-trips as before (empty string). Mirrors the
 // writer defaults in formattingInfoFromParamFormat / formattingInfoToGen.
-func formatParamFormatSuffix(pMap map[string]any) string {
+func formatParamFormatSuffix(ctx *ExecContext, pMap map[string]any) string {
 	fi, ok := pMap["FormattingInfo"].(map[string]any)
 	if !ok || fi == nil {
 		return ""
@@ -2014,7 +2050,9 @@ func formatParamFormatSuffix(pMap map[string]any) string {
 		parts = append(parts, "dateFormat: "+df)
 	}
 	if cdf := extractString(fi["CustomDateFormat"]); cdf != "" {
-		parts = append(parts, "customDateFormat: '"+cdf+"'")
+		// Quoted like every other string: a Java date pattern quotes literal
+		// text with apostrophes (ako/mxcli#977).
+		parts = append(parts, "customDateFormat: "+mdlQuote(ctx, cdf))
 	}
 	if ef := extractString(fi["EnumFormat"]); ef != "" && ef != "Text" {
 		parts = append(parts, "enumFormat: "+ef)
@@ -2093,7 +2131,7 @@ func dataViewHasFooterBlock(w rawWidget) bool {
 // emitted as `onClick:` / `OnChange:` (#956).
 func appendNamedActionProps(props []string, w rawWidget) []string {
 	for _, na := range w.NamedActions {
-		props = append(props, fmt.Sprintf("%s: %s", na.Key, na.MDL))
+		props = append(props, actionProp(na.Key, na.MDL))
 	}
 	return props
 }
@@ -2238,4 +2276,29 @@ func layoutGridAlignmentMDL(a string) string {
 		return ""
 	}
 	return a
+}
+
+// appendReadOnlyStyle prints an input widget's ReadOnlyStyle unless it is
+// Inherit, Studio Pro's default. Read on the check box only until
+// ako/mxcli#977, so a text box, text area, date picker or radio button group
+// stored with Text or Control came back from describe → exec as Inherit.
+func appendReadOnlyStyle(props []string, w rawWidget) []string {
+	if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
+		props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
+	}
+	return props
+}
+
+// outputMappingsNote says a button's flow call has output mappings (Mendix
+// 11.5) that describe could not print as `returns ( … )` — a shape that syntax
+// does not write, such as a path over an association. Nothing carries them
+// through a rewrite, so the note says re-running drops them (ako/mxcli#977).
+func outputMappingsNote(w rawWidget) string {
+	switch w.UnsayableOutputMappings {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("-- %s: 1 output mapping has no MDL form; re-running this statement drops it", w.Name)
+	}
+	return fmt.Sprintf("-- %s: %d output mappings have no MDL form; re-running this statement drops them", w.Name, w.UnsayableOutputMappings)
 }

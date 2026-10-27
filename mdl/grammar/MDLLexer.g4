@@ -719,6 +719,10 @@ EXEC: E X E C;
 TABLES: T A B L E S;
 VIEWS: V I E W S;
 EXPOSED: E X P O S E D;
+// `extra code $$ … $$`: a Java action's EXTRA CODE section (ako/mxcli#1702).
+// Both stay names (keyword rule): `Code` is a common attribute.
+EXTRA: E X T R A;
+CODE: C O D E;
 PLATFORM: P L A T F O R M;
 PARAMETER: P A R A M E T E R;
 PARAMETERS: P A R A M E T E R S;
@@ -923,6 +927,11 @@ AWAIT: A W A I T;
 // `auto assign single user` on a user task (AutoAssignSingleTargetUser).
 AUTO: A U T O;
 ASSIGN: A S S I G N;
+// `repeat every 1 day at most 5 times` on a non-interrupting timer
+// (Workflows$LinearRecurrence, ako/mxcli#1716). Words, so still usable as names.
+REPEAT: R E P E A T;
+EVERY: E V E R Y;
+TIMES: T I M E S;
 
 // Data transformer tokens
 DATA: D A T A;

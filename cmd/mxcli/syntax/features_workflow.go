@@ -35,8 +35,8 @@ func init() {
 		Syntax: "CREATE [OR MODIFY] WORKFLOW Module.Name\n" +
 			"  [FOLDER 'path']\n" +
 			"  PARAMETER $Context: Module.Entity\n" +
-			"  [DISPLAY '<name>']\n" +
-			"  [DESCRIPTION '<text>']\n" +
+			"  [DISPLAY '<name>' [WITH ({1} = <expression>, ...)]]\n" +
+			"  [DESCRIPTION '<text>' [WITH ({1} = <expression>, ...)]]\n" +
 			"  [EXPORT LEVEL Hidden | API]\n" +
 			"  [OVERVIEW PAGE Module.OverviewPage]\n" +
 			"  [DUE DATE <expression>]\n" +
@@ -49,10 +49,13 @@ func init() {
 			"-- rule.) The event handlers are the exception and may repeat.\n" +
 			"-- A clause written twice is reported by name, e.g.\n" +
 			"--   duplicate DISPLAY clause on workflow M.W (already given on line 3)\n\n" +
+			"-- DISPLAY and DESCRIPTION are templates: WITH fills their {1}, {2}, ...\n" +
+			"-- from expressions over $WorkflowContext only ($WorkflowInstance is CE0117\n" +
+			"-- here, MDL-WF19). A placeholder no parameter fills is CE0720 (MDL-WF21).\n\n" +
 			"-- The OVERVIEW PAGE must accept a System.Workflow parameter, or the\n" +
 			"-- build fails CE7410 \"The selected page should accept a parameter of\n" +
 			"-- type 'Workflow'\" (measured on mxbuild 11.6.6).",
-		Example: "CREATE WORKFLOW Module.ApprovalFlow\n  PARAMETER $Context: Module.Request\n  OVERVIEW PAGE Module.WF_Overview\nBEGIN\n  USER TASK ReviewTask 'Review the request'\n    PAGE Module.ReviewPage\n    OUTCOMES 'Approve' { } 'Reject' { };\nEND WORKFLOW;",
+		Example: "CREATE WORKFLOW Module.ApprovalFlow\n  PARAMETER $Context: Module.Request\n  DISPLAY 'Approval for {1}' WITH ({1} = $Context/Title)\n  OVERVIEW PAGE Module.WF_Overview\nBEGIN\n  USER TASK ReviewTask 'Review the request'\n    PAGE Module.ReviewPage\n    OUTCOMES 'Approve' { } 'Reject' { };\nEND WORKFLOW;",
 		SeeAlso: []string{"workflow.user-task", "workflow.event-handlers", "workflow.decision", "workflow.drop"},
 	})
 
@@ -129,12 +132,17 @@ func init() {
 			"  [ON CREATED MICROFLOW Module.MF]  -- (System.WorkflowUserTask, <context entity>), returns nothing\n" +
 			"  [ENTITY Module.Entity]\n" +
 			"  [DUE DATE <expression>]\n" +
-			"  [DESCRIPTION '<text>']\n" +
+			"  [TASK NAME '<text>' [WITH ({1} = <expression>, ...)]]  -- what the task inbox shows; default: the caption\n" +
+			"  [DESCRIPTION '<text>' [WITH ({1} = <expression>, ...)]]\n" +
 			"  OUTCOMES '<outcome1>' { <activities> } '<outcome2>' { <activities> };\n\n" + "-- The clauses are a SET: write them in ANY order, each at most once\n" +
 			"-- (ako/mxcli#586). The two TARGETING spellings are ONE clause — a task\n" +
 			"-- stores one user source — so writing both is refused rather than\n" +
 			"-- letting the second silently win. OUTCOMES and BOUNDARY EVENT are\n" +
 			"-- list-valued and may repeat.\n\n" +
+			"-- TASK NAME and DESCRIPTION are templates: WITH fills {1}, {2}, ... from\n" +
+			"-- expressions over $WorkflowContext and $WorkflowInstance ($WorkflowUserTask\n" +
+			"-- is CE0117, MDL-WF19); a placeholder no parameter fills is CE0720\n" +
+			"-- (MDL-WF21). ALTER sets them with SET (TaskName: '…' WITH (…)) ON <task>.\n\n" +
 			"-- AUTO ASSIGN SINGLE USER is Studio Pro's \"Auto-assign when targeting\n" +
 			"-- results in one user\". Omitted, it is off, as Studio Pro creates a task;\n" +
 			"-- CREATE OR MODIFY refuses to turn a stored one off unless restated.\n\n" +
@@ -145,7 +153,7 @@ func init() {
 			"-- Other parameters may sit alongside it.",
 		Example: "-- The task page takes the task:\n" +
 			"CREATE PAGE HR.ReviewPage (\n  title: 'Review',\n  layout: Atlas_Core.Atlas_Default,\n  params: ( $WorkflowUserTask: System.WorkflowUserTask )\n) { };\n\n" +
-			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Module.Employee/Active = true()]\n  OUTCOMES 'Approve' { } 'Reject' { };",
+			"USER TASK ReviewTask 'Review the request'\n  PAGE HR.ReviewPage\n  TARGETING USERS XPATH [Active = true()]\n  TASK NAME 'Review {1}' WITH ({1} = $WorkflowContext/Title)\n  OUTCOMES 'Approve' { } 'Reject' { };",
 		SeeAlso: []string{"workflow.user-task.targeting", "workflow.multi-user-task", "workflow.create"},
 	})
 
@@ -169,12 +177,16 @@ func init() {
 			"-- The XPath is written in brackets, as everywhere else, so quotes inside\n" +
 			"-- it are written once. The quoted form XPATH '[...]' still parses and\n" +
 			"-- warns MDL-DEPR031; `mxcli fmt --upgrade` rewrites it.\n\n" +
+			"-- The constraint is evaluated on the user (System.User, or the App Settings\n" +
+			"-- > Workflows user entity), so it names the user's members directly:\n" +
+			"-- [Name = 'x'], [System.UserRoles = '[%UserRole_Manager%]']. An entity as\n" +
+			"-- the first step ([System.User/Name = 'x']) is CE0161; check -p reports it.\n\n" +
 			"-- A targeting microflow takes EXACTLY two parameters, in either order:\n" +
 			"--   System.Workflow\n" +
 			"--   the workflow's context entity, or a generalization of it\n" +
 			"-- One parameter, none, a third, or a specialization of the context\n" +
 			"-- entity is CE6677.",
-		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [HR.Employee/Role = 'Manager' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
+		Example: "-- XPath targeting: only active managers\nUSER TASK Approve 'Approve request'\n  TARGETING USERS XPATH [System.UserRoles = '[%UserRole_Manager%]' and Active = true()]\n  OUTCOMES 'Done' { };\n\n" +
 			"-- Microflow targeting: the microflow takes the workflow AND its context object\n" +
 			"CREATE MICROFLOW HR.GetApprovers ($Workflow: System.Workflow, $Request: HR.Request)\nRETURNS List of System.User AS $Approvers\nBEGIN\n  RETRIEVE $Approvers FROM System.User;\n  RETURN $Approvers;\nEND;\n\n" +
 			"USER TASK Approve 'Approve request'\n  TARGETING MICROFLOW HR.GetApprovers\n  OUTCOMES 'Done' { };",
@@ -434,8 +446,8 @@ func init() {
 		// 'Workflows$TimerBoundaryEvent' could not be found"). This entry showed
 		// the bare form, with 'P3D' — not a valid timer expression — as its delay.
 		// ako/view-entity-examples FINDINGS §7.
-		Syntax:     "-- inline, as a clause of a USER TASK or CALL MICROFLOW (after OUTCOMES),\n-- a CALL WORKFLOW or a WAIT FOR NOTIFICATION:\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> { <activities> } } };\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
-		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer addDays([%CurrentDateTime%], 3) {\n    call microflow Module.WF_Escalate;\n  };",
+		Syntax:     "-- inline, as a clause of a USER TASK or CALL MICROFLOW (after OUTCOMES),\n-- a CALL WORKFLOW or a WAIT FOR NOTIFICATION:\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> [REPEAT EVERY <n> <unit> AT MOST <m> TIMES] [CAPTION '<caption>'] { <activities> }\nBOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) NOTIFICATION <name> ['<caption>'] { <activities> }\n\n-- A notification boundary event (Mendix 11.11+) is triggered by `notify workflow`\n-- targeting its name, so the name is unique in the workflow. ALTER cannot insert\n-- one yet; restate the workflow instead.\n\n-- or add a timer to an existing task:\nALTER WORKFLOW <wf> { INSERT INTO <task> { BOUNDARY EVENT (INTERRUPTING | NON INTERRUPTING) TIMER <datetime-expression> [CAPTION '<caption>'] { <activities> } } };\n\n-- REPEAT EVERY repeats a NON INTERRUPTING timer (a reminder): unit minute(s),\n-- hour(s), day(s), week(s) or month(s); the count includes the first firing\n-- and is at least 2. MDL-WF22 refuses what Studio Pro refuses (mx check does\n-- not): an interrupting timer, another unit, fewer than 2.\n\n-- Name the kind: a bare TIMER is refused on Mendix 11 (MDL-WF07) — it writes a\n-- type the runtime cannot load. The delay is an expression that yields a\n-- DateTime, e.g. addDays([%CurrentDateTime%], 3). mxcli ends every boundary\n-- path with Mendix's end-of-path marker, so a path may end in a call; use\n-- JUMP TO to return to the task instead.",
+		Example:    "user task ReviewTask 'Review'\n  page Module.WF_Review\n  outcomes 'Done' { }\n  boundary event interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' {\n    call microflow Module.WF_Escalate;\n  };",
 		MinVersion: "10.6.0",
 		SeeAlso:    []string{"workflow.user-task", "workflow.notification", "workflow.event-subprocess"},
 	})
@@ -452,7 +464,7 @@ func init() {
 			"  ON (INTERRUPTING | NON INTERRUPTING) NOTIFICATION [<start>] ['<start caption>']\n" +
 			"  { <activities> };\n" +
 			"EVENT SUBPROCESS <name> ['<caption>']\n" +
-			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER <first-execution-time> [AS <start>] [CAPTION '<start caption>']\n" +
+			"  ON (INTERRUPTING | NON INTERRUPTING) TIMER <first-execution-time> [REPEAT EVERY <n> <unit> AT MOST <m> TIMES] [AS <start>] [CAPTION '<start caption>']\n" +
 			"  { <activities> };\n\n" +
 			"-- Interrupting cancels every active path first; non-interrupting runs alongside.\n" +
 			"-- A notification start is what `notify workflow` targets. The body's End is\n" +
@@ -514,9 +526,14 @@ func init() {
 		Keywords: []string{
 			"set task outcome", "task outcome", "complete task", "complete user task",
 			"outcome variable", "dynamic outcome", "claim and complete", "claim task",
-			"MDL-WORKFLOW10",
+			"MDL-WORKFLOW10", "task page", "outcome button", "MDL-WF20",
 		},
 		Syntax: "SET TASK OUTCOME $UserTask 'OutcomeName';\n\n" +
+			"-- On a task page the same is a button action, with no microflow:\n" +
+			"--   actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve')\n" +
+			"-- A task page needs one per outcome; check warns MDL-WF20 when a task's\n" +
+			"-- page cannot complete one of its outcomes. Either way the user must\n" +
+			"-- have claimed the task.\n\n" +
 			"-- A microflow statement (not a nanoflow one). $UserTask is a\n" +
 			"-- System.WorkflowUserTask; the outcome is one of that task's outcomes.\n" +
 			"-- The outcome is a quoted LITERAL, by design: Mendix stores it by name\n" +

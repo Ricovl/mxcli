@@ -1,0 +1,48 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1702 (mendixlabs/mxcli#1658): a describe round trip loses the
+-- Java action's EXTRA CODE section
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   `create java action` had no clause for the .java file's EXTRA CODE
+--   section, and `describe java action` printed only the body — not the
+--   section, nor an import a developer added. `create or modify` kept both in
+--   place, but executing the describe output on another project wrote a body
+--   calling a helper that no longer existed, and the build failed
+--   ("cannot find symbol").
+--
+-- After fix:
+--   `extra code $$ … $$` states the section, an import line in the body goes
+--   to the import list, and describe prints both — so describe → exec on a
+--   fresh project rebuilds the same file. The second statement below has no
+--   clause and keeps the section, as before.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/java-action-1702-extra-code-roundtrip.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe java action BugTest1702.JA_Twice" > twice.mdl
+--   Expected: the body starts with the import list (… import java.util.Objects;)
+--   and the statement ends with `extra code $$ private static long twice … $$;`.
+--   Executing twice.mdl (after `create module BugTest1702;`) on a blank project
+--   writes a byte-identical javasource/bugtest1702/actions/JA_Twice.java.
+-- ============================================================================
+
+create module BugTest1702;
+
+create java action BugTest1702.JA_Twice(N: Integer not null) returns Integer
+as $$
+import java.util.Objects;
+
+return twice(Objects.requireNonNull(N));
+$$
+extra code $$
+private static long twice(long n) {
+	return n * 2L;
+}
+$$;
+
+-- No `extra code` clause: the stored section, and the helper, are kept.
+create or modify java action BugTest1702.JA_Twice(N: Integer not null) returns Integer
+as $$
+return twice(N) + 0L;
+$$;

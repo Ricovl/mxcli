@@ -26,9 +26,15 @@ package mfmutator
 // after a decision (which branch?), before an activity several flows enter
 // (which path?), a drop of an activity with an error handler, or its replace
 // by anything but one activity handling errors the same way (the handler would
-// be orphaned; mendixlabs/mxcli#1489), and — for now — anything inside a loop
-// body but an activity replaced by one of the same kind, in place, since a
-// body node's coordinates are relative to the loop box (ako/mxcli#1106).
+// be orphaned; mendixlabs/mxcli#1489).
+//
+// Inside a loop body the splice inserts, drops and replaces plain activities
+// (ako/mxcli#1693): a body node's coordinates are relative to the loop box, so
+// room is made among the body's own nodes, and the box grows when the body no
+// longer fits (growLoop) — with what is drawn past it moving along, as for an
+// insert at top level. Anything else in a body — a decision, a nested loop, a
+// return — is a change of the body's shape, which ReplaceLoopBody makes by
+// rebuilding the body inside the stored loop.
 
 import (
 	"bytes"
@@ -72,6 +78,9 @@ type Mutator struct {
 	removed map[string]bool
 	// pinned are the points the script states a node is drawn at (Pin).
 	pinned map[point]bool
+	// pinnedIn are the same for the nodes of a loop body, by the loop's $ID,
+	// in the loop box's coordinates (PinInLoop).
+	pinnedIn map[string]map[point]bool
 }
 
 var _ backend.MicroflowMutator = (*Mutator)(nil)
@@ -226,17 +235,28 @@ func (g *graph) annotationFlows(id string) []flowRef {
 	return out
 }
 
+// node returns the stored top-level node id. A node inside a loop body is
+// refused: the operations that call it set what a node at top level is (where
+// it is drawn, a decision's condition, an end event's value or notes), and
+// inside a body they would have to be laid out against the loop box.
 func (g *graph) node(id model.ID) (*node, error) {
+	n, err := g.anyNode(id)
+	if err != nil {
+		return nil, err
+	}
+	if n.loop != "" {
+		return nil, fmt.Errorf("%s is inside a loop body, where the splice inserts, drops and replaces plain "+
+			"activities only; replace the loop's body instead: `replace body of <loop> with begin … end;`, "+
+			"addressing the loop by its handle from `describe … with handles`", describeNode(n))
+	}
+	return n, nil
+}
+
+// anyNode returns the stored node id, at top level or inside a loop body.
+func (g *graph) anyNode(id model.ID) (*node, error) {
 	n, ok := g.nodes[string(id)]
 	if !ok {
 		return nil, fmt.Errorf("activity %s is not in the stored flow (was it dropped by an earlier operation?)", id)
-	}
-	if n.loop != "" {
-		// create or modify does not edit inside a loop either, so the
-		// advice is the one operation that makes the change.
-		return nil, fmt.Errorf("%s is inside a loop body; alter does not splice inside a loop yet — "+
-			"replace the whole loop instead: `replace loop … with begin loop … begin … end loop; end;`, "+
-			"addressing the loop by its handle from `describe … with handles`", describeNode(n))
 	}
 	return n, nil
 }
@@ -248,12 +268,19 @@ func (g *graph) node(id model.ID) (*node, error) {
 // InsertAfter splices frag onto the flow leaving target.
 func (m *Mutator) InsertAfter(target model.ID, frag *backend.MicroflowFragment) error {
 	g := m.graph()
-	x, err := g.node(target)
+	x, err := g.anyNode(target)
 	if err != nil {
+		return err
+	}
+	if err := inBodyFragment(x, frag); err != nil {
 		return err
 	}
 	normal, _ := g.outgoing(x.id)
 	switch {
+	case len(normal) == 0 && x.loop != "":
+		// The last node of a loop body: the iteration ends there, so the
+		// fragment goes after it and ends the iteration instead.
+		return m.appendInLoop(g, x, frag)
 	case len(normal) == 0:
 		return fmt.Errorf("nothing follows %s: it ends the flow; insert before it instead", describeNode(x))
 	case len(normal) > 1:
@@ -266,12 +293,19 @@ func (m *Mutator) InsertAfter(target model.ID, frag *backend.MicroflowFragment) 
 // InsertBefore splices frag onto the flow entering target.
 func (m *Mutator) InsertBefore(target model.ID, frag *backend.MicroflowFragment) error {
 	g := m.graph()
-	y, err := g.node(target)
+	y, err := g.anyNode(target)
 	if err != nil {
+		return err
+	}
+	if err := inBodyFragment(y, frag); err != nil {
 		return err
 	}
 	in := g.incoming(y.id)
 	switch {
+	case len(in) == 0 && y.loop != "":
+		// The first node of a loop body: an iteration starts there, so it
+		// starts at the fragment instead.
+		return m.prependInLoop(g, y, frag)
 	case len(in) == 0:
 		return fmt.Errorf("no flow enters %s; there is no path to insert on", describeNode(y))
 	case len(in) > 1:
@@ -289,9 +323,13 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 	if x == nil || y == nil {
 		return fmt.Errorf("flow %s points at an object that is not in the flow", f.id)
 	}
-	if x.loop != "" || y.loop != "" {
-		return fmt.Errorf("the flow runs inside a loop body; alter does not splice inside a loop yet")
+	if x.loop != y.loop {
+		return fmt.Errorf("flow %s runs between a loop body and the rest of the flow", f.id)
 	}
+	// Inside a loop body the fragment is laid out among the body's own nodes,
+	// in the loop box's coordinates, and the box is fitted to it afterwards.
+	scope := x.loop
+	before := m.contentBounds(scope)
 	fb, err := fragmentGeometry(frag)
 	if err != nil {
 		return err
@@ -308,7 +346,7 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 		return err
 	}
 	destIdx, destVec := flowEnd(f.doc, "Destination")
-	if err := m.addFragment(frag); err != nil {
+	if err := m.addFragmentIn(frag, scope); err != nil {
 		return err
 	}
 	// f now enters the fragment.
@@ -316,7 +354,7 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 	setInt(f.doc, "DestinationConnectionIndex", entrySide)
 	setVector(f.doc, "DestinationControlVector", sideVector(entrySide))
 	// And a new flow carries on from the fragment to Y.
-	return m.addFlow(&microflows.SequenceFlow{
+	if err := m.addFlow(&microflows.SequenceFlow{
 		BaseElement:                model.BaseElement{ID: model.ID(types.GenerateID())},
 		OriginID:                   frag.Exit,
 		DestinationID:              model.ID(y.id),
@@ -325,7 +363,10 @@ func (m *Mutator) spliceOnFlow(g *graph, f flowRef, frag *backend.MicroflowFragm
 		OriginControlVector:        sideVector(exitSide),
 		DestinationControlVector:   destVec,
 		CaseValue:                  frag.ExitCase,
-	})
+	}); err != nil {
+		return err
+	}
+	return m.fitLoopTo(g, scope, before)
 }
 
 // makeRoom places the fragment in the gap between x and y, moving everything
@@ -343,9 +384,10 @@ func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, f flowRef, x, y *node) (en
 	a := x.pos.get(ax) + s*x.size.get(ax)/2
 	b := y.pos.get(ax) - s*y.size.get(ax)/2
 	need := fb.length(ax) + 2*minGap
+	scope := x.loop
 	if deficit := need - s*(b-a); deficit > 0 {
 		cut := float64(a+b) / 2
-		if p := m.pinnedPast(g, ax, s, cut, ""); p != nil {
+		if p := m.pinnedPast(g, scope, ax, s, cut, ""); p != nil {
 			blocked := ", and making it would move " + describeNode(p) + ","
 			if p == y {
 				blocked = ","
@@ -353,7 +395,7 @@ func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, f flowRef, x, y *node) (en
 			return 0, 0, fmt.Errorf("the inserted statements need %dpx more room than there is between %s and %s%s "+
 				"which the script draws where it is; %s", deficit, describeNode(x), describeNode(y), blocked, roomAdvice)
 		}
-		m.shift(g, ax, s, cut, s*deficit, "")
+		m.shiftIn(g, scope, ax, s, cut, s*deficit, "")
 		b += s * deficit
 	}
 
@@ -363,7 +405,7 @@ func (m *Mutator) makeRoom(g *graph, fb *fragmentBox, f flowRef, x, y *node) (en
 	mid = mid.set(ax, (a+b)/2)
 	mid = mid.set(cross, (x.pos.get(cross)+y.pos.get(cross))/2)
 	fb.placeCentred(ax, mid)
-	if err := fb.checkRoom(g, "", f.id); err != nil {
+	if err := fb.checkRoomIn(g, scope, "", f.id); err != nil {
 		return 0, 0, err
 	}
 	return side(ax, -s), side(ax, s), nil
@@ -406,11 +448,17 @@ func fragmentNode(frag *backend.MicroflowFragment, id model.ID) *node {
 func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) error {
 	g := m.graph()
 	if n, ok := g.nodes[string(target)]; ok && n.loop != "" {
+		if err := inBodyFragment(n, frag); err != nil {
+			return err
+		}
 		return m.replaceInLoop(g, n, frag)
 	}
 	x, err := g.node(target)
 	if err != nil {
 		return err
+	}
+	if isDecision(x) {
+		return m.replaceDecision(g, x, frag)
 	}
 	if _, errs := g.outgoing(x.id); len(errs) > 0 && x.typ == "Microflows$ActionActivity" {
 		return m.replaceKeepingHandler(g, x, frag)
@@ -438,7 +486,7 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 		near := x.pos.get(ax) - s*x.size.get(ax)/2
 		if extra := fb.length(ax) - x.size.get(ax); extra > 0 {
 			cut := float64(x.pos.get(ax))
-			if p := m.pinnedPast(g, ax, s, cut, x.id); p != nil {
+			if p := m.pinnedPast(g, "", ax, s, cut, x.id); p != nil {
 				return fmt.Errorf("the replacing statements are %dpx longer than %s, and making room for them would move %s, "+
 					"which the script draws where it is; %s", extra, describeNode(x), describeNode(p), roomAdvice)
 			}
@@ -476,27 +524,24 @@ func (m *Mutator) Replace(target model.ID, frag *backend.MicroflowFragment) erro
 	return m.removeObject(x)
 }
 
-// replaceInLoop replaces an activity inside a loop body by one activity of
-// the same kind, in place (ako/mxcli#1106): the new activity takes the stored
-// one's place in the loop's collection, is drawn where it was at the size it
-// was, and the flows that entered and left it now enter and leave the new one.
-// Nothing else in the loop moves, so no layout is needed — which is why this
-// is the one edit inside a loop body the splice makes. A body node's
-// coordinates are relative to the loop box, so anything that adds, removes or
-// redraws a node there would have to re-lay the body out; that is refused.
+// replaceInLoop replaces an activity inside a loop body. By one activity it is
+// swapped in place (ako/mxcli#1106): the new activity takes the stored one's
+// place in the loop's collection, is drawn where it was at the size it was,
+// and the flows that entered and left it now enter and leave the new one, so
+// nothing else in the body moves. By several (ako/mxcli#1693) the fragment
+// starts where the activity started, what is past it in the body moves along
+// when the fragment is longer, and the loop box grows when the body no longer
+// fits it. The activity may be the body's first (no flow in) or last (no flow
+// out): the fragment then starts or ends the iteration in its place.
 func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragment) error {
-	if !singleActivity(frag) {
-		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one activity "+
-			"only (nothing in the body is added, removed or redrawn); replace the whole loop instead", describeNode(x))
-	}
 	if x.typ != "Microflows$ActionActivity" {
-		return fmt.Errorf("cannot replace %s in place: only an activity can be", describeNode(x))
+		return fmt.Errorf("cannot replace %s inside a loop body: only an activity can be", describeNode(x))
 	}
 	// The body's last activity ends it, with no flow out.
 	normal, errs := g.outgoing(x.id)
 	if len(errs) > 0 {
 		return fmt.Errorf("cannot replace %s: it has an error handler, which would be left with no activity; "+
-			"replace the whole loop instead", describeNode(x))
+			"replace the loop's body instead", describeNode(x))
 	}
 	if len(normal) > 1 {
 		return fmt.Errorf("cannot replace %s: it has %d outgoing flows, not one", describeNode(x), len(normal))
@@ -505,15 +550,278 @@ func (m *Mutator) replaceInLoop(g *graph, x *node, frag *backend.MicroflowFragme
 	if loop == nil {
 		return fmt.Errorf("%s is in a loop that is not in the flow", describeNode(x))
 	}
-	d, err := m.serializeInPlace(x, frag)
+	if singleActivity(frag) {
+		if d, err := m.serializeInPlace(x, frag); err != nil {
+			return err
+		} else if dString(d, "$Type") == x.typ {
+			return m.swapInPlace(g, x, dDoc(loop.doc, "ObjectCollection"), d, frag.Entry)
+		}
+	}
+	in := g.incoming(x.id)
+	before := m.contentBounds(x.loop)
+	fb, err := fragmentGeometry(frag)
 	if err != nil {
 		return err
 	}
-	if t := dString(d, "$Type"); t != x.typ {
-		return fmt.Errorf("%s is inside a loop body, where the splice replaces an activity by one of the same "+
-			"kind only, not by a %s; replace the whole loop instead", describeNode(x), t)
+	if !frag.Placed {
+		ax, s := bodyAxis(g, x, normal, in)
+		// The fragment starts where x started; if it is longer, what is past
+		// x in the body moves along by the difference.
+		near := x.pos.get(ax) - s*x.size.get(ax)/2
+		if extra := fb.length(ax) - x.size.get(ax); extra > 0 {
+			m.shiftIn(g, x.loop, ax, s, float64(x.pos.get(ax)), s*extra, x.id)
+		}
+		centre := point{}
+		centre = centre.set(ax, near+s*fb.length(ax)/2)
+		centre = centre.set(ax.other(), x.pos.get(ax.other()))
+		fb.placeCentred(ax, centre)
+		if err := fb.checkRoomIn(g, x.loop, x.id, ""); err != nil {
+			return err
+		}
 	}
-	return m.swapInPlace(g, x, dDoc(loop.doc, "ObjectCollection"), d, frag.Entry)
+	if err := m.addFragmentIn(frag, x.loop); err != nil {
+		return err
+	}
+	for _, f := range in {
+		setPointer(f.doc, "DestinationPointer", frag.Entry)
+	}
+	if len(normal) == 1 {
+		setPointer(normal[0].doc, "OriginPointer", frag.Exit)
+	}
+	for _, af := range g.annotationFlows(x.id) {
+		key := "DestinationPointer"
+		if af.origin == x.id {
+			key = "OriginPointer"
+		}
+		setPointer(af.doc, key, frag.Entry)
+	}
+	if err := m.removeObject(x); err != nil {
+		return err
+	}
+	return m.fitLoopTo(g, x.loop, before)
+}
+
+// inBodyFragment refuses to put into a loop body a fragment that is not a run
+// of plain activities: one with a decision, a loop, an end or error event, an
+// error handler or a case on its exit. Such a fragment changes the body's
+// shape — where its paths split, end or rejoin — which the splice does not lay
+// out inside a loop box; ReplaceLoopBody rebuilds the body instead. The
+// executor refuses the same fragments first, with the statement that makes the
+// change; this is the engine's own guard.
+func inBodyFragment(x *node, frag *backend.MicroflowFragment) error {
+	if x.loop == "" || frag == nil {
+		return nil
+	}
+	if frag.ExitCase != nil {
+		return fmt.Errorf("%s is inside a loop body, where the splice puts plain activities only, not a decision; "+
+			"replace the loop's body instead", describeNode(x))
+	}
+	for _, obj := range frag.Objects {
+		switch obj.(type) {
+		case *microflows.ActionActivity, *microflows.Annotation:
+		default:
+			return fmt.Errorf("%s is inside a loop body, where the splice puts plain activities only, not a %s; "+
+				"replace the loop's body instead", describeNode(x), strings.TrimPrefix(fmt.Sprintf("%T", obj), "*microflows."))
+		}
+	}
+	for _, f := range frag.Flows {
+		if f.IsErrorHandler {
+			return fmt.Errorf("%s is inside a loop body, where the splice puts plain activities only, not one with an "+
+				"error handler; replace the loop's body instead", describeNode(x))
+		}
+	}
+	return nil
+}
+
+// bodyAxis is the direction a loop body runs through x: along the flow that
+// leaves it, else the one that enters it, else left to right (x is the body's
+// only node).
+func bodyAxis(g *graph, x *node, out, in []flowRef) (axis, int) {
+	if len(out) > 0 {
+		if y := g.nodes[out[0].dest]; y != nil {
+			if ax, s, err := flowAxis(x, y); err == nil {
+				return ax, s
+			}
+		}
+	}
+	if len(in) > 0 {
+		if w := g.nodes[in[0].origin]; w != nil {
+			if ax, s, err := flowAxis(w, x); err == nil {
+				return ax, s
+			}
+		}
+	}
+	return axisX, 1
+}
+
+// appendInLoop puts frag after x, the last node of a loop body: x gets a flow
+// into the fragment, whose exit ends the iteration now. The fragment is drawn
+// past x along the direction the body runs, and the loop box is fitted to it.
+func (m *Mutator) appendInLoop(g *graph, x *node, frag *backend.MicroflowFragment) error {
+	if x.typ != "Microflows$ActionActivity" && x.typ != "Microflows$LoopedActivity" {
+		return fmt.Errorf("%s ends the loop body, and only an activity or a loop can be followed there", describeNode(x))
+	}
+	before := m.contentBounds(x.loop)
+	fb, err := fragmentGeometry(frag)
+	if err != nil {
+		return err
+	}
+	ax, s := bodyAxis(g, x, nil, g.incoming(x.id))
+	originSide, entrySide := side(ax, s), side(ax, -s)
+	if frag.Placed {
+		entry := fragmentNode(frag, frag.Entry)
+		if entry == nil {
+			return fmt.Errorf("the fragment's entry is not one of its objects")
+		}
+		pax, ps, err := flowAxis(x, entry)
+		if err != nil {
+			return err
+		}
+		originSide, entrySide = side(pax, ps), side(pax, -ps)
+	} else {
+		centre := point{}
+		centre = centre.set(ax, x.pos.get(ax)+s*(x.size.get(ax)/2+minGap+fb.length(ax)/2))
+		centre = centre.set(ax.other(), x.pos.get(ax.other()))
+		fb.placeCentred(ax, centre)
+		if err := fb.checkRoomIn(g, x.loop, "", ""); err != nil {
+			return err
+		}
+	}
+	if err := m.addFragmentIn(frag, x.loop); err != nil {
+		return err
+	}
+	if err := m.addFlow(&microflows.SequenceFlow{
+		BaseElement:                model.BaseElement{ID: model.ID(types.GenerateID())},
+		OriginID:                   model.ID(x.id),
+		DestinationID:              frag.Entry,
+		OriginConnectionIndex:      originSide,
+		DestinationConnectionIndex: entrySide,
+		OriginControlVector:        sideVector(originSide),
+		DestinationControlVector:   sideVector(entrySide),
+	}); err != nil {
+		return err
+	}
+	return m.fitLoopTo(g, x.loop, before)
+}
+
+// prependInLoop puts frag before y, the first node of a loop body: the
+// fragment starts the iteration now, and its exit gets a flow into y. y and
+// everything past its near edge move along to make room, and the loop box is
+// fitted to the body.
+func (m *Mutator) prependInLoop(g *graph, y *node, frag *backend.MicroflowFragment) error {
+	before := m.contentBounds(y.loop)
+	fb, err := fragmentGeometry(frag)
+	if err != nil {
+		return err
+	}
+	out, _ := g.outgoing(y.id)
+	ax, s := bodyAxis(g, y, out, nil)
+	exitSide, destSide := side(ax, s), side(ax, -s)
+	if frag.Placed {
+		exit := fragmentNode(frag, frag.Exit)
+		if exit == nil {
+			return fmt.Errorf("the fragment's exit is not one of its objects")
+		}
+		pax, ps, err := flowAxis(exit, y)
+		if err != nil {
+			return err
+		}
+		exitSide, destSide = side(pax, ps), side(pax, -ps)
+	} else {
+		near := y.pos.get(ax) - s*y.size.get(ax)/2
+		m.shiftIn(g, y.loop, ax, s, float64(near)-float64(s)/2, s*(fb.length(ax)+minGap), "")
+		centre := point{}
+		centre = centre.set(ax, near+s*fb.length(ax)/2)
+		centre = centre.set(ax.other(), y.pos.get(ax.other()))
+		fb.placeCentred(ax, centre)
+		if err := fb.checkRoomIn(g, y.loop, "", ""); err != nil {
+			return err
+		}
+	}
+	if err := m.addFragmentIn(frag, y.loop); err != nil {
+		return err
+	}
+	if err := m.addFlow(&microflows.SequenceFlow{
+		BaseElement:                model.BaseElement{ID: model.ID(types.GenerateID())},
+		OriginID:                   frag.Exit,
+		DestinationID:              model.ID(y.id),
+		OriginConnectionIndex:      exitSide,
+		DestinationConnectionIndex: destSide,
+		OriginControlVector:        sideVector(exitSide),
+		DestinationControlVector:   sideVector(destSide),
+	}); err != nil {
+		return err
+	}
+	return m.fitLoopTo(g, y.loop, before)
+}
+
+// dropInLoop removes the activity x from a loop body. Between two nodes it is
+// a drop like any other: the flows that entered it enter its successor. As the
+// body's first node its successor starts the iteration; as its last, its
+// predecessor ends it, which only an activity or a loop can (a decision would
+// be left with a path to nowhere); as its only node the body is left empty,
+// which Mendix accepts (mx check 0 errors on 11.13). Nothing else in the body
+// moves: the gap stays, as it does at top level.
+func (m *Mutator) dropInLoop(g *graph, x *node) error {
+	if x.typ != "Microflows$ActionActivity" {
+		return fmt.Errorf("cannot drop %s from a loop body: only an activity can be, because a decision, a loop "+
+			"or an event changes the shape of the body; replace the loop's body instead", describeNode(x))
+	}
+	normal, errs := g.outgoing(x.id)
+	if len(errs) > 0 {
+		return fmt.Errorf("cannot drop %s: it has an error handler, which would be left with no activity; "+
+			"replace the loop's body instead", describeNode(x))
+	}
+	in := g.incoming(x.id)
+	drop := map[string]bool{}
+	switch {
+	case len(normal) > 1:
+		return fmt.Errorf("cannot drop %s: it has %d outgoing flows, not one", describeNode(x), len(normal))
+	case len(normal) == 1 && len(in) > 0:
+		out := normal[0]
+		destIdx, destVec := flowEnd(out.doc, "Destination")
+		destPtr := dGet(out.doc, "DestinationPointer")
+		for _, f := range in {
+			if f.origin == out.dest {
+				return fmt.Errorf("dropping %s would leave a flow from an object to itself", describeNode(x))
+			}
+		}
+		for _, f := range in {
+			setBinary(f.doc, "DestinationPointer", destPtr)
+			setInt(f.doc, "DestinationConnectionIndex", destIdx)
+			setVector(f.doc, "DestinationControlVector", destVec)
+		}
+		drop[out.id] = true
+	case len(normal) == 1:
+		// The first node: its successor starts the iteration, which only a
+		// node no other flow enters can.
+		out := normal[0]
+		if n := len(g.incoming(out.dest)); n != 1 {
+			return fmt.Errorf("cannot drop %s, the first activity of the loop body: %d flows enter the node after it, "+
+				"which would then start the body", describeNode(x), n)
+		}
+		drop[out.id] = true
+	case len(in) > 1:
+		return fmt.Errorf("cannot drop %s, the last activity of the loop body: %d flows enter it, and each path "+
+			"would then end where it came from", describeNode(x), len(in))
+	case len(in) == 1:
+		// The last node: its predecessor ends the iteration.
+		w := g.nodes[in[0].origin]
+		if w == nil {
+			return fmt.Errorf("flow %s points at an object that is not in the flow", in[0].id)
+		}
+		wOut, _ := g.outgoing(w.id)
+		if (w.typ != "Microflows$ActionActivity" && w.typ != "Microflows$LoopedActivity") || len(wOut) != 1 {
+			return fmt.Errorf("cannot drop %s, the last activity of the loop body: %s before it would then end the "+
+				"body, and only an activity or a loop can; replace the loop's body instead", describeNode(x), describeNode(w))
+		}
+		drop[in[0].id] = true
+	}
+	for _, af := range g.annotationFlows(x.id) {
+		drop[af.id] = true
+	}
+	m.removeFlows(drop)
+	return m.removeObject(x)
 }
 
 // replaceKeepingHandler replaces a top-level activity that has a custom error
@@ -725,7 +1033,9 @@ func (m *Mutator) setCase(d bson.D, cv microflows.CaseValue) error {
 // from that object too.
 func (m *Mutator) RemoveNotes(target model.ID) error {
 	g := m.graph()
-	x, err := g.node(target)
+	// An activity in a loop body has notes like any other (ako/mxcli#1693):
+	// the note sits in the loop's collection, its line in the unit's flows.
+	x, err := g.anyNode(target)
 	if err != nil {
 		return err
 	}
@@ -831,9 +1141,15 @@ func (m *Mutator) SetFreeNotes(frag *backend.MicroflowFragment) error {
 // led to. Annotation lines attached to it go with it; the annotations stay.
 func (m *Mutator) Drop(target model.ID) error {
 	g := m.graph()
-	x, err := g.node(target)
+	x, err := g.anyNode(target)
 	if err != nil {
 		return err
+	}
+	if x.loop != "" {
+		return m.dropInLoop(g, x)
+	}
+	if isDecision(x) {
+		return m.dropDecision(g, x)
 	}
 	out, err := removable(g, x, "drop")
 	if err != nil {
@@ -937,6 +1253,28 @@ func (m *Mutator) Pin(at model.Point) error {
 	return nil
 }
 
+// PinInLoop is Pin for a node of loop's body, at a point in the loop box's
+// coordinates (ako/mxcli#1693): making room in that body refuses to move it.
+func (m *Mutator) PinInLoop(loop model.ID, at model.Point) error {
+	if m.pinnedIn == nil {
+		m.pinnedIn = map[string]map[point]bool{}
+	}
+	if m.pinnedIn[string(loop)] == nil {
+		m.pinnedIn[string(loop)] = map[point]bool{}
+	}
+	m.pinnedIn[string(loop)][point{at.X, at.Y}] = true
+	return nil
+}
+
+// isPinned reports whether the script states that a node of scope is drawn
+// at p.
+func (m *Mutator) isPinned(scope string, p point) bool {
+	if scope == "" {
+		return m.pinned[p]
+	}
+	return m.pinnedIn[scope][p]
+}
+
 // bodyFlows returns the flows that run inside loop's body, at any depth. They
 // are stored in the unit's Flows list, not in the loop, so taking the loop out
 // has to take them too; left behind they would point at removed objects.
@@ -964,8 +1302,8 @@ func removable(g *graph, x *node, verb string) (flowRef, error) {
 	switch x.typ {
 	case "Microflows$ActionActivity", "Microflows$LoopedActivity":
 	default:
-		return flowRef{}, fmt.Errorf("cannot %s %s: only an activity or a loop can be, because a decision or an end event "+
-			"changes the shape of the flow", verb, describeNode(x))
+		return flowRef{}, fmt.Errorf("cannot %s %s: only an activity, a loop or a decision of the shape `alter … insert` "+
+			"puts in can be, because an end event or a merge is where the flow's paths end or meet", verb, describeNode(x))
 	}
 	normal, errs := g.outgoing(x.id)
 	if len(errs) > 0 {
@@ -990,7 +1328,29 @@ func removable(g *graph, x *node, verb string) (flowRef, error) {
 // level collection (appended, so no stored object changes list position), its
 // flows to the Flows list.
 func (m *Mutator) addFragment(frag *backend.MicroflowFragment) error {
-	oc := dDoc(m.doc, "ObjectCollection")
+	return m.addFragmentIn(frag, "")
+}
+
+// collection returns the object collection of scope: the loop with that $ID,
+// or the flow's own for "". nil when there is no such loop.
+func (m *Mutator) collection(scope string) bson.D {
+	if scope == "" {
+		return dDoc(m.doc, "ObjectCollection")
+	}
+	if l := m.graph().nodes[scope]; l != nil && l.typ == "Microflows$LoopedActivity" {
+		return dDoc(l.doc, "ObjectCollection")
+	}
+	return nil
+}
+
+// addFragmentIn is addFragment into the collection of scope — a loop body,
+// whose objects the loop holds while its flows, like every flow of the unit,
+// are in the unit's Flows list.
+func (m *Mutator) addFragmentIn(frag *backend.MicroflowFragment, scope string) error {
+	oc := m.collection(scope)
+	if oc == nil {
+		return fmt.Errorf("loop %s has no object collection", scope)
+	}
 	objs := arrayElements(dGet(oc, "Objects"))
 	for _, obj := range frag.Objects {
 		d, err := m.deps.SerializeObject(obj)
@@ -1054,9 +1414,9 @@ func (m *Mutator) removeFlows(ids map[string]bool) {
 	setArray(m.doc, "Flows", keep)
 }
 
-// removeObject takes x out of the top-level collection.
+// removeObject takes x out of the collection that holds it.
 func (m *Mutator) removeObject(x *node) error {
-	oc := dDoc(m.doc, "ObjectCollection")
+	oc := m.collection(x.loop)
 	var keep []any
 	found := false
 	for _, el := range arrayElements(dGet(oc, "Objects")) {
@@ -1068,7 +1428,7 @@ func (m *Mutator) removeObject(x *node) error {
 		keep = append(keep, el)
 	}
 	if !found {
-		return fmt.Errorf("%s is not in the top-level collection", describeNode(x))
+		return fmt.Errorf("%s is not in its collection", describeNode(x))
 	}
 	setArray(oc, "Objects", keep)
 	return nil
@@ -1101,8 +1461,16 @@ func (m *Mutator) markRemoved(v any) {
 // control vectors are relative to its ends, so no curve changes. skip is a
 // node that is about to be removed.
 func (m *Mutator) shift(g *graph, ax axis, s int, cut float64, delta int, skip string) {
+	m.shiftIn(g, "", ax, s, cut, delta, skip)
+}
+
+// shiftIn is shift among the nodes of scope: the loop body with that $ID, or
+// the top level for "". A body node's coordinates are relative to its loop
+// box, so a shift inside a body moves the body's own nodes only; the box is
+// fitted to them afterwards (fitLoopTo).
+func (m *Mutator) shiftIn(g *graph, scope string, ax axis, s int, cut float64, delta int, skip string) {
 	for _, n := range g.order {
-		if !shifted(n, ax, s, cut, skip) {
+		if !shifted(n, scope, ax, s, cut, skip) {
 			continue
 		}
 		n.pos = n.pos.set(ax, n.pos.get(ax)+delta)
@@ -1110,14 +1478,14 @@ func (m *Mutator) shift(g *graph, ax axis, s int, cut float64, delta int, skip s
 	}
 }
 
-// shifted reports whether shift moves n: a top-level node past the cut that
-// is not a parameter. A parameter is not on the line the room is made on: it
+// shifted reports whether shift moves n: a node of scope past the cut that is
+// not a parameter. A parameter is not on the line the room is made on: it
 // belongs to the flow as a whole, and Studio Pro authors draw it above the
 // start event (63 of 71 in PedApp and JTSBootLogboek at the start's x, none
 // within 60px of the line). Moved, it drifted right with every insert and
 // describe printed a @position the script never stated (ako/mxcli#1547).
-func shifted(n *node, ax axis, s int, cut float64, skip string) bool {
-	return n.loop == "" && n.id != skip && n.typ != "Microflows$MicroflowParameter" &&
+func shifted(n *node, scope string, ax axis, s int, cut float64, skip string) bool {
+	return n.loop == scope && n.id != skip && n.typ != "Microflows$MicroflowParameter" &&
 		float64(s)*(float64(n.pos.get(ax))-cut) > 0
 }
 
@@ -1126,14 +1494,365 @@ func shifted(n *node, ax axis, s int, cut float64, skip string) bool {
 // something other than the script — a later fragment placed at its own stated
 // position would be left behind on the wrong side of a node that moved, and
 // re-running the script would move the node back (mendixlabs/mxcli#1598,
-// case 6) — so the caller refuses instead.
-func (m *Mutator) pinnedPast(g *graph, ax axis, s int, cut float64, skip string) *node {
+// case 6) — so the caller refuses instead. A node of a loop body is pinned in
+// its loop box's coordinates (PinInLoop).
+func (m *Mutator) pinnedPast(g *graph, scope string, ax axis, s int, cut float64, skip string) *node {
 	for _, n := range g.order {
-		if m.pinned[n.pos] && shifted(n, ax, s, cut, skip) {
+		if m.isPinned(scope, n.pos) && shifted(n, scope, ax, s, cut, skip) {
 			return n
 		}
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Loop boxes
+// ---------------------------------------------------------------------------
+
+// loopPadding is the room mxcli's layout leaves between a loop box's edge and
+// the body inside it (the executor's LoopPadding).
+const loopPadding = 50
+
+// bounds is the box around a collection's objects, in its coordinates.
+type bounds struct {
+	min, max point
+	n        int
+}
+
+// contentBounds returns the box around the objects of scope's collection —
+// notes included, as mxcli's layout sizes a loop box (fitContainerSize). It
+// reads the stored documents, so objects an operation has just added count.
+// The zero value for the top level, which has no box.
+func (m *Mutator) contentBounds(scope string) bounds {
+	var b bounds
+	if scope == "" {
+		return b
+	}
+	for _, el := range arrayElements(dGet(m.collection(scope), "Objects")) {
+		d, ok := el.(bson.D)
+		if !ok {
+			continue
+		}
+		p, sz := parsePoint(dString(d, "RelativeMiddlePoint")), parsePoint(dString(d, "Size"))
+		lo := point{p.X - sz.X/2, p.Y - sz.Y/2}
+		hi := point{p.X + sz.X/2, p.Y + sz.Y/2}
+		if b.n == 0 {
+			b.min, b.max = lo, hi
+		} else {
+			b.min = point{min(b.min.X, lo.X), min(b.min.Y, lo.Y)}
+			b.max = point{max(b.max.X, hi.X), max(b.max.Y, hi.Y)}
+		}
+		b.n++
+	}
+	return b
+}
+
+// fitLoopTo grows the box of the loop scope when an edit of its body —
+// before is the body's box before it — left the body reaching past it
+// (ako/mxcli#1693). A body may reach as close to the box's edge as it did
+// before, or loopPadding, whichever is closer: a Studio Pro-drawn body that
+// sat tight in its box is not a reason to grow. A body that still fits leaves
+// the box as it is. "" (an edit at top level) has no box to fit.
+func (m *Mutator) fitLoopTo(g *graph, scope string, before bounds) error {
+	if scope == "" {
+		return nil
+	}
+	l := g.nodes[scope]
+	if l == nil {
+		return fmt.Errorf("loop %s is not in the flow", scope)
+	}
+	after := m.contentBounds(scope)
+	if after.n == 0 {
+		return nil
+	}
+	allowMin := point{loopPadding, loopPadding}
+	allowMax := point{l.size.X - loopPadding, l.size.Y - loopPadding}
+	if before.n > 0 {
+		allowMin = point{min(allowMin.X, before.min.X), min(allowMin.Y, before.min.Y)}
+		allowMax = point{max(allowMax.X, before.max.X), max(allowMax.Y, before.max.Y)}
+	}
+	lo := point{max(0, allowMin.X-after.min.X), max(0, allowMin.Y-after.min.Y)}
+	hi := point{max(0, after.max.X-allowMax.X), max(0, after.max.Y-allowMax.Y)}
+	if lo == (point{}) && hi == (point{}) {
+		return nil
+	}
+	ax, s := loopAxis(g, l)
+	near, far := lo.get(ax), hi.get(ax)
+	if s < 0 {
+		near, far = far, near
+	}
+	if near > 0 {
+		return fmt.Errorf("the body of %s would need %dpx more room on the side its flow enters from; "+
+			"replace the loop's body instead, or make room in Studio Pro first", describeNode(l), near)
+	}
+	cross := ax.other()
+	grow := point{}
+	grow = grow.set(ax, far)
+	grow = grow.set(cross, 2*max(lo.get(cross), hi.get(cross)))
+	_, err := m.growLoop(g, l, grow, true)
+	return err
+}
+
+// loopAxis is the line a loop sits on: the direction of the flow that enters
+// it, by the side it enters at, else of the one that leaves it, else left to
+// right. The box grows along that line on its far side only, so the flows into
+// and out of the loop stay level and its predecessor stays where it is.
+func loopAxis(g *graph, l *node) (axis, int) {
+	for _, f := range g.incoming(l.id) {
+		switch idx, _ := flowEnd(f.doc, "Destination"); idx {
+		case sideLeft:
+			return axisX, 1
+		case sideRight:
+			return axisX, -1
+		case sideTop:
+			return axisY, 1
+		case sideBottom:
+			return axisY, -1
+		}
+	}
+	normal, _ := g.outgoing(l.id)
+	for _, f := range normal {
+		switch idx, _ := flowEnd(f.doc, "Origin"); idx {
+		case sideRight:
+			return axisX, 1
+		case sideLeft:
+			return axisX, -1
+		case sideBottom:
+			return axisY, 1
+		case sideTop:
+			return axisY, -1
+		}
+	}
+	return axisX, 1
+}
+
+// growLoop enlarges the box of loop l by grow (the width and height to add).
+// Along the line the loop sits on (loopAxis) the box grows on its far side,
+// its near edge staying where it is, and everything in the loop's own
+// collection past its far edge moves along — as the nodes past an inserted
+// fragment do. Across that line it grows on both sides alike, so its centre
+// stays on the line; nothing moves to make that room, and a box that would be
+// drawn over another node is refused. A loop in another loop's body may make
+// that box grow in turn.
+//
+// It returns where the box's old top-left corner is in the grown box. With
+// keepBody, the body's own nodes are moved by that much, so they stay where
+// they were drawn on the canvas.
+func (m *Mutator) growLoop(g *graph, l *node, grow point, keepBody bool) (point, error) {
+	if grow.X <= 0 && grow.Y <= 0 {
+		return point{}, nil
+	}
+	ax, s := loopAxis(g, l)
+	cross := ax.other()
+	far := max(0, grow.get(ax))
+	far += far % 2 // the centre moves by half of it
+	half := (max(0, grow.get(cross)) + 1) / 2
+	parentBefore := m.contentBounds(l.loop)
+
+	size, pos := l.size, l.pos
+	size = size.set(ax, size.get(ax)+far)
+	size = size.set(cross, size.get(cross)+2*half)
+	pos = pos.set(ax, pos.get(ax)+s*far/2)
+
+	if pos != l.pos && m.isPinned(l.loop, l.pos) {
+		return point{}, fmt.Errorf("%s has to grow by %dpx to fit its body, which moves its centre, and the script "+
+			"draws it where it is; %s", describeNode(l), far, roomAdvice)
+	}
+	if far > 0 {
+		cut := float64(l.pos.get(ax) + s*l.size.get(ax)/2)
+		if p := m.pinnedPast(g, l.loop, ax, s, cut, l.id); p != nil {
+			return point{}, fmt.Errorf("%s has to grow by %dpx to fit its body, and making room for it would move %s, "+
+				"which the script draws where it is; %s", describeNode(l), far, describeNode(p), roomAdvice)
+		}
+		m.shiftIn(g, l.loop, ax, s, cut, s*far, l.id)
+	}
+	if half > 0 {
+		lo := point{pos.X - size.X/2, pos.Y - size.Y/2}
+		hi := point{pos.X + size.X/2, pos.Y + size.Y/2}
+		for _, n := range g.order {
+			// A parameter is not on the line either: it belongs to the flow as
+			// a whole and sits above the start event, and mxcli's own layout
+			// draws a tall loop over it (measured: a nested loop with a
+			// decision, built by `create`, spans the parameters' row).
+			if n.loop != l.loop || n.id == l.id || n.typ == "Microflows$MicroflowParameter" {
+				continue
+			}
+			nlo := point{n.pos.X - n.size.X/2, n.pos.Y - n.size.Y/2}
+			nhi := point{n.pos.X + n.size.X/2, n.pos.Y + n.size.Y/2}
+			if nlo.X < hi.X && lo.X < nhi.X && nlo.Y < hi.Y && lo.Y < nhi.Y {
+				return point{}, fmt.Errorf("there is no free room for %s to grow to fit its body: at (%d, %d)-(%d, %d) "+
+					"it would be drawn over %s; move that object aside in Studio Pro first", describeNode(l),
+					lo.X, lo.Y, hi.X, hi.Y, describeNode(n))
+			}
+		}
+	}
+	l.size, l.pos = size, pos
+	dSet(l.doc, "RelativeMiddlePoint", pos.String())
+	dSet(l.doc, "Size", size.String())
+
+	off := point{}
+	off = off.set(cross, half)
+	if s < 0 {
+		off = off.set(ax, far)
+	}
+	if keepBody && off != (point{}) {
+		m.translateBody(g, l, off)
+	}
+	return off, m.fitLoopTo(g, l.loop, parentBefore)
+}
+
+// translateBody moves every node directly in loop l's body by off, in the
+// loop box's coordinates: the box grew on its top or left side, and the body
+// stays where it was drawn on the canvas.
+func (m *Mutator) translateBody(g *graph, l *node, off point) {
+	for _, el := range arrayElements(dGet(dDoc(l.doc, "ObjectCollection"), "Objects")) {
+		d, ok := el.(bson.D)
+		if !ok {
+			continue
+		}
+		p := parsePoint(dString(d, "RelativeMiddlePoint"))
+		dSet(d, "RelativeMiddlePoint", point{p.X + off.X, p.Y + off.Y}.String())
+	}
+	for _, n := range g.order {
+		if n.loop == l.id {
+			n.pos = parsePoint(dString(n.doc, "RelativeMiddlePoint"))
+		}
+	}
+}
+
+// ReplaceLoopBody replaces everything inside the stored loop target by the
+// body of the loop frag holds (ako/mxcli#1693): the loop itself — its $ID, its
+// position, its iterator and list, the flows into and out of it and the notes
+// on it — stays, and only what is inside it is rebuilt. frag is the fragment
+// the builder made of the loop restated with the new body: one loop object,
+// and the flows and note lines of its body. The new body is laid out as the
+// builder laid it out, centred across the stored box; a box too small for it
+// grows (growLoop), one large enough keeps its size.
+//
+// A note outside the loop attached to a node in its body, or a flow between
+// the body and the rest of the flow, would be left pointing at nothing, and is
+// refused.
+func (m *Mutator) ReplaceLoopBody(target model.ID, frag *backend.MicroflowFragment) error {
+	g := m.graph()
+	l, err := g.anyNode(target)
+	if err != nil {
+		return err
+	}
+	if l.typ != "Microflows$LoopedActivity" {
+		return fmt.Errorf("cannot replace the body of %s: only a loop has one", describeNode(l))
+	}
+	var built *microflows.LoopedActivity
+	for _, obj := range frag.Objects {
+		lp, ok := obj.(*microflows.LoopedActivity)
+		if !ok || obj.GetID() != frag.Entry || built != nil {
+			return fmt.Errorf("the new body of %s is not one loop's body", describeNode(l))
+		}
+		built = lp
+	}
+	if built == nil {
+		return fmt.Errorf("the new body of %s is not one loop's body", describeNode(l))
+	}
+	inBody := func(id string) bool {
+		for n := g.nodes[id]; n != nil && n.loop != ""; n = g.nodes[n.loop] {
+			if n.loop == l.id {
+				return true
+			}
+		}
+		return false
+	}
+	for _, f := range g.flows {
+		in1, in2 := inBody(f.origin), inBody(f.dest)
+		if in1 == in2 {
+			continue
+		}
+		inner := g.nodes[f.origin]
+		if in2 {
+			inner = g.nodes[f.dest]
+		}
+		if !f.isSequence() {
+			return fmt.Errorf("cannot replace the body of %s: a note outside the loop is attached to %s in its body, "+
+				"and would be left attached to nothing; move the note into the loop or detach it in Studio Pro first",
+				describeNode(l), describeNode(inner))
+		}
+		return fmt.Errorf("cannot replace the body of %s: flow %s runs between %s in its body and the rest of the flow",
+			describeNode(l), f.id, describeNode(inner))
+	}
+	d, err := m.deps.SerializeObject(built)
+	if err != nil {
+		return fmt.Errorf("serialize the new body: %w", err)
+	}
+	newBody := arrayElements(dGet(dDoc(d, "ObjectCollection"), "Objects"))
+	builtSize := point{built.Size.Width, built.Size.Height}
+
+	// Out with the stored body: its objects (nested loops' bodies with them)
+	// and every flow and note line inside it.
+	oc := dDoc(l.doc, "ObjectCollection")
+	if oc == nil {
+		return fmt.Errorf("%s has no object collection", describeNode(l))
+	}
+	if _, ok := dGet(oc, "Objects").(bson.A); !ok {
+		// An empty body may be stored without its list; it is written with
+		// the marker every object list of a loop carries.
+		oc = append(oc, bson.E{Key: "Objects", Value: bson.A{int32(3)}})
+		dSet(l.doc, "ObjectCollection", oc)
+	}
+	for _, el := range arrayElements(dGet(oc, "Objects")) {
+		m.markRemoved(el)
+	}
+	m.removeFlows(g.bodyFlows(l.id))
+	if !setArray(oc, "Objects", nil) {
+		return fmt.Errorf("%s has no Objects list", describeNode(l))
+	}
+	for _, n := range g.order {
+		if inBody(n.id) {
+			delete(g.nodes, n.id)
+		}
+	}
+
+	// The box: as stored where the new body fits it, grown where it does not.
+	grow := point{max(0, builtSize.X-l.size.X), max(0, builtSize.Y-l.size.Y)}
+	if _, err := m.growLoop(g, l, grow, false); err != nil {
+		return err
+	}
+	// The builder drew the body in a box of builtSize, from its left edge and
+	// centred across it; centred across the stored box it stays so.
+	dy := (l.size.Y - builtSize.Y) / 2
+	for _, el := range newBody {
+		if bd, ok := el.(bson.D); ok && dy != 0 {
+			p := parsePoint(dString(bd, "RelativeMiddlePoint"))
+			dSet(bd, "RelativeMiddlePoint", point{p.X, p.Y + dy}.String())
+		}
+	}
+	if !setArray(oc, "Objects", newBody) {
+		return fmt.Errorf("%s has no Objects list", describeNode(l))
+	}
+	for _, f := range frag.Flows {
+		if err := m.addFlow(f); err != nil {
+			return err
+		}
+	}
+	for _, af := range frag.AnnotationFlows {
+		ad, err := m.deps.SerializeAnnotationFlow(af)
+		if err != nil {
+			return fmt.Errorf("serialize annotation flow: %w", err)
+		}
+		if err := m.appendFlowDoc(ad); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// isDecision reports whether n is a split: a decision on a condition or by
+// type.
+func isDecision(n *node) bool {
+	return n.typ == "Microflows$ExclusiveSplit" || n.typ == "Microflows$InheritanceSplit"
+}
+
+// InLoopBody reports whether the stored object id is inside a loop body.
+func (m *Mutator) InLoopBody(id model.ID) bool {
+	n, ok := m.graph().nodes[string(id)]
+	return ok && n.loop != ""
 }
 
 // roomAdvice is the way out of a refused shift.
@@ -1351,8 +2070,14 @@ func (fb *fragmentBox) placeCentred(ax axis, c point) {
 // object a replace removes; onFlow the flow an insert goes on, which runs to
 // the fragment's entry afterwards rather than across it.
 func (fb *fragmentBox) checkRoom(g *graph, skip, onFlow string) error {
+	return fb.checkRoomIn(g, "", skip, onFlow)
+}
+
+// checkRoomIn is checkRoom among the nodes of scope: a loop body, in its
+// box's coordinates, or the top level for "".
+func (fb *fragmentBox) checkRoomIn(g *graph, scope, skip, onFlow string) error {
 	for _, n := range g.order {
-		if n.loop != "" || n.id == skip {
+		if n.loop != scope || n.id == skip {
 			continue
 		}
 		lo := point{n.pos.X - n.size.X/2, n.pos.Y - n.size.Y/2}

@@ -40,7 +40,12 @@ func validateRetrieveMembers(ctx *ExecContext, retrieves []retrieveConstraintRef
 		if r.entity == "" || r.stored == "" {
 			continue
 		}
-		for _, bad := range unresolvableXPathStepsWith(ctx, m, r.stored, r.entity, resolve) {
+		for _, bad := range unresolvableXPathStepsAndLeadingEntity(ctx, m, r.stored, r.entity, resolve) {
+			if bad.kind == "entity" {
+				errs = append(errs, fmt.Sprintf("retrieve from %s: %s",
+					r.entity, leadingEntityStepMessage(ctx, r.stored, bad.name, r.entity)))
+				continue
+			}
 			errs = append(errs, fmt.Sprintf(
 				"retrieve from %s: the constraint names %q, which is neither an attribute nor an association of it — mxbuild rejects the constraint (CE0161 \"Error(s) in XPath constraint\")%s",
 				r.entity, bad.name, systemMemberSpellingHint(bad.name)))

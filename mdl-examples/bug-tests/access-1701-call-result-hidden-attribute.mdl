@@ -1,0 +1,62 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1701 (mendixlabs/mxcli#1654) — a Hidden attribute of a Protected
+-- (add-on) module read on the result of `call microflow` (CE1406)
+-- ============================================================================
+--
+-- `check -p --references` typed the variables of parameters, create, retrieve
+-- and loop iterators, but not the output of `call microflow`. A Hidden
+-- attribute read on a call result was therefore not reported, while the same
+-- read through a parameter was; mxbuild refused it:
+--
+--   Create variable activity 'Create String variable' is not allowed to use
+--     attribute 'BugAccess1701.Request.Secret' because app modules cannot
+--     reference hidden elements in add-on modules.                 (CE1406)
+--
+-- Measured on a blank Mendix 11.13.0 app, the module set to Protected, one
+-- microflow per shape: a declare, an end event and a change on the result of
+-- a Usable microflow, and a change on the iterator of a loop over a returned
+-- list, were each refused on the Hidden Secret; Code (Usable) beside them was
+-- 0 errors, and so was all of it inside the add-on. The member-existence check
+-- had the same blind spot: a misspelled member a CHANGE assigns on a call
+-- result now reports CE1613, as it does on a parameter.
+--
+-- How to reproduce: run this file against an app, set BugAccess1701 to
+-- Protected (Studio Pro: module settings, export level "Protected", type
+-- Add-on), then run it again with `mxcli check … -p app.mpr --references`:
+-- one CE1406 (statement 4), and exec refuses. As an ordinary module the whole
+-- file is valid, which is what `make check-mdl` runs.
+-- ============================================================================
+
+CREATE MODULE BugAccess1701;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugAccess1701.Request (
+  Code: String(50) EXPORT LEVEL api,
+  Secret: String(50)
+) EXPORT LEVEL api;
+
+CREATE OR MODIFY MICROFLOW BugAccess1701.Request_GetFirst ()
+RETURNS BugAccess1701.Request AS $Request
+EXPORT LEVEL api
+BEGIN
+  $Request = CREATE BugAccess1701.Request (Code = 'A');
+  RETURN $Request;
+END;
+
+-- Refused once the module is Protected: Secret is Hidden.
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1701_CallResultSecret ()
+RETURNS String AS $Secret
+BEGIN
+  $Request = CALL MICROFLOW BugAccess1701.Request_GetFirst();
+  DECLARE $Secret String = $Request/Secret;
+  RETURN $Secret;
+END;
+
+-- Control: the Usable Code on the same call result stays clean.
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1701_CallResultCode ()
+RETURNS String AS $Code
+BEGIN
+  $Request = CALL MICROFLOW BugAccess1701.Request_GetFirst();
+  DECLARE $Code String = $Request/Code;
+  RETURN $Code;
+END;

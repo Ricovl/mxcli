@@ -497,6 +497,15 @@ type MicroflowAnnotation struct {
 	// (`@annotation(id: n1)`), which attaches a note already declared above.
 	Text string
 
+	// Existing is the `existing:` in `@annotation(existing: '…')`: the text of
+	// a note already STORED in the flow, which the statement is attached to
+	// instead of getting a note of its own. Only an `alter microflow|nanoflow`
+	// fragment has a stored flow to look in; the text has to match exactly one
+	// of its notes (ako/mxcli#1695). It stands alone — a stored note keeps its
+	// own text and place, so `text:`, `id:`, `position:` and `size:` are
+	// refused beside it rather than half-applied.
+	Existing string
+
 	// Position and Size are the note's own canvas geometry, which Mendix stores per
 	// annotation and MDL had no way to spell. Nil means "let the writer place
 	// it" — see defaultAnnotationGeometry in mdl/executor, which the builder and

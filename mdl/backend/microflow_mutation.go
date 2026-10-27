@@ -49,8 +49,23 @@ type MicroflowMutator interface {
 	InsertBefore(target model.ID, frag *MicroflowFragment) error
 	// Replace puts frag in target's place and removes target.
 	Replace(target model.ID, frag *MicroflowFragment) error
-	// Drop removes target and joins its incoming flows to its successor.
+	// Drop removes target and joins its incoming flows to its successor. A
+	// decision of the shape `alter … insert` produces goes with its paths and
+	// its merge (ako/mxcli#1694); any other decision is refused.
 	Drop(target model.ID) error
+	// ReplaceLoopBody replaces everything inside the loop target by the body
+	// of the one loop frag holds — the loop restated with its new body, as the
+	// builder made it — and keeps the loop itself: its $ID, position,
+	// iterator, list and the flows and notes around it (ako/mxcli#1693). The
+	// box keeps its size where the new body fits it, and grows where it does
+	// not.
+	ReplaceLoopBody(target model.ID, frag *MicroflowFragment) error
+	// DecisionNodes returns the activities on the paths of the decision
+	// target when it has the shape `alter … insert` produces — two paths of
+	// plain activities, or none, rejoining at one merge — which a Drop or a
+	// Replace of it takes out with it (ako/mxcli#1694); nil for any other
+	// target.
+	DecisionNodes(target model.ID) []model.ID
 	// RemoveNotes removes the annotations attached to target, with their
 	// lines, so that a Replace or Drop after it does not keep them
 	// (ako/mxcli#859: a `create or modify` states an activity's notes). A
@@ -63,6 +78,12 @@ type MicroflowMutator interface {
 	// relative to the stand-in, but relative to target, and its line runs to
 	// target.
 	AddNotes(target model.ID, frag *MicroflowFragment) error
+	// LinkNote draws a line from note, a note already in the flow, to object,
+	// an object in the flow — one an earlier call added included — unless one
+	// is drawn already. The note keeps its $ID, text and place; the line
+	// attaches at the sides of the two that face each other where they are
+	// drawn now (ako/mxcli#1695).
+	LinkNote(note, object model.ID) error
 	// SetFreeNotes replaces the flow's free notes — notes on the canvas,
 	// attached to nothing — by the ones frag holds (its Annotation objects
 	// that no line in it attaches; its other objects are ignored). Nothing
@@ -84,6 +105,9 @@ type MicroflowMutator interface {
 	// stored flow keeps saying what the script says (mendixlabs/mxcli#1598,
 	// case 6).
 	Pin(at model.Point) error
+	// PinInLoop is Pin for a node of the body of the loop: at is in the loop
+	// box's coordinates (ako/mxcli#1693).
+	PinInLoop(loop model.ID, at model.Point) error
 	// SetHeader writes the document properties of declared — a
 	// *microflows.Microflow or *microflows.Nanoflow built from the statement,
 	// with every property it does not state carried from the stored one — onto

@@ -439,7 +439,9 @@ func init() {
 			"          association or microflow of it.\n" +
 			"In an ordinary module mxbuild accepts either level. `check -p --references`\n" +
 			"reports both, a flow's attribute and association uses included (change /\n" +
-			"create members, association retrieves, XPath, `$v/…` expressions).\n\n" +
+			"create members, association retrieves, XPath, `$v/…` expressions — on a\n" +
+			"call microflow result too), and the entity a database retrieve, create or\n" +
+			"create list names.\n\n" +
 			"An ABSENT clause keeps the stored level, so re-running describe output or a\n" +
 			"`create or modify` that says nothing about it never hides a usable element.\n" +
 			"`describe` prints `export level api` and omits the default. Needs Mendix 9.3+.",

@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -551,6 +552,13 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 		}
 	}
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	tbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textbox", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	tb.ReadOnlyStyle = tbStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
 		return nil, err
@@ -611,6 +619,30 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		}
 	}
 
+	// NumberOfLines and Autocomplete; unset keeps Studio Pro's 5 lines and
+	// Autocomplete on (ako/mxcli#977).
+	if raw, ok := lookupPropCI(w, "NumberOfLines"); ok {
+		n, ok := nonNegativeInt32(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidationf("textarea %q: NumberOfLines is a whole number of 0 or more, not %v", w.Name, raw)
+		}
+		ta.NumberOfLines = &n
+	}
+	if raw, ok := lookupPropCI(w, "Autocomplete"); ok {
+		v, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("textarea Autocomplete", err)
+		}
+		ta.Autocomplete = &v
+	}
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	taStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textarea", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	ta.ReadOnlyStyle = taStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &ta.OnChangeAction); err != nil {
 		return nil, err
@@ -660,6 +692,13 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 		return nil, err
 	}
 	dp.FormattingInfo = fi
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	dpStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "datepicker", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	dp.ReadOnlyStyle = dpStyle
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {
@@ -860,10 +899,8 @@ func readOnlyStyleValue(raw, kind, widgetName string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
-	for _, member := range []string{"Inherit", "Control", "Text"} {
-		if strings.EqualFold(raw, member) {
-			return member, nil
-		}
+	if member, ok := pages.CanonicalReadOnlyStyle(raw); ok {
+		return member, nil
 	}
 	return "", mdlerrors.NewValidationf(
 		"%s %q: ReadOnlyStyle %q is not a Mendix read-only style — use Inherit, Control or Text",
@@ -897,6 +934,13 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 	if err := pb.checkInputBinding(w, pb.entityContext); err != nil {
 		return nil, err
 	}
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	rbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "radiobuttons", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	rb.ReadOnlyStyle = rbStyle
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &rb.OnChangeAction); err != nil {
@@ -1789,6 +1833,33 @@ func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// nonNegativeInt32 reads a whole-number property value of 0 or more that fits
+// the 32-bit integer Mendix stores. A string is parsed at that width, so no
+// value is narrowed after the fact.
+func nonNegativeInt32(v any) (int32, bool) {
+	var s string
+	switch n := v.(type) {
+	case int:
+		s = strconv.Itoa(n)
+	case int64:
+		s = strconv.FormatInt(n, 10)
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		s = strconv.FormatFloat(n, 'f', -1, 64)
+	case string:
+		s = strings.TrimSpace(n)
+	default:
+		return 0, false
+	}
+	i, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || i < 0 {
+		return 0, false
+	}
+	return int32(i), true
 }
 
 // propBool coerces a widget property value to a bool. GetBoolProp cannot be used

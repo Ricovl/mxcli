@@ -111,7 +111,7 @@ The `DataSource` property determines how a data widget obtains its data:
 | Parameter | `DataSource: $ParamName` | Binds to a page parameter or enclosing data view |
 | Database | `DataSource: DATABASE Module.Entity` | Retrieves from database |
 | Selection | `DataSource: SELECTION widgetName` | Listens to selection on another widget |
-| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data |
+| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data. Takes `with (FormValidations: All\|Widget\|None)` like a microflow action (default `All`); no other setting |
 
 ### Action Types
 
@@ -167,6 +167,33 @@ A setting left out keeps its default, and `DESCRIBE` prints only the settings
 that differ from it. An unknown key, or a setting the action does not have, is
 an error. For `CREATE OBJECT … THEN SHOW PAGE …` the list goes at the end and
 belongs to the create action.
+
+#### Return value mappings
+
+A microflow or nanoflow call can map what the flow returns back onto the page —
+Studio Pro's **Return value mappings** (Mendix 11.5+). The `returns ( … )` list
+goes after the arguments and before `with ( … )`, one `target = source` per row:
+
+```sql
+DATAVIEW dvVehicle (DataSource: $Vehicle) {
+  ACTIONBUTTON btnRefresh (Caption: 'Refresh',
+    Action: CALL MICROFLOW Shop.ACT_Vehicle_Get returns (
+      Brand = $ActionReturnValue/Brand,     -- an attribute of the returned object
+      $stringResult = $ActionReturnValue,   -- the return value itself
+      Brand = 'Demo brand'))                -- any expression
+}
+```
+
+| Target | Means | Needs |
+|--------|-------|-------|
+| `Attr` (bare) | an attribute of the enclosing data container's object | Mendix 11.15 — mx 11.13 and 11.14 report CE7006 on it |
+| `$name` | a page variable (`Variables: ( … )`) | Mendix 11.5 |
+
+The source is `$ActionReturnValue`, `$ActionReturnValue/Attr` (the flow must
+return an object that has `Attr`), or any expression. `DESCRIBE` prints the
+stored mappings, and re-running a statement without the list removes them — the
+statement is the authority. A mapping `DESCRIBE` cannot spell (a path over an
+association) is printed as a comment under the widget, saying a re-run drops it.
 
 A microflow or nanoflow action is a **call**: every parameter the flow declares
 needs an argument, or Mendix rejects the page with **CE1571**. An enclosing data

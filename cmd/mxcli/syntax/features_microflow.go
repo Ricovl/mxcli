@@ -61,7 +61,8 @@ func init() {
 			"template '...', like a REST body. Placeholders {1}, {2} ... are filled by\n" +
 			"WITH; each parameter must be a String (CE0117) and every placeholder needs\n" +
 			"one (CE0720). Any other expression is stored as '{1}' with the expression\n" +
-			"as its parameter.\n\n" +
+			"as its parameter, so an expression followed by WITH is refused: it has no\n" +
+			"{n} to fill (MDL-TEMPLATE01).\n\n" +
 			"Headers are plain strings, not expressions: letters, digits and hyphens in\n" +
 			"the name, one line in the value (MDL-EMAIL03). Attachment names a\n" +
 			"System.FileDocument variable, a list of them, or a specialization.\n" +
@@ -596,20 +597,23 @@ func init() {
 			"trace", "critical", "node", "message template",
 			"stacktrace", "stack trace", "include latest stack trace",
 		},
-		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).\n-- An expression message (LOG $Msg;) is stored as '{1}' with it as the parameter,\n-- so an expression followed by WITH (...) has no {n} to fill and is refused\n-- (MDL-TEMPLATE01) — as for SHOW MESSAGE, VALIDATION FEEDBACK and SEND EMAIL.",
 		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);\nLOG ERROR NODE 'OrderService' 'Failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;",
 	})
 
 	Register(SyntaxFeature{
 		Path:    "microflow.alter",
-		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place",
+		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place, or replace a loop's body",
 		Keywords: []string{
 			"alter microflow", "alter nanoflow", "insert after", "insert before",
 			"replace", "drop activity", "patch microflow", "splice", "handle",
+			"replace body", "loop body", "replace body of",
+			"existing note", "attach stored note",
 		},
 		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
 			"  INSERT AFTER|BEFORE <target> BEGIN <statements> END;\n" +
 			"  REPLACE <target> WITH BEGIN <statements> END;\n" +
+			"  REPLACE BODY OF <loop> WITH BEGIN <statements> END;\n" +
 			"  DROP <target>;\n" +
 			"};\n\n" +
 			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
@@ -620,19 +624,49 @@ func init() {
 			"-- stored flow before any operation runs; an ambiguous or unknown target is an error.\n" +
 			"-- Only the new activities, the rewired flows and the objects moved to make room change;\n" +
 			"-- every other element keeps its $ID, position and curve.\n" +
+			"-- Inside a loop body, plain activities are inserted, replaced and dropped the same way,\n" +
+			"-- the loop box growing when the body no longer fits (ako/mxcli#1693).\n" +
+			"-- REPLACE BODY OF <loop> keeps the loop itself (its $ID, position, iterator and list)\n" +
+			"-- and rebuilds only what is inside it: the way to put a decision, a nested loop or a\n" +
+			"-- return in a loop body. <loop> is the loop's handle: loop $It in $Items, while $N < 3.\n" +
+			"-- DROP/REPLACE of a decision takes it out whole when it has the shape INSERT produces:\n" +
+			"-- two paths of plain activities, or none, rejoining at one merge (ako/mxcli#1694).\n" +
 			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
-			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
-			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
-			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.\n" +
+			"-- drop/replace of any other decision or of an activity with an error handler, a decision, loop,\n" +
+			"-- return or error handler put in a loop body (use REPLACE BODY OF), a fragment that\n" +
+			"-- returns, and a fragment variable that clashes with one the flow has or reads one not\n" +
+			"-- declared on the path. Over --mcp only insert is supported, and not inside a loop body.\n" +
 			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
-			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.",
-		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.\n" +
+			"-- A fragment statement joins a note ALREADY in the flow with\n" +
+			"--   @annotation(existing: 'the note''s text')\n" +
+			"-- named by its text exactly as describe prints it. The note keeps its $ID, text and\n" +
+			"-- place; a text that no note reads, or that several notes read, is refused (the\n" +
+			"-- refusal lists them). `existing:` stands alone and never creates a note — a note of\n" +
+			"-- the statement's own is `@annotation 'text'`. The `id:` labels describe prints are\n" +
+			"-- not stored, so a fragment cannot name a stored note by one (ako/mxcli#1695).",
+		Example: "mdl 1;\nalter microflow FeedbackModule.VAL_Feedback {\n" +
 			"  insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;\n" +
 			"  replace set $ValidFeedback = false @3 with begin\n" +
 			"    set $ValidFeedback = false;\n" +
 			"    log warning node 'Feedback' 'Email rejected';\n" +
 			"  end;\n" +
 			"  drop log debug node 'Feedback' *;\n" +
+			"};\n\n" +
+			"alter microflow Shop.ACT_ProcessLines {\n" +
+			"  replace body of loop $Line in $Lines with begin\n" +
+			"    if $Line/Quantity > 0 then\n" +
+			"      change $Line (Processed = true);\n" +
+			"    end if;\n" +
+			"    commit $Line;\n" +
+			"  end;\n" +
+			"};\n\n" +
+			"-- The new statement joins the note the flow already has.\n" +
+			"alter microflow Shop.ACT_ProcessOrder {\n" +
+			"  insert after $Order begin\n" +
+			"    @annotation(existing: 'Validates the order')\n" +
+			"    log info node 'Shop' 'order validated';\n" +
+			"  end;\n" +
 			"};",
 		SeeAlso: []string{"microflow"},
 	})
@@ -823,7 +857,7 @@ func init() {
 			"validation", "feedback", "validation feedback",
 			"error message", "field error", "form validation",
 		},
-		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);",
+		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);\n\n-- The message is a template: an expression (MESSAGE $Text) is stored as '{1}'\n-- with it as the parameter, and one followed by WITH is refused (MDL-TEMPLATE01).",
 		Example: "VALIDATION FEEDBACK $Order/Quantity MESSAGE 'Quantity must be positive';\nVALIDATION FEEDBACK $Customer/Email MESSAGE '{1} is not valid'\n  WITH ({1} = $Customer/Email);",
 		SeeAlso: []string{"microflow.error-handling"},
 	})
@@ -852,7 +886,9 @@ func init() {
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +
-			"@annotation(id: n1)                   -- attaches THAT note to another activity\n\n" +
+			"@annotation(id: n1)                   -- attaches THAT note to another activity\n" +
+			"@annotation(existing: 'note text')    -- ALTER fragments only: attaches the stored note\n" +
+			"                                      -- with that text (it must be the only one)\n\n" +
 			"An @anchor never reaches the far end of its own outgoing flow: that end is\n" +
 			"the NEXT statement's `to:`. A straight vertical edge from A down to B is\n" +
 			"@anchor(from: bottom) on A and @anchor(to: top) on B; `to: top` on A alone\n" +
@@ -916,6 +952,13 @@ func init() {
 			"is scoped to the flow being authored and is not stored in the model —\n" +
 			"DESCRIBE re-derives labels, and emits one only for a note that really is\n" +
 			"shared. Two notes with identical text and no id stay two notes.\n\n" +
+			"An ALTER fragment is built alone, so it cannot see those labels; it names a\n" +
+			"note already stored in the flow by its text: @annotation(existing: '…'). The\n" +
+			"text must be the text of exactly one note of the flow (CRLF and LF line\n" +
+			"breaks match), or the statement is refused, listing the candidates. The note\n" +
+			"keeps its $ID, text and place, so `existing:` takes no id:, text:, position:\n" +
+			"or size:, and a statement that states the whole flow refuses it. DESCRIBE\n" +
+			"never prints it: a whole flow declares its notes. (ako/mxcli#1695)\n\n" +
 			"position:/size: are the note's own geometry, omitted whenever they match\n" +
 			"what a rewrite re-derives (100px above the activity, stacked 60px per extra\n" +
 			"note, 200x50), so an ordinary note keeps the short form. (#1077)",

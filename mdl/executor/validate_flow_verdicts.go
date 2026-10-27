@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -343,6 +344,20 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 	if err != nil {
 		return nil, "", nil // no such flow: reference validation reports it
 	}
+	refusal := func(err error) []linter.Violation {
+		return []linter.Violation{{
+			RuleID:   alterFlowRefusedRule,
+			Severity: linter.SeverityError,
+			Message:  "exec would refuse this statement and write nothing: " + err.Error(),
+			Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
+		}}
+	}
+	// A stored note named by a text that names none, or several, is a
+	// refusal, not something the script could still declare: resolved before
+	// a fragment is built, by the function exec's plan calls (ako/mxcli#1695).
+	if err := a.resolveStoredNotes(); err != nil {
+		return refusal(err), "", nil
+	}
 	// A fragment that does not build against the stored project is not
 	// predictable (see CheckFlowVerdicts). Only the builder's own errors say
 	// so; a fragment that builds and cannot be spliced is a refusal. Each is
@@ -352,8 +367,23 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 		if len(op.Body) == 0 {
 			continue
 		}
+		body := op.Body
+		if op.Op == ast.AlterFlowReplaceBody {
+			// A loop's new body is built inside the loop restated, as exec
+			// builds it (replaceBody): its iterator is typed from the list.
+			// A target that is no stored loop is the plan's to refuse.
+			c, err := mfmutator.ResolveText(a.cands, op.Target)
+			if err != nil {
+				continue
+			}
+			header, err := a.storedLoopStatement(ctx, c)
+			if err != nil {
+				continue
+			}
+			body = []ast.MicroflowStatement{withLoopBody(header, op.Body)}
+		}
 		fb := a.fragmentBuilder(ctx)
-		oc := fb.buildFlowGraph(op.Body, nil)
+		oc := fb.buildFlowGraph(body, nil)
 		if errs := fb.GetErrors(); len(errs) > 0 {
 			return nil, buildDependency(strings.Join(errs, "\n")), nil
 		}
@@ -370,12 +400,7 @@ func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Vio
 	if errors.As(err, &nf) {
 		return nil, "", nil
 	}
-	return []linter.Violation{{
-		RuleID:   alterFlowRefusedRule,
-		Severity: linter.SeverityError,
-		Message:  "exec would refuse this statement and write nothing: " + err.Error(),
-		Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
-	}}, "", nil
+	return refusal(err), "", nil
 }
 
 // FormatUnpredictedFlows is the note check and exec's preflight print for

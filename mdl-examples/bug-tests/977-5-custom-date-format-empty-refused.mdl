@@ -1,0 +1,34 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 5 — "`alter set (CustomDateFormat: '')` is not refused on
+-- a picker already set to Custom, because properties are applied one at a
+-- time. It produces CE0493" ("Date format is custom but no format string is
+-- specified").
+--
+-- The rule is about the widget a statement leaves behind, so it is checked
+-- once the whole SET is applied. On the picker below,
+--
+--   set (CustomDateFormat: '') on dpStarts
+--
+-- is now refused, naming CE0493, and nothing is written. Clearing the pattern
+-- and switching to another DateFormat in the same statement is a valid result
+-- and goes through, as the last statement here does.
+--
+-- Measured on 11.13.0: the pre-fix binary applies the refused statement and
+-- mx check reports CE0493; the fixed binary refuses it and mx check is 0
+-- errors.
+-- ============================================================================
+
+create module BugCustomDateEmpty;
+
+create persistent entity BugCustomDateEmpty.Shift (Starts: DateTime);
+
+create page BugCustomDateEmpty.Shift_Edit (Title: 'Shift', Layout: Atlas_Core.Atlas_Default, Params: ($Shift: BugCustomDateEmpty.Shift)) {
+  dataview dvShift (DataSource: $Shift) {
+    datepicker dpStarts (Attribute: Starts, DateFormat: Custom, CustomDateFormat: 'dd-MM-yyyy')
+  }
+};
+
+alter page BugCustomDateEmpty.Shift_Edit {
+  set (CustomDateFormat: '', DateFormat: Date) on dpStarts
+};

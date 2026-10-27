@@ -98,6 +98,10 @@ type microflowValidator struct {
 	// excluded marks an @excluded document. mxbuild does not check one, so the
 	// #893 rules stand down for it — see skipCEGapRules.
 	excluded bool
+	// fragment marks the body of an `alter microflow|nanoflow` operation: a
+	// piece of a stored flow, whose notes `@annotation(existing: '…')` can
+	// attach to (ako/mxcli#1695). Anything else states a whole flow.
+	fragment bool
 	// voids resolves which Java/JavaScript action calls target a void action;
 	// such a call declares no variable (MDL063, #953). May be nil.
 	voids *voidCodeActions
@@ -122,6 +126,9 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkRetrieveLimitOneAsList(body)
 	v.checkRetrieveListAsObject(body)
 	v.checkShowMessageType(body)
+	// MDL-TEMPLATE01: a message written as an expression with `with (…)`
+	// (ako/mxcli#1683). Same function exec calls.
+	v.checkMessageTemplates(body)
 	v.checkRetrieveOverSystemAssociation(body)
 	v.checkSetOnObjectVariable(v.params, body)
 	v.checkSystemMemberChange(body)
@@ -1899,7 +1906,34 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 				"`@annotation(id: n1, text: 'text', position: (x, y), size: (w, h))` where every parameter "+
 				"except one of `id:`/`text:` is optional. `id:` names a note so a later "+
 				"`@annotation(id: n1)` attaches THAT note to another activity instead of creating a "+
-				"second one (mendixlabs/mxcli#1077).")
+				"second one (mendixlabs/mxcli#1077). In an `alter` fragment, `@annotation(existing: 'text')` "+
+				"attaches a note already stored in the flow (ako/mxcli#1695).")
+	}
+	v.checkExistingNotes(ann)
+}
+
+// checkExistingNotes refuses an `@annotation(existing: '…')` that cannot
+// attach a stored note: one beside a parameter that describes a note of its
+// own, and one in a statement that states a whole flow, where there is no
+// stored flow to attach from. The builder refuses both at exec with the same
+// words; whether the text names exactly one stored note is the plan's to say,
+// against the project (resolveStoredNotes, ako/mxcli#1695).
+func (v *microflowValidator) checkExistingNotes(ann *ast.ActivityAnnotations) {
+	for _, note := range append(append([]ast.MicroflowAnnotation{}, ann.Notes...), ann.FreeNotes...) {
+		if note.Existing == "" {
+			continue
+		}
+		if msg := existingNoteMisuse(note); msg != "" {
+			v.addViolation("MDL079", linter.SeverityError, msg,
+				"Write `@annotation(existing: 'text')` alone to attach the stored note, or a note of the "+
+					"statement's own without `existing:`.")
+			continue
+		}
+		if !v.fragment {
+			v.addViolation("MDL079", linter.SeverityError, existingNoteOutsideAlter(note.Existing),
+				"Name a stored note by its text in `alter microflow M.F { insert after … begin "+
+					"@annotation(existing: 'text') … end; }`.")
+		}
 	}
 }
 
@@ -1922,15 +1956,23 @@ func (v *microflowValidator) checkAnnotationLabels(body []ast.MicroflowStatement
 			if ann := ast.StatementAnnotations(s); ann != nil {
 				for _, note := range append(append([]ast.MicroflowAnnotation{}, ann.Notes...), ann.FreeNotes...) {
 					switch {
-					case note.Label == "":
+					case note.Label == "" || note.Existing != "":
+						// `existing:` beside `id:` is checkExistingNotes' to refuse.
 					case note.Text != "":
 						declared[note.Label] = true
 					case !declared[note.Label]:
+						hint := fmt.Sprintf("The FIRST mention of a note carries its text: "+
+							"`@annotation(id: %s, text: '…')`. Later mentions attach that same note to "+
+							"another activity with `@annotation(id: %s)`.", note.Label, note.Label)
+						if v.fragment {
+							// The labels describe prints are not stored, so a
+							// fragment cannot see the stored flow's (ako/mxcli#1695).
+							hint += " A note already stored in the flow is attached by its text: " +
+								"`@annotation(existing: '…')`."
+						}
 						v.addViolation("MDL079", linter.SeverityError,
 							fmt.Sprintf("`@annotation(id: %s)` refers to a note that has not been declared above it", note.Label),
-							fmt.Sprintf("The FIRST mention of a note carries its text: "+
-								"`@annotation(id: %s, text: '…')`. Later mentions attach that same note to "+
-								"another activity with `@annotation(id: %s)`.", note.Label, note.Label))
+							hint)
 					}
 				}
 			}

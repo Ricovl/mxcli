@@ -641,7 +641,7 @@ func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any
 		// One suffix per emitted param, in the same order, zipped in after the
 		// value string is chosen so a DataGrid2 dynamic-text column's per-parameter
 		// formatting round-trips through DESCRIBE (ledger #77).
-		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
+		suffixes = append(suffixes, formatParamFormatSuffix(ctx, pMap))
 		// Check for Expression first (literal value)
 		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
 			// The expression as stored. `toString($Order/Total)` used to be

@@ -10,7 +10,7 @@ import (
 )
 
 // exitAlterFlowStatement builds an AlterFlowStmt from
-// ALTER MICROFLOW|NANOFLOW Module.Name { insert / replace / drop }.
+// ALTER MICROFLOW|NANOFLOW Module.Name { insert / replace / replace body of / drop }.
 func (b *Builder) exitAlterFlowStatement(ctx *parser.AlterStatementContext) {
 	stmt := &ast.AlterFlowStmt{Nanoflow: ctx.NANOFLOW() != nil}
 	if qn := ctx.QualifiedName(); qn != nil {
@@ -24,6 +24,8 @@ func (b *Builder) exitAlterFlowStatement(ctx *parser.AlterStatementContext) {
 			o.Op = ast.AlterFlowInsertBefore
 		case op.INSERT() != nil:
 			o.Op = ast.AlterFlowInsertAfter
+		case op.REPLACE() != nil && op.BODY() != nil:
+			o.Op = ast.AlterFlowReplaceBody
 		case op.REPLACE() != nil:
 			o.Op = ast.AlterFlowReplace
 		default:

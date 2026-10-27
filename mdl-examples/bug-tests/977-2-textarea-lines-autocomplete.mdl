@@ -1,0 +1,30 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#977 item 2 — "The text area's `NumberOfLines` and `Autocomplete`
+-- are not round-tripped."
+--
+-- describe printed neither, nothing parsed either, and the writer wrote 5 lines
+-- and no Autocomplete whatever was stored. In PedApp and TestApp a text area
+-- stores 5 lines on 52 of 58, 2 on 4 and 0 on 2, and Autocomplete true on all
+-- 58; a Studio Pro text area of 2 or 0 lines, or with Autocomplete off, came
+-- back from describe → exec with 5 and on.
+--
+-- After the fix both are written, described when not the default (5, true),
+-- and settable with `alter page … set`; describe → exec reports "Unchanged
+-- page".
+-- ============================================================================
+
+create module BugTextAreaLines;
+
+create persistent entity BugTextAreaLines.Note (Body: String(unlimited), Summary: String(unlimited));
+
+create page BugTextAreaLines.Note_Edit (Title: 'Note', Layout: Atlas_Core.Atlas_Default, Params: ($Note: BugTextAreaLines.Note)) {
+  dataview dvNote (DataSource: $Note) {
+    textarea textBody (Label: 'Body', Attribute: Body, NumberOfLines: 2, Autocomplete: false)
+    textarea textSummary (Label: 'Summary', Attribute: Summary)
+  }
+};
+
+alter page BugTextAreaLines.Note_Edit {
+  set (NumberOfLines: 0) on textSummary
+};

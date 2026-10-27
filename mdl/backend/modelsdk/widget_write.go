@@ -237,6 +237,13 @@ func init() {
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})
+	// One return value mapping: Studio Pro writes all four slots on every row,
+	// null where the row does not use them and Expression "" (ako/TestApp
+	// Pages.OutputMappingButton, 11.15).
+	codec.RegisterTypeDefaults("Forms$OutputMapping", codec.TypeDefaults{
+		NullFields:        []string{"AttributeRef", "SourceAttributeRef", "SourceVariable"},
+		EmptyStringFields: []string{"Expression"},
+	})
 	// A nanoflow DATA SOURCE is flat — no settings child — and carries its
 	// (possibly empty) mapping list directly, marker 2. Measured: 5 of 5 Studio
 	// Pro-authored Forms$NanoflowSource in Feedback v4.0.2 at 11.13.0.
@@ -442,6 +449,11 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			if tp.ConditionalVisibility != nil {
 				tpg.SetConditionalVisibilitySettings(conditionalVisibilityToGen(tp.ConditionalVisibility))
 			}
+			// Its badge, a client template like a dynamic text's content
+			// (mendixlabs/mxcli#1644); null otherwise, as Studio Pro writes it.
+			if tp.Badge != nil {
+				tpg.SetBadge(clientTemplateToGen(tp.Badge))
+			}
 			for _, c := range tp.Widgets {
 				cg, err := widgetToGen(c)
 				if err != nil {
@@ -582,7 +594,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterKeyPressAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
@@ -676,11 +688,15 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
 		g.SetMaxLengthCode(maxLengthCodeFor(x.SourceVariable))
-		lines := int32(x.Rows)
-		if lines == 0 {
-			lines = 5
+		// Unset writes Studio Pro's defaults: 5 lines and Autocomplete on, as on
+		// all 58 text areas in PedApp and TestApp. Autocomplete was not written
+		// at all, and a stored 0 lines came back as 5 (ako/mxcli#977).
+		lines := int32(5)
+		if x.NumberOfLines != nil {
+			lines = *x.NumberOfLines
 		}
 		g.SetNumberOfLines(lines)
+		g.SetAutocomplete(x.Autocomplete == nil || *x.Autocomplete)
 		onChangeTA, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
 			return nil, err
@@ -689,7 +705,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
@@ -725,7 +741,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetOnEnterAction(noActionGen())
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -743,7 +759,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetRenderHorizontal(x.RenderDirection != pages.RenderDirectionVertical)
 		onChange, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
@@ -1669,7 +1685,7 @@ func dataViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1818,7 +1834,7 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1901,7 +1917,7 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -2041,9 +2057,10 @@ func bindParameterMappingValue(m parameterMappingTarget, variable, kind, express
 // left a parameterized button/row invoking its microflow with no argument — the
 // widget no-ops at runtime yet mx check passes clean (Bug 1).
 //
-// settings carries what a call-microflow action's `with ( … )` says; nil (the
-// data-source case, which has no MDL spelling for them) writes Mendix's defaults.
-func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings) element.Element {
+// settings carries what a call-microflow action's `with ( … )` says, or for a
+// data source its FormValidations (ako/mxcli#1729); nil writes Mendix's defaults.
+// outputs are its `returns ( … )` mappings (ako/mxcli#977 item 3).
+func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings, outputs []*pages.FlowOutputMapping) element.Element {
 	if settings == nil {
 		settings = &pages.FlowCallSettings{}
 	}
@@ -2067,7 +2084,30 @@ func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowPar
 		bindParameterMappingValue(gm, pm.Variable, pm.VariableKind, pm.Expression)
 		s.AddParameterMappings(gm)
 	}
+	for _, om := range outputs {
+		s.AddOutputMappings(outputMappingToGen(om))
+	}
 	return s
+}
+
+// outputMappingToGen builds a Forms$OutputMapping, one row of a flow call's
+// return value mappings (ako/mxcli#977 item 3). The slots a row does not use
+// stay null, Expression empty — the shape Studio Pro stores for each of the
+// three kinds of row on ako/TestApp's Pages.OutputMappingButton.
+func outputMappingToGen(om *pages.FlowOutputMapping) element.Element {
+	g := genPg.NewOutputMapping()
+	assignID(g)
+	if r := attributeRefToGen(om.TargetAttribute); r != nil {
+		g.SetAttributeRef(r)
+	}
+	if om.TargetVariable != "" {
+		g.SetSourceVariable(pageVariableToGen("", om.TargetVariable, "local"))
+	}
+	if r := attributeRefToGen(om.SourceAttribute); r != nil {
+		g.SetSourceAttributeRef(r)
+	}
+	g.SetExpression(om.Expression)
+	return g
 }
 
 // formSettingsToGen builds the Forms$FormSettings (PageSettings) shared by the
@@ -2293,7 +2333,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		}
 		assignID(g)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
-		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings))
+		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings, x.OutputMappings))
 		return g, nil
 	case *pages.NanoflowClientAction:
 		// call_nanoflow → Forms$CallNanoflowClientAction. Unlike the microflow
@@ -2321,6 +2361,9 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			m.SetParameterQualifiedName(x.NanoflowName + "." + pm.ParameterName)
 			bindParameterMappingValue(m, pm.Variable, pm.VariableKind, pm.Expression)
 			g.AddParameterMappings(m)
+		}
+		for _, om := range x.OutputMappings {
+			g.AddOutputMappings(outputMappingToGen(om))
 		}
 		return g, nil
 	case *pages.CreateObjectClientAction:

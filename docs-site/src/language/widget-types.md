@@ -76,6 +76,38 @@ CONTAINER cCard (Class: 'card mx-spacing-top-large') {
 
 Similar to `CONTAINER` but used for custom-styled containers.
 
+### TABCONTAINER / TABPAGE
+
+A tab container holds tab pages; each tab page holds widgets.
+
+```sql
+CREATE PAGE MyModule.Task_Tabs (
+  Title: 'Tasks',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ($Panel: MyModule.Panel)
+) {
+  DATAVIEW dvPanel (DataSource: $Panel) {
+    TABCONTAINER tcMain {
+      TABPAGE tpOpen (Caption: 'Open', Badge: '{1}', BadgeParams: ({1} = OpenCount)) {
+        DYNAMICTEXT txtOpen (Content: 'Open tasks')
+      }
+      TABPAGE tpDone (Caption: 'Done') {
+        DYNAMICTEXT txtDone (Content: 'Done tasks')
+      }
+    }
+  }
+};
+```
+
+| Property (tab page) | Description | Example |
+|---|---|---|
+| `Caption` | Tab caption, plain text (no parameters) | `Caption: 'Open'` |
+| `Badge` | Text shown beside the caption, a text template like a dynamic text's `Content` | `Badge: '{1}'` |
+| `BadgeParams` | The badge template's parameters, resolved against the enclosing data container | `BadgeParams: ({1} = OpenCount)` |
+| `Visible` | Visibility condition | `Visible: $Panel/ShowDone` |
+
+A tab page has no `Class`, `Style` or `CaptionParams`: Mendix stores none for it. A `BadgeParams` without a `Badge`, or a `Badge` that is not a quoted template, is refused (MDL-WIDGET51); `Badge` on any other widget is not stored, and `check` says so (MDL-WIDGET07).
+
 ## Data Widgets
 
 ### DATAVIEW

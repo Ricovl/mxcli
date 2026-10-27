@@ -86,7 +86,9 @@ begin
   loop $It in $Items
   begin
     commit $It;
-    log info node 'X' 'committed';
+    if $It/Subject = empty then
+      log info node 'X' 'no subject';
+    end if;
   end loop;
   log info node 'X' 'done';
 end;`)

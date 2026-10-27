@@ -58,6 +58,10 @@ func TestCheckVersionGates_ReportsEveryHandlerGate(t *testing.T) {
 			&ast.WorkflowCallMicroflowNode{Agent: true}}}, [3]int{11, 8, 0}, "call agent microflow"},
 		{"event subprocess", &ast.CreateWorkflowStmt{EventSubProcesses: []ast.WorkflowEventSubProcessNode{{Name: "E"}}}, [3]int{11, 7, 0}, "event subprocess"},
 		{"timer event subprocess", &ast.CreateWorkflowStmt{EventSubProcesses: []ast.WorkflowEventSubProcessNode{{Name: "E", Timer: true}}}, [3]int{11, 12, 0}, "on … timer"},
+		// ako/mxcli#1716: the 11.13 runtime has no recurrence on the start and
+		// fires it once; the 11.15 runtime repeats it.
+		{"repeating event subprocess", &ast.CreateWorkflowStmt{EventSubProcesses: []ast.WorkflowEventSubProcessNode{{Name: "E", Timer: true,
+			Recurrence: &ast.WorkflowRecurrenceNode{Interval: 1, Unit: "day", MaxExecutions: 3}}}}, [3]int{11, 14, 0}, "repeat every"},
 		{"notification", &ast.CreateWorkflowStmt{Activities: []ast.WorkflowActivityNode{&ast.WorkflowNotificationNode{}}}, [3]int{11, 10, 0}, "notification activities"},
 		// mendixlabs/mxcli#1498: a domain-model export level is 9.3+.
 		{"entity export level", &ast.CreateEntityStmt{ExportLevel: &api}, [3]int{9, 2, 0}, "export level on an entity"},

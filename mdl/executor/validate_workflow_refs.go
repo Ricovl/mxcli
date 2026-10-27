@@ -202,6 +202,7 @@ func validateWorkflowStatementRefs(ctx *ExecContext, s *ast.CreateWorkflowStmt, 
 	activities := workflowStatementActivities(s)
 	errs = append(errs, bareTimerBoundaryEventErrors(ctx, activities, 0)...)
 	errs = append(errs, validateWorkflowReferences(ctx, activities, sc)...)
+	errs = append(errs, validateWorkflowTargetingXPath(ctx, activities, sc)...)
 	errs = append(errs, validateWorkflowEventHandlers(ctx, s, sc)...)
 	// Then the signatures of the page and targeting microflow each user task
 	// hands work to — names that resolve can still be the wrong shape (CE7410,
@@ -353,5 +354,6 @@ func validateAlterWorkflowRefs(ctx *ExecContext, s *ast.AlterWorkflowStmt, sc *s
 	errs = append(errs, validateAlterWorkflowEndAncestry(ctx, s)...)
 
 	errs = append(errs, validateWorkflowReferences(ctx, added, sc)...)
+	errs = append(errs, validateAlterWorkflowTargetingXPath(ctx, s, added, sc)...)
 	return append(errs, validateAlterWorkflowTaskSignatures(ctx, s, added, sc)...)
 }

@@ -24,6 +24,25 @@ import (
 //	retrieve … where Payload = …       Retrieve … attribute (and an association step)
 //	return $r/Payload, $i/AddOn.Assoc  End event … attribute / association
 //
+// The ENTITY an activity names is the same rule (ako/mxcli#1699). Measured on
+// 11.13.0 the same way, a Hidden AddOn.Internal beside a Usable AddOn.Request,
+// in microflows and nanoflows alike:
+//
+//	retrieve $l from AddOn.Internal [where …|limit 1]  Retrieve object(s) activity … entity
+//	$o = create AddOn.Internal [(…)]                   Create object activity … entity
+//	$l = create list of AddOn.Internal                 Create list activity … entity
+//
+// and NOT refused: an association retrieve over a Usable association whose far
+// end is Hidden, or a commit, delete or aggregate of such an object — none of
+// them names the entity.
+//
+// A member read on the result of `call microflow` is no different: measured on
+// 11.13.0, a declare, an end event and a change on the result of a Usable
+// microflow, and a change on a loop over a returned list, were each refused on
+// a Hidden attribute (ako/mxcli#1701). walkTypedFlow types such a variable from
+// the callee's return type — the script's definition first, else the stored
+// one.
+//
 // A member is reported only when it is established: its variable's entity is
 // known, the member resolves on it (an association hop through
 // associationTargetFrom), and its level is known — a level the script states,
@@ -51,10 +70,11 @@ func (r *protectedRefResolver) checkFlowMembers(name ast.QualifiedName, params [
 		}
 	}
 
-	walkTypedFlow(r.ctx, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+	walkTypedFlow(r.ctx, r.sc, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
 		switch s := st.(type) {
 		case *ast.CreateObjectStmt:
 			who := "create " + s.EntityType.String()
+			out = appendNonEmpty(out, r.entityRef(who, s.EntityType, "app modules"))
 			for _, ch := range s.Changes {
 				m, ok := r.changeMember(s.EntityType.String(), ch.Attribute)
 				report(who, m, ok)
@@ -71,13 +91,21 @@ func (r *protectedRefResolver) checkFlowMembers(name ast.QualifiedName, params [
 			who := "retrieve $" + s.Variable
 			if s.StartVariable != "" {
 				report(who, protectedMember{kind: "association", qn: s.Source.String()}, s.Source.Module != "")
-			} else if s.Where != nil {
+				break
+			}
+			// A database retrieve names its entity (ako/mxcli#1699). One over a
+			// Usable association to a Hidden entity names only the association,
+			// and is not refused (measured).
+			out = appendNonEmpty(out, r.entityRef(who, s.Source, "app modules"))
+			if s.Where != nil {
 				for _, steps := range xpathMemberPaths(s.Where) {
 					for _, m := range r.pathMembers(s.Source.String(), steps) {
 						report(who, m, true)
 					}
 				}
 			}
+		case *ast.CreateListStmt:
+			out = appendNonEmpty(out, r.entityRef("create list $"+s.Variable, s.EntityType, "app modules"))
 		case *ast.ReturnStmt:
 			exprs("the end event", vars, s.Value)
 		case *ast.DeclareStmt:

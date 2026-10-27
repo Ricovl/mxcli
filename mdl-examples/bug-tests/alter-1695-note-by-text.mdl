@@ -1,0 +1,63 @@
+-- ============================================================================
+-- ako/mxcli#1695 (mendixlabs/mxcli#1517, comment item 3) — an alter fragment
+-- attaches its new statement to a note already in the flow, by the note's text
+-- ============================================================================
+--
+-- An `@annotation` in an `alter microflow … insert` fragment could not refer to
+-- a note already stored in the flow. `@annotation(id: n1)` failed at exec with
+--   @annotation(id: n1) refers to an annotation that has not been declared —
+--   the first mention must carry the text, as @annotation(id: n1, text: '…')
+-- because the fragment is built alone and cannot see stored notes — while
+-- check passed it as "not predicted". And the ids describe prints are
+-- re-derived on every describe, so an id saved in a script could later name a
+-- different note.
+--
+-- A stored note is now named by its text, with a key of its own:
+--   @annotation(existing: 'Validates the order')
+-- The text must match exactly one note of the flow (CRLF and LF line breaks
+-- match). `existing:` never creates a note — `@annotation 'text'` does — and
+-- takes no `id:`, `text:`, `position:` or `size:`.
+--
+-- To reproduce: exec this file against any project. Expected:
+--   Created microflow: BugTest1695.ACT_Notes
+--   Altered microflow BugTest1695.ACT_Notes
+-- and `describe microflow BugTest1695.ACT_Notes` prints ONE shared note:
+--   @annotation(id: n1, text: 'Validates the order', position: (…), size: (…))
+--   log node 'BugTest1695' 'start';
+--   @annotation(id: n1)
+--   log node 'BugTest1695' 'middle';
+-- The note keeps its $ID, position and size. describe → exec is Unchanged.
+-- mx check: 0 errors (11.13.0). Before the fix check, and exec's pre-flight,
+-- refused `existing:` as a parameter mxcli does not understand (MDL079), and
+-- `exec --no-check` wrote the activity with no note at all.
+-- The file can be run again: the flow is dropped and made afresh.
+--
+-- Refused by check and exec alike (nothing is written):
+--   @annotation(existing: 'Validates the orders')
+--     … names no note of the stored flow: none reads that text. The flow's notes:
+--     "Validates the order" at (…), attached to `log node 'BugTest1695' 'start'` …
+--   @annotation(existing: 'Check')   -- in a flow with two notes reading 'Check'
+--     … names 2 notes of the stored flow, so it does not say which one to
+--     attach: at (…), attached to …; at (…), attached to … . Reword one first.
+--   @annotation(existing: 'Validates the order', text: 'x')       MDL079
+--   @annotation(existing: '…') in a create / create or modify     MDL079
+
+mdl 1;
+
+create module BugTest1695;
+
+drop microflow if exists BugTest1695.ACT_Notes;
+
+create microflow BugTest1695.ACT_Notes ()
+begin
+  @annotation 'Validates the order'
+  log info node 'BugTest1695' 'start';
+  log info node 'BugTest1695' 'done';
+end;
+
+alter microflow BugTest1695.ACT_Notes {
+  insert after log node 'BugTest1695' 'start' begin
+    @annotation(existing: 'Validates the order')
+    log info node 'BugTest1695' 'middle';
+  end;
+};
