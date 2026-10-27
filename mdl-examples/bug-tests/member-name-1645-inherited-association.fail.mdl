@@ -1,0 +1,17 @@
+-- NEGATIVE TEST (.fail.mdl) — EXPECTED to fail `mxcli check` with MDL-MEMBER01
+-- (ako/mxcli#1645).
+--
+-- An association is a member of its FROM entity (and, under owner Both, of its
+-- TO entity too), so its name shares the entity's member name space. HR.Emp
+-- inherits the association Person_Dept from Other.Person; a second association
+-- of that name from HR.Emp passed check and exec, and mxbuild rejected it with
+--   [CE0069] "Duplicate member name 'Person_Dept'." at Cross-module association 'HR.Person_Dept'
+-- Measured on mx 11.13.0 (and reported on 11.12.5).
+mdl 1;
+create module Other;
+create module HR;
+create persistent entity Other.Person (Name: String(50));
+create persistent entity Other.Dept (Name: String(50));
+create association Other.Person_Dept from Other.Person to Other.Dept;
+create persistent entity HR.Emp extends Other.Person (Code: String(10));
+create association HR.Person_Dept from HR.Emp to Other.Dept;

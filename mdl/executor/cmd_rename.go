@@ -472,6 +472,11 @@ func execRenameAssociation(ctx *ExecContext, s *ast.RenameStmt) error {
 	if collision {
 		return mdlerrors.NewValidationf("association %s already exists in module %s", s.NewName, s.Name.Module)
 	}
+	// The new name must also be free on its owners' generalization chains
+	// (CE0069, ako/mxcli#1645).
+	if err := refuseMemberNameClash(ctx, s); err != nil {
+		return err
+	}
 
 	hits, err := ctx.Backend.RenameReferences(oldQualifiedName, newQualifiedName, s.DryRun)
 	if err != nil {

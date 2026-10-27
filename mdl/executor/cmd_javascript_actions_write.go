@@ -20,6 +20,11 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 	// A text template is a Java action type only (MDL-JSA01).
 	if bad := unsupportedJavaScriptActionTypes(s); len(bad) > 0 {
 		return mdlerrors.NewValidationf("%s", strings.Join(bad, "\n"))

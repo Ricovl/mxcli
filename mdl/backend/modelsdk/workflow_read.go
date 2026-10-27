@@ -314,6 +314,10 @@ func workflowSimpleActivityFromGen(el element.Element) workflows.WorkflowActivit
 	case "Workflows$StartWorkflowActivity":
 		a := &workflows.StartWorkflowActivity{}
 		setBase(&a.BaseWorkflowActivity)
+		// The note Studio Pro shows on the start (ako/mxcli#1717).
+		if s, ok := el.(*genWf.StartWorkflowActivity); ok {
+			a.Annotation = annotationText(s.Annotation())
+		}
 		return a
 	case "Workflows$EndWorkflowActivity":
 		a := &workflows.EndWorkflowActivity{}

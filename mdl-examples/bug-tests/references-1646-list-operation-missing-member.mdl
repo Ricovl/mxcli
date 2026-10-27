@@ -1,0 +1,57 @@
+-- ako/mxcli#1646: find, filter, sort or an aggregate by a member the list's
+-- entity does not have passed `check -p` and exec; mxbuild then failed once per
+-- activity (measured on 11.12.5 and 11.13.0):
+--
+--   [CE1613] "The selected attribute 'RefB1646.Ord.Numbr' no longer exists."  at list operation activity 'Find'
+--   [CE1613] "The selected attribute 'RefB1646.Ord.Totl' no longer exists."   at ... 'Filter', 'Sort', aggregate list
+--
+-- The flow builder fell back to writing `<entity>.<name>` when the name
+-- resolved to nothing. Now `check -p --references`, exec's preflight and the
+-- builder (exec --no-check, exec -c, the REPL) ask one verdict and refuse the
+-- four statements in RefB1646.Missing with the same message:
+--
+--   find $l by Numbr: RefB1646.Ord has no member "Numbr" — it has Number, Total — mxbuild reports this as CE1613 ...
+--
+-- RefB1646.Controls builds at 0 errors and stays accepted: own and inherited
+-- attributes, a bare and an inherited cross-module association, System.owner,
+-- a sort on a system date the root stores. Its `sum $sl by Total` — an
+-- inherited attribute — used to be written as RefB1646.SubOrd.Total (CE1613);
+-- it is now qualified with the entity that declares it, RefB1646.Ord.Total.
+--
+-- `check` without a project cannot see any of this (the members live in the
+-- model), so this file is a plain .mdl; the refusal is covered by
+-- mdl/executor/list_member_refs_1646_test.go.
+mdl 1;
+
+create module RefB1646;
+create module RefO1646;
+create persistent entity RefB1646.Cust (Name: String(50));
+create persistent entity RefB1646.Ord (Number: String(20), Total: Decimal, owner: AutoOwner, createdDate: AutoCreatedDate);
+create persistent entity RefB1646.SubOrd extends RefB1646.Ord (Extra: String(20));
+create association RefB1646.Ord_Cust from RefB1646.Ord to RefB1646.Cust;
+create persistent entity RefO1646.Base (BaseName: String(20));
+create persistent entity RefO1646.Thing (ThingName: String(20));
+create association RefO1646.Base_Thing from RefO1646.Base to RefO1646.Thing;
+create persistent entity RefB1646.Spec extends RefO1646.Base (SpecName: String(20));
+
+create microflow RefB1646.Controls ($l: List of RefB1646.Ord, $sl: List of RefB1646.SubOrd, $spl: List of RefB1646.Spec, $c: RefB1646.Cust, $th: RefO1646.Thing, $u: System.User)
+begin
+  $a1 = find $sl by Number = '1';
+  $a2 = sort $sl by Number asc;
+  $a3 = sum $sl by Total;
+  $a4 = find $l by Ord_Cust = $c;
+  $a5 = find $spl by Base_Thing = $th;
+  $a6 = sort $l by createdDate asc;
+  $a7 = find $l by System.owner = $u;
+  $a8 = sort $spl by BaseName desc;
+end;
+
+-- Refused by check -p --references and by exec (the reported repro).
+create microflow RefB1646.Missing ($l: List of RefB1646.Ord) returns Boolean
+begin
+  $m = find $l by Numbr = '42';
+  $f = filter $l by Totl = 5;
+  $s = sort $l by Totl asc;
+  $t = sum $l by Totl;
+  return true;
+end;

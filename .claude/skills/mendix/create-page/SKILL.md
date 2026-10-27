@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-198 | Syntax |
-| 199-269 | Basic Examples |
-| 270-291 | Modifying Existing Pages |
-| 292-395 | Conditional Visibility and Editability |
-| 396-560 | Known Limitations |
-| 561-569 | Tips |
-| 570-596 | Related Commands |
-| 597-621 | PLUGGABLEWIDGET Escape Hatch |
-| 622-625 | See Also |
+| 47-206 | Syntax |
+| 207-277 | Basic Examples |
+| 278-299 | Modifying Existing Pages |
+| 300-403 | Conditional Visibility and Editability |
+| 404-568 | Known Limitations |
+| 569-577 | Tips |
+| 578-604 | Related Commands |
+| 605-629 | PLUGGABLEWIDGET Escape Hatch |
+| 630-633 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -62,6 +62,14 @@ create [or replace] page Module.PageName
   -- Widget definitions using explicit properties
 }
 ```
+
+**Parameter names are held to the platform's reserved words.** A page or snippet
+parameter named `Context`, `Type`, `Id`, `Owner`, `Object`, `CurrentUser` or a Java
+keyword (`Class`, `New`, …), in any case, is CE7247 "The name 'Context' is a reserved
+word." at build time — and quoting does not help. `mxcli check` refuses it (MDL-PARAM01).
+Name the parameter after its entity (`$Sale`) or qualify it (`$LaneContext`). The
+system variable names (`$currentObject`, `$latestError`, …) are *not* on this list for
+pages.
 
 **Pop-up dimensions** (`PopupWidth` / `PopupHeight` / `PopupResizable`) apply when the
 page is opened in a pop-up. They are optional — omitting them uses the Mendix defaults

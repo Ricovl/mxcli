@@ -1,0 +1,50 @@
+-- ako/mxcli#1697 (mirror of mendixlabs/mxcli#1650): `$Var/<member>` in an
+-- expression, for a member the variable's entity does not have — the system
+-- `id` above all — passed `check -p --references` (the type pass even printed
+-- "Expression types OK") and exec wrote it; mxbuild then reported
+--
+--   [CE0117] "Error(s) in expression."  at Create variable activity ...
+--
+-- Measured on 11.13.0, one microflow per shape, in an app with no other error
+-- (a CE1613 anywhere suppresses every CE0117 — mx check then reports none):
+--
+--   CE0117  $U/id, $O/id = $S/id, $U/Bogus, $O/number (for Number), $O/CreatedDate,
+--           $O/changedDate (not stored), $O/owner, $O/Ord_Cust/Name (bare association),
+--           $O/Mod.Nope/Name, $O/Mod.Ord_Cust/Mod.Cust/Nam
+--   clean   own and inherited attributes (also from System.User), $O/Mod.Ord_Cust/Name,
+--           $O/createdDate and $S/createdDate where the root stores it
+--
+-- `check -p --references` — and so exec's preflight — now reports every
+-- statement in RefB1697.Missing, e.g.
+--
+--   $User/id: System.User has no attribute "id" — mxbuild rejects the expression with CE0117 ...
+--     An object's id is not readable in an expression: compare the objects themselves
+--     (`$A = $B`), or read a GUID with CommunityCommons.getGUID(item = $X)
+--
+-- and accepts RefB1697.Controls, which builds at 0 errors. Plain `check` has no
+-- model to resolve members against, so this file is a plain .mdl; the check is
+-- covered by mdl/executor/expression_member_refs_1697_test.go.
+mdl 1;
+
+create module RefB1697;
+create persistent entity RefB1697.Cust (Name: String(50));
+create persistent entity RefB1697.Ord (Number: String(20), createdDate: AutoCreatedDate);
+create persistent entity RefB1697.SubOrd extends RefB1697.Ord (Extra: String(20));
+create association RefB1697.Ord_Cust from RefB1697.Ord to RefB1697.Cust;
+
+create microflow RefB1697.Controls ($O: RefB1697.Ord, $S: RefB1697.SubOrd, $User: System.User) returns String as $r
+begin
+  declare $r String = $O/Number + $S/Number + $User/Name + $O/RefB1697.Ord_Cust/Name;
+  declare $d DateTime = $S/createdDate;
+  return $r;
+end;
+
+-- Reported by check -p --references (the reported repro and its siblings).
+create microflow RefB1697.Missing ($O: RefB1697.Ord, $User: System.User) returns String as $r
+begin
+  declare $r String = toString($User/id);
+  declare $b String = $User/Bogus;
+  declare $n String = $O/number;
+  declare $c String = $O/Ord_Cust/Name;
+  return $r;
+end;

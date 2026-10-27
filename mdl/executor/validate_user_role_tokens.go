@@ -120,6 +120,13 @@ func userRoleNames(ctx *ExecContext, prog *ast.Program) (map[string]bool, []stri
 // depth: a database retrieve's, a data source's, an access rule's, a user
 // task's targeting (as created and as altered) and an offline sync's.
 func walkXPathConstraints(v any, fn func(xpath string)) {
+	walkXPathSlots(v, func(_, xpath string) { fn(xpath) })
+}
+
+// walkXPathSlots is walkXPathConstraints that also names the slot each
+// constraint sits in ("retrieve", "data source", "access rule", "user task
+// targeting", "offline sync"), for a message that says where to look.
+func walkXPathSlots(v any, fn func(slot, xpath string)) {
 	var walk func(rv reflect.Value)
 	walk = func(rv reflect.Value) {
 		switch rv.Kind() {
@@ -134,25 +141,25 @@ func walkXPathConstraints(v any, fn func(xpath string)) {
 			switch n := rv.Interface().(type) {
 			case *ast.RetrieveStmt:
 				if n.StartVariable == "" && n.Where != nil {
-					fn(expressionToXPath(n.Where))
+					fn("retrieve", expressionToXPath(n.Where))
 				}
 				return
 			case *ast.DataSourceV3:
-				fn(n.Where)
+				fn("data source", n.Where)
 				return
 			case *ast.GrantEntityAccessStmt:
-				fn(n.XPathConstraint)
+				fn("access rule", n.XPathConstraint)
 				return
 			case *ast.WorkflowTargetingNode:
-				fn(n.XPath)
+				fn("user task targeting", n.XPath)
 				return
 			case *ast.SetActivityPropertyOp:
 				if n.Property == "targeting_xpath" {
-					fn(n.Value)
+					fn("user task targeting", n.Value)
 				}
 				return
 			case *ast.NavSyncDef:
-				fn(n.Constraint)
+				fn("offline sync", n.Constraint)
 				return
 			}
 			walk(rv.Elem())

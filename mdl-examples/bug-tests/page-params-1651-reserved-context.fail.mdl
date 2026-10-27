@@ -1,0 +1,24 @@
+-- NEGATIVE TEST (.fail.mdl) — EXPECTED to fail `mxcli check` with MDL-PARAM01
+-- (ako/mxcli#1651, a mirror of mendixlabs/mxcli#1642).
+--
+-- `Context` is on the platform's reserved-word list — the one attribute names
+-- (MDL021) and enumeration values (MDL010) are checked against — and that list
+-- binds page parameters too. check and exec passed this page, and mx check
+-- then reported
+--   [CE7247] "The name 'Context' is a reserved word." at Page parameter 'Context'
+-- Measured on mx 11.13.0 (and reported on 11.12.5): the same for a snippet, Java
+-- action and JavaScript action parameter, in any case, and quoted. Microflow and
+-- nanoflow parameters are judged against a different list and build clean.
+--
+-- The reporter's workaround, `$LaneContext`, builds clean; so does `$Sale`.
+mdl 1;
+create persistent entity MyFirstModule.Sale (Name: String(100));
+create page MyFirstModule.Sale_View (
+  Title: 'Sale',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Context: MyFirstModule.Sale )
+) {
+  layoutgrid lg { row { column (DesktopWidth: AutoFill) {
+    dataview dvSale (DataSource: $Context) { textbox tbName (Attribute: Name) }
+  } } }
+};

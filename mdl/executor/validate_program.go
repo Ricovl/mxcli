@@ -96,6 +96,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// so this was reachable straight from `mxcli syntax snippet.create`
 		// (mendixlabs/mxcli#1028).
 		violations = append(violations, validateSnippetParameters(stmt)...)
+		// A page, snippet, Java action or JavaScript action parameter named with
+		// a platform-reserved word (`Context`, `Type`, `Id`, …): CE7247 at build
+		// time, after exec wrote the document and its callers (MDL-PARAM01,
+		// ako/mxcli#1651). The list attributes and enumeration values use.
+		violations = append(violations, validateReservedParameterNames(stmt)...)
 		// A microflow's URL / export level / concurrency clauses, against the
 		// same rules the writer applies (MDL-MF01..MF04).
 		violations = append(violations, validateMicroflowDocumentProperties(stmt)...)
@@ -188,6 +193,15 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Check for intra-script duplicate definitions (CREATE X … CREATE X without DROP)
 	violations = append(violations, CheckScriptDuplicates(prog)...)
 
+	// A member named like one already on its entity's generalization chain
+	// (CE0069, ako/mxcli#1645), among what the script declares and the System
+	// module. With a project, the reference pass judges it against the whole
+	// model instead (validateMemberNameClashes) — running both would report it
+	// twice.
+	if projectPath == "" {
+		violations = append(violations, scriptMemberNameClashes(prog)...)
+	}
+
 	// Validate design properties against the project's theme registry
 	// (themesource design-properties.json) — flags unknown keys and invalid
 	// option values, listing the allowed values. Only runs with --project.
@@ -220,6 +234,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// CE0161 at build time (mendixlabs/mxcli#1466). The script's declarations
 	// answer first; the project, when there is one, for the rest.
 	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
+
+	// A constant in any XPath constraint (MDL-XPATH03): mxbuild rejects
+	// `[Total > @Mod.C]` with CE0161 whether or not the constant exists, so this
+	// needs no project (ako/mxcli#1685).
+	violations = append(violations, validateXPathConstants(prog)...)
 
 	// An association between a persistable and a non-persistable entity must
 	// start in the non-persistable one and have owner Default — CE0001

@@ -316,6 +316,27 @@ access is out of date". The one exception is entities extending `System.User`, w
 inherited platform members Mendix manages and which must not be granted. See
 `manage-security`.
 
+**Member names are unique along the chain.** An inherited member *is* a member of
+the child, so the child cannot declare one of the same name — not an attribute, and
+not an association it owns (the association's name is a member of its FROM entity,
+and under `owner both` of its TO entity too). That holds up the chain to the System
+entities (`System.User` has `Name` and the association `UserRoles`;
+`System.FileDocument` has `Name` and `Size`) and down it: a generalization cannot
+gain a member a specialization already declares. An entity's own attribute and
+association cannot share a name either. Names that differ only in case do not
+collide. `mxcli check` refuses each (MDL-MEMBER01); Mendix reports CE0069
+"Duplicate member name".
+
+```sql
+mdl 1;
+-- ❌ WRONG: Employee inherits Name from Person — CE0069 "Duplicate member name 'Name'."
+create persistent entity Module.Person (Name: string(100));
+create persistent entity Module.Employee extends Module.Person (Name: string(100));
+```
+
+Drop the child's copy and use the inherited one, or give it another name
+(`DisplayName`).
+
 #### System Attributes (Auditing)
 
 Mendix supports four built-in auditing properties on persistent entities. Declare them as regular attributes using pseudo-types (like `autonumber`):
@@ -688,8 +709,9 @@ create persistent entity Module."VATRate" (
 > quoted** (the check strips the quotes and still flags them): `Type` (CE7247, MDL021),
 > the audit attributes `CreatedDate` / `ChangedDate` / `Owner` / `ChangedBy` (MDL020 — use
 > the `AutoCreatedDate` / `AutoChangedDate` / `AutoOwner` / `AutoChangedBy` pseudo-types
-> instead), plus `ID`, `GUID`, `CurrentUser` and the Java-keyword list. `"Type": String`
-> fails MDL021 — rename to `ResourceType` / `TypeValue`.
+> instead), plus `ID`, `GUID`, `CurrentUser`, `Object` and the Java-keyword list. `"Type": String`
+> fails MDL021 — rename to `ResourceType` / `TypeValue`. The same list applies to page,
+> snippet, Java action and JavaScript action **parameters** (MDL-PARAM01).
 
 > **Caveat 2 — a third grammar: OQL, where quoting DOES work.** `Year`, `Month`,
 > `Quarter`, `Week`, `Day`, `Hour`, `Minute`, `Second`, `Weekday`, `DayOfYear`,

@@ -30,6 +30,14 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 		return mdlerrors.NewValidationf("%s\n    %s", vs[0].Message, vs[0].Suggestion)
 	}
 
+	// The association's name becomes a member of its FROM entity (and of its
+	// TO entity under owner Both), which must be unique along that entity's
+	// generalization chain — CE0069 (ako/mxcli#1645). Before the module is
+	// auto-created, so a refusal leaves nothing behind.
+	if err := refuseMemberNameClash(ctx, s); err != nil {
+		return err
+	}
+
 	// Find or auto-create module
 	module, err := findOrCreateModule(ctx, s.Name.Module)
 	if err != nil {
@@ -320,6 +328,11 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			if v := associationPersistenceViolation(s.Name, from, to, true, projectEntityPersistence(ctx)); v != nil {
 				return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
 			}
+		}
+		// Owner Both makes it a member of the TO entity too (CE0069,
+		// ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
 		}
 	}
 

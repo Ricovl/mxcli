@@ -39,6 +39,7 @@ var workflowPropertyKeys = map[string]string{
 	"duedate":      "due_date",
 	"overviewpage": "overview_page",
 	"parameter":    "parameter",
+	"annotation":   "annotation",
 }
 
 var activityPropertyKeys = map[string]string{
@@ -47,11 +48,12 @@ var activityPropertyKeys = map[string]string{
 	"taskname":    "task_name",
 	"targeting":   "targeting",
 	"duedate":     "due_date",
+	"annotation":  "annotation",
 }
 
 const (
-	workflowKeysText = "Display, Description, ExportLevel, DueDate, OverviewPage, Parameter"
-	activityKeysText = "Page, Description, TaskName, Targeting, DueDate"
+	workflowKeysText = "Display, Description, ExportLevel, DueDate, OverviewPage, Parameter, Annotation"
+	activityKeysText = "Page, Description, TaskName, Targeting, DueDate, Annotation"
 )
 
 // buildAlterWorkflowOperation builds one generic operation. A `set` list and a
@@ -293,6 +295,16 @@ func alterWorkflowTemplateValue(v *parser.AlterWorkflowValueContext) (string, []
 	return s, buildWorkflowTemplateParams(v.TemplateParams()), true
 }
 
+// alterWorkflowNoteValue reads a note's text (ako/mxcli#1717): a plain
+// string, since a Workflows$Annotation stores a Description and no template.
+// The empty string removes the note.
+func alterWorkflowNoteValue(v *parser.AlterWorkflowValueContext) (string, bool) {
+	if v.TemplateParams() != nil {
+		return "", false
+	}
+	return alterWorkflowStringValue(v)
+}
+
 // alterWorkflowExpressionValue reads an expression-valued property (a due
 // date): the expression written bare, or — the deprecated form, MDL-DEPR080 —
 // its string's content, as workflowExpression reads it everywhere else.
@@ -321,6 +333,13 @@ func (b *Builder) buildWorkflowSet(key, prop string, v *parser.AlterWorkflowValu
 			return nil
 		}
 		op.Value, op.Params = s, params
+	case "annotation":
+		s, ok := alterWorkflowNoteValue(v)
+		if !ok {
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": ''` to remove the note")
+			return nil
+		}
+		op.Value = s
 	case "export_level":
 		qn := v.QualifiedName()
 		if qn == nil || v.VARIABLE() != nil || v.MICROFLOW() != nil || strings.Contains(qn.GetText(), ".") {
@@ -373,6 +392,13 @@ func (b *Builder) buildActivitySet(key, prop string, v *parser.AlterWorkflowValu
 			return nil
 		}
 		op.Value, op.Params = s, params
+	case "annotation":
+		s, ok := alterWorkflowNoteValue(v)
+		if !ok {
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": ''` to remove the note")
+			return nil
+		}
+		op.Value = s
 	case "targeting":
 		switch {
 		case v.MICROFLOW() != nil:

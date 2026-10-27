@@ -146,6 +146,14 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		}
 	}
 
+	// A member name must be unique along the generalization chain — up to the
+	// root, System entities included, and down through the specializations
+	// (CE0069, ako/mxcli#1645). The verdict check gives; before the module is
+	// auto-created, so a refusal leaves nothing behind.
+	if err := refuseMemberNameClash(ctx, s); err != nil {
+		return err
+	}
+
 	// Find or auto-create module
 	module, err := findOrCreateModule(ctx, s.Name.Module)
 	if err != nil {
@@ -1305,6 +1313,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		if isViewEntity(entity) {
 			return viewEntityAttributeSetRefusal(s.Name.String(), "add", a.Name)
 		}
+		// Not a name another member on the chain has (CE0069, ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
+		}
 		// A specialization cannot store a system member (see
 		// checkSpecializationSystemMembers): setting the flag here would be
 		// dropped by the writer, which stores none on a Generalization.
@@ -1436,6 +1448,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		}
 		if target == nil {
 			return mdlerrors.NewNotFoundMsg("attribute", s.AttributeName, fmt.Sprintf("attribute '%s' not found on entity %s", s.AttributeName, s.Name))
+		}
+		// Nor a rename into one (CE0069, ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
 		}
 		target.Name = s.NewName
 		// The entity's own access and validation rules hold the attribute's

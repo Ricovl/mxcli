@@ -169,9 +169,10 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// The note attached to the workflow's start. It was a `--` comment, which
-	// a replay dropped (ako/mxcli#707).
-	if targetWf.Annotation != "" {
-		lines = append(lines, fmt.Sprintf("  annotation %s", mdlQuoted(targetWf.Annotation)))
+	// a replay dropped (ako/mxcli#707); it is the start activity's, as Studio
+	// Pro shows it (ako/mxcli#1717).
+	if note := targetWf.StartNote(); note != "" {
+		lines = append(lines, fmt.Sprintf("  annotation %s", mdlQuoted(note)))
 	}
 
 	lines = append(lines, formatWorkflowEventHandlers(ctx, targetWf.EventHandlers)...)

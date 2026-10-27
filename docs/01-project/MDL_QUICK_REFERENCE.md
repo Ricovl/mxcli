@@ -559,6 +559,7 @@ it is for pages.
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
 | Retrieve (DB) | `retrieve $Var from Module.Entity [where condition] [sort by Attr asc\|desc, ...] [first \| [limit n] [offset n]];` | Database XPath retrieve. `first` binds a single **object** (Mendix's "First object" range); `limit`/`offset` bind a list. `limit 1` without `offset` is a list of one under `mdl 1;`, and without the header keeps its old meaning, the object, with warning MDL-V1-LIMIT1 |
 | Retrieve (DB), sorted | `sort by Attr asc` / `sort by Module.Other.Attr asc` / `sort by Module.Assoc/Module.Other.Attr asc` | A bare name is qualified with the entity **declaring** it, which may be an ancestor. `describe` prints the bare name whenever it resolves back to the stored attribute, and the qualified name otherwise. A sort may also navigate associations — one `/` per hop, the last segment is the attribute — and mxcli stores the hops as the `EntityRef` Mendix needs; without them the build is **CE7247**. **Name the hop when more than one association reaches the same entity**: a bare `Module.Other.Attr` is resolved by inference, which walks the generalization chain across modules (`Administration.Account` reaches `System.Language.Code` through `System.User_Language`) but cannot tell `Order_ShipTo` from `Order_BillTo` — measured, a sort on the billing address round-tripped into one on the shipping address at 0 errors both sides (mendixlabs/mxcli#1152). The same spelling works in a page datasource's `sort by` |
+| Retrieve (DB), constant | `declare $Limit Integer = @Module.C_Limit;` then `retrieve $L from Module.Entity where [Total > $Limit];` | An XPath constraint cannot reference a constant: `[Total > @Module.C_Limit]` parses and is refused by check (**MDL-XPATH03**), because mxbuild rejects it with CE0161 in a retrieve, a data source, an access rule and a user task's targeting alike (ako/mxcli#1685). Assign the constant to a variable and compare with that |
 | Retrieve (Assoc) | `retrieve $list from $Parent/Module.AssocName;` | Retrieve by association |
 | Add to list | `add expression to $list;` | Also accepts existing `add $item to $list;` form |
 | Remove from list | `remove $item from $list;` | Change list: Remove |
@@ -854,8 +855,9 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity);` | Any subset of the keys |
+| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity, Annotation: 'note');` | Any subset of the keys. `Annotation` is the header's `annotation '…'`, the note on the start; `''` removes it |
 | Set activity properties | `set (Page: Module.Page, Description: 'text', DueDate: <expr>) on activity;` | User task page, description, due date |
+| Set an activity's note | `set (Annotation: 'note') on activity;` | The `@annotation '…'` before it; `''` removes it. On the start it is the header's note; an end takes none (Studio Pro shows no note there) |
 | Set activity targeting | `set (Targeting: microflow Module.MF) on activity;` / `set (Targeting: xpath [<xpath>]) on activity;` | XPath in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
 | Insert activities | `insert after activity { … }` / `insert before activity { … }` | One or more activities, as in `create workflow` |
 | Replace activity | `replace activity with { … }` | Replace in place |
