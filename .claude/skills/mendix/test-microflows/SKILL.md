@@ -18,12 +18,12 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 | 239-262 | Running Tests |
 | 263-450 | How It Works |
 | 451-489 | Check a test file before you run it |
-| 490-596 | Writing Good Tests |
-| 597-611 | Test File Organization |
-| 612-624 | Interpreting Failures |
-| 625-646 | CI Integration |
-| 647-653 | Related Skills |
-| 654-656 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 490-611 | Writing Good Tests |
+| 612-626 | Test File Organization |
+| 627-639 | Interpreting Failures |
+| 640-661 | CI Integration |
+| 662-668 | Related Skills |
+| 669-671 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -584,6 +584,21 @@ call microflow Sales.ValidateOrder(Total = -1);
 
 Anything else after the tag is an error, not a message: `@throws not found` is
 refused rather than read as an unquoted one.
+
+A call that already has its own `on error` clause keeps it — the runner adds
+its handler only to calls without one, so the test runs the statement exactly as
+production does:
+
+- `on error rollback` is Mendix's default spelled out and behaves like no clause:
+  FAIL `exception during execution: …`, or PASS under a matching `@throws`.
+- `on error continue` swallows the error; the assertions decide. `@throws` FAILs
+  (`expected an exception but none was thrown`).
+- A custom handler that ends normally skips every statement reading the failed
+  call's result — the assertions — so the test FAILs with `not every assertion
+  was evaluated`. Assert on something the handler sets instead.
+- A custom handler that re-raises lets the error leave the test: ERROR with the
+  message, also under `@throws`. Under Docker / `--legacy-runner` it ends the
+  whole run.
 
 `@throws` and `@expect` cannot be combined. A `@throws` test compiles to a
 different shape — the verdict starts as a failure and only the error handler

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -17,7 +18,7 @@ func TestRewriteWithErrorHandling_OnlyWrapsCalls(t *testing.T) {
 		"DELETE $p1;",
 	}
 
-	got := rewriteWithErrorHandling(lines, "test_1")
+	got := rewriteWithErrorHandling(lines, "test_1", langver.V0)
 	joined := strings.Join(got, "\n")
 
 	if strings.Contains(joined, "CHANGE $p1 (IsActive = false) ON ERROR CONTINUE;") {

@@ -161,9 +161,17 @@ func writeTestBlock(b *strings.Builder, tc TestCase, index int) {
 	varNames := extractVariableNames(tc.MDL)
 	renamedMDL := renameVariables(tc.MDL, varNames, suffix)
 
+	// Every assertion counts itself when evaluated; see assertionsEvaluatedVar.
+	// On this runner a skipped assertion logs no line at all, so without the
+	// guard the test would end with a RUN line and no verdict.
+	evaluated := assertionsEvaluatedVar + suffix
+	if len(tc.Expects) > 0 {
+		b.WriteString(fmt.Sprintf("  DECLARE %s Integer = 0;\n", evaluated))
+	}
+
 	// Rewrite the MDL body: indent it and wrap CALL MICROFLOW with error handling
 	lines := strings.Split(renamedMDL, "\n")
-	rewritten := rewriteWithErrorHandling(lines, tc.ID)
+	rewritten := rewriteWithErrorHandling(lines, tc.ID, tc.Version)
 	writeBodyLines(b, rewritten, tc.Version)
 
 	// Generate assertion checks for @expect (with renamed variables)
@@ -175,8 +183,13 @@ func writeTestBlock(b *strings.Builder, tc TestCase, index int) {
 		}
 		writeExpectAggregates(b, "  ", renamed)
 		for _, exp := range renamed {
-			writeExpectAssertion(b, tc.ID, exp)
+			writeExpectAssertion(b, tc.ID, exp, evaluated)
 		}
+		b.WriteString(fmt.Sprintf("  IF %s < %d THEN\n", evaluated, len(tc.Expects)))
+		b.WriteString(fmt.Sprintf("    LOG ERROR NODE 'MXTEST' '%s';\n",
+			escapeMDLString("MXTEST:FAIL:"+tc.ID+":"+assertionsSkippedReason)))
+		b.WriteString("    SET $AllPassed = false;\n")
+		b.WriteString("  END IF;\n")
 	} else if !tc.expectsThrow() {
 		// No expectations — just check it didn't throw
 		b.WriteString("  IF $TestFailed = false THEN\n")
@@ -214,7 +227,7 @@ func writeThrowsTestBlock(b *strings.Builder, tc TestCase, suffix string) {
 	renamedMDL := renameVariables(tc.MDL, varNames, suffix)
 
 	lines := strings.Split(renamedMDL, "\n")
-	rewritten := rewriteForThrowsTest(lines, didThrowVar, tc.Throws)
+	rewritten := rewriteForThrowsTest(lines, didThrowVar, tc.Throws, tc.Version)
 	writeBodyLines(b, rewritten, tc.Version)
 
 	// Check that it did throw
@@ -238,13 +251,15 @@ func writeThrowsTestBlock(b *strings.Builder, tc TestCase, suffix string) {
 // Unlike the endpoint generator this path reports failures through the log
 // protocol, whose message is a single log line, so the observed value is
 // concatenated into that line rather than into a returned verdict.
-func writeExpectAssertion(b *strings.Builder, testID string, exp Expect) {
+func writeExpectAssertion(b *strings.Builder, testID string, exp Expect, evaluated string) {
 	passCondition := fmt.Sprintf("$TestFailed = false and (%s)", exp.Condition)
 	failMsg := "MXTEST:FAIL:" + testID + ":Expected " + exp.Raw
 
 	b.WriteString(fmt.Sprintf("  IF %s THEN\n", passCondition))
+	b.WriteString(fmt.Sprintf("    SET %s = %s + 1;\n", evaluated, evaluated))
 	b.WriteString(fmt.Sprintf("    LOG INFO NODE 'MXTEST' 'MXTEST:PASS:%s';\n", escapeMDLString(testID)))
 	b.WriteString("  ELSE\n")
+	b.WriteString(fmt.Sprintf("    SET %s = %s + 1;\n", evaluated, evaluated))
 	if exp.Actual == "" {
 		b.WriteString(fmt.Sprintf("    LOG ERROR NODE 'MXTEST' '%s';\n", escapeMDLString(failMsg)))
 	} else {
@@ -339,52 +354,16 @@ func renameExpect(exp Expect, names map[string]bool, suffix string) Expect {
 
 // rewriteWithErrorHandling adds ON ERROR clauses to the calls in the body.
 // The error handler ends with RETURN $AllPassed to properly terminate the flow path
-// with a return value (required when the microflow returns a type).
-func rewriteWithErrorHandling(lines []string, testID string) []string {
-	var result []string
-
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		trimmed := strings.TrimSpace(line)
-
-		if startsErrorRaisingCall(trimmed) && strings.HasSuffix(trimmed, ";") {
-			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
-			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
-			result = append(result, fmt.Sprintf(
-				"  LOG ERROR NODE 'MXTEST' 'MXTEST:FAIL:%s:Exception during execution';",
-				escapeMDLString(testID)))
-			result = append(result, "  SET $TestFailed = true;")
-			result = append(result, "  SET $AllPassed = false;")
-			result = append(result, "  RETURN $AllPassed;")
-			result = append(result, "END ERROR;")
-		} else if startsErrorRaisingCall(trimmed) && !strings.HasSuffix(trimmed, ";") {
-			var callLines []string
-			callLines = append(callLines, line)
-			for i+1 < len(lines) {
-				i++
-				nextLine := lines[i]
-				callLines = append(callLines, nextLine)
-				if strings.HasSuffix(strings.TrimSpace(nextLine), ";") {
-					break
-				}
-			}
-			joined := strings.Join(callLines, "\n")
-			joined = strings.TrimSpace(joined)
-			joined = strings.TrimSuffix(joined, ";")
-			result = append(result, joined+" ON ERROR BEGIN")
-			result = append(result, fmt.Sprintf(
-				"  LOG ERROR NODE 'MXTEST' 'MXTEST:FAIL:%s:Exception during execution';",
-				escapeMDLString(testID)))
-			result = append(result, "  SET $TestFailed = true;")
-			result = append(result, "  SET $AllPassed = false;")
-			result = append(result, "  RETURN $AllPassed;")
-			result = append(result, "END ERROR;")
-		} else {
-			result = append(result, line)
-		}
-	}
-
-	return result
+// with a return value (required when the microflow returns a type). Which calls
+// get one is attachOnError's decision, shared with the endpoint runner.
+func rewriteWithErrorHandling(lines []string, testID string, v langver.Version) []string {
+	return attachOnError(lines, v, []string{
+		fmt.Sprintf("  LOG ERROR NODE 'MXTEST' 'MXTEST:FAIL:%s:Exception during execution';",
+			escapeMDLString(testID)),
+		"  SET $TestFailed = true;",
+		"  SET $AllPassed = false;",
+		"  RETURN $AllPassed;",
+	})
 }
 
 // rewriteForThrowsTest wraps each call in the body with ON ERROR that sets the throw flag.
@@ -393,41 +372,8 @@ func rewriteWithErrorHandling(lines []string, testID string) []string {
 // runner reports a wrong expectation the same way the endpoint runner does — as
 // "expected an exception but none was thrown", which is the only outcome its log
 // protocol has for a throws test that did not get what it asked for.
-func rewriteForThrowsTest(lines []string, didThrowVar string, want string) []string {
-	var result []string
-
-	for i := 0; i < len(lines); i++ {
-		line := lines[i]
-		trimmed := strings.TrimSpace(line)
-
-		if startsErrorRaisingCall(trimmed) && strings.HasSuffix(trimmed, ";") {
-			withoutSemicolon := strings.TrimSuffix(trimmed, ";")
-			result = append(result, withoutSemicolon+" ON ERROR BEGIN")
-			result = append(result, throwsFlagHandler(didThrowVar, want)...)
-			result = append(result, "END ERROR;")
-		} else if startsErrorRaisingCall(trimmed) && !strings.HasSuffix(trimmed, ";") {
-			var callLines []string
-			callLines = append(callLines, line)
-			for i+1 < len(lines) {
-				i++
-				nextLine := lines[i]
-				callLines = append(callLines, nextLine)
-				if strings.HasSuffix(strings.TrimSpace(nextLine), ";") {
-					break
-				}
-			}
-			joined := strings.Join(callLines, "\n")
-			joined = strings.TrimSpace(joined)
-			joined = strings.TrimSuffix(joined, ";")
-			result = append(result, joined+" ON ERROR BEGIN")
-			result = append(result, throwsFlagHandler(didThrowVar, want)...)
-			result = append(result, "END ERROR;")
-		} else {
-			result = append(result, line)
-		}
-	}
-
-	return result
+func rewriteForThrowsTest(lines []string, didThrowVar string, want string, v langver.Version) []string {
+	return attachOnError(lines, v, throwsFlagHandler(didThrowVar, want))
 }
 
 // throwsFlagHandler sets the did-throw flag, gated on the expected message when
@@ -444,21 +390,27 @@ func throwsFlagHandler(didThrowVar, want string) []string {
 	}
 }
 
-// startsErrorRaisingCall reports whether a line starts a call-shaped activity
-// the runner must catch an error from: one that takes an ON ERROR clause in a
-// microflow (onErrorClause on its rule in MDLMicroflow.g4).
+// errorRaisingCallRules are the statements the runner must catch an error from:
+// the call-shaped activities, named by their rule in MDLMicroflow.g4, each of
+// which takes an onErrorClause there. TestErrorRaisingCallRulesAreGrammarRules
+// fails if one is renamed, which would otherwise silently stop wrapping it.
 //
 // It used to match CALL MICROFLOW and CALL NANOFLOW only, so an error raised by
 // CALL JAVA ACTION escaped the test microflow — @throws could not catch it and
 // a test without one was reported as ERROR instead of FAIL (ako/mxcli#1164).
-// Anchored at the statement start so a string that mentions a call is not one.
-func startsErrorRaisingCall(s string) bool {
-	return errorRaisingCall.MatchString(s)
+// It is a set of parsed statements rather than a pattern over a line, so a
+// string or a comment that mentions a call is not one.
+var errorRaisingCallRules = map[string]bool{
+	"callMicroflowStatement":        true,
+	"callNanoflowStatement":         true,
+	"callJavaActionStatement":       true,
+	"callExternalActionStatement":   true,
+	"callWebServiceStatement":       true,
+	"callWorkflowStatement":         true,
+	"restCallStatement":             true,
+	"sendRestRequestStatement":      true,
+	"executeDatabaseQueryStatement": true,
 }
-
-var errorRaisingCall = regexp.MustCompile(`(?i)^\s*(\$\w+\s*=\s*)?(` +
-	`call\s+(microflow|nanoflow|java\s+action|external\s+action|web\s+service|rest\s+service|workflow)` +
-	`|rest\s+call|send\s+rest\s+request|execute\s+database\s+query)\b`)
 
 // escapeMDLString escapes single quotes for MDL string literals.
 func escapeMDLString(s string) string {

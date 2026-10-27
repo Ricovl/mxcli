@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/langver"
+	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
 // Verdict protocol. A test microflow returns one string: either verdictPass, or
@@ -95,12 +97,53 @@ func writeSetupCalls(b *strings.Builder, tc TestCase) {
 
 // writeExpectFlowBody writes the body of a normal test: run the MDL, then check
 // each @expect. An error during the body short-circuits to a FAIL verdict.
+//
+// Every assertion counts itself when it is evaluated, and the test fails if the
+// count falls short (writeAssertionsEvaluatedGuard). See assertionsEvaluatedVar
+// for the path that skips assertions without failing anything.
 func writeExpectFlowBody(b *strings.Builder, tc TestCase) {
+	if len(tc.Expects) > 0 {
+		fmt.Fprintf(b, "  DECLARE %s Integer = 0;\n", assertionsEvaluatedVar)
+	}
 	writeBodyLines(b, rewriteBodyForVerdict(strings.Split(tc.MDL, "\n"), tc), tc.Version)
 	writeExpectAggregates(b, "  ", tc.Expects)
 	for _, exp := range tc.Expects {
 		writeExpectCheck(b, exp)
 	}
+	writeAssertionsEvaluatedGuard(b, len(tc.Expects))
+}
+
+// assertionsEvaluatedVar counts the assertions a test microflow actually
+// evaluated.
+//
+// The count exists because a test can reach its RETURN without passing through
+// its assertions, and nothing else would notice. A call the author gave a
+// custom handler that ends normally (`on error begin log …; end error;`)
+// rejoins the flow — and the microflow builder routes that rejoin past every
+// statement reading the failed call's output, since the variable does not
+// exist on the error path. The assertions read exactly that output. Measured on
+// 11.13.0: a body whose call threw into such a handler reported PASS on
+// `@expect $r = 'X'`, with $r never assigned (ako/mxcli#1448).
+//
+// The increments sit in both branches of each assertion's decision, so running
+// one proves that the condition was evaluated; the guard after the last one
+// cannot be skipped, because it reads nothing the body produced.
+const assertionsEvaluatedVar = "$AssertionsEvaluated"
+
+// assertionsSkippedReason is the failure a short count reports.
+const assertionsSkippedReason = "not every assertion was evaluated: an error in the body was caught by " +
+	"a call's own ON ERROR handler, and the flow resumed past the assertions that read that call's result"
+
+// writeAssertionsEvaluatedGuard fails a test that is still passing but did not
+// evaluate all n of its assertions. A test that already failed keeps its own,
+// more specific verdict.
+func writeAssertionsEvaluatedGuard(b *strings.Builder, n int) {
+	if n == 0 {
+		return
+	}
+	fmt.Fprintf(b, "  IF $Verdict = '%s' and %s < %d THEN\n", verdictPass, assertionsEvaluatedVar, n)
+	fmt.Fprintf(b, "    SET $Verdict = '%s';\n", escapeMDLString(verdictFailPrefix+assertionsSkippedReason))
+	b.WriteString("  END IF;\n")
 }
 
 // writeExpectAggregates emits the Aggregate list activities the assertions need,
@@ -131,7 +174,7 @@ func writeExpectAggregates(b *strings.Builder, indent string, expects []Expect) 
 func writeThrowsFlowBody(b *strings.Builder, tc TestCase) {
 	fmt.Fprintf(b, "  SET $Verdict = '%s';\n",
 		escapeMDLString(verdictFailPrefix+"expected an exception but none was thrown"))
-	writeBodyLines(b, rewriteBodyForThrows(strings.Split(tc.MDL, "\n"), tc.Throws), tc.Version)
+	writeBodyLines(b, rewriteBodyForThrows(strings.Split(tc.MDL, "\n"), tc.Throws, tc.Version), tc.Version)
 }
 
 // writeExpectCheck writes one @expect assertion.
@@ -145,7 +188,9 @@ func writeExpectCheck(b *strings.Builder, exp Expect) {
 	// existing failure with a later assertion's result.
 	fmt.Fprintf(b, "  IF $Verdict = '%s' THEN\n", verdictPass)
 	fmt.Fprintf(b, "    IF %s THEN\n", exp.Condition)
+	fmt.Fprintf(b, "      SET %s = %s + 1;\n", assertionsEvaluatedVar, assertionsEvaluatedVar)
 	b.WriteString("    ELSE\n")
+	fmt.Fprintf(b, "      SET %s = %s + 1;\n", assertionsEvaluatedVar, assertionsEvaluatedVar)
 	fmt.Fprintf(b, "      SET $Verdict = %s;\n", failVerdictExpr(exp))
 	b.WriteString("    END IF;\n")
 	b.WriteString("  END IF;\n")
@@ -179,7 +224,7 @@ func rewriteBodyForVerdict(lines []string, tc TestCase) []string {
 			escapeMDLString(verdictFailPrefix+"exception during execution: "), latestErrorMessage),
 		"  RETURN $Verdict;",
 	}
-	return attachOnError(lines, handler)
+	return attachOnError(lines, tc.Version, handler)
 }
 
 // rewriteBodyForThrows attaches an ON ERROR handler that clears the pre-set
@@ -188,8 +233,8 @@ func rewriteBodyForVerdict(lines []string, tc TestCase) []string {
 // With a want, the handler clears it only for a matching message and otherwise
 // replaces it with one naming both sides, so a failing @throws says what was
 // raised instead of only what was expected.
-func rewriteBodyForThrows(lines []string, want string) []string {
-	return attachOnError(lines, throwsHandler(want))
+func rewriteBodyForThrows(lines []string, want string, v langver.Version) []string {
+	return attachOnError(lines, v, throwsHandler(want))
 }
 
 // throwsHandler builds the ON ERROR body of an @throws test.
@@ -228,29 +273,100 @@ func quoteForMessage(s string) string {
 	return "'" + s + "'"
 }
 
-// attachOnError appends `ON ERROR BEGIN ... END ERROR` to each CALL statement in the body,
-// joining a statement that spans several lines first.
-func attachOnError(lines, handler []string) []string {
-	var out []string
-	for i := 0; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		if !startsErrorRaisingCall(trimmed) {
-			out = append(out, lines[i])
+// attachOnError gives each call in the body that has no error handling of its
+// own the runner's `ON ERROR BEGIN … END ERROR`, so an error it raises becomes a
+// verdict instead of escaping the test microflow. Every rewriting generator —
+// both runners, with and without @throws — goes through here, so they cannot
+// disagree about which calls are wrapped.
+//
+// A call the author already gave a clause keeps it, and gets no second one: two
+// clauses on one activity is not MDL, and the generated script stopped the run
+// at injection with a parse error on a line the author never wrote
+// (ako/mxcli#1448). What the author wrote is what runs:
+//
+//   - `on error continue` swallows the error, so the test goes on and its
+//     assertions decide — exactly what the production statement does.
+//   - A custom handler (`on error [without rollback] begin … end error`) runs
+//     as written. One that ends normally rejoins the flow; one that re-raises
+//     lets the error leave the test microflow, which the endpoint reports as an
+//     ERROR — never a pass.
+//   - `on error rollback` is the exception, because it is not a handler: it is
+//     Mendix's default spelled out, the ErrorHandlingType a call without a
+//     clause stores too. The two spellings are one model and get one verdict,
+//     so the clause is replaced by the runner's handler, which also rolls back.
+//     Keeping it would turn the same exception into an ERROR instead of a FAIL,
+//     fail an @throws test that should pass, and under the legacy runner abort
+//     the whole suite's after-startup flow.
+//
+// Statements are found by parsing the body, not by searching its text: the
+// clause may be on a later line, a custom handler holds statements (and
+// semicolons) of its own, and `on error` may be inside a string or a comment.
+// A body that does not parse is returned unchanged — no handler can make it
+// parse, and the error the author then sees is about their own text.
+func attachOnError(lines []string, v langver.Version, handler []string) []string {
+	body := strings.Join(lines, "\n")
+
+	// Parsed inside the same wrapper the generators put it in, under the same
+	// language version, so it reads exactly as the generated script will.
+	var wrap strings.Builder
+	writeScriptHeader(&wrap, v)
+	wrap.WriteString(createFlow(v) + " " + mxTestModule + ".Body ()\nBEGIN\n")
+	prefix := wrap.String()
+	stmts, ok := visitor.FlowStatements(prefix + body + "\nEND;\n")
+	if !ok {
+		return lines
+	}
+
+	runes := []rune(body)
+	// The handler is laid out at the indentation of the line its call starts
+	// on, so a call nested in an IF or a loop reads as nested in --verbose.
+	block := func(callStart int) string {
+		lineStart := callStart
+		for lineStart > 0 && runes[lineStart-1] != '\n' {
+			lineStart--
+		}
+		indent := lineStart
+		for indent < callStart && (runes[indent] == ' ' || runes[indent] == '\t') {
+			indent++
+		}
+		pad := string(runes[lineStart:indent])
+		var b strings.Builder
+		b.WriteString("ON ERROR BEGIN\n")
+		for _, l := range handler {
+			b.WriteString(pad + l + "\n")
+		}
+		b.WriteString(pad + "END ERROR")
+		return b.String()
+	}
+	type edit struct {
+		start, stop int
+		text        string
+	}
+	var edits []edit
+	offset := len([]rune(prefix))
+	for _, s := range stmts {
+		if !errorRaisingCallRules[s.Rule] {
 			continue
 		}
-
-		stmt := lines[i]
-		for !strings.HasSuffix(strings.TrimSpace(stmt), ";") && i+1 < len(lines) {
-			i++
-			stmt += "\n" + lines[i]
+		switch {
+		case s.OnError == nil:
+			edits = append(edits, edit{s.Stop - offset, s.Stop - offset, " " + block(s.Start-offset)})
+		case s.OnError.Type == ast.ErrorHandlingRollback:
+			edits = append(edits, edit{s.OnError.Start - offset, s.OnError.Stop - offset, block(s.Start - offset)})
 		}
-		stmt = strings.TrimSuffix(strings.TrimSpace(stmt), ";")
-
-		out = append(out, stmt+" ON ERROR BEGIN")
-		out = append(out, handler...)
-		out = append(out, "END ERROR;")
 	}
-	return out
+	if len(edits) == 0 {
+		return lines
+	}
+
+	// Back to front, so an edit never moves the offsets of one still to come.
+	// They cannot overlap: the only statements inside another are in a custom
+	// handler's body, and a call with a custom handler is never edited itself.
+	for i := len(edits) - 1; i >= 0; i-- {
+		e := edits[i]
+		runes = append(runes[:e.start:e.start], append([]rune(e.text), runes[e.stop:]...)...)
+	}
+	return strings.Split(string(runes), "\n")
 }
 
 // escapeMDLComment keeps a test name from closing the javadoc block it sits in.
