@@ -1,0 +1,24 @@
+mdl 1;
+-- `mxcli playwright check` on a page showing the sign-in form waited out the
+-- whole --wait, then reported the form as still loading on top of the sign-in
+-- failure. Measured on 11.13.0 and 11.15.0 with no session:
+--     WAIT   not settled after 30.2s: still waiting for POST /xas/
+--     FAIL   still loading when measured, … (raise --wait if it is only slow)
+--     FAIL   the sign-in form is showing, not the page (…)
+-- 33s at --wait 30s. The client keeps a POST /xas/ open behind the form, so
+-- the probe's "no request open" condition never held.
+--
+-- Repro: exec this on a blank app, `mxcli run --local --detach`, then
+--     mxcli playwright check http://localhost:8080/p/secret --wait 30s
+-- (no -p, so no sign-in). After the fix it answers in about 3s, exit 1, with
+-- the sign-in form as its only failure.
+
+create or modify page MyFirstModule.Secret_Web (
+  Title: 'Secret',
+  Layout: Atlas_Core.Atlas_Default,
+  Url: 'secret'
+) {
+  container c1 { dynamictext t1 (Content: 'Secret overview', RenderMode: H1) }
+};
+
+alter app security ( SecurityLevel: prototype );

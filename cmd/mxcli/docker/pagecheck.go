@@ -151,6 +151,10 @@ const req = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
       // sources load after the page shell, so a fixed sleep is either too short
       // or wasted — and the text alone holds still while a list view's data is
       // out, which is how a verdict used to be taken before the rows arrived.
+      // The sign-in form is the exception to the request rule: the client keeps
+      // a POST /xas/ open behind it (measured on 11.13), so waiting for quiet
+      // served the whole --wait and then reported the form as still loading.
+      // The form is a verdict in itself once it holds still.
       await p.waitForSelector('.mx-page, #usernameInput', { timeout: 20000 }).catch(() => {});
       const mounted = Date.now();
       const deadline = mounted + (req.waitMs || 15000);
@@ -159,8 +163,9 @@ const req = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
         const st = await p.evaluate(() => ({
           len: (document.body && document.body.innerText || '').length,
           busy: document.querySelectorAll('.mx-progress, .mx-underlay-loading, [aria-busy="true"]').length,
-        })).catch(() => ({ len: -2, busy: 0 }));
-        const quiet = inflight.size === 0 && Date.now() - lastNet >= 500;
+          login: !!document.querySelector('#usernameInput'),
+        })).catch(() => ({ len: -2, busy: 0, login: false }));
+        const quiet = st.login || (inflight.size === 0 && Date.now() - lastNet >= 500);
         if (st.len === last && st.busy === 0 && quiet) {
           if (++stable >= 3) { settled = true; break; }
         } else { stable = 0; }

@@ -118,8 +118,10 @@ func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 	var fails []string
 	// A page measured before it finished loading may be missing exactly what
 	// the check is for — the rows of a list whose data had not arrived
-	// (ako/mxcli#845) — so it cannot pass, whatever else it shows.
-	if sig.Unsettled {
+	// (ako/mxcli#845) — so it cannot pass, whatever else it shows. The sign-in
+	// form is not that page, and no longer wait would turn it into the page:
+	// its failure below is the one that says what to do.
+	if sig.Unsettled && !sig.LoginForm {
 		fails = append(fails, "still loading when measured, so the verdict may describe a partly "+
 			"rendered page (raise --wait if it is only slow)")
 	}
