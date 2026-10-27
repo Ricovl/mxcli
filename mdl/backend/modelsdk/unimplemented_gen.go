@@ -1079,6 +1079,10 @@ func (unimplemented) SetDomainModelDocumentation(_ model.ID, _ string) error {
 	return errUnimplemented("SetDomainModelDocumentation")
 }
 
+func (unimplemented) SetProjectAdminPassword(_ model.ID, _ string) error {
+	return errUnimplemented("SetProjectAdminPassword")
+}
+
 func (unimplemented) SetProjectAdminUserName(_ model.ID, _ string) error {
 	return errUnimplemented("SetProjectAdminUserName")
 }

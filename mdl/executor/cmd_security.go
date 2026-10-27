@@ -36,6 +36,7 @@ func listProjectSecurity(ctx *ExecContext) error {
 		if ps.AdminUserName != "" {
 			result.Rows = append(result.Rows, []any{"AdminUser", ps.AdminUserName})
 		}
+		result.Rows = append(result.Rows, []any{"AdminPasswordSet", fmt.Sprintf("%v", ps.AdminPassword != "")})
 		if ps.GuestUserRole != "" {
 			result.Rows = append(result.Rows, []any{"GuestUserRole", ps.GuestUserRole})
 		}
@@ -58,6 +59,13 @@ func listProjectSecurity(ctx *ExecContext) error {
 	fmt.Fprintf(ctx.Output, "Guest Access: %v\n", ps.EnableGuestAccess)
 	if ps.AdminUserName != "" {
 		fmt.Fprintf(ctx.Output, "Admin User: %s\n", ps.AdminUserName)
+	}
+	// Whether, never what: an empty one is CE0129 at prototype and production
+	// level, which `alter app security ( AdminPassword: '…' )` resolves.
+	if ps.AdminPassword != "" {
+		fmt.Fprintln(ctx.Output, "Admin Password: set")
+	} else {
+		fmt.Fprintln(ctx.Output, "Admin Password: not set (CE0129 unless the security level is off)")
 	}
 	if ps.GuestUserRole != "" {
 		fmt.Fprintf(ctx.Output, "Guest User Role: %s\n", ps.GuestUserRole)

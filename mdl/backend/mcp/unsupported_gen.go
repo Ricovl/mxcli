@@ -1184,6 +1184,11 @@ func (unsupportedBackend) SetDomainModelDocumentation(_ model.ID, _ string) (err
 	return
 }
 
+func (unsupportedBackend) SetProjectAdminPassword(_ model.ID, _ string) (err0 error) {
+	err0 = errUnsupported("SetProjectAdminPassword")
+	return
+}
+
 func (unsupportedBackend) SetProjectAdminUserName(_ model.ID, _ string) (err0 error) {
 	err0 = errUnsupported("SetProjectAdminUserName")
 	return
