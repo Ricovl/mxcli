@@ -197,10 +197,15 @@ page that has not settled within --wait is reported STILL LOADING, naming the
 requests it was waiting for, and fails. A page with a list view or grid always
 reports its rows, rows=0 included.
 
+When the browser ends somewhere other than the URL it was sent to, the verdict
+says where (url=...), and the title and heading describe that page. A /p/ URL
+that ends elsewhere fails: the client sends a /p/ URL it has no page for to the
+home page, with HTTP 200, so without this an unknown page passed as the home page.
+
 Exit status: 0 every page passed; 1 a page failed (still loading when measured,
-HTTP error, sign-in form instead of the page, error banner or dialog, console
-error, failed same-origin request, or a failed assertion); 2 the check could
-not run.
+HTTP error, sign-in form instead of the page, a /p/ URL that ended elsewhere,
+error banner or dialog, console error, failed same-origin request, or a failed
+assertion); 2 the check could not run.
 
 Examples:
   mxcli playwright check /p/customers /p/orders -p app.mpr

@@ -11,18 +11,18 @@ description: "Verify a running Mendix app in a browser: `mxcli playwright check`
 | lines | section |
 |---|---|
 | 32-42 | When to Use This Skill |
-| 43-94 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
-| 95-145 | Prerequisites |
-| 146-170 | Quick Start |
-| 171-192 | Widget Name Selectors |
-| 193-308 | Verification Patterns |
-| 309-382 | CI/CD: Test Scripts |
-| 383-426 | Session Management |
-| 427-454 | Debugging |
-| 455-487 | Selector Rules |
-| 488-504 | Known Gotchas |
-| 505-538 | Feedback Loop Workflow |
-| 539-546 | Related Skills |
+| 43-99 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
+| 100-150 | Prerequisites |
+| 151-175 | Quick Start |
+| 176-197 | Widget Name Selectors |
+| 198-313 | Verification Patterns |
+| 314-387 | CI/CD: Test Scripts |
+| 388-431 | Session Management |
+| 432-459 | Debugging |
+| 460-492 | Selector Rules |
+| 493-509 | Known Gotchas |
+| 510-543 | Feedback Loop Workflow |
+| 544-551 | Related Skills |
 
 <!-- /skill-index -->
 # Test App Skill
@@ -61,8 +61,13 @@ FAIL 1 of 2 page(s)
 ```
 
 - **Exit status:** 0 all pages passed; 1 a page failed (error banner/dialog, console
-  error, failed request, HTTP error, sign-in form instead of the page, failed
-  assertion, or `STILL LOADING`); 2 the check could not run.
+  error, failed request, HTTP error, sign-in form instead of the page, a `/p/` URL
+  that ended elsewhere, failed assertion, or `STILL LOADING`); 2 the check could
+  not run.
+- **`url=` is where the browser ended**, printed when that is not where it was
+  sent; title and heading then describe that page. A `/p/` URL no page has lands on
+  the home page with HTTP 200 (`url=/`) and fails — the match is exact, so check the
+  page's URL spelling and case before suspecting the page.
 - **It waits for the data.** A page is measured once no request to the app has been
   open for half a second and its text holds still — a list view shows no spinner
   while its data source runs, so the text alone would hold still on an empty list.

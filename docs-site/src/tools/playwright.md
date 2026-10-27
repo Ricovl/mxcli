@@ -83,10 +83,26 @@ page /p/Order_Overview  title="Orders"  STILL LOADING  rows=0  text=37  console-
 A page with a list view, data grid or gallery always reports `rows=`, `rows=0`
 included, so an empty list does not read the same as a page without one.
 
+When the browser ends up somewhere other than the URL it was sent to, the verdict
+says where, as `url=`, right after the page — the title and heading that follow
+describe the page at *that* URL. A `/p/` URL that ends anywhere else fails: the
+runtime answers every `/p/<x>` with a redirect to `/#/<x>`, and the client sends one
+it has no page for to the home page, with HTTP 200 throughout (ako/mxcli#998). The
+match is exact, so `/p/Items` and `/p/items/` fail where `/p/items` passes.
+
+```
+page /p/doesnotexist  url=/  title="Mendix - Homepage"  h="Welcome to your homepage"  text=1925  console-errors=0
+  ALERT  The page you requested was not found. You are redirected to the home page.
+  FAIL   the browser ended on /, not on /p/doesnotexist: the client sends a /p/ URL it has no page for to the home page
+```
+
+A page that ends on the sign-in form (`url=/login.html#/items`) fails for that
+reason only.
+
 | Exit status | Meaning |
 |---|---|
 | 0 | every page passed |
-| 1 | a page failed: still loading when measured, HTTP error, sign-in form instead of the page (or a 401 from the runtime), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
+| 1 | a page failed: still loading when measured, HTTP error, sign-in form instead of the page (or a 401 from the runtime), a `/p/` URL that ended elsewhere (no page has that URL), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
 | 2 | the check could not run (no Node/Playwright, sign-in rejected, bad flag) |
 
 A warning banner or validation message is shown but does not fail the page.

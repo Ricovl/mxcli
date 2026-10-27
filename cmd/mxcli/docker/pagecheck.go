@@ -5,6 +5,7 @@ package docker
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,6 +42,9 @@ type PageSignals struct {
 	Rows          int      `json:"rows"`          // grid / list rows rendered
 	ConsoleErrors []string `json:"consoleErrors"` // what a screenshot cannot show
 
+	// RequestedURL is the URL the page was loaded from, set by ProbePages so a
+	// verdict can tell when FinalURL is somewhere else.
+	RequestedURL string `json:"requestedUrl"`
 	// FinalURL is where the browser ended up — a redirect to the login page
 	// shows here, not in the title.
 	FinalURL string `json:"finalUrl"`
@@ -182,7 +186,10 @@ const req = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8'));
       // heading, which is not the page's.
       out.headings = await p.$$eval('h1,h2', ns => ns.filter(n => !n.closest('.mx-demouserswitcher'))
         .map(n => (n.innerText||'').trim()).filter(Boolean).slice(0, 3));
-      out.alerts = await p.$$eval('.alert-danger,.alert-warning,.mx-validation-message',
+      // An information dialog is how the client explains a redirect it made
+      // itself — "The page you requested was not found" for an unknown /p/ URL
+      // (ako/mxcli#998) — so it is shown, though it fails nothing.
+      out.alerts = await p.$$eval('.alert-danger,.alert-warning,.mx-validation-message,.mx-dialog-info .mx-dialog-body',
         ns => ns.map(n => (n.innerText||'').trim()).filter(Boolean).slice(0, 3));
       out.errorAlerts = await p.$$eval('.alert-danger,.mx-dialog-error .mx-dialog-body',
         ns => ns.map(n => (n.innerText||'').trim()).filter(Boolean).slice(0, 3));
@@ -333,6 +340,9 @@ func ProbePages(opts ProbeOptions) ([]PageSignals, error) {
 	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &sigs); err != nil || len(sigs) != len(opts.Pages) {
 		return nil, fmt.Errorf("page check produced no verdict: %v\n%s", err, clip(out.String(), 600))
 	}
+	for i := range sigs {
+		sigs[i].RequestedURL = opts.Pages[i].URL
+	}
 	return sigs, nil
 }
 
@@ -408,6 +418,12 @@ func globalNodeModules(node string) string {
 func formatPageVerdict(label string, s PageSignals) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "page %s", label)
+	// Where the browser ended, when that is not where it was sent: the title
+	// and heading describe the page at this URL, which for an unknown /p/ URL
+	// is the home page (ako/mxcli#998).
+	if where, moved := s.landedAt(); moved {
+		fmt.Fprintf(&b, "  url=%s", clip(where, 100))
+	}
 	if s.Status >= 400 {
 		fmt.Fprintf(&b, "  http=%d", s.Status)
 	}
@@ -450,6 +466,73 @@ func formatPageVerdict(label string, s PageSignals) string {
 		fmt.Fprintf(&b, "  WAIT   %s\n", clip(s.unsettledReason(), 140))
 	}
 	return b.String()
+}
+
+// landedAt reports where the browser ended up when that differs from the URL
+// the page was loaded from: the path, query and fragment on the same origin,
+// the whole URL on another. A trailing slash on an empty path is no move.
+func (s PageSignals) landedAt() (string, bool) {
+	req, fin, ok := s.locations()
+	if !ok {
+		return "", false
+	}
+	if strings.EqualFold(req.Scheme+"://"+req.Host, fin.Scheme+"://"+fin.Host) {
+		if pathOrRoot(req.Path) == pathOrRoot(fin.Path) && req.RawQuery == fin.RawQuery && req.Fragment == fin.Fragment {
+			return "", false
+		}
+		where := pathOrRoot(fin.EscapedPath())
+		if fin.RawQuery != "" {
+			where += "?" + fin.RawQuery
+		}
+		if fin.Fragment != "" {
+			where += "#" + fin.EscapedFragment()
+		}
+		return where, true
+	}
+	return s.FinalURL, true
+}
+
+// wrongPage reports a /p/ page that the browser did not stay on, and where it
+// went instead. Measured on 11.13 and 11.15: the runtime answers every
+// /p/<x> with a 301 to /#/<x>, and the client replaces the location with
+// /p/<x> for a page it has and with / for one it does not — rendering the home
+// page, with HTTP 200 throughout (ako/mxcli#998). Matching is exact: /p/ITEMS
+// and /p/items/ landed on / too. Only the path is compared; the query string
+// survives the redirect, and so may a change of scheme in front of the app
+// (http to https), which leaves the page the same. A page that went to the
+// sign-in form is that form's failure, not this one.
+func (s PageSignals) wrongPage() (requested, landed string, home bool) {
+	req, fin, ok := s.locations()
+	if !ok || s.NeedsLogin() || !strings.Contains(req.Path, "/p/") || req.Path == fin.Path {
+		return "", "", false
+	}
+	sameOrigin := strings.EqualFold(req.Scheme+"://"+req.Host, fin.Scheme+"://"+fin.Host)
+	where, _ := s.landedAt()
+	if where == "" {
+		where = s.FinalURL
+	}
+	return req.Path, where, sameOrigin && pathOrRoot(fin.Path) == "/"
+}
+
+// locations parses the requested and final URLs; ok is false when either is
+// missing (a probe that never got the page).
+func (s PageSignals) locations() (req, fin *url.URL, ok bool) {
+	if s.RequestedURL == "" || s.FinalURL == "" {
+		return nil, nil, false
+	}
+	req, err1 := url.Parse(s.RequestedURL)
+	fin, err2 := url.Parse(s.FinalURL)
+	if err1 != nil || err2 != nil {
+		return nil, nil, false
+	}
+	return req, fin, true
+}
+
+func pathOrRoot(p string) string {
+	if p == "" {
+		return "/"
+	}
+	return p
 }
 
 // unsettledReason says why a page counted as still loading.

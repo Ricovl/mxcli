@@ -110,7 +110,8 @@ func (s CheckSpec) CountSelectors() []string {
 //
 // A page fails when it was still loading when the wait ran out, when the
 // browser was refused it (HTTP >= 400), when it shows
-// the sign-in form instead of itself, when it shows an error banner or error
+// the sign-in form instead of itself, when a /p/ URL ended somewhere else (an
+// unknown page URL lands on the home page), when it shows an error banner or error
 // dialog, when the console reports an error, when a same-origin request it
 // made failed, or when an assertion does not hold. Warnings and validation
 // messages are reported in the verdict but do not fail it.
@@ -133,6 +134,15 @@ func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 		fails = append(fails, "the sign-in form is showing, not the page (pass --user/--password or --role)")
 	case sig.NeedsLogin():
 		fails = append(fails, "not signed in: the runtime answered 401 (pass --user/--password or --role)")
+	}
+	// Everything else describes the page the browser ended on. For an unknown
+	// /p/ URL that is the home page, which renders cleanly (ako/mxcli#998).
+	if requested, landed, home := sig.wrongPage(); requested != "" {
+		f := fmt.Sprintf("the browser ended on %s, not on %s", landed, requested)
+		if home {
+			f += ": the client sends a /p/ URL it has no page for to the home page"
+		}
+		fails = append(fails, f)
 	}
 	if n := len(sig.ErrorAlerts); n > 0 {
 		fails = append(fails, fmt.Sprintf("%d error banner(s)", n))
