@@ -284,8 +284,31 @@ func nativeWidgetAccepts(kind, keyword, key string) bool {
 			return true
 		}
 	}
+	// A spelling of a key this kind takes, kept as written because its value
+	// did not parse (nativeWidgetKeyAliases).
+	if target, ok := nativeWidgetKeyAliases[strings.ToLower(key)]; ok {
+		return nativeWidgetAccepts(kind, keyword, target)
+	}
 	return false
 }
+
+// nativeWidgetKeyAliases are spellings the visitor stores under another key —
+// but only when the value is well formed. `onClick: close page` is stored as
+// "Action" (#603, actionKeywordSource); `onClick: TOTALLY_MADE_UP` does not
+// parse as an action, falls through to the generic `key: value` branch and
+// keeps its key as written. That is not a property the widget lacks: it is
+// the widget's click action holding something that is not an action, which
+// MDL-WIDGET28 reports. Refusing it here as well named the wrong problem, and —
+// this rule being gated on the header and that one not — made `mdl 1;` change
+// what the script writes (ako/mxcli#1698, the upgrade property test on
+// action-slot-not-an-action-1062.fail.mdl). Keyed lower-case: the alias, and
+// the key it is stored under when it parses. An alias is not a builder read;
+// TestNativeWidgetProps_AliasesFollowTheVisitor ties it to actionKeywordSource.
+//
+// The visitor renames no other key this way: every other dedicated branch
+// stores under the key's own name (case aside, which nativeWidgetAccepts
+// ignores), and `Visible:` / `Editable:` lower to keys judged as one group.
+var nativeWidgetKeyAliases = map[string]string{"onclick": "Action"}
 
 func nativeWidgetKeySets(k nativeWidgetKind) [][]string {
 	sets := [][]string{k.reads}
@@ -343,7 +366,7 @@ func nativeWidgetKeyOwnedElsewhere(kind, keyword, key string) bool {
 	switch l {
 	case "editable", "editableif":
 		return true
-	case "action":
+	case "action", "onclick":
 		if clickDroppedNoSlot[keyword] || clickCapableInMendix[keyword] {
 			return true
 		}
@@ -430,6 +453,9 @@ func nativeWidgetPropHint(kind, keyword, key string) string {
 		}
 	case "tooltip":
 		return "only a button stores a tooltip"
+	case "action", "onclick":
+		return fmt.Sprintf("%s has no click action — put it on a `container` inside it, or use an `actionbutton`",
+			nativeWidgetKinds[kind].stored)
 	case "onchange":
 		return "only an input widget has an on-change action"
 	case "datasource":

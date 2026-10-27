@@ -239,3 +239,104 @@ func TestNativeWidgetProps_EveryReadIsAccepted(t *testing.T) {
 		}
 	}
 }
+
+// An `OnClick:` whose value is not an action keeps its key as written — the
+// visitor renames it to Action only when it parses — so the verdict saw a
+// container carrying an unknown `OnClick`. It is the container's click action
+// holding something that is not one: MDL-WIDGET28's, not this rule's. Refusing
+// it here too named the wrong problem and, this rule being gated and that one
+// not, made `mdl 1;` change what action-slot-not-an-action-1062.fail.mdl writes
+// (the upgrade property test). Every case of the spelling, since a malformed
+// value keeps the author's case.
+func TestNativeWidgetProps_MalformedActionIsTheActionSlotRules(t *testing.T) {
+	prog, errs := visitor.Build(`mdl 1;
+create page M.P (Title: 'x', Layout: A.L, Params: ($Job: M.Job)) {
+  dataview dv (DataSource: $Job) {
+    container c1 (OnClick: TOTALLY_MADE_UP) { dynamictext t1 (Content: 'a') }
+    container c2 (onClick: TOTALLY_MADE_UP) { dynamictext t2 (Content: 'a') }
+    container c3 (action: OPEN_LINK) { dynamictext t3 (Content: 'a') }
+    textbox tb (Attribute: Title, onchange: TOTALLY_MADE_UP)
+    dynamictext t4 (Content: 'a', onClick: TOTALLY_MADE_UP)
+  }
+};
+`)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	reg, _ := NewWidgetRegistry()
+	var native, slot []string
+	for _, v := range GateWidgetViolations(ValidateWidgetPropertiesForStatement(prog.Statements[0], reg), prog.LanguageVersion) {
+		switch v.RuleID {
+		case "MDL-WIDGET52", nativeWidgetPropDropped.Code:
+			native = append(native, v.Message)
+		case "MDL-WIDGET28":
+			slot = append(slot, v.Message)
+		}
+	}
+	if len(native) != 0 {
+		t.Errorf("a malformed action is reported as a property the widget lacks:\n%s", strings.Join(native, "\n"))
+	}
+	all := strings.Join(slot, "\n")
+	for _, want := range []string{"`c1` has `OnClick:", "`c2` has `onClick:", "`c3` has `action:", "`tb` has `onchange:", "`t4` has `onClick:"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("MDL-WIDGET28 does not report %q:\n%s", want, all)
+		}
+	}
+
+	// exec: the same verdict, so `mdl 1;` builds what mdl 0 builds.
+	pb := visibleWhenPB("M.Job")
+	pb.ctx = &ExecContext{Output: &bytes.Buffer{}, LanguageVersion: langver.V1}
+	if _, err := pb.buildWidgetV3(prog.Statements[0].(*ast.CreatePageStmtV3).Widgets[0].Children[0]); err != nil {
+		t.Errorf("mdl 1: exec refused the container — %v", err)
+	}
+}
+
+// Controls for the alias: a well-formed OnClick is the container's action and
+// is written; a key no container takes is still refused, and so is a click
+// action on a widget Mendix gives none.
+func TestNativeWidgetProps_OnClickAliasControls(t *testing.T) {
+	prog, errs := visitor.Build("mdl 1;\ncreate page M.P (Title: 'x', Layout: A.L) {\n" +
+		"  container c1 (OnClick: close page) { dynamictext t1 (Content: 'a') }\n};\n")
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	pb := visibleWhenPB("")
+	pb.ctx = &ExecContext{Output: &bytes.Buffer{}, LanguageVersion: langver.V1}
+	built, err := pb.buildWidgetV3(prog.Statements[0].(*ast.CreatePageStmtV3).Widgets[0])
+	if err != nil {
+		t.Fatalf("container with a well-formed OnClick: %v", err)
+	}
+	if c := built.(*pages.Container); c.OnClickAction == nil {
+		t.Error("a well-formed OnClick on a container was not written")
+	}
+
+	vs := nativePropViolations(t, `mdl 1;
+create page M.P (Title: 'x', Layout: A.L) {
+  container c2 (Bogus: 1) { dynamictext t2 (Content: 'a') }
+  title ttl (Content: 'x', OnClick: TOTALLY_MADE_UP)
+  label lbl (Content: 'x', OnClick: close page)
+};
+`)
+	text := violationText(vs)
+	for _, want := range []string{"c2`: `Bogus`", "lbl`: `Action`", "Forms$Label has no click action"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("no refusal says %q:\n%s", want, text)
+		}
+	}
+	// A title is MDL-WIDGET23's (a click action Mendix does not model there).
+	if strings.Contains(text, "ttl") {
+		t.Errorf("the title's OnClick belongs to the click-action rules, not this one:\n%s", text)
+	}
+}
+
+// The alias is the visitor's rename, not a builder read: an alias and its
+// target must be the same action source.
+func TestNativeWidgetProps_AliasesFollowTheVisitor(t *testing.T) {
+	for alias, target := range nativeWidgetKeyAliases {
+		a, okA := actionKeywordSource(alias)
+		b, okB := actionKeywordSource(target)
+		if !okA || !okB || a != b {
+			t.Errorf("alias %q -> %q: the visitor stores them as %q / %q", alias, target, a, b)
+		}
+	}
+}
