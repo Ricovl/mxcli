@@ -150,7 +150,7 @@ var nativeWidgetKinds = map[string]nativeWidgetKind{
 			"Width", "Height", "WidthUnit", "HeightUnit", "Responsive"}},
 
 	// Layout elements.
-	"scrollcontainer": {stored: "Forms$ScrollContainer", tail: true},
+	"scrollcontainer": {stored: "Forms$ScrollContainer", tail: true, reads: []string{"LayoutMode"}},
 	"layoutheader":    {stored: "Forms$Header", tail: true},
 	"placeholder":     {stored: "Forms$Placeholder", tail: true},
 	"navigationtree":  {stored: "Forms$NavigationTree", tail: true, reads: []string{"Menu", "Profile"}},

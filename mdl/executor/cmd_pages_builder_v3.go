@@ -3320,6 +3320,18 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 			Name: w.Name,
 		},
 	}
+	// Headline or Sidebar: which regions run the full width (ako/mxcli#1703).
+	// It was neither read nor written, so a describe → exec copy of
+	// Atlas_SideBar came out a Headline layout.
+	if v := w.GetStringProp("LayoutMode"); v != "" {
+		mode, ok := pages.CanonicalScrollContainerLayoutMode(v)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"scrollcontainer %q: unknown LayoutMode %q (want %s)",
+				w.Name, v, strings.Join(pages.ScrollContainerLayoutModes, " or ")))
+		}
+		sc.LayoutMode = mode
+	}
 
 	seen := map[pages.ScrollContainerSlot]bool{}
 	for _, child := range w.Children {

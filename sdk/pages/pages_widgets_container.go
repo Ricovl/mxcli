@@ -137,9 +137,31 @@ func (tp *TabPage) GetName() string {
 // is the flat form some older documents use and is kept for reading them.
 type ScrollContainer struct {
 	BaseWidget
-	ScrollBehavior ScrollBehavior           `json:"scrollBehavior"`
-	Regions        []*ScrollContainerRegion `json:"regions,omitempty"`
-	Widgets        []Widget                 `json:"widgets,omitempty"`
+	ScrollBehavior ScrollBehavior `json:"scrollBehavior"`
+	// LayoutMode is how the regions share the frame (ako/mxcli#1703): in
+	// Headline the top region runs the full width and the left region starts
+	// under it; in Sidebar the left region runs the full height and the top
+	// bar sits beside it. Empty leaves it unwritten, which Studio Pro reads as
+	// DefaultScrollContainerLayoutMode.
+	LayoutMode string                   `json:"layoutMode,omitempty"`
+	Regions    []*ScrollContainerRegion `json:"regions,omitempty"`
+	Widgets    []Widget                 `json:"widgets,omitempty"`
+}
+
+// ScrollContainerLayoutModes are the members of Forms$ScrollContainer.LayoutMode
+// (generated/metamodel PagesLayoutMode), spelled as stored.
+var ScrollContainerLayoutModes = []string{"Headline", "Sidebar"}
+
+// DefaultScrollContainerLayoutMode is the mode Studio Pro stores on a scroll
+// container that was never set, and fills in when the key is absent
+// (modelsdk/canon's measured property defaults). describe leaves it unsaid.
+const DefaultScrollContainerLayoutMode = "Headline"
+
+// CanonicalScrollContainerLayoutMode returns the stored spelling of a scroll
+// container's LayoutMode, matched case-insensitively. Shared by the CREATE
+// LAYOUT builder and the ALTER mutator, so the two accept the same values.
+func CanonicalScrollContainerLayoutMode(s string) (string, bool) {
+	return canonicalMember(s, ScrollContainerLayoutModes...)
 }
 
 // ScrollContainerRegion is one of a ScrollContainer's five slots.

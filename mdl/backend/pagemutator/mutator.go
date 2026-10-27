@@ -3327,6 +3327,13 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return setTextAreaPropertyMut(widget, propName, value)
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "layoutmode":
+		// A scroll container's Headline / Sidebar (ako/mxcli#1703). Anything
+		// else keeps the pluggable path.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$ScrollContainer" || typ == "Pages$ScrollContainer" {
+			return setScrollContainerLayoutModeMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "readonlystyle":
 		// Stored on the built-in input widgets and the data view; a pluggable
 		// widget with its own "readOnlyStyle" key keeps that path (ako/mxcli#977).
@@ -3338,6 +3345,26 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	}
+}
+
+// setScrollContainerLayoutModeMut writes a stored scroll container's
+// LayoutMode, spelled as the metamodel spells it. It writes only a key the
+// document already carries (CLAUDE.md, overlay writes): one without it is from
+// a Mendix version mxcli has not measured the property on, and inventing the
+// key there could leave a document Studio Pro cannot open.
+func setScrollContainerLayoutModeMut(widget bson.D, value any) error {
+	s, ok := value.(string)
+	mode, valid := pages.CanonicalScrollContainerLayoutMode(s)
+	if !ok || !valid {
+		return fmt.Errorf("scroll container LayoutMode must be %s, got %v",
+			strings.Join(pages.ScrollContainerLayoutModes, " or "), value)
+	}
+	if bsonnav.DGet(widget, "LayoutMode") == nil {
+		return fmt.Errorf("this scroll container stores no LayoutMode, so it cannot be set here; " +
+			"rewrite the layout with `create or modify layout`")
+	}
+	bsonnav.DSet(widget, "LayoutMode", mode)
+	return nil
 }
 
 // dynamicTextRenderModes are the values a Forms$DynamicText's RenderMode takes —

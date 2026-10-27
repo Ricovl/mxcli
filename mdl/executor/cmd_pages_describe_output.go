@@ -13,6 +13,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // mdl0Quote writes s as an mdl 0 string literal: a backslash, a line break, a
@@ -323,7 +324,13 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 	switch w.Type {
 	case "Forms$ScrollContainer", "Pages$ScrollContainer":
 		header := fmt.Sprintf("scrollcontainer %s", mdlIdent(w.Name))
-		props := appendAppearanceProps(ctx, nil, w)
+		var props []string
+		// Only Sidebar: Headline is what an unset scroll container is, so a
+		// layout that never set it describes as before (ako/mxcli#1703).
+		if w.ScrollLayoutMode != "" && w.ScrollLayoutMode != pages.DefaultScrollContainerLayoutMode {
+			props = append(props, fmt.Sprintf("LayoutMode: %s", mdlQuote(ctx, w.ScrollLayoutMode)))
+		}
+		props = appendAppearanceProps(ctx, props, w)
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 			for _, child := range w.Children {
