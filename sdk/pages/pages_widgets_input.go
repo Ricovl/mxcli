@@ -81,6 +81,10 @@ type TextBox struct {
 	ReadOnly             bool         `json:"readOnly,omitempty"`
 	OnChangeAction       ClientAction `json:"onChangeAction,omitempty"`
 	OnEnterAction        ClientAction `json:"onEnterAction,omitempty"`
+	// OnEnterKeyPressAction is Studio Pro's Events → "On enter key press",
+	// Forms$TextBox.OnEnterKeyPressAction. A text box's only: Forms$TextArea
+	// declares no such slot. nil writes the empty NoAction (ako/mxcli#1743).
+	OnEnterKeyPressAction ClientAction `json:"onEnterKeyPressAction,omitempty"`
 	// SubmitBehaviour is Forms$TextBox/TextArea.SubmitBehaviour: "OnEndEditing"
 	// (Studio Pro's default) or "WhileEditing", which submits as the user types.
 	// SubmitOnInputDelay is the debounce in milliseconds that goes with it; nil

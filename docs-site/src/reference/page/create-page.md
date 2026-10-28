@@ -67,7 +67,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `OnChange`, `OnEnterKeyPress` (an action run when the user presses Enter in the box; the stored name `OnEnterKeyPressAction` is accepted too), `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
 | `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
 | `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
@@ -139,7 +139,17 @@ success, because a no-action widget is perfectly legal Mendix. Write `NOTHING`
 when a control is genuinely meant to be inert, so that a dead one always means a
 mistake.
 
-The same values serve `OnClick:` (an alias of `Action:`) and `OnChange:`.
+The same values serve `OnClick:` (an alias of `Action:`), `OnChange:` and a
+text box's `OnEnterKeyPress:` — Studio Pro's *On enter key press*, which runs
+when the user presses Enter in the box (a search field that searches on Enter):
+
+```sql
+TEXTBOX tbSearch (Label: 'Search', Attribute: SearchText,
+  OnEnterKeyPress: CALL MICROFLOW Module.ACT_Search(Query = $currentObject))
+```
+
+Only a text box has that action — Mendix stores it on no other widget, a text
+area included — so on any other widget the key is refused with that reason.
 
 A flow or page that takes no parameters may be called with an empty argument
 list, as a flow body writes it: `Action: CALL MICROFLOW Module.Name()` stores

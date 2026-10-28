@@ -423,6 +423,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		// Unread, describe → exec replaced a stored enter-key action with
+		// the empty one (ako/mxcli#1743).
+		widget.OnEnterKeyPress = renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterKeyPressAction"))
 		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
 

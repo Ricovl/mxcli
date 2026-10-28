@@ -576,6 +576,10 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
 		return nil, err
 	}
+	// The "On enter key press" action, a text box's only (ako/mxcli#1743).
+	if tb.OnEnterKeyPressAction, err = pb.buildInputEventAction(w, "OnEnterKeyPress", "OnEnterKeyPressAction"); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, tb.ID); err != nil {
 		return nil, err

@@ -597,9 +597,17 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Studio Pro's "On enter key press". A NoAction was hard-coded here,
+		// so the action could not be written and describe → exec replaced a
+		// stored one with nothing (ako/mxcli#1743). nil still writes the
+		// NoAction.
+		onEnterKey, err := clientActionToGen(x.OnEnterKeyPressAction)
+		if err != nil {
+			return nil, err
+		}
 		g.SetOnChangeAction(onChange)
 		g.SetOnEnterAction(onEnter)
-		g.SetOnEnterKeyPressAction(noActionGen())
+		g.SetOnEnterKeyPressAction(onEnterKey)
 		g.SetOnLeaveAction(noActionGen())
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977

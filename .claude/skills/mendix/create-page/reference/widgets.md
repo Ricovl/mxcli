@@ -164,7 +164,10 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   An invented keyword (`action: totally_made_up`) did the same. Use
   `action: nothing` when a control really is meant to be inert, so a dead one
   always means a mistake.
-- The same forms serve `onclick:` (an alias of `action:`) and `onchange:`.
+- The same forms serve `onclick:` (an alias of `action:`), `onchange:`, and a
+  textbox's `OnEnterKeyPress:` (Studio Pro's "On enter key press" — a search box
+  that searches on Enter). Only a textbox has that one; on a textarea or any
+  other widget it is refused, because Mendix stores it nowhere else.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).

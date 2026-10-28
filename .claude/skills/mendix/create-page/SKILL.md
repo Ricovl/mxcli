@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-218 | Syntax |
-| 219-289 | Basic Examples |
-| 290-314 | Modifying Existing Pages |
-| 315-418 | Conditional Visibility and Editability |
-| 419-583 | Known Limitations |
-| 584-592 | Tips |
-| 593-619 | Related Commands |
-| 620-644 | PLUGGABLEWIDGET Escape Hatch |
-| 645-648 | See Also |
+| 47-219 | Syntax |
+| 220-290 | Basic Examples |
+| 291-315 | Modifying Existing Pages |
+| 316-419 | Conditional Visibility and Editability |
+| 420-584 | Known Limitations |
+| 585-593 | Tips |
+| 594-620 | Related Commands |
+| 621-645 | PLUGGABLEWIDGET Escape Hatch |
+| 646-649 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -100,6 +100,7 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
 | Submit while typing | `SubmitBehaviour: WhileEditing` (+ `SubmitOnInputDelay: <ms>`) on textbox / textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — default `OnEndEditing` / `300` |
 | Native keyboard | `KeyboardType: EmailAddress` (`NumberPad`, `DecimalPad`, `PhonePad`, `URL`) on textbox | `textbox tbEmail (attribute: Email, KeyboardType: EmailAddress)` — default `Default` |
+| Act on Enter | `OnEnterKeyPress: <action>` on a textbox only | `textbox tbSearch (attribute: Query, OnEnterKeyPress: call microflow Mod.ACT_Search(Query = $currentObject))` — Studio Pro's "On enter key press"; same action forms as `OnChange:`. No other widget has it (a textarea neither): refused there |
 | Layout grid width | `Width: FullWidth \| FixedWidth` on layoutgrid | `layoutgrid lg (Width: FixedWidth) { ... }` — default `FullWidth` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |

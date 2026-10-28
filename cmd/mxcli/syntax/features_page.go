@@ -168,6 +168,10 @@ LIST IMPACT OF htmlelement;
 			"-- The keyboard a native app opens (TEXTBOX): Default | NumberPad | DecimalPad |\n" +
 			"-- EmailAddress | PhonePad | URL:\n" +
 			"TEXTBOX name (Attribute: Email, KeyboardType: EmailAddress)\n" +
+			"-- Run an action when the user presses Enter in a text box (Studio Pro's \"On enter key press\").\n" +
+			"-- Same action forms as OnChange:; the stored name OnEnterKeyPressAction: is the same property.\n" +
+			"-- A TEXTBOX's only: no other widget stores it (TEXTAREA neither), so it is refused there.\n" +
+			"TEXTBOX name (Attribute: Query, OnEnterKeyPress: CALL MICROFLOW Module.ACT_Search(Query = $currentObject))\n" +
 			"-- A layout grid's width: FullWidth (default) | FixedWidth:\n" +
 			"LAYOUTGRID name (Width: FixedWidth) { ROW { COLUMN (DesktopWidth: 12) { ... } } }\n\n" +
 			"-- Conditional visibility / editability: a bare client expression, stored as\n" +

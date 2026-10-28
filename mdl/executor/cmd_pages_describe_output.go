@@ -693,6 +693,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		if w.OnEnterKeyPress != "" {
+			props = append(props, actionProp("OnEnterKeyPress", w.OnEnterKeyPress))
+		}
 		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
 		props = describeSubmitBehaviour(props, w)

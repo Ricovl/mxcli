@@ -1,0 +1,54 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1743 (mendixlabs/mxcli#1662) — a text box's "On enter key press"
+-- action had no MDL property. Every spelling was reported as "not a property
+-- mxcli writes on a textbox (Forms$TextBox), so it would be dropped", exec
+-- dropped it, describe showed nothing and mx check passed — so a search box
+-- that searches on Enter could not be generated. `OnChange:` on the same widget
+-- was written, and is the control.
+--
+-- The writer also hard-coded an empty NoAction into the slot, so describe →
+-- exec of a Studio Pro text box with an enter-key action deleted it.
+--
+-- After the fix `OnEnterKeyPress:` writes Forms$TextBox.OnEnterKeyPressAction,
+-- with the action forms `OnChange:` takes, and the stored name
+-- `OnEnterKeyPressAction:` is accepted as the same property. Describe prints
+-- it back as `OnEnterKeyPress:`, describe → exec reports "Unchanged page" and
+-- mx check (11.13.0) is 0 errors. A text area has no such slot: see
+-- 1743-textarea-enter-key-action.fail.mdl.
+-- ============================================================================
+
+create module BugEnterKey;
+
+create or modify non-persistent entity BugEnterKey.Query ( SearchText: String(200) );
+
+create or modify microflow BugEnterKey.ACT_Search ( $Query: BugEnterKey.Query ) returns Boolean as $Ok
+begin
+  return true;
+end;
+
+create or modify microflow BugEnterKey.DS_Query () returns BugEnterKey.Query as $Query
+begin
+  $Made = create BugEnterKey.Query ( SearchText = '' );
+  return $Made;
+end;
+
+create or modify page BugEnterKey.SearchPage ( Title: 'Search', Layout: Atlas_Core.Atlas_Default ) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvQuery (DataSource: microflow BugEnterKey.DS_Query) {
+          -- The control: written before the fix too.
+          textbox tbChange (Label: 'On change', Attribute: SearchText,
+            OnChange: call microflow BugEnterKey.ACT_Search(Query = $currentObject))
+          textbox tbSearch (Label: 'Search', Attribute: SearchText,
+            OnEnterKeyPress: call microflow BugEnterKey.ACT_Search(Query = $currentObject))
+          -- The stored name, and the action settings `OnChange:` takes.
+          textbox tbStored (Label: 'Stored name', Attribute: SearchText,
+            OnEnterKeyPressAction: call microflow BugEnterKey.ACT_Search(Query = $currentObject) with (ProgressBar: Blocking))
+          textbox tbSave (Label: 'Save on Enter', Attribute: SearchText, OnEnterKeyPress: save changes)
+        }
+      }
+    }
+  }
+};
