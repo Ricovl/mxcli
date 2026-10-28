@@ -80,7 +80,28 @@ func CheckEntityAccessCalls(ctx *ExecContext, prog *ast.Program) []linter.Violat
 		return nil
 	}
 	sim := &eaSim{flows: map[string]*eaFlow{}}
-	for _, typ := range []string{"Microflows$Microflow", "Microflows$Rule"} {
+	add := func(f *eaFlow) {
+		if prev, ok := sim.flows[f.name]; ok && !prev.excluded {
+			return // a live namesake wins over excluded ones (#914)
+		}
+		sim.flows[f.name] = f
+	}
+	rawTypes := []string{"Microflows$Microflow", "Microflows$Rule"}
+	if flows, ok := storedFlowIndex(ctx); ok {
+		// Microflows from the flow signature index: only changed ones are read.
+		rawTypes = rawTypes[1:]
+		for _, f := range flows {
+			if f.Kind != "microflow" {
+				continue
+			}
+			ef := &eaFlow{kind: "microflow", name: h.GetQualifiedName(f.containerID, f.Name), exists: true, excluded: f.Excluded, ea: f.EA}
+			for _, c := range f.Calls {
+				ef.calls = append(ef.calls, eaCall{c.Kind, c.Name})
+			}
+			add(ef)
+		}
+	}
+	for _, typ := range rawTypes {
 		units, err := ctx.Backend.ListRawUnitsByType(typ)
 		if err != nil {
 			continue
@@ -98,17 +119,13 @@ func CheckEntityAccessCalls(ctx *ExecContext, prog *ast.Program) []linter.Violat
 				continue
 			}
 			name, _ := bsonField(doc, "Name").(string)
-			qn := h.GetQualifiedName(u.ContainerID, name)
 			excluded, _ := bsonField(doc, "Excluded").(bool)
-			if prev, ok := sim.flows[qn]; ok && !prev.excluded {
-				continue // a live namesake wins over excluded ones (#914)
-			}
 			ea, _ := bsonField(doc, "ApplyEntityAccess").(bool)
-			f := &eaFlow{kind: kind, name: qn, exists: true, excluded: excluded, ea: ea}
+			f := &eaFlow{kind: kind, name: h.GetQualifiedName(u.ContainerID, name), exists: true, excluded: excluded, ea: ea}
 			if kind == "microflow" {
 				f.calls = collectRawEntityAccessCalls(doc)
 			}
-			sim.flows[qn] = f
+			add(f)
 		}
 	}
 
@@ -171,6 +188,16 @@ func scriptTouchesEntityAccessCalls(prog *ast.Program) bool {
 		}
 	}
 	return false
+}
+
+// rawEntityAccess reads a stored microflow's ApplyEntityAccess and calls.
+func rawEntityAccess(contents []byte) (bool, []eaCall) {
+	var doc bson.D
+	if err := bson.Unmarshal(contents, &doc); err != nil {
+		return false, nil
+	}
+	ea, _ := bsonField(doc, "ApplyEntityAccess").(bool)
+	return ea, collectRawEntityAccessCalls(doc)
 }
 
 // collectRawEntityAccessCalls reads the calls out of a stored microflow: the

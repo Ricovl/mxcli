@@ -12,12 +12,13 @@ import (
 
 // The flow signature index: what check reads of every stored microflow and
 // nanoflow — name, excluded flag, allowed roles, parameters and return entity —
+// and, for MDL-SEC22, a microflow's ApplyEntityAccess and the flows it calls —
 // stamped with the unit file's size and mtime and persisted in
 // .mxcli/flow-signatures. A flow whose file still matches its stamp is not
 // decoded again; on a 23k-unit app decoding every flow's signature twice was a
 // third of check.
 
-const flowIndexFormat = 1
+const flowIndexFormat = 2
 
 // indexedFlow is one flow's index entry.
 type indexedFlow struct {
@@ -26,11 +27,15 @@ type indexedFlow struct {
 	Excluded bool
 	Roles    []string
 	Sig      flowSignature
+	EA       bool          // microflows: ApplyEntityAccess
+	Calls    []indexedCall // microflows: called microflows and rules
 	Size     int64
 	MtimeNs  int64
 
 	containerID model.ID // from the current stamp, never persisted
 }
+
+type indexedCall struct{ Kind, Name string }
 
 type persistedFlowIndex struct {
 	Format int
@@ -145,7 +150,7 @@ func decodeFlowEntries(ctx *ExecContext, ids []string) (map[string]indexedFlow, 
 					Roles: roles(nf.AllowedModuleRoles), Sig: *sdkFlowSignature(nf.Parameters, nf.ReturnType)}
 			}
 		}
-		return out, nil
+		return out, addEntityAccess(ctx, out, true)
 	}
 	for _, id := range ids {
 		if mf, err := ctx.Backend.GetMicroflow(model.ID(id)); err == nil && mf != nil {
@@ -158,7 +163,47 @@ func decodeFlowEntries(ctx *ExecContext, ids []string) (map[string]indexedFlow, 
 				Roles: roles(nf.AllowedModuleRoles), Sig: *sdkFlowSignature(nf.Parameters, nf.ReturnType)}
 		}
 	}
-	return out, nil
+	return out, addEntityAccess(ctx, out, false)
+}
+
+// addEntityAccess fills EA and Calls of the microflow entries from their raw
+// BSON: through one listing when many changed, else unit by unit.
+func addEntityAccess(ctx *ExecContext, out map[string]indexedFlow, many bool) error {
+	set := func(id string, contents []byte) {
+		e, ok := out[id]
+		if !ok || e.Kind != "microflow" {
+			return
+		}
+		ea, calls := rawEntityAccess(contents)
+		e.EA, e.Calls = ea, nil
+		for _, c := range calls {
+			e.Calls = append(e.Calls, indexedCall{c.kind, c.name})
+		}
+		out[id] = e
+	}
+	if many {
+		units, err := ctx.Backend.ListRawUnitsByType("Microflows$Microflow")
+		if err != nil {
+			return err
+		}
+		for _, u := range units {
+			if u.Type == "Microflows$Microflow" {
+				set(string(u.ID), u.Contents)
+			}
+		}
+		return nil
+	}
+	for id, e := range out {
+		if e.Kind != "microflow" {
+			continue
+		}
+		b, err := ctx.Backend.GetRawUnitBytes(model.ID(id))
+		if err != nil {
+			return err
+		}
+		set(id, b)
+	}
+	return nil
 }
 
 // flowIndexPath persists only into an existing .mxcli directory.
