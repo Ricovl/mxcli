@@ -44,6 +44,13 @@ type NavigationProfile struct {
 	// mxcli carries until someone ticks "Progressive web app". An offline
 	// profile with nil settings gets no service worker (mendixlabs/mxcli#1377).
 	ProgressiveWebApp *NavPWASettings `json:"progressiveWebApp,omitempty"`
+	// AppTitle is the profile's Navigation$NavigationProfile.AppTitle read in
+	// the project's default language (model.SelectTranslation, as a menu
+	// caption is); "" when it has no text. AppIcon is the Images$Image the
+	// profile's AppIcon names, "" for none. Web profiles only: a native
+	// profile has neither (ako/mxcli#1756).
+	AppTitle string `json:"appTitle,omitempty"`
+	AppIcon  string `json:"appIcon,omitempty"`
 }
 
 // NavPWASettings is a profile's Progressive web app settings, as stored.
@@ -257,6 +264,12 @@ type NavigationProfileSpec struct {
 	// ProgressiveWebApp is the PROGRESSIVE WEB APP clause; nil leaves the
 	// stored settings exactly as they are.
 	ProgressiveWebApp *NavPWASpec
+	// AppTitle is the APP TITLE clause: the text for the project default
+	// language's item of the profile's AppTitle, every other language's item
+	// kept. AppIcon is the APP ICON clause, the image's qualified name, ""
+	// clearing it. nil leaves the stored value alone (ako/mxcli#1756).
+	AppTitle *string
+	AppIcon  *string
 }
 
 // NavOfflineEntitySpec is one entity's offline sync rule, as MDL can express

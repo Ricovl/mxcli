@@ -576,6 +576,13 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
 		return nil, err
 	}
+	if err := pb.applyInputFocusEventsV3(w, &tb.OnEnterAction, &tb.OnLeaveAction); err != nil {
+		return nil, err
+	}
+	// The "On enter key press" action, a text box's only (ako/mxcli#1743).
+	if tb.OnEnterKeyPressAction, err = pb.buildInputEventAction(w, "OnEnterKeyPress", "OnEnterKeyPressAction"); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, tb.ID); err != nil {
 		return nil, err
@@ -660,6 +667,9 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 	if err := pb.applyOnChangeV3(w, &ta.OnChangeAction); err != nil {
 		return nil, err
 	}
+	if err := pb.applyInputFocusEventsV3(w, &ta.OnEnterAction, &ta.OnLeaveAction); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, ta.ID); err != nil {
 		return nil, err
@@ -715,6 +725,9 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &dp.OnEnterAction, &dp.OnLeaveAction); err != nil {
 		return nil, err
 	}
 
@@ -838,6 +851,9 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 	if err := pb.applyOnChangeV3(w, &dd.OnChangeAction); err != nil {
 		return nil, err
 	}
+	if err := pb.applyInputFocusEventsV3(w, &dd.OnEnterAction, &dd.OnLeaveAction); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, dd.ID); err != nil {
 		return nil, err
@@ -889,6 +905,9 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &cb.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &cb.OnEnterAction, &cb.OnLeaveAction); err != nil {
 		return nil, err
 	}
 
@@ -957,6 +976,9 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &rb.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &rb.OnEnterAction, &rb.OnLeaveAction); err != nil {
 		return nil, err
 	}
 

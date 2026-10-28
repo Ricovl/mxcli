@@ -74,8 +74,9 @@ var (
 	visibilityKeys = []string{"Visible", "VisibleIf", "VisibleWhen", "VisibleRoles"}
 )
 
-// inputReads are what every attribute-bound input's builder reads.
-var inputReads = []string{"Attribute", "Label", "ShowLabel", "OnChange"}
+// inputReads are what every attribute-bound input's builder reads. OnEnter /
+// OnLeave (and their stored names) are applyInputFocusEventsV3's.
+var inputReads = []string{"Attribute", "Label", "ShowLabel", "OnChange", "OnEnter", "OnEnterAction", "OnLeave", "OnLeaveAction"}
 
 func withReads(base []string, more ...string) []string {
 	return append(append([]string(nil), base...), more...)
@@ -94,7 +95,7 @@ var nativeWidgetKinds = map[string]nativeWidgetKind{
 	// Inputs.
 	"textbox": {stored: "Forms$TextBox", tail: true, visible: true,
 		reads: withReads(inputReads, "Placeholder", "ReadOnlyStyle", "Password", "Validation", "ValidationMessage",
-			"SubmitBehaviour", "SubmitOnInputDelay", "KeyboardType")},
+			"SubmitBehaviour", "SubmitOnInputDelay", "KeyboardType", "OnEnterKeyPress", "OnEnterKeyPressAction")},
 	"textarea": {stored: "Forms$TextArea", tail: true, visible: true,
 		reads: withReads(inputReads, "Placeholder", "ReadOnlyStyle", "NumberOfLines", "Autocomplete",
 			"SubmitBehaviour", "SubmitOnInputDelay")},
@@ -339,6 +340,9 @@ func nativeWidgetAcceptedNames(kind, keyword string) []string {
 			case "VisibleIf", "VisibleWhen", "VisibleRoles", "Footer":
 				continue // spellings of Visible, and a legacy form
 			}
+			if isInputEventStoredName(n) {
+				continue // the stored name of an event action; its MDL name is listed
+			}
 			add(n)
 		}
 	}
@@ -427,6 +431,9 @@ var (
 // this kind uses for the thing the key means on another widget, or the
 // nearest key it takes.
 func nativeWidgetPropHint(kind, keyword, key string) string {
+	if h := inputEventHint(kind, key); h != "" {
+		return h
+	}
 	switch strings.ToLower(key) {
 	case "caption", "captionparams":
 		switch {

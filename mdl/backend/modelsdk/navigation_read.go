@@ -102,6 +102,11 @@ func webNavProfileFromGen(p *genNav.NavigationProfile) *types.NavigationProfile 
 	if pwa, ok := p.ProgressiveWebAppSettings().(*genNav.ProgressiveWebAppSettings); ok && pwa != nil {
 		profile.ProgressiveWebApp = &types.NavPWASettings{Precaching: pwa.Precaching(), InstallPrompt: pwa.InstallPrompt()}
 	}
+	// Studio Pro's "Application title" and "Application icon" (ako/mxcli#1756).
+	// The title is read by the rule a menu caption is: the project's default
+	// language, the language exec writes it in.
+	profile.AppTitle = textOf(p.AppTitle())
+	profile.AppIcon = p.AppIconQualifiedName()
 	return profile
 }
 

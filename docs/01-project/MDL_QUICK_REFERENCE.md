@@ -930,6 +930,7 @@ alter workflow Module.OrderApproval {
 | Alter navigation | `alter navigation Profile { insert after 'Home' { menu item … } drop 'Old'; … };` | Edits one profile in place: `insert before\|after\|into <item> { … }`, `insert { … }`, `replace <item> with { … }`, `move <item> before\|after\|into <item>`, `drop <item>, …`, `set ( Caption:, OnClick:, Icon: \| none ) on <item>`, `set home page\|microflow M.X [for Role]`, `drop home page for Role`, `set/drop login page`, `set/drop not found page`. `<item>` is a caption path `'Admin' > 'Users'` (`@n` among equal captions). Untouched items stay as stored; a refusal writes nothing |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
 | Progressive web app | `progressive web app ( Precaching: true )` / `progressive web app off` | A clause of CREATE NAVIGATION: Studio Pro's *Progressive web app* settings. An offline profile without them gets no service worker, so no page opens offline (mendixlabs/mxcli#1377). Keys: `Precaching` (default false), `InstallPrompt` (default true); omitted, the stored settings stay |
+| Application title / icon | `app title 'Order Desk'` · `app icon Mod.Images.Logo` / `app icon none` | Clauses of CREATE NAVIGATION: Studio Pro's *Application title* (the browser tab's `Mendix - <page>` prefix in a new project) and *Application icon*. The title is written in the project's default language, other languages kept; the icon is an image, resolved by `check --references` and exec, and must be a square PNG at least 512 px wide (CE6859; exec refuses another). Omitted, both stay as stored (ako/mxcli#1756) |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
 | Offline profiles | `create or modify navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
 
@@ -944,6 +945,7 @@ spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
 **Navigation Example:**
 ```sql
 create or modify navigation Responsive
+  app title 'Order Desk'
   home page MyModule.Home_Web
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
@@ -1521,6 +1523,8 @@ MDL uses explicit property declarations for pages:
 | Password field | `Password: true` on a textbox | `textbox tbPw (attribute: Secret, Password: true)` — omitted when false. Without it a describe → exec round trip turns a password field into a plaintext one |
 | Submit while typing | `SubmitBehaviour: OnEndEditing \| WhileEditing`, `SubmitOnInputDelay: <ms>` on a textbox or textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — defaults `OnEndEditing` / `300`, omitted by describe when default. An invalid value is MDL-WIDGET18; on any other widget the keys are refused (MDL-WIDGET52) |
 | Native keyboard | `KeyboardType: Default \| NumberPad \| DecimalPad \| EmailAddress \| PhonePad \| URL` on a textbox | `textbox tbEmail (attribute: Email, KeyboardType: EmailAddress)` — default `Default`, omitted by describe when default. An invalid value is MDL-WIDGET18 |
+| Enter-key action | `OnEnterKeyPress: <action>` on a textbox | `textbox tbSearch (attribute: Query, OnEnterKeyPress: call microflow Mod.ACT_Search(Query = $currentObject))` — Studio Pro's "On enter key press": runs when the user presses Enter in the box. Takes the action forms `OnChange:` takes; the stored name `OnEnterKeyPressAction:` is accepted as the same property, and describe prints `OnEnterKeyPress:`. A text box's only — Mendix stores it on no other widget, a textarea included — so elsewhere it is refused (MDL-WIDGET52) with that reason (ako/mxcli#1743) |
+| Focus actions | `OnEnter: <action>`, `OnLeave: <action>` on any input widget | `datepicker dpDue (attribute: Due, OnLeave: call microflow Mod.ACT_Validate(Item = $currentObject))` — Studio Pro's "On enter" / "On leave": focus moving into / out of the widget (not the Enter key). Same action forms as `OnChange:`; the stored names `OnEnterAction:` / `OnLeaveAction:` are the same properties. Before this, describe → exec deleted a stored one (ako/mxcli#1743) |
 | Layout grid width | `Width: FullWidth \| FixedWidth` on a layoutgrid | `layoutgrid lg (Width: FixedWidth) { … }` — default `FullWidth`, omitted by describe when default |
 | Widget validation | `Validation: '<expression>'`, `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — a Mendix expression over `$value`, QUOTED not bracketed (`[...]` is the XPath spelling and parses as an array) |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
@@ -1655,7 +1659,7 @@ create page MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `layoutgrid`, `row`, `column`, `container`, `customcontainer`
 - Input: `textbox`, `textarea`, `checkbox`, `radiobuttons`, `datepicker`, `combobox`
-  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode
+  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode. Custom content (several attributes per option) is a body block of the mode: `{ optionssourceassociationcustomcontent { … } }` in association mode, `{ optionssourcedatabasecustomcontent { … } }` in database mode, its widgets bound to the option entity
 - Display: `dynamictext`, `datagrid`, `gallery`, `listview`, `image`, `staticimage`, `dynamicimage`
 
 ### List View specialization templates

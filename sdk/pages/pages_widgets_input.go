@@ -81,6 +81,14 @@ type TextBox struct {
 	ReadOnly             bool         `json:"readOnly,omitempty"`
 	OnChangeAction       ClientAction `json:"onChangeAction,omitempty"`
 	OnEnterAction        ClientAction `json:"onEnterAction,omitempty"`
+	// OnEnterAction / OnLeaveAction are Studio Pro's Events → "On enter" and
+	// "On leave" (focus in, focus out), stored on every input widget. nil
+	// writes the empty NoAction (ako/mxcli#1743).
+	OnLeaveAction ClientAction `json:"onLeaveAction,omitempty"`
+	// OnEnterKeyPressAction is Studio Pro's Events → "On enter key press",
+	// Forms$TextBox.OnEnterKeyPressAction. A text box's only: Forms$TextArea
+	// declares no such slot. nil writes the empty NoAction (ako/mxcli#1743).
+	OnEnterKeyPressAction ClientAction `json:"onEnterKeyPressAction,omitempty"`
 	// SubmitBehaviour is Forms$TextBox/TextArea.SubmitBehaviour: "OnEndEditing"
 	// (Studio Pro's default) or "WhileEditing", which submits as the user types.
 	// SubmitOnInputDelay is the debounce in milliseconds that goes with it; nil
@@ -113,6 +121,8 @@ type TextArea struct {
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
 	ReadOnly       bool         `json:"readOnly,omitempty"`
 	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 	// SubmitBehaviour / SubmitOnInputDelay: as on TextBox.
 	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
 	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
@@ -147,6 +157,8 @@ type DatePicker struct {
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
 	ReadOnly       bool         `json:"readOnly,omitempty"`
 	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // DropDown represents a drop-down selection widget.
@@ -159,6 +171,8 @@ type DropDown struct {
 	EmptyOption       *model.Text        `json:"emptyOption,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	OnEnterAction     ClientAction       `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction     ClientAction       `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // ReferenceSelector represents a reference selector widget.
@@ -221,6 +235,8 @@ type CheckBox struct {
 	// DataGrid2 cell (ako/mxcli#490).
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
 	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // RadioButtons represents a radio button group widget.
@@ -236,6 +252,8 @@ type RadioButtons struct {
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
 	ReadOnly       bool         `json:"readOnly,omitempty"`
 	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // RenderDirection represents the direction for rendering.

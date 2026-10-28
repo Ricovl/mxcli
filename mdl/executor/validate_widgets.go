@@ -332,6 +332,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// ako/mxcli#1744: a slot's switch against its content — a combo box's
+		// custom-content type 'yes' with no content is CE0642.
+		out = append(out, validateSlotSwitches(w, def, locationPrefix)...)
 		// A keyword widget the registry has no definition for (DATAGRID: its
 		// definition is generated from the project's package) is judged by the
 		// property list of the template mxcli embeds for it, not by the
@@ -1900,6 +1903,23 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		})
 	}
 	return out
+}
+
+// childSlotKeyword returns the block keyword of the child slot whose property
+// key is lower (any case), declared by def or by one of its modes; "" when
+// none is. A mode's slot counts: written as a value, a combo box's custom
+// content is MDL-WIDGET27 (ako/mxcli#1744), not a known-but-unmapped key.
+func childSlotKeyword(def *WidgetDefinition, lower string) string {
+	slots := append([]ChildSlotMapping(nil), def.ChildSlots...)
+	for _, m := range def.Modes {
+		slots = append(slots, m.ChildSlots...)
+	}
+	for _, cs := range slots {
+		if strings.EqualFold(cs.PropertyKey, lower) {
+			return strings.ToLower(cs.MDLContainer)
+		}
+	}
+	return ""
 }
 
 // mapsOwnKey reports whether a mapping of def (or of one of its modes) writes

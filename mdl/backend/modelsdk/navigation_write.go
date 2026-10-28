@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
+	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -232,7 +233,50 @@ func navPatchWebProfile(doc bson.D, spec types.NavigationProfileSpec) (bson.D, e
 	if spec.ProgressiveWebApp != nil {
 		doc = navSetField(doc, "ProgressiveWebAppSettings", navPWASettings(navGetDoc(doc, "ProgressiveWebAppSettings"), *spec.ProgressiveWebApp))
 	}
+
+	// APP TITLE / APP ICON (ako/mxcli#1756). nil leaves the stored value alone,
+	// so a statement that never mentions the title does not reset it to
+	// anything -- the browser tab keeps what Studio Pro or an earlier script set.
+	if spec.AppTitle != nil {
+		title, err := navAppTitle(navGetDoc(doc, "AppTitle"), *spec.AppTitle)
+		if err != nil {
+			return nil, err
+		}
+		doc = navSetField(doc, "AppTitle", title)
+	}
+	if spec.AppIcon != nil {
+		// A by-name reference to an Images$Image; "" is Studio Pro's "no icon",
+		// the value a profile it has just created carries.
+		doc = navSetField(doc, "AppIcon", *spec.AppIcon)
+	}
 	return doc, nil
+}
+
+// navAppTitle is the profile's AppTitle with text as the project default
+// language's item. The stored Texts$Text is patched, not rebuilt: its $ID, the
+// item's $ID and every other language's item are kept, which is what Studio Pro
+// does when the title is edited in the default language -- and the rule every
+// text an ALTER sets follows (bsonnav.SetTextsTextTranslation). A profile with
+// no Texts$Text there gets a fresh one, as a menu caption does.
+//
+// The stored element is copied before it is patched: SetTextsTextTranslation
+// writes in place, and the caller's stored profile must not change under it.
+func navAppTitle(stored bson.D, text string) (bson.D, error) {
+	if stored == nil || navGetString(stored, "$Type") != "Texts$Text" {
+		return navCaptionBson(text), nil
+	}
+	raw, err := bson.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("app title: %w", err)
+	}
+	var title bson.D
+	if err := bson.Unmarshal(raw, &title); err != nil {
+		return nil, fmt.Errorf("app title: %w", err)
+	}
+	if !bsonnav.SetTextsTextTranslation(title, text) {
+		return navCaptionBson(text), nil
+	}
+	return title, nil
 }
 
 // navPWASettings is the profile's ProgressiveWebAppSettings after the clause:
