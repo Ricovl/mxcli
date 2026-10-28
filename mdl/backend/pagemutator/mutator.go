@@ -3744,12 +3744,26 @@ func setDesignPropertyMut(widget bson.D, key, valueType, option string) error {
 	}
 	elements := bsonnav.DGetArrayElements(bsonnav.DGet(appearance, "DesignProperties"))
 
-	for _, el := range elements {
+	for i, el := range elements {
 		entry, ok := el.(bson.D)
 		if !ok || bsonnav.DGetString(entry, "Key") != key {
 			continue
 		}
-		bsonnav.DSet(entry, "Value", buildDesignPropertyValueDoc(valueType, option))
+		// Rebuilt rather than DSet: an entry stored before Mendix 10.2 has no
+		// Value — Type, StringValue and BooleanValue instead — and DSet does
+		// nothing on a missing key, so the set reported success and changed
+		// nothing (ako/mxcli#1209). The unit write lowers the rebuilt entry to the
+		// project's shape (canon.LowerToProjectShape); the entry keeps its $ID.
+		id := bsonnav.DGet(entry, "$ID")
+		if id == nil {
+			id = bsonutil.NewIDBsonBinary()
+		}
+		elements[i] = bson.D{
+			{Key: "$ID", Value: id},
+			{Key: "$Type", Value: designPropertyEntryType},
+			{Key: "Key", Value: key},
+			{Key: "Value", Value: buildDesignPropertyValueDoc(valueType, option)},
+		}
 		return writeDesignProperties(widget, key, elements)
 	}
 
