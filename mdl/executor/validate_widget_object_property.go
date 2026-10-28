@@ -199,10 +199,8 @@ func containerKeyword(w *ast.WidgetV3, registry *WidgetRegistry, propertyKey str
 			return strings.ToLower(ol.MDLContainer), false
 		}
 	}
-	for _, cs := range def.ChildSlots {
-		if strings.EqualFold(cs.PropertyKey, propertyKey) {
-			return strings.ToLower(cs.MDLContainer), true
-		}
+	if kw := childSlotKeyword(def, propertyKey); kw != "" {
+		return kw, true
 	}
 	return "", false
 }

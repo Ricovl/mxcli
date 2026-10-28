@@ -53,8 +53,9 @@ type Builder struct {
 }
 
 var (
-	_ backend.WidgetObjectBuilder    = (*Builder)(nil)
-	_ backend.WidgetPropertyDeclarer = (*Builder)(nil)
+	_ backend.WidgetObjectBuilder       = (*Builder)(nil)
+	_ backend.WidgetPropertyDeclarer    = (*Builder)(nil)
+	_ backend.WidgetEnumerationDeclarer = (*Builder)(nil)
 )
 
 // DeclaresProperty reports whether the loaded template declares propertyKey —
@@ -62,6 +63,55 @@ var (
 func (ob *Builder) DeclaresProperty(propertyKey string) bool {
 	_, ok := ob.propertyTypeIDs[propertyKey]
 	return ok
+}
+
+// EnumerationKeys returns the keys the widget's schema declares for the
+// enumeration property propertyKey, in declaration order — read from the Type
+// this build writes, which the loader has brought in line with the project's
+// installed package. nil when the property is not an enumeration.
+func (ob *Builder) EnumerationKeys(propertyKey string) []string {
+	objType := bsonDocValue(bsonDocValue(ob.embeddedType, "ObjectType"), "PropertyTypes")
+	pts, _ := objType.(bson.A)
+	for _, pt := range pts {
+		ptDoc, ok := pt.(bson.D)
+		if !ok || bsonStringValue(ptDoc, "PropertyKey") != propertyKey {
+			continue
+		}
+		vt, _ := bsonDocValue(ptDoc, "ValueType").(bson.D)
+		if bsonStringValue(vt, "Type") != "Enumeration" {
+			return nil
+		}
+		evs, _ := bsonDocValue(vt, "EnumerationValues").(bson.A)
+		var keys []string
+		for _, ev := range evs {
+			if evDoc, ok := ev.(bson.D); ok {
+				if k := bsonStringValue(evDoc, "_Key"); k != "" {
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys
+	}
+	return nil
+}
+
+// bsonDocValue is the value of key in d, when d is a document.
+func bsonDocValue(d any, key string) any {
+	doc, ok := d.(bson.D)
+	if !ok {
+		return nil
+	}
+	for _, e := range doc {
+		if e.Key == key {
+			return e.Value
+		}
+	}
+	return nil
+}
+
+func bsonStringValue(d bson.D, key string) string {
+	s, _ := bsonDocValue(d, key).(string)
+	return s
 }
 
 // New constructs a Builder for a loaded template and registers the engine's child

@@ -1,0 +1,73 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1743, the sibling slots — an input widget's "On enter" and "On
+-- leave" actions (focus in, focus out; Forms$<Input>.OnEnterAction /
+-- OnLeaveAction) had no MDL property, describe never read them, and the writer
+-- hard-coded an empty NoAction into both on every input. So describe → exec of
+-- a Studio Pro input holding one deleted it: measured on 11.13.0, a page with
+-- the seven actions below came back from describe with none of them, exec
+-- reported "Replaced page", all seven were gone and mx check still reported
+-- 0 errors. Only `OnChange:` round-tripped.
+--
+-- After the fix `OnEnter:` / `OnLeave:` (the stored names `OnEnterAction:` /
+-- `OnLeaveAction:` are the same properties) take the action forms `OnChange:`
+-- takes on a textbox, textarea, datepicker, checkbox, radiobuttons and the
+-- classic dropdown; describe prints them, describe → exec reports "Unchanged
+-- page" and mx check is 0 errors. "On enter" is the focus event — the Enter
+-- key is a text box's `OnEnterKeyPress:` (1743-textbox-enter-key-action.mdl).
+-- (The classic dropdown is left out here: on a React-client project it is
+-- MDL-WIDGET40.)
+-- ============================================================================
+
+create module BugFocusEvents;
+
+create enumeration BugFocusEvents.Color ( Red 'Red', Blue 'Blue' );
+
+create or modify non-persistent entity BugFocusEvents.Form (
+  Name: String(200),
+  Notes: String(2000),
+  Due: DateTime,
+  Done: Boolean,
+  Color: Enumeration(BugFocusEvents.Color)
+);
+
+create or modify microflow BugFocusEvents.ACT_Enter ( $Form: BugFocusEvents.Form ) returns Boolean as $Ok
+begin
+  return true;
+end;
+
+create or modify microflow BugFocusEvents.ACT_Leave ( $Form: BugFocusEvents.Form ) returns Boolean as $Ok
+begin
+  return true;
+end;
+
+create or modify microflow BugFocusEvents.DS_Form () returns BugFocusEvents.Form as $Form
+begin
+  $Made = create BugFocusEvents.Form ( Name = '' );
+  return $Made;
+end;
+
+create or modify page BugFocusEvents.FormPage ( Title: 'Form', Layout: Atlas_Core.Atlas_Default ) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvForm (DataSource: microflow BugFocusEvents.DS_Form) {
+          textbox tbName (Label: 'Name', Attribute: Name,
+            OnEnter: call microflow BugFocusEvents.ACT_Enter(Form = $currentObject),
+            OnLeave: call microflow BugFocusEvents.ACT_Leave(Form = $currentObject),
+            OnEnterKeyPress: save changes)
+          -- The stored name is the same property.
+          textarea taNotes (Label: 'Notes', Attribute: Notes,
+            OnEnter: call microflow BugFocusEvents.ACT_Enter(Form = $currentObject),
+            OnLeaveAction: call microflow BugFocusEvents.ACT_Leave(Form = $currentObject))
+          datepicker dpDue (Label: 'Due', Attribute: Due,
+            OnLeave: call microflow BugFocusEvents.ACT_Leave(Form = $currentObject) with (ProgressBar: Blocking))
+          checkbox cbDone (Label: 'Done', Attribute: Done,
+            OnEnter: call microflow BugFocusEvents.ACT_Enter(Form = $currentObject))
+          radiobuttons rbColor (Label: 'Color', Attribute: Color,
+            OnLeave: call microflow BugFocusEvents.ACT_Leave(Form = $currentObject))
+        }
+      }
+    }
+  }
+};

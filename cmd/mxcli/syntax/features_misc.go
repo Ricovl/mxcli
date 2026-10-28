@@ -340,7 +340,7 @@ DISCONNECT;`,
 
 	Register(SyntaxFeature{
 		Path:    "navigation.create",
-		Summary: "Create or replace a navigation profile with home pages, menus, and login page",
+		Summary: "Create or replace a navigation profile with home pages, menus, login page, and app title and icon",
 		Keywords: []string{
 			"create navigation", "replace navigation", "home page",
 			"login page", "not found page", "menu item", "menu icon",
@@ -348,8 +348,11 @@ DISCONNECT;`,
 			"offline profile", "offline navigation", "sync", "synchronization",
 			"offline sync", "offline entity", "pwa", "progressive web app", "service worker", "precaching", "download mode",
 			"throw error", "sync error", "partial sync", "server rejects",
+			"app title", "application title", "browser tab", "tab title", "app icon", "application icon",
 		},
 		Syntax: `CREATE OR MODIFY NAVIGATION <profile>
+  [APP TITLE 'text']
+  [APP ICON Module.Collection.Image | APP ICON NONE]
   HOME PAGE Module.Page | HOME MICROFLOW Module.Flow | HOME NANOFLOW Module.Flow
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
@@ -396,9 +399,19 @@ DISCONNECT;`,
 -- other than Web has no spelling, is flagged with a comment, and is kept
 -- while the item's caption and action are unchanged.
 --
+-- APP TITLE is Studio Pro's "Application title", the prefix of every browser
+-- tab: a new project's reads "Mendix - <page title>" until it is set. It is
+-- written as the title's item in the project's DEFAULT language, as a menu
+-- caption is, and its other languages are kept (translate it with CREATE OR
+-- MODIFY TRANSLATIONS without IN <Module>: the navigation is project-level).
+-- APP ICON is the "Application icon", an image (Module.Collection.Image),
+-- resolved like any image reference by check --references and by exec; NONE
+-- clears it. OMITTED, both stay as stored (ako/mxcli#1756).
+--
 -- A NATIVE profile's flow home is HOME NANOFLOW; mxcli writes its home pages
 -- and SYNC block only and refuses a { } block (the bottom bar), LOGIN PAGE,
--- NOT FOUND PAGE, ON SYNC ERROR and PROGRESSIVE WEB APP on it.
+-- NOT FOUND PAGE, ON SYNC ERROR, PROGRESSIVE WEB APP, APP TITLE and APP ICON
+-- on it.
 
 -- FOR takes a USER role, written BARE (FOR Administrator). User roles are
 -- project-level and have no module part; a module role is a different thing
@@ -471,6 +484,7 @@ DISCONNECT;`,
 -- documents in the project that already exceed that.`,
 		Example: `mdl 1;
 CREATE OR MODIFY NAVIGATION Responsive
+  APP TITLE 'Order Desk'
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   LOGIN PAGE Administration.Login

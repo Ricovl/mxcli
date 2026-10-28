@@ -127,6 +127,10 @@ type WidgetDefinition struct {
 	// package declares, system ones included; nil when unknown — no project,
 	// or no package for the widget. Validation-only (mendixlabs/mxcli#1618).
 	declaredKeys map[string]bool
+	// enumKeys maps each enumeration property's key (lower-cased) to the keys
+	// the project's INSTALLED package declares for it; nil when unknown.
+	// Validation-only (ako/mxcli#854) — exec reads them from the Type it writes.
+	enumKeys map[string][]string
 }
 
 // PropertyMapping maps an MDL source (attribute, association, literal, etc.)
@@ -170,6 +174,25 @@ type ChildSlotMapping struct {
 	PropertyKey  string `json:"propertyKey"`
 	MDLContainer string `json:"mdlContainer"`
 	Operation    string `json:"operation"`
+	// Switch is the enumeration that shows the slot, for a slot the widget
+	// renders only while it is on — a combo box's custom content and its
+	// …CustomContentType. See slotSwitchProblem.
+	Switch *SlotSwitch `json:"switch,omitempty"`
+}
+
+// SlotSwitch names the enumeration property that shows a child slot.
+//
+// While the switch is on, the widget requires content in the slot — a combo
+// box with optionsSourceAssociationCustomContentType 'yes' and no content is
+// CE0642 "Property 'Custom content' is required." — and while it is Off the
+// editor hides the slot, so content there is stored and never shown (CE0463).
+// Content written with the switch left out sets it to On (ako/mxcli#1744).
+type SlotSwitch struct {
+	PropertyKey string `json:"propertyKey"`
+	Off         string `json:"off"`
+	On          string `json:"on"`
+	// Caption is the slot's caption, as Mendix names it in CE0642.
+	Caption string `json:"caption,omitempty"`
 }
 
 // ObjectListMapping maps an MDL child block keyword (e.g., GROUP, ITEM, SERIES)
@@ -309,6 +332,11 @@ type PluggableWidgetEngine struct {
 	// always been; more than one means it names nothing in particular, and the
 	// keys here are what the refusal offers instead. nil outside a build.
 	currentDataSourceKeys []string
+
+	// enumReported records the undeclared enumeration values already reported
+	// under mdl 0, by widget, key and value, so one is warned about once
+	// (widget_enum_value.go).
+	enumReported map[string]bool
 }
 
 // NewPluggableWidgetEngine creates a new engine with the given backend and page builder.
@@ -433,6 +461,13 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		if err := refuseUndeclaredMappedKey(builder, def, mapping, ctx, w); err != nil {
 			return nil, err
 		}
+		// An enumeration takes one of its declared keys, written as the key
+		// (ako/mxcli#854) — see widget_enum_value.go.
+		if mapping.Operation == "primitive" {
+			if ctx.PrimitiveVal, err = e.enumerationValue(builder, def, w, mapping.PropertyKey, ctx.PrimitiveVal); err != nil {
+				return nil, err
+			}
+		}
 
 		if err := e.applyOperation(builder, mapping.Operation, mapping.PropertyKey, ctx); err != nil {
 			return nil, err
@@ -498,6 +533,11 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	if err := refuseUnroutedChildren(def, w); err != nil {
 		return nil, err
 	}
+	// 4.0b A switched slot whose switch contradicts its content: on with none
+	// (CE0642) or off with some (hidden, CE0463). See widget_slot_switch.go.
+	if msg := slotSwitchProblem(def, w); msg != "" {
+		return nil, mdlerrors.NewValidation(msg)
+	}
 
 	// 4.1 Apply child slots (.def.json) — skip children whose keyword belongs
 	// to an objectLists mapping (handled by applyObjectLists below).
@@ -507,6 +547,11 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	}
 	if err := e.applyChildSlots(builder, slots, w, propertyTypeIDs, objectListContainers); err != nil {
 		return nil, err
+	}
+	// Content written with its switch left out turns the switch on: the
+	// template stores it off, which hides the content just written (CE0463).
+	for _, sw := range switchedSlotsToTurnOn(def, w) {
+		builder.SetPrimitive(sw.PropertyKey, sw.On)
 	}
 
 	// 4.1b Apply object-list child blocks (.def.json `objectLists`).
@@ -636,6 +681,12 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		if !ok {
 			continue // not a known widget property key
 		}
+		// A widgets property holds widgets, written in its block; a scalar
+		// under its key went into the value's PrimitiveValue, which a widgets
+		// value never stores. MDL-WIDGET06 names the block (ako/mxcli#1744).
+		if entry.ValueType == "Widgets" {
+			continue
+		}
 		// Convert non-string values (bool, int, float) to string for property setting
 		var strVal string
 		switch v := propVal.(type) {
@@ -738,9 +789,14 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 			}
 			builder.SetSelection(propName, canonical)
 		default:
-			// Known non-attribute types: always use primitive
+			// Known non-attribute types: always use primitive — an enumeration
+			// as the declared key it names (ako/mxcli#854).
 			if entry.ValueType != "" && entry.ValueType != "Attribute" {
-				builder.SetPrimitive(propName, strVal)
+				value, err := e.enumerationValue(builder, def, w, propName, strVal)
+				if err != nil {
+					return nil, err
+				}
+				builder.SetPrimitive(propName, value)
 				continue
 			}
 			// Legacy routing for properties without ValueType info

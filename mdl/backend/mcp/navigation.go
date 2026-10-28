@@ -76,6 +76,13 @@ func (b *Backend) UpdateNavigationProfile(_ model.ID, profileName string, spec t
 	if b.client == nil {
 		return fmt.Errorf("not connected")
 	}
+	// APP TITLE / APP ICON (ako/mxcli#1756) are not authored over PED yet: the
+	// title is a Texts$Text element whose default-language item has to be found
+	// and set, and that choreography is unverified against a live Studio Pro.
+	// Refused before anything is read or written, rather than dropped.
+	if spec.AppTitle != nil || spec.AppIcon != nil {
+		return fmt.Errorf("app title and app icon are not yet authored over the MCP backend; set them against a local .mpr")
+	}
 	st, err := b.navProfileState(profileName)
 	if err != nil {
 		return err

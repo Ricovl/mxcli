@@ -29,7 +29,15 @@ type CreateNavigationStmt struct {
 	// ProgressiveWebApp is the PROGRESSIVE WEB APP clause; nil when the
 	// statement does not mention it, so the stored settings are left alone.
 	ProgressiveWebApp *types.NavPWASpec
-	CreateOrModify    bool // true if CREATE OR REPLACE/MODIFY was used
+	// AppTitle is APP TITLE '<text>' — Studio Pro's "Application title", the
+	// browser tab's prefix — written as the project default language's item
+	// of Navigation$NavigationProfile.AppTitle. AppIcon is APP ICON <image>,
+	// the Images$Image the profile's AppIcon names; "" is APP ICON NONE, which
+	// clears it. Both are pointers so an omitted clause keeps what is stored
+	// (ako/mxcli#1756).
+	AppTitle       *string
+	AppIcon        *string
+	CreateOrModify bool // true if CREATE OR REPLACE/MODIFY was used
 }
 
 func (s *CreateNavigationStmt) isStatement() {}

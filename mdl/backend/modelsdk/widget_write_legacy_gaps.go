@@ -91,8 +91,12 @@ func dropDownToGen(dd *pages.DropDown) (element.Element, error) {
 		return nil, err
 	}
 	g.SetOnChangeAction(onChange)
-	g.SetOnEnterAction(noActionGen())
-	g.SetOnLeaveAction(noActionGen())
+	onEnter, onLeave, err := focusEventsToGen(dd.OnEnterAction, dd.OnLeaveAction)
+	if err != nil {
+		return nil, err
+	}
+	g.SetOnEnterAction(onEnter)
+	g.SetOnLeaveAction(onLeave)
 	g.SetReadOnlyStyle("Inherit")
 	g.SetValidation(widgetValidationToGen())
 	return g, nil

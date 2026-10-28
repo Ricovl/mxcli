@@ -94,8 +94,22 @@ func (b *Builder) processNavigationClause(stmt *ast.CreateNavigationStmt, ctx *p
 			stmt.MenuItems = append(stmt.MenuItems, item)
 		}
 	} else if ctx.PROGRESSIVE() != nil {
-		// PROGRESSIVE WEB APP [( Precaching: b, InstallPrompt: b ) | OFF]
+		// PROGRESSIVE WEB APP [( Precaching: b, InstallPrompt: b ) | OFF].
+		// Checked before APP TITLE / APP ICON, which also carry an APP token.
 		stmt.ProgressiveWebApp = b.buildNavPWASpec(ctx)
+	} else if ctx.APP() != nil && ctx.TITLE() != nil {
+		// APP TITLE '<text>' (ako/mxcli#1756)
+		if sl := ctx.STRING_LITERAL(); sl != nil {
+			title := unquoteStringLit(sl)
+			stmt.AppTitle = &title
+		}
+	} else if ctx.APP() != nil && ctx.ICON() != nil {
+		// APP ICON Module.Collection.Image | NONE; "" clears the icon.
+		icon := ""
+		if names := ctx.AllQualifiedName(); ctx.NONE() == nil && len(names) > 0 {
+			icon = getQualifiedNameText(names[0])
+		}
+		stmt.AppIcon = &icon
 	} else if ctx.ON() != nil && ctx.SYNC() != nil && ctx.ERROR() != nil {
 		// ON SYNC ERROR THROW|CONTINUE. Checked before the bare SYNC block
 		// because both alternatives carry a SYNC token.
@@ -251,8 +265,9 @@ func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.Nav
 
 // menuItemActionKinds are the actions Studio Pro offers on a menu item: show
 // page, call microflow, call nanoflow, open link, create object, sign out, and
-// nothing. Save, cancel, delete, close page and complete task act on a page's
-// object, which a menu item has none of.
+// nothing. Save, cancel, delete, close page and the workflow events (complete
+// task, open user task, open workflow, call workflow) act on a page's object,
+// which a menu item has none of.
 var menuItemActionKinds = map[string]bool{
 	"showPage": true, "microflow": true, "nanoflow": true, "openLink": true,
 	"create": true, "signOut": true, "none": true,
@@ -305,6 +320,12 @@ func menuActionWords(a *ast.ActionV3) string {
 		return "delete"
 	case "completeTask":
 		return "complete a task"
+	case "openUserTask":
+		return "open a user task"
+	case "openWorkflow":
+		return "open a workflow"
+	case "callWorkflow":
+		return "call a workflow"
 	case "param":
 		return "take a fragment action parameter ($" + a.Target + ")"
 	}

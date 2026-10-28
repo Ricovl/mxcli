@@ -212,7 +212,7 @@ so a silent write would build cleanly and then fail to open.
 
 | Property | Widget Types | Value Type | Example |
 |----------|-------------|------------|---------|
-| `Action` | Widgets with an on-click action: ACTIONBUTTON, LINKBUTTON, CONTAINER, LISTVIEW, STATICIMAGE, DYNAMICIMAGE | Any `create page` action expression | `set (Action: call microflow M.ACT_Go) on card1` |
+| `Action` (alias `onClick`) | Widgets with an on-click action: ACTIONBUTTON, LINKBUTTON, CONTAINER, LISTVIEW, STATICIMAGE, DYNAMICIMAGE — and a pluggable widget's click slot (GALLERY / DATAGRID row click). A gallery row click on a single-click selection is refused under `mdl 1;` (MDL-WIDGET36): add `onClickTrigger: 'double'` to the SET, or `replace` the gallery with `Selection: None` | Any `create page` action expression | `set (Action: call microflow M.ACT_Go) on card1` |
 | `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
 | `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |

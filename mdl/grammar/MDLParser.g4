@@ -656,6 +656,17 @@ navigationClause
     // Precaching and InstallPrompt (R3, R10); a bare clause sets the platform
     // defaults, OFF stores null again, and an omitted clause leaves them alone.
     | PROGRESSIVE WEB APP (settingsItemOptions | OFF)?
+    // Studio Pro's "Application title" and "Application icon": the profile's
+    // AppTitle (a Texts$Text, "Mendix" in a new project, which the runtime puts
+    // in the browser tab as "Mendix - <page title>") and AppIcon (an
+    // Images$Image, by name). Clauses like the page clauses, with no new token:
+    // APP, TITLE and ICON were all keywords already, and every one of them is
+    // in `keyword`, so `app` and `icon` stay usable as names. The title is
+    // written in the project's default language, other languages kept; NONE
+    // clears the icon (listed first: qualifiedName would also take the
+    // keyword). An omitted clause keeps what is stored (ako/mxcli#1756).
+    | APP TITLE STRING_LITERAL
+    | APP ICON (NONE | qualifiedName)
     ;
 
 /**

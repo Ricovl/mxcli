@@ -100,6 +100,43 @@ func validateWidgetActionSlot(w *ast.WidgetV3, locationPrefix string) []linter.V
 			})
 		}
 	}
+	return append(out, validateInputEventActions(w, locationPrefix)...)
+}
+
+// validateInputEventActions is the same rule for an input widget's event
+// actions with no grammar keyword, such as a text box's `OnEnterKeyPress:`
+// (input_event_actions.go, ako/mxcli#1743). They arrive through the generic
+// `key: value` branch, where a flow call written without `call` is a data
+// source the builder converts — so the shape is judged by the functions the
+// builder uses, not by "is it an *ast.ActionV3". Writing one under both of its
+// names is MDL-WIDGET18, a value the builder refuses. A widget without the
+// slot is not judged here: the per-kind property check refuses the key.
+func validateInputEventActions(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	kind := strings.ToLower(w.Type)
+	var out []linter.Violation
+	for _, ev := range inputEventActions {
+		if !ev.kinds[kind] {
+			continue
+		}
+		canon, hasCanon := lookupPropCI(w, ev.key)
+		alias, hasAlias := lookupPropCI(w, ev.stored)
+		key, raw, err := inputEventPick(ev.key, canon, hasCanon, ev.stored, alias, hasAlias)
+		if err != nil {
+			out = append(out, violation18(locationPrefix, w, err.Error()))
+			continue
+		}
+		if raw == nil {
+			continue
+		}
+		if _, err := inputEventValue(key, raw); err != nil {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET28",
+				Severity:   linter.SeverityError,
+				Message:    fmt.Sprintf("%s: widget `%s`: %s", locationPrefix, w.Name, err.Error()),
+				Suggestion: actionSlotSuggestion(raw),
+			})
+		}
+	}
 	return out
 }
 

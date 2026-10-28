@@ -274,6 +274,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateWidgetActionSlot(w, locationPrefix)...)
 		// #842: a Gallery row click the widget itself calls ambiguous.
 		out = append(out, validateGalleryClickAmbiguity(w, locationPrefix)...)
+		// ako/mxcli#854: an enumeration value the installed widget declares no
+		// key for — stored as given, and ignored by the widget.
+		out = append(out, validatePluggableEnumValues(w, lookupWidgetDef(w, registry), locationPrefix)...)
 		// #928: contentparams with no `{N}` placeholder to consume them.
 		if lookupWidgetDef(w, registry) != nil {
 			out = append(out, validatePluggableContentParams(w, locationPrefix)...)
@@ -329,6 +332,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// ako/mxcli#1744: a slot's switch against its content — a combo box's
+		// custom-content type 'yes' with no content is CE0642.
+		out = append(out, validateSlotSwitches(w, def, locationPrefix)...)
 		// A keyword widget the registry has no definition for (DATAGRID: its
 		// definition is generated from the project's package) is judged by the
 		// property list of the template mxcli embeds for it, not by the
@@ -1300,6 +1306,11 @@ func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, 
 		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
+		// A text box's KeyboardType, per type for the same reason
+		// (ako/mxcli#1209).
+		if isKeyboardTypeProp(w.Type, key) {
+			continue
+		}
 		// A tab page's Badge / BadgeParams, per type for the same reason
 		// (mendixlabs/mxcli#1644).
 		if isTabPageBadgeProp(w.Type, key) {
@@ -1773,9 +1784,10 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		}
 		// `onClick:` and `OnChange:` are builtin names too, but unlike Label or
 		// Class the engine routes them only through a mapping sourced from them.
-		// A widget whose definition has none — a Gallery until #842, a combo
-		// box's click, a data grid filter's change — stored nothing, and a
-		// re-execution that changed only the action reported "Unchanged".
+		// A widget whose definition has none — a Gallery until #842, a data
+		// grid filter's change until ako/mxcli#854, a combo box's click —
+		// stored nothing, and a re-execution that changed only the action
+		// reported "Unchanged".
 		// Gated on the language version (validate_widget_language.go).
 		if src, ok := actionKeywordSource(key); ok && !defRoutesActionSource(def, src) {
 			out = append(out, linter.Violation{
@@ -1891,6 +1903,23 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		})
 	}
 	return out
+}
+
+// childSlotKeyword returns the block keyword of the child slot whose property
+// key is lower (any case), declared by def or by one of its modes; "" when
+// none is. A mode's slot counts: written as a value, a combo box's custom
+// content is MDL-WIDGET27 (ako/mxcli#1744), not a known-but-unmapped key.
+func childSlotKeyword(def *WidgetDefinition, lower string) string {
+	slots := append([]ChildSlotMapping(nil), def.ChildSlots...)
+	for _, m := range def.Modes {
+		slots = append(slots, m.ChildSlots...)
+	}
+	for _, cs := range slots {
+		if strings.EqualFold(cs.PropertyKey, lower) {
+			return strings.ToLower(cs.MDLContainer)
+		}
+	}
+	return ""
 }
 
 // mapsOwnKey reports whether a mapping of def (or of one of its modes) writes

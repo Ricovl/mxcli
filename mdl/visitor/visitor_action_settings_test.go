@@ -132,3 +132,67 @@ func TestActionSettings_Refusals(t *testing.T) {
 		}
 	}
 }
+
+// ako/mxcli#832: the workflow events and their own settings.
+func TestActionSettings_WorkflowActions(t *testing.T) {
+	f, tr := false, true
+	for _, tc := range []struct {
+		action, typ, target string
+		want                ast.ActionSettingsV3
+	}{
+		{"open user task", "openUserTask", "", ast.ActionSettingsV3{}},
+		{"open user task with (AssignOnOpen: false, OpenWhenAssigned: true)", "openUserTask", "",
+			ast.ActionSettingsV3{AssignOnOpen: &f, OpenWhenAssigned: &tr}},
+		{"open workflow with (DefaultPage: M.Admin)", "openWorkflow", "", ast.ActionSettingsV3{DefaultPage: "M.Admin"}},
+		{"call workflow M.WF with (ClosePage: false, Confirmation: 'Start?')", "callWorkflow", "M.WF",
+			ast.ActionSettingsV3{ClosePage: &f}},
+		{"complete task 'Done' with (ClosePage: false, Commit: false)", "completeTask", "",
+			ast.ActionSettingsV3{ClosePage: &f, Commit: &f}},
+	} {
+		a, errs := buttonAction(t, tc.action)
+		if len(errs) > 0 {
+			t.Errorf("%s: %v", tc.action, errs)
+			continue
+		}
+		if a.Type != tc.typ || a.Target != tc.target {
+			t.Errorf("%s: type %q target %q, want %q %q", tc.action, a.Type, a.Target, tc.typ, tc.target)
+		}
+		s := a.Settings
+		if s == nil {
+			s = &ast.ActionSettingsV3{}
+		}
+		eq := func(a, b *bool) bool { return (a == nil) == (b == nil) && (a == nil || *a == *b) }
+		if !eq(s.AssignOnOpen, tc.want.AssignOnOpen) || !eq(s.OpenWhenAssigned, tc.want.OpenWhenAssigned) ||
+			!eq(s.ClosePage, tc.want.ClosePage) || !eq(s.Commit, tc.want.Commit) || s.DefaultPage != tc.want.DefaultPage {
+			t.Errorf("%s: settings %+v, want %+v", tc.action, *s, tc.want)
+		}
+	}
+}
+
+func TestActionSettings_WorkflowRefusals(t *testing.T) {
+	for action, want := range map[string]string{
+		"open user task with (ClosePage: false)":          "`complete task` and `call workflow` only",
+		"complete task 'X' with (AssignOnOpen: false)":    "`open user task` only",
+		"call workflow M.WF with (ProgressBar: Blocking)": "`call microflow` and `call nanoflow` only",
+		"call workflow M.WF with (Commit: false)":         "`complete task` only",
+		"save changes with (DefaultPage: M.P)":            "`open workflow` only",
+		"open workflow with (DefaultPage: 'M.P')":         "DefaultPage takes a page",
+		"open user task with (AssignOnOpen: M.P)":         "takes no qualified name",
+		"open user task with (OpenWhenAssigned: maybe)":   "true or false",
+		"open workflow": "CE1834",
+		"open workflow with (DisabledDuringExecution: false)": "DefaultPage: Module.Page",
+	} {
+		_, errs := buttonAction(t, action)
+		if len(errs) == 0 {
+			t.Errorf("%s: accepted, want an error mentioning %q", action, want)
+			continue
+		}
+		joined := ""
+		for _, e := range errs {
+			joined += e.Error() + "\n"
+		}
+		if !strings.Contains(joined, want) {
+			t.Errorf("%s: errors %q, want one mentioning %q", action, joined, want)
+		}
+	}
+}

@@ -63,6 +63,7 @@ func (b *Builder) ExitActionExprV3(ctx *parser.ActionExprV3Context) {
 				&ast.Fix{Edits: []ast.TextEdit{insertAt(tok.GetStart(), keywordLike(tok.GetText(), "call")+" ")}}, "")
 		}
 	}
+	b.requireOpenWorkflowPage(ctx)
 }
 
 // ExitClosePageV3 reports `close_page`.

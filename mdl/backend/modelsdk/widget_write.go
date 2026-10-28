@@ -237,6 +237,14 @@ func init() {
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})
+	// The workflow events' unset slots (ako/mxcli#832): a workflow call with
+	// no confirmation, and an admin-page action with no default page.
+	codec.RegisterTypeDefaults("Forms$CallWorkflowClientAction", codec.TypeDefaults{
+		NullFields: []string{"ConfirmationInfo"},
+	})
+	codec.RegisterTypeDefaults("Forms$OpenWorkflowClientAction", codec.TypeDefaults{
+		EmptyStringFields: []string{"DefaultPage"},
+	})
 	// One return value mapping: Studio Pro writes all four slots on every row,
 	// null where the row does not use them and Expression "" (ako/TestApp
 	// Pages.OutputMappingButton, 11.15).
@@ -576,7 +584,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		g.SetInputMask("")
 		g.SetIsPasswordBox(x.IsPassword)
-		g.SetKeyboardType("Default")
+		g.SetKeyboardType(orDefaultStr(x.KeyboardType, "Default")) // ako/mxcli#1209
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
@@ -589,10 +597,22 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Studio Pro's "On enter key press". A NoAction was hard-coded here,
+		// so the action could not be written and describe → exec replaced a
+		// stored one with nothing (ako/mxcli#1743). nil still writes the
+		// NoAction.
+		onEnterKey, err := clientActionToGen(x.OnEnterKeyPressAction)
+		if err != nil {
+			return nil, err
+		}
+		onLeave, err := clientActionToGen(x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
 		g.SetOnChangeAction(onChange)
 		g.SetOnEnterAction(onEnter)
-		g.SetOnEnterKeyPressAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		g.SetOnEnterKeyPressAction(onEnterKey)
+		g.SetOnLeaveAction(onLeave)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
@@ -649,8 +669,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeCB)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterCB, leaveCB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterCB)
+		g.SetOnLeaveAction(leaveCB)
 		// Unset keeps Mendix's default; an authored Control/Text is what decides
 		// whether a read-only check box renders as the glyph or as "Yes"/"No"
 		// text (ako/mxcli#490). The value is canonicalised at build time.
@@ -702,8 +726,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeTA)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterTA, leaveTA, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterTA)
+		g.SetOnLeaveAction(leaveTA)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
@@ -738,8 +766,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeDP)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterDP, leaveDP, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterDP)
+		g.SetOnLeaveAction(leaveDP)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetValidation(widgetValidationToGen())
@@ -766,11 +798,15 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChange)
-		g.SetOnEnterAction(noActionGen())
 		// Studio Pro stores all three event slots on every check box, date
 		// picker and radio button group (PedApp and ako/TestApp: 16, 76 and 4
 		// of 4). Without OnLeaveAction a rewrite deleted the slot (#721 L2).
-		g.SetOnLeaveAction(noActionGen())
+		enterRB, leaveRB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterRB)
+		g.SetOnLeaveAction(leaveRB)
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -2220,6 +2256,23 @@ func staticAddressToGen(address string) element.Element {
 	return s
 }
 
+// focusEventsToGen builds an input widget's OnEnterAction and OnLeaveAction,
+// Studio Pro's "On enter" / "On leave". Both were hard-coded NoActions on every
+// input but the text box's OnEnterAction, so neither could be written and
+// describe → exec deleted a stored one (ako/mxcli#1743). nil writes the
+// NoAction, as before.
+func focusEventsToGen(onEnter, onLeave pages.ClientAction) (element.Element, element.Element, error) {
+	enter, err := clientActionToGen(onEnter)
+	if err != nil {
+		return nil, nil, err
+	}
+	leave, err := clientActionToGen(onLeave)
+	if err != nil {
+		return nil, nil, err
+	}
+	return enter, leave, nil
+}
+
 // clientActionToGen converts a widget client action. Simple actions are supported;
 // the page/microflow/nanoflow/create-object actions (which carry settings sub-
 // objects) are refused loudly for now.
@@ -2330,6 +2383,55 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		g.SetCommit(x.Commit)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetOutcomeValue(x.OutcomeValue)
+		return g, nil
+	case *pages.OpenUserTaskClientAction:
+		// open user task → Forms$OpenUserTaskClientAction, Studio Pro's "Show
+		// user task page". ako/TestApp's six (WorkflowCommons, 11.15) store
+		// exactly AssignOnOpen, DisabledDuringExecution and OpenWhenAssigned;
+		// the two flags are nil below 9.20, which introduced them.
+		g := genPg.NewOpenUserTaskClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.AssignOnOpen != nil {
+			g.SetAssignOnOpen(*x.AssignOnOpen)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		if x.OpenWhenAssigned != nil {
+			g.SetOpenWhenAssigned(*x.OpenWhenAssigned)
+		}
+		return g, nil
+	case *pages.OpenWorkflowClientAction:
+		// open workflow → Forms$OpenWorkflowClientAction ("Show workflow admin
+		// page"). DefaultPage is a by-name page reference, "" when unset (the
+		// type default registered above).
+		g := genPg.NewOpenWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.DefaultPage != "" {
+			g.SetDefaultPageQualifiedName(x.DefaultPage)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		return g, nil
+	case *pages.CallWorkflowClientAction:
+		// call workflow → Forms$CallWorkflowClientAction. Commit is never
+		// written: Mendix 9.12 removed it (a workflow call always commits),
+		// and a key the metamodel no longer declares is one Studio Pro cannot
+		// open. ConfirmationInfo is null when none is asked (type default).
+		g := genPg.NewCallWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		g.SetClosePage(x.ClosePage)
+		if x.Confirmation != nil {
+			g.SetConfirmationInfo(confirmationInfoToGen(x.Confirmation))
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		g.SetWorkflowQualifiedName(x.WorkflowName)
 		return g, nil
 	case *pages.MicroflowClientAction:
 		// call_microflow → Forms$MicroflowAction.

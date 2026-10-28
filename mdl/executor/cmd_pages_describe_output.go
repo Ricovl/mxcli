@@ -689,8 +689,13 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
+		props = describeKeyboardType(props, w)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
+		}
+		props = appendFocusEventProps(props, w)
+		if w.OnEnterKeyPress != "" {
+			props = append(props, actionProp("OnEnterKeyPress", w.OnEnterKeyPress))
 		}
 		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
@@ -714,6 +719,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = describeSubmitBehaviour(props, w)
 		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
 		// a text area authored without them describes as it did (ako/mxcli#977).
@@ -752,6 +758,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -768,6 +775,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -788,6 +796,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -914,16 +923,18 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		} else if ((len(w.ExplicitProperties) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.ObjectLists) > 0 || w.OnClick != "" ||
-			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
-			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
+			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) ||
+			(len(w.NamedActions) > 0 && !isKnownCustomWidgetType(widgetType)) ||
+			(len(w.ChildSlots) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
 			// blocks (chart series/lines/scaleColors), and/or an onClick action.
 			// The widget's own MDL name where that round-trips, else the
 			// explicit id form. See pluggableWidgetHeader.
 			//
-			// OnChange counts only for a widget without its own branch below: a
-			// combo box's branch emits OnChange itself, and routed here it lost
-			// its Attribute: and CaptionAttribute: on describe.
+			// OnChange, the named action slots and the child slots count only
+			// for a widget without its own branch below: a combo box's branch
+			// emits them itself (its custom content, ako/mxcli#1744), and routed
+			// here it lost its Attribute: and CaptionAttribute: on describe.
 			//
 			// Child slots and omitted containers count towards "has content"
 			// too: a widget whose only non-default content is a populated slot
@@ -1046,6 +1057,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if w.OnChange != "" {
 				props = append(props, actionProp("OnChange", w.OnChange))
 			}
+			// A combo box's onEnterEvent / onLeaveEvent /
+			// onChangeFilterInputEvent, by key (ako/mxcli#854).
+			props = appendNamedActionProps(props, w)
 			// Show filter attributes for filter widgets
 			if len(w.FilterAttributes) > 0 {
 				props = append(props, fmt.Sprintf("Attributes: [%s]", strings.Join(w.FilterAttributes, ", ")))
@@ -1060,7 +1074,15 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendAppearanceProps(ctx, props, w)
 			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
 			writeHiddenContentNote(ctx.Output, prefix, w.Name, w.HiddenContent)
-			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			if len(w.ChildSlots) == 0 {
+				formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			} else {
+				// A combo box's custom content (ako/mxcli#1744), as the block
+				// that writes it.
+				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
+				fmt.Fprintf(ctx.Output, "%s}\n", prefix)
+			}
 		}
 
 	case "Forms$NavigationList", "Pages$NavigationList":
@@ -1554,6 +1576,26 @@ func extractOnChangeAction(ctx *ExecContext, w map[string]any) string {
 	return renderClientActionMDL(ctx, actionMapForKey(w, "OnChangeAction"))
 }
 
+// extractFocusEventActions renders an input widget's OnEnterAction and
+// OnLeaveAction ("On enter" / "On leave"). Unread, describe → exec replaced a
+// stored one with the empty action (ako/mxcli#1743).
+func extractFocusEventActions(ctx *ExecContext, w map[string]any) (string, string) {
+	return renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterAction")),
+		renderClientActionMDL(ctx, actionMapForKey(w, "OnLeaveAction"))
+}
+
+// appendFocusEventProps prints an input widget's On enter / On leave actions,
+// each only when it holds one.
+func appendFocusEventProps(props []string, w rawWidget) []string {
+	if w.OnEnter != "" {
+		props = append(props, actionProp("OnEnter", w.OnEnter))
+	}
+	if w.OnLeave != "" {
+		props = append(props, actionProp("OnLeave", w.OnLeave))
+	}
+	return props
+}
+
 // actionMapForKey unwraps a client-action node stored under key into a plain map
 // (handling both map[string]any and bson.M), or nil when absent.
 func actionMapForKey(w map[string]any, key string) map[string]any {
@@ -1708,6 +1750,22 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
 		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
+	// The workflow events beside it printed nothing, and a rewrite then wrote
+	// a Forms$NoAction in their place (ako/mxcli#832).
+	case "Forms$OpenUserTaskClientAction", "Pages$OpenUserTaskClientAction":
+		return "open user task"
+	case "Forms$OpenWorkflowClientAction", "Pages$OpenWorkflowClientAction":
+		// The page is required (CE1834), so `open workflow` without one does
+		// not parse; settings print it.
+		if page, _ := action["DefaultPage"].(string); page == "" {
+			return unsetTargetNote("shows a workflow admin page but no default page is selected (CE1834)")
+		}
+		return "open workflow"
+	case "Forms$CallWorkflowClientAction", "Pages$CallWorkflowClientAction":
+		if wf, _ := action["Workflow"].(string); wf != "" {
+			return "call workflow " + wf
+		}
+		return unsetTargetNote("calls a workflow but none is selected")
 	case "Forms$SignOutClientAction", "Pages$SignOutClientAction":
 		return "sign out"
 	case "Forms$OpenLinkClientAction", "Pages$OpenLinkClientAction":

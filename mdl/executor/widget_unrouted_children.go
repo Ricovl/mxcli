@@ -47,19 +47,25 @@ func unroutedPluggableChildren(def *WidgetDefinition, w *ast.WidgetV3) []*ast.Wi
 	// No declared child slots: applyChildSlots returns early and the auto pass
 	// hands every unmatched child to the first widgets-typed property it finds.
 	// Something may well take them, and this function cannot see what.
-	if len(def.ChildSlots) == 0 {
+	//
+	// A definition that declares its slots per MODE (a combo box's custom
+	// content, ako/mxcli#1744) is not that case, even in a mode with none: it
+	// says where widgets go, and the auto pass would put them in another
+	// mode's slot — a property the widget does not render in this mode.
+	if !declaresChildSlots(def) {
 		return nil
 	}
+	slots, _ := selectedChildSlots(def, w)
 	// A `template` slot IS the catch-all — applyChildSlots assigns leftover
 	// children to it (defaultSlotContainer). A Gallery has one, which is why an
 	// arbitrary widget in a gallery body is fine and the same widget in a
 	// datagrid body is not.
-	if defHasDefaultChildSlot(def) {
+	if hasDefaultChildSlot(slots) {
 		return nil
 	}
 	var out []*ast.WidgetV3
 	for _, c := range w.Children {
-		if c == nil || defRoutesChild(def, c) {
+		if c == nil || defRoutesChild(def, slots, c) {
 			continue
 		}
 		out = append(out, c)
@@ -67,8 +73,37 @@ func unroutedPluggableChildren(def *WidgetDefinition, w *ast.WidgetV3) []*ast.Wi
 	return out
 }
 
-func defHasDefaultChildSlot(def *WidgetDefinition) bool {
-	for _, cs := range def.ChildSlots {
+// selectedChildSlots is the child slots a widget is built with — what
+// selectMappings hands applyChildSlots: the definition's own, or, for a
+// definition with modes, the selected mode's (nil when no mode can be
+// selected, which the build refuses by itself). mode is nil without modes.
+func selectedChildSlots(def *WidgetDefinition, w *ast.WidgetV3) ([]ChildSlotMapping, *WidgetMode) {
+	if len(def.Modes) == 0 {
+		return def.ChildSlots, nil
+	}
+	mode, err := (&PluggableWidgetEngine{}).selectMode(def, w)
+	if err != nil || mode == nil {
+		return nil, nil
+	}
+	return mode.ChildSlots, mode
+}
+
+// declaresChildSlots reports whether the definition declares a child slot
+// anywhere — on itself or in any of its modes.
+func declaresChildSlots(def *WidgetDefinition) bool {
+	if len(def.ChildSlots) > 0 {
+		return true
+	}
+	for _, m := range def.Modes {
+		if len(m.ChildSlots) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasDefaultChildSlot(slots []ChildSlotMapping) bool {
+	for _, cs := range slots {
 		if strings.EqualFold(cs.MDLContainer, defaultSlotContainer) {
 			return true
 		}
@@ -77,10 +112,11 @@ func defHasDefaultChildSlot(def *WidgetDefinition) bool {
 }
 
 // defRoutesChild mirrors the matching done by applyObjectLists, applyChildSlots
-// and the auto-discovery passes. Matching is case-insensitive here even though
-// the registry lower-cases MDLContainer on load, so that a hand-written
-// .def.json cannot turn a casing slip into a false "this is dropped".
-func defRoutesChild(def *WidgetDefinition, c *ast.WidgetV3) bool {
+// and the auto-discovery passes; slots are the ones the widget is built with
+// (selectedChildSlots). Matching is case-insensitive here even though the
+// registry lower-cases MDLContainer on load, so that a hand-written .def.json
+// cannot turn a casing slip into a false "this is dropped".
+func defRoutesChild(def *WidgetDefinition, slots []ChildSlotMapping, c *ast.WidgetV3) bool {
 	for _, ol := range def.ObjectLists {
 		// By container keyword (`column c { … }`), or by name against the
 		// property key (the auto-discovery pass matches a child's NAME).
@@ -89,7 +125,7 @@ func defRoutesChild(def *WidgetDefinition, c *ast.WidgetV3) bool {
 		}
 	}
 	isContainer := strings.EqualFold(c.Type, "container")
-	for _, cs := range def.ChildSlots {
+	for _, cs := range slots {
 		if strings.EqualFold(cs.MDLContainer, c.Type) || strings.EqualFold(cs.PropertyKey, c.Name) {
 			return true
 		}
@@ -103,12 +139,56 @@ func defRoutesChild(def *WidgetDefinition, c *ast.WidgetV3) bool {
 	return false
 }
 
+// otherModeSlot finds a mode, other than the selected one, that declares a
+// slot under the keyword.
+func otherModeSlot(def *WidgetDefinition, selected *WidgetMode, keyword string) *WidgetMode {
+	for i := range def.Modes {
+		m := &def.Modes[i]
+		if m == selected {
+			continue
+		}
+		for _, cs := range m.ChildSlots {
+			if strings.EqualFold(cs.MDLContainer, keyword) {
+				return m
+			}
+		}
+	}
+	return nil
+}
+
+// modeLabel names a mode inside a sentence: its description ("association
+// mode") where it has one.
+func modeLabel(m *WidgetMode) string {
+	if m.Description != "" {
+		return strings.ToLower(m.Description)
+	}
+	return m.Name + " mode"
+}
+
 // unroutedChildMessage explains one dropped child, naming what the parent does
 // declare. The "spelled X on this widget" half is the answer in the case that
 // prompted the rule: `filter` and `controlbar` are the SAME property under two
 // widgets' conventions, so an author copying a gallery example onto a datagrid
 // needs the other spelling, not a list to hunt through.
-func unroutedChildMessage(def *WidgetDefinition, child *ast.WidgetV3) string {
+func unroutedChildMessage(def *WidgetDefinition, w, child *ast.WidgetV3) string {
+	// A slot of another mode: the content would land in a property the widget
+	// does not render in the mode it is built in. Say which mode that is and
+	// which slot it does have (ako/mxcli#1744).
+	if slots, mode := selectedChildSlots(def, w); mode != nil {
+		if other := otherModeSlot(def, mode, child.Type); other != nil {
+			msg := fmt.Sprintf("`%s` is the slot of %s's %s, and %s `%s` is built in %s",
+				strings.ToLower(child.Type), parentLabel(def), modeLabel(other),
+				strings.ToLower(def.MDLName), w.Name, modeLabel(mode))
+			if len(slots) == 0 {
+				return msg + ", which declares no slot — it would be dropped on write"
+			}
+			var kws []string
+			for _, cs := range slots {
+				kws = append(kws, "`"+strings.ToLower(cs.MDLContainer)+"`")
+			}
+			return msg + " — write it in " + strings.Join(kws, " or ") + " instead"
+		}
+	}
 	msg := fmt.Sprintf("`%s` is not a container or slot of %s, so it would be dropped on write",
 		strings.ToLower(child.Type), parentLabel(def))
 	if alt := sameSlotUnderAnotherName(def, child.Type); alt != "" {
@@ -155,7 +235,7 @@ func validateUnroutedChildren(w *ast.WidgetV3, def *WidgetDefinition, locationPr
 		out = append(out, linter.Violation{
 			RuleID:     "MDL-WIDGET30",
 			Severity:   linter.SeverityError,
-			Message:    fmt.Sprintf("%s: %s", locationPrefix, unroutedChildMessage(def, child)),
+			Message:    fmt.Sprintf("%s: %s", locationPrefix, unroutedChildMessage(def, w, child)),
 			Suggestion: "move it into one of the parent's containers, or out of the widget's body",
 		})
 	}
@@ -171,5 +251,5 @@ func refuseUnroutedChildren(def *WidgetDefinition, w *ast.WidgetV3) error {
 	if len(dropped) == 0 {
 		return nil
 	}
-	return mdlerrors.NewValidationf("widget `%s`: %s", w.Name, unroutedChildMessage(def, dropped[0]))
+	return mdlerrors.NewValidationf("widget `%s`: %s", w.Name, unroutedChildMessage(def, w, dropped[0]))
 }

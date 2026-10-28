@@ -164,7 +164,13 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   An invented keyword (`action: totally_made_up`) did the same. Use
   `action: nothing` when a control really is meant to be inert, so a dead one
   always means a mistake.
-- The same forms serve `onclick:` (an alias of `action:`) and `onchange:`.
+- The same forms serve `onclick:` (an alias of `action:`), `onchange:`, and a
+  textbox's `OnEnterKeyPress:` (Studio Pro's "On enter key press" — a search box
+  that searches on Enter). Only a textbox has that one; on a textarea or any
+  other widget it is refused, because Mendix stores it nowhere else.
+- Every input widget also takes `OnEnter:` and `OnLeave:` — Studio Pro's "On
+  enter" / "On leave", focus moving into and out of the widget (not the Enter
+  key) — with the same forms.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).
@@ -582,6 +588,38 @@ combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyMod
 -- association mode (expression caption: optionsSourceDatabaseCaptionType /
 -- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
 -- Multi` selects several and hides both the target and the value attribute.
+
+-- Events, in every mode. `OnChange:` is the change action (the mode's own slot:
+-- onChangeEvent, or onChangeDatabaseEvent in database mode); the other three
+-- are named by their key. onChangeFilterInputEvent fires as the user types.
+combobox cbCountry (label: 'Country', attribute: Country,
+  OnChange: call microflow MyModule.ACT_CountryChanged,
+  onEnterEvent: call nanoflow MyModule.NAV_Focus, onLeaveEvent: call nanoflow MyModule.NAV_Blur,
+  onChangeFilterInputEvent: call microflow MyModule.ACT_Search)
+
+-- Custom content: show more than one attribute per option. The block is the
+-- MODE's slot — `optionssourceassociationcustomcontent` in association mode,
+-- `optionssourcedatabasecustomcontent` in database mode — and its widgets bind
+-- to the OPTION entity (here Customer), not to the object being edited.
+combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer,
+  CaptionAttribute: Name, optionsSourceAssociationCustomContentType: 'yes') {
+  optionssourceassociationcustomcontent {
+    dynamictext txtOption (Content: '{1} ({2})', ContentParams: ({1} = Name, {2} = City))
+  }
+}
+-- The block with the type left out writes 'yes'; 'listItem' shows the content
+-- in the list only.
+-- WRONG: the other mode's block (MDL-WIDGET30 names the right one); any block
+-- on an enumeration combo box, which has no custom content.
+-- WRONG: the type 'yes' or 'listItem' with no block — MDL-WIDGET53, CE0642
+-- "Property 'Custom content' is required."; a block under type 'no' — hidden,
+-- never shown (CE0463), also MDL-WIDGET53.
+```
+
+**BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives
+the scanned value; `onDetect:` runs once a code is detected.
+```sql
+barcodescanner bsCode (attribute: Code, onDetect: call microflow MyModule.ACT_Scanned)
 ```
 
 ### DataView with Form Layout
@@ -676,6 +714,14 @@ gallery cards (datasource: database Module.Product, selection: Single, onClickTr
 }
 ```
 `onSelectionChange:` and `onConfigurationChange:` take an action the same way.
+
+**An enumeration setting takes one of the widget's keys** — `onClickTrigger`
+is `single` or `double`, `pagination` is `buttons`, `virtualScrolling` or
+`loadMore`; `describe widget type <keyword>` lists every property's keys. Any
+case is accepted and written as the key (the widget compares keys exactly: a
+stored `Double` matched neither trigger, so the row action never ran). A value
+the widget declares no key for is refused under `mdl 1;` (MDL-WIDGET08), and
+written as given with the MDL-V1-WIDGETENUM warning without the header.
 
 ### Filter Widgets
 
