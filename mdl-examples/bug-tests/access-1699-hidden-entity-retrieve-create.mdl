@@ -1,0 +1,73 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1699 (mendixlabs/mxcli#1652) — a database retrieve, a create or a
+-- create list of a Hidden entity of a Protected (add-on) module (CE1406)
+-- ============================================================================
+--
+-- `check -p --references` reported CE1406 for a Hidden entity used as a
+-- parameter type, and for a Hidden attribute or association a flow uses — but
+-- never for the ENTITY an activity names. A flow in an app module that
+-- retrieved or created a Hidden entity passed check and exec, and mxbuild
+-- refused it:
+--
+--   Retrieve object(s) activity 'Retrieve list of Internal from database' is
+--     not allowed to use entity 'BugAccess1699.Internal' because app modules
+--     cannot reference hidden elements in add-on modules.          (CE1406)
+--   Create object activity 'Create Internal' …                      (CE1406)
+--   Create list activity 'Create list of Internal' …                (CE1406)
+--
+-- Measured on a blank Mendix 11.13.0 app, the module set to Protected, one
+-- microflow per shape: the three below are refused in a microflow and in a
+-- nanoflow, with or without a where / limit / member list; the same against
+-- the Usable Request are 0 errors, and so are all of them inside the add-on.
+-- Not refused: an association retrieve over a Usable association to a Hidden
+-- entity, or a commit / delete / count of such an object — they do not name
+-- the entity. A flow in ANOTHER Protected module is refused as well ("add-on
+-- modules cannot reference …"); check does not judge that case.
+--
+-- How to reproduce: run this file against an app, set BugAccess1699 to
+-- Protected (Studio Pro: module settings, export level "Protected", type
+-- Add-on), then run it again with `mxcli check … -p app.mpr --references`:
+-- three CE1406 (statements 4–6), and exec refuses. As an ordinary module the
+-- whole file is valid, which is what `make check-mdl` runs.
+-- ============================================================================
+
+CREATE MODULE BugAccess1699;
+
+CREATE OR MODIFY PERSISTENT ENTITY BugAccess1699.Request (
+  Code: String(50) EXPORT LEVEL api,
+  Secret: String(50)
+) EXPORT LEVEL api;
+CREATE OR MODIFY PERSISTENT ENTITY BugAccess1699.Internal ( Note: String(50) );
+
+-- Refused once the module is Protected: Internal is Hidden.
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1699_RetrieveHidden ()
+RETURNS Boolean
+BEGIN
+  RETRIEVE $Internals FROM BugAccess1699.Internal;
+  RETURN true;
+END;
+
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1699_CreateHidden ()
+RETURNS Boolean
+BEGIN
+  $Internal = CREATE BugAccess1699.Internal;
+  RETURN $Internal != empty;
+END;
+
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1699_CreateListHidden ()
+RETURNS Boolean
+BEGIN
+  $Internals = CREATE LIST OF BugAccess1699.Internal;
+  RETURN true;
+END;
+
+-- Control: the same three against the Usable Request stay clean.
+CREATE OR MODIFY MICROFLOW MyFirstModule.Bug1699_UsableControls ()
+RETURNS Boolean
+BEGIN
+  RETRIEVE $Requests FROM BugAccess1699.Request;
+  $Request = CREATE BugAccess1699.Request;
+  $More = CREATE LIST OF BugAccess1699.Request;
+  RETURN true;
+END;

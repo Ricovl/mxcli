@@ -175,6 +175,21 @@ level Production. This script creates it as a NEW microflow, ... [MDL-SEC21]
 
 It is an **error at security level Prototype or Production** (the stored level, or the one the script sets) and a warning at Off, where MxBuild does not check it. Only what the script changes is reported: a flow that already had the problem before the script, and that the script does not touch, is left to `mxcli docker check`.
 
+### MDL-SEC22: A call across entity access (CE0114)
+
+```
+✗ microflow MyModule.DS_Tile_Count does not apply entity access (@applyentityaccess(false)
+in this script) but calls microflow MyModule.SUB_Scoped_List, which does
+(@applyentityaccess(true) as stored) — MxBuild reports CE0114 "A microflow that does not
+apply entity access can only call microflows that also do not apply entity access." [MDL-SEC22]
+```
+
+**Cause:** With a project (`check -p`), a microflow without "Apply entity access" calls a microflow — or decides on a rule (`if Mod.Rule(…)`) — that has it. Measured on Mendix 11.13 and 11.14, MxBuild refuses only that direction, at every security level; on -> off, on -> on, off -> off, a nanoflow caller and an excluded caller all build. Both settings are read from the project and simulated through the script (`@applyentityaccess`, `@applyentityaccess(false)`, and an absent annotation on `create or modify` keeping what is stored).
+
+**Solution:** Put `@applyentityaccess` on the caller, or call a flow that does not apply entity access. Turning it off on the callee also builds, but widens what that flow may read and write for every caller.
+
+Only what the script changes is reported, and a callee neither the project nor the script holds is not judged.
+
 ### MDL-I18N01: A tab page caption without the default language (CE4899)
 
 ```
@@ -334,6 +349,41 @@ retrieve $u from System.User where [id = $task/System.owner] first;
 retrieve $u from System.User where [id = $task/System.changedBy] first;
 ```
 
+That constraint reads the member off `$task`, so it builds only when `$task`'s entity stores
+it — `owner: AutoOwner` / `changedBy: AutoChangedBy` on the root of its generalization chain
+(a `System.FileDocument` specialization stores both). On an entity that does not, mxbuild
+rejects it with CE0161 "Error(s) in XPath constraint." (measured on 11.12.5, ako/mxcli#1306),
+and `check -p` and `exec` refuse it, naming the `alter entity` that stores the member.
+
+### MDL-CHANGE01: Setting `System.owner` / `System.changedBy` in a create or change
+
+```
+member "System.owner" on M.Entity: System.owner is kept by the runtime, not set by a
+microflow — a create or change object cannot set it, and mxbuild rejects the member with
+CE1050 "Unknown association 'System.owner'." (whether or not the entity stores it) [MDL-CHANGE01]
+```
+
+**Cause:** The owner and last editor of an object are system members, not associations a
+project models. Written as a create or change object member, `System.owner` and
+`System.changedBy` are CE1050 for every entity — one that stores its owner, one that does not,
+a `System.FileDocument` specialization — in a microflow and a nanoflow alike (measured on
+11.12.5, mendixlabs/mxcli#1612). `check` needs no project to know it; `check` and `exec` both
+refuse it. A list operation is different: `find $l by System.owner = $u` (and `filter`, and
+`System.changedBy`) builds when the list's entity stores the member — on one that does not it
+is CE0091 "No member selected.", which `check -p` and `exec` report with the `alter entity`
+that stores it (ako/mxcli#1629).
+
+**Solution:** To record a user on an object — for example to own seeded data — model the
+association and set that:
+
+```mdl
+create association M.Entity_User from M.Entity to System.User;
+
+$S = create M.Entity (Name = 'x', M.Entity_User = $User);
+```
+
+Constrain on `M.Entity_User` where you would have used `System.owner`.
+
 ### MDL-RETRIEVE03: `change` over a list retrieve
 
 ```
@@ -358,6 +408,20 @@ retrieve $E from Mod.Ent first;
 change $E (Attr = 'x');
 ```
 
+**Over an association** (`check --references`, mendixlabs/mxcli#1516). Whether
+`retrieve $L from $h/Mod.Assoc` binds a list depends on the association: from the FROM
+entity of a Reference it is one object; from its TO entity (the "one" side) it is a
+**list**, unless the owner is Both; a ReferenceSet is a list from either end. The project
+knows which, so with `-p` / `--references` a member path over that list (CE0117), a
+`change` of it (CE7247 "Variable 'L' is of type List of …, but should be of type
+Object."), and passing it to a parameter that takes one object (CE0117) are reported too
+— measured identically on 11.6.6 and 11.15.0. The bare list retrieve, `count`, a `loop`
+and a list parameter build. For one object, retrieve it from the database:
+
+```mdl
+retrieve $L from Mod.Line where [Mod.Line_Header = $h] first;
+```
+
 A flow already stored with such a member describes with a `-- WARNING` on the change
 line. `create or modify` will not splice over it: without the header it rebuilds the flow
 (which repairs it), and under `mdl 1;` it refuses with the drop-and-create advice.
@@ -378,6 +442,30 @@ ignored or the header fails only when a mail is sent.
 **Solution:** `SecurityType: ssl, CheckServerIdentity: true`, or drop
 `CheckServerIdentity`; rename the header, e.g.
 `Headers: ('X-Correlation-Id': 'value')`.
+
+### MDL-TEMPLATE01: A message written as an expression followed by `with (…)`
+
+```
+log: the message is an expression, so `with (…)` has no template to fill — the
+parameters fill the {n} placeholders of a message written as a string. [MDL-TEMPLATE01]
+```
+
+**Cause:** The text of a `log` message, a `send email` subject or body, a `show message`
+and a `validation feedback` message is a template: a string whose `{n}` placeholders
+`with (…)` fills. An expression is the whole text, stored as the template `'{1}'` with the
+expression as its parameter, so it has no placeholder for further parameters, and Mendix
+cannot store an expression as a template's text. Before ako/mxcli#1683, `log` and
+`send email` stored the expression's source as the template — the log line read `$Msg` —
+and `show message` / `validation feedback` stored the parameters where no placeholder read
+them. `check`, `exec` and `mx check` passed all four. `check` and `exec` now refuse it with
+one shared function, as MDL-REST05 does for `call rest service`.
+
+**Solution:** Write the template as a string, or the expression without `with (…)`:
+
+```mdl
+log info node 'Orders' 'Order {1} shipped' with ({1} = $Order/Number);
+log info node 'Orders' $Msg;
+```
 
 ### MDL-JSONNUM01: A locale-dependent number in hand-built JSON
 

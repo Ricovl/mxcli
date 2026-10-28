@@ -97,6 +97,16 @@ func webNavProfileFromGen(p *genNav.NavigationProfile) *types.NavigationProfile 
 	}
 	appendOfflineEntities(profile, p.OfflineEntityConfigsItems())
 	profile.ThrowPartialSyncError = throwPartialSyncError(p.Raw())
+	// Null until "Progressive web app" is ticked -- and then an offline
+	// profile has no service worker and no page opens offline (#1377).
+	if pwa, ok := p.ProgressiveWebAppSettings().(*genNav.ProgressiveWebAppSettings); ok && pwa != nil {
+		profile.ProgressiveWebApp = &types.NavPWASettings{Precaching: pwa.Precaching(), InstallPrompt: pwa.InstallPrompt()}
+	}
+	// Studio Pro's "Application title" and "Application icon" (ako/mxcli#1756).
+	// The title is read by the rule a menu caption is: the project's default
+	// language, the language exec writes it in.
+	profile.AppTitle = textOf(p.AppTitle())
+	profile.AppIcon = p.AppIconQualifiedName()
 	return profile
 }
 
@@ -254,9 +264,11 @@ func navMenuItemFromGen(el element.Element) *types.NavMenuItem {
 			item.Items = append(item.Items, sub)
 		}
 	}
-	if item.Caption == "" && item.Page == "" && len(item.Items) == 0 {
-		return nil
-	}
+	// Every Menus$MenuItem is an item, whatever its caption reads as. An item
+	// whose caption reads empty and whose action was not a page used to be
+	// dropped here, so describe never printed it and a describe -> exec round
+	// trip deleted it; with captions read in the default language that would
+	// have reached any item translated in another language only.
 	return item
 }
 
@@ -343,21 +355,28 @@ func resolveMenuAction(item *types.NavMenuItem, action element.Element) {
 	}
 }
 
-// textOf extracts the first non-empty translation from a Texts$Text element,
-// mirroring the legacy extractTextFromBson.
+// textOf reads a Texts$Text element — a menu item's or bottom bar item's
+// caption — with the rule a page's texts are read with (model.SelectTranslation):
+// the project's default language, an empty entry in it included, else en_US,
+// else the first non-empty translation. model.AuthoringLanguage is that default
+// language once the executor has resolved the project's settings, which it does
+// before describing, listing or altering navigation.
+//
+// It used to return the first non-empty translation in document order, so on a
+// multi-language project describe printed whichever language was stored first,
+// not the one a page describe prints for the same texts.
 func textOf(el element.Element) string {
 	t, ok := el.(*genTexts.Text)
 	if !ok || t == nil {
 		return ""
 	}
+	var entries []model.TranslationEntry
 	for _, trEl := range t.TranslationsItems() {
 		if tr, ok := trEl.(*genTexts.Translation); ok {
-			if s := tr.Text(); s != "" {
-				return s
-			}
+			entries = append(entries, model.TranslationEntry{LanguageCode: tr.LanguageCode(), Text: tr.Text()})
 		}
 	}
-	return ""
+	return model.SelectTranslation(entries, model.AuthoringLanguage())
 }
 
 // throwPartialSyncError reads a property NEITHER modelsdk/gen NOR

@@ -215,6 +215,15 @@ func listEntity(ctx *ExecContext, name *ast.QualifiedName) error {
 
 // describeEntity handles DESCRIBE ENTITY command.
 func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
+	return describeEntityWith(ctx, name, true)
+}
+
+// describeEntityWith describes an entity, with its access rules as grants when
+// withGrants is set. `describe module` leaves them out and prints them after
+// the module's associations, which a grant may name: replayed in entity order,
+// such a grant was refused because the association did not exist yet
+// (mendixlabs/mxcli#1409).
+func describeEntityWith(ctx *ExecContext, name ast.QualifiedName, withGrants bool) error {
 	module, err := findModule(ctx, name.Module)
 	if err != nil {
 		return err
@@ -341,6 +350,11 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 					}
 					constraints.WriteString(fmt.Sprintf(" default %s", defaultVal))
 				}
+				// In a Protected module the level decides whether other modules
+				// may use the member (mendixlabs/mxcli#1498).
+				if c := exportLevelClause(attr.ExportLevel); c != "" {
+					constraints.WriteString(" " + c)
+				}
 
 				line.WriteString(fmt.Sprintf("  %s: %s%s", attr.Name, typeStr, constraints.String()))
 				attrLines = append(attrLines, attrLine{text: line.String()})
@@ -369,16 +383,17 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 				fmt.Fprintf(ctx.Output, "%s%s\n", al.text, comma)
 			}
 			fmt.Fprint(ctx.Output, ")")
+			// In a Protected module an entity's export level decides whether
+			// other modules may use it (CE1406) and whether a Usable microflow
+			// may expose it (CE5400). Before a view's `as (…)`, which ends the
+			// statement's options (mendixlabs/mxcli#1498).
+			if c := exportLevelClause(entity.ExportLevel); c != "" {
+				fmt.Fprintf(ctx.Output, "\n%s", c)
+			}
 
 			// For VIEW entities, output the OQL query
 			if entityType == "view" && entity.OqlQuery != "" {
-				fmt.Fprint(ctx.Output, " as (\n")
-				// Indent OQL query lines
-				oqlLines := strings.SplitSeq(entity.OqlQuery, "\n")
-				for line := range oqlLines {
-					fmt.Fprintf(ctx.Output, "  %s\n", line)
-				}
-				fmt.Fprint(ctx.Output, ")")
+				fmt.Fprint(ctx.Output, describedViewQuery(entity.OqlQuery))
 			}
 
 			// Build attribute name map
@@ -445,7 +460,9 @@ func describeEntity(ctx *ExecContext, name ast.QualifiedName) error {
 			outputEntityValidationRules(ctx, entity, name.Module, name.Name, attrNames)
 
 			// Output access rule GRANT statements
-			outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
+			if withGrants {
+				outputEntityAccessGrants(ctx, entity, name.Module, name.Name)
+			}
 
 			return nil
 		}

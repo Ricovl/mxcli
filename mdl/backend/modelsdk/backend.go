@@ -164,6 +164,17 @@ func (b *Backend) FlushDeferredWrites() error {
 	return b.writer.FlushDeferredWrites()
 }
 
+// SimulateWrites holds unit updates in memory, read back but never written,
+// until the returned function discards them; any other write is refused
+// (mmpr.Writer.SimulateWrites). ok is false — and nothing is simulated — on a
+// read-only connection or while a deferred run is open.
+func (b *Backend) SimulateWrites() (discard func(), ok bool) {
+	if b.writer == nil {
+		return func() {}, false
+	}
+	return b.writer.SimulateWrites()
+}
+
 // Commit is a no-op for the read-only slice.
 func (b *Backend) Commit() error { return nil }
 
@@ -248,6 +259,16 @@ func (b *Backend) ProjectVersion() *types.ProjectVersion {
 		MinorVersion:   pv.MinorVersion,
 		PatchVersion:   pv.PatchVersion,
 	}
+}
+
+// GetProjectRootID returns the $ID of the Projects$Project root unit — the
+// container every module points to, and the value Business Events uses as the
+// app id (mendixlabs/mxcli#1526). A copy of the model shares it.
+func (b *Backend) GetProjectRootID() (string, error) {
+	if b.reader == nil {
+		return "", fmt.Errorf("GetProjectRootID: not connected")
+	}
+	return b.reader.GetProjectRootID()
 }
 
 func (b *Backend) GetMendixVersion() (string, error) {

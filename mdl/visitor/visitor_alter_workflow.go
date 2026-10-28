@@ -39,18 +39,21 @@ var workflowPropertyKeys = map[string]string{
 	"duedate":      "due_date",
 	"overviewpage": "overview_page",
 	"parameter":    "parameter",
+	"annotation":   "annotation",
 }
 
 var activityPropertyKeys = map[string]string{
 	"page":        "page",
 	"description": "description",
+	"taskname":    "task_name",
 	"targeting":   "targeting",
 	"duedate":     "due_date",
+	"annotation":  "annotation",
 }
 
 const (
-	workflowKeysText = "Display, Description, ExportLevel, DueDate, OverviewPage, Parameter"
-	activityKeysText = "Page, Description, Targeting, DueDate"
+	workflowKeysText = "Display, Description, ExportLevel, DueDate, OverviewPage, Parameter, Annotation"
+	activityKeysText = "Page, Description, TaskName, Targeting, DueDate, Annotation"
 )
 
 // buildAlterWorkflowOperation builds one generic operation. A `set` list and a
@@ -165,7 +168,7 @@ func buildAlterWorkflowMember(ctx *parser.AlterWorkflowMemberContext, ref string
 		be := buildBoundaryEventNode(ctx.WorkflowBoundaryEventClause())
 		return []ast.AlterWorkflowOp{&ast.InsertBoundaryEventOp{
 			ActivityRef: ref, AtPosition: pos,
-			EventType: be.EventType, Delay: be.Delay, Activities: be.Activities,
+			EventType: be.EventType, Delay: be.Delay, Caption: be.Caption, Recurrence: be.Recurrence, Activities: be.Activities,
 		}}
 	}
 	return nil
@@ -274,7 +277,32 @@ func alterWorkflowStringValue(v *parser.AlterWorkflowValueContext) (string, bool
 	if we := v.WorkflowExpression(); we != nil && we.STRING_LITERAL() != nil {
 		return unquoteStringLit(we.STRING_LITERAL()), true
 	}
+	if v.TemplateParams() != nil && v.XPATH() == nil && v.STRING_LITERAL() != nil {
+		return unquoteStringLit(v.STRING_LITERAL()), true
+	}
 	return "", false
+}
+
+// alterWorkflowTemplateValue reads a text with the parameters that fill its
+// placeholders: `Display: 'Approval for {1}' with ({1} = $WorkflowContext/Title)`
+// (ako/mxcli#1714). A text written without them has none, so setting it clears
+// any it had — the statement states the whole value.
+func alterWorkflowTemplateValue(v *parser.AlterWorkflowValueContext) (string, []ast.WorkflowTemplateParam, bool) {
+	s, ok := alterWorkflowStringValue(v)
+	if !ok {
+		return "", nil, false
+	}
+	return s, buildWorkflowTemplateParams(v.TemplateParams()), true
+}
+
+// alterWorkflowNoteValue reads a note's text (ako/mxcli#1717): a plain
+// string, since a Workflows$Annotation stores a Description and no template.
+// The empty string removes the note.
+func alterWorkflowNoteValue(v *parser.AlterWorkflowValueContext) (string, bool) {
+	if v.TemplateParams() != nil {
+		return "", false
+	}
+	return alterWorkflowStringValue(v)
 }
 
 // alterWorkflowExpressionValue reads an expression-valued property (a due
@@ -299,9 +327,16 @@ func (b *Builder) buildWorkflowSet(key, prop string, v *parser.AlterWorkflowValu
 	op := &ast.SetWorkflowPropertyOp{Property: prop}
 	switch prop {
 	case "display", "description":
-		s, ok := alterWorkflowStringValue(v)
+		s, params, ok := alterWorkflowTemplateValue(v)
 		if !ok {
-			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`")
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": '… {1}' with ({1} = $WorkflowContext/Attr)`")
+			return nil
+		}
+		op.Value, op.Params = s, params
+	case "annotation":
+		s, ok := alterWorkflowNoteValue(v)
+		if !ok {
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": ''` to remove the note")
 			return nil
 		}
 		op.Value = s
@@ -350,10 +385,17 @@ func (b *Builder) buildActivitySet(key, prop string, v *parser.AlterWorkflowValu
 			return nil
 		}
 		op.PageName = buildQualifiedName(qn)
-	case "description":
-		s, ok := alterWorkflowStringValue(v)
+	case "description", "task_name":
+		s, params, ok := alterWorkflowTemplateValue(v)
 		if !ok {
-			b.alterWorkflowValueError(key, "a string: `Description: '…'`")
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": '… {1}' with ({1} = $WorkflowContext/Attr)`")
+			return nil
+		}
+		op.Value, op.Params = s, params
+	case "annotation":
+		s, ok := alterWorkflowNoteValue(v)
+		if !ok {
+			b.alterWorkflowValueError(key, "a string: `"+key+": '…'`, or `"+key+": ''` to remove the note")
 			return nil
 		}
 		op.Value = s

@@ -1,0 +1,34 @@
+-- Negative test (ako/mxcli#1683): a `log` message, a `send email` subject or
+-- body, a `show message` message or a `validation feedback` message written as
+-- an expression followed by `with (…)` must be REFUSED (MDL-TEMPLATE01).
+--
+-- Each is a template whose {n} placeholders the `with (…)` parameters fill.
+-- An expression is not a template: alone it is stored as the template '{1}'
+-- with the expression as its parameter, so there is nothing left for further
+-- parameters to fill, and Mendix cannot store an expression as a template's
+-- text. `log` and `send email` used to store the expression's source text as
+-- the template, so the log line read "$Msg" and the subject "$Subj"; `show
+-- message` and `validation feedback` stored the parameters after the
+-- expression, where no placeholder read them. check, exec and mx check passed.
+--
+-- The forms that work: 'value is {1}' with ({1} = $V), or $Msg alone.
+
+mdl 1;
+
+create module Probe;
+
+create microflow Probe.LogExpr ()
+begin
+  declare $Msg String = 'value is {1}';
+  log info node 'Probe' $Msg with ({1} = 'x');
+end;
+
+create microflow Probe.MailExpr ()
+begin
+  declare $Subj String = 'Order {1}';
+  send email (
+    From: 'a@example.com', To: 'b@example.com',
+    Subject: $Subj with ({1} = '42'),
+    Host: 'smtp.example.com', Port: 25,
+  );
+end;

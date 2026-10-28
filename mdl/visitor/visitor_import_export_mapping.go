@@ -16,6 +16,7 @@ func (b *Builder) ExitCreateImportMappingStatement(ctx *parser.CreateImportMappi
 	stmt := &ast.CreateImportMappingStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
@@ -156,6 +157,7 @@ func (b *Builder) ExitCreateExportMappingStatement(ctx *parser.CreateExportMappi
 	stmt := &ast.CreateExportMappingStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
+	stmt.Documentation, stmt.DocumentationSet = findDocComment(ctx) // mendixlabs/mxcli#1510
 	if lit := ctx.STRING_LITERAL(); lit != nil {
 		stmt.Folder = unquoteStringLit(lit)
 	}
@@ -290,6 +292,11 @@ func buildImportFromMappingStatement(ctx antlr.ParserRuleContext) ast.MicroflowS
 		stmt.SourceVariable = strings.TrimPrefix(vars[1].GetText(), "$")
 	} else if len(vars) >= 1 {
 		stmt.SourceVariable = strings.TrimPrefix(vars[0].GetText(), "$")
+	}
+
+	// The settings list, ( Parameter: $Obj, Commit: … ) (ako/mxcli#1681).
+	if settings := c.ImportMappingSettings(); settings != nil {
+		importMappingSettingsInto(stmt, settings)
 	}
 
 	// Range: FIRST, or LIMIT/OFFSET. Absent means "All", which leaves the builder

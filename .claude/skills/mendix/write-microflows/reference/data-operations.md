@@ -251,6 +251,14 @@ through to the build:
 idiom is written: inside `loop $item in $L`, `find $Others by Key = $item/Key`
 navigates the **loop's** variable on the right-hand side.
 
+A `by` member, a `sort` key and an aggregate's attribute must be a member of the
+list's entity or of an entity it extends. One that is not — a typo, a wrong case,
+`owner` for `System.owner` — is refused by `check -p --references` and by exec,
+naming the entity and what it has; it used to be written as the attribute
+`Module.Entity.Typo` and fail the build with CE1613 (ako/mxcli#1646). A `sort`
+may use the system dates `createdDate` / `changedDate` where the entity's root
+stores them; an aggregate never can (`maximum $L by createdDate` is CE0226).
+
 **`sort` is not an expression.** It takes attribute names directly —
 `sort $Orders by CreateDate desc` — and any word works as a name there, so an
 attribute called `Count` or `Date` needs no quotes. Writing `$currentObject/`
@@ -404,9 +412,17 @@ end loop;
   it. Looping a single object passes `mxcli check` but produces an invalid project
   (mxbuild `StorageLoadException` — the loop's `change` writes an unqualified
   attribute). Loop only over the list-valued (reverse / ReferenceSet) form.
-- The association is always fully qualified (`Module.Association`), and the start
-  variable is an object you already have (a parameter, a prior retrieve/create, or
-  a loop iterator). Both forms above are mxbuild-verified (0 errors).
+- Write the association qualified (`Module.Association`); the start variable is
+  an object you already have (a parameter, a prior retrieve/create, or a loop
+  iterator). Both forms above are mxbuild-verified (0 errors).
+- A **bare** association name (`retrieve $C from $O/Order_Customer;`) is resolved
+  against the start variable's entity — through its generalizations, from either
+  end — when exactly one association of that name fits, and is stored and
+  described qualified. One that fits no association, or two (two modules may
+  each have one of the name), is refused by `check -p --references` and by exec
+  with the qualified spelling to write; so is a bare name on a variable whose
+  entity exec cannot tell. It used to be stored as `.Order_Customer`, with an
+  empty module — CE1613, and a describe that does not parse (ako/mxcli#1690).
 
 **Enumeration attributes in WHERE**: XPath is a database query, so enum values are stored as plain strings. Both forms are valid — mxcli converts the qualified name to a string literal in BSON:
 
@@ -452,6 +468,16 @@ set $Order/Shop.Order_Product = $Product;
 ```
 
 **Critical**: Always use fully qualified association names (`Module.AssociationName`).
+
+`check -p --references` (and exec, which runs it first) resolves every
+`$Var/<member>` path against the entity the variable holds, through its
+generalizations and across association hops, and reports what mxbuild would
+reject with CE0117 "Error(s) in expression.": an attribute the entity does not
+have (names are case-sensitive), a bare association (`$Order/Order_Customer/Name`),
+an association that does not exist or does not start at the entity, and
+`$Obj/id` — an object's id is not readable in an expression. Compare the objects
+themselves (`$A = $B`), or read a GUID with `CommunityCommons.getGUID(item = $Obj)`
+(ako/mxcli#1697). A variable whose entity check cannot tell is not judged.
 
 ### XPath in Expressions
 

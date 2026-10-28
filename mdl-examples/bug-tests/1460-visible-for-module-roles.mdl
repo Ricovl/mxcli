@@ -1,0 +1,43 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1460 — role-based widget visibility dropped by describe
+-- ============================================================================
+--
+-- Symptom (before fix): "Role-based widget visibility
+-- (ConditionalVisibilitySettings.ModuleRoles) is not printed by DESCRIBE", so a
+-- `create or replace` from describe output removed it with no warning — the
+-- widget became visible to every role. MDL had no way to write it either.
+--
+-- Root cause: describe read Expression and Attribute/Conditions from the
+-- settings element and never ModuleRoles; the writer always emitted the list
+-- empty; ALTER `set Visible` rebuilt the element without it.
+--
+-- After fix: `Visible: roles (Mod.A, …)` is a second `Visible:` line, beside an
+-- expression or attribute condition, on widgets, tab pages and
+-- navigation-list items. Stored as ModuleRoles [1, "Mod.A", …] (by-name, the
+-- shape of TestApp's Studio Pro-authored WorkflowCommons snippets).
+--
+-- Verify (Mendix 11.13, testdata/pedapp copy):
+--   mxcli check 1460-visible-for-module-roles.mdl -p app.mpr --references
+--   mxcli exec  1460-visible-for-module-roles.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page MyFirstModule.Bug1460Roles"   -- roles printed
+--   re-exec the describe output                                       -- "Unchanged"
+--   mxcli docker check -p app.mpr        -- no new errors (a dangling role is CE1613)
+-- ============================================================================
+
+create module role MyFirstModule.Bug1460Admin;
+create module role MyFirstModule.Bug1460Viewer;
+
+create page MyFirstModule.Bug1460Roles (Title: 'Roles', Layout: Atlas_Core.Atlas_Default) {
+  container cAdminOnly (Visible: roles (MyFirstModule.Bug1460Admin)) {
+    dynamictext t1 (Content: 'admins only')
+  }
+  container cBoth (Visible: false, Visible: roles (MyFirstModule.Bug1460Admin, MyFirstModule.Bug1460Viewer)) {
+    dynamictext t2 (Content: 'never')
+  }
+  navigationlist nav {
+    item (Action: close page, Visible: roles (MyFirstModule.Bug1460Viewer)) {
+      dynamictext t3 (Content: 'viewers')
+    }
+  }
+};

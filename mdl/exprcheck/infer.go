@@ -27,6 +27,48 @@ func InferSourceKind(src string, vars map[string]TypeKind) TypeKind {
 	return inferKind(root, ctx)
 }
 
+// InferArgumentKind types src the way a built-in function's argument is typed
+// (argKind): with a full Context — an EntityScope and a CatalogReader type
+// attribute paths (`$Order/Number`), which a bare variable scope cannot — and
+// with [%CurrentDateTime%] and the [%BeginOf…%]/[%EndOf…%] tokens as the
+// DateTimes they are. Anything it cannot type is KindUnknown.
+func InferArgumentKind(src string, ctx Context) TypeKind {
+	if strings.TrimSpace(src) == "" {
+		return KindUnknown
+	}
+	root, _ := (&parserImpl{}).Parse(src, ctx)
+	if root == nil {
+		return KindUnknown
+	}
+	return argKind(root, ctx)
+}
+
+// BuiltinCallHints parses src and returns the built-in signature hints — E006
+// (wrong argument count) and E005 (an argument of the wrong kind) — for every
+// built-in call in it, typing variables from vars (names without the '$').
+//
+// It is the no-project entry point: what it can type is literals, the variables
+// in vars and the result kinds of nested built-in calls. Anything else infers
+// Unknown and is never refused; the catalog-backed tier, which can type
+// attribute paths, runs the same checkCallExpr with more to go on.
+func BuiltinCallHints(src string, vars map[string]TypeKind) []Hint {
+	if strings.TrimSpace(src) == "" {
+		return nil
+	}
+	ctx := Context{}
+	if vars != nil {
+		ctx.Scope = mapScope(vars)
+	}
+	_, hs := (&parserImpl{}).Parse(src, ctx)
+	var out []Hint
+	for _, h := range hs {
+		if h.Code == "E005" || h.Code == "E006" {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
 // SourceIsArithmeticDecimal reports whether src is a bare arithmetic expression
 // whose result kind is Decimal — the case that fails mx check when assigned to
 // an Integer/Long variable (CE0117), most commonly `$a * 100 div $b`.

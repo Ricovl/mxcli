@@ -1,0 +1,40 @@
+-- mendixlabs/mxcli#1588: `create java action` had no way to set a parameter's
+-- description or the return value's name. `describe` printed both as `--`
+-- comments (`Input: String not null  -- The text to convert.` and
+-- `-- return NAME: 'UpperText'`); written in a script they passed check and
+-- exec and were dropped — the description empty, the return name the default
+-- `ReturnValueName`.
+-- After the fix a `/** … */` before a parameter is its description (as on an
+-- entity attribute) and `returns T as $Name` names the return value (as on a
+-- microflow), for Java and JavaScript actions alike; `describe` prints those
+-- forms, so its output re-executes as "Unchanged".
+mdl 1;
+
+create module BugTest1588;
+
+/** Converts text to upper case. */
+create java action BugTest1588.ToUpper(
+    /** The text to convert. */
+    Input: String not null,
+    /**
+     * How to convert it.
+     * A description of two lines keeps both.
+     */
+    Mode: String
+) returns String as $UpperText
+as $$
+return Input.toUpperCase();
+$$;
+
+create javascript action BugTest1588.JS_ToUpper(
+    /** The text to convert. */
+    Input: String not null
+) returns String as $UpperText
+as $$
+return Input.toUpperCase();
+$$;
+
+-- Expect: both descriptions as `/** … */` before their parameters, and
+-- `returns String as $UpperText`, in both actions.
+describe java action BugTest1588.ToUpper;
+describe javascript action BugTest1588.JS_ToUpper;

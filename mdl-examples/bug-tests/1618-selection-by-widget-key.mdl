@@ -1,0 +1,40 @@
+mdl 1;
+-- mendixlabs/mxcli#1618: a Data grid 2 or Gallery selection written by the
+-- widget's own key, `itemSelection: Single`, passed check, exec and mx check
+-- and was stored as the property's PrimitiveValue, with its Selection left at
+-- the default — so the grids below had no selection, and the gallery could not
+-- turn its default selection off. `Selection:` and `itemSelection:` are now one
+-- property: both are stored in Selection, and describe prints `Selection: …`.
+--
+-- An invalid value, or two different values under the two spellings, is
+-- refused (MDL-WIDGET50; see 1618-selection-by-widget-key.fail.mdl) — mxbuild
+-- 11.12.5 accepts any string there at 0 errors. With -p, a by-key override of a
+-- definition constant the installed widget does not declare (`advanced` on
+-- Gallery 3.4.0) is MDL-WIDGET01, and exec refuses it.
+--
+--   mxcli exec mdl-examples/bug-tests/1618-selection-by-widget-key.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page BugSelByKey.Ord_Overview"
+--     -- datagrid dgSingle (…, Selection: Single) / gallery galNone (…, Selection: None)
+--   mx check app.mpr                                          # 0 errors (11.12.5)
+
+create or modify module BugSelByKey;
+
+create persistent entity BugSelByKey.Ord (Code: String(20));
+
+create page BugSelByKey.Ord_Detail (Title: 'Order', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext title (Content: 'Order')
+};
+
+create page BugSelByKey.Ord_Overview (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgSingle (DataSource: database BugSelByKey.Ord, itemSelection: Single) { column (Attribute: Code) }
+  datagrid dgMulti (DataSource: database BugSelByKey.Ord, itemSelection: Multi) { column (Attribute: Code) }
+  gallery galNone (DataSource: database BugSelByKey.Ord, itemSelection: None) { dynamictext t1 (Content: 'x') }
+  gallery galMulti (DataSource: database BugSelByKey.Ord, itemSelection: Multi) { dynamictext t2 (Content: 'x') }
+  -- A gallery with no selection can take a single-click action.
+  gallery galClick (DataSource: database BugSelByKey.Ord, itemSelection: None, onClick: show page BugSelByKey.Ord_Detail) {
+    dynamictext t3 (Content: 'x')
+  }
+  -- Control: the keyword, and both spellings agreeing.
+  datagrid dgKw (DataSource: database BugSelByKey.Ord, Selection: Single) { column (Attribute: Code) }
+  gallery galBoth (DataSource: database BugSelByKey.Ord, Selection: None, itemSelection: None) { dynamictext t4 (Content: 'x') }
+};

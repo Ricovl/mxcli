@@ -28,6 +28,17 @@ Tests use MDL syntax with javadoc-style annotations for expectations:
   );
   /
 
+An @expect or @verify may run over several lines: its text continues, as a
+javadoc tag's does, to the next @tag or the end of the comment, and all of it
+is the assertion. Put a test's description before its first tag — text after an
+@expect that is not part of the expression makes the assertion an ERROR rather
+than being ignored.
+
+Check a test file without running it with 'mxcli check file.test.mdl -p app.mpr'.
+A test file creates nothing itself: when its tests call what a setup script
+creates, check the two together, setup first ('mxcli check setup.mdl
+file.test.mdl -p app.mpr').
+
 With --local the app runs on mxcli's own runtime instead of a container — the
 same boot as 'mxcli run --local', so no Docker daemon is needed. It uses its own
 ports (8081/8091) and its own '<project>_test' database, so a warm 'run --local'
@@ -103,8 +114,17 @@ Examples:
   # Run tests from a test file
   mxcli test tests/microflows.test.mdl -p app.mpr
 
-  # Run all tests in a directory
+  # Run all tests in a directory, subfolders included (tests/Sales/*.test.mdl)
   mxcli test tests/ -p app.mpr
+
+  # Discovery is fully recursive: point at the tests folder, not the project
+  # root (mxcli test . would search deployment/, node_modules/, javasource/ ...).
+  # A symlinked subfolder is not followed; an unreadable one is reported and
+  # the tests in the other folders still run.
+
+  # Folders starting with _ below the one you name are skipped (and listed);
+  # name one to run it, e.g. a positive-control suite
+  mxcli test tests/unit/_control -p app.mpr
 
   # Output JUnit XML for CI
   mxcli test tests/ -p app.mpr --junit results.xml
@@ -169,7 +189,7 @@ Examples:
 			// resolveTestPaths here too: listing that cannot find a path execution
 			// finds is a confusing split, and `mxcli test tests/ -p app/App.mpr
 			// --list` hit exactly that (mxcli-formula1 findings #15).
-			if err := testrunner.ListTests(resolveTestPaths(args, projectPath), os.Stdout); err != nil {
+			if err := testrunner.ListTests(resolveTestPaths(args, projectPath), os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
@@ -227,7 +247,9 @@ Examples:
 				os.Exit(1)
 			}
 			reportConstantChain(os.Stdout, overrides)
+			reportJVMArgs(os.Stdout, overrides)
 			opts.ConstantOverrides = overrides.Values
+			opts.JVMArgs = overrides.JVMArgs
 		} else if len(constantArgs) > 0 {
 			// --attach runs against an app someone else booted, and the Docker path
 			// configures the container. Accepting --constant there and doing nothing

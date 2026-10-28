@@ -212,22 +212,18 @@ func outputRestOperation(w io.Writer, op *model.RestClientOperation) {
 		fmt.Fprintf(w, "    Timeout: %d,\n", op.Timeout)
 	}
 
-	// Response
-	switch strings.ToLower(op.ResponseType) {
+	// Response. An operation stores no response variable (the call activity
+	// names it), so the reader never fills one in and the bare kind is what
+	// describe prints (mendixlabs/mxcli#1608).
+	switch kind := strings.ToLower(op.ResponseType); kind {
 	case "none":
 		fmt.Fprintln(w, "    Response: none")
-	case "json":
+	case "json", "string", "file", "status":
 		if op.ResponseVariable != "" {
-			fmt.Fprintf(w, "    Response: json as %s\n", op.ResponseVariable)
+			fmt.Fprintf(w, "    Response: %s as %s\n", kind, op.ResponseVariable)
 		} else {
-			fmt.Fprintln(w, "    Response: json")
+			fmt.Fprintf(w, "    Response: %s\n", kind)
 		}
-	case "string":
-		fmt.Fprintf(w, "    Response: string as %s\n", op.ResponseVariable)
-	case "file":
-		fmt.Fprintf(w, "    Response: file as %s\n", op.ResponseVariable)
-	case "status":
-		fmt.Fprintf(w, "    Response: status as %s\n", op.ResponseVariable)
 	case "mapping":
 		if op.ResponseEntity != "" && len(op.ResponseMappings) > 0 {
 			fmt.Fprintf(w, "    Response: mapping %s {\n", op.ResponseEntity)
@@ -358,9 +354,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	}
 
 	// Version pre-check: REST clients require 10.1+
-	if err := checkFeature(ctx, "integration", "rest_client_basic",
-		"create rest client",
-		"upgrade your project to 10.1+"); err != nil {
+	if err := checkVersionGates(ctx, stmt); err != nil {
 		return err
 	}
 
@@ -386,6 +380,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	// module root (#932).
 	var preservedContainerID model.ID
 	var preservedDocumentation string
+	var storedOperations []*model.RestClientOperation
 	wasModified := false
 	for _, existing := range existingServices {
 		existModID := h.FindModuleID(existing.ContainerID)
@@ -398,6 +393,7 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 				// A rewrite that carried no doc comment keeps the stored one, so
 				// it has to be read before anything replaces the unit (#1018).
 				preservedDocumentation = existing.Documentation
+				storedOperations = existing.Operations
 				wasModified = true
 			} else {
 				return mdlerrors.NewAlreadyExistsMsg("rest client", moduleName+"."+stmt.Name.Name, fmt.Sprintf("rest client already exists: %s.%s (use create or modify to overwrite)", moduleName, stmt.Name.Name))
@@ -432,42 +428,10 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 			stmt.DocumentationSet, stmt.Documentation, preservedDocumentation)
 	}
 
-	// Authentication — Mendix requires Rest$ConstantValue for BASIC auth credentials
-	// (Rest$StringValue causes InvalidCastException in Studio Pro). When literal
-	// strings are provided, auto-create constants to hold them.
 	if stmt.Authentication != nil {
-		auth := &model.RestAuthentication{
-			Scheme: stmt.Authentication.Scheme,
-		}
-		// Username — must use Rest$ConstantValue pointing to a real constant.
-		// $Variable refs pass through; literal strings auto-create constants.
-		if strings.HasPrefix(stmt.Authentication.Username, "$") {
-			// Already a $Constant ref — resolve to qualified name for BY_NAME lookup
-			name := strings.TrimPrefix(stmt.Authentication.Username, "$")
-			if !strings.Contains(name, ".") {
-				name = moduleName + "." + name
-			}
-			auth.Username = "$" + name
-		} else if stmt.Authentication.Username != "" {
-			constName := stmt.Name.Name + "_Username"
-			if err := ensureConstant(ctx, moduleName, containerID, constName, stmt.Authentication.Username); err != nil {
-				return fmt.Errorf("failed to create username constant: %w", err)
-			}
-			auth.Username = "$" + moduleName + "." + constName
-		}
-		// Password
-		if strings.HasPrefix(stmt.Authentication.Password, "$") {
-			name := strings.TrimPrefix(stmt.Authentication.Password, "$")
-			if !strings.Contains(name, ".") {
-				name = moduleName + "." + name
-			}
-			auth.Password = "$" + name
-		} else if stmt.Authentication.Password != "" {
-			constName := stmt.Name.Name + "_Password"
-			if err := ensureConstant(ctx, moduleName, containerID, constName, stmt.Authentication.Password); err != nil {
-				return fmt.Errorf("failed to create password constant: %w", err)
-			}
-			auth.Password = "$" + moduleName + "." + constName
+		auth, err := restAuthFromDef(ctx, stmt.Name, containerID, stmt.Authentication)
+		if err != nil {
+			return err
 		}
 		svc.Authentication = auth
 	}
@@ -492,7 +456,81 @@ func createRestClient(ctx *ExecContext, stmt *ast.CreateRestClientStmt) error {
 	}
 	ctx.ReportMutation(verb, "rest client: %s.%s (%d operations)",
 		moduleName, stmt.Name.Name, len(svc.Operations))
+	if wasModified {
+		warnDroppedRestOperations(ctx, stmt.Name, storedOperations, svc.Operations)
+	}
 	return nil
+}
+
+// warnDroppedRestOperations names the stored operations a CREATE OR MODIFY
+// removed. The statement declares the service's whole operation list, so one
+// that names only the operations to add deletes the rest — often ones made in
+// Studio Pro, with headers and mappings — and used to report only
+// "Modified rest client: … (2 operations)" (mendixlabs/mxcli#1608). It still
+// applies, as `create or modify entity` does for attributes; it says so, and
+// names the statement that adds an operation without touching the others.
+func warnDroppedRestOperations(ctx *ExecContext, name ast.QualifiedName, stored, written []*model.RestClientOperation) {
+	kept := map[string]bool{}
+	for _, op := range written {
+		kept[strings.ToLower(op.Name)] = true
+	}
+	var dropped []string
+	for _, op := range stored {
+		if !kept[strings.ToLower(op.Name)] {
+			dropped = append(dropped, op.Name)
+		}
+	}
+	if len(dropped) == 0 {
+		return
+	}
+	fmt.Fprintf(ctx.Output,
+		"⚠ create or modify consumed rest service %s drops %d existing operation(s) not listed in this statement: %s\n",
+		name, len(dropped), strings.Join(dropped, ", "))
+	fmt.Fprintf(ctx.Output,
+		"  To add an operation without touching the others, use: alter consumed rest service %s add operation <Name> ( … );\n", name)
+}
+
+// restAuthFromDef resolves a statement's basic authentication for service
+// name. Mendix requires Rest$ConstantValue for BASIC auth credentials
+// (Rest$StringValue causes InvalidCastException in Studio Pro), so a literal
+// string gets a constant to hold it, created in containerID; a `$Constant`
+// reference is qualified with the service's module.
+func restAuthFromDef(ctx *ExecContext, name ast.QualifiedName, containerID model.ID, def *ast.RestAuthDef) (*model.RestAuthentication, error) {
+	moduleName := name.Module
+	auth := &model.RestAuthentication{
+		Scheme: def.Scheme,
+	}
+	// Username — must use Rest$ConstantValue pointing to a real constant.
+	// $Variable refs pass through; literal strings auto-create constants.
+	if strings.HasPrefix(def.Username, "$") {
+		// Already a $Constant ref — resolve to qualified name for BY_NAME lookup
+		n := strings.TrimPrefix(def.Username, "$")
+		if !strings.Contains(n, ".") {
+			n = moduleName + "." + n
+		}
+		auth.Username = "$" + n
+	} else if def.Username != "" {
+		constName := name.Name + "_Username"
+		if err := ensureConstant(ctx, moduleName, containerID, constName, def.Username); err != nil {
+			return nil, fmt.Errorf("failed to create username constant: %w", err)
+		}
+		auth.Username = "$" + moduleName + "." + constName
+	}
+	// Password
+	if strings.HasPrefix(def.Password, "$") {
+		n := strings.TrimPrefix(def.Password, "$")
+		if !strings.Contains(n, ".") {
+			n = moduleName + "." + n
+		}
+		auth.Password = "$" + n
+	} else if def.Password != "" {
+		constName := name.Name + "_Password"
+		if err := ensureConstant(ctx, moduleName, containerID, constName, def.Password); err != nil {
+			return nil, fmt.Errorf("failed to create password constant: %w", err)
+		}
+		auth.Password = "$" + moduleName + "." + constName
+	}
+	return auth, nil
 }
 
 // saveConsumedRestService writes a consumed REST client, rewriting the stored
@@ -807,9 +845,7 @@ func createRestClientFromSpec(ctx *ExecContext, stmt *ast.CreateRestClientStmt) 
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "rest_client_basic",
-		"create rest client",
-		"upgrade your project to 10.1+"); err != nil {
+	if err := checkVersionGates(ctx, stmt); err != nil {
 		return err
 	}
 

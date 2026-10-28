@@ -15,18 +15,18 @@ description: "Microflow syntax reference in MDL — every activity type, control
 | 62-76 | Changing an Existing Microflow |
 | 77-95 | When to Use a Microflow vs a Nanoflow |
 | 96-112 | Key Differences from Nanoflows |
-| 113-266 | Microflow Structure |
-| 267-344 | Variable Declarations |
-| 345-402 | Operators |
-| 403-419 | Logging |
-| 420-445 | Special Values |
-| 446-492 | Complete Example |
-| 493-549 | Calling Microflows |
-| 550-576 | Page Navigation |
-| 577-593 | Validation Checklist |
-| 594-605 | Tips for Success |
-| 606-612 | Related Documentation |
-| 613-727 | Quick Reference |
+| 113-267 | Microflow Structure |
+| 268-345 | Variable Declarations |
+| 346-403 | Operators |
+| 404-420 | Logging |
+| 421-446 | Special Values |
+| 447-493 | Complete Example |
+| 494-550 | Calling Microflows |
+| 551-578 | Page Navigation |
+| 579-595 | Validation Checklist |
+| 596-607 | Tips for Success |
+| 608-614 | Related Documentation |
+| 615-727 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -69,10 +69,10 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
   output patches too: unchanged writes nothing; a statement (even one whose handler returns), guard
   clause, `return` value, `if` condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
-  patched in place (a move keeps the node's flows), as is a loop-body activity with new values. A redrawn
-  `@anchor`/`@curve`, other loop-body change, error handler or other `return` added/taken away rebuilds under
-  mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves lost) and is refused under `mdl 1;`. **To add,
-  remove or reorder in a loop body, `alter … replace` the whole loop** ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
+  patched in place (a move keeps the node's flows), as are plain activities added, removed, reordered or changed in a loop body ([an insert needing room past a stated `@position`](reference/pitfalls.md#13-inserting-where-the-script-states-every-position)). A redrawn
+  `@anchor`/`@curve`, a decision/loop/`return` added or changed inside a loop body, error handler or other `return` added/taken away rebuilds under
+  mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves lost) and is refused under `mdl 1;`. **To put a
+  decision or loop in a loop body, `alter … replace body of loop $X in $Xs with begin … end;`** — the loop keeps its `$ID` ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)); a decision `alter … insert` put in is taken out by a re-run, `drop` or `replace` ([pitfalls](reference/pitfalls.md#15-taking-out-a-decision-another-script-put-in)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -189,6 +189,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
 build, and `list microflows` reports it in the `Excluded` column.
+**On a statement** it disables that one activity instead — see [disabled activities](reference/control-flow.md#disabled-activities--excluded-on-a-statement).
 
 ```mdl
 mdl 1;
@@ -414,7 +415,7 @@ log warning node 'ValidationService' 'Invalid data detected';
 
 -- With variables (use concatenation)
 log info node 'OrderService' 'Order processed: ' + $OrderNumber;
-log error node 'Service' 'Error: ' + $ErrorMessage;
+log error node 'Service' 'Error: ' + $ErrorMessage with stacktrace;  -- ticks "Include latest stack trace"
 ```
 
 ## Special Values
@@ -431,9 +432,9 @@ toString($value)           -- Convert to string
 > `round(random() * 8)`. Because `random()` is a Decimal, assigning it (or `div`,
 > `secondsBetween()`, and the other duration `*Between` functions) directly to an
 > `integer` variable fails the build with CE0117 — wrap it in `round()`/`floor()`/`ceil()`.
-> `mxcli check` now flags an unknown expression function like `randomInt` as
-> **MDL044** (with a "did you mean random()?" hint), and a Decimal assigned to an
-> integer target as **MDL041** — before the build does.
+> `mxcli check` flags an unknown function like `randomInt` as **MDL044**, a Decimal
+> assigned to an integer target as **MDL041**, and a built-in given the wrong number
+> or kind of arguments (`formatDecimal($d, 2)`: the pattern is a String) as **E006**/**E005**.
 >
 > **MDL044 also blocks `mxcli exec`**, not just `check`: a call to a name Mendix
 > has no built-in for is CE0117 at build time, so exec refuses to write the
@@ -561,6 +562,7 @@ parameter name: `call microflow`, `show page`, and widget actions
 (`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
 `Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
 --upgrade` rewrites them.
+Settings follow in a `with` list: `show page M.P with NumberOfPagesToClose = 1;` closes the current page first (an Integer expression; unstated closes none) — as an argument, `(NumberOfPagesToClose: 1)` is CE1613.
 
 ### CLOSE PAGE
 
@@ -663,15 +665,13 @@ commit $Order;
 commit $Invoice;
 ```
 
-`id:` is scoped to the flow you are writing and is not stored in the model; it
-exists only so a second mention can point at the first. **Without it, two lines
-with identical text are two separate notes** — mxcli never merges on text.
-
-A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
-`@annotation(text: 'note', position: (175, -40), size: (260, 70))`. Omit them
-and the note goes 100px above the activity at 200×50, stacking 60px per extra
-note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
-the short `@annotation 'text'` form.
+`id:` is flow-scoped and not stored; it lets a second mention point at the
+first. **Without it, identical text is two notes** — mxcli never merges on text.
+Geometry is `position: (x, y)` and `size: (w, h)`; omitted, the note goes 100px
+above the activity at 200×50 (60px per extra), and DESCRIBE omits it again.
+**An `@annotation` before a statement's `@position`/`@caption`/`@color`/`@anchor`
+is a free note**, attached to nothing (where DESCRIBE prints one): put an
+activity's own notes after them. In an `alter` fragment, attach a note the flow already has by its text, `@annotation(existing: '…')` — never by a describe `id:` ([pitfalls §14](reference/pitfalls.md#14-attaching-an-inserted-statement-to-a-note-the-flow-already-has)).
 
 ### Page Navigation Pattern
 ```mdl

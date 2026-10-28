@@ -96,6 +96,8 @@ var documentedElsewhere = map[string]string{
 	"navigationtree":  "layout",
 	"menubar":         "layout",
 	"simplemenubar":   "layout",
+	"sidebartoggle":   "layout",
+	"layoutheader":    "layout",
 	"placeholder":     "layout",
 	// Object-list container keywords for pluggable widgets: each is the singular
 	// form of one widget's own list property (Accordion groups → GROUP), routed

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
-	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
@@ -36,6 +35,10 @@ type assocShape struct {
 	from, to string
 	refSet   bool
 	owner    string // "Default", "Both", or "" when not one of the measured two
+	// view marks an association a view entity derives from its OQL (an
+	// OqlViewAssociationSource): `from` is the view entity, and a page cannot
+	// follow it from `to` (MDL-ASSOCDS02, validate_view_assoc_reverse.go).
+	view bool
 }
 
 func astOwnerName(o ast.OwnerType) string {
@@ -66,51 +69,26 @@ var listWidgetTypes = map[string]bool{
 // checkAssociationShapes indexes the project's associations, overlaid with the
 // script's, by lower-cased qualified name.
 func checkAssociationShapes(ctx *ExecContext, sc *scriptContext) map[string]assocShape {
-	out := map[string]assocShape{}
+	return checkAssociationCatalog(ctx, sc).shapes
+}
+
+// checkAssociationCatalog is checkAssociationShapes with what could not be
+// read, for a check that must tell "no such association" from "not looked".
+func checkAssociationCatalog(ctx *ExecContext, sc *scriptContext) associationCatalog {
+	cat := associationCatalog{shapes: map[string]assocShape{}, unnamed: map[string]bool{}}
 	if ctx != nil && ctx.Backend != nil {
 		if modules, err := getModulesFromCache(ctx); err == nil {
-			moduleNames := make(map[model.ID]string, len(modules))
-			for _, m := range modules {
-				moduleNames[m.ID] = m.Name
-			}
 			if dms, err := ctx.Backend.ListDomainModels(); err == nil {
-				byID := map[model.ID]string{}
-				for _, dm := range dms {
-					if mod := moduleNames[dm.ContainerID]; mod != "" {
-						for _, ent := range dm.Entities {
-							byID[ent.ID] = mod + "." + ent.Name
-						}
-					}
-				}
-				for _, dm := range dms {
-					mod := moduleNames[dm.ContainerID]
-					if mod == "" {
-						continue
-					}
-					for _, a := range dm.Associations {
-						if from, to := byID[a.ParentID], byID[a.ChildID]; from != "" && to != "" {
-							qn := mod + "." + a.Name
-							out[strings.ToLower(qn)] = assocShape{qn: qn, from: from, to: to,
-								refSet: a.Type == domainmodel.AssociationTypeReferenceSet, owner: sdkOwnerName(a.Owner)}
-						}
-					}
-					for _, a := range dm.CrossAssociations {
-						if from := byID[a.ParentID]; from != "" && a.ChildRef != "" {
-							qn := mod + "." + a.Name
-							out[strings.ToLower(qn)] = assocShape{qn: qn, from: from, to: a.ChildRef,
-								refSet: a.Type == domainmodel.AssociationTypeReferenceSet, owner: sdkOwnerName(a.Owner)}
-						}
-					}
-				}
+				cat = projectAssociationCatalog(modules, dms)
 			}
 		}
 	}
 	if sc != nil {
 		for k, v := range sc.associationShapes {
-			out[k] = v
+			cat.shapes[k] = v
 		}
 	}
-	return out
+	return cat
 }
 
 // checkAssocListSource reports MDL-ASSOCDS01 for one widget, given the data

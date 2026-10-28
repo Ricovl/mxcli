@@ -5,14 +5,14 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
-func encodeAction(t *testing.T, a pages.ClientAction) bsonv1.D {
+func encodeAction(t *testing.T, a pages.ClientAction) bson.D {
 	t.Helper()
 	el, err := clientActionToGen(a)
 	if err != nil {
@@ -22,8 +22,8 @@ func encodeAction(t *testing.T, a pages.ClientAction) bsonv1.D {
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var doc bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(out), &doc); err != nil {
+	var doc bson.D
+	if err := bson.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	return doc
@@ -31,14 +31,14 @@ func encodeAction(t *testing.T, a pages.ClientAction) bsonv1.D {
 
 // firstParamMapping returns the first entry of a ParameterMappings typed array
 // (the list is prefixed with an int32 marker, so element 0 is skipped).
-func firstParamMapping(t *testing.T, doc bsonv1.D) bsonv1.D {
+func firstParamMapping(t *testing.T, doc bson.D) bson.D {
 	t.Helper()
 	raw := docGet(doc, "ParameterMappings")
-	arr, ok := raw.(bsonv1.A)
+	arr, ok := raw.(bson.A)
 	if !ok || len(arr) < 2 {
 		t.Fatalf("ParameterMappings not a non-empty typed array: %#v", raw)
 	}
-	pm, ok := arr[1].(bsonv1.D)
+	pm, ok := arr[1].(bson.D)
 	if !ok {
 		t.Fatalf("param mapping not a doc: %#v", arr[1])
 	}
@@ -88,7 +88,7 @@ func TestMicroflowClientAction_PersistsParameters(t *testing.T) {
 	}
 	doc := encodeAction(t, a)
 
-	settings, ok := docGet(doc, "MicroflowSettings").(bsonv1.D)
+	settings, ok := docGet(doc, "MicroflowSettings").(bson.D)
 	if !ok {
 		t.Fatalf("MicroflowSettings missing: %#v", docGet(doc, "MicroflowSettings"))
 	}

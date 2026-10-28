@@ -61,11 +61,8 @@ The `mx` command-line tool validates and builds Mendix projects. Location depend
 # Auto-download mxbuild for the project's Mendix version
 mxcli setup mxbuild -p app.mpr
 
-# check/validate a Mendix project
+# check/validate a Mendix project (runs mx locally; does not download mxbuild)
 mxcli docker check -p /path/to/app.mpr
-
-# or use the integrated command (auto-downloads mxbuild)
-mxcli docker check -p app.mpr
 ```
 
 **Devcontainer gotcha — libSkiaSharp/FreeType crash on some mxbuild releases.** Certain bundled `mx` binaries (observed on 11.10.0) abort with `symbol lookup error: .../libSkiaSharp.so: undefined symbol: FT_Get_BDF_Property`. Root cause: `mx`/mxbuild run under the Temurin JVM, whose bundled libfreetype is stripped and lacks `FT_Get_BDF_Property`, so Skia loads the *JVM's* FreeType instead of the system one (which has the symbol). Preloading the system libfreetype makes it load first and fixes `mx check`/`build`/`run` while keeping Skia working.
@@ -130,10 +127,10 @@ When generating Mendix expression strings (e.g., in `expressionToString()`), sin
 
 The skills advise **quoting all identifiers** to avoid keyword collisions, but this only escapes **MDL parser** keywords (so `"create"`, `"status"`, `"end"` become valid attribute names). It does **not** exempt names the Mendix **platform** reserves for entity members — those are rejected by Studio Pro (and by `mxcli check --references`) **even when quoted**, because the check strips the quotes and validates the bare name:
 
-- `Type` → CE7247 / `MDL021` ("reserved word"). Rename (e.g. `ResourceType`, `TypeValue`). Also `ID`, `GUID`, `CurrentUser`, and the Java-keyword list.
+- `Type` → CE7247 / `MDL021` ("reserved word"). Rename (e.g. `ResourceType`, `TypeValue`). Also `ID`, `GUID`, `CurrentUser`, `Object`, and the Java-keyword list; page/snippet/Java/JavaScript action parameters too (`MDL-PARAM01`).
 - `CreatedDate` / `ChangedDate` / `Owner` / `ChangedBy` → `MDL020` on persistent entities. Use the `AutoCreatedDate` / `AutoChangedDate` / `AutoOwner` / `AutoChangedBy` pseudo-types for the audit fields, or a different name for an unrelated value.
 
-The reserved-word lists live in `mdl/executor/cmd_enumerations.go` (`mendixReservedWords`, `mendixSystemAttributeNames`). "Always safe to quote" in the skills means *parser*-safe, not *platform*-safe.
+The reserved-word lists live in `mdl/types/reserved_words.go`. "Always safe to quote" in the skills means *parser*-safe, not *platform*-safe.
 
 ### A `GUID` Is the Database's Identity — Never Mint One for an Existing Element
 

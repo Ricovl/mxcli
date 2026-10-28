@@ -14,7 +14,8 @@ import (
 // snippet and layout alike — one widget tree, one address syntax).
 //
 // A page element is addressed by name: `btnSave`, `grid.Column`, or a scroll
-// container's region, `layoutContainer.top`. The lookups are the ones the
+// container's region, `layoutContainer.top`, or a pluggable widget's slot,
+// `dataGrid21.controlbar`. The lookups are the ones the
 // operations themselves make, so resolution cannot accept a target the
 // operation then misses, and a miss reports what the operation would have
 // reported.
@@ -31,6 +32,9 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 		if _, ok := m.findDataViewFooter(container, member); ok {
 			return backend.AlterTargetMatch{Kind: "region", Name: name}, nil
 		}
+		if _, ok, err := m.findPluggableSlot(container, member); ok {
+			return backend.AlterTargetMatch{Kind: "region", Name: name}, err
+		}
 		if _, err := findBsonColumn(m.rawData, container, member, m.widgetFinder); err != nil {
 			return backend.AlterTargetMatch{}, err
 		}
@@ -41,7 +45,10 @@ func (m *Mutator) ResolveAlterTarget(t backend.AlterTarget) (backend.AlterTarget
 	if result == nil {
 		return backend.AlterTargetMatch{}, m.widgetNotFoundError(name)
 	}
-	if widgetTypeName(result.widget) == navListItemType {
+	if result.cell != nil {
+		return backend.AlterTargetMatch{Kind: "cell", Name: name}, nil
+	}
+	if widgetTypeName(result.widget) == navListItemType || result.item != nil {
 		return backend.AlterTargetMatch{Kind: "item", Name: name}, nil
 	}
 	if bsonnav.DGetString(result.widget, "$Type") != objectListItemType && len(result.colPropKeys) == 0 {

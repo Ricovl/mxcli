@@ -116,6 +116,26 @@ mxcli writes one condition per value of the attribute, as Studio Pro does, so a
 value not listed hides the widget. `describe page` emits this form for widgets
 set up that way in Studio Pro.
 
+Studio Pro's **"Visible for module roles"** restricts a widget to users holding
+one of the named module roles. It is a separate setting, so it combines with an
+expression or attribute condition — the widget then carries two `Visible:` lines:
+
+```sql
+mdl 1;
+create page MyModule.Request_Review (Title: 'Review', Layout: Atlas_Core.Atlas_Default) {
+  container cntAdmin (Visible: roles (MyModule.Administrator)) {
+    dynamictext txtAdmin (Content: 'Administrators only')
+  }
+  actionbutton btnClose (Caption: 'Close', Action: close page,
+    Visible: false, Visible: roles (MyModule.Administrator, MyModule.Editor))
+};
+```
+
+It is accepted on widgets, tab pages and navigation-list items. `mxcli check
+--references` refuses a role the project (or the script, above the statement)
+does not define. `alter page … set Visible` changes only the condition and keeps
+the stored roles.
+
 ### Conditional Editability
 
 Input widgets can be conditionally editable:
@@ -124,7 +144,9 @@ Input widgets can be conditionally editable:
 TEXTBOX txtStatus (Label: 'Status', Attribute: Status, Editable: $currentObject/Status != 'Closed')
 ```
 
-Static values: `Editable: Never`, `Editable: Always`.
+Static values: `Editable: Never`, `Editable: Always`; `Editable: false` and `Editable: true` mean `Never` and `Always`.
+
+The condition may also be written as a quoted string, exactly as for `Visible:` — `Editable: '$currentObject/Status != ''Closed'''` stores the same condition as the bare form above (a quote inside the string is doubled). Any other value, such as a misspelt `Neever`, is refused by `mxcli check` (`MDL-WIDGET19`) instead of leaving the field editable.
 
 ### Pluggable Widgets
 

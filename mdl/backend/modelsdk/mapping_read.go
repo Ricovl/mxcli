@@ -48,6 +48,7 @@ func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
 				OperationName:      g.OperationName(),
 				RootElementName:    g.RootElementName(),
 			},
+			RootElementName: g.RootElementName(),
 		}
 		im.ID = model.ID(g.ID())
 		im.TypeName = "ImportMappings$ImportMapping"
@@ -93,6 +94,7 @@ func (b *Backend) ListExportMappings() ([]*model.ExportMapping, error) {
 				ParameterName:      g.ParameterName(),
 				IsHeader:           g.IsHeader(),
 			},
+			RootElementName: g.RootElementName(),
 		}
 		em.ID = model.ID(g.ID())
 		em.TypeName = "ExportMappings$ExportMapping"

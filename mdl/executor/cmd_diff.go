@@ -6,10 +6,13 @@
 package executor
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/pmezard/go-difflib/difflib"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 )
@@ -158,4 +161,108 @@ func LineChanges(current, proposed string) []StructuralChange {
 		out = append(out, StructuralChange{ChangeType: ChangeRemoved, ElementType: "Lines", Details: fmt.Sprintf("%d line(s) removed", removed)})
 	}
 	return out
+}
+
+// ChangedPaths lists up to max property paths whose values differ between two
+// unit documents, element $IDs aside. A list element is named by its Name
+// where it has one. It names properties, never values, so a secret that
+// changed is reported by where it is stored and not by what it holds.
+//
+// Both diffs use it for a unit that is written although its MDL rendering
+// does not change: `mxcli diff` for what exec would write, diff-local for what
+// changed between two revisions (ako/mxcli#1512).
+func ChangedPaths(a, b []byte, max int) []string {
+	var out []string
+	var walk func(path string, x, y bson.RawValue)
+	walk = func(path string, x, y bson.RawValue) {
+		if len(out) >= max {
+			return
+		}
+		if x.Type != y.Type {
+			out = append(out, path)
+			return
+		}
+		switch x.Type {
+		case bson.TypeEmbeddedDocument:
+			dx, dy := x.Document(), y.Document()
+			ex, _ := dx.Elements()
+			keys := map[string]bool{}
+			for _, e := range ex {
+				k := e.Key()
+				keys[k] = true
+				if k == "$ID" {
+					continue
+				}
+				vy, err := dy.LookupErr(k)
+				if err != nil {
+					out = append(out, diffPathJoin(path, k))
+				} else {
+					walk(diffPathJoin(path, k), e.Value(), vy)
+				}
+				if len(out) >= max {
+					return
+				}
+			}
+			ey, _ := dy.Elements()
+			for _, e := range ey {
+				if !keys[e.Key()] && len(out) < max {
+					out = append(out, diffPathJoin(path, e.Key()))
+				}
+			}
+		case bson.TypeArray:
+			vx, _ := x.Array().Values()
+			vy, _ := y.Array().Values()
+			vx, vy = withoutListMarker(vx), withoutListMarker(vy)
+			if len(vx) != len(vy) {
+				out = append(out, fmt.Sprintf("%s (%d -> %d items)", path, len(vx), len(vy)))
+				return
+			}
+			for i := range vx {
+				walk(fmt.Sprintf("%s[%s]", path, diffPathItemName(vx[i], i)), vx[i], vy[i])
+				if len(out) >= max {
+					return
+				}
+			}
+		case bson.TypeBinary:
+			// A pointer holds an element $ID, so a pointer to an element exec
+			// re-minted differs without anything having changed; canon has
+			// already said whether the unit did. A GUID is reported.
+			if !bytes.Equal(x.Value, y.Value) && !strings.HasSuffix(path, "Pointer") {
+				out = append(out, path)
+			}
+		default:
+			if !bytes.Equal(x.Value, y.Value) {
+				out = append(out, path)
+			}
+		}
+	}
+	walk("", bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: a}, bson.RawValue{Type: bson.TypeEmbeddedDocument, Value: b})
+	return out
+}
+
+func diffPathJoin(path, key string) string {
+	if path == "" {
+		return key
+	}
+	return path + "." + key
+}
+
+func diffPathItemName(v bson.RawValue, i int) string {
+	if d, ok := v.DocumentOK(); ok {
+		if n, ok := d.Lookup("Name").StringValueOK(); ok && n != "" {
+			return n
+		}
+	}
+	return fmt.Sprint(i)
+}
+
+// withoutListMarker drops the int32 Mendix stores ahead of a list's items (the
+// typed-array marker), so a count or an index is the list's own: an empty
+// list holds one value, and counting it reported a first grant as "1 -> 2
+// items".
+func withoutListMarker(vals []bson.RawValue) []bson.RawValue {
+	if len(vals) > 0 && vals[0].Type == bson.TypeInt32 {
+		return vals[1:]
+	}
+	return vals
 }

@@ -27,11 +27,12 @@ import (
 type ProjectVersion = types.ProjectVersion
 
 // DefaultVersion returns the default version (11.6.0) used when detection fails.
+//
+// FormatVersion is left zero, as DetectFromDB leaves it: see there.
 func DefaultVersion() *ProjectVersion {
 	return &ProjectVersion{
 		ProductVersion: "11.6.0",
 		BuildVersion:   "11.6.0",
-		FormatVersion:  2,
 		MajorVersion:   11,
 		MinorVersion:   6,
 		PatchVersion:   0,
@@ -39,35 +40,35 @@ func DefaultVersion() *ProjectVersion {
 }
 
 // DetectFromDB reads version information from the MPR database.
+//
+// It does NOT set FormatVersion. Whether a project is MPR v1 or v2 is a fact
+// about what is on disk — an mprcontents/ folder beside the .mpr, and a Unit
+// table with or without a Contents column — and the reader decides it from
+// exactly that before it can read a single unit (mpr.OpenWithOptions). The
+// reader stamps its answer onto the ProjectVersion it returns, so there is one
+// answer to the question, not two.
+//
+// _MetaData cannot stand in for it. Its _FormatVersion column exists only in
+// the v2 schema — measured absent in a 9.24.30 and an 11.13.0 v1 project,
+// present and 2 in 11.6.6, 11.13.0 and 11.14.0 v2 ones — and this function used
+// to read a missing column as "a newer schema, so 2". Every v1 project therefore
+// reported `MPR Format: v2` (ako/mxcli#1553, upstream mendixlabs/mxcli#1621).
+// The three columns read here are present in both schemas.
 func DetectFromDB(db *sql.DB) (*ProjectVersion, error) {
-	var formatVersion int
 	var productVersion, buildVersion, schemaHash string
 
-	// Try the old schema first (with _FormatVersion)
-	row := db.QueryRow("SELECT _FormatVersion, _ProductVersion, _BuildVersion, _SchemaHash FROM _MetaData LIMIT 1")
-	err := row.Scan(&formatVersion, &productVersion, &buildVersion, &schemaHash)
-	if err != nil {
+	row := db.QueryRow("SELECT _ProductVersion, _BuildVersion, _SchemaHash FROM _MetaData LIMIT 1")
+	if err := row.Scan(&productVersion, &buildVersion, &schemaHash); err != nil {
 		if err == sql.ErrNoRows {
 			// Return default if no metadata found
 			return DefaultVersion(), nil
 		}
-		// Try new schema without _FormatVersion (Mendix 11.6.2+)
-		row = db.QueryRow("SELECT _ProductVersion, _BuildVersion, _SchemaHash FROM _MetaData LIMIT 1")
-		err = row.Scan(&productVersion, &buildVersion, &schemaHash)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return DefaultVersion(), nil
-			}
-			return nil, fmt.Errorf("failed to read version metadata: %w", err)
-		}
-		// Default format version to 2 for newer schemas
-		formatVersion = 2
+		return nil, fmt.Errorf("failed to read version metadata: %w", err)
 	}
 
 	pv := &ProjectVersion{
 		ProductVersion: productVersion,
 		BuildVersion:   buildVersion,
-		FormatVersion:  formatVersion,
 		SchemaHash:     schemaHash,
 	}
 

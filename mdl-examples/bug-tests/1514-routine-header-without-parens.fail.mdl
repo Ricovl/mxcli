@@ -1,0 +1,31 @@
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1514 - a microflow header without parameter
+-- parentheses gives errors that point at the wrong tokens
+-- ============================================================================
+--
+-- Symptom:
+--   "missing '(' at 'returns'", then "missing ':' at 'Boolean'"; with a bare
+--   parameter "missing '(' at '$l'" and "missing ')' at 'returns'". None says
+--   the parentheses are mandatory.
+--
+-- After fix (still a parse error; the grammar is unchanged): the first error
+--   on the header line carries "A microflow header needs its parameter list in
+--   parentheses, even when it is empty", once per line.
+--
+-- Usage (both statements must be refused, with the hint):
+--   mxcli check mdl-examples/bug-tests/1514-routine-header-without-parens.fail.mdl
+-- ============================================================================
+
+create module M1514;
+create persistent entity M1514.Item (Name: string(100));
+
+create microflow M1514.F returns Boolean as $b
+begin
+  declare $b Boolean = true;
+  return $b;
+end;
+
+create microflow M1514.G $l: List of M1514.Item returns Boolean as $b
+begin
+  return true;
+end;

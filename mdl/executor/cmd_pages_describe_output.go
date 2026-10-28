@@ -6,14 +6,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/mendixlabs/mxcli/sdk/pages"
 )
 
 // mdl0Quote writes s as an mdl 0 string literal: a backslash, a line break, a
@@ -98,6 +98,21 @@ func looksNumeric(s string) bool {
 		}
 	}
 	return body != "."
+}
+
+// appendExplicitProps appends a pluggable widget's settings printed under their
+// own key: `key: value`, and a text template's `{N}` bindings as the
+// `<key>Params` companion — a `{1}` re-executed without its parameter is CE0720,
+// so the companion travels with the text it belongs to (#575).
+func appendExplicitProps(ctx *ExecContext, props []string, explicit []rawExplicitProp) []string {
+	for _, ep := range explicit {
+		props = append(props, fmt.Sprintf("%s: %s", ep.Key, explicitPropValue(ctx, ep)))
+		if len(ep.Params) > 0 {
+			props = append(props, fmt.Sprintf("%sParams: (%s)",
+				ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
+		}
+	}
+	return props
 }
 
 // appendDataGridPagingProps appends non-default paging properties for DataGrid2.
@@ -192,6 +207,9 @@ func appendAppearanceProps(ctx *ExecContext, props []string, w rawWidget) []stri
 		props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 	}
 	if prop := visibleWhenProp(w); prop != "" {
+		props = append(props, prop)
+	}
+	if prop := visibleRolesProp(w); prop != "" {
 		props = append(props, prop)
 	}
 	if w.EditableIf != "" {
@@ -306,7 +324,13 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 	switch w.Type {
 	case "Forms$ScrollContainer", "Pages$ScrollContainer":
 		header := fmt.Sprintf("scrollcontainer %s", mdlIdent(w.Name))
-		props := appendAppearanceProps(ctx, nil, w)
+		var props []string
+		// Only Sidebar: Headline is what an unset scroll container is, so a
+		// layout that never set it describes as before (ako/mxcli#1703).
+		if w.ScrollLayoutMode != "" && w.ScrollLayoutMode != pages.DefaultScrollContainerLayoutMode {
+			props = append(props, fmt.Sprintf("LayoutMode: %s", mdlQuote(ctx, w.ScrollLayoutMode)))
+		}
+		props = appendAppearanceProps(ctx, props, w)
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 			for _, child := range w.Children {
@@ -316,6 +340,26 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		} else {
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
+
+	case "Forms$Header", "Pages$Header", "Forms$HeaderSide":
+		// A layout header and its two sides (the latter synthetic, like a
+		// scroll container's regions).
+		header := fmt.Sprintf("layoutheader %s", mdlIdent(w.Name))
+		var props []string
+		if w.Type == "Forms$HeaderSide" {
+			header = "region " + w.Name
+		} else {
+			props = appendAppearanceProps(ctx, nil, w)
+		}
+		if len(w.Children) == 0 {
+			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			break
+		}
+		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+		for _, child := range w.Children {
+			outputWidgetMDLV3(ctx, child, indent+1)
+		}
+		fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 
 	case "Forms$ScrollContainerRegion":
 		// A synthetic wrapper: the slot is in Name, and `region top` is how MDL
@@ -330,7 +374,15 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.RegionSizeMode != "" && w.RegionSizeMode != "Auto" {
 			props = append(props, fmt.Sprintf("SizeMode: %s", mdlQuote(ctx, w.RegionSizeMode)))
 		}
-		props = appendAppearanceProps(ctx, props, w)
+		if w.RegionToggleMode != "" && w.RegionToggleMode != "None" {
+			props = append(props, fmt.Sprintf("ToggleMode: %s", mdlQuote(ctx, w.RegionToggleMode)))
+		}
+		// Class is the one appearance key a region is read with and written
+		// with (buildScrollContainerRegionV3); printing the rest would be
+		// printing what re-execution refuses (ako/mxcli#1698).
+		if w.Class != "" {
+			props = append(props, fmt.Sprintf("Class: %s", mdlQuote(ctx, w.Class)))
+		}
 		if len(w.Children) > 0 {
 			formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 			for _, child := range w.Children {
@@ -389,12 +441,16 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.TabCaption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.TabCaption)))
 		}
+		props = describeTabPageBadge(ctx, props, w)
 		// A tab page's visibility (#1465). Its Forms$TabPage has no Appearance,
 		// so appendAppearanceProps would print nothing else either.
 		if w.VisibleIf != "" {
 			props = append(props, widgetConditionMDL("Visible", w.VisibleIf))
 		}
 		if prop := visibleWhenProp(w); prop != "" {
+			props = append(props, prop)
+		}
+		if prop := visibleRolesProp(w); prop != "" {
 			props = append(props, prop)
 		}
 		if len(w.Children) > 0 {
@@ -409,7 +465,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 
 	case "Forms$DivContainer", "Pages$DivContainer":
 		header := fmt.Sprintf("container %s", mdlIdent(w.Name))
-		props := appendAppearanceProps(ctx, nil, w)
+		var props []string
+		if w.RenderMode != "" && w.RenderMode != "Div" {
+			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
+		}
+		props = appendAppearanceProps(ctx, props, w)
 		if w.Action != "" {
 			props = append(props, actionProp("Action", w.Action))
 		}
@@ -512,20 +572,32 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.RenderMode != "" && w.RenderMode != "Text" {
 			props = append(props, fmt.Sprintf("RenderMode: %s", w.RenderMode))
 		}
+		// Text is what every dynamic text stores, so only a heading is printed.
+		if w.NativeTextStyle != "" && w.NativeTextStyle != "Text" {
+			props = append(props, fmt.Sprintf("NativeTextStyle: %s", w.NativeTextStyle))
+		}
 		if len(w.Parameters) > 0 {
 			props = append(props, fmt.Sprintf("ContentParams: (%s)", strings.Join(formatParametersV3(w.Parameters), ", ")))
 		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
-	case "Forms$ActionButton", "Pages$ActionButton":
-		// RenderType "Link" round-trips as the `linkbutton` keyword.
+	case "Forms$ActionButton", "Pages$ActionButton", "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
+		// RenderType "Link" round-trips as the `linkbutton` keyword. A sidebar
+		// toggle has no keyword of its own for it, so says it as a property.
+		toggle := strings.HasSuffix(w.Type, "$SidebarToggleButton")
 		keyword := "actionbutton"
-		if w.RenderMode == "Link" {
+		switch {
+		case toggle:
+			keyword = "sidebartoggle"
+		case w.RenderMode == "Link":
 			keyword = "linkbutton"
 		}
 		header := fmt.Sprintf("%s %s", keyword, mdlIdent(w.Name))
 		props := []string{}
+		if toggle && w.RenderMode == "Link" {
+			props = append(props, "RenderMode: Link")
+		}
 		if w.Caption != "" {
 			props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, w.Caption)))
 		}
@@ -547,6 +619,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		if note := widgetIconNote(ctx, w); note != "" {
+			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
+		}
+		if note := outputMappingsNote(w); note != "" {
 			fmt.Fprintf(ctx.Output, "%s%s\n", prefix, note)
 		}
 
@@ -610,11 +685,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
+		props = describeKeyboardType(props, w)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
+		}
+		props = appendFocusEventProps(props, w)
+		if w.OnEnterKeyPress != "" {
+			props = append(props, actionProp("OnEnterKeyPress", w.OnEnterKeyPress))
 		}
 		props = append(props, w.Formatting...)
 		props = appendInputValidationProps(ctx, props, w)
@@ -631,13 +712,23 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.Placeholder != "" {
 			props = append(props, fmt.Sprintf("Placeholder: %s", mdlQuote(ctx, w.Placeholder)))
 		}
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = describeSubmitBehaviour(props, w)
+		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
+		// a text area authored without them describes as it did (ako/mxcli#977).
+		if w.NumberOfLines != nil && *w.NumberOfLines != 5 {
+			props = append(props, fmt.Sprintf("NumberOfLines: %d", *w.NumberOfLines))
+		}
+		if w.Autocomplete != nil && !*w.Autocomplete {
+			props = append(props, "Autocomplete: false")
+		}
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -660,12 +751,14 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		// The picker's mode — without it a date-time picker described as a
 		// date-only one, and describe → exec wrote it that way (ako/mxcli#968).
 		props = append(props, w.Formatting...)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -678,9 +771,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
+		props = appendReadOnlyStyle(props, w)
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -693,10 +788,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.Content != "" {
 			props = append(props, fmt.Sprintf("Attribute: %s", w.Content))
 		}
-		// Show ReadOnlyStyle if not default "Inherit"
-		if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
-			props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
-		}
+		props = appendReadOnlyStyle(props, w)
 		// Show ShowLabel if false (not showing label)
 		if !w.ShowLabel {
 			props = append(props, "ShowLabel: No")
@@ -704,6 +796,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -728,12 +821,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendNamedActionProps(props, w)
 			// Add paging properties if non-default
 			props = appendDataGridPagingProps(props, w)
+			// Every other setting that differs from its default, under the
+			// widget's own key (configurationStorageType, columnsHidable, …).
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
-			// Output CONTROLBAR and columns as children
-			hasContent := len(w.ControlBar) > 0 || len(w.DataGridColumns) > 0
+			// Output CONTROLBAR, the widget slots and columns as children
+			hasContent := len(w.ControlBar) > 0 || len(w.DataGridColumns) > 0 ||
+				len(w.ChildSlots) > 0 || len(w.OmittedProps) > 0
 			if hasContent {
 				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
+				writeOmittedPropsNote(ctx.Output, prefix+"  ", w.OmittedProps)
 				// Output CONTROLBAR section if control bar widgets present
 				if len(w.ControlBar) > 0 {
 					fmt.Fprintf(ctx.Output, "%s  controlbar {\n", prefix)
@@ -742,6 +840,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 					}
 					fmt.Fprintf(ctx.Output, "%s  }\n", prefix)
 				}
+				// The empty-state placeholder, and any other slot the grid declares.
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
 				// Output columns. A DataGrid 2 column has no name in the model,
 				// so none is written: the one derived from its attribute gave two
 				// columns over one attribute the same name (#749). ALTER PAGE
@@ -781,12 +881,17 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 				props = append(props, actionProp("onClick", w.OnClick))
 			}
 			props = appendNamedActionProps(props, w)
+			// Every other setting that differs from its default, under the
+			// widget's own key (pagination, pageSize, …).
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
 			// Output filter and content widgets
-			hasContent := len(w.Children) > 0 || len(w.FilterWidgets) > 0
+			hasContent := len(w.Children) > 0 || len(w.FilterWidgets) > 0 ||
+				len(w.ChildSlots) > 0 || len(w.OmittedProps) > 0
 			if hasContent {
 				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
 				outputDataContainerContext(ctx.Output, prefix+"  ", w.Name, w.EntityContext, true)
+				writeOmittedPropsNote(ctx.Output, prefix+"  ", w.OmittedProps)
 				// Output FILTER section if filter widgets present
 				if len(w.FilterWidgets) > 0 {
 					fmt.Fprintf(ctx.Output, "%s  filter {\n", prefix)
@@ -803,6 +908,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 					}
 					fmt.Fprintf(ctx.Output, "%s  }\n", prefix)
 				}
+				// The empty-state placeholder, and any other slot the gallery declares.
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
 				fmt.Fprintf(ctx.Output, "%s}\n", prefix)
 			} else {
 				formatWidgetProps(ctx.Output, prefix, header, props, "\n")
@@ -815,17 +922,19 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			// twice (#721 C).
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
-		} else if (len(w.ExplicitProperties) > 0 || len(w.ObjectLists) > 0 || w.OnClick != "" ||
-			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
-			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
+		} else if ((len(w.ExplicitProperties) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.ObjectLists) > 0 || w.OnClick != "" ||
+			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) ||
+			(len(w.NamedActions) > 0 && !isKnownCustomWidgetType(widgetType)) ||
+			(len(w.ChildSlots) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
 			// blocks (chart series/lines/scaleColors), and/or an onClick action.
 			// The widget's own MDL name where that round-trips, else the
 			// explicit id form. See pluggableWidgetHeader.
 			//
-			// OnChange counts only for a widget without its own branch below: a
-			// combo box's branch emits OnChange itself, and routed here it lost
-			// its Attribute: and CaptionAttribute: on describe.
+			// OnChange, the named action slots and the child slots count only
+			// for a widget without its own branch below: a combo box's branch
+			// emits them itself (its custom content, ako/mxcli#1744), and routed
+			// here it lost its Attribute: and CaptionAttribute: on describe.
 			//
 			// Child slots and omitted containers count towards "has content"
 			// too: a widget whose only non-default content is a populated slot
@@ -847,15 +956,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			// the datasource is gone. The DESCRIBE text was byte-identical before
 			// and after, so only mx check separated them (#956).
 			props = appendWidgetDataSources(ctx, props, w)
-			for _, ep := range w.ExplicitProperties {
-				props = append(props, fmt.Sprintf("%s: %s", ep.Key, explicitPropValue(ctx, ep)))
-				// A `{1}` re-executed without its parameter is CE0720, so the
-				// companion travels with the text it belongs to (#575).
-				if len(ep.Params) > 0 {
-					props = append(props, fmt.Sprintf("%sParams: (%s)",
-						ep.Key, strings.Join(formatParametersV3(ep.Params), ", ")))
-				}
-			}
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			// onClick action (ledger #67 — reported on CustomChart)
 			if w.OnClick != "" {
 				props = append(props, actionProp("onClick", w.OnClick))
@@ -891,7 +992,8 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 						itemProps = appendDataSourceProp(ctx, itemProps, item.DataSource)
 						for _, p := range item.Props {
 							if p.IsRef {
-								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, p.Value))
+								// An action that renders as a note stands on its own line.
+								itemProps = append(itemProps, actionProp(p.Key, p.Value))
 							} else {
 								itemProps = append(itemProps, fmt.Sprintf("%s: %s", p.Key, mdlQuote(ctx, p.Value)))
 							}
@@ -899,8 +1001,11 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 						// An item holding child widgets (an Accordion group's `content`
 						// slot) needs a body, or the children have nowhere to go and the
 						// description silently drops them on re-exec (#891).
-						if len(item.Children) > 0 {
+						if len(item.Children) > 0 || len(item.Slots) > 0 {
 							formatWidgetProps(ctx.Output, childPrefix, itemHeader, itemProps, " {\n")
+							// The item's other slots as blocks (headercontent { … }),
+							// then its body — CREATE routes each by keyword (#1453).
+							outputChildSlots(ctx, item.Slots, childPrefix+"  ", indent+2)
 							for _, child := range item.Children {
 								outputWidgetMDLV3(ctx, child, indent+2)
 							}
@@ -952,6 +1057,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if w.OnChange != "" {
 				props = append(props, actionProp("OnChange", w.OnChange))
 			}
+			// A combo box's onEnterEvent / onLeaveEvent /
+			// onChangeFilterInputEvent, by key (ako/mxcli#854).
+			props = appendNamedActionProps(props, w)
 			// Show filter attributes for filter widgets
 			if len(w.FilterAttributes) > 0 {
 				props = append(props, fmt.Sprintf("Attributes: [%s]", strings.Join(w.FilterAttributes, ", ")))
@@ -960,8 +1068,21 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if w.FilterExpression != "" && w.FilterExpression != "contains" {
 				props = append(props, fmt.Sprintf("FilterType: %s", w.FilterExpression))
 			}
+			// The settings with no keyword, by the widget's own key
+			// (mendixlabs/mxcli#1586), and a note for those not reproduced.
+			props = appendExplicitProps(ctx, props, w.ExplicitProperties)
 			props = appendAppearanceProps(ctx, props, w)
-			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			writeOmittedPropsNote(ctx.Output, prefix, w.OmittedProps)
+			writeHiddenContentNote(ctx.Output, prefix, w.Name, w.HiddenContent)
+			if len(w.ChildSlots) == 0 {
+				formatWidgetProps(ctx.Output, prefix, header, props, "\n")
+			} else {
+				// A combo box's custom content (ako/mxcli#1744), as the block
+				// that writes it.
+				formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+				outputChildSlots(ctx, w.ChildSlots, prefix+"  ", indent+1)
+				fmt.Fprintf(ctx.Output, "%s}\n", prefix)
+			}
 		}
 
 	case "Forms$NavigationList", "Pages$NavigationList":
@@ -983,6 +1104,15 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			}
 			if child.DynamicClasses != "" {
 				props = append(props, fmt.Sprintf("DynamicClasses: %s", child.DynamicClasses)) // an expression, printed as-is
+			}
+			if child.VisibleIf != "" {
+				props = append(props, widgetConditionMDL("Visible", child.VisibleIf))
+			}
+			if prop := visibleWhenProp(child); prop != "" {
+				props = append(props, prop)
+			}
+			if prop := visibleRolesProp(child); prop != "" {
+				props = append(props, prop)
 			}
 			formatWidgetProps(ctx.Output, prefix+"  ", itemHeader, props, " {\n")
 			for _, cw := range child.Children {
@@ -1160,6 +1290,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		}
 
+	case "Forms$DataGrid":
+		outputLegacyGridV3(ctx, prefix, w)
+
 	default:
 		// A widget MDL cannot spell. Emitted as a comment naming it, and
 		// labelled with what that costs: describe output is re-executable, so a
@@ -1173,6 +1306,13 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			fmt.Fprintf(ctx.Output, " (%s)", w.Name)
 		}
 		fmt.Fprint(ctx.Output, "  -- NOT re-executable: mxcli cannot author this widget, so re-running this script would drop it\n")
+		for _, c := range w.TableCells {
+			contents := "(empty)"
+			if len(c.Widgets) > 0 {
+				contents = strings.Join(c.Widgets, ", ")
+			}
+			fmt.Fprintf(ctx.Output, "%s--   cell(%d,%d): %s\n", prefix, c.Row, c.Column, contents)
+		}
 	}
 }
 
@@ -1185,6 +1325,12 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	}
 	if col.Caption != "" {
 		props = append(props, fmt.Sprintf("Caption: %s", mdlQuote(ctx, col.Caption)))
+	} else if col.Attribute == "" {
+		// An untitled actions column (mendixlabs/mxcli#1520): say the empty
+		// header outright rather than leave the column with no identifying
+		// property. The writer stores `Caption: ''` as the empty template
+		// Studio Pro writes — the shape that was read here.
+		props = append(props, "Caption: ''")
 	}
 	if len(col.CaptionParams) > 0 {
 		props = append(props, fmt.Sprintf("CaptionParams: (%s)", strings.Join(formatParametersV3(col.CaptionParams), ", ")))
@@ -1249,6 +1395,8 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	if col.Tooltip != "" {
 		props = append(props, fmt.Sprintf("Tooltip: %s", mdlQuote(ctx, col.Tooltip)))
 	}
+	// Any other column setting that differs from its default, by its own key.
+	props = appendExplicitProps(ctx, props, col.ExtraProps)
 
 	// No name: Mendix stores none on a DataGrid 2 column (#749).
 	header := "column"
@@ -1256,11 +1404,12 @@ func outputDataGrid2ColumnV3(ctx *ExecContext, prefix string, col rawDataGridCol
 	// the builder routes a filter back to its own slot by widget type. Emitting
 	// only the content widgets deleted the filter of every custom-content column
 	// on a describe→exec round trip (ako/mxcli#489).
-	hasContent := len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0
+	hasContent := len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0 || len(col.OmittedProps) > 0
 
 	if hasContent {
 		// Output column with content block
 		formatWidgetProps(ctx.Output, prefix, header, props, " {\n")
+		writeOmittedPropsNote(ctx.Output, prefix+"  ", col.OmittedProps)
 		for _, widget := range col.ContentWidgets {
 			outputWidgetMDLV3(ctx, widget, len(prefix)/2+1)
 		}
@@ -1427,13 +1576,33 @@ func extractOnChangeAction(ctx *ExecContext, w map[string]any) string {
 	return renderClientActionMDL(ctx, actionMapForKey(w, "OnChangeAction"))
 }
 
+// extractFocusEventActions renders an input widget's OnEnterAction and
+// OnLeaveAction ("On enter" / "On leave"). Unread, describe → exec replaced a
+// stored one with the empty action (ako/mxcli#1743).
+func extractFocusEventActions(ctx *ExecContext, w map[string]any) (string, string) {
+	return renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterAction")),
+		renderClientActionMDL(ctx, actionMapForKey(w, "OnLeaveAction"))
+}
+
+// appendFocusEventProps prints an input widget's On enter / On leave actions,
+// each only when it holds one.
+func appendFocusEventProps(props []string, w rawWidget) []string {
+	if w.OnEnter != "" {
+		props = append(props, actionProp("OnEnter", w.OnEnter))
+	}
+	if w.OnLeave != "" {
+		props = append(props, actionProp("OnLeave", w.OnLeave))
+	}
+	return props
+}
+
 // actionMapForKey unwraps a client-action node stored under key into a plain map
-// (handling both map[string]any and primitive.M), or nil when absent.
+// (handling both map[string]any and bson.M), or nil when absent.
 func actionMapForKey(w map[string]any, key string) map[string]any {
 	if action, ok := w[key].(map[string]any); ok {
 		return action
 	}
-	if actionM, ok := w[key].(primitive.M); ok {
+	if actionM, ok := w[key].(bson.M); ok {
 		return map[string]any(actionM)
 	}
 	return nil
@@ -1452,6 +1621,21 @@ func renderClientActionMDL(ctx *ExecContext, action map[string]any) string {
 
 // renderClientActionBaseMDL renders the action itself; renderClientActionMDL
 // adds its `with ( … )` settings.
+// unsetTargetNoteTail ends every note unsetTargetNote writes, so a caller that
+// says something else about such an action can tell it apart.
+const unsetTargetNoteTail = "; MDL cannot name a missing target, so re-running this script drops the action"
+
+// unsetTargetNote describes an action whose flow, page or entity is not
+// selected yet. Studio Pro stores that state for a placeholder: its page
+// templates ship them, and a page made from one inherits them until a target
+// is picked. mx check reports each (CE0571 no nanoflow or microflow, CE0566 no
+// page, CE0460 no entity). The bare `call nanoflow` describe used to print does
+// not parse, so one unwired button made the whole page's description unusable
+// (ako/mxcli#1728); a note, which actionProp puts on its own line, does.
+func unsetTargetNote(what string) string {
+	return "-- NOT re-executable: the action " + what + unsetTargetNoteTail
+}
+
 func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	if action == nil {
 		return ""
@@ -1479,13 +1663,14 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 		}
 		return result
 	case "Forms$CreateObjectClientAction", "Pages$CreateObjectClientAction":
-		result := "create object"
-		// Extract entity reference
+		entityName := ""
 		if entityRef, ok := action["EntityRef"].(map[string]any); ok {
-			if entityName, ok := entityRef["Entity"].(string); ok && entityName != "" {
-				result += " " + entityName
-			}
+			entityName, _ = entityRef["Entity"].(string)
 		}
+		if entityName == "" {
+			return unsetTargetNote("creates an object but no entity is selected (CE0460)")
+		}
+		result := "create object " + entityName
 		// Extract page reference from PageSettings (Forms$FormSettings)
 		if pageSettings, ok := action["PageSettings"].(map[string]any); ok {
 			// The page is stored in "Form" field as a qualified name string (BY_NAME_REFERENCE)
@@ -1530,7 +1715,7 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				return "show page " + pageName
 			}
 		}
-		return "show page"
+		return unsetTargetNote("shows a page but none is selected (CE0566)")
 	case "Forms$MicroflowAction", "Pages$MicroflowClientAction":
 		// Extract microflow reference from MicroflowSettings
 		if settings, ok := action["MicroflowSettings"].(map[string]any); ok {
@@ -1541,10 +1726,13 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 				if params != "" {
 					result += "(" + params + ")"
 				}
+				if returns, ok := storedFlowReturns(settings); ok {
+					result += returns
+				}
 				return result
 			}
 		}
-		return "call microflow"
+		return unsetTargetNote("calls a microflow but none is selected (CE0571)")
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		if nfName, ok := action["Nanoflow"].(string); ok && nfName != "" {
 			result := "call nanoflow " + nfName
@@ -1553,12 +1741,31 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 			if params != "" {
 				result += "(" + params + ")"
 			}
+			if returns, ok := storedFlowReturns(action); ok {
+				result += returns
+			}
 			return result
 		}
-		return "call nanoflow"
+		return unsetTargetNote("calls a nanoflow but none is selected (CE0571)")
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
 		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
+	// The workflow events beside it printed nothing, and a rewrite then wrote
+	// a Forms$NoAction in their place (ako/mxcli#832).
+	case "Forms$OpenUserTaskClientAction", "Pages$OpenUserTaskClientAction":
+		return "open user task"
+	case "Forms$OpenWorkflowClientAction", "Pages$OpenWorkflowClientAction":
+		// The page is required (CE1834), so `open workflow` without one does
+		// not parse; settings print it.
+		if page, _ := action["DefaultPage"].(string); page == "" {
+			return unsetTargetNote("shows a workflow admin page but no default page is selected (CE1834)")
+		}
+		return "open workflow"
+	case "Forms$CallWorkflowClientAction", "Pages$CallWorkflowClientAction":
+		if wf, _ := action["Workflow"].(string); wf != "" {
+			return "call workflow " + wf
+		}
+		return unsetTargetNote("calls a workflow but none is selected")
 	case "Forms$SignOutClientAction", "Pages$SignOutClientAction":
 		return "sign out"
 	case "Forms$OpenLinkClientAction", "Pages$OpenLinkClientAction":
@@ -1719,9 +1926,11 @@ func extractPageParameters(ctx *ExecContext, settings map[string]any) string {
 			}
 		}
 
-		// Check for a Forms$PageVariable binding.
+		// Check for a Forms$PageVariable binding. One naming only a widget is a
+		// control-bar button passing its grid's selection (mendixlabs/mxcli#122),
+		// written `$grid`.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1778,7 +1987,7 @@ func extractMicroflowParameters(ctx *ExecContext, settings map[string]any) strin
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1837,7 +2046,7 @@ func extractNanoflowParameters(ctx *ExecContext, action map[string]any) string {
 
 		// Check for a Forms$PageVariable binding.
 		if value == "" {
-			value = pageVariableArgValue(mappingMap["Variable"])
+			value = flowArgVariableValue(mappingMap["Variable"])
 		}
 
 		if value != "" {
@@ -1866,84 +2075,19 @@ func extractTextsText(ctx *ExecContext, w map[string]any, field string) string {
 }
 
 // extractClientTemplateParameters extracts parameter values from a ClientTemplate field (Content or Caption).
+//
+// One reader for every stored Forms$ClientTemplateParameter: the pluggable
+// describer's extractTextTemplateParameters. This used to be a second copy of
+// that loop, and the two drifted twice — a local-variable binding read here as
+// `<unbound>` (upstream #977), and an association path was read only here, so a
+// pluggable widget's `{1} = Assoc/Attr` described as the bare attribute
+// (mendixlabs/mxcli#1494).
 func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldName string) []string {
 	template, ok := w[fieldName].(map[string]any)
 	if !ok {
 		return nil
 	}
-	params := getBsonArrayElements(template["Parameters"])
-	if params == nil {
-		return nil
-	}
-	var result []string
-	var suffixes []string // per-param format block " (decimalPrecision: 2, …)", "" when default
-	for _, p := range params {
-		pMap, ok := p.(map[string]any)
-		if !ok {
-			continue
-		}
-		// One suffix per emitted param, in the same order, so it can be zipped in
-		// after the value string is chosen (round-trips per-parameter formatting).
-		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
-		// Check for Expression first (literal value)
-		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
-			// The expression as stored. `toString($Order/Total)` used to be
-			// unwrapped to `$Order.Total`, the spelling mxcli once wrapped in
-			// toString itself; that spelling now binds the attribute (#823,
-			// MDL-V1-TEMPLATEATTR), so unwrapping changed the page's output on
-			// describe -> exec. The write side stores a non-attribute value as
-			// an expression (isTemplateExpression), so the text round-trips.
-			result = append(result, strings.TrimSpace(expr))
-			continue
-		}
-
-		// Which variable the parameter is bound to, if any. This read only
-		// PageParameter, so a binding to a page-level LOCAL variable came back as
-		// `<unbound>` here while the pluggable describer rendered the same bytes
-		// as `$Name` (upstream #977) — hence the shared resolver.
-		sourceVarName, isLocalVariable := sourceVariableBinding(pMap)
-
-		// A local variable renders bare: it has no AttributeRef to hang off.
-		if isLocalVariable {
-			result = append(result, "$"+sourceVarName)
-			continue
-		}
-
-		// Check for AttributeRef
-		if attrRef, ok := pMap["AttributeRef"].(map[string]any); ok && attrRef != nil {
-			// Attribute navigated over associations (AttributeRef.EntityRef):
-			// reconstruct the "Assoc/.../Attr" path so DESCRIBE round-trips.
-			if assocPath := associationTemplateParamPath(attrRef); assocPath != "" {
-				result = append(result, assocPath)
-				continue
-			}
-			if attr, ok := attrRef["Attribute"].(string); ok {
-				if sourceVarName != "" {
-					// Has SourceVariable - this is a page parameter reference
-					// Extract just the attribute name from the path
-					// attr is like "Module.Entity.Attribute", we want just "Attribute"
-					parts := strings.Split(attr, ".")
-					attrName := parts[len(parts)-1]
-					// Use $ParamName.Attribute format to indicate parameter reference
-					result = append(result, "$"+sourceVarName+"."+attrName)
-				} else {
-					// No SourceVariable - use short attribute name
-					result = append(result, describeAttr(ctx, attr))
-				}
-				continue
-			}
-		}
-		// Parameter exists but has no binding - mark as unbound
-		result = append(result, "<unbound>")
-	}
-	// Append each param's format block to its value string. result and suffixes are
-	// aligned (one of each per param that had a valid pMap).
-	for i := range result {
-		if i < len(suffixes) && suffixes[i] != "" {
-			result[i] += suffixes[i]
-		}
-	}
-	return result
+	return extractTextTemplateParameters(ctx, template)
 }
 
 // formatParamFormatSuffix renders a dynamic-text parameter's FormattingInfo back
@@ -1952,7 +2096,7 @@ func extractClientTemplateParameters(ctx *ExecContext, w map[string]any, fieldNa
 // DecimalPrecision=2, EnumFormat=Text, GroupDigits=false, CustomDateFormat=""),
 // so an unformatted parameter round-trips as before (empty string). Mirrors the
 // writer defaults in formattingInfoFromParamFormat / formattingInfoToGen.
-func formatParamFormatSuffix(pMap map[string]any) string {
+func formatParamFormatSuffix(ctx *ExecContext, pMap map[string]any) string {
 	fi, ok := pMap["FormattingInfo"].(map[string]any)
 	if !ok || fi == nil {
 		return ""
@@ -1968,7 +2112,9 @@ func formatParamFormatSuffix(pMap map[string]any) string {
 		parts = append(parts, "dateFormat: "+df)
 	}
 	if cdf := extractString(fi["CustomDateFormat"]); cdf != "" {
-		parts = append(parts, "customDateFormat: '"+cdf+"'")
+		// Quoted like every other string: a Java date pattern quotes literal
+		// text with apostrophes (ako/mxcli#977).
+		parts = append(parts, "customDateFormat: "+mdlQuote(ctx, cdf))
 	}
 	if ef := extractString(fi["EnumFormat"]); ef != "" && ef != "Text" {
 		parts = append(parts, "enumFormat: "+ef)
@@ -2047,7 +2193,7 @@ func dataViewHasFooterBlock(w rawWidget) bool {
 // emitted as `onClick:` / `OnChange:` (#956).
 func appendNamedActionProps(props []string, w rawWidget) []string {
 	for _, na := range w.NamedActions {
-		props = append(props, fmt.Sprintf("%s: %s", na.Key, na.MDL))
+		props = append(props, actionProp(na.Key, na.MDL))
 	}
 	return props
 }
@@ -2162,6 +2308,16 @@ func visibleWhenProp(w rawWidget) string {
 	return fmt.Sprintf("Visible: %s in (%s)", attr, strings.Join(vals, ", "))
 }
 
+// visibleRolesProp renders "Visible for module roles" as `Visible: roles
+// (Mod.A, Mod.B)`. It is a second `Visible:` line beside an expression or
+// attribute condition, as Studio Pro stores both on one settings element.
+func visibleRolesProp(w rawWidget) string {
+	if len(w.VisibleRoles) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("Visible: roles (%s)", strings.Join(w.VisibleRoles, ", "))
+}
+
 // layoutGridWidthMDL spells a stored layout-grid column weight: 1..12 is
 // printed as the number, -2 (auto-fit content) as AutoFit, and anything else —
 // -1, or absent on a model older than the property — as AutoFill.
@@ -2182,4 +2338,29 @@ func layoutGridAlignmentMDL(a string) string {
 		return ""
 	}
 	return a
+}
+
+// appendReadOnlyStyle prints an input widget's ReadOnlyStyle unless it is
+// Inherit, Studio Pro's default. Read on the check box only until
+// ako/mxcli#977, so a text box, text area, date picker or radio button group
+// stored with Text or Control came back from describe → exec as Inherit.
+func appendReadOnlyStyle(props []string, w rawWidget) []string {
+	if w.ReadOnlyStyle != "" && w.ReadOnlyStyle != "Inherit" {
+		props = append(props, fmt.Sprintf("ReadOnlyStyle: %s", w.ReadOnlyStyle))
+	}
+	return props
+}
+
+// outputMappingsNote says a button's flow call has output mappings (Mendix
+// 11.5) that describe could not print as `returns ( … )` — a shape that syntax
+// does not write, such as a path over an association. Nothing carries them
+// through a rewrite, so the note says re-running drops them (ako/mxcli#977).
+func outputMappingsNote(w rawWidget) string {
+	switch w.UnsayableOutputMappings {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("-- %s: 1 output mapping has no MDL form; re-running this statement drops it", w.Name)
+	}
+	return fmt.Sprintf("-- %s: %d output mappings have no MDL form; re-running this statement drops them", w.Name, w.UnsayableOutputMappings)
 }

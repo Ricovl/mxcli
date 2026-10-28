@@ -121,6 +121,15 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 | User tasks | `USER TASK ... OUTCOMES (...)` | Yes | Yes |
 | Parallel splits | `PARALLEL SPLIT` | Yes | Yes |
 
+Below Mendix 11.3 a workflow's main flow has no stored start or end activity:
+11.1 and 11.2 keep them implicit, and 10.x and 11.0 do not have the start
+activity type at all. mxcli writes the shape the project's version stores, and
+the header's `annotation '…'` is then the workflow's own note rather than the
+start activity's; `describe` prints it the same way on every version. Before
+this, mxcli wrote the 11.3 shape on every version: a 10.24 or 11.0 project no
+longer loaded, and 11.1 and 11.2 failed `mx check` with CE6671 and CE6689
+(ako/mxcli#1754).
+
 ### Navigation
 
 | Feature | MDL Syntax | 9.x | 10.0+ |
@@ -135,6 +144,7 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 |---------|-----------|--------|-------|
 | Basic SELECT | `SELECT, FROM, WHERE` | Yes | Yes |
 | Aggregate functions | `COUNT, SUM, AVG, MIN, MAX, GROUP BY` | Yes | Yes |
+| String aggregate | `STRING_AGG(expr, 'separator')` | 10.24.22+ only | 11.2+ |
 | Subqueries | Inline subqueries in SELECT/WHERE | Yes | Yes |
 | JOIN types | `INNER/LEFT/RIGHT/FULL JOIN` | Yes | Yes |
 
@@ -163,6 +173,26 @@ What *is* version-specific is the optional/default-value half: `PageParameter.Is
 ### Design Properties (Atlas v2 vs v3)
 
 Atlas UI v3 (Mendix 11.0+) introduced new design properties like "Card style" and "Disable row wrap" for containers. These don't exist in the Atlas v2 theme bundled with 10.x, causing CE6083.
+
+### Page Properties Stored in an Older Shape (below 10.2, 10.7, 10.11)
+
+Some page properties kept their meaning and changed how they are stored. mxcli builds the current shape and, on every write, rewrites it into the shape the project's version stores. `describe` reads both shapes ([ako/mxcli#1209](https://github.com/ako/mxcli/issues/1209)). The older shapes were measured on Studio Pro-authored 9.24.30 pages:
+
+| Property | Below | Stored as |
+|---|---|---|
+| A widget's design property | 10.2 | `Type` (`Toggle` / `DropDown`), `StringValue`, `BooleanValue` on the entry, instead of a typed `Value` |
+| A data view's page or snippet parameter | 10.0 | `PageParameter` / `SnippetParameter` names on the data source, instead of a `SourceVariable` |
+| A data view's editability | 10.7 | `Editable: true\|false`, instead of `Editability` |
+| A text box's, text area's or date picker's placeholder | 10.11 | `Placeholder` text, instead of a `PlaceholderTemplate` |
+| Any data source's `ForceFullObjects` | 10.8 | Not stored |
+
+What an older shape cannot hold is refused, naming the widget, rather than dropped:
+- a Spacing, colour-picker or toggle-button-group design property below 10.2;
+- conditional data view editability below 10.7;
+- a placeholder with parameters below 10.11;
+- a data view fed by another widget below 10.0.
+
+Before this, `describe` on 9.24 printed none of these properties, so a describe → exec round trip removed them. Writing a data view on 9.24 was refused outright.
 
 ### Widget Type Definitions
 

@@ -1,0 +1,75 @@
+-- ako/mxcli#1451 (upstream mendixlabs/mxcli#1554): `call java action` wrote a
+-- text-template parameter, and a document parameter, as a plain expression.
+--
+-- A Java action parameter of type StringTemplate(Text) — such as
+-- BusinessEvents.PublishBusinessEvent_V2's Subject — was stored as a
+-- Microflows$BasicCodeActionParameterValue holding the argument's source text.
+-- `check --references` passed and exec reported "Created microflow"; mx check
+-- then failed with
+--
+--   CE0115 "The arguments that are passed to Java action '…' do not match the
+--           expected parameters and need to be refreshed."
+--
+-- The same happened to a document parameter (AgentEditorCommons'
+-- Agent_CallDocument_WithoutHistory.Agent, a custom agent-editor document),
+-- which `describe java action` also showed as `Agent: String`.
+--
+-- Fixed: a text-template parameter stores a Microflows$StringTemplateParameterValue
+-- — the text with one typed argument per {n} placeholder — written the way a
+-- log message is:
+--
+--   Subject = 'Order {1} shipped' with ({1} = $Order/Number)
+--
+-- A plain string is the text; any other expression is the template '{1}' with
+-- the expression as its argument. Each argument is stored with the type of its
+-- result (mxbuild checks it: CE0117 on a mismatch); an enumeration is refused,
+-- and an expression followed by `with (…)` is refused (MDL-JA02). A document
+-- parameter stores a Microflows$CustomBlobDocumentCodeActionParameterValue
+-- naming the document — `Agent = MyModule.PaymentReminderAgent` — and
+-- `describe java action` prints its type as Document(agenteditor.agent).
+-- MDL cannot declare a document parameter, so that half is not in this script.
+--
+-- Verify: exec on a blank app, then `mx check`: 0 errors on 11.13.0. Then
+-- describe the microflow and re-exec it: "Unchanged microflow".
+--
+-- A pre-fix build is no control on its own: it also wrote `StringTemplate(Text)`
+-- as a String parameter (fixed with this issue), so its calls matched. The
+-- control is this build for the module, entity and action, and a pre-fix build
+-- for the microflow without the `with` call (it cannot parse one): mx check
+-- then reports CE0115 at both calls. The real-world action, with the Business
+-- Events module imported, goes from CE0115 per call to 0 errors:
+--
+--   call java action BusinessEvents.PublishBusinessEvent_V2(
+--     Subject = 'Order shipped: {1} items, {2}' with ({1} = $Event/Quantity, {2} = [%CurrentDateTime%]),
+--     BusinessEvent = $Event);
+
+mdl 1;
+
+create module BugTest1451;
+
+create persistent entity BugTest1451.Shipment (
+  Number: String(20),
+  Lines: Integer,
+  Total: Decimal,
+  ShippedOn: DateTime
+);
+
+create java action BugTest1451.JA_Notify (
+  Subject: StringTemplate(Text) not null,
+  Shipment: BugTest1451.Shipment
+) returns Boolean
+as $$
+return true;
+$$;
+
+create microflow BugTest1451.MF_Notify ($Shipment: BugTest1451.Shipment)
+begin
+  -- A plain string: the template's text, no arguments.
+  $Sent = call java action BugTest1451.JA_Notify(Subject = 'Shipment sent', Shipment = $Shipment);
+  -- Placeholders filled with ({n} = …); one argument of each type.
+  $Detailed = call java action BugTest1451.JA_Notify(
+    Subject = 'Shipment {1}: {2} lines, {3} total, shipped {4}' with ({1} = $Shipment/Number, {2} = $Shipment/Lines, {3} = $Shipment/Total, {4} = $Shipment/ShippedOn),
+    Shipment = $Shipment);
+  -- An expression: the template '{1}' with the expression as its argument.
+  $Short = call java action BugTest1451.JA_Notify(Subject = 'Shipment ' + $Shipment/Number, Shipment = $Shipment);
+end;

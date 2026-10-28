@@ -4,9 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -25,7 +25,7 @@ func (b *Backend) ListImageCollections() ([]*types.ImageCollection, error) {
 	out := make([]*types.ImageCollection, 0, len(units))
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			return nil, fmt.Errorf("unmarshal image collection %s: %w", u.ID, err)
 		}
 		ic := &types.ImageCollection{
@@ -44,12 +44,12 @@ func (b *Backend) ListImageCollections() ([]*types.ImageCollection, error) {
 					continue
 				}
 				img := types.Image{}
-				if v, ok := imgDoc["$ID"].(primitive.Binary); ok {
+				if v, ok := imgDoc["$ID"].(bson.Binary); ok {
 					img.ID = model.ID(bsonutil.BsonBinaryToID(v))
 				}
 				img.Name, _ = imgDoc["Name"].(string)
 				img.Format, _ = imgDoc["ImageFormat"].(string)
-				if bin, ok := imgDoc["Image"].(primitive.Binary); ok {
+				if bin, ok := imgDoc["Image"].(bson.Binary); ok {
 					img.Data = bin.Data
 				}
 				ic.Images = append(ic.Images, img)
@@ -121,7 +121,7 @@ func serializeImageCollection(ic *types.ImageCollection) ([]byte, error) {
 		images = append(images, bson.D{
 			{Key: "$ID", Value: bsonutil.IDToBsonBinary(imgID)},
 			{Key: "$Type", Value: "Images$Image"},
-			{Key: "Image", Value: primitive.Binary{Subtype: 0, Data: img.Data}},
+			{Key: "Image", Value: bson.Binary{Subtype: 0, Data: img.Data}},
 			{Key: "ImageFormat", Value: img.Format},
 			{Key: "Name", Value: img.Name},
 		})

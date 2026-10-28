@@ -108,6 +108,7 @@ create persistent entity Module.Photo (
 | Association line anchors | `@anchor(from: (0, 54), to: (100, 54))` above `create association …` | Where the connector attaches to each entity box, as a **percentage** of the box (0..100, whole numbers). `from` = the FROM entity's box, `to` = the TO entity's. Omitting an end preserves what is stored, so a `create or modify` about something else never flattens a hand-tuned line. Cross-module associations have no anchors — Mendix stores none |
 | Set documentation | `alter entity\|association\|enumeration Module.Name set documentation 'text';` | `set comment` is the deprecated spelling (MDL-DEPR135) |
 | Retune anchors in place | `alter association Module.Name set anchor from (50, 100) to (50, 0);` | `(0, 50)` left-middle, `(100, 50)` right-middle, `(50, 100)` bottom-centre. `describe association` re-emits a non-default pair as the same `@anchor(...)`, so describe → edit → exec round-trips |
+| Export level | `create … entity M.E (A: String(50) export level api) export level api;` · `create association … export level api;` · `create enumeration … export level api;` · `alter entity\|association\|enumeration M.X set export level api\|hidden;` | Studio Pro's **Usable** (`api`) / Hidden. Matters in a **Protected (add-on)** module: CE5400 when an `api` microflow exposes a Hidden entity or enumeration, CE1406 when another module uses a Hidden element. An absent clause keeps the stored level; Mendix 9.3+. `mxcli syntax domain-model.export-level` |
 
 ## ALTER ENTITY
 
@@ -124,8 +125,8 @@ Modifies an existing entity without full replacement.
 | Create if absent | `create entity if not exists Module.Name (...);`<br>`create association if not exists Module.Assoc from ... to ...;` | Every `create` that names one element takes the same guard, after the kind's keywords (`create page if not exists M.P …`, `create module if not exists M;`) — see `mxcli syntax create-if-not-exists`. Skips when it already exists, leaving the stored definition untouched. Unlike `create or modify`, which rebuilds the element from the statement and drops any attribute the statement omits — `mxcli check … -p app.mpr --references` warns about that as **MDL087**, naming the members the script removes without restating them |
 | Add index (SQL form) | `create index IdxName on Module.Name (Col1 [asc\|desc], ...);` | Same effect as `alter entity … add index`. The index name is accepted and not stored — a Mendix index is identified by its columns — so `check` warns (MDL-IDX01); prefer `alter entity … add index (…)` |
 | Drop index | `alter entity Module.Name drop index [if exists] (Col1 [asc\|desc], ...);` | Selected by its columns — a Mendix index stores no name, so the columns are its identity, and they are what `describe entity` prints. The legacy positional form `drop index idx1` still works but shifts when an earlier index is dropped |
-| Add event handler | `alter entity Module.Name add event handler on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE |
-| Drop event handler | `alter entity Module.Name drop event handler on before commit;` | |
+| Add event handler | `alter entity Module.Name add event handler [if not exists] on before commit call Mod.MF($currentObject) [raise error];` | `($currentObject)` or `()`, RAISE ERROR only on BEFORE. An event may have several handlers: a different microflow adds a second one; only the same microflow again is a duplicate |
+| Drop event handler | `alter entity Module.Name drop event handler [if exists] on before commit [call Mod.MF];` | `call` names which handler; without it the drop is refused when the event has several |
 | Set documentation | `alter entity Module.Name set documentation 'text';` | |
 | Set position | `alter entity Module.Name set position (100, 200);` | Canvas position |
 | Add system attribute | `alter entity Module.Name add attribute owner: autoowner;` | Same syntax as regular attributes |
@@ -509,8 +510,10 @@ rather than updating the first.
 | Describe microflow | `describe microflow Module.Name;` | Full MDL with activities |
 | Describe microflow (normalized) | `describe microflow Module.Name normalized;` | Folds crossed branches into one condition instead of flattening them. Opt-in: the output re-executes to an equivalent graph with fewer nodes and a different layout |
 | Describe microflow (with handles) | `describe microflow Module.Name with handles;` | Prints `-- handle: <target>` above each activity: its content address for `alter microflow` — output `$Var`, `'Caption'`, or a statement pattern with `*` wildcards (anchored at both ends), plus `@n` when several match. Comments only; cannot be combined with `normalized` |
-| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> begin <statements> end; };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Refused: after a decision, before an activity several flows enter, inside a loop body, a fragment whose every path returns (a guard clause — `if … then return …; end if;` — is inserted: each return is a new end event, refused where its branch has no free room or would cross a stored flow), a variable the flow already has or one not declared on the path. The fragment is `begin … end` like a microflow body; `{ … }` is the deprecated spelling MDL-DEPR074 |
-| Replace or drop an activity | `alter microflow Module.Name { replace <target> with begin <statements> end; drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Refused for a decision, an end event, an activity with an error handler, and an activity whose output variable is still read. Over `--mcp` only `insert` is supported |
+| Insert into a stored microflow | `alter microflow Module.Name { insert after <target> begin <statements> end; };` | Also `insert before`, and `alter nanoflow`. A graph splice into the stored flow, not a rebuild: only the new activities, the two rewired flows and the objects moved to make room change; every other element keeps its `$ID`, position and curve. `<target>` is a handle from `describe … with handles`, resolved before any operation runs. Inside a loop body, plain activities are inserted the same way, the loop box growing on its far side when the body no longer fits (ako/mxcli#1693); a fragment with a decision, a loop, a return, break/continue or an error handler is refused there, naming `replace body of`. Refused: after a decision, before an activity several flows enter, a fragment whose every path returns (a guard clause — `if … then return …; end if;` — is inserted: each return is a new end event, refused where its branch has no free room or would cross a stored flow), a variable the flow already has or one not declared on the path. The fragment is `begin … end` like a microflow body; `{ … }` is the deprecated spelling MDL-DEPR074 |
+| Replace or drop an activity | `alter microflow Module.Name { replace <target> with begin <statements> end; drop <target>; };` | Flows into the activity are re-pointed at the replacement (or at its successor, for `drop`). Works on an activity inside a loop body too (the body's first or last included). A decision is taken out whole — split, the activities on its two paths and its merge, the flow into it joined to the node after it — when it has the shape `alter … insert` produces: two paths of plain activities, or none, rejoining at one merge (ako/mxcli#1694); any other decision is refused with the part of its shape that is out of reach. Refused for an end event, an activity with an error handler, and an activity (or a decision's path activity) whose output variable is still read. Over `--mcp` only `insert` is supported, and not inside a loop body |
+| Replace a loop's body | `alter microflow Module.Name { replace body of loop $It in $Items with begin <statements> end; };` | Keeps the loop itself — its `$ID`, position, iterator, list and the flows and notes around it — and rebuilds only what is inside it (ako/mxcli#1693): the change a splice inside a body does not make (a decision, a nested loop, a return). The box keeps its size when the new body fits and grows on its far side when it does not. Address the loop by its handle (`loop $It in $Items`, `while $N < 3`), at any depth. The body is scope-checked like a fragment: it reads the iterator, what it declares and what is declared before the loop, and declares nothing the flow has outside it |
+| Attach a stored note | `alter microflow Module.Name { insert after <target> begin @annotation(existing: 'note text') <statement> end; };` | The inserted (or replacing) statement joins a note **already in the flow**, named by its text exactly as `describe` prints it; the note keeps its `$ID`, text and place. A text that no note of the flow reads, or that several read, is refused by `check` and `exec` alike, the refusal listing the candidates. `existing:` stands alone (no `id:`/`text:`/`position:`/`size:`) and only an alter fragment takes it — a whole-flow statement declares its notes. Not `id:`: the labels `describe` prints are re-derived every time and stored nowhere (ako/mxcli#1695) |
 | Describe nanoflow | `describe nanoflow Module.Name;` | Full MDL with activities |
 | Rename microflow | `rename microflow Module.Old to New;` | Updates all references |
 | Rename nanoflow | `rename nanoflow Module.Old to New;` | Updates all references |
@@ -556,6 +559,7 @@ it is for pages.
 | Rollback | `rollback $entity [refresh];` | Reverts uncommitted changes |
 | Retrieve (DB) | `retrieve $Var from Module.Entity [where condition] [sort by Attr asc\|desc, ...] [first \| [limit n] [offset n]];` | Database XPath retrieve. `first` binds a single **object** (Mendix's "First object" range); `limit`/`offset` bind a list. `limit 1` without `offset` is a list of one under `mdl 1;`, and without the header keeps its old meaning, the object, with warning MDL-V1-LIMIT1 |
 | Retrieve (DB), sorted | `sort by Attr asc` / `sort by Module.Other.Attr asc` / `sort by Module.Assoc/Module.Other.Attr asc` | A bare name is qualified with the entity **declaring** it, which may be an ancestor. `describe` prints the bare name whenever it resolves back to the stored attribute, and the qualified name otherwise. A sort may also navigate associations — one `/` per hop, the last segment is the attribute — and mxcli stores the hops as the `EntityRef` Mendix needs; without them the build is **CE7247**. **Name the hop when more than one association reaches the same entity**: a bare `Module.Other.Attr` is resolved by inference, which walks the generalization chain across modules (`Administration.Account` reaches `System.Language.Code` through `System.User_Language`) but cannot tell `Order_ShipTo` from `Order_BillTo` — measured, a sort on the billing address round-tripped into one on the shipping address at 0 errors both sides (mendixlabs/mxcli#1152). The same spelling works in a page datasource's `sort by` |
+| Retrieve (DB), constant | `declare $Limit Integer = @Module.C_Limit;` then `retrieve $L from Module.Entity where [Total > $Limit];` | An XPath constraint cannot reference a constant: `[Total > @Module.C_Limit]` parses and is refused by check (**MDL-XPATH03**), because mxbuild rejects it with CE0161 in a retrieve, a data source, an access rule and a user task's targeting alike (ako/mxcli#1685). Assign the constant to a variable and compare with that |
 | Retrieve (Assoc) | `retrieve $list from $Parent/Module.AssocName;` | Retrieve by association |
 | Add to list | `add expression to $list;` | Also accepts existing `add $item to $list;` form |
 | Remove from list | `remove $item from $list;` | Change list: Remove |
@@ -582,7 +586,7 @@ it is for pages.
 > refused as **MDL-SOAP01** by `mxcli check` and by `exec`, which call the same
 > function.
 | REST call (string) | `$Var = call rest service get '<url>' returns string;` | Body as string |
-| REST call (settings) | `$Var = call rest service post '<url>' (Headers: ('Accept': 'application/json'), Authentication: basic (Username: $U, Password: $P), Body: template '{"q": "{1}"}' with ({1} = $Q), Timeout: 30) returns string;` | The dialog's settings are ONE property list after the URL (ADR-0013). Every key is optional; `Body:` is `template '…' [with (…)]`, `mapping M.EMM from $Var`, `binary <expr>` or an expression. The clauses `header 'N' = v`, `auth basic $u password $p`, `body …`, `timeout n` are deprecated (MDL-DEPR720) |
+| REST call (settings) | `$Var = call rest service post '<url>' (Headers: ('Accept': 'application/json'), Authentication: basic (Username: $U, Password: $P), Body: template '{"q": "{1}"}' with ({1} = $Q), Timeout: 30) returns string;` | The dialog's settings are ONE property list after the URL (ADR-0013). Every key is optional; `Body:` is `template '…' [with (…)]`, `mapping M.EMM from $Var`, `binary <expr>` or an expression. An expression body (`Body: $Payload`) or URL (`@M.BaseUrl + '/rates'`) sends its value, stored as the template `'{1}'` with the expression as its parameter (what describe prints); an expression followed by `with (…)` is refused (MDL-REST05). The clauses `header 'N' = v`, `auth basic $u password $p`, `body …`, `timeout n` are deprecated (MDL-DEPR720) |
 | REST call (response) | `$Var = call rest service get '<url>' returns response;` | `System.HttpResponse` object. There is no specialization form — Mendix does not allow HttpResponse to be specialized (CE1540) |
 | REST call (file document) | `$Var = call rest service get '<url>' returns Module.MyFile;` | Stores the body in a file document. Must be a **specialization** of `System.FileDocument` — the base type is rejected as a return type (CE0362 / MDL064) |
 | REST call (binary body) | `call rest service post '<url>' (Headers: ('ContentType': 'application/pdf'), Body: binary $Doc/Contents) returns response;` | Uploads raw bytes (`Microflows$BinaryRequestHandling`). The expression is the FileDocument's **Contents member**, not the document. A consumed REST **client document** has no binary body — `Body: FILE FROM $Doc` there is refused as MDL-REST02 |
@@ -592,13 +596,14 @@ it is for pages.
 | Show page | `show page Module.PageName (Param = $value);` | `Param = expression`, as at every call site. `($Param = …)` and `(Param: …)` are deprecated (MDL-DEPR006/007) |
 | Close page | `close page [n];` | `n` pages, default 1 (stored as `NumberOfPagesToClose`) |
 | Download file | `download file $FileDocument [show in browser];` | Streams a `System.FileDocument` |
-| Show message | `show message 'text' [type Information\|Warning\|Error] [with ({1} = $a, {2} = $b)] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after the `with` list and before `on error`. `with ({1} = $a, {2} = $b)` is the deprecated spelling of the list (MDL-DEPR009). Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured) |
+| Show message | `show message 'text' [type Information\|Warning\|Error] [with ({1} = $a, {2} = $b)] [blocking];` | `blocking` halts the client until the user dismisses it — Studio Pro's checkbox. It goes after the `with` list and before `on error`. `with ({1} = $a, {2} = $b)` is the deprecated spelling of the list (MDL-DEPR009). Without it, a describe → exec round trip turned a blocking message into a non-blocking one (16 microflows measured). An expression message (`show message $Text`) is stored as `'{1}'` with it as the parameter; one followed by `with (…)` is refused (MDL-TEMPLATE01) |
 | Database connection | `create database connection Mod.Db ( Type: 'PostgreSQL', ConnectionString: @Mod.Url, Username: @Mod.User, Password: @Mod.Pass ) { query Q ( Sql: $$…$$, Parameters: ( p: Integer default '0' ), Returns: Mod.E, Map: ( Attr = column ) ) }` | Properties in `( )`, queries as children in `{ }` (R2). The clause form with `begin … end` still parses and warns (MDL-DEPR127) |
 | Database connection credentials | `ConnectionString: @Mod.Const`, `Username: @Mod.Const`, `Password: @Mod.Const` | Constant **references** only. A literal writes an unopenable project — MDL058 |
-| Send email (11.13+, microflow only) | `send email ( From: <expr>, To: <expr>, [Cc: …, Bcc: …,] Subject: 'Order {1}' with ({1} = …), [Body: template '…', HtmlBody: template '…', Headers: ('X-Name': 'value'), Attachment: $Doc,] Host: <expr>, Port: <expr>, [SecurityType: none\|ssl\|tls, CheckServerIdentity: true, ConnectionTimeout: ms, Authentication: basic (Username: …, Password: …)] );` | Built-in Send Email activity (`Microflows$SendEmailAction`), SMTP without the Email Connector. One settings list (ADR-0013); From, Host, Port and one of To/Cc/Bcc are required (CE0166). Addresses, host and credentials are String expressions, port Integer/Long (E009 at check, CE9528 at build). `mxcli syntax microflow.send-email` |
+| Send email (11.13+, microflow only) | `send email ( From: <expr>, To: <expr>, [Cc: …, Bcc: …,] Subject: 'Order {1}' with ({1} = …), [Body: template '…', HtmlBody: template '…', Headers: ('X-Name': 'value'), Attachment: $Doc,] Host: <expr>, Port: <expr>, [SecurityType: none\|ssl\|tls, CheckServerIdentity: true, ConnectionTimeout: ms, Authentication: basic (Username: …, Password: …)] );` | Built-in Send Email activity (`Microflows$SendEmailAction`), SMTP without the Email Connector. One settings list (ADR-0013); From, Host, Port and one of To/Cc/Bcc are required (CE0166). Addresses, host and credentials are String expressions, port Integer/Long (E009 at check, CE9528 at build). A subject or body written as an expression is stored as `'{1}'` with it as the parameter; one followed by `with (…)` is refused (MDL-TEMPLATE01). `mxcli syntax microflow.send-email` |
 | Synchronize (nanoflow only) | `synchronize all;` / `synchronize unsynchronized;` / `synchronize $Obj, $List;` | Offline sync. `unsynchronized` needs Mendix 9.4+. In a microflow this is MDL057 / CE0009 |
-| Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE |
-| Log | `log [info\|warning\|error] [node 'name'] 'message';` | Level `info` and node `'Application'` are the defaults; `describe` leaves them out |
+| Validation | `validation feedback $entity/attribute message 'message {1}' [with ({1} = $a)];` | Requires attribute path + MESSAGE. An expression message followed by `with (…)` is refused (MDL-TEMPLATE01) |
+| Log | `log [info\|warning\|error] [node 'name'] 'message';` | Level `info` and node `'Application'` are the defaults; `describe` leaves them out. The message is a template (`'… {1}' with ({1} = …)`); an expression (`log info $Msg;`) is stored as `'{1}'` with it as the parameter, and one followed by `with (…)` has no `{n}` to fill and is refused (MDL-TEMPLATE01, ako/mxcli#1683) |
+| Log with stack trace | `log error node 'name' 'failed: {1}' with ({1} = $latestError/Message) with stacktrace;` | Studio Pro's "Include latest stack trace". After the template parameters; absent = unticked, the default (mendixlabs/mxcli#1543) |
 | Apply entity access | `@applyentityaccess` / `@applyentityaccess(false)` before `create microflow` or `create rule` | Runs the flow under the **current user's** entity access rules instead of with full access. A **security** setting and only ever narrowing, so an ABSENT annotation **preserves** what is stored rather than clearing it — the same rule as `@excluded`. Not available on a nanoflow: it runs in the client and Mendix stores no such property |
 | Position | `@position(x, y)` | Canvas position (before activity) |
 | Deep-link URL | `url 'item/{Key}'` / `url search parameters ($Filter)` / `drop url` | Header clauses on `create microflow`, Mendix **10.6+**. Every `{Name}` must name a parameter (**MDL-MF01**), and a parameter used in the PATH may **not** also be a search parameter (**MDL-MF02** / CE5612) — the two sets are disjoint. With a project, a URL another microflow already owns is refused (CE0570). An OMITTED clause **preserves** what is stored |
@@ -607,11 +612,12 @@ it is for pages.
 | Unknown annotation | — | **MDL059**. An annotation that parses and does nothing loses whatever it was meant to express, so a name the target does not read is refused — on a statement *and* before a `create`. Covers a typo (`@applyentityacces`), an annotation on a document kind that reads none (`@excluded` on a queue), and an activity annotation written at document level. The message names what that document does accept |
 | Parameter position | `@position(x, y)` before a parameter, **inside** the `( … )` list | The only annotation a parameter takes. Omit it and parameters form a row at 200;53, 300;53, …; a parameter off that row is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#993) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
-| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)` | The side each end of a flow attaches to: `to` = the flow arriving, `from` = the flow leaving. On an `if`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
+| Flow anchors | `@anchor(from: bottom, to: top)`; on an `if` also `true: (from: …, to: …)`, `false: (…)`; on a `case` one entry per outcome, `Open: (from: right)`, `(empty): (…)` | `to` = the flow arriving at the statement, `from` = the flow leaving it — never the far end of its own outgoing flow, which is the next statement's `to:`. On an `if` or a `case`, `from` is the flow out of its closing **merge**, which has no statement of its own (#767) |
 | Caption | `@caption 'text'` | Custom caption (before activity). A decision with no `@caption` is captioned with its condition, so `describe` prints none for one whose caption is its condition |
 | Color | `@color Green` | Background color (before activity) |
 | Annotation | `@annotation 'text'` | Visual note attached to next activity. **Repeatable** — an activity can carry several, and each is its own note |
 | Shared annotation | `@annotation(id: n1, text: 'note')` then `@annotation(id: n1)` | ONE note wired to several activities, which is how Mendix stores it. Without the `id:` the two lines are two separate notes, even with identical text. The id is scoped to the flow being authored and is not stored (#1077) |
+| Stored annotation | `@annotation(existing: 'note')` | **`alter` fragments only.** Attaches the note of the stored flow whose text is `'note'` — it must be the only one — instead of creating a note. Never printed by `describe`, which declares every note of a whole flow (ako/mxcli#1695) |
 | Annotation geometry | `@annotation(text: 'note', position: (x, y), size: (w, h))` | The note's own place and box on the canvas. Both are omitted whenever they match what a rewrite re-derives — 100px above the activity, stacked 60px per extra note, at 200×50 — so an ordinary note stays on the short form |
 | Free annotation | `@annotation 'text'` before `@position(...)` | Free-floating visual note preserved by order. A free note has no activity to be placed relative to, so DESCRIBE always emits its `position:` |
 | IF | `if condition then ... [else ...] end if;` | |
@@ -623,7 +629,7 @@ it is for pages.
 | Return | `return $value;` | Required at end of every flow path, and never inside a loop (MDL062) |
 | List range (paging) | `$Page = range($List, <offset>, <amount>);` | **Offset first, then amount.** `range($L, 0, $N)` = first N; `range($L, $Off)` = skip and take the rest. At least one bound is required — a bare `range($L)` is CE6520 / MDL068. Stored as a `CustomRange` nested inside the `ListRange` |
 | Execute DB query | `$Result = execute database query Module.Conn.Query;` | 3-part name; supports DYNAMIC, params, CONNECTION override |
-| Import mapping | `[$Var =] import from mapping Module.IMM($SourceVar) [all\|first\|limit <e> [offset <e>]];` | Apply import mapping to string variable. Trailing clause is Studio Pro's Range; omitted = infer from the mapping's root. `first` binds one OBJECT (`limit 1` is a one-element LIST). Mendix rejects `offset` on a non-list mapping (CE6100), and `first` on an object-rooted one throws at runtime — both MDL-MAP04 |
+| Import mapping | `[$Var =] import from mapping Module.IMM($SourceVar) [(Parameter: $Obj, Commit: Yes\|YesWithoutEvents\|No)] [all\|first\|limit <e> [offset <e>]];` | Apply import mapping to string variable. Trailing clause is Studio Pro's Range; omitted = infer from the mapping's root. `first` binds one OBJECT (`limit 1` is a one-element LIST). Mendix rejects `offset` on a non-list mapping (CE6100), and `first` on an object-rooted one throws at runtime — both MDL-MAP04. The settings list is the activity's dialog: `Parameter` is the mapping's input object (required for a mapping declared with `parameter Module.Entity`, mxbuild CE0244; refused on any other, CE0246), `Commit` defaults to YesWithoutEvents. |
 | Export mapping | `$Var = export to mapping Module.EMM($EntityVar);` | Apply export mapping to entity, returns string |
 | Error handling | `... on error continue\|rollback\|[without rollback] begin handler end error;` | Goes on the activity that may fail — including `declare`, `set`, `change`, `log`, `show page`, `close page`, `show message` and `validation feedback`, which gained it in mendixlabs/mxcli#1078 so a Studio Pro handler survives DESCRIBE. `on error continue` is refused (MDL076) where Mendix raises CE6035: create, change, commit, log, show page, close page, show message, validation feedback — a custom `begin handler end error` is accepted on all of them. List operations, aggregates, `create list of`, `add`/`remove`, `cast` and `show home page` take a custom handler and `on error rollback` but not `continue` (MDL076); `rollback` takes every form (mendixlabs/mxcli#1252, measured on 11.12.3). Not supported on EXECUTE DATABASE QUERY. **In a nanoflow** `change`, `log`, `show page`, `close page`, `show message` and `validation feedback` are CE6035 in every form, and are refused; create, commit, the calls, the list activities and `cast` take only `on error without rollback begin … end error`. A handler that does not end in `return`/`raise error` merges back into the main flow, so a later variable is out of scope on the error path (CE0108) |
 | Re-raise the error | `raise error;` | **Inside an `on error begin … end error` handler only.** The error event re-raises the error being handled, so Mendix needs one in scope; Studio Pro will not draw the shape and mxbuild rejects it with **CE0710** "The main flow cannot join an error flow or end in an error event". On the main flow — at any nesting depth, and in a rule too — it is **MDL084**. Mendix has no main-flow "throw": call a Java action that throws |
@@ -713,7 +719,8 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Toggle demo users | `alter app security ( EnableDemoUsers: true\|false );` | Several keys may go in one list |
 | Enable guest access | `alter app security ( EnableGuestAccess: true, GuestUserRole: UserRole );` | Anonymous users. The role is what visitors get — its entity access is the public surface. Mendix fails the build without one (CE0133), so `on` is refused unless a role is given or already stored. mxcli validates the role exists; Mendix does not |
 | Disable guest access | `alter app security ( EnableGuestAccess: false );` | Keeps the stored role, so re-enabling needs no `GuestUserRole` |
-| Rename admin user | `alter app security ( AdminUserName: 'appadmin' );` | The built-in administrator (default `MxAdmin`), read by lint as `project_security().admin_user_name`. Its password is not settable from MDL |
+| Rename admin user | `alter app security ( AdminUserName: 'appadmin' );` | The built-in administrator (default `MxAdmin`), read by lint as `project_security().admin_user_name` |
+| Set admin password | `alter app security ( AdminPassword: 'N3w-Admin-Passw0rd' );` | Resolves **CE0129** "Administrator password has not been set", which mxbuild raises for an empty one at prototype and production level. `''` is refused; mxbuild does not check it against the password policy. Stored in the model as written, as Studio Pro stores it. `describe app security` says whether one is set |
 | Create demo user | `create demo user 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `password … (…)` warns MDL-DEPR137 |
 | Drop demo user | `drop demo user [if exists] 'name';` | `if exists` makes a cleanup script re-runnable |
 | Update security | `update security [[in] Module];` | Re-syncs access rules with their domain model — Studio Pro's **Update security** button, headless. Repairs **CE0066** "Entity access is out of date", which a model authored elsewhere can carry (a module imported or updated outside Studio Pro). Not needed after mxcli's own writes: every write path reconciles as it writes. Writes nothing when the rules already match, and skips `System` |
@@ -745,15 +752,17 @@ mandatory and a misplaced clause failed with a token error
 (`mismatched input 'ON' expecting ';'`) that named neither the clause nor the rule.
 
 **Workflow Activity Types:**
-- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [on created microflow Mod.MF] [entity Mod.Entity] [due date <expr>] [description '<text>'] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
+- `[multi] user task <name> '<caption>' [page Mod.Page] [targeting [users|groups] microflow Mod.MF] [targeting [users|groups] xpath [<xpath>]] [auto assign single user] [on created microflow Mod.MF] [entity Mod.Entity] [due date <expr>] [task name '<text>' [with ({1} = <expr>, …)]] [description '<text>' [with ({1} = <expr>, …)]] [participants all|<n>|<n> percent] [decide by <rule>] [await all users] [outcomes '<out>' { } ...] [boundary event …];`
   - **Multi-user only:** `decide by consensus|majority more than half|majority most chosen|threshold <n> percent|votes fallback '<outcome>'`, `decide by veto '<outcome>'`, `decide by microflow Mod.MF`. A fallback is required for consensus, majority and threshold (CE1866), a veto needs its outcome (CE1867), and a decision microflow returns String (CE5012) — all `MDL-WF13` / check. Omitted: all participants, consensus on the first outcome, not waiting.
+  - `task name` is what the task inbox shows; omitted, it is the caption. It and `description` are templates — `with ({1} = …)` fills their placeholders from expressions over `$WorkflowContext` and `$WorkflowInstance`, as the workflow header's `display` and `description` do over `$WorkflowContext` alone (MDL-WF19). A placeholder no parameter fills is CE0720 (MDL-WF21). `alter workflow … { set (TaskName: '…' with (…)) on <task>; }`.
+  - `auto assign single user` is Studio Pro's "Auto-assign when targeting results in one user" (either task kind). Omitted it is off, as Studio Pro creates a task; `create or modify` refuses to drop a stored one that is not restated.
   - The **task page** must take a `System.WorkflowUserTask` parameter — none at all is CE7410, none of that type is CE7412; extra parameters are allowed.
   - A **targeting microflow** takes exactly `System.Workflow` + the context entity (or a generalization of it), in either order — anything else is CE6677. Users targeting returns a list of `System.User`, groups a list of `System.WorkflowGroup`.
   - An **on-created microflow** takes exactly `System.WorkflowUserTask` + the context entity, in either order (CE6683), and returns nothing (CE5012).
   - `check --references` reports these before anything is written; `exec` refuses the workflow statement itself (Mendix 11+).
 - `call microflow Mod.MF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'] [outcomes '<out>' -> { } ...];`
 - `call agent microflow Mod.MF [as <name>] [caption '<text>'] [with (<Param> = '<expr>', ...)] [outcomes … -> { } ...];` — an **AI agent task** (Mendix 11.9+): the call-microflow statement stored as `Workflows$AIAgentTaskActivity`. Its microflow must take at least one parameter (CE1590).
-- `call workflow Mod.WF[(<Param> = <expr>, ...)] [as <name>] [caption '<text>'];`
+- `call workflow Mod.WF[(WorkflowContext = <expr>)] [as <name>] [caption '<text>'];` — the key is always `WorkflowContext`, the one parameter a workflow has, whatever its header names it; any other key is CE1613 (MDL-WF18). Omitted, the caller's `$WorkflowContext` is passed.
 - `decision [<name>] [<expression>] [caption '<caption>'] outcomes <true|false|'Module.Enum.Value'> -> { } ...;` — the expression is bare; a decision's condition, a timer and a due date written in a string (`decision '<expr>'`) warn MDL-DEPR080
 - `parallel split [<name>] path 1 { } path 2 { };`
 - `jump to <activity-name>;`
@@ -762,13 +771,16 @@ mandatory and a misplaced clause failed with a token error
 - `notification [<name>] [caption '<caption>'];` — an intermediate notification event (Mendix 11.11+)
 - `end workflow [caption '<caption>'];` — only inside a `{ }` block; ends the whole workflow
 - `caption '…'` sets the caption Studio Pro shows on an activity; `comment '…'`, the old spelling, is a deprecated alias (`MDL-DEPR104`)
-- Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
+- Boundary events, after `outcomes`: `boundary event [non] interrupting timer <expr> [repeat every <n> <unit> at most <m> times] [caption '<caption>'] { … }` or `boundary event [non] interrupting notification <name> ['<caption>'] { … }` (11.11+). One interrupting event per activity (CE6697, MDL-WF15).
+- **Variables in a workflow expression**: `$WorkflowContext` (or the header's declared name) and `$WorkflowInstance`, the running `System.Workflow` — `call microflow M.ACT(Workflow = $WorkflowInstance)`. Anything else (`$Workflow`, `$currentUser`, `$WorkflowUserTask`, …) is CE0117 (MDL-WF19); the workflow's own `due date` sees only the context.
 
 **Notifying a workflow** (a microflow statement): `[$Notified =] notify workflow $Workflow target Module.Workflow.ElementName;` — the element is a notification-started event sub-process's start, a notification activity, a notification boundary event or a wait for notification, and mxcli resolves which. The target is required (CE0166, MDL-WF16).
 
-**Completing a user task** (a microflow statement): `set task outcome $Task 'Approve';` — the outcome is a quoted **literal**, by design: Mendix stores it by name, a reference to one of the task's outcomes resolved at build time, so a variable is a parse error. A shared claim-and-complete flow branches once per outcome (`if $Outcome = 'Approve' then set task outcome $Task 'Approve'; else …`). Claim the task first (MDL-WORKFLOW10).
+**Completing a user task** (a microflow statement): `set task outcome $Task 'Approve';` — the outcome is a quoted **literal**, by design: Mendix stores it by name, a reference to one of the task's outcomes resolved at build time, so a variable is a parse error. A shared claim-and-complete flow branches once per outcome (`if $Outcome = 'Approve' then set task outcome $Task 'Approve'; else …`). Claim the task first (MDL-WORKFLOW10). On a task page the same is the button action `complete task 'Approve'`, one per outcome; check warns MDL-WF20 when a task's page cannot complete one of its outcomes, and the user must have claimed the task either way.
 
-**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [as <start>] [caption '<caption>'] { … };` (11.13+). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
+**Workflow button actions**: `open user task [with (AssignOnOpen: false, OpenWhenAssigned: true)]` opens a task's page from a `System.WorkflowUserTask` data container (a task inbox's row or link button); `open workflow with (DefaultPage: M.P)` opens a workflow's admin page from a `System.Workflow` one (the page is required, CE1834); `call workflow M.WF [with (ClosePage: false, Confirmation: '…')]` starts a workflow on the data container's object; `complete task 'X' with (ClosePage: false, Commit: false)` keeps the page open and skips the commit. Outside the right data container mx check reports CE1843 (ako/mxcli#832).
+
+**Event sub-processes**, after the main body: `event subprocess <name> ['<caption>'] on [non] interrupting notification [<start>] ['<caption>'] { … };` (11.8+) or `… on [non] interrupting timer <first-execution-time> [repeat every <n> <unit> at most <m> times] [as <start>] [caption '<caption>'] { … };` (11.13+; `repeat` 11.15+). `repeat every` repeats a non-interrupting timer — unit minute(s) … month(s), the count includes the first firing and is at least 2 (MDL-WF22). The body's End is implicit; a `jump to` stays in its own sub-process (CE6682, MDL-WF05); a timer needs its expression (CE0126, MDL-WF14).
 
 **Workflow event handlers.** `on workflow events (UserTaskStarted, UserTaskEnded)
 microflow Mod.MF as 'Task audit'` in the header runs the microflow for each listed
@@ -846,8 +858,9 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 
 | Operation | Syntax | Notes |
 |-----------|--------|-------|
-| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity);` | Any subset of the keys |
+| Set workflow properties | `set (Display: 'name', Description: 'text', ExportLevel: API, DueDate: <expr>, OverviewPage: Module.Page, Parameter: $WorkflowContext: Module.Entity, Annotation: 'note');` | Any subset of the keys. `Annotation` is the header's `annotation '…'`, the note on the start; `''` removes it |
 | Set activity properties | `set (Page: Module.Page, Description: 'text', DueDate: <expr>) on activity;` | User task page, description, due date |
+| Set an activity's note | `set (Annotation: 'note') on activity;` | The `@annotation '…'` before it; `''` removes it. On the start it is the header's note; an end takes none (Studio Pro shows no note there) |
 | Set activity targeting | `set (Targeting: microflow Module.MF) on activity;` / `set (Targeting: xpath [<xpath>]) on activity;` | XPath in brackets; the quoted `xpath '[…]'` warns MDL-DEPR031 |
 | Insert activities | `insert after activity { … }` / `insert before activity { … }` | One or more activities, as in `create workflow` |
 | Replace activity | `replace activity with { … }` | Replace in place |
@@ -855,7 +868,7 @@ Modify an existing workflow's properties, activities, outcomes, paths, condition
 | Insert user-task outcome | `insert into activity { outcomes 'name' { body } }` | User task only |
 | Insert decision outcome | `insert into activity { outcomes 'Module.Enum.Value' -> { body } }` (or `true`, `false`, `default`) | Decision or call microflow |
 | Insert path | `insert into activity { path { body } }` | Parallel split; `path n` must be the next number |
-| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> { body } }` | Boundary timer |
+| Insert boundary event | `insert into activity { boundary event interrupting timer <expr> [caption '<caption>'] { body } }` | Boundary timer |
 | Drop outcome | `drop activity outcome 'name';` / `drop activity outcome true;` | `true`, `false`, `default` for a decision's Boolean or default outcome |
 | Drop path | `drop activity path 2;` | Parallel split path by number, as `describe` numbers them; refused on any other activity (a user task's branches are its outcomes) |
 | Drop boundary event | `drop activity boundary event;` | For an activity with one boundary event; with several, refused under `mdl 1` and the first dropped with warning MDL-V1-BOUNDARYDROP under `mdl 0` |
@@ -909,14 +922,17 @@ alter workflow Module.OrderApproval {
 | Statement | Syntax | Notes |
 |-----------|--------|-------|
 | Show navigation | `list navigation;` | Summary of all profiles |
-| Show menu tree | `list navigation menu [Profile];` | Menu tree for profile or all |
+| Show menu tree | `list navigation menu [Profile];` | One row per item, with the **Address** `alter navigation` takes (`'Admin' > 'Users'`, `'Home'@2`) |
 | Show home pages | `list navigation homes;` | Home page assignments across profiles |
 | Describe navigation | `describe navigation [Profile];` | Full MDL output (round-trippable) |
 | Native home | `home nanoflow Mod.Flow` | A native profile's flow home; mxcli writes a native profile's home pages and sync only |
-| Create/replace navigation | `create or replace navigation Profile ...;` | Full replacement — and **creates** the profile if the project does not have it |
+| Create/modify navigation | `create or modify navigation Profile ...;` | Writes the clauses it states (a `{ }` block replaces the whole menu) — and **creates** the profile if the project does not have it |
+| Alter navigation | `alter navigation Profile { insert after 'Home' { menu item … } drop 'Old'; … };` | Edits one profile in place: `insert before\|after\|into <item> { … }`, `insert { … }`, `replace <item> with { … }`, `move <item> before\|after\|into <item>`, `drop <item>, …`, `set ( Caption:, OnClick:, Icon: \| none ) on <item>`, `set home page\|microflow M.X [for Role]`, `drop home page for Role`, `set/drop login page`, `set/drop not found page`. `<item>` is a caption path `'Admin' > 'Users'` (`@n` among equal captions). Untouched items stay as stored; a refusal writes nothing |
 | Offline sync | `sync ( sync Mod.Entity all; ... )` | A clause of CREATE NAVIGATION. Modes: `online`, `all`, `where '<xpath>'`, `never`, `none`, `none preserve data`. **Not** Studio Pro's captions — its "All Objects" is `all`, its "By XPath" is `where`. An offline profile downloads nothing without this |
+| Progressive web app | `progressive web app ( Precaching: true )` / `progressive web app off` | A clause of CREATE NAVIGATION: Studio Pro's *Progressive web app* settings. An offline profile without them gets no service worker, so no page opens offline (mendixlabs/mxcli#1377). Keys: `Precaching` (default false), `InstallPrompt` (default true); omitted, the stored settings stay |
+| Application title / icon | `app title 'Order Desk'` · `app icon Mod.Images.Logo` / `app icon none` | Clauses of CREATE NAVIGATION: Studio Pro's *Application title* (the browser tab's `Mendix - <page>` prefix in a new project) and *Application icon*. The title is written in the project's default language, other languages kept; the icon is an image, resolved by `check --references` and exec, and must be a square PNG at least 512 px wide (CE6859; exec refuses another). Omitted, both stay as stored (ako/mxcli#1756) |
 | Profile kinds | `Responsive` · `Phone` · `Tablet` · `ResponsiveOffline` · `PhoneOffline` · `TabletOffline` | A closed set. An invented name (`Mobile`) is an error, not a new profile: the runtime routes on User-Agent to Mendix's own kinds. Native profiles are a different document type and are not creatable |
-| Offline profiles | `create or replace navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
+| Offline profiles | `create or modify navigation TabletOffline ...;` | Same properties as the online twin, but every page the profile can reach may bind an attribute across **at most one** association hop (**CE6206**). Creating one reports the documents that already exceed that |
 
 Menu items are the profile's children, in `{ }` after its clauses, with no `;`
 between them: `menu item 'Caption' ( OnClick: show page M.P, Icon: … )`, where
@@ -929,6 +945,7 @@ spelling still parses and warns (MDL-DEPR121, MDL-DEPR122).
 **Navigation Example:**
 ```sql
 create or modify navigation Responsive
+  app title 'Order Desk'
   home page MyModule.Home_Web
   home page MyModule.AdminHome for Administrator
   login page Administration.Login
@@ -979,13 +996,15 @@ describe glyph 57350;         -- by code
 describe glyph 'star';        -- or by name
 ```
 
-**A glyph code the font does not define is reported (MDL078, a warning).** A
-glyph code is a bare integer, so nothing resolves it: `mxcli check` and `mx check`
-both pass at 0 errors and the failure lands at `mxbuild --target=deploy`, as
+**A glyph code the font does not define is refused (MDL078, an error).** A
+glyph code is a bare integer that `mx check` does not resolve: it passes at 0
+errors and `mxbuild --target=deploy` crashes with exit 1, no error file, and
 *"An exception occurred while exporting layout '<some layout>'"* — naming a
-document that is not the cause. Measured on 11.14.0: mxbuild resolves the code
-through a LINQ `.First(...)` in `GlyphFont.GetClass`, which throws on an absent
-one. The rule checks the 247 codes the shipped font actually defines. Prefer an
+document that is not the cause. mxbuild resolves the code through a LINQ
+`.First(...)` in `GlyphFont.GetClass`, which throws on an absent one (measured on
+11.6.6, 11.14.0 and 11.15.0). The rule checks the 247 codes of mxbuild's own
+glyph font, which is byte-identical from 9.24 to 11.15, so `check` fails and
+`exec` writes nothing (mendixlabs/mxcli#1522). Prefer an
 icon collection reference, which `check --references` resolves before anything is
 written.
 
@@ -1177,7 +1196,11 @@ Icon collections (`CustomIcons$CustomIconCollection`, e.g. `Atlas_Core.Atlas_Fil
 | Show clients | `list consumed rest services [in module];` | List all or filter by module |
 | Describe client | `describe consumed rest service Module.Name;` | Re-executable CREATE |
 | Create client | See syntax below | Property-based `{}` syntax |
-| Create or modify | `create or modify consumed rest service ...` | Replaces existing |
+| Create or modify | `create or modify consumed rest service ...` | Replaces existing — an operation it omits is removed (and named in the output) |
+| Add operation | `alter consumed rest service Module.Name add operation Name ( ... );` | Operation body uses CREATE syntax; other operations stay as stored |
+| Modify operation | `alter consumed rest service Module.Name modify operation Name ( Timeout: 60 );` | Writes only the keys listed |
+| Drop operation | `alter consumed rest service Module.Name drop operation Name;` | |
+| Set service properties | `alter consumed rest service Module.Name set ( BaseUrl: '...', Authentication: none );` | BaseUrl, Authentication |
 | Drop client | `drop consumed rest service [if exists] Module.Name;` | |
 | Import from OpenAPI | See OpenAPI import below | Auto-generate from spec |
 | Preview OpenAPI | `describe contract operation from openapi 'path';` | Preview without writing |
@@ -1215,7 +1238,7 @@ create consumed rest service Module.Api (
 ```
 
 **Body types:** `json from $var`, `template '...'`, `mapping entity { jsonField = attr, ... }`
-**Response types:** `json as $var`, `string as $var`, `file as $var`, `status as $var`, `none`, `mapping entity { attr = jsonField, ... }`
+**Response types:** `json`, `string`, `file`, `status` (each optionally `as $var` — the variable is not stored), `none`, `mapping entity { attr = jsonField, ... }`
 **Authentication:** `none`, `basic (username: '...', password: '...')`
 
 ### OpenAPI Import
@@ -1434,8 +1457,10 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 |-----------|--------|-------|
 | Show Java actions | `list java actions [in module];` | List all or filtered by module |
 | Describe Java action | `describe java action Module.Name;` | Full MDL output with signature |
-| Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID |
+| Create Java action | `create [or modify] java action Module.Name [folder 'path'](params) returns type as $$ ... $$;` | OR MODIFY updates signature/body, preserves UUID. The `.java` file is written as mxbuild writes it, the action's `/** … */` documentation as the class javadoc (ako/mxcli#1700) |
 | Create with type params | `create java action Module.Name(EntityType: entity <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Helper code and imports | `create java action Module.Name(N: Integer) returns Integer as $$ import java.util.Objects; return twice(N); $$ extra code $$ private static long twice(long n) { return n * 2L; } $$;` | `extra code $$ … $$` is the .java file's EXTRA CODE section; an `import` line in the body goes to the import list. Omitted on `or modify`, the stored section is kept; `extra code $$ $$` clears it. `describe` prints both, so its output rebuilds the same file (ako/mxcli#1702) |
+| Describe a parameter, name the return value | `create java action Module.Name(/** The text. */ Input: String) returns String as $Result as $$ ... $$;` | `/** … */` before a parameter is its description; `as $Name` the return value's name. Omitted on `or modify`, both keep what is stored |
 | Create exposed action | `... exposed as 'caption' in 'Category' as $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Exposed action with bitmaps | `... exposed as 'caption' in 'Category' icon 'i.png' icon dark 'id.png' image 'm.png' image dark 'md.png' as $$ ... $$;` | Icon 64x64 PNG, image 256x192; paths relative to the .mdl file's own directory. A wrong size warns and is written; a non-PNG is refused |
 | Remove a toolbox entry | `... not exposed as $$ ... $$;` | An **omitted** clause preserves the stored entry (bitmaps included), so removal is explicit |
@@ -1445,6 +1470,8 @@ Module.OrderResponse_CustomerInfo/Module.CustomerInfo as customer {
 | Drop Java action | `drop java action [if exists] Module.Name;` | Deletes MPR unit and .java source file |
 | Call from microflow | `$Result = call java action Module.Name(Param = value);` | Inside BEGIN...END |
 | Empty argument | `call java action Module.Name(Param = empty);` | Unbound code-action parameter preserved as empty mapping |
+| Text-template argument | `call java action Module.Name(Subject = 'Order {1}' with ({1} = $Order/Number));` | For a `StringTemplate(Text\|Sql)` parameter. A plain string is the text; another expression is the template `'{1}'` with it as the argument (so an expression with `with (…)` is refused, MDL-JA02). Arguments are typed from their expression; an enumeration is refused (use `getKey`/`getCaption`) |
+| Document argument | `call java action Module.Name(Agent = Module.MyAgent);` | For a document parameter (`describe java action` shows `Document(<type>)`, e.g. an agent-editor Agent): the document's name, never an expression |
 | Show JavaScript actions | `list javascript actions [in module];` | List all or filtered by module |
 | Describe JavaScript action | `describe javascript action Module.Name;` | Re-executable MDL with signature + body |
 | Create JavaScript action | `create [or modify] javascript action Module.Name [folder 'path'](params) returns type [platform Web] as $$ ... $$;` | Writes the unit + `javascriptsource/<Module>/actions/<Name>.js`; OR MODIFY preserves UUID |
@@ -1476,7 +1503,10 @@ MDL uses explicit property declarations for pages:
 |---------|-----------|---------|
 | Page properties | `(key: value, ...)` | `(title: 'Edit', layout: Atlas_Core.Atlas_Default)` |
 | Pop-up dimensions | `PopupWidth: n, PopupHeight: n, PopupResizable: bool` | `(Layout: Atlas_Core.PopupLayout, PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` — case-sensitive; default 600×600 |
+| Page design properties | `DesignProperties: ( 'Key': 'Value', … )` | `(Layout: Atlas_Core.NativePhone_Default, DesignProperties: ('Spacing top': 'Inner large'))` — the page's own, from the theme's Document and Page groups |
 | Pop-up close button | `PopupCloseAction: <widgetName>` | `(Layout: Atlas_Core.PopupLayout, PopupCloseAction: cancelButton1)` — names a widget on this page. Not carried from the stored document on a rewrite: the statement rebuilds the widget tree, so a carried name could dangle |
+| Text area lines / autocomplete | `NumberOfLines: n, Autocomplete: true\|false` | `textarea t (Attribute: Notes, NumberOfLines: 2, Autocomplete: false)` — defaults 5 and true; `0` lines is a value Studio Pro stores. Also settable with `alter page … set` |
+| Input read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `textbox t (Attribute: Name, ReadOnlyStyle: Text)` — on a text box, text area, date picker, check box and radio buttons. **Inherit** is the default; also `alter page … set (ReadOnlyStyle: Text) on t` |
 | DataView read-only style | `ReadOnlyStyle: Inherit\|Control\|Text` | `dataview dv (datasource: $O, ReadOnlyStyle: Text)` — a DataView's own, distinct from a checkbox's. **Control** is Studio Pro's default here, not Inherit |
 | Page CSS class / style | `Class: 'css-class', Style: 'css: rule'` | `(Title: 'Home', Class: 'container-fluid bg-light', Style: 'min-height: 100vh')` — the page's Appearance |
 | Page variables | `variables: ( $name: type = <expr> )` | `variables: ( $show: boolean = true )` |
@@ -1491,7 +1521,10 @@ MDL uses explicit property declarations for pages:
 | Attribute binding | `attribute: AttrName` | `textbox txt (label: 'Name', attribute: Name)` |
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` — works on textbox, textarea, datepicker, dropdown, checkbox and radiobuttons, the same as on a data grid column |
 | Password field | `Password: true` on a textbox | `textbox tbPw (attribute: Secret, Password: true)` — omitted when false. Without it a describe → exec round trip turns a password field into a plaintext one |
-| Submit while typing | `SubmitBehaviour: OnEndEditing \| WhileEditing`, `SubmitOnInputDelay: <ms>` on a textbox or textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — defaults `OnEndEditing` / `300`, omitted by describe when default. An invalid value is MDL-WIDGET18; on any other widget the keys draw MDL-WIDGET07 |
+| Submit while typing | `SubmitBehaviour: OnEndEditing \| WhileEditing`, `SubmitOnInputDelay: <ms>` on a textbox or textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — defaults `OnEndEditing` / `300`, omitted by describe when default. An invalid value is MDL-WIDGET18; on any other widget the keys are refused (MDL-WIDGET52) |
+| Native keyboard | `KeyboardType: Default \| NumberPad \| DecimalPad \| EmailAddress \| PhonePad \| URL` on a textbox | `textbox tbEmail (attribute: Email, KeyboardType: EmailAddress)` — default `Default`, omitted by describe when default. An invalid value is MDL-WIDGET18 |
+| Enter-key action | `OnEnterKeyPress: <action>` on a textbox | `textbox tbSearch (attribute: Query, OnEnterKeyPress: call microflow Mod.ACT_Search(Query = $currentObject))` — Studio Pro's "On enter key press": runs when the user presses Enter in the box. Takes the action forms `OnChange:` takes; the stored name `OnEnterKeyPressAction:` is accepted as the same property, and describe prints `OnEnterKeyPress:`. A text box's only — Mendix stores it on no other widget, a textarea included — so elsewhere it is refused (MDL-WIDGET52) with that reason (ako/mxcli#1743) |
+| Focus actions | `OnEnter: <action>`, `OnLeave: <action>` on any input widget | `datepicker dpDue (attribute: Due, OnLeave: call microflow Mod.ACT_Validate(Item = $currentObject))` — Studio Pro's "On enter" / "On leave": focus moving into / out of the widget (not the Enter key). Same action forms as `OnChange:`; the stored names `OnEnterAction:` / `OnLeaveAction:` are the same properties. Before this, describe → exec deleted a stored one (ako/mxcli#1743) |
 | Layout grid width | `Width: FullWidth \| FixedWidth` on a layoutgrid | `layoutgrid lg (Width: FixedWidth) { … }` — default `FullWidth`, omitted by describe when default |
 | Widget validation | `Validation: '<expression>'`, `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — a Mendix expression over `$value`, QUOTED not bracketed (`[...]` is the XPath spelling and parses as an array) |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
@@ -1499,11 +1532,13 @@ MDL uses explicit property declarations for pages:
 | No action | `action: nothing` | `actionbutton btn (caption: 'Decorative', action: nothing)` — an explicitly inert control. Write it deliberately: an action keyword **short its argument** (`action: open link` with no URL) is now an error rather than a widget silently written with no action at all |
 | Microflow action | `action: call microflow Name(Param = val)` | `action: call microflow Mod.ACT_Process(Order = $Order)` |
 | Action settings | `action: … with (Key: value, …)` | `action: call microflow Mod.ACT_Delete(Order = $currentObject) with (ProgressBar: Blocking, ProgressMessage: 'Deleting…', Confirmation: 'Delete this order?', ProceedCaption: 'Delete', CancelCaption: 'Keep')` — `DisabledDuringExecution` on any action (default `true`); `ProgressBar` (`None`/`NonBlocking`/`Blocking`), `ProgressMessage`, `Confirmation`, `ProceedCaption`, `CancelCaption` on flow calls; `Asynchronous`, `FormValidations` (`All`/`Widget`/`None`) on `call microflow`. Omitted keys keep their defaults; describe prints only the ones that differ. Before this spelling existed a describe → exec dropped every button confirmation and progress bar (ako/mxcli#721) |
+| Return value mappings | `call microflow\|nanoflow M.F(…) returns (Target = Source, …)` | `action: call microflow Mod.ACT_Vehicle_Get returns (Brand = $ActionReturnValue/Brand, $stringResult = $ActionReturnValue, Brand = 'Demo brand')` — Studio Pro's "Return value mappings" (Mendix 11.5+). Target: an attribute of the enclosing data container's object (bare name, needs 11.15 — mx 11.13/11.14 report CE7006) or a page variable (`$name`). Source: `$ActionReturnValue`, `$ActionReturnValue/Attr` (flow must return an object), or an expression. Goes before `with ( … )`; describe prints the stored mappings, and a statement without the list removes them (ako/mxcli#977) |
 | Button icon | `icon: 'Module.IconCollection.IconName'` | `linkbutton btn (caption: 'Edit', action: nothing, icon: 'Atlas_Core.Atlas_Filled.pencil')` — the **icon-collection** icon; MxBuild rejects an unknown name (CE1613) |
 | Image icon | `icon: image Module.ImageCollection.Name` | `actionbutton btn (caption: 'Logo', action: nothing, icon: image MyMod.Images.logo)` — an **image** collection is a different document from an icon collection, and the names are spelled the same, so the keyword is what separates them. Written without `image` it is stored as a custom-icon reference and the build fails **CE1613** |
 | Glyph icon | `icon: glyph <code>` | `actionbutton btn (caption: 'Home', action: nothing, icon: glyph 57377)` — a font code point with no name. Codes are sparse; an undefined one fails only at `mxbuild --target=deploy`, naming the **page**, so **MDL078** checks it. Browse with `list glyphs` |
 | Clickable container | `onclick: action` (alias of `action:`) | `container card (onclick: call microflow Mod.ACT_Open) { ... }` — takes an argument list like a button: `action: call nanoflow Mod.ACT_Ship(Order = $dgOrders)` |
 | Action arguments | every parameter needs one | A flow action with an unfilled parameter is **CE1571**. An enclosing data container of its type supplies it; a data grid's **control bar** does not (not row-scoped) — pass the grid's selection, `$dgOrders` |
+| Microflow source settings | `datasource: microflow Name(…) with (FormValidations: All\|Widget\|None)` | `dataview dv (datasource: microflow Mod.DS_Vehicle_Get with (FormValidations: None))` — a microflow data source stores its call settings as a microflow action does; `FormValidations` is the only one it takes (the rest are an action's, refused here). Omitted means `All`, and describe prints it only when it differs. Before this, describe → exec rewrote a stored `None` as `All` (ako/mxcli#1729) |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
 | Database source, constrained and sorted | `datasource: database entity where [...] sort by Attr asc` | `listview lv (datasource: database from Mod.Vehicle where [Brand != ''] sort by Brand asc)` |
 | List view search bar | `... search by Attr, Attr2` | `listview lv (datasource: database from Mod.Vehicle search by Brand, Model)` — **list view only**; mirrors `sort by` and takes no direction |
@@ -1559,9 +1594,11 @@ MDL uses explicit property declarations for pages:
 | Describe building block | `describe building block Module.Name;` | Informational (header comment + widget tree), not a `create` statement |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 | Create menu | `create [or modify] menu Module.Name [folder 'path'] { <items> };` | Standalone `Menus$MenuDocument`. Full replacement: the item list is the document's complete contents |
 | Describe menu | `describe menu Module.Name;` | Round-trippable MDL. Not the navigation-profile menu — see `list navigation menu` |
+| Alter menu | `alter menu Module.Name { insert … replace … move … drop … set ( … ) on … };` | The item operations of `alter navigation` on a menu document; no page clauses |
 | Drop menu | `drop menu [if exists] Module.Name;` | |
 
 **DataGrid Column Properties:**
@@ -1577,7 +1614,9 @@ MDL uses explicit property declarations for pages:
 | `Draggable` | `true`, `false` | `true` | `Draggable: false` |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | `Hidable: no` |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | `ColumnWidth: manual` |
-| `Size` | integer (px) | `1` | `Size: 200` |
+| `Size` | integer — a relative weight, not px | `1` | `Size: 2` — under `ColumnWidth: manual` only, rendered `2fr` against `1fr` per autoFill column |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | `minWidth: manual` — under `ColumnWidth: autoFit` only |
+| `minWidthLimit` | integer (px) | `100` | `minWidthLimit: 220` — the minimum in pixels, under `ColumnWidth: autoFit, minWidth: manual` |
 | `visible` | expression string | `true` | `visible: '$showColumn'` (page variable, not $currentObject) |
 | `DynamicCellClass` | expression string | (empty) | `DynamicCellClass: if(...) then ... else ...` |
 | `tooltip` | text string | (empty) | `tooltip: 'Price in USD'` |
@@ -1620,6 +1659,7 @@ create page MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `layoutgrid`, `row`, `column`, `container`, `customcontainer`
 - Input: `textbox`, `textarea`, `checkbox`, `radiobuttons`, `datepicker`, `combobox`
+  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode. Custom content (several attributes per option) is a body block of the mode: `{ optionssourceassociationcustomcontent { … } }` in association mode, `{ optionssourcedatabasecustomcontent { … } }` in database mode, its widgets bound to the option entity
 - Display: `dynamictext`, `datagrid`, `gallery`, `listview`, `image`, `staticimage`, `dynamicimage`
 
 ### List View specialization templates
@@ -1713,6 +1753,9 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Documentation | `set (Documentation: 'What this page is for.')` | Page-level. Same property the `/** … */` doc comment on `CREATE PAGE` writes, so an existing page can be documented without restating it. `''` clears it |
 | Pop-up dimensions | `set (PopupWidth: 800, PopupHeight: 480, PopupResizable: true)` | Page-level; apply when the page opens in a pop-up |
 | Page CSS class / style | `set (Class: 'css-class')` / `set (Style: 'css: rule')` | Page-level (no ON clause); sets the page's Appearance |
+| Page design property | `set ('Background color': 'Background Primary')` | Page-level (no ON clause); the page's own Appearance design property, from the theme's Document and Page groups (Atlas declares them on native). `create page` takes them as `DesignProperties: ( … )` in the header |
+| Dynamic text heading level | `set (RenderMode: H2) on txtTitle` | Dynamic text: Text, Paragraph, H1–H6 (any casing); another value is refused with the accepted list. On other widgets the key is not a dynamic text's RenderMode and keeps the generic route |
+| Native dynamic text style | `set (NativeTextStyle: Heading2) on txtTitle` | Dynamic text on a native page, where RenderMode does not apply: Text, Heading1–Heading6 (any casing); another value is refused with the accepted list. `create page` takes the same property |
 | Widget dynamic classes | `set (DynamicClasses: 'expr') on widgetName` | Runtime-computed classes on a widget — the surgical alternative to a bulk `update widgets` |
 | Insert after | `insert after widgetName { widgets }` | Add widgets after target |
 | Insert before | `insert before widgetName { widgets }` | Add widgets before target |
@@ -1721,6 +1764,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
 | Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
 | Named action slot | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
+| Click action | `set (Action: call nanoflow M.ACT_Open) on gallery1` | `Action:` (alias `onClick:`) is a button's or container's click, and a pluggable widget's click slot — a gallery's or data grid's row click. A gallery row click on a single-click selection is **MDL-WIDGET36** under `mdl 1;` (`mx check`: "The item click action is ambiguous"); add `onClickTrigger: 'double'` to the SET, or `replace` the gallery with `Selection: None` (a SET cannot change a selection) |
 | Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
 | Drop attribute | `drop dgGrid column(Attr)` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add attribute to DataGrid; a column takes no name |
@@ -1956,7 +2000,9 @@ Name the widget the way you write it in a page body. The target is stored as the
 | Setup mxcli | `mxcli setup mxcli [--os linux]` | Download platform-specific mxcli binary |
 | LSP server | `mxcli lsp --stdio` | Language server for VS Code |
 
-Set `MXCLI_EXEC_TIMEOUT` to override the per-statement execution timeout (default 5m) used by `mxcli exec` (for example `MXCLI_EXEC_TIMEOUT=12m` or `MXCLI_EXEC_TIMEOUT=900`). `REFRESH CATALOG` is exempt from the default guard — it runs without a wall-clock limit on large projects — unless you set `MXCLI_EXEC_TIMEOUT` explicitly (which then applies to it too, letting you cap it).
+Set `MXCLI_EXEC_TIMEOUT` to override the per-statement execution timeout (default 5m) used by `mxcli exec` (for example `MXCLI_EXEC_TIMEOUT=12m` or `MXCLI_EXEC_TIMEOUT=900`). `REFRESH CATALOG` and `DESCRIBE MODULE … WITH ALL` are exempt from the default guard — they run without a wall-clock limit on large projects and modules — unless you set `MXCLI_EXEC_TIMEOUT` explicitly (which then applies to them too, letting you cap them).
+
+Set `MXCLI_OUTPUT_LINE_LIMIT` to override the per-statement output limit (default 10,000 lines; `0` for none). A statement that passes it is aborted with its output truncated. `DESCRIBE MODULE … WITH ALL` is exempt from the default limit — its output is bounded by the module — unless you set `MXCLI_OUTPUT_LINE_LIMIT` explicitly.
 
 ## ANTLR4 Parser Architecture
 

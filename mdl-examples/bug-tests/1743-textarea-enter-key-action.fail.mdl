@@ -1,0 +1,27 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1743 — the negative half of 1743-textbox-enter-key-action.mdl.
+--
+-- The report says a text area has the same property. It does not: Mendix's
+-- metamodel gives OnEnterKeyPressAction to Forms$TextBox alone (gen's TextArea
+-- has no SetOnEnterKeyPressAction). So on a text area the key is refused, and
+-- the message says why — "only a text box has an on-enter-key-press action" —
+-- rather than writing it nowhere (MDL-WIDGET52 under mdl 1; without the header
+-- it is the MDL-V1-WIDGETPROP warning and the key is not written).
+-- ============================================================================
+
+create module BugEnterKeyArea;
+
+create or modify non-persistent entity BugEnterKeyArea.Note ( Body: String(2000) );
+
+create or modify microflow BugEnterKeyArea.ACT_Save ( $Note: BugEnterKeyArea.Note ) returns Boolean as $Ok
+begin
+  return true;
+end;
+
+create or modify page BugEnterKeyArea.NotePage ( Title: 'Note', Layout: Atlas_Core.Atlas_Default, Params: ( $Note: BugEnterKeyArea.Note ) ) {
+  dataview dvNote (DataSource: $Note) {
+    textarea taBody (Label: 'Body', Attribute: Body,
+      OnEnterKeyPress: call microflow BugEnterKeyArea.ACT_Save(Note = $currentObject))
+  }
+};

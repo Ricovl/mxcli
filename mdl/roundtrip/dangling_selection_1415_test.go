@@ -19,6 +19,9 @@ import (
 // `DataSource: selection grid1`, which check -p and exec refused as a
 // reference to a widget the script does not contain.
 //
+// Since mendixlabs/mxcli#1622 the describe output is still refused, for the
+// right reason: executing it would delete the grid.
+//
 // mxcli cannot write a Forms$DataGrid, so the fixture gets one by retyping a
 // list view in place: "Forms$ListView" and "Forms$DataGrid" are the same
 // length, so the BSON string is replaced byte for byte and nothing else in the
@@ -70,10 +73,24 @@ create page RT1415.P (Title: 'P', Layout: Atlas_Core.Atlas_Default) {
 			t.Errorf("check refuses the describe output: [%s] %s", v.RuleID, v.Message)
 		}
 	}
-	if errs := h.exe.ValidateProgram(prog); len(errs) > 0 {
-		t.Errorf("check --references refuses the describe output: %v\n%s", errs, described)
+	// The #1415 refusal — a selection naming a widget the script lacks — is
+	// gone. What remains is mendixlabs/mxcli#1622's: the rewrite would delete
+	// the grid MDL cannot author, so check and exec both refuse it, naming
+	// the grid, and the stored page keeps it.
+	errs = h.exe.ValidateProgram(prog)
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "lv1 (Forms$DataGrid)") {
+		t.Errorf("check --references: want only the refusal to delete lv1, got %v\n%s", errs, described)
 	}
-	if err := h.exe.ExecuteProgram(prog); err != nil {
-		t.Errorf("exec the describe output: %v\n%s", err, described)
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "no widget with that name exists") {
+			t.Errorf("the #1415 dangling-selection refusal is back: %v", e)
+		}
+	}
+	err = h.exe.ExecuteProgram(prog)
+	if err == nil || !strings.Contains(err.Error(), "lv1 (Forms$DataGrid)") {
+		t.Errorf("exec of the describe output: want the refusal to delete lv1, got %v", err)
+	}
+	if again, derr := h.describe("page RT1415.P"); derr != nil || !strings.Contains(again, "Forms$DataGrid (lv1)") {
+		t.Errorf("the stored page lost its grid (err %v):\n%s", derr, again)
 	}
 }

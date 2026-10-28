@@ -97,8 +97,9 @@ type PageMutator interface {
 	// SetWidgetDataSource sets the DataSource on the named widget.
 	SetWidgetDataSource(widgetRef string, ds pages.DataSource) error
 
-	// SetWidgetAction retargets the on-click action of the named widget.
-	// Refuses a widget that has no Action property.
+	// SetWidgetAction retargets the on-click action of the named widget,
+	// under the key its type stores it in (Action, OnClickAction or
+	// ClickAction — types.WidgetClickActionKeys). Refuses a widget with none.
 	SetWidgetAction(widgetRef string, action pages.ClientAction) error
 
 	// SetWidgetNamedAction writes an action into a pluggable widget's action
@@ -300,6 +301,11 @@ type WorkflowMutator interface {
 	// caption and optional position index.
 	SetActivityProperty(activityRef string, atPos int, prop string, value string) error
 
+	// SetTemplateParameters sets the expressions filling a text's {1}, {2}, …
+	// in order: the workflow's "display" or "description" when activityRef is
+	// "", else a user task's "task_name" or "description". Empty clears them.
+	SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error
+
 	// InsertAfterActivity inserts new activities after the referenced activity.
 	InsertAfterActivity(activityRef string, atPos int, activities []workflows.WorkflowActivity) error
 
@@ -339,7 +345,7 @@ type WorkflowMutator interface {
 	// --- Boundary event operations ---
 
 	// InsertBoundaryEvent adds a boundary event to the referenced activity.
-	InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, activities []workflows.WorkflowActivity) error
+	InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error
 
 	// DropBoundaryEvent removes the boundary event from the referenced activity.
 	DropBoundaryEvent(activityRef string, atPos int) error
@@ -444,6 +450,82 @@ type WidgetObjectBuilder interface {
 	// Finalize builds the CustomWidget from the mutated template.
 	// Returns the widget with RawType/RawObject populated from internal state.
 	Finalize(id model.ID, name string, label string, editable string) *pages.CustomWidget
+}
+
+// WidgetPropertyDeclarer is implemented by a WidgetObjectBuilder that holds the
+// widget's full property set, and so can say authoritatively whether a key
+// exists. Every Set* operation on a key the widget does not declare is a no-op,
+// so a definition mapping an authored value to such a key drops the value with
+// no error (mendixlabs/mxcli#1519: a drop-down filter's attribute, routed to the
+// text filter's `attributes`). The engine asks this before applying an authored
+// value and refuses the statement instead. Optional: a builder that only
+// records property sets (the Studio Pro MCP backend) cannot answer and does not
+// implement it.
+type WidgetPropertyDeclarer interface {
+	DeclaresProperty(propertyKey string) bool
+}
+
+// WidgetEnumerationDeclarer is implemented by a WidgetObjectBuilder that holds
+// the widget's property schema, and so can name the keys an enumeration
+// property declares — nil for a property that is not an enumeration. The
+// widget compares its keys exactly, so the engine writes an authored value as
+// the declared key it matches (ako/mxcli#854). Optional, like
+// WidgetPropertyDeclarer.
+type WidgetEnumerationDeclarer interface {
+	EnumerationKeys(propertyKey string) []string
+}
+
+// ColumnHiddenPropertyResetter is implemented by a PageMutator that can bring a
+// Data grid 2 column back in line with its widget's visibility rules after a
+// SET: every primitive property a rule now hides goes back to the default the
+// stored Type declares (`size` once `width` leaves "manual" — CE0463 otherwise,
+// mendixlabs/mxcli#1519). setProps are the MDL names the statement set; a
+// hidden one holding a non-default value is refused rather than reset. Returns
+// the schema keys reset. Optional: the Studio Pro MCP backend hands property
+// sets to Studio Pro, which applies the widget's rules itself.
+type ColumnHiddenPropertyResetter interface {
+	ResetHiddenColumnProperties(gridRef, columnRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
+}
+
+// SourceScope is what one data source hands to the widgets it governs: the
+// entity it names, or the microflow/nanoflow whose return entity it is — which
+// lives in the flow document, so only a caller holding the model can resolve it.
+type SourceScope struct {
+	Entity    string
+	Microflow string
+	Nanoflow  string
+}
+
+// PluggablePropertyScope describes one top-level property of a stored pluggable
+// widget, for a SET that has to bind it: its kind, the widget's own datasource
+// it is linked to (widget.xml `dataSource="…"`, "" when none), and the scope of
+// that datasource and of the enclosing data container.
+type PluggablePropertyScope struct {
+	Key        string // the property key as the template spells it
+	Kind       string // ValueType.Type
+	DataSource string // the linked datasource property key, "" when linked to none
+	Linked     SourceScope
+	Enclosing  SourceScope
+	// EnumKeys are the keys an Enumeration-kind property declares, so the
+	// executor can write a value as the key it names (ako/mxcli#854).
+	EnumKeys []string
+}
+
+// PluggablePropertyScoper is implemented by a PageMutator that can describe a
+// stored pluggable widget's property, so the executor can resolve an attribute
+// binding for ALTER … SET by the rule CREATE uses (ako/mxcli#1622). ok
+// is false when widgetRef is not a pluggable widget or has no such property.
+// Optional: the Studio Pro MCP backend has no pluggable SET path.
+type PluggablePropertyScoper interface {
+	PluggablePropertyScope(widgetRef, propKey string) (PluggablePropertyScope, bool)
+}
+
+// AttributeBinding is the value SetWidgetProperty takes for an Attribute-kind
+// pluggable property: the attribute path already resolved by the executor, and
+// the page or snippet parameter it is read from (nil for the context object).
+type AttributeBinding struct {
+	Path           string
+	SourceVariable *pages.WidgetVariable
 }
 
 // ObjectListItemSpec describes one item of an object-list property (e.g. one

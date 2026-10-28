@@ -73,6 +73,76 @@ there still deletes its row and the user assignments that are not demo users. A 
 key its version does not declare is reported and left alone, and, like every
 mxcli write, the command is refused while Studio Pro has the project open.
 
+### The repair reaches forward, not back
+
+A merge compares each document both branches changed with its revision in the
+merge base, the commit the two branches share. The repair completes the
+property names from its own commit on, and so does any Studio Pro save of the
+document; the revisions before it in history keep their gaps. A merge or rebase
+whose base is one of those revisions still fails on every such document,
+whichever branch carries the full set. Measured with `mx merge`, Studio Pro's
+merge engine, on 11.13.0, for an access rule an mxcli before 0.26 created: the
+exception when the other branch had been saved by Studio Pro, the same exception
+when it had been repaired by this command, and a clean merge once the repaired
+revision is the base.
+
+So run the repair once, on the main branch, in a commit of its own, when few
+branches are open, and start new branches from it. An older branch still merges
+cleanly unless it changed a document that was incomplete in its merge base;
+that branch needs the steps below.
+
+### Getting past a merge that fails with "do not have the same properties"
+
+Studio Pro looks for an unfinished merge or rebase when it opens a project and
+runs it again, so a project whose merge fails does not open until the merge is
+aborted. The way through is to make your branch stop changing the documents the
+merge cannot compare, merge, and redo your edits to them afterwards.
+
+1. **Abort** from the command line: `git merge --abort`, or `git rebase --abort`.
+2. **Find the documents.** The exception names only the first element it meets.
+   The merge cannot compare a document that an older mxcli left incomplete in
+   the merge base *and* that both branches changed since:
+
+   ```bash
+   upstream=origin/main                     # the branch you are merging
+   base=$(git merge-base HEAD $upstream)
+   git worktree add ../merge-base $base
+   mxcli fix property-sets -p ../merge-base/app.mpr --dry-run   # NEEDS <unit id> [type]
+   git worktree remove ../merge-base
+   comm -12 <(git diff --name-only $base HEAD -- mprcontents | sort) \
+            <(git diff --name-only $base $upstream -- mprcontents | sort)
+   ```
+
+   The units in both lists are the ones to take back. A unit's file is
+   `mprcontents/<first two>/<next two>/<unit id>.mxunit`.
+3. **Take your edits back.** Note what you changed in those documents
+   (`mxcli diff-local -p app.mpr --ref $base..HEAD` prints it as MDL), then put
+   each one back to its merge-base version, re-index it, and commit:
+
+   ```bash
+   git checkout $base -- mprcontents/01/31/0131b342-dc00-4619-9e90-64c9de7e2a50.mxunit
+   mxcli fix hashes -p app.mpr --repair     # the .mpr indexes every unit by its hash
+   git commit -am "Take back edits the merge cannot compare"
+   ```
+
+4. **Merge** again in Studio Pro. Your branch no longer changes those
+   documents, so the merge takes the other branch's version without comparing
+   them. Merge rather than rebase: a rebase replays your commits one at a time,
+   and the first one that changed such a document fails again.
+5. **Redo the edits** in Studio Pro, or by running the MDL from step 3, and
+   commit. That revision carries the full property set, so a merge based on it
+   or on anything later is unaffected.
+
+Never get past the error by deleting and re-creating an entity, attribute or
+association: the new element gets a new GUID, and on the next deployment the
+runtime drops the old one's table or column, with its data.
+
+Measured with `mx merge` on 11.13.0 (`testdata/pedapp`, an access rule an mxcli
+before 0.26 created, and both branches editing the same domain model): the merge
+fails with the exception before step 3 and succeeds after it, the merged project
+keeps both branches' other changes, and `mx check` reports exactly what it
+reports on the untouched project.
+
 ## Git states that crash Studio Pro
 
 Studio Pro 11.13 fails to open a project with *"Unable to find 'system'
@@ -107,6 +177,60 @@ mxcli diag -p app.mpr
 ```
 
 prints mxcli's diagnostics followed by a *Project* section with both checks.
+
+## One commit, all the steps: `mxcli git commit`
+
+Studio Pro's *Commit* does more than `git commit`: it keeps the ContentsHash
+index in step, stages exactly the files a Mendix repository should ship, and
+attaches the mx_metadata note. `mxcli git commit` is that sequence for commits
+made outside Studio Pro:
+
+```bash
+mxcli git commit -m "Add order history page" -p app.mpr
+mxcli git commit -m "Fix stock filter" -p app.mpr --push
+mxcli git commit -m "WIP" -p app.mpr --dry-run
+```
+
+In order it:
+
+1. repairs ContentsHash mismatches from the files on disk (`MISSING` and
+   `ORPHAN` entries have no automatic repair and refuse the commit);
+2. stages everything, then unstages the files Studio Pro never commits:
+   `project-settings.user.json`, `*.mpr.lock`, `*.mpr.bak`, `.mendix-cache/`,
+   `deployment/`, `theme-cache/`, `.mxcli/`;
+3. runs `git commit` with your message and your git identity;
+4. computes the mx_metadata note from the new commit and attaches it, and
+   prints the `git push origin <branch> refs/notes/mx_metadata` command —
+   `--push` runs it for you, because the branch and the notes ref must travel
+   together.
+
+The commit is refused while Studio Pro has the project open (the `.mpr.lock`
+beside it), and during an unresolved merge — `git add -A` would otherwise
+commit the conflict markers. `--dry-run` verifies and reports (including
+ContentsHash drift, which it does not repair — a dry run writes nothing),
+stages, reports what it would commit, and unstages again without committing.
+
+## Auditing a repository: `mxcli git doctor`
+
+A repository that has known only plain git misses several things Studio Pro
+wrote when it committed, and they are invisible one by one. `mxcli git doctor`
+reports all of them in one read-only pass; `--fix` repairs:
+
+```bash
+mxcli git doctor                       # report only; exits 1 while an issue remains
+mxcli git doctor -p app.mpr --fix      # repair, computing real notes from the model
+mxcli git doctor --fix --version 10.21.0
+```
+
+| Check | `--fix` |
+|-------|---------|
+| local git config: `core.autocrlf=False` (a checkout must not rewrite line endings inside `.mxunit` files), `mendix.commits-since-gc`, `mendix.lineEndingResetDone` | sets them |
+| the remote URL: Studio Pro can only use HTTPS | rewrites SSH (`git@host:org/app.git`, `ssh://…`) to HTTPS; other non-HTTPS URLs are reported unchanged |
+| the remote's `refs/notes/mx_metadata` | reported only — push the notes ref together with the branch |
+| each commit on the checked-out branch and its mx_metadata note: missing notes make Studio Pro show `(unknown)`; a malformed note it cannot read at all | computes real notes from the model (`-p`), falling back to a template note with a `--version` ModelerVersion where the model at a commit cannot be read (MPR v1 history, a revision without the `.mpr`); when no version is known the newest valid note in history supplies it |
+
+Notes Studio Pro wrote are never touched, with or without `--fix`. `--fix`
+does not push.
 
 ## Commit metadata: `mxcli git note`
 

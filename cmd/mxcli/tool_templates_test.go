@@ -140,3 +140,32 @@ func TestGeneratePlaywrightConfig_PinsHeadlessShell(t *testing.T) {
 		t.Errorf("executablePath = %q, want the stable Dockerfile symlink /usr/local/bin/mx-headless-shell", got)
 	}
 }
+
+// On Podman-on-Windows the workspace bind mount does not honour chmod, so an
+// unguarded `chmod +x ./mxcli` failed the whole postCreateCommand after the
+// download had succeeded (mendixlabs/mxcli#742). The fast path's
+// `file ./mxcli | grep -q Linux` also needs `file` in the image, or it never
+// matches and every container start re-downloads the binary.
+func TestDevcontainerPostCreate_ToleratesChmodAndHasFile(t *testing.T) {
+	for _, runtime := range []string{"docker", "podman"} {
+		t.Run(runtime, func(t *testing.T) {
+			var v struct {
+				PostCreateCommand string `json:"postCreateCommand"`
+			}
+			if err := json.Unmarshal([]byte(generateDevcontainerJSON("MyApp", "App.mpr", runtime)), &v); err != nil {
+				t.Fatal(err)
+			}
+			cmd := v.PostCreateCommand
+			if !strings.Contains(cmd, "file ./mxcli | grep -q Linux") {
+				t.Fatalf("postCreateCommand no longer checks the binary with file; this test is out of date:\n%s", cmd)
+			}
+			if strings.Contains(strings.ReplaceAll(cmd, "chmod +x ./mxcli 2>/dev/null || true", ""), "chmod +x ./mxcli") {
+				t.Errorf("an unguarded chmod +x ./mxcli fails postCreateCommand on a mount that ignores modes:\n%s", cmd)
+			}
+			dockerfile := generateDockerfile("MyApp", "App.mpr", runtime)
+			if !strings.Contains(dockerfile, "       file \\\n") {
+				t.Errorf("the image lacks the file package that postCreateCommand's fast path runs:\n%s", dockerfile)
+			}
+		})
+	}
+}

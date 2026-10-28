@@ -1,0 +1,67 @@
+mdl 1;
+-- mendixlabs/mxcli#1547 (ako/mxcli#1445): "Auto-assign when targeting results
+-- in one user" on a user task.
+--
+-- Every user task was written with AutoAssignSingleTargetUser = false, MDL had
+-- no spelling for it and describe did not print it, so `create or modify
+-- workflow` turned off a box ticked in Studio Pro. When the targeting then
+-- yielded one user, completing the task from a microflow failed at runtime
+-- ("You can't complete this user task, it is not assigned to you").
+--
+-- `auto assign single user` writes it on both task kinds; `describe workflow`
+-- prints it when set. Omitted, it is off — what Studio Pro 11.14 stores for a
+-- new task. Expected: `bson dump` shows AutoAssignSingleTargetUser true on
+-- ReviewOrder and Vote, false on Archive, and the script builds with 0 errors.
+
+create module AA;
+create persistent entity AA.Order ( Number: string(20) );
+
+create page AA.Order_Review (
+  title: 'Review order',
+  layout: Atlas_Core.Atlas_Default,
+  params: ( $WorkflowUserTask: System.WorkflowUserTask )
+) {
+  dynamictext txtReview (content: 'Review')
+};
+
+create workflow AA.Order_Approval
+  parameter $WorkflowContext: AA.Order
+begin
+  user task ReviewOrder 'Review the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    auto assign single user
+    outcomes 'Approve' { } 'Reject' { };
+  multi user task Vote 'Vote on the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    auto assign single user
+    decide by consensus fallback 'Approve'
+    outcomes 'Approve' { } 'Reject' { };
+  user task Archive 'Archive the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Done' { };
+end workflow;
+
+-- A rewrite that restates the clause keeps it; leaving it off ReviewOrder or
+-- Vote here would be refused rather than silently turning auto-assign off.
+create or modify workflow AA.Order_Approval
+  parameter $WorkflowContext: AA.Order
+begin
+  user task ReviewOrder 'Review the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    auto assign single user
+    outcomes 'Approve' { } 'Reject' { };
+  multi user task Vote 'Vote on the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    auto assign single user
+    decide by consensus fallback 'Approve'
+    outcomes 'Approve' { } 'Reject' { };
+  user task Archive 'Archive the order'
+    page AA.Order_Review
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Done' { };
+end workflow;

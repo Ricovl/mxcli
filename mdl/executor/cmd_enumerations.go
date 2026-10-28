@@ -53,6 +53,9 @@ func execCreateEnumeration(ctx *ExecContext, s *ast.CreateEnumerationStmt) error
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	verb := "create enumeration"
 	if s.CreateOrModify {
@@ -113,6 +116,9 @@ func execCreateEnumeration(ctx *ExecContext, s *ast.CreateEnumerationStmt) error
 		Name:          s.Name.Name,
 		Documentation: s.Documentation,
 		Values:        values,
+		// "" — no EXPORT LEVEL clause — keeps the stored level on a rewrite
+		// (UpdateEnumeration) and writes Hidden on create (#1498).
+		ExportLevel: authoredExportLevel(s.ExportLevel),
 	}
 
 	if existingEnum != nil && s.CreateOrModify {
@@ -186,6 +192,9 @@ func findEnumeration(ctx *ExecContext, moduleName, enumName string) *model.Enume
 // read-modify-writing the enumeration through the backend (engine-agnostic).
 func execAlterEnumeration(ctx *ExecContext, s *ast.AlterEnumerationStmt) error {
 	if err := refuseSystemEnumerationWrite("alter enumeration", s.Name); err != nil {
+		return err
+	}
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 	enum := findEnumeration(ctx, s.Name.Module, s.Name.Name)
@@ -266,6 +275,9 @@ func execAlterEnumeration(ctx *ExecContext, s *ast.AlterEnumerationStmt) error {
 
 	case ast.AlterEnumSetDocumentation:
 		enum.Documentation = s.Documentation
+
+	case ast.AlterEnumSetExportLevel:
+		enum.ExportLevel = s.ExportLevel
 
 	default:
 		return mdlerrors.NewUnsupported("unknown ALTER ENUMERATION operation")
@@ -457,6 +469,9 @@ func describeEnumeration(ctx *ExecContext, name ast.QualifiedName) error {
 			folderClause := ""
 			if fp := h.BuildFolderPath(enum.ContainerID); fp != "" && fp != modName {
 				folderClause = " folder " + mdlQuote(ctx, fp)
+			}
+			if c := exportLevelClause(enum.ExportLevel); c != "" { // mendixlabs/mxcli#1498
+				folderClause += " " + c
 			}
 			fmt.Fprintf(ctx.Output, ")%s;\n", folderClause)
 			return nil

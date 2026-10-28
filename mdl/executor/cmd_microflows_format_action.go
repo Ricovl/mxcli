@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,7 +16,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // formatActivity formats a single microflow activity as an MDL statement.
@@ -628,10 +629,12 @@ func formatAction(
 
 			if dbSource.XPathConstraint != "" {
 				// A stored constraint may be broken across lines — mxcli formats a
-				// long one that way so it can be read in Studio Pro's editor, and a
-				// person may have done the same by hand (upstream #979). MDL keeps it
-				// on one line; the executor re-derives the stored layout on write.
-				constraint := visitor.FlattenXPathConstraint(strings.TrimSpace(dbSource.XPathConstraint))
+				// long one that way so it can be read in Studio Pro's editor
+				// (upstream #979), and that layout is described on one line: the
+				// executor re-derives it on write. A layout a person gave it is
+				// described as stored, which is what re-executing it stores
+				// (mendixlabs/mxcli#1542).
+				constraint := visitor.DescribeXPathConstraintLayout(strings.TrimSpace(dbSource.XPathConstraint))
 				// Enrich string literals for enum attributes to qualified names
 				// (e.g. Status = 'Open' → Status = Module.OrderStatus.Open) when
 				// the entity is known and we are connected to a project.
@@ -753,6 +756,11 @@ func formatAction(
 			}
 			withClause = fmt.Sprintf(" with (%s)", strings.Join(params, ", "))
 		}
+		// "Include latest stack trace" (mendixlabs/mxcli#1543). Unticked is what
+		// an absent clause builds, so only a ticked box is printed.
+		if a.IncludeLastStackTrace {
+			withClause += " with stacktrace"
+		}
 
 		// Level info and node 'Application' are what an unstated level and node
 		// build (addLogMessageAction), so neither is printed (R12, #748).
@@ -845,8 +853,12 @@ func formatAction(
 			valueStr := ""
 			switch v := pm.Value.(type) {
 			case *microflows.StringTemplateParameterValue:
-				if v.TypedTemplate != nil {
-					valueStr = mdlQuote(ctx, v.TypedTemplate.Text)
+				valueStr = describeTypedTemplate(ctx, v.TypedTemplate)
+			case *microflows.CustomBlobDocumentCodeActionParameterValue:
+				if v.CustomDocument != "" {
+					valueStr = mdlQuote(ctx, v.CustomDocument)
+				} else {
+					valueStr = "empty"
 				}
 			case *microflows.ExpressionBasedCodeActionParameterValue:
 				valueStr = describeExpr(ctx, v.Expression)
@@ -939,11 +951,21 @@ func formatAction(
 		// taking it out of a create or modify compared as no change
 		// (ako/mxcli#869). An override without text has no statement form:
 		// `with title = ''` builds none.
-		titleStr := ""
+		var settings []string
 		if title := pickTextTranslation(a.OverridePageTitle, describeDefaultLanguage(ctx)); title != "" {
-			titleStr = " with title = " + mdlQuote(ctx, title)
+			settings = append(settings, "title = "+mdlQuote(ctx, title))
 		}
-		return fmt.Sprintf("show page %s%s%s;", pageName, paramStr, titleStr)
+		// "Number of pages to close". Left out, an action that closes the
+		// current page read exactly like one that closes none
+		// (mendixlabs/mxcli#1617). "" is Studio Pro's default: none.
+		if n := strings.TrimSpace(a.NumberOfPagesToClose); n != "" {
+			settings = append(settings, "NumberOfPagesToClose = "+describeExpr(ctx, n))
+		}
+		withStr := ""
+		if len(settings) > 0 {
+			withStr = " with " + strings.Join(settings, ", ")
+		}
+		return fmt.Sprintf("show page %s%s%s;", pageName, paramStr, withStr)
 
 	case *microflows.ClosePageAction:
 		if a.NumberOfPages > 1 {
@@ -1277,7 +1299,7 @@ func isBareIdentifier(part string) bool {
 
 func rawUnitName(contents []byte) string {
 	var raw map[string]any
-	if err := bson.Unmarshal(contents, &raw); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &raw); err != nil {
 		return ""
 	}
 	name, _ := raw["Name"].(string)
@@ -1374,11 +1396,20 @@ func formatListOperation(ctx *ExecContext, op microflows.ListOperation, outputVa
 // extractFieldName returns the short field name from a qualified attribute
 // or association reference (e.g. "MyModule.Entity.Status" → "Status",
 // "MyModule.Order_Customer" → "Order_Customer"). Returns the association
-// name if attribute is empty.
+// name if attribute is empty — qualified for a System association
+// ("System.owner").
 func extractFieldName(attribute, association string) string {
 	ref := attribute
 	if ref == "" {
 		ref = association
+		// A System association stays qualified. The builder resolves a bare
+		// name in the list entity's own module, so `owner` came back as an
+		// attribute of the entity and `User_Language` on an Administration.Account
+		// list as Administration.Account.User_Language — CE1613 on the next
+		// build (ako/mxcli#1629). The member speller spells it the same way.
+		if strings.HasPrefix(ref, "System.") {
+			return ref
+		}
 	}
 	if ref == "" {
 		return ""
@@ -1762,10 +1793,33 @@ func formatImportXmlAction(ctx *ExecContext, a *microflows.ImportXmlAction, enti
 	sb.WriteString("($")
 	sb.WriteString(a.XmlDocumentVariable)
 	sb.WriteString(")")
+	sb.WriteString(formatImportMappingSettings(a.ResultHandling))
 	sb.WriteString(formatImportMappingRange(a.ResultHandling))
 	sb.WriteString(";")
 
 	return sb.String()
+}
+
+// formatImportMappingSettings renders the activity's settings list, `
+// (Parameter: $Obj, Commit: No)`, or "" when it has neither. Unprinted, a
+// rewrite dropped the input object and the commit mode (ako/mxcli#1681).
+// YesWithoutEvents is what the writer stores for an unwritten Commit, so it is
+// not printed.
+func formatImportMappingSettings(h *microflows.ResultHandlingMapping) string {
+	if h == nil {
+		return ""
+	}
+	var parts []string
+	if h.ParameterVariable != "" {
+		parts = append(parts, "Parameter: $"+h.ParameterVariable)
+	}
+	if h.Commit != "" && h.Commit != "YesWithoutEvents" {
+		parts = append(parts, "Commit: "+h.Commit)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 // formatImportMappingRange renders the activity's Range — Studio Pro's
@@ -2357,6 +2411,29 @@ func mdlAggregateKeyword(fn microflows.AggregateFunction) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// describeTypedTemplate renders a Java action's text-template argument
+// (ako/mxcli#1451): the text, with its arguments as ` with ({1} = …)`. The
+// template '{1}' holding one expression is that expression — what the builder
+// writes for one — unless the expression is itself a string literal, which
+// would read back as the template's text.
+func describeTypedTemplate(ctx *ExecContext, tt *microflows.TypedTemplate) string {
+	if tt == nil {
+		return "''"
+	}
+	args := make([]string, 0, len(tt.Arguments))
+	for _, a := range tt.Arguments {
+		if a != nil {
+			args = append(args, a.Expression)
+		}
+	}
+	if tt.Text == "{1}" && len(args) == 1 {
+		if _, isText := singleStringLiteral(args[0]); !isText {
+			return describeExpr(ctx, args[0])
+		}
+	}
+	return mdlQuote(ctx, tt.Text) + templateArgsClause(ctx, args)
 }
 
 // templateArgsClause renders a text template's arguments as ` with ({1} = a,

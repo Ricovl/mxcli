@@ -18,14 +18,16 @@ import (
 // menuDocumentType is the BSON storage name of a standalone menu document.
 const menuDocumentType = "Menus$MenuDocument"
 
-// A menu item carries a null AlternativeText and an Items list, empty with
-// marker 3, whether or not it has sub-items: every one of the items of
-// Atlas_Core's Phone_Menu and Tablet_Menu in ako/TestApp and PedApp (11.14.0),
-// and every navigation menu item. Without them a describe -> exec of either
-// Atlas menu rewrote it (the round-trip allowlist's #721 entries).
+// A menu item carries a null AlternativeText, a null Icon when it has none, and
+// an Items list, empty with marker 3, whether or not it has sub-items: every one
+// of the items of Atlas_Core's Phone_Menu and Tablet_Menu in ako/TestApp and
+// PedApp (11.14.0), and every navigation menu item. Without them a describe ->
+// exec of either Atlas menu rewrote it (the round-trip allowlist's #721
+// entries), and an item ALTER MENU inserted (Studio Pro's shape, Icon: null)
+// was rewritten by the next describe -> exec.
 func init() {
 	codec.RegisterTypeDefaults("Menus$MenuItem", codec.TypeDefaults{
-		NullFields:     []string{"AlternativeText"},
+		NullFields:     []string{"AlternativeText", "Icon"},
 		MandatoryLists: []string{"Items"},
 	})
 }

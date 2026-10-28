@@ -21,11 +21,13 @@ Creates a new page in the specified module. A page defines a user interface scre
 
 If `OR REPLACE` is specified and a page with the same qualified name already exists, it is replaced. Otherwise, creating a page with an existing name is an error.
 
+A replace (`OR REPLACE` or `OR MODIFY`) is refused when the stored page holds a widget MDL cannot author — a classic data grid, a reference selector, a drop-down, a reference set selector — that the statement does not declare by name, because the rebuilt page would not contain it. `DESCRIBE PAGE` marks each such widget with a `-- NOT re-executable` comment, and the error lists them. Change the page with [ALTER PAGE](alter-page.md), which keeps them, or remove them on purpose first (`ALTER PAGE M.P { DROP grid1; };`). The same applies to snippets and layouts, and `mxcli check -p` reports it before anything is written.
+
 ### Page Properties
 
 The page declaration block `( ... )` contains comma-separated key-value properties:
 
-- **Params** -- Page parameters. Each parameter has a `$`-prefixed name and a type — either an entity (`Module.Entity`) or a primitive (`String`, `Integer`, `Decimal`, `Boolean`, `DateTime`). Parameters are passed when the page is opened (e.g., from a microflow `SHOW PAGE` or from a data view). Primitive parameters require Mendix 11.6+.
+- **Params** -- Page parameters. Each parameter has a `$`-prefixed name and a type — either an entity (`Module.Entity`) or a primitive (`String`, `Integer`, `Decimal`, `Boolean`, `DateTime`). Parameters are passed when the page is opened (e.g., from a microflow `SHOW PAGE` or from a data view). Primitive parameters require Mendix 11.6+. A parameter cannot be named with a platform-reserved word — `Context`, `Type`, `Id`, `Owner`, `Object`, `CurrentUser` or a Java keyword, in any case and even quoted: Mendix reports CE7247 "The name 'Context' is a reserved word.", and `mxcli check` refuses it (MDL-PARAM01). The same holds for snippet, Java action and JavaScript action parameters.
 - **Title** -- The page title displayed in the browser tab or page header.
 - **Layout** -- The layout the page is based on. Must be a qualified name referring to an existing layout (e.g., `Atlas_Core.Atlas_Default`, `Atlas_Core.PopupLayout`).
 - **Folder** -- Optional folder path within the module. Nested folders use `/` separator.
@@ -65,12 +67,12 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300) |
-| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
-| `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
-| `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
-| `DATEPICKER` | Date/time selector | `Label`, `Attribute` |
-| `COMBOBOX` | Dropdown selector | `Label`, `Attribute` |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `OnChange`, `OnEnter`, `OnLeave`, `OnEnterKeyPress` (an action run when the user presses Enter in the box; the stored name `OnEnterKeyPressAction` is accepted too), `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
+| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave`, `SubmitBehaviour`, `SubmitOnInputDelay` |
+| `CHECKBOX` | Boolean toggle | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
+| `RADIOBUTTONS` | Radio button group | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
+| `DATEPICKER` | Date/time selector | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
+| `COMBOBOX` | Dropdown selector | `Label`, `Attribute`; association mode adds `DataSource`, `CaptionAttribute`; database mode `optionsSourceDatabaseDataSource`, `CaptionAttribute`, `optionsSourceDatabaseValueAttribute`; custom content as the mode's body block (`optionssourceassociationcustomcontent { … }`, `optionssourcedatabasecustomcontent { … }`) |
 | `FILEMANAGER` | File upload/download, inside a data view on a `System.FileDocument` specialization | `Label`, `Type` (`Upload`, `Download`, `Both` default), `MaxFileSize` (MB, default 5), `AllowedExtensions`, `ShowFileInBrowser` |
 
 **Display Widgets**
@@ -109,7 +111,7 @@ The `DataSource` property determines how a data widget obtains its data:
 | Parameter | `DataSource: $ParamName` | Binds to a page parameter or enclosing data view |
 | Database | `DataSource: DATABASE Module.Entity` | Retrieves from database |
 | Selection | `DataSource: SELECTION widgetName` | Listens to selection on another widget |
-| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data |
+| Microflow | `DataSource: MICROFLOW Module.MFName` | Calls a microflow for data. Takes `with (FormValidations: All\|Widget\|None)` like a microflow action (default `All`); no other setting |
 
 ### Action Types
 
@@ -137,7 +139,30 @@ success, because a no-action widget is perfectly legal Mendix. Write `NOTHING`
 when a control is genuinely meant to be inert, so that a dead one always means a
 mistake.
 
-The same values serve `OnClick:` (an alias of `Action:`) and `OnChange:`.
+The same values serve `OnClick:` (an alias of `Action:`), `OnChange:` and a
+text box's `OnEnterKeyPress:` — Studio Pro's *On enter key press*, which runs
+when the user presses Enter in the box (a search field that searches on Enter):
+
+```sql
+TEXTBOX tbSearch (Label: 'Search', Attribute: SearchText,
+  OnEnterKeyPress: CALL MICROFLOW Module.ACT_Search(Query = $currentObject))
+```
+
+Only a text box has that action — Mendix stores it on no other widget, a text
+area included — so on any other widget the key is refused with that reason.
+
+Every input widget (text box, text area, date picker, check box, radio
+buttons, drop-down) also has Studio Pro's *On enter* and *On leave* — focus
+moving into and out of the widget, not the Enter key — spelled `OnEnter:` and
+`OnLeave:`, with the same values. The stored names `OnEnterAction:`,
+`OnLeaveAction:` and `OnEnterKeyPressAction:` are accepted as the same
+properties; `DESCRIBE` prints the short ones.
+
+A flow or page that takes no parameters may be called with an empty argument
+list, as a flow body writes it: `Action: CALL MICROFLOW Module.Name()` stores
+exactly what `Action: CALL MICROFLOW Module.Name` stores, and `DESCRIBE` writes
+it without the brackets. The same holds for a microflow or nanoflow data source
+and for `USE FRAGMENT Name()`.
 
 #### Action settings
 
@@ -166,6 +191,33 @@ that differ from it. An unknown key, or a setting the action does not have, is
 an error. For `CREATE OBJECT … THEN SHOW PAGE …` the list goes at the end and
 belongs to the create action.
 
+#### Return value mappings
+
+A microflow or nanoflow call can map what the flow returns back onto the page —
+Studio Pro's **Return value mappings** (Mendix 11.5+). The `returns ( … )` list
+goes after the arguments and before `with ( … )`, one `target = source` per row:
+
+```sql
+DATAVIEW dvVehicle (DataSource: $Vehicle) {
+  ACTIONBUTTON btnRefresh (Caption: 'Refresh',
+    Action: CALL MICROFLOW Shop.ACT_Vehicle_Get returns (
+      Brand = $ActionReturnValue/Brand,     -- an attribute of the returned object
+      $stringResult = $ActionReturnValue,   -- the return value itself
+      Brand = 'Demo brand'))                -- any expression
+}
+```
+
+| Target | Means | Needs |
+|--------|-------|-------|
+| `Attr` (bare) | an attribute of the enclosing data container's object | Mendix 11.15 — mx 11.13 and 11.14 report CE7006 on it |
+| `$name` | a page variable (`Variables: ( … )`) | Mendix 11.5 |
+
+The source is `$ActionReturnValue`, `$ActionReturnValue/Attr` (the flow must
+return an object that has `Attr`), or any expression. `DESCRIBE` prints the
+stored mappings, and re-running a statement without the list removes them — the
+statement is the authority. A mapping `DESCRIBE` cannot spell (a path over an
+association) is printed as a comment under the widget, saying a re-run drops it.
+
 A microflow or nanoflow action is a **call**: every parameter the flow declares
 needs an argument, or Mendix rejects the page with **CE1571**. An enclosing data
 container of the parameter's type supplies it without one — but a data grid's
@@ -183,6 +235,10 @@ DATAGRID dgOrders (DataSource: DATABASE FROM Sales.Order, Selection: Single) {
   }
 }
 ```
+
+A `SHOW PAGE` in the control bar takes the selection the same way —
+`Action: SHOW PAGE Sales.Order_Detail(Order = $dgOrders)` opens the page with
+the selected row, and the button is disabled until a row is selected.
 
 `mxcli check -p <app.mpr>` reports a missing argument before mxbuild does.
 
@@ -218,9 +274,19 @@ These properties are available on most widget types:
 | `Class` | CSS class names | `Class: 'card mx-spacing-top-large'` |
 | `Style` | Inline CSS | `Style: 'padding: 16px;'` |
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
-| `Editable` | Edit control | `Editable: NEVER` or `Editable: ALWAYS` |
+| `Editable` | Edit control: `Always`, `Never`, or a condition expression (bare or quoted) | `Editable: NEVER` or `Editable: $currentObject/Locked = false` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
 | `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large')` |
+
+### Attributes of a Page or Snippet Parameter
+
+A bare attribute name binds to the enclosing data container's object. To bind
+an attribute of a page or snippet **parameter** instead, whatever container the
+widget is in, write `$Param.Attr`. This works for a pluggable widget's
+attribute property set by its own key too, such as a Custom chart's
+`eventDataAttribute: $Ctx.EventData`. The qualified name of another entity's
+attribute (`Module.Other.Attr`) is refused, because stored without the
+parameter it is mx check CE7247.
 
 ## Parameters
 

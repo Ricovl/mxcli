@@ -289,7 +289,7 @@ rather than trusting a list here:
 
 | RefKind | Edge |
 |---------|------|
-| `call` | flow calls a microflow / nanoflow / rule / Java action / REST operation |
+| `call` | flow calls a microflow / nanoflow / rule / Java action / REST operation; a workflow calls a handler microflow; a consumed OData service calls its configuration / headers / error-handling microflow |
 | `create` / `change` / `delete` / `retrieve` | flow acts on an entity object |
 | `commit` | flow commits an entity object: a commit action, or a create / change that commits (`Yes` or `YesWithoutEvents`), beside its `create` / `change` edge |
 | `return` | flow returns an entity type |
@@ -300,11 +300,11 @@ rather than trusting a list here:
 | `datasource` | page or widget reads an entity |
 | `action` | widget calls a microflow / nanoflow |
 | `show_page` | flow or widget action opens a page |
-| `home_page` / `login_page` / `menu_item` | navigation profile references a page |
+| `home_page` / `login_page` / `menu_item` | navigation profile references a page, or a microflow (home microflow, menu item that calls one) |
 | `calculate` | calculated attribute uses a microflow |
 | `schedule` | scheduled event runs a microflow |
-| `publish` | published REST operation runs a microflow |
-| `event` | entity event handler runs a microflow |
+| `publish` | published service runs a microflow: a REST operation, an OData resource's read / insert / update / delete microflow, an OData action, a REST or OData service's custom authentication microflow |
+| `event` | event handler runs a microflow: an entity event, or a business event a service subscribes to |
 | `settings` | a project setting (after-startup / before-shutdown / health check) names a microflow |
 | `sync` | offline navigation profile synchronizes an entity |
 | `validate` | attribute validation rule uses a regular expression |
@@ -322,6 +322,11 @@ over), so it would mostly double existing edges.
 outside the call graph runs the microflow, so nothing in the model calls it.
 They are what stops `GRAPH_DEAD_ASSETS`, `LIST CALLERS OF` and lint rule QUAL004
 from reporting a live scheduled job, API handler or event handler as unused.
+`GRAPH_DEAD_ASSETS` and QUAL004 count an edge of any kind; `LIST CALLERS OF`
+counts the kinds that invoke. The source of a service's edge is the service
+itself (`PUBLISHED_ODATA_SERVICE`, `PUBLISHED_REST_SERVICE`,
+`BUSINESS_EVENT_SERVICE`, `CONSUMED_ODATA_SERVICE`) with its catalog id in
+`SourceId`; a published REST operation's edge comes from the operation.
 `sync` is not one — it names an entity a profile downloads, which is a use of a
 type, so `SHOW CALLERS` excludes it for the same reason it excludes
 `datasource`.

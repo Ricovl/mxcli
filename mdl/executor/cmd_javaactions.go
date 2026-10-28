@@ -97,62 +97,15 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	sb.WriteString(describeFolderClause(ctx, ja.ContainerID))
 	sb.WriteString("(")
 
-	// Parameters — one per line when descriptions are present
-	hasParamDescriptions := false
-	for _, p := range ja.Parameters {
-		if p.Description != "" {
-			hasParamDescriptions = true
-			break
-		}
-	}
-
-	for i, param := range ja.Parameters {
-		if hasParamDescriptions {
-			sb.WriteString("\n    ")
-		}
-		sb.WriteString(param.Name)
-		sb.WriteString(": ")
-		if param.ParameterType != nil {
-			sb.WriteString(formatJavaActionType(param.ParameterType))
-		} else {
-			sb.WriteString("Object")
-		}
-		if param.IsRequired {
-			sb.WriteString(" not null")
-		}
-		// The separator precedes any `--` doc comment: written after it, the
-		// comment swallows the comma and the next parameter fails to parse (#1412).
-		if i < len(ja.Parameters)-1 {
-			sb.WriteString(",")
-			if !hasParamDescriptions {
-				sb.WriteString(" ")
-			}
-		}
-		if param.Description != "" {
-			paramDoc := strings.ReplaceAll(param.Description, "\r\n", "\n")
-			paramDoc = strings.ReplaceAll(paramDoc, "\r", "\n")
-			firstLine, _, _ := strings.Cut(paramDoc, "\n")
-			sb.WriteString("  -- ")
-			sb.WriteString(firstLine)
-		}
-	}
-	if hasParamDescriptions {
-		sb.WriteString("\n")
-	}
+	writeCodeActionParams(&sb, ja.Parameters, formatJavaActionType)
 	sb.WriteString(")")
 
-	// Return type
+	// Return type, and the return value's name
 	if ja.ReturnType != nil {
 		sb.WriteString(" returns ")
 		sb.WriteString(formatJavaActionReturnType(ja.ReturnType))
 	}
-
-	// RETURN NAME metadata
-	if ja.ActionDefaultReturnName != "" {
-		sb.WriteString("\n-- return NAME: '")
-		sb.WriteString(ja.ActionDefaultReturnName)
-		sb.WriteString("'")
-	}
+	sb.WriteString(describeCodeActionReturnName(ja.ActionDefaultReturnName, ja.ReturnType != nil))
 
 	// EXPOSED AS clause
 	if ja.MicroflowActionInfo != nil && ja.MicroflowActionInfo.Caption != "" {
@@ -167,14 +120,32 @@ func describeJavaAction(ctx *ExecContext, name ast.QualifiedName) error {
 	// The grammar requires an `as $$ ... $$` body for CREATE JAVA ACTION, so always
 	// emit one. When the .java source can't be read (e.g. add-on modules ship without
 	// source on disk), emit a placeholder body so DESCRIBE output still re-parses (#637).
-	javaCode := readJavaActionUserCode(ctx.MprPath, name.Module, name.Name)
+	//
+	// Everything else a regeneration keeps is printed too, so that executing the
+	// output rebuilds the same file (ako/mxcli#1702): the imports a developer
+	// added, at the top of the body — exec moves an import line to the import
+	// list — and the EXTRA CODE section as `extra code $$ … $$`. Without them a
+	// describe run on another project wrote a body calling a helper that no
+	// longer existed.
+	source := readJavaActionSource(ctx.MprPath, name.Module, name.Name)
+	javaCode := javaActionUserCode(source)
 	sb.WriteString("\nas $$\n")
 	if javaCode != "" {
+		if imports := javaactions.StatedImports(source, ja.Parameters, ja.ReturnType); len(imports) > 0 {
+			sb.WriteString(strings.Join(imports, "\n"))
+			sb.WriteString("\n\n")
+		}
 		sb.WriteString(javaCode)
 	} else {
 		sb.WriteString(javaSourceOmittedBody)
 	}
-	sb.WriteString("\n$$;")
+	sb.WriteString("\n$$")
+	if _, extra := javaactions.RetainedSections(source); javaCode != "" && extra != "" {
+		sb.WriteString("\nextra code $$\n")
+		sb.WriteString(extra)
+		sb.WriteString("\n$$")
+	}
+	sb.WriteString(";")
 
 	// Output the complete statement. A shape MDL has no form for is printed
 	// commented out: a statement that parses into something else is worse than
@@ -272,27 +243,31 @@ const javaSourceOmittedBody = "// Java source not available from this project; b
 
 // readJavaActionUserCode reads the Java source file and extracts the user code section.
 func readJavaActionUserCode(mprPath, moduleName, actionName string) string {
+	return javaActionUserCode(readJavaActionSource(mprPath, moduleName, actionName))
+}
+
+// readJavaActionSource reads an action's .java file with LF line endings (Studio
+// Pro and mxbuild write CRLF), or "" when it cannot.
+func readJavaActionSource(mprPath, moduleName, actionName string) string {
 	if mprPath == "" {
 		return ""
 	}
-
-	// Build path to Java source file
-	projectRoot := filepath.Dir(mprPath)
-	moduleNameLower := strings.ToLower(moduleName)
-	javaPath := filepath.Join(projectRoot, "javasource", moduleNameLower, "actions", actionName+".java")
-
-	// Read the file
+	javaPath := filepath.Join(filepath.Dir(mprPath), "javasource", strings.ToLower(moduleName), "actions", actionName+".java")
 	content, err := os.ReadFile(javaPath)
 	if err != nil {
 		return ""
 	}
+	return strings.ReplaceAll(string(content), "\r\n", "\n")
+}
 
+// javaActionUserCode extracts the user code section of an action's source.
+func javaActionUserCode(source string) string {
 	// Extract user code between the BEGIN USER CODE and END USER CODE markers.
 	// Matched case-insensitively, as for JavaScript actions: a sweep that
 	// lowercased MDL keywords in output also lowercased these literals, so no
 	// Studio Pro file matched, DESCRIBE always printed the placeholder body, and
 	// re-executing that output replaced the action's code with it (#705).
-	userCode, ok := sliceBetweenFold(string(content), "// BEGIN USER CODE", "// END USER CODE")
+	userCode, ok := sliceBetweenFold(source, "// BEGIN USER CODE", "// END USER CODE")
 	if !ok {
 		return ""
 	}
@@ -346,6 +321,94 @@ func formatJavaActionType(t javaactions.CodeActionParameterType) string {
 }
 
 // formatJavaActionReturnType formats a Java action return type.
+// writeCodeActionParams prints a Java or JavaScript action's parameters, each
+// description as the `/** … */` doc comment that create reads before a
+// parameter — the form an entity attribute's documentation takes. It was a
+// trailing `--` comment, which the lexer discards: a script copying describe's
+// output lost every description, and only the first line was printed anyway
+// (mendixlabs/mxcli#1588). One parameter per line when any is described.
+func writeCodeActionParams(sb *strings.Builder, params []*javaactions.JavaActionParameter,
+	formatType func(javaactions.CodeActionParameterType) string) {
+	described := false
+	for _, p := range params {
+		if p.Description != "" {
+			described = true
+			break
+		}
+	}
+	for i, param := range params {
+		if described {
+			sb.WriteString("\n")
+			if param.Description != "" {
+				doc := strings.ReplaceAll(param.Description, "\r\n", "\n")
+				doc = strings.ReplaceAll(doc, "\r", "\n")
+				// A `*/` would end the doc comment mid-text and the rest would not
+				// parse. Shown as a comment, the parameter states none, so a
+				// rewrite carries the stored one.
+				if strings.Contains(doc, "*/") {
+					for line := range strings.SplitSeq(doc, "\n") {
+						fmt.Fprintf(sb, "    -- %s\n", line)
+					}
+				} else if !strings.Contains(doc, "\n") && !strings.HasPrefix(doc, "*") {
+					// The inline form holds one line that does not itself start with
+					// `*`, which the parser strips as the gutter (mendixlabs/mxcli#1428).
+					fmt.Fprintf(sb, "    /** %s */\n", doc)
+				} else {
+					outputJavadocIndented(sb, doc, "    ")
+				}
+			}
+			sb.WriteString("    ")
+		}
+		sb.WriteString(param.Name)
+		sb.WriteString(": ")
+		if param.ParameterType != nil {
+			sb.WriteString(formatType(param.ParameterType))
+		} else {
+			sb.WriteString("Object")
+		}
+		if param.IsRequired {
+			sb.WriteString(" not null")
+		}
+		if i < len(params)-1 {
+			sb.WriteString(",")
+			if !described {
+				sb.WriteString(" ")
+			}
+		}
+	}
+	if described {
+		sb.WriteString("\n")
+	}
+}
+
+// describeCodeActionReturnName is the ` as $Name` that follows `returns T`,
+// naming the return value as create reads it (mendixlabs/mxcli#1588). A name
+// the `$Name` token cannot spell, or one with no `returns` to follow, is still
+// shown, as a comment on its own line.
+func describeCodeActionReturnName(name string, hasReturns bool) string {
+	if name == "" {
+		return ""
+	}
+	if hasReturns && isVariableTokenBody(name) {
+		return " as $" + name
+	}
+	return "\n-- return NAME: '" + name + "'"
+}
+
+// isVariableTokenBody reports whether `$` + s lexes as one VARIABLE token
+// ('$' ID_BODY+).
+func isVariableTokenBody(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
 func formatJavaActionReturnType(t javaactions.CodeActionReturnType) string {
 	if t == nil {
 		return "Void"
@@ -417,6 +480,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	// Get hierarchy for module/folder resolution
 	h, err := getHierarchy(ctx)
@@ -443,6 +511,13 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		return mdlerrors.NewNotFound("module", s.Name.Module)
 	}
 
+	// Decide what each bare Module.Name in the signature is — an entity or an
+	// enumeration — before anything is written (ako/mxcli#935).
+	params, returnType, err := settleCodeActionSignature(ctx, "java action "+s.Name.String(), s.Parameters, s.ReturnType)
+	if err != nil {
+		return err
+	}
+
 	// Check if Java action already exists
 	jas, err := ctx.Backend.ListJavaActions()
 	if err != nil {
@@ -455,11 +530,12 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	var existingJADoc string
 	haveExistingJA := false
 	var existingActionInfo *javaactions.MicroflowActionInfo
-	// A parameter's Description and Category have no MDL spelling either —
-	// DESCRIBE prints the description as a comment — so a rewrite carries them
-	// from the stored parameter of the same name.
+	// A parameter's Category has no MDL spelling, and its Description is set
+	// only by a `/** … */` before it, so a rewrite carries both from the stored
+	// parameter of the same name unless the statement says otherwise.
 	storedParams := map[string]*javaactions.JavaActionParameter{}
-	// Neither has an MDL spelling, so a rewrite carries them. The defaults are
+	// The export level has no MDL spelling and the return value's name is set
+	// only by `returns T as $Name`, so a rewrite carries them. The defaults are
 	// what Studio Pro writes on a new action; "Public" — what this used to
 	// hardcode — is not a member of JavaActionsExportLevel (API | Hidden), and
 	// every rewrite turned a Hidden action into it (ako/mxcli#705).
@@ -503,6 +579,11 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	newID := model.ID(types.GenerateID())
 	if existingJAID != "" {
 		newID = existingJAID
+	}
+
+	// `returns T as $Name` names the return value (mendixlabs/mxcli#1588).
+	if s.ReturnName != "" {
+		defaultReturnName = s.ReturnName
 	}
 
 	// Create the Java action
@@ -551,7 +632,7 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	// - TypeEntityTypeParam → EntityTypeParameterType (entity type selector)
 	// - Bare name matching a type parameter → TypeParameter (ParameterizedEntityType)
 	// - Other types → convert normally
-	for _, param := range s.Parameters {
+	for _, param := range params {
 		jaParam := &javaactions.JavaActionParameter{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
@@ -581,25 +662,31 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 		} else {
 			jaParam.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 		}
+		var storedDescription string
 		if sp := storedParams[param.Name]; sp != nil {
-			jaParam.Description = sp.Description
+			storedDescription = sp.Description
 			jaParam.Category = sp.Category
 		}
+		// A doc comment before the parameter sets its description; none keeps
+		// the stored one (mendixlabs/mxcli#1588).
+		jaParam.Description = carriedDocumentation(param.DescriptionSet, param.Description, storedDescription)
 		ja.Parameters = append(ja.Parameters, jaParam)
 	}
 
 	// Convert return type — check if it references a type parameter
-	if isTypeParamRef(s.ReturnType, typeParamNames) {
-		tpName := getTypeParamRefName(s.ReturnType)
+	if isTypeParamRef(returnType, typeParamNames) {
+		tpName := getTypeParamRefName(returnType)
 		ja.ReturnType = &javaactions.TypeParameter{
 			BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
-	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+	} else if l := listOfTypeParameter(returnType, typeParamNameToID); l != nil {
 		ja.ReturnType = l
 	} else {
-		ja.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
+		if ja.ReturnType, err = astDataTypeToJavaActionReturnType(returnType); err != nil {
+			return mdlerrors.NewValidationf("java action %s: %v", s.Name.String(), err)
+		}
 	}
 
 	// Fold the EXPOSED AS clause onto the stored toolbox entry rather than
@@ -630,7 +717,17 @@ func execCreateJavaAction(ctx *ExecContext, s *ast.CreateJavaActionStmt) error {
 	// module's compiled one. The statement says nothing about the code, so the
 	// file is left alone.
 	if s.JavaCode != "" && strings.TrimSpace(s.JavaCode) != javaSourceOmittedBody {
-		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, s.ExtraCode); err != nil {
+		// ja.Documentation, not the statement's: a rewrite without a doc
+		// comment carries the stored one, and mxbuild writes it as the class
+		// javadoc — leaving it out removed the block a build had written, and
+		// the next build put it back (ako/mxcli#1700).
+		// `extra code $$ … $$` states the EXTRA CODE section; without it the
+		// file's section is kept (ako/mxcli#1702).
+		var extraCode *string
+		if s.ExtraCodeSet {
+			extraCode = &s.ExtraCode
+		}
+		if err := ctx.Backend.WriteJavaSourceFile(moduleName, s.Name.Name, s.JavaCode, ja.Parameters, ja.ReturnType, s.Imports, extraCode, ja.Documentation); err != nil {
 			return mdlerrors.NewBackend("write java source file", err)
 		}
 	}
@@ -691,12 +788,27 @@ func astDataTypeToJavaActionParamType(dt ast.DataType) javaactions.CodeActionPar
 				TypeName: "CodeActions$DateTimeType",
 			},
 		}
+	case ast.TypeStringTemplate:
+		// `StringTemplate(Text)` / `StringTemplate(Sql)` — what describe prints
+		// for a text-template parameter. It fell to the default below and was
+		// written as a String: a describe -> exec round trip turned the
+		// parameter into a String, and every call Studio Pro had written for
+		// it (a template value) no longer matched — CE0115.
+		grammar := "Text"
+		if strings.EqualFold(dt.TemplateContext, "sql") {
+			grammar = "Sql"
+		}
+		return &javaactions.StringTemplateParameterType{
+			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
+			Grammar:     grammar,
+		}
 	case ast.TypeEntity, ast.TypeEnumeration:
 		// An unambiguous `ENUM`/`Enumeration(...)` type must serialize as an
 		// enumeration parameter, not an entity reference (#680). A bare
 		// qualified name (ExplicitEnum=false) can't be told apart from an entity
-		// by the parser, so it stays an entity type here — callers that have the
-		// project loaded resolve it via resolveCodeActionParamType.
+		// by the parser, so it stays an entity type here: the create handlers
+		// settle it against the project first (settleCodeActionSignature,
+		// ako/mxcli#935), which retypes an enumeration as an explicit one.
 		if dt.Kind == ast.TypeEnumeration && dt.ExplicitEnum && dt.EnumRef != nil {
 			return &javaactions.EnumerationType{
 				BaseElement: model.BaseElement{
@@ -767,8 +879,13 @@ func bareDataTypeName(dt ast.DataType) string {
 	return ""
 }
 
-// astDataTypeToJavaActionReturnType converts an AST DataType to a Java action return type.
-func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionReturnType {
+// astDataTypeToJavaActionReturnType converts an AST DataType to a Java (or
+// JavaScript) action return type. A type it does not handle is an error: the
+// default used to be Boolean, so `returns StringTemplate(Text)` — which a code
+// action cannot return at all — was written as Boolean without a word. Only an
+// omitted `returns` (TypeUnknown) is Boolean, Studio Pro's default for a new
+// action. check reports the same error as MDL-JA03 (validateJavaActionReturnType).
+func astDataTypeToJavaActionReturnType(dt ast.DataType) (javaactions.CodeActionReturnType, error) {
 	switch dt.Kind {
 	case ast.TypeVoid:
 		return &javaactions.VoidType{
@@ -776,53 +893,54 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$VoidType",
 			},
-		}
+		}, nil
 	case ast.TypeBoolean:
 		return &javaactions.BooleanType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$BooleanType",
 			},
-		}
+		}, nil
 	case ast.TypeInteger:
 		return &javaactions.IntegerType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$IntegerType",
 			},
-		}
+		}, nil
 	case ast.TypeLong:
 		return &javaactions.LongType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$LongType",
 			},
-		}
+		}, nil
 	case ast.TypeDecimal:
 		return &javaactions.DecimalType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$DecimalType",
 			},
-		}
+		}, nil
 	case ast.TypeString:
 		return &javaactions.StringType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$StringType",
 			},
-		}
+		}, nil
 	case ast.TypeDateTime, ast.TypeDate:
 		return &javaactions.DateTimeType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$DateTimeType",
 			},
-		}
+		}, nil
 	case ast.TypeEntity, ast.TypeEnumeration:
 		// An unambiguous `ENUM`/`Enumeration(...)` return type serializes as an
 		// enumeration, not an entity reference (#680). A bare qualified name
-		// can't be told apart from an entity, so it stays an entity type.
+		// can't be told apart from an entity, so it stays an entity type; the
+		// create handlers settle it first (settleCodeActionSignature).
 		// "void" parses as a bare qualified name; treat it as VoidType.
 		if dt.Kind == ast.TypeEnumeration && dt.ExplicitEnum && dt.EnumRef != nil {
 			return &javaactions.EnumerationType{
@@ -831,7 +949,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 					TypeName: "CodeActions$EnumerationType",
 				},
 				Enumeration: dt.EnumRef.Module + "." + dt.EnumRef.Name,
-			}
+			}, nil
 		}
 		entityName := ""
 		if dt.EntityRef != nil {
@@ -845,7 +963,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 					ID:       model.ID(types.GenerateID()),
 					TypeName: "CodeActions$VoidType",
 				},
-			}
+			}, nil
 		}
 		return &javaactions.EntityType{
 			BaseElement: model.BaseElement{
@@ -853,7 +971,7 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				TypeName: "CodeActions$EntityType",
 			},
 			Entity: entityName,
-		}
+		}, nil
 	case ast.TypeListOf:
 		entityName := ""
 		if dt.EntityRef != nil {
@@ -865,15 +983,17 @@ func astDataTypeToJavaActionReturnType(dt ast.DataType) javaactions.CodeActionRe
 				TypeName: "CodeActions$ListType",
 			},
 			Entity: entityName,
-		}
-	default:
-		// Default to Boolean type (most common for Java actions)
+		}, nil
+	case ast.TypeUnknown:
+		// No `returns` clause: Boolean, what Studio Pro gives a new action.
 		return &javaactions.BooleanType{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "CodeActions$BooleanType",
 			},
-		}
+		}, nil
+	default:
+		return nil, codeActionReturnTypeRefusal(dt)
 	}
 }
 

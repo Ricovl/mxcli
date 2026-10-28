@@ -20,7 +20,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -29,21 +29,21 @@ import (
 )
 
 // encodeDoc encodes an element and returns it as a decoded bson.D for inspection.
-func encodeDoc(t *testing.T, elem element.Element) bsonv1.D {
+func encodeDoc(t *testing.T, elem element.Element) bson.D {
 	t.Helper()
 	raw, err := (&codec.Encoder{}).Encode(elem)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
-	var d bsonv1.D
-	if err := bsonv1.Unmarshal([]byte(raw), &d); err != nil {
+	var d bson.D
+	if err := bson.Unmarshal([]byte(raw), &d); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	return d
 }
 
 // lookup returns the value of key and whether the key was present at all.
-func lookupKey(d bsonv1.D, key string) (any, bool) {
+func lookupKey(d bson.D, key string) (any, bool) {
 	for _, e := range d {
 		if e.Key == key {
 			return e.Value, true
@@ -70,7 +70,7 @@ func TestShowPageFormSettings_NoOverrideIsNull(t *testing.T) {
 	// The consolidation must not have dropped the other default.
 	if mappings, ok := lookupKey(d, "ParameterMappings"); !ok {
 		t.Error("ParameterMappings marker lost")
-	} else if arr, _ := mappings.(bsonv1.A); len(arr) == 0 || arr[0] != int32(2) {
+	} else if arr, _ := mappings.(bson.A); len(arr) == 0 || arr[0] != int32(2) {
 		t.Errorf("ParameterMappings = %#v, want marker 2", mappings)
 	}
 }
@@ -89,7 +89,7 @@ func TestShowPageFormSettings_OverrideIsPreserved(t *testing.T) {
 	if !ok || v == nil {
 		t.Fatalf("an explicitly authored title override was dropped (#812): %#v", v)
 	}
-	sub, isDoc := v.(bsonv1.D)
+	sub, isDoc := v.(bson.D)
 	if !isDoc {
 		t.Fatalf("TitleOverride = %#v, want a Microflows$TextTemplate document", v)
 	}
@@ -119,20 +119,20 @@ func TestFormSettingsToGen_TitleOverrideIsNull(t *testing.T) {
 	}
 }
 
-func containsString(d bsonv1.D, want string) bool {
+func containsString(d bson.D, want string) bool {
 	for _, e := range d {
 		switch v := e.Value.(type) {
 		case string:
 			if v == want {
 				return true
 			}
-		case bsonv1.D:
+		case bson.D:
 			if containsString(v, want) {
 				return true
 			}
-		case bsonv1.A:
+		case bson.A:
 			for _, item := range v {
-				if sub, ok := item.(bsonv1.D); ok && containsString(sub, want) {
+				if sub, ok := item.(bson.D); ok && containsString(sub, want) {
 					return true
 				}
 				if s, ok := item.(string); ok && s == want {

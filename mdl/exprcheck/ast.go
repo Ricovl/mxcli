@@ -47,8 +47,14 @@ type VariableExpr struct {
 
 type AttributePathExpr struct {
 	baseNode
+	// Variable is empty for an XPath path that starts at the queried entity
+	// (`Mod.Assoc/Mod.Entity/Attr`), which only an XPath-mode parse produces.
 	Variable string
 	Path     []string
+	// Predicates is nil unless a segment carries an XPath predicate
+	// (`Mod.Assoc/Mod.Entity[Code = 'x']/Name`); then it has one entry per
+	// Path segment, nil where that segment has none.
+	Predicates []RobustExpr
 }
 
 type QNameExpr struct {

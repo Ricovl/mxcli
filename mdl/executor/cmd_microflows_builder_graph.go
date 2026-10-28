@@ -266,6 +266,10 @@ func (fb *flowBuilder) buildFlowGraph(stmts []ast.MicroflowStatement, returns *a
 	// this is the first point where a row's real depth is known.
 	fb.separateRows()
 
+	// Note lines after everything has moved: the sides that face each other
+	// depend on where the note and its element finally sit.
+	orientAnnotationFlows(fb.objects, fb.annotationFlows)
+
 	return &microflows.MicroflowObjectCollection{
 		BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 		Objects:         fb.objects,
@@ -605,7 +609,7 @@ func (fb *flowBuilder) addTerminalEndEventForPendingHandler(returns *ast.Microfl
 	end := &microflows.EndEvent{
 		BaseMicroflowObject: microflows.BaseMicroflowObject{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
-			Position:    model.Point{X: fb.posX + HorizontalSpacing/2, Y: fb.baseY + VerticalSpacing},
+			Position:    model.Point{X: fb.posX + HorizontalSpacing/2, Y: fb.baseY + ErrorHandlerPitch},
 			Size:        model.Size{Width: EventSize, Height: EventSize},
 		},
 		ReturnValue: returnValue,
@@ -616,6 +620,13 @@ func (fb *flowBuilder) addTerminalEndEventForPendingHandler(returns *ast.Microfl
 
 // addStatement converts an AST statement to a microflow activity and returns its ID.
 func (fb *flowBuilder) addStatement(stmt ast.MicroflowStatement) model.ID {
+	// The loop-body tail is this statement's alone: only an IF reads it, and a
+	// CASE or anything else must not leave it set for an IF nested inside,
+	// which is not at the tail (atBodyTail).
+	if _, isIf := stmt.(*ast.IfStmt); !isIf {
+		fb.atBodyTail = false
+	}
+
 	// Extract annotations from the statement and merge into pendingAnnotations
 	fb.mergeStatementAnnotations(stmt)
 

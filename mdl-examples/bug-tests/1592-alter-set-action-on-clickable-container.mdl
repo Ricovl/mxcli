@@ -1,0 +1,36 @@
+mdl 1;
+-- mendixlabs/mxcli#1592 / ako/mxcli#1503: `set (Action: …) on card1` was
+-- refused for a container CREATE had just written with an on-click action:
+--
+--   widget "card1" (Forms$DivContainer) has no Action property — Action can
+--   only be set on a widget that performs an on-click action, such as a
+--   button or a clickable container
+--
+-- A container stores its click action as OnClickAction (a list view and the
+-- image viewers as ClickAction); the setter looked only for Action.
+--
+-- Expected (describe below): card1's action is ACT_OpenNew, plain1 — a
+-- container created without one — now has one, and
+-- `mxcli docker check --no-update-widgets` reports 0 errors. Re-executing the
+-- describe output reports `Unchanged page`: the ALTER writes what CREATE does.
+
+create module Bug1592;
+
+create microflow Bug1592.ACT_OpenOld () begin end;
+create microflow Bug1592.ACT_OpenNew () begin end;
+
+create page Bug1592.CardPage (title: 'Cards', layout: Atlas_Core.Atlas_Default) {
+  container card1 (DesignProperties: ('Card style': on), Action: call microflow Bug1592.ACT_OpenOld) {
+    dynamictext txt1 (Content: 'Open')
+  }
+  container plain1 {
+    dynamictext txt2 (Content: 'Plain')
+  }
+};
+
+alter page Bug1592.CardPage {
+  set (Action: call microflow Bug1592.ACT_OpenNew) on card1;
+  set (Action: call microflow Bug1592.ACT_OpenNew) on plain1
+};
+
+describe page Bug1592.CardPage;

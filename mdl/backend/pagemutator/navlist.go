@@ -9,7 +9,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // navListItemType is a navigation list's entry. It lives in the list's Items,
@@ -175,8 +175,13 @@ func resolveNavItem(rawData bson.D, find widgetFinder, sel backend.NavItemSelect
 		return nil, fmt.Errorf("%s: navigation list %q not found", sel, sel.List)
 	}
 	if !isNavigationList(list.widget) {
-		return nil, fmt.Errorf("%s: %q is a %s, not a navigation list — `item(…)` and `item@n` address a navigation list's items",
-			sel, sel.List, widgetTypeName(list.widget))
+		// A pluggable widget's object-list item (an Accordion group) has no
+		// name either, and is addressed the same way.
+		if bsonnav.DGetString(list.widget, "$Type") == "CustomWidgets$CustomWidget" {
+			return resolveObjectListItem(list, sel)
+		}
+		return nil, fmt.Errorf("%s: %q is a %s, not a navigation list — `item(…)` and `item@n` address a navigation list's "+
+			"items or a pluggable widget's object-list items", sel, sel.List, widgetTypeName(list.widget))
 	}
 	items := bsonnav.DGetArrayElements(bsonnav.DGet(list.widget, "Items"))
 	var matches []int

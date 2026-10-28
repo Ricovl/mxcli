@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	bsondiscover "github.com/mendixlabs/mxcli/cmd/mxcli/bson"
 	mpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/spf13/cobra"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // discoverCmd is the "bson discover" subcommand for field coverage analysis.
@@ -96,7 +97,7 @@ func runDiscover(cmd *cobra.Command, args []string) {
 // unmarshalBsonFields parses raw BSON bytes into a map.
 func unmarshalBsonFields(contents []byte) (map[string]any, error) {
 	var fields map[string]any
-	if err := bson.Unmarshal(contents, &fields); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &fields); err != nil {
 		return nil, err
 	}
 	return fields, nil

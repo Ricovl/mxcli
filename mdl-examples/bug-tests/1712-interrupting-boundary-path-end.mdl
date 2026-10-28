@@ -1,0 +1,79 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1712 — "Interrupting boundary-event paths are ended with the
+-- non-interrupting end-of-path marker; Studio Pro ends them with an End (or a
+-- jump inside a split)"
+-- ============================================================================
+--
+-- A boundary path that runs to its last activity is ended for the author. It
+-- used to get Mendix's end-of-path marker whatever its kind; Studio Pro writes
+-- that marker only for a NON-interrupting path and ends an interrupting one
+-- with an End. Measured on the 11.13.0 runtime, the two behave alike (instance
+-- Completed, the activity after the task never runs), so this is about the
+-- shape Studio Pro shows. An End under a parallel split is CE1844, so a path
+-- there keeps the marker.
+--
+-- EXPECTED: `mxcli check` passes. After exec, `describe workflow` prints
+-- `end workflow;` as the last statement of Review's interrupting path and of
+-- the event sub-process task's, and nothing after the non-interrupting path or
+-- the interrupting path inside the split. mx check: 0 errors (11.15.0).
+-- Guard: sdk/workflows/workflow_interrupting_end_test.go,
+--        mdl/executor/workflow_interrupting_end_test.go.
+-- ============================================================================
+
+create module BugBoundaryEnd1712;
+
+create persistent entity BugBoundaryEnd1712.Request (
+  Title: String(200)
+);
+
+create page BugBoundaryEnd1712.WF_Review
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+  }
+};
+
+create microflow BugBoundaryEnd1712.ACT_Remind ($Request: BugBoundaryEnd1712.Request)
+begin
+  log info node 'BugBoundaryEnd1712' 'reminder';
+end;
+
+create or modify workflow BugBoundaryEnd1712.WF_Review
+  parameter $Context: BugBoundaryEnd1712.Request
+begin
+  user task Review 'Review' page BugBoundaryEnd1712.WF_Review
+    targeting users xpath [Active = true()]
+    outcomes 'Done' { }
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
+      call microflow BugBoundaryEnd1712.ACT_Remind(Request = $WorkflowContext);
+    }
+    boundary event non interrupting timer addDays([%CurrentDateTime%], 1) {
+      call microflow BugBoundaryEnd1712.ACT_Remind(Request = $WorkflowContext);
+    };
+  parallel split split1
+    path 1 {
+      user task SplitReview 'Split review' page BugBoundaryEnd1712.WF_Review
+        targeting users xpath [Active = true()]
+        outcomes 'Done' { }
+        boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
+          call microflow BugBoundaryEnd1712.ACT_Remind(Request = $WorkflowContext);
+        };
+    }
+    path 2 { call microflow BugBoundaryEnd1712.ACT_Remind(Request = $WorkflowContext); };
+
+  event subprocess ESP_Recheck 'Recheck'
+    on non interrupting notification recheckStart 'Recheck requested' {
+    user task Recheck 'Recheck' page BugBoundaryEnd1712.WF_Review
+      targeting users xpath [Active = true()]
+      outcomes 'Done' { }
+      boundary event interrupting timer addDays([%CurrentDateTime%], 1) {
+        call microflow BugBoundaryEnd1712.ACT_Remind(Request = $WorkflowContext);
+      };
+  };
+end workflow;

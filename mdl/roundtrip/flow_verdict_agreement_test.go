@@ -101,9 +101,9 @@ func agree(t *testing.T, mdl1 bool, v verdicts) bool {
 	return v.execRebuilt
 }
 
-// A statement added inside a stored loop's body: the splice does not edit inside
-// a loop, so exec refuses it under mdl 1 and rebuilds under mdl 0. Before #876
-// check passed it. (This test used the rehearsal's G1 guard-clause shape until
+// A decision added inside a stored loop's body: the splice puts plain
+// activities there only (ako/mxcli#1693), so exec refuses it under mdl 1 and
+// rebuilds under mdl 0. Before #876 check passed it. (This test used the rehearsal's G1 guard-clause shape until
 // #888 made the splice grow a guard.)
 func TestFlowVerdictAgreement_ChangeInsideLoopBody(t *testing.T) {
 	h := newHarness(t)
@@ -126,7 +126,9 @@ begin
   loop $U in $Items
   begin
     set $Out = $Out + ',';
-    set $Out = $Out + $U/Name;
+    if $U/Name != empty then
+      set $Out = $Out + $U/Name;
+    end if;
   end loop;
   return $Out;
 end;
@@ -176,7 +178,9 @@ begin
   loop $U in $Items
   begin
     set $Out = $Out + ',';
-    set $Out = $Out + $U/Name;
+    if $U/Name != empty then
+      set $Out = $Out + $U/Name;
+    end if;
   end loop;
   return $Out;
 end;
@@ -214,10 +218,11 @@ end;
 // TestFlowVerdictAgreement_Corpus: over the Studio Pro-authored flows of PedApp
 // and a subset of TestApp's, check, diff and exec reach the same verdict on
 // each flow's description executed back (which splices: nothing to refuse) and
-// on the description with a statement added inside its first loop body (which
-// the splice cannot make: refused under mdl 1, rebuilt under mdl 0). The
-// second kind is the control: a corpus with no refusal in it would make the
-// agreement vacuous.
+// on the description with a plain activity added inside its first loop body
+// (which splices since ako/mxcli#1693 — on Studio Pro-drawn loop bodies, in
+// TestApp) and with a decision added there (which the splice cannot make:
+// refused under mdl 1, rebuilt under mdl 0). The decision is the control: a
+// corpus with no refusal in it would make the agreement vacuous.
 //
 // PedApp has no flow with a loop, so a fixture scanned in full that has none
 // gets an mxcli-authored one (verdictLoopControl) to probe: without it the
@@ -250,6 +255,10 @@ func TestFlowVerdictAgreement_Corpus(t *testing.T) {
 						i := strings.Index(described, "end loop;")
 						withProbe := described[:i] + "declare $VerdictProbe Integer = 0;\n" + described[i:]
 						if agree(t, mdl1, h.verdictsOf(withProbe)) {
+							refusals++
+						}
+						withDecision := described[:i] + "if true then\ndeclare $VerdictProbe Integer = 0;\nend if;\n" + described[i:]
+						if agree(t, mdl1, h.verdictsOf(withDecision)) {
 							refusals++
 						}
 					})

@@ -1,0 +1,31 @@
+mdl 1;
+-- ako/mxcli#1396 (mendixlabs/mxcli#1514) — a microflow header without its
+-- parameter parentheses. The parentheses are mandatory, even when the list is
+-- empty; the error is that this script is refused.
+--
+-- What changed is HOW it is refused. ANTLR's recovery inserted the `(`, read
+-- `returns` as a parameter name, swallowed the body into its type and closed
+-- the statement early, so `mxcli check` reported
+--
+--   line 1:23 missing '(' at 'returns'
+--   line 1:31 missing ':' at 'Boolean'
+--   line 4:2 extraneous input 'return' expecting the start of a statement
+--
+-- none of them at the mistake. The grammar now accepts the bare header only so
+-- the visitor can refuse it with one error, at the place the `(` belongs:
+--
+--   line 1:23 a microflow header needs its parameter list in parentheses, even
+--   when it is empty — they are not optional: write
+--   `create microflow Bt1396.F () returns Boolean as $b`.
+--
+-- The assertion that survives CI is mdl/visitor/routine_parens_hint_test.go,
+-- which requires exactly one error per shape and that the next statement still
+-- parses.
+
+create module Bt1396;
+
+create microflow Bt1396.F returns Boolean as $b
+begin
+  declare $b Boolean = true;
+  return $b;
+end;

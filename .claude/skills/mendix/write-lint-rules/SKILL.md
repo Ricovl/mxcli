@@ -12,10 +12,10 @@ description: "Write custom Starlark lint rules in .claude/lint-rules/ that run b
 |---|---|
 | 25-67 | Rule File Structure |
 | 68-161 | Available Query Functions |
-| 162-600 | Object Properties |
-| 601-613 | Helper Functions |
-| 614-700 | Common Patterns |
-| 701-710 | Validation |
+| 162-606 | Object Properties |
+| 607-620 | Helper Functions |
+| 621-707 | Common Patterns |
+| 708-716 | Validation |
 
 <!-- /skill-index -->
 # Writing Custom Starlark Lint Rules
@@ -395,15 +395,15 @@ Returned by `parse_xpath(s)`. Every node has a `kind` field; additional fields d
 
 | `kind` | Additional fields | Description |
 |--------|-------------------|-------------|
-| `"bin"` | `op` (string), `left` (expr), `right` (expr) | Binary operator: `=`, `!=`, `<`, `>`, `<=`, `>=`, `and`, `or` |
-| `"unary"` | `op` (string), `operand` (expr) | Unary operator: `not`, `-` |
+| `"bin"` | `op` (string), `left` (expr), `right` (expr) | Binary operator: `=`, `!=`, `<`, `>`, `<=`, `>=`, `AND`, `OR` — the logical ones upper-case |
+| `"unary"` | `op` (string), `operand` (expr) | Unary operator: `NOT`, `-`. XPath `not(…)` is a unary `NOT` whose operand is a `paren`, not a `call` |
 | `"call"` | `name` (string), `args` (list of expr) | Function call, e.g. `contains(…)`, `length(…)` |
 | `"string"` | `value` (string) | String literal |
 | `"number"` | `value` (string) | Numeric literal (kept as string to preserve precision) |
 | `"bool"` | `value` (bool) | `true` or `false` |
 | `"empty"` | — | Mendix `empty` keyword |
 | `"variable"` | `name` (string) | `$ParameterName` |
-| `"attr_path"` | `variable` (string), `path` (list of string) | `$Obj/Association/Attribute` |
+| `"attr_path"` | `variable` (string), `path` (list of string), `predicates` (list of expr) | `$Obj/Association/Attribute`, or an XPath path from the queried entity, `Mod.Assoc/Mod.Entity/Attr`, whose `variable` is `""`. `predicates[i]` is the `[…]` on `path[i]` (`Mod.Assoc/Mod.Entity[Code = 'x']/Name`), kind `"null"` where there is none |
 | `"qname"` | `module` (string), `name` (string), `sub` (string) | Qualified name, e.g. `MyApp.Status.Active` |
 | `"paren"` | `inner` (expr) | Parenthesised expression |
 | `"if"` | `cond` (expr), `then` (expr), `else_` (expr) | If-then-else expression |
@@ -413,31 +413,32 @@ Returned by `parse_xpath(s)`. Every node has a `kind` field; additional fields d
 | `"null"` | — | Nil / missing node |
 | `"unknown"` | — | Unrecognised AST node type |
 
-**Walking an expr tree:** check `node.kind` and recurse into child fields. Leaf kinds (no child nodes) are: `string`, `number`, `bool`, `empty`, `variable`, `qname`, `constant`, `token`, `recovered`, `null`, `unknown`.
+**Walking an expr tree:** check `node.kind` and recurse into child fields — recursion is allowed in lint rules. Leaf kinds (no child nodes) are: `string`, `number`, `bool`, `empty`, `variable`, `qname`, `constant`, `token`, `recovered`, `null`, `unknown`. An `attr_path` has children only in its `predicates`.
 
 Example — count `not(…)` calls in an XPath (using `parse_xpath`):
 
 ```python
 def count_not(node):
-    if node.kind in ("null", "unknown", "recovered", "string", "number",
-                     "bool", "empty", "variable", "qname", "constant", "token"):
-        return 0
-    if node.kind == "call" and node.name == "not":
-        return 1 + sum([count_not(a) for a in node.args])
-    if node.kind == "call":
-        return sum([count_not(a) for a in node.args])
+    if node.kind == "unary":
+        return (1 if node.op == "NOT" else 0) + count_not(node.operand)
     if node.kind == "bin":
         return count_not(node.left) + count_not(node.right)
-    if node.kind == "unary":
-        return count_not(node.operand)
     if node.kind == "paren":
         return count_not(node.inner)
     if node.kind == "if":
         return count_not(node.cond) + count_not(node.then) + count_not(node.else_)
+    children = []
+    if node.kind == "call":
+        children = node.args
     if node.kind == "attr_path":
-        return 0
-    return 0
+        children = node.predicates
+    n = 0
+    for c in children:
+        n += count_not(c)
+    return n
 ```
+
+(Starlark has no `sum`; add in a loop.)
 
 ### attribute
 | Property | Type | Example |
@@ -520,12 +521,12 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 
 | Property | Type | Example |
 |----------|------|---------|
-| `module_role_name` | string | `"Admin"` |
-| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
+| `module_role_name` | string | `"Sales.Admin"` — qualified, so it compares directly against `user_role.module_roles` |
+| `element_type` | string | `"ENTITY"`, `"MICROFLOW"`, `"NANOFLOW"`, `"PAGE"`, `"ODATA_SERVICE"` (from `permissions()` only) |
 | `element_name` | string | `"Sales.Customer"` |
 | `module_name` | string | `"Sales"` |
 | `entity_name` | string | `"Sales.Customer"` (from `permissions_for()` only) |
-| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
+| `access_type` | string | `"CREATE"`, `"READ"`, `"WRITE"`, `"DELETE"` (entity), `"EXECUTE"` (microflow, nanoflow), `"VIEW"` (page), `"ACCESS"` (OData service), `"MEMBER_READ"`, `"MEMBER_WRITE"` |
 | `member_name` | string | Attribute name (for MEMBER_READ/MEMBER_WRITE) |
 | `xpath_constraint` | string | XPath constraint or empty |
 | `is_constrained` | bool | True if XPath constraint is set |
@@ -535,8 +536,13 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | Property | Type | Example |
 |----------|------|---------|
 | `name` | string | `"Administrator"` |
+| `description` | string | The role's documentation in Project Security; `""` when none |
 | `is_anonymous` | bool | True if this is the anonymous/guest role |
 | `module_roles` | list of string | `["Sales.Admin", "HR.Viewer"]` |
+| `check_security` | bool | Studio Pro's per-role "Check security" flag |
+| `manage_all_roles` | bool | The role may hand out every user role |
+| `manage_users_without_roles` | bool | The role may manage users that have no role |
+| `manageable_roles` | list of string | The user roles this role may hand out, when not all |
 
 ### module_role
 | Property | Type | Example |
@@ -555,13 +561,13 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 ### reference
 | Property | Type | Example |
 |----------|------|---------|
-| `source_type` | string | The document the edge comes FROM, upper-case: `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"SNIPPET"`, `"ENTITY"`, `"ASSOCIATION"`, `"WORKFLOW"`, `"NAVIGATION"`, `"SCHEDULED_EVENT"`, `"PUBLISHED_REST_OPERATION"`, `"PROJECT_SETTINGS"`, `"IMPORT_MAPPING"`, `"EXPORT_MAPPING"` |
+| `source_type` | string | The document the edge comes FROM, upper-case: `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"SNIPPET"`, `"ENTITY"`, `"ASSOCIATION"`, `"WORKFLOW"`, `"NAVIGATION"`, `"SCHEDULED_EVENT"`, `"PUBLISHED_REST_OPERATION"`, `"PUBLISHED_REST_SERVICE"`, `"PUBLISHED_ODATA_SERVICE"`, `"CONSUMED_ODATA_SERVICE"`, `"BUSINESS_EVENT_SERVICE"`, `"PROJECT_SETTINGS"`, `"IMPORT_MAPPING"`, `"EXPORT_MAPPING"` |
 | `source_id` | string | Source UUID |
 | `source_name` | string | `"Sales.ACT_Customer_Create"` |
-| `target_type` | string | What it points AT, upper-case: `"ENTITY"`, `"ASSOCIATION"`, `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"LAYOUT"`, `"WORKFLOW"`, `"WIDGET"`, `"JAVA_ACTION"`, `"JAVASCRIPT_ACTION"`, `"REST_OPERATION"`, `"REGULAR_EXPRESSION"`, `"ATTRIBUTE"`, `"ENUMERATION"`, `"ENUMERATION_VALUE"`. `LAYOUT`, `WIDGET`, `ATTRIBUTE`, `ENUMERATION` and `ENUMERATION_VALUE` are only ever targets; `SCHEDULED_EVENT` and `PROJECT_SETTINGS` only ever sources |
+| `target_type` | string | What it points AT, upper-case: `"ENTITY"`, `"ASSOCIATION"`, `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"LAYOUT"`, `"WORKFLOW"`, `"WIDGET"`, `"JAVA_ACTION"`, `"JAVASCRIPT_ACTION"`, `"REST_OPERATION"`, `"REGULAR_EXPRESSION"`, `"ATTRIBUTE"`, `"ENUMERATION"`, `"ENUMERATION_VALUE"`. `LAYOUT`, `WIDGET`, `ATTRIBUTE`, `ENUMERATION` and `ENUMERATION_VALUE` are only ever targets; `SCHEDULED_EVENT`, `PROJECT_SETTINGS` and the service types only ever sources |
 | `target_id` | string | Target UUID |
 | `target_name` | string | `"Sales.Customer"`; three-part for an attribute or an enumeration value: `"Sales.Order.Total"`, `"Sales.OrderStatus.Open"` |
-| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"commit"` (a commit action, or a create/change that commits — beside its `"create"`/`"change"` edge; a commit of a variable whose entity the flow cannot tell has no edge), `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"`, `"event"`, `"member"` (binds/reads/writes an attribute or navigates an association), `"xpath"` (an XPath constraint names it), `"type"` (typed as an enumeration), `"value"` (an expression names an enumeration value), `"mapping"` (an import/export mapping maps the entity) — lower-case, unlike the types above. Attribute names used only through a variable in a free-text expression (`$Order/Total`) have no edge |
+| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"commit"` (a commit action, or a create/change that commits — beside its `"create"`/`"change"` edge; a commit of a variable whose entity the flow cannot tell has no edge), `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"` (a published REST operation, OData resource or action, or a service's authentication microflow), `"event"` (an entity event or a business event handler), `"member"` (binds/reads/writes an attribute or navigates an association), `"xpath"` (an XPath constraint names it), `"type"` (typed as an enumeration), `"value"` (an expression names an enumeration value), `"mapping"` (an import/export mapping maps the entity) — lower-case, unlike the types above. Attribute names used only through a variable in a free-text expression (`$Order/Total`) have no edge |
 | `module_name` | string | Source module |
 
 ### project_security
@@ -608,7 +614,8 @@ Returned by `languages()`, one per language enabled in the project settings. A p
 | `is_pascal_case(s)` | Returns True if string is PascalCase |
 | `is_camel_case(s)` | Returns True if string is camelCase |
 | `matches(s, pattern)` | Returns True if string matches regex |
-| `get_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset |
+| `find_all(s, pattern)` | Every match of the regex in `s`: a tuple of the capture groups per match, or the matched string when the pattern has no groups |
+| `get_option(key, default?)` / `get_list_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset. YAML lists and maps arrive as lists and dicts. `get_list_option` returns a list of strings from a YAML list or comma-separated text (`"ACT_, SUB_"`) — use it, not a constant list a project would have to edit (`mxcli init` rewrites shipped rules). A value of the wrong shape is reported as a warning and yields `default` |
 | `struct(**kwargs)` | Build an ad-hoc struct, e.g. `struct(name="x", count=1)`, to group values inside a rule |
 
 ## Common Patterns
@@ -701,7 +708,6 @@ def check():
 ## Validation
 
 Test your rule by running the linter:
-
 ```bash
 mxcli lint -p app.mpr --list-rules   # Verify rule is loaded
 mxcli lint -p app.mpr                 # run all rules including yours

@@ -11,8 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Identities maps an element's path within its module to the `GUID` the stored
@@ -119,7 +118,7 @@ func nameAndGUID(d bson.D) (name string, guid []byte, hasGUID bool) {
 				name = s
 			}
 		case "GUID":
-			if b, ok := e.Value.(primitive.Binary); ok && len(b.Data) > 0 {
+			if b, ok := e.Value.(bson.Binary); ok && len(b.Data) > 0 {
 				guid, hasGUID = b.Data, true
 			}
 		}
@@ -286,9 +285,9 @@ func applyIdentities(v any, trail []string, ids Identities, placed map[string]bo
 						if e.Key != "GUID" {
 							continue
 						}
-						b := e.Value.(primitive.Binary)
+						b := e.Value.(bson.Binary)
 						if !bytesEqual(b.Data, want) {
-							t[i].Value = primitive.Binary{Subtype: b.Subtype, Data: append([]byte{}, want...)}
+							t[i].Value = bson.Binary{Subtype: b.Subtype, Data: append([]byte{}, want...)}
 							changed++
 						}
 						break

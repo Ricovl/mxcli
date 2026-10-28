@@ -73,11 +73,11 @@ func (b *Backend) CreateWorkflow(wf *workflows.Workflow) error {
 // stable. exportLevel and overviewPage are not reapplied (no settable PED path, as
 // in ALTER WORKFLOW).
 func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
-	mod, err := b.GetModule(wf.ContainerID)
+	modName, err := b.moduleNameForContainer(wf.ContainerID)
 	if err != nil {
 		return fmt.Errorf("resolve module for workflow %q: %w", wf.Name, err)
 	}
-	qn := mod.Name + "." + wf.Name
+	qn := modName + "." + wf.Name
 
 	flowVal, err := b.mapWorkflowFlow(wf.Flow)
 	if err != nil {
@@ -192,7 +192,7 @@ func (b *Backend) UpdateWorkflow(wf *workflows.Workflow) error {
 	if err := b.applyTimerBoundaryEvents(qn, wf, order); err != nil {
 		return err
 	}
-	b.markDirty(mod.Name)
+	b.markDirty(modName)
 	b.upsertSessionWorkflow(wf)
 	return b.pedCheckDocument(workflowDocType, qn)
 }
@@ -418,6 +418,9 @@ func (b *Backend) mapWorkflow(wf *workflows.Workflow) (map[string]any, error) {
 // in the context shape (Studio Pro 11.14: `context`, `caption`, string
 // `workflowName`) or the parameter-element shape older servers take.
 func (b *Backend) mapWorkflowContent(wf *workflows.Workflow, contextShape bool) (map[string]any, error) {
+	if len(wf.WorkflowNameParams)+len(wf.WorkflowDescriptionParams) > 0 {
+		return nil, errMCPTemplateParams("the workflow's display or description")
+	}
 	flow, err := b.mapWorkflowFlow(wf.Flow)
 	if err != nil {
 		return nil, err
@@ -986,6 +989,9 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 	case *workflows.NotificationActivity:
 		return map[string]any{"$Type": "Workflows$NotificationActivity", "name": act.Name, "caption": act.Caption}, nil
 	case *workflows.EventSubProcessStartActivity:
+		if act.Recurrence != nil {
+			return nil, errMCPRecurrence("event sub-process start " + act.Name)
+		}
 		m := map[string]any{"$Type": act.StorageType(), "name": act.Name, "caption": act.Caption}
 		if act.Timer {
 			m["firstExecutionTime"] = act.FirstExecutionTime
@@ -1097,6 +1103,9 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 			"outcomes":   outcomes,
 		}, nil
 	case *workflows.UserTask:
+		if len(act.TaskNameParams)+len(act.TaskDescriptionParams) > 0 {
+			return nil, errMCPTemplateParams(fmt.Sprintf("user task %q's task name or description", act.Name))
+		}
 		bevents, err := mapBoundaryEvents(act.BoundaryEvents)
 		if err != nil {
 			return nil, err
@@ -1131,6 +1140,10 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"outcomes":          vals,
 			}
 			mapMultiUserTaskCompletion(m, act, vals)
+			// Sent only when on, like awaitAllUsers: off is the constructor's default.
+			if act.AutoAssignSingleTargetUser {
+				m["autoAssignSingleTargetUser"] = true
+			}
 		} else {
 			outcomes, err := mapUserTaskOutcomes(act.Outcomes)
 			if err != nil {
@@ -1147,7 +1160,7 @@ func mapWorkflowActivity(a workflows.WorkflowActivity) (map[string]any, error) {
 				"userTargeting":              mapUserTargeting(act.UserSource),
 				"onCreatedEvent":             mapOnCreatedEvent(act.OnCreated),
 				"outcomes":                   outcomes,
-				"autoAssignSingleTargetUser": false,
+				"autoAssignSingleTargetUser": act.AutoAssignSingleTargetUser,
 			}
 		}
 		if bevents != nil {
@@ -1750,17 +1763,29 @@ func (m *mcpWorkflowMutator) apply(ops ...pedOpEntry) error {
 // PED forbids replacing a nested element wholesale, so a property whose change
 // would swap an element's *kind* (e.g. switching user targeting from XPath to
 // Microflow) is rejected rather than silently dropped.
+// SetTemplateParameters: PED's list editing for a template's parameters has
+// not been measured, so a text with parameters is refused rather than written
+// without them (ako/mxcli#1714). Setting a text without parameters is a no-op
+// here; one the stored text already had is left as it was.
+func (m *mcpWorkflowMutator) SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error {
+	if len(params) == 0 {
+		return nil
+	}
+	return fmt.Errorf("ALTER WORKFLOW: a %s with template parameters (`with ({1} = …)`) is not supported by the MCP backend yet", prop)
+}
+
 func (m *mcpWorkflowMutator) SetActivityProperty(activityRef string, atPos int, prop, value string) error {
 	// Reject an unsupported property before the (live) index resolution.
 	leaf := map[string]string{
 		"page":        "/taskPage/page",
 		"description": "/taskDescription/text",
+		"task_name":   "/taskName/text",
 		"due_date":    "/dueDate",
 	}[strings.ToLower(prop)]
 	switch strings.ToLower(prop) {
-	case "page", "description", "due_date", "targeting_microflow", "targeting_xpath":
+	case "page", "description", "task_name", "due_date", "targeting_microflow", "targeting_xpath":
 	default:
-		return fmt.Errorf("ALTER WORKFLOW set activity %s is not supported by the MCP backend (supported: page, description, due_date, targeting_microflow, targeting_xpath)", prop)
+		return fmt.Errorf("ALTER WORKFLOW set activity %s is not supported by the MCP backend (supported: page, description, task_name, due_date, targeting_microflow, targeting_xpath)", prop)
 	}
 	loc, err := m.resolve(activityRef, atPos)
 	if err != nil {
@@ -2012,7 +2037,7 @@ func (m *mcpWorkflowMutator) DropBranch(activityRef string, atPos int, branchNam
 
 // InsertBoundaryEvent attaches a (non-)interrupting timer boundary event, with an
 // optional handler sub-flow, to a user task or call-microflow activity.
-func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay string, activities []workflows.WorkflowActivity) error {
+func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, eventType, delay, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	loc, err := m.resolveMember(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -2025,7 +2050,7 @@ func (m *mcpWorkflowMutator) InsertBoundaryEvent(activityRef string, atPos int, 
 		return ""
 	}).Activities
 	wfnames.Dedup(activities, loc.taken)
-	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay}
+	be := &workflows.BoundaryEvent{EventType: eventType, TimerDelay: delay, Caption: caption, Recurrence: recurrence}
 	if be.IsNotification() {
 		// The op carries no name, and a notification event is reached by its name.
 		return fmt.Errorf("insert boundary event: %q boundary events cannot be inserted by ALTER WORKFLOW", eventType)
@@ -2245,7 +2270,10 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 		}
 		return el, nil
 	}
-	el := map[string]any{"$Type": typeName, "caption": ""}
+	if be.Recurrence != nil {
+		return nil, errMCPRecurrence("a boundary event")
+	}
+	el := map[string]any{"$Type": typeName, "caption": be.Caption}
 	switch typeName {
 	case "Workflows$InterruptingTimerBoundaryEvent":
 		el["isInsideOfParallelSplit"] = false
@@ -2253,4 +2281,21 @@ func boundaryEventElement(be *workflows.BoundaryEvent) (map[string]any, error) {
 		el["recurrence"] = nil
 	}
 	return el, nil
+}
+
+// errMCPTemplateParams refuses a workflow text with template parameters over
+// MCP: how PED takes a StringTemplate's parameter list has not been measured,
+// and writing the text without them would drop them silently (ako/mxcli#1714).
+func errMCPTemplateParams(what string) error {
+	return fmt.Errorf("%s has template parameters (`with ({1} = …)`), which the MCP backend cannot write yet — "+
+		"create the workflow without --mcp, or set the parameters in Studio Pro", what)
+}
+
+// errMCPRecurrence refuses a recurring timer over MCP: PED's timer constructors
+// drop properties they do not take (firstExecutionTime, measured on 11.14), and
+// whether they take a recurrence is unmeasured — writing the timer without it
+// would make a repeating reminder fire once (ako/mxcli#1716).
+func errMCPRecurrence(what string) error {
+	return fmt.Errorf("%s repeats (`repeat every …`), which the MCP backend cannot write yet — "+
+		"create the workflow without --mcp, or set the recurrence in Studio Pro", what)
 }

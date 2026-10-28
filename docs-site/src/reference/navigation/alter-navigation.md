@@ -2,177 +2,204 @@
 
 ## Synopsis
 
-```sql
-CREATE OR REPLACE NAVIGATION profile
-    HOME { PAGE module.PageName | MICROFLOW module.Flow | NANOFLOW module.Flow }
-    [ HOME { PAGE | MICROFLOW | NANOFLOW } module.Name FOR UserRole ]
-    [ LOGIN PAGE module.PageName ]
-    [ NOT FOUND PAGE module.PageName ]
-    [ ON SYNC ERROR { THROW | CONTINUE } ]
-    [ SYNC (
-        sync_rules
-    ) ]
-    [ {
-        menu_items
-    } ]
+```text
+ALTER NAVIGATION profile {
+    item_operation | page_clause_operation
+    [ ... ]
+};
+
+-- item_operation
+INSERT { BEFORE | AFTER | INTO } item { menu_items }
+INSERT { menu_items }
+REPLACE item WITH { menu_items }
+MOVE item { BEFORE | AFTER | INTO } item
+DROP item [, item ...]
+SET ( [ Caption: 'text' ] [, OnClick: action | NOTHING ] [, Icon: icon | NONE ] ) ON item
+
+-- page_clause_operation
+SET HOME { PAGE | MICROFLOW } module.Name [ FOR UserRole ]
+DROP HOME PAGE FOR UserRole
+SET LOGIN PAGE module.Page
+DROP LOGIN PAGE
+SET NOT FOUND PAGE module.Page
+DROP NOT FOUND PAGE
+
+-- item
+'caption' [ @n ] [ > 'caption' [ @n ] ... ]
 ```
 
 ## Description
 
-Creates or replaces a navigation profile. Each profile defines the home page, optional role-specific home pages, optional login page, optional 404 page, and a hierarchical menu structure.
+Edits one web navigation profile in place: its menu items at any depth, and its
+home, login and not-found pages. Where
+[CREATE OR MODIFY NAVIGATION](create-navigation.md) replaces the whole menu with
+the `{ }` block it is given, `ALTER NAVIGATION` changes only what it names. Adding
+one item does not mean restating the menu, an item someone added in Studio Pro
+meanwhile is kept, and nothing the statement does not name is re-validated.
 
-The statement fully replaces the existing profile configuration. To modify only part of a profile's navigation, use DESCRIBE NAVIGATION to export the current configuration, edit the MDL, and re-execute.
+The operations apply in order to the stored profile, each one against the menu as
+the operations before it left it, so an item inserted by one operation can be the
+target of the next. The statement is written once: if any operation is refused,
+nothing is written.
 
-### Profile Types
+The same item operations apply to a menu document with
+[ALTER MENU](menu.md).
 
-Mendix supports the following navigation profile types:
+### Addressing an item
 
-| Profile | Description |
-|---------|-------------|
-| `Responsive` | Web browser (desktop and mobile responsive) |
-| `Tablet` | Tablet-optimized web |
-| `Phone` | Phone-optimized web |
-| `ResponsiveOffline` | Responsive web, offline-capable (PWA) |
-| `TabletOffline` | Tablet web, offline-capable (PWA) |
-| `PhoneOffline` | Phone web, offline-capable (PWA) |
-| `NativePhone` | Native mobile application |
+A menu item has no name, so it is addressed by the caption `DESCRIBE NAVIGATION`
+prints for it, written as a path from outer to inner:
 
-The web kinds are a closed set, and the profile is **created** if the project
-does not have it yet. The three offline kinds are the online names plus
-`Offline`, and each one needs a [`SYNC` block](#offline-synchronization) to
-download anything.
+| Address | Means |
+|---|---|
+| `'Users'` | the item captioned `Users`, anywhere in the menu |
+| `'Admin' > 'Users'` | `Users` directly under `Admin` |
+| `'Settings' > 'Admin' > 'Users'` | the same, one level further out |
+| `'Users'@2` | the 2nd item captioned `Users`, in describe order |
+| `'Admin'@2 > 'Users'` | `Users` under the 2nd item captioned `Admin` |
+| `''@2` | the 2nd item with an empty caption (an icon-only item) |
 
-### Menu Items
+- Captions compare exactly, case included, with the caption `DESCRIBE` prints —
+  the project's default language, as for a page's texts.
+- A path matches as a **suffix**: the first segment matches at any depth, and
+  each `>` is one **direct** parent/child step.
+- `@n` belongs to the segment it follows and picks the n-th of that segment's
+  matches in describe order.
+- An address that matches nothing, or several items, is refused. The error for
+  an ambiguous address lists the shortest address of every candidate:
 
-Menu items form a hierarchy. They are the profile's children, in `{ ... }` after its clauses, like a page's widgets. Top-level items appear in the main navigation bar. Nested submenus are created with the `MENU 'label' { ... }` syntax.
+  ```
+  menu item 'Users' is ambiguous: it matches 2 items — write one of these:
+    'Admin' > 'Users'
+    'Reports' > 'Users'
+  ```
 
-Each `MENU ITEM` specifies a label and, in its property list, an action and an icon: `MENU ITEM 'Home' ( OnClick: SHOW PAGE M.Home, Icon: Atlas_Core.Atlas.home )`. A child ends in `)` or `}`, so no separator is written between items.
+- There are no positional addresses. [`LIST NAVIGATION MENU`](list-navigation.md)
+  prints the address of every item.
 
-The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still parses and warns (MDL-DEPR121, MDL-DEPR122); `mxcli fmt --upgrade` rewrites it.
+### Item operations
+
+`INSERT BEFORE | AFTER item { … }`
+:   Places the items as siblings of `item`.
+
+`INSERT INTO item { … }`
+:   Appends them as `item`'s last sub-items. `item` must have no action
+    (Mendix CE0548); use `SET ( OnClick: NOTHING ) ON item` first.
+
+`INSERT { … }`
+:   Appends them to the top level. This is also how to add to an empty menu.
+
+`REPLACE item WITH { … }`
+:   Puts the items where `item` was; its sub-items go with it unless the new
+    items state them again. A replacement keeps the other-language translations
+    of a caption it does not change.
+
+`MOVE item BEFORE | AFTER | INTO item`
+:   Moves the stored item itself — its sub-items, every caption translation and
+    any action MDL cannot spell go with it. Moving an item into its own
+    sub-items is refused.
+
+`DROP item, …`
+:   Removes each item and its sub-items.
+
+`SET ( … ) ON item`
+:   Changes only the keys written. `Caption:` writes the project's default
+    language and keeps the other translations. `OnClick:` takes the action
+    expression a menu item takes in `CREATE NAVIGATION`; `NOTHING` stores
+    Studio Pro's "Do nothing", the only action an item with sub-items may have.
+    `Icon:` takes an icon-collection name, `GLYPH n` or `IMAGE module.Images.name`,
+    or `NONE` for no icon.
+
+The `{ menu_items }` of `INSERT` and `REPLACE` are written exactly as in
+`CREATE NAVIGATION`, so a line `DESCRIBE NAVIGATION` printed can be pasted in.
+
+### Page clause operations
+
+Each is the `CREATE NAVIGATION` clause after `SET` or `DROP`.
+
+| Operation | Effect |
+|---|---|
+| `SET HOME PAGE M.P` / `SET HOME MICROFLOW M.F` | the default home |
+| `SET HOME PAGE M.P FOR Role` | that user role's home; other roles keep theirs |
+| `DROP HOME PAGE FOR Role` | removes that role's home, page or microflow |
+| `SET LOGIN PAGE M.P` / `DROP LOGIN PAGE` | sets or clears the login page |
+| `SET NOT FOUND PAGE M.P` / `DROP NOT FOUND PAGE` | sets or clears the fallback page |
+
+There is no `DROP HOME PAGE` without `FOR`: a web profile needs a default home
+page (Mendix CE0527), so `SET HOME PAGE` changes it instead. `FOR` takes a bare
+user role, as in `CREATE NAVIGATION`.
+
+### What is refused
+
+- an address that matches nothing or several items, or an `@n` beyond the matches;
+- `INSERT INTO` or `MOVE … INTO` an item with an action, and an `OnClick:` other
+  than `NOTHING` on an item with sub-items (CE0548);
+- `DROP HOME PAGE` without `FOR` (CE0527), and `DROP HOME PAGE FOR` a role that
+  has none;
+- a native profile — its bottom bar is not written by mxcli; set its home pages
+  with `CREATE OR MODIFY NAVIGATION`;
+- a profile the project does not have — `CREATE OR MODIFY NAVIGATION` adds one.
+
+`mxcli check script.mdl -p app.mpr --references` resolves every address against
+the stored menu with the same code `exec` runs and reports the same refusals.
 
 ## Parameters
 
 `profile`
-:   The navigation profile type — see [Profile Types](#profile-types). One of
-    `Responsive`, `Tablet`, `Phone`, `ResponsiveOffline`, `TabletOffline`,
-    `PhoneOffline` or `NativePhone`.
-
-`HOME PAGE module.PageName`
-:   The default home page for the profile. Required. The page must already exist.
-
-`HOME MICROFLOW module.Flow` / `HOME NANOFLOW module.Flow`
-:   A flow run as the home instead of a page: a microflow on a web profile, a
-    nanoflow on a native one. Each is refused on the other kind of profile
-    (`HOME MICROFLOW` on a native profile, which DESCRIBE used to print for its
-    nanoflow home, still runs with a warning).
-
-`HOME PAGE module.PageName FOR UserRole`
-:   Optional role-specific home page. Users with this role see a different home page than the default. Multiple role-specific home pages can be specified.
-
-    The role is a **user role**, written as a bare name (`FOR Administrator`). User roles are project-level and have no module part. A module-qualified name here — a module role, which often shares the name — produces a project Mendix cannot load: `StorageLoadException: … is not a valid UserRoleIdentifier`, raised before checking runs. `mxcli check --references` refuses it.
-
-`LOGIN PAGE module.PageName`
-:   Optional custom login page. If omitted, the default system login page is used.
-
-`NOT FOUND PAGE module.PageName`
-:   Optional custom 404 page shown when a requested page is not found.
-
-`{ menu_items }`
-:   Optional menu structure. Contains `MENU ITEM` and nested `MENU` entries. An empty `{ }` clears the menu; omitting the block leaves it alone.
-
-`MENU ITEM 'label' ( OnClick: action, Icon: icon )`
-:   A leaf menu item. `OnClick` is `SHOW PAGE module.PageName`, `CALL MICROFLOW module.Microflow`, `CALL NANOFLOW module.Nanoflow`, `OPEN LINK 'url'`, `CREATE OBJECT module.Entity [THEN SHOW PAGE module.PageName]`, `SIGN OUT` or `NOTHING`, with a button action's `WITH ( … )` settings; `Icon` is `Module.Collection.icon`, `GLYPH n` or `IMAGE Module.Images.name`. Both are optional. DESCRIBE prints every stored action this way, and flags what it cannot spell (a page title override, a link type other than Web), which a rewrite keeps while the item is unchanged.
-
-`MENU 'label' [( Icon: icon )] { ... }`
-:   A submenu containing nested menu items and/or further submenus.
-
-### Offline Synchronization
-
-`SYNC ( ... )` configures which entities an offline profile downloads. **An
-offline profile downloads nothing without it** — the app builds, routes and
-installs as a PWA, and shows an empty screen.
-
-```sql
-SYNC (
-    SYNC Sales.Setting ONLINE;
-    SYNC Sales.Order ALL;
-    SYNC Sales.Trip WHERE [Distance > 0];
-    SYNC Sales.Audit NEVER;
-    SYNC Sales.Lookup NONE;
-    SYNC Sales.Draft NONE PRESERVE DATA;
-)
-```
-
-| Mode | Meaning |
-|------|---------|
-| `ONLINE` | Fetched from the server; never held on the device |
-| `ALL` | Every object downloaded |
-| `WHERE [ xpath ]` | Only the objects the XPath selects |
-| `NEVER` | Not synchronized |
-| `NONE` | Not downloaded; anything already on the device is dropped |
-| `NONE PRESERVE DATA` | Not downloaded; what is on the device stays |
-
-These are the values Mendix stores, **not** the captions Studio Pro shows in
-its *Customize offline synchronization* dialog: its "All Objects" is `ALL` and
-its "By XPath" is `WHERE`. A caption is refused rather than written.
-
-`WHERE` implies the constrained mode rather than naming it, so a constraint
-without a mode and a mode without a constraint are both unspellable. The XPath
-goes in **brackets** and is taken verbatim — nothing inside is escaped. A
-quoted `WHERE 'xpath'` still parses, but every quote inside it must be doubled.
-
-The block replaces the stored list, the way `MENU` replaces the menu. Omitting
-it leaves the stored configuration alone.
-
-`ON SYNC ERROR THROW | CONTINUE` is Studio Pro's *"Throw error when server
-rejects objects during synchronization"*, and defaults to `THROW`. It reuses the
-phrase MDL already has for failure handling — a microflow's `ON ERROR CONTINUE`
-— rather than introducing a keyword of its own. Omitting the clause leaves the
-stored value alone, and `DESCRIBE NAVIGATION` emits it only when it is not the
-default.
-
-An entity's *compatibility mode* flag has no MDL syntax. It is read, preserved
-across a rewrite, and reported by `DESCRIBE NAVIGATION` — never silently
-dropped.
+:   A web navigation profile the project has: `Responsive`, `Phone`, `Tablet` or
+    one of their `Offline` kinds.
 
 ## Examples
 
-Minimal navigation with just a home page:
+Given the menu `DESCRIBE NAVIGATION Responsive` prints:
 
 ```sql
 CREATE OR MODIFY NAVIGATION Responsive
-    HOME PAGE MyModule.Home_Web;
-```
-
-Full navigation with role-specific homes and menus:
-
-```sql
-CREATE OR MODIFY NAVIGATION Responsive
-    HOME PAGE MyModule.Home_Web
-    HOME PAGE MyModule.AdminHome FOR Administrator
+    HOME PAGE Shop.Home_Web
+    HOME PAGE Shop.AdminHome FOR Administrator
     LOGIN PAGE Administration.Login
-    NOT FOUND PAGE MyModule.Custom404
-    {
-        MENU ITEM 'Home' ( OnClick: SHOW PAGE MyModule.Home_Web )
-        MENU 'Admin' {
-            MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
-            MENU ITEM 'Settings' ( OnClick: SHOW PAGE MyModule.Settings )
-        }
-        MENU ITEM 'About' ( OnClick: SHOW PAGE MyModule.About )
-    };
+    NOT FOUND PAGE Shop.NotFound
+{
+    MENU ITEM 'Home' ( OnClick: SHOW PAGE Shop.Home_Web )
+    MENU 'Admin' {
+        MENU ITEM 'Users' ( OnClick: SHOW PAGE Administration.Account_Overview )
+        MENU ITEM 'Old import' ( OnClick: CALL MICROFLOW Shop.ACT_LegacyImport )
+    }
+    MENU 'Reports' {
+        MENU ITEM 'Users' ( OnClick: SHOW PAGE Shop.Report_Users )
+    }
+    MENU ITEM 'Help' ( OnClick: OPEN LINK 'https://example.com/help' )
+    MENU ITEM 'Log out' ( OnClick: SIGN OUT )
+};
 ```
 
-Native mobile navigation. A native profile's home is a page or a nanoflow
-(`HOME NANOFLOW`); mxcli writes its home pages and `SYNC` block only, and refuses a
-`{ }` menu block (the bottom bar), `LOGIN PAGE`, `NOT FOUND PAGE` and `ON SYNC ERROR`
-on one — set those in Studio Pro. DESCRIBE lists the bottom bar as comments:
+one statement makes several unrelated edits and touches nothing else:
 
 ```sql
-CREATE OR MODIFY NAVIGATION NativePhone
-    HOME NANOFLOW Mobile.NAV_Home
-    HOME PAGE Mobile.Dashboard FOR User;
+ALTER NAVIGATION Responsive {
+    INSERT AFTER 'Home' {
+        MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview )
+    }
+    INSERT INTO 'Admin' {
+        MENU ITEM 'Audit log' ( OnClick: SHOW PAGE Shop.AuditLog_Overview )
+    }
+    SET ( Caption: 'User accounts' ) ON 'Admin' > 'Users';
+    REPLACE 'Help' WITH {
+        MENU 'Help' {
+            MENU ITEM 'Documentation' ( OnClick: OPEN LINK 'https://example.com/docs' )
+            MENU ITEM 'Contact' ( OnClick: SHOW PAGE Shop.Contact )
+        }
+    }
+    MOVE 'Log out' AFTER 'Help';
+    DROP 'Old import';
+    SET LOGIN PAGE Shop.CustomLogin;
+    DROP NOT FOUND PAGE;
+};
 ```
+
+A bare `'Users'` in that statement would be refused: it matches two items.
 
 ## See Also
 
-[LIST NAVIGATION](list-navigation.md)
+[CREATE NAVIGATION](create-navigation.md), [LIST NAVIGATION](list-navigation.md),
+[CREATE MENU](menu.md)

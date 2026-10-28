@@ -1,0 +1,75 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1710 — "check --references: warn when a user task's page has no
+-- way to complete one of its outcomes"
+-- ============================================================================
+--
+-- A task page is where a user finishes a task, and Mendix adds no buttons to
+-- it. A page that only shows the task passes check, mx check and the build,
+-- and every instance waits at the task — an agent eval generated three.
+-- `mxcli check` now warns MDL-WF20 for each task whose page cannot complete one
+-- of its outcomes, with a `complete task` button or through a microflow that
+-- reaches `set task outcome`. It reads a page stored in the project under -p.
+--
+-- EXPECTED: `mxcli check` passes with exactly one MDL-WF20 warning, on
+-- BugTaskPage1710.WF_Review, naming the outcome 'Reject' (WF_Approve's page has
+-- a button per outcome, through a microflow for 'Reject').
+-- Guard: mdl/executor/validate_task_page_outcomes_test.go.
+-- ============================================================================
+
+create module BugTaskPage1710;
+
+create persistent entity BugTaskPage1710.Request (
+  Title: String(200)
+);
+
+create microflow BugTaskPage1710.ACT_Reject ($WorkflowUserTask: System.WorkflowUserTask)
+begin
+  change $WorkflowUserTask (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+  commit $WorkflowUserTask;
+  set task outcome $WorkflowUserTask 'Reject';
+end;
+
+-- Both outcomes reachable: a button, and a microflow.
+create page BugTaskPage1710.WF_Approve_Task
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Approve',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve')
+    actionbutton btnReject (Caption: 'Reject',
+      Action: call microflow BugTaskPage1710.ACT_Reject(WorkflowUserTask = $WorkflowUserTask))
+  }
+};
+
+-- Only 'Approve' reachable: MDL-WF20 for 'Reject'.
+create page BugTaskPage1710.WF_Review_Task
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve')
+  }
+};
+
+create or modify workflow BugTaskPage1710.WF_Approve
+  parameter $Context: BugTaskPage1710.Request
+begin
+  user task Approve 'Approve' page BugTaskPage1710.WF_Approve_Task
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Approve' { } 'Reject' { };
+end workflow;
+
+create or modify workflow BugTaskPage1710.WF_Review
+  parameter $Context: BugTaskPage1710.Request
+begin
+  user task Review 'Review' page BugTaskPage1710.WF_Review_Task
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Approve' { } 'Reject' { };
+end workflow;

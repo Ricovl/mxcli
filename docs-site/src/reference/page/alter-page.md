@@ -16,8 +16,8 @@ ALTER SNIPPET module.Name {
 generic ALTER — `set` / `insert` / `replace` / `drop` against a target — which
 every document type shares; a page's targets are widget names, DataGrid 2
 columns `grid column(Attr)` / `grid column('Caption')`, navigation list items
-`nav item(widget)` / `nav item('Text')` / `nav item@n`, or a layout region
-`container.top`.
+`nav item(widget)` / `nav item('Text')` / `nav item@n`, a legacy table cell
+`table1 cell(row, col)`, or a layout region `container.top`.
 
 The older spellings still run and warn with a deprecation code:
 
@@ -82,6 +82,15 @@ For page-level properties (like `Title`), omit the `ON` clause.
 
 For pluggable widget properties, use quoted property names (e.g., `'showLabel'`).
 
+A pluggable widget's **attribute** property is bound the way `CREATE PAGE` binds it.
+A bare name (`set (eventDataAttribute: JsonData) on chart1`) belongs to the entity
+the property binds to: the widget's own datasource when the property is linked to
+one, otherwise the enclosing data container. `Module.Entity.Attr` must be an
+attribute of that entity or of one of its generalizations. `$Param.Attr` reads an
+attribute of a page or snippet parameter instead. A name the bound entity lacks
+(CE1613), and another entity's qualified attribute (CE7247), are refused by
+`check` and `exec` alike.
+
 ### INSERT BEFORE / INSERT AFTER
 
 Inserts new widgets immediately before or after a named widget within its parent container. The new widgets use the same syntax as in `CREATE PAGE`.
@@ -91,6 +100,8 @@ Inserts new widgets immediately before or after a named widget within its parent
 Appends new widgets as the **last children** of a named container. This is the only way to fill an **empty** container, and the natural way to add a widget to a container or data view without needing a sibling to anchor to. Widgets inserted into a data view take that data view's entity as their context.
 
 Supported on simple containers (container/DivContainer, data view, group box, tab page, scroll-container region). A layout grid (rows/columns) has no single child list — insert relative to a widget inside the target column instead. A tab container's children are tab pages; see below.
+
+A pluggable widget's child-widget slots have no name of their own, so they are addressed by the widget and the slot keyword `describe` prints: `insert into dataGrid1.controlbar { actionbutton … }` adds to a Data grid 2's control bar (even after its last button was dropped), `replace dataGrid1.controlbar with { … }` swaps its content, and `drop dataGrid1.controlbar` empties it. The widget's own property key (`dataGrid1.filtersPlaceholder`) works too. `insert into dataGrid1` on the widget itself is refused with the slot addresses it has.
 
 ### Adding Tab Pages
 
@@ -156,6 +167,76 @@ alter snippet Shop.Menu {
 
 Only items go next to an item or in its place: `INSERT BEFORE` / `AFTER` an item
 and `REPLACE` of one take `item` blocks, and widgets go `INTO` an item.
+
+### Pluggable Widget Item Operations
+
+A pluggable widget's object-list item — an Accordion group, a Pop-up menu
+item — stores no name either (a name written on `group g1` is not kept), and is
+addressed the same way, on the widget that owns the list:
+
+| Address | Means |
+|---------|-------|
+| `acc1 item@2` | the second group — `INSERT INTO` fills its body |
+| `acc1 item('One')` | the group whose text (`headerText`) is `One` |
+| `acc1 item(btnIn)` | the group holding the widget `btnIn` |
+| `acc1 item@1.headercontent` | another slot of the group, by its keyword |
+
+The body is the slot `describe` prints as the item's children (`content`, or
+the item's first widget slot); any other slot is named with `.slot`, spelled as
+`describe` prints its block.
+
+```sql
+mdl 1;
+alter page Shop.Faq {
+  insert into acc1 item@2 { dynamictext txtAnswer (Content: 'Yes.') };
+  set (headerRenderMode: 'custom') on acc1 item@1;
+  insert into acc1 item@1.headercontent { dynamictext txtHead (Content: 'Shipping') };
+  replace acc1 item('Returns').content with { dynamictext txtRet (Content: '30 days') };
+  drop acc1 item@3;
+};
+```
+
+- A slot the widget's configuration hides is refused, naming the property that
+  shows it: an Accordion hides a group's `headercontent` while
+  `headerRenderMode` is `'text'` (the default). Widgets written there are not
+  rendered and fail the build with CE0463. Set the property first — in the same
+  statement is fine, as above.
+- A SET that switches a group's mode keeps the texts it hides or shows as
+  CREATE stores them. Switching back to `'text'` needs the text in the same
+  statement — `set (headerRenderMode: 'text', headerText: 'Shipping') on acc1 item@1`
+  — since the stored schema has no default to fill in.
+- `INSERT BEFORE` / `AFTER` an item (adding a new group) and `REPLACE` of a
+  whole item are not supported; use `drop` and `create or modify page`.
+
+### Legacy Table Cell Operations
+
+A legacy (Studio Pro) table's cell stores no name, only its position, so it is
+addressed as `table1 cell(row, column)`, 1-based from the top-left. `describe`
+lists the cells under the table's line, with what each holds:
+
+```
+-- Forms$Table (table1)  -- NOT re-executable: …
+--   cell(1,1): txtName
+--   cell(1,2): (empty)
+```
+
+```sql
+mdl 1;
+alter page Shop.Customer_Edit {
+  insert into table1 cell(1,2) { textbox tbName (Attribute: Name) };
+  replace table1 cell(1,1) with { dynamictext txtLabel (Content: 'Name') };
+  drop table1 cell(2,1);
+};
+```
+
+- `insert into` appends to the cell; `replace` swaps its content; `drop`
+  empties it — the cell itself stays, the table's grid needs it.
+- Widgets in a cell bind in the data context around the table, as anywhere else.
+- A position covered by a spanning cell is refused, naming the cell to address.
+- `INSERT BEFORE` / `AFTER` a cell is refused: rows and columns cannot be added.
+  A widget already in a cell is reachable by its own name.
+- MDL cannot create a table, so these statements work only on a page that
+  already has one.
 
 ### DROP
 

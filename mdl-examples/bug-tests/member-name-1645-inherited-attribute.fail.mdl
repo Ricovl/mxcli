@@ -1,0 +1,19 @@
+-- NEGATIVE TEST (.fail.mdl) — EXPECTED to fail `mxcli check` with MDL-MEMBER01
+-- (ako/mxcli#1645).
+--
+-- A member name must be unique along an entity's generalization chain. HR.Emp
+-- inherits Name from Other.Person, so declaring its own Name is a second member
+-- of that name: check and exec passed it, and mxbuild rejected the model with
+--   [CE0069] "Duplicate member name 'Name'." at Attribute 'HR.Emp.Name'
+-- Measured on mx 11.13.0 (and reported on 11.12.5).
+--
+-- The same holds for an association (see member-name-1645-inherited-association),
+-- for a System ancestor's members (`extends System.User` with `Name` or
+-- `UserRoles`), for a generalization gaining a member a specialization already
+-- has, and for a rename into such a name. Names that differ only in case do not
+-- collide.
+mdl 1;
+create module Other;
+create module HR;
+create persistent entity Other.Person (Name: String(50));
+create persistent entity HR.Emp extends Other.Person (Name: String(50), Code: String(10));

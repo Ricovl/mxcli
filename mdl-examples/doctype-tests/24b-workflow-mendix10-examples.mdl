@@ -1,0 +1,77 @@
+mdl 1;
+-- @version: 10.0+
+-- ============================================================================
+-- Workflows that every Mendix version from 10.0 can hold
+-- ============================================================================
+--
+-- 24-workflow-examples.mdl is gated to 11.0+ as a whole, so the nightly's
+-- Mendix 10 leg wrote no workflow at all, and every 11.x leg (11.6.8 and later)
+-- is past both version boundaries workflows have. That hid ako/mxcli#1754:
+-- every workflow mxcli wrote below 11.3.0 was broken while `mxcli check` and
+-- `exec` passed — on 10.24 and 11.0 the project did not load at all
+-- (TypeCacheUnknownTypeException for Workflows$StartWorkflowActivity), and on
+-- 11.1 and 11.2 mx check reported CE6671/CE6689. This script is gated only to
+-- 10.0+, so the gate's exec, mx check and `mx convert` property-set check run
+-- it on 10.24 as well. The same lesson as 06c-rest-client-mendix10-examples.mdl:
+-- a whole-file gate hides every version bug in the file.
+--
+-- Below 11.3 the main flow's start and end are implicit, and the header's
+-- `annotation` is the workflow's own note; from 11.3 they are stored and the
+-- note is the start activity's. A branch's `end workflow` is stored on every
+-- version.
+-- ============================================================================
+
+create module WfTen;
+create persistent entity WfTen.Request ( Title: String(100), Amount: Integer );
+
+create microflow WfTen.ACT_Validate ($WorkflowContext: WfTen.Request)
+begin
+  log info node 'WfTen' 'validate';
+end;
+
+create microflow WfTen.ACT_Notify ($WorkflowContext: WfTen.Request)
+begin
+  log info node 'WfTen' 'notify';
+end;
+
+create workflow WfTen.WF_Request
+  parameter $WorkflowContext: WfTen.Request
+  display 'Request'
+  description 'Handles a request'
+  annotation 'Started from the request form'
+begin
+  call microflow WfTen.ACT_Validate;
+  decision $WorkflowContext/Amount > 1000
+    outcomes
+      true -> { call microflow WfTen.ACT_Notify; }
+      false -> { end workflow; }
+  ;
+  parallel split
+    path 1 { call microflow WfTen.ACT_Notify; }
+    path 2 { }
+  ;
+end workflow;
+
+-- ALTER serializes an inserted activity on its own, outside CREATE's encoder.
+alter workflow WfTen.WF_Request {
+  insert after ACT_Validate { call microflow WfTen.ACT_Notify; }
+};
+
+-- Below 11.3 there is no start activity to hold the note.
+alter workflow WfTen.WF_Request { set (Annotation: 'Started from the request form or the API'); };
+
+-- CREATE OR MODIFY rewrites the stored workflow through the same encoder. The
+-- branch's `end workflow` is restated: the rewrite refuses to drop a stored one,
+-- and below 11.3 that count must not take the (unstored) closing End for it.
+create or modify workflow WfTen.WF_Request
+  parameter $WorkflowContext: WfTen.Request
+  display 'Request'
+  annotation 'Started from the request form'
+begin
+  call microflow WfTen.ACT_Validate;
+  decision $WorkflowContext/Amount > 5000
+    outcomes
+      true -> { call microflow WfTen.ACT_Notify; }
+      false -> { end workflow; }
+  ;
+end workflow;

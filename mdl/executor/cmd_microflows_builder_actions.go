@@ -163,6 +163,9 @@ func (fb *flowBuilder) addCreateObjectAction(s *ast.CreateObjectStmt) model.ID {
 
 	// Build InitialMembers for each SET assignment
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        microflows.MemberChangeTypeSet,
@@ -362,6 +365,9 @@ func (fb *flowBuilder) addChangeObjectAction(s *ast.ChangeObjectStmt) model.ID {
 
 	// Build a MemberChange for each `=`, `+=` or `-=` member
 	for _, change := range s.Changes {
+		if fb.refuseSystemMemberChange(change.Attribute, entityQN) {
+			continue
+		}
 		memberChange := &microflows.MemberChange{
 			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID())},
 			Type:        memberChangeTypeOf(change.Op),
@@ -557,11 +563,15 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 	}
 
 	origins := enumSplitOriginAnchors(branchYs, centerY)
+	var caseAnchors []ast.CaseAnchor
+	if s.Annotations != nil {
+		caseAnchors = s.Annotations.CaseAnchors
+	}
 	slot := func(i int) splitCaseSlot {
 		if origins == nil {
-			return splitCaseSlot{order: i, origin: -1}
+			return splitCaseSlot{order: i, origin: -1, anchors: caseAnchors}
 		}
-		return splitCaseSlot{order: i, origin: origins[i]}
+		return splitCaseSlot{order: i, origin: origins[i], anchors: caseAnchors}
 	}
 
 	savedEndsWithReturn := fb.endsWithReturn
@@ -575,6 +585,8 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 		lastID := model.ID("")
 		pendingCase := ""
 		var prevAnchor *ast.FlowAnchors
+		branchEnds := lastStmtIsReturn(br.body)
+		outerHandlers := fb.enterBranch()
 		for j, stmt := range br.body {
 			thisAnchor := stmtOwnAnchor(stmt)
 			actID := fb.addStatement(stmt)
@@ -609,6 +621,11 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				// through describe → exec without silently dropping.
 				if thisAnchor != nil && len(fb.flows) > 0 {
 					applyUserAnchors(fb.flows[len(fb.flows)-1], nil, thisAnchor)
+					// The outcome's own `to:` on the CASE is the more specific
+					// of the two, so it wins over the first statement's.
+					if len(br.values) == 1 {
+						slot(i).applyCaseAnchor(fb.flows[len(fb.flows)-1], br.values[0])
+					}
 				}
 			} else {
 				var flow *microflows.SequenceFlow
@@ -620,9 +637,7 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				}
 				applyUserAnchors(flow, prevAnchor, thisAnchor)
 				fb.flows = append(fb.flows, flow)
-				if fb.emptyErrorHandlerFrom == lastID {
-					fb.addPendingErrorHandlerFlowForStatement(lastID, actID, stmt, statementsReferenceVar(br.body[j+1:], fb.errorHandlerSkipVar))
-				}
+				fb.settleBranchFlow(lastID, actID, stmt, br.body[j+1:], branchEnds)
 			}
 			prevAnchor = thisAnchor
 			if fb.nextConnectionPoint != "" {
@@ -638,7 +653,10 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 			}
 		}
 
-		if lastStmtIsReturn(br.body) {
+		if branchEnds {
+			// What a returning branch could not settle goes on to the
+			// enclosing path, which settles it after the CASE.
+			fb.leaveBranch(outerHandlers)
 			continue
 		}
 		allBranchesReturn = false
@@ -655,7 +673,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 				tail.DestinationConnectionIndex = mergeSideFor(fb.objectPosition(lastID), fb.objectPosition(ensureMerge().ID))
 			}
 			fb.flows = append(fb.flows, tail)
+			fb.settleBranchFlow(lastID, ensureMerge().ID, nil, nil, false)
 		}
+		fb.leaveBranch(outerHandlers)
 	}
 
 	fb.posX = mergeX + HorizontalSpacing/2
@@ -665,6 +685,9 @@ func (fb *flowBuilder) addEnumSplit(s *ast.EnumSplitStmt) model.ID {
 		fb.endsWithReturn = true
 	} else {
 		fb.nextConnectionPoint = ensureMerge().ID
+		// `@anchor(from: X)` on a CASE is the flow leaving it — out of its
+		// merge — as on an IF (#767). It was accepted and dropped (#1587).
+		fb.nextFlowAnchor = mergeExitFlowAnchor(s)
 	}
 	return splitID
 }
@@ -736,6 +759,7 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 		fromSplit bool
 		order     int
 		anchor    *ast.FlowAnchors
+		handlers  pendingHandlers
 	}
 	var branchTails []branchTail
 
@@ -760,7 +784,9 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 		var lastID model.ID
 		var prevAnchor *ast.FlowAnchors
 		pendingCase := ""
-		for _, stmt := range body {
+		branchEnds := lastStmtIsReturn(body)
+		outerHandlers := fb.enterBranch()
+		for j, stmt := range body {
 			thisAnchor := stmtOwnAnchor(stmt)
 			actID := fb.addStatement(stmt)
 			if fb.takeBranchJoin(lastID, splitID, caseValue, pendingCase, prevAnchor, nil) {
@@ -796,6 +822,7 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 					applyUserAnchors(flow, prevAnchor, thisAnchor)
 					fb.flows = append(fb.flows, flow)
 				}
+				fb.settleBranchFlow(lastID, actID, stmt, body[j+1:], branchEnds)
 			}
 			prevAnchor = thisAnchor
 			if fb.nextConnectionPoint != "" {
@@ -811,12 +838,16 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 			}
 		}
 
-		if !lastStmtIsReturn(body) {
+		if !branchEnds {
 			allBranchesReturn = false
 			if lastID != "" {
-				branchTails = append(branchTails, branchTail{id: lastID, caseValue: pendingCase, anchor: prevAnchor})
+				// The tail's flow into the merge is drawn once every branch is
+				// built, and the handlers of its last activity are settled on
+				// it then, so they wait with it.
+				branchTails = append(branchTails, branchTail{id: lastID, caseValue: pendingCase, anchor: prevAnchor, handlers: fb.takePendingErrorHandlers()})
 			}
 		}
+		fb.leaveBranch(outerHandlers)
 	}
 
 	for _, c := range s.Cases {
@@ -883,6 +914,10 @@ func (fb *flowBuilder) addStructuredInheritanceSplit(s *ast.InheritanceSplitStmt
 					applyUserAnchors(flow, tail.anchor, nil)
 					fb.flows = append(fb.flows, flow)
 				}
+				outerHandlers := fb.enterBranch()
+				fb.adoptPendingErrorHandlers(tail.handlers)
+				fb.settleBranchFlow(tail.id, merge.ID, nil, nil, false)
+				fb.leaveBranch(outerHandlers)
 			}
 		}
 		fb.nextConnectionPoint = merge.ID
@@ -918,6 +953,7 @@ func (fb *flowBuilder) addEnumSplitFlows(originID, destinationID model.ID, value
 	for _, value := range values {
 		flow := newHorizontalFlowWithEnumCase(originID, destinationID, value)
 		slot.apply(flow, split, target)
+		slot.applyCaseAnchor(flow, value)
 		fb.flows = append(fb.flows, flow)
 	}
 }
@@ -928,12 +964,43 @@ func (fb *flowBuilder) addEnumSplitFlows(originID, destinationID model.ID, value
 type splitCaseSlot struct {
 	order  int
 	origin int
+	// anchors are the CASE's `@anchor(A: (from: …, to: …))` entries.
+	anchors []ast.CaseAnchor
+}
+
+// applyCaseAnchor sets the sides the CASE's @anchor names for this value's
+// flow, over the defaults apply chose (mendixlabs/mxcli#1587).
+func (slot splitCaseSlot) applyCaseAnchor(flow *microflows.SequenceFlow, value string) {
+	if fa := caseAnchorFor(slot.anchors, value); fa != nil {
+		applyUserAnchors(flow, fa, fa)
+	}
+}
+
+// caseAnchorFor returns the anchors written for value, matched as WHEN values
+// are: case-insensitively, quotes ignored.
+func caseAnchorFor(anchors []ast.CaseAnchor, value string) *ast.FlowAnchors {
+	for _, ca := range anchors {
+		if sameCaseValue(ca.Value, value) {
+			return ca.Anchors
+		}
+	}
+	return nil
+}
+
+func sameCaseValue(a, b string) bool {
+	return strings.EqualFold(strings.Trim(a, "\"`"), strings.Trim(b, "\"`"))
 }
 
 // apply sets the flow's sides. split and target are where the two ends actually are,
 // which is not where the stack was planned once a branch carries @position: a line is
 // only sent out of the top corner towards something above the split, and out of the
 // bottom towards something below, whatever third the case was counted into.
+//
+// Up to three cases keep the pair table's side whatever the geometry, because that
+// side is how DESCRIBE reads the WHEN order back (splitCaseOrder), and the order has
+// to survive a branch moved anywhere with @position. Holding them to the geometry
+// rule reordered a CASE whose branches were placed out of order. A side that
+// differs is written explicitly, `@anchor(A: (from: right))` (mendixlabs/mxcli#1587).
 func (slot splitCaseSlot) apply(flow *microflows.SequenceFlow, split, target model.Point) {
 	if flow == nil {
 		return
@@ -1158,14 +1225,25 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// Association retrieve: RETRIEVE $List FROM $Parent/Module.AssocName
 		// Always use AssociationRetrieveSource to preserve the original syntax.
 		// The runtime resolves traversal direction from association metadata.
-		assocQN := s.Source.Module + "." + s.Source.Name
+		//
+		// A bare name (`$O/Ord_Cust`) resolves against the start variable's
+		// entity, or is refused: joined as it stands it was stored as ".Ord_Cust",
+		// with an empty module — CE1613, and a describe that does not parse
+		// (ako/mxcli#1690).
+		assocModule, assocName := s.Source.Module, s.Source.Name
+		if assocModule == "" {
+			if qn, ok := fb.qualifyBareRetrieveAssociation(s); ok {
+				assocModule, assocName, _ = strings.Cut(qn, ".")
+			}
+		}
+		assocQN := assocModule + "." + assocName
 
 		// Look up association to determine type and direction.
 		// For Reference associations, AssociationRetrieveSource always returns a single
 		// object (the entity on the other end). When the user navigates from the child
 		// (non-owner) side, the intent is to get a list of parent entities — we must use
 		// a DatabaseRetrieveSource with XPath constraint instead.
-		assocInfo := fb.lookupAssociation(s.Source.Module, s.Source.Name)
+		assocInfo := fb.lookupAssociation(assocModule, assocName)
 		startVarType := ""
 		if fb.varTypes != nil {
 			startVarType = fb.varTypes[s.StartVariable]
@@ -1225,7 +1303,12 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 					if startsFromChildSide {
 						otherEntity = assocInfo.parentEntityQN
 					}
-					if startsFromChildSide && !outputUsedAsObject {
+					// associationRetrieveYieldsList is shared with check
+					// --references (MDL-RETRIEVE03, mendixlabs/mxcli#1516), which
+					// refuses the object use this branch types leniently.
+					yieldsList := associationRetrieveYieldsList(false,
+						assocInfo.Owner == domainmodel.AssociationOwnerBoth, startsFromChildSide)
+					if yieldsList && !outputUsedAsObject {
 						fb.varTypes[s.Variable] = "List of " + otherEntity
 					} else {
 						fb.varTypes[s.Variable] = otherEntity
@@ -1786,6 +1869,7 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 				if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, spec.Attribute); ok {
 					attrQN = declared
 				} else {
+					fb.refuseMissingListMember("sort", s.InputVariable, entityType, spec.Attribute)
 					attrQN = entityType + "." + spec.Attribute
 				}
 			}
@@ -1909,6 +1993,13 @@ func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter b
 		return nil
 	}
 
+	verb := "find"
+	if filter {
+		verb = "filter"
+	}
+	if fb.refuseMissingListMember(verb, s.InputVariable, fb.listElementEntity(s.InputVariable), fieldName) {
+		return nil
+	}
 	attributeName, associationName := fb.resolveListOperationMember(s.InputVariable, fieldName)
 	if associationName == "" && !strings.Contains(attributeName, ".") {
 		return nil
@@ -2008,11 +2099,15 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 		action.UseExpression = true
 		action.Expression = expressionToString(s.Expression)
 	} else if s.Attribute != "" {
-		// For SUM/AVG/MIN/MAX, build qualified attribute name from variable type
-		if fb.varTypes != nil {
-			listType := fb.varTypes[s.InputVariable]
-			if after, ok := strings.CutPrefix(listType, "List of "); ok {
-				entityType := after
+		// For SUM/AVG/MIN/MAX, qualify the attribute with the entity that
+		// DECLARES it, as a sort does: an inherited one qualified with the
+		// list's own entity is CE1613 "The selected attribute 'M.Sub.Total' no
+		// longer exists" (measured on 11.13.0, ako/mxcli#1646).
+		if entityType := fb.listElementEntity(s.InputVariable); entityType != "" {
+			if declared, ok := fb.resolveAttributeInEntityHierarchy(entityType, s.Attribute); ok && !strings.Contains(s.Attribute, ".") {
+				action.AttributeQualifiedName = declared
+			} else {
+				fb.refuseMissingListMember(strings.ToLower(s.Operation.String()), s.InputVariable, entityType, s.Attribute)
 				action.AttributeQualifiedName = entityType + "." + s.Attribute
 			}
 		}
@@ -2243,6 +2338,28 @@ func (fb *flowBuilder) isEntity(moduleName, entityName string) bool {
 	return false
 }
 
+// moduleExists reports whether a module of this name is in the project. The
+// common path is GetModuleByName; when that errors — the error could mean
+// "not found" or "cannot read", and this decision treats those differently —
+// the module roster decides. A roster that cannot be read counts as "exists":
+// the member keeps the old silent fallback rather than this refusal, because
+// silence over a guess is this file's rule for an unreadable model.
+func (fb *flowBuilder) moduleExists(name string) bool {
+	if mod, err := fb.backend.GetModuleByName(name); err == nil {
+		return mod != nil
+	}
+	mods, err := fb.backend.ListModules()
+	if err != nil {
+		return true
+	}
+	for _, m := range mods {
+		if m != nil && m.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // resolveMemberChange determines whether a member name is an association or attribute
 // and sets the appropriate field on the MemberChange. It queries the domain model
 // to check if the name matches an association on the entity; if no metadata is
@@ -2333,6 +2450,38 @@ func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberNa
 		qualifiedName = moduleName + "." + memberName
 	}
 
+	// System.owner and System.changedBy are associations to System.User that no
+	// domain model lists — an entity carries them as flags on the root of its
+	// generalization chain — so the lookup below cannot find them. A list
+	// operation finds and filters by them (measured clean on 11.12.5,
+	// ako/mxcli#1629). A create or change object cannot set them (CE1050);
+	// those statements refuse them before reaching here (refuseSystemMemberChange).
+	if strings.Count(memberName, ".") == 1 {
+		if canonical, ok := builtinSystemMemberAssociation(memberName); ok {
+			if memberName != canonical {
+				fb.addError("%s", systemMemberSpellingRefusal(memberName, canonical, entityQN))
+				return
+			}
+			mc.AssociationQualifiedName = canonical
+			return
+		}
+	}
+
+	// A one-dot member whose qualifier is NOT a module (`Assoc.Attr`) is a
+	// member reached through an association. Mendix's ChangeActionItem cannot
+	// represent that at all — the slot holds either an attribute of the changed
+	// entity or an association reference — and writing the name verbatim (the
+	// fallback below) ships a project mxbuild rejects with CE1613 a whole build
+	// later. Refuse with the working idiom instead, but only when the module
+	// list answers confidently: an unreadable model keeps the old silent
+	// fallback rather than guessing.
+	// (docs/12-bug-reports/2026-10-16-change-member-through-association.md)
+	if fb.backend != nil && strings.Count(memberName, ".") == 1 && !fb.moduleExists(lookupModule) {
+		fb.addError("member %q on entity %s: %q is not a module, so this is a member reached through an association — a change item cannot set it. Retrieve the associated object and change that instead: `retrieve $obj from $var/%s;` then `change $obj (%s = ...)`",
+			memberName, entityQN, lookupModule, lookupModule, bareName)
+		return
+	}
+
 	// Query the authored (or target) module's domain model first. When the
 	// association actually lives in a different module — the common case for
 	// cross-module associations like `OtherModule.Assoc_Name` on a
@@ -2374,6 +2523,8 @@ func (fb *flowBuilder) resolveMemberChange(mc *microflows.MemberChange, memberNa
 					mc.AttributeQualifiedName = memberName
 				} else if attrQN, ok := fb.resolveAttributeInEntityHierarchy(entityQN, memberName); ok {
 					mc.AttributeQualifiedName = attrQN
+				} else if assocQN, ok := fb.resolveInheritedAssociation(entityQN, memberName); ok {
+					mc.AssociationQualifiedName = assocQN
 				} else {
 					mc.AttributeQualifiedName = entityQN + "." + memberName
 				}
@@ -2439,6 +2590,59 @@ func (fb *flowBuilder) resolveAttributeInEntityHierarchy(entityQN, attrName stri
 	return "", false
 }
 
+// resolveInheritedAssociation finds a bare association name among the
+// associations entityQN inherits from a generalization in ANOTHER module, and
+// returns its qualified name. An association lives in its FROM entity's
+// module, so one inherited from Other.Person is in Other — the lookup by name
+// in the specialization's own module cannot see it, and the bare name was
+// written as an attribute of the specialization, which mxbuild reports as
+// CE1613 (ako/mxcli#1637). describe prints a find's association short, so its
+// output executes through here. The entity's own module was searched by name
+// already; a match must involve the ancestor, at either end.
+func (fb *flowBuilder) resolveInheritedAssociation(entityQN, name string) (string, bool) {
+	if fb == nil || fb.backend == nil || entityQN == "" || name == "" {
+		return "", false
+	}
+	ownModule, _, _ := strings.Cut(entityQN, ".")
+	seen := make(map[string]bool)
+	for currentQN := entityQN; currentQN != ""; {
+		if seen[currentQN] {
+			return "", false
+		}
+		seen[currentQN] = true
+		module, entityName, ok := strings.Cut(currentQN, ".")
+		if !ok {
+			return "", false
+		}
+		mod, err := fb.backend.GetModuleByName(module)
+		if err != nil || mod == nil {
+			return "", false
+		}
+		dm, err := fb.backend.GetDomainModel(mod.ID)
+		if err != nil || dm == nil {
+			return "", false
+		}
+		entity := dm.FindEntityByName(entityName)
+		if entity == nil {
+			return "", false
+		}
+		if module != ownModule {
+			for _, a := range dm.Associations {
+				if a != nil && a.Name == name && (a.ParentID == entity.ID || a.ChildID == entity.ID) {
+					return module + "." + name, true
+				}
+			}
+			for _, a := range dm.CrossAssociations {
+				if a != nil && a.Name == name && a.ParentID == entity.ID {
+					return module + "." + name, true
+				}
+			}
+		}
+		currentQN = entity.GeneralizationRef
+	}
+	return "", false
+}
+
 // entityIsSubtypeOf reports whether candidateQN is the same as ancestorQN or
 // inherits from it through the generalization chain. The walk consults the
 // domain model the same way resolveAttributeInEntityHierarchy does.
@@ -2480,6 +2684,56 @@ func (fb *flowBuilder) entityIsSubtypeOf(candidateQN, ancestorQN string) bool {
 		currentQN = entity.GeneralizationRef
 	}
 	return false
+}
+
+// refuseMissingListMember records the refusal for a list operation's or an
+// aggregate's member that the list's entity provably does not have, and
+// reports whether it did. Without it the builder wrote `<entity>.<name>`
+// anyway, which mxbuild rejects with CE1613 (ako/mxcli#1646). The verdict and
+// the message are check --references' own (flowMemberVerdict,
+// listMemberRefusal), so exec without the preflight says what check says. A
+// member that cannot be judged — the entity unknown, a module unreadable, a
+// qualified name — is written as before.
+func (fb *flowBuilder) refuseMissingListMember(verb, list, entityQN, member string) bool {
+	if fb == nil || fb.backend == nil || entityQN == "" || member == "" || strings.Contains(member, ".") {
+		return false
+	}
+	if res, _ := flowMemberVerdict(fb.backend, entityQN, member, !isAggregateVerb(verb)); res != memberMissing {
+		return false
+	}
+	fb.addError("%s", listMemberRefusal(listMemberWhere(verb, list, member), entityQN, member, nearMembersFor(fb.backend, entityQN)))
+	return true
+}
+
+// qualifyBareRetrieveAssociation resolves the association a retrieve names by
+// its bare name — `retrieve $C from $O/Ord_Cust` — against the entity the start
+// variable holds, and records the refusal when it cannot. The answer is
+// resolveBareAssociation's, which check --references asks too.
+func (fb *flowBuilder) qualifyBareRetrieveAssociation(s *ast.RetrieveStmt) (string, bool) {
+	entity := ""
+	if fb.varTypes != nil {
+		entity = strings.TrimPrefix(fb.varTypes[s.StartVariable], "List of ")
+	}
+	qn, matches, verdict := fb.resolveBareAssociationFrom(entity, s.Source.Name)
+	if verdict == bareAssocResolved {
+		return qn, true
+	}
+	fb.addError("%s", bareRetrieveAssociationRefusal(s.Variable, s.StartVariable, s.Source.Name, entity, matches, verdict))
+	return "", false
+}
+
+// resolveBareAssociationFrom is resolveBareAssociation over the project as the
+// builder sees it: the statements before this one already written.
+func (fb *flowBuilder) resolveBareAssociationFrom(entityQN, name string) (string, []string, bareAssocVerdict) {
+	if fb == nil || fb.backend == nil || entityQN == "" || name == "" {
+		return "", nil, bareAssocUnknown
+	}
+	if fb.assocCatalog == nil {
+		cat := associationCatalogFor(fb.backend)
+		fb.assocCatalog = &cat
+	}
+	chain, complete := generalizationChainFor(fb.backend, entityQN)
+	return resolveBareAssociation(name, chain, complete, *fb.assocCatalog)
 }
 
 // resolveMemberChangeFallback preserves the authored member name shape when the

@@ -127,6 +127,7 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
 - `action: call nanoflow Module.NanoflowName` - Call nanoflow (client-side)
 - `action: call nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
 - `action: call microflow Module.Delete(Obj = $currentObject) with (Confirmation: 'Delete this?', ProgressBar: Blocking)` - Ask for confirmation and show a progress bar. The `with ( … )` settings: `DisabledDuringExecution` (any action, default `true`), `ProgressBar` (`None`/`NonBlocking`/`Blocking`), `ProgressMessage`, `Confirmation`, `ProceedCaption`, `CancelCaption` (flow calls), `Asynchronous`, `FormValidations` (`All`/`Widget`/`None`, microflow calls only)
+- `action: call microflow Module.GetVehicle returns (Brand = $ActionReturnValue/Brand, $result = $ActionReturnValue)` - Map the flow's return value back onto the page (Studio Pro's "Return value mappings", Mendix 11.5+). Target = source: a bare target is an attribute of the enclosing data container's object (needs 11.15 — mx 11.13/11.14 report CE7006), `$name` a page variable; the source is `$ActionReturnValue`, `$ActionReturnValue/Attr` or an expression. Goes before `with ( … )`
 - `action: open link 'https://example.com'` - Open a fixed web address
 - `action: open link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
 - **Every parameter needs an argument, or an enclosing data container of its
@@ -163,7 +164,13 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   An invented keyword (`action: totally_made_up`) did the same. Use
   `action: nothing` when a control really is meant to be inert, so a dead one
   always means a mistake.
-- The same forms serve `onclick:` (an alias of `action:`) and `onchange:`.
+- The same forms serve `onclick:` (an alias of `action:`), `onchange:`, and a
+  textbox's `OnEnterKeyPress:` (Studio Pro's "On enter key press" — a search box
+  that searches on Enter). Only a textbox has that one; on a textarea or any
+  other widget it is refused, because Mendix stores it nowhere else.
+- Every input widget also takes `OnEnter:` and `OnLeave:` — Studio Pro's "On
+  enter" / "On leave", focus moving into and out of the widget (not the Enter
+  key) — with the same forms.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).
@@ -264,6 +271,25 @@ layoutgrid gridName {
 column (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
 ```
 
+**Row visibility:** a `row` takes `Visible:` in the same forms as a widget
+(an expression, `false`, or `Attr in (…)`) and DESCRIBE prints it. A layout-grid
+**column has no visibility** in Mendix (`Forms$LayoutGridColumn` stores none), so
+`Visible:` on a column inside a row is dropped — check warns (MDL-WIDGET07). Put
+the condition on the row, or wrap the column's content in a `container (Visible: …)`.
+
+```sql
+mdl 1;
+create page MyMod.Order_Detail (Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $Order: MyMod.Order )) {
+  layoutgrid lg {
+    row (Visible: $Order/Outcome != empty) {
+      column (desktopwidth: autofill) {
+        dynamictext outcome (content: 'Outcome', rendermode: H3)
+      }
+    }
+  }
+};
+```
+
 Example:
 ```sql
 layoutgrid mainGrid {
@@ -310,7 +336,9 @@ datagrid gridName (
 | `Draggable` | `true`, `false` | `true` | Can reorder column |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | Can hide column |
 | `ColumnWidth` | `autofill`, `autoFit`, `manual` | `autofill` | Column width mode |
-| `Size` | integer (px) | `1` | Width in pixels (when `ColumnWidth: manual`) |
+| `Size` | integer (weight) | `1` | A **relative weight, not pixels** — only under `ColumnWidth: manual`. Data grid 2 renders it as `<Size>fr` beside `1fr` for every `autoFill` column, so `Size: 220` takes 220 shares of the free width against one share per autoFill column: the others collapse (mendixlabs/mxcli#1519). Use small ratios (`Size: 2` = twice an autoFill column). For a width in pixels use `minWidthLimit` below. Any width but manual hides `Size`, so it must stay `1` (CE0463 otherwise): an `ALTER PAGE … SET (ColumnWidth: autoFill)` puts it back at `1` itself, and `SET (ColumnWidth: autoFill, Size: 220)` is refused |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | Only under `ColumnWidth: autoFit`, which renders `minmax(<minimum>, auto)`: `manual` takes the minimum from `minWidthLimit` |
+| `minWidthLimit` | integer (px) | `100` | The minimum width **in pixels**, under `ColumnWidth: autoFit, minWidth: manual` — the pixel option `Size` is not |
 | `visible` | expression string | `true` | Column-level visibility — hides/shows the whole column, so use page variables, NOT `$currentObject` (per-object widget visibility is different — see "Conditional Visibility and Editability") |
 | `DynamicCellClass` | expression string | (empty) | Dynamic CSS class per cell |
 | `tooltip` | text string | (empty) | Cell tooltip text |
@@ -340,7 +368,7 @@ column (
   Alignment: right, WrapText: true,
   Sortable: false, Resizable: false,
   Hidable: hidden,
-  ColumnWidth: manual, Size: 150,
+  ColumnWidth: manual, Size: 2,      -- a weight: twice an autoFill column
   DynamicCellClass: if($currentObject/Price > 100) then 'highlight' else '' ,
   tooltip: 'Price in USD'
 )
@@ -382,6 +410,7 @@ column (caption: 'Actions') {
 | `datasource: $Variable` | Variable bound (requires DATAVIEW parent with entity) |
 | `datasource: microflow Module.GetData` | Microflow datasource with **no parameters** — the name alone |
 | `datasource: microflow Module.GetData(Param = $Param)` | Microflow datasource **with** parameters — one **named** argument per parameter, required. Mendix does not auto-map an object in scope, so leaving it out is **CE1571**. The positional form `GetData($Param)` is refused: write `Param = …` naming the parameter |
+| `datasource: microflow Module.GetData with (FormValidations: None)` | The source call's FormValidations (`All` default, `Widget`, `None`) — the only setting a data source takes; the others are an action's and are refused |
 | `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — same rule: the name alone only when it takes no parameters |
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |
@@ -390,6 +419,8 @@ column (caption: 'Actions') {
 | `datasource: database from $Ctx/Module.Assoc/Module.Entity [where …] [sort by …] [search by …]` | **List view only.** A *database* retrieve of what the association reaches — keeps XPath, sort and search, which the association source above does not have. Name the entity after each association (it may be a specialization of the association's end) |
 
 > **A list widget needs an association that yields a list.** A list view, data grid or gallery over `$currentObject/M.Assoc` is CE8812 ("A grid association path must result in a list") when the association is a Reference followed from its FROM entity, or a Reference with owner Both from either end (one-to-one). Use a data view for the single object, or a ReferenceSet. `check` reports it as MDL-ASSOCDS01. The reverse of a default Reference (from the TO entity) is a list and fine.
+
+> **A view entity's association is one-way for a page.** The association a view entity derives from its OQL (`select c.ID as Stats_Customer`) can be followed from the view entity only. A data source that follows it from the entity it points at, in any widget and at any hop (`database from $currentObject/M.Stats_Customer/M.Stats`, `$currentObject/M.Stats_Customer`), is CE8812 "Entity 'M.Customer' has no association 'M.Stats_Customer'". Query the view entity instead: `datasource: database M.Stats where [M.Stats_Customer = $currentObject]`. `check` reports it as MDL-ASSOCDS02. A microflow `retrieve … from $Cust/M.Stats_Customer` is accepted.
 
 **With WHERE and SORT BY (inline in DataSource):**
 ```sql
@@ -518,13 +549,16 @@ picker with `alter page … { set (DateFormat: DateTime) on dpStart; }`.
 ```sql
 textbox tbAmount (label: 'Amount', attribute: Amount, DecimalPrecision: 2, GroupDigits: true)
 ```
-A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned about
-(MDL-WIDGET07), as on any widget other than a date picker.
+A text box binds no dates (CE2421), so it does not take `DateFormat`: under `mdl 1;`
+it is refused (MDL-WIDGET52), as on any widget other than a date picker.
 
 **COMBOBOX** - Combo box (pluggable widget):
 ```sql
 -- Enumeration mode (attribute is an enum type):
 combobox cbCountry (label: 'Country', attribute: Country)
+-- WRONG: enumeration mode on any other type — a Boolean included — is CE7247
+-- "Only attributes of type Enumeration are allowed here." (MDL-WIDGET39 with -p).
+-- For a Boolean use `checkbox` or `radiobuttons`.
 
 -- Association mode: bind a reference. Requires the option DataSource (the target
 -- entity whose objects fill the dropdown) AND a CaptionAttribute (display value).
@@ -532,6 +566,60 @@ combobox cbCountry (label: 'Country', attribute: Country)
 combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer, CaptionAttribute: Name)
 -- WRONG: `combobox (Association: X)` with no datasource — mxcli check errors
 -- MDL-WIDGET16 (Mendix would otherwise drop the binding → CE0642).
+-- WRONG: a datasource with no caption — also MDL-WIDGET16, CE0642
+-- "Property 'Caption' is required." An expression caption works instead of
+-- CaptionAttribute, but needs BOTH keys:
+--   optionsSourceAssociationCaptionType: expression,
+--   optionsSourceAssociationCaptionExpression: '$currentObject/Name'
+-- Enumeration mode (no datasource) has no caption and needs none.
+
+-- Database mode: options from a datasource of their own; the chosen option's
+-- value is stored on an attribute of the enclosing object. Selected by naming
+-- `optionsSourceDatabaseDataSource` — the generic `datasource:` clause selects
+-- association mode instead. `Attribute:` is the target (String, Integer, Long
+-- or Enumeration, else CE7247 — MDL-WIDGET39 with -p), `CaptionAttribute:` the
+-- option caption, and `optionsSourceDatabaseValueAttribute:` the option's
+-- attribute whose value is stored.
+combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyModule.DS_Codes,
+  attribute: Code, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: Code)
+-- WRONG: a target attribute with no value attribute — MDL-WIDGET16, CE0642
+-- "Property 'Value' is required." Without `attribute:` the combo box only
+-- selects and needs no value attribute. No caption is CE0642 'Caption', as in
+-- association mode (expression caption: optionsSourceDatabaseCaptionType /
+-- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
+-- Multi` selects several and hides both the target and the value attribute.
+
+-- Events, in every mode. `OnChange:` is the change action (the mode's own slot:
+-- onChangeEvent, or onChangeDatabaseEvent in database mode); the other three
+-- are named by their key. onChangeFilterInputEvent fires as the user types.
+combobox cbCountry (label: 'Country', attribute: Country,
+  OnChange: call microflow MyModule.ACT_CountryChanged,
+  onEnterEvent: call nanoflow MyModule.NAV_Focus, onLeaveEvent: call nanoflow MyModule.NAV_Blur,
+  onChangeFilterInputEvent: call microflow MyModule.ACT_Search)
+
+-- Custom content: show more than one attribute per option. The block is the
+-- MODE's slot — `optionssourceassociationcustomcontent` in association mode,
+-- `optionssourcedatabasecustomcontent` in database mode — and its widgets bind
+-- to the OPTION entity (here Customer), not to the object being edited.
+combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer,
+  CaptionAttribute: Name, optionsSourceAssociationCustomContentType: 'yes') {
+  optionssourceassociationcustomcontent {
+    dynamictext txtOption (Content: '{1} ({2})', ContentParams: ({1} = Name, {2} = City))
+  }
+}
+-- The block with the type left out writes 'yes'; 'listItem' shows the content
+-- in the list only.
+-- WRONG: the other mode's block (MDL-WIDGET30 names the right one); any block
+-- on an enumeration combo box, which has no custom content.
+-- WRONG: the type 'yes' or 'listItem' with no block — MDL-WIDGET53, CE0642
+-- "Property 'Custom content' is required."; a block under type 'no' — hidden,
+-- never shown (CE0463), also MDL-WIDGET53.
+```
+
+**BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives
+the scanned value; `onDetect:` runs once a code is detected.
+```sql
+barcodescanner bsCode (attribute: Code, onDetect: call microflow MyModule.ACT_Scanned)
 ```
 
 ### DataView with Form Layout
@@ -627,6 +715,14 @@ gallery cards (datasource: database Module.Product, selection: Single, onClickTr
 ```
 `onSelectionChange:` and `onConfigurationChange:` take an action the same way.
 
+**An enumeration setting takes one of the widget's keys** — `onClickTrigger`
+is `single` or `double`, `pagination` is `buttons`, `virtualScrolling` or
+`loadMore`; `describe widget type <keyword>` lists every property's keys. Any
+case is accepted and written as the key (the widget compares keys exactly: a
+stored `Double` matched neither trigger, so the row action never ran). A value
+the widget declares no key for is refused under `mdl 1;` (MDL-WIDGET08), and
+written as given with the MDL-V1-WIDGETENUM warning without the header.
+
 ### Filter Widgets
 
 A filter widget lives in one of two places: **inside a DATA GRID column's own braces**,
@@ -676,6 +772,24 @@ datefilter datefilter (attributes: [Module.Entity.CreateDate])
 dropdownfilter statusFilter (attributes: [Module.Entity.Status])
 ```
 
+It filters on **one** attribute (an enumeration or a Boolean), stored as the widget's
+custom attribute (Studio Pro's "Attribute config: Custom"); listing two is refused
+(MDL-WIDGET47) — use a `textfilter` for several. A bare `dropdownfilter f` takes the
+attribute of the Data grid 2 column it sits in ("Auto"), so in a **gallery's**
+`filter { … }` bar, which has no column, the attribute must be named.
+
+`defaultValue:` preselects an option. It is an **expression returning a String**, and a
+quoted MDL value is the expression's text, so the option goes in as a String literal
+inside the quotes, even for a Boolean column:
+
+```sql
+column (Attribute: IsActive) { dropdownfilter ddfActive (defaultValue: '''true''') }
+```
+
+`defaultValue: 'true'` stores the Boolean expression `true`, and `'1'` or a bare name
+like `'Open'` fail the same way: mxbuild reports CE0117 "Error(s) in expression." `check`
+reports it as MDL-WIDGET49. `'empty'` (no preselection) is fine.
+
 Filter by an **association** instead of an attribute — the options are the
 associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:
@@ -718,6 +832,20 @@ snippetcall snippetName (snippet: Module.SnippetName)
 
 -- With parameters
 snippetcall actions (snippet: Module.EntityActions, params: (entity = $Param))
+```
+
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: Module.NavigationMenu)
+}
 ```
 
 **A parameter satisfied by the enclosing data context takes NO mapping.** Mendix

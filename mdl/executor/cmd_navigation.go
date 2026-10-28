@@ -9,14 +9,17 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
-// execAlterNavigation handles CREATE [OR REPLACE] NAVIGATION <profile> command.
-// It fully replaces the profile's home pages, login page, not-found page, and menu tree.
-func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
+// execCreateNavigation handles CREATE [OR MODIFY] NAVIGATION <profile> command.
+// A clause the statement states replaces what it names; an omitted clause keeps
+// the stored value (mendixlabs/mxcli#1522) -- the writer's rule, see
+// navPatchWebProfile.
+func execCreateNavigation(ctx *ExecContext, s *ast.CreateNavigationStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
@@ -29,6 +32,19 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 		return err
 	}
 
+	// Resolve the pages and flows it names, for the same reason: this statement
+	// replaces the whole profile, so a target that does not exist would cost the
+	// stored menu and be reported only by the next build (CE1613).
+	if err := validateNavigationTargetsForExec(ctx, s); err != nil {
+		return err
+	}
+
+	// Captions are read (to pair the script's items with the stored ones) and
+	// written in the project's default language, as a page's texts are: resolve
+	// it before the first read, since the backend reads it through
+	// model.AuthoringLanguage.
+	authoringLanguage(ctx)
+
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
@@ -39,9 +55,12 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	// Each item is paired with the stored item it replaces (ako/mxcli#980).
 	var stored []*types.NavMenuItem
 	isNative := false
+	storedKind := ""
+	var storedPWA *types.NavPWASettings
 	for _, p := range nav.Profiles {
 		if strings.EqualFold(p.Name, s.ProfileName) {
 			stored, isNative = p.MenuItems, p.IsNative
+			storedKind, storedPWA = p.Kind, p.ProgressiveWebApp
 			break
 		}
 	}
@@ -116,6 +135,9 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 	}
 
 	spec.ThrowSyncError = s.ThrowSyncError
+	spec.ProgressiveWebApp = s.ProgressiveWebApp
+	spec.AppTitle = s.AppTitle
+	spec.AppIcon = s.AppIcon
 	spec.HasSync = s.HasSyncBlock
 	for _, se := range s.SyncEntries {
 		spec.OfflineEntities = append(spec.OfflineEntities, types.NavOfflineEntitySpec{
@@ -141,10 +163,37 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 		"Navigation profile %s updated.", mdlQuoted(s.ProfileName)) {
 		// A re-run whose write was elided rewrote nothing, so it carried nothing
 		// either (ako/mxcli#890 is the same rule for security and settings).
+		// The profile is still unusable offline, though, so that is said again.
+		warnOfflineWithoutPWA(ctx, s, storedKind, storedPWA)
 		return nil
 	}
 	reportKeptMenuActions(ctx, kept)
+	kind := storedKind
+	if createdProfile {
+		kind = createdKind
+	}
+	warnOfflineWithoutPWA(ctx, s, kind, storedPWA)
 	return nil
+}
+
+// warnOfflineWithoutPWA says when an offline profile is left without Progressive
+// web app settings. Mendix then registers no service worker -- index.js carries
+// "registerServiceWorker": false -- so no page opens without a network, while
+// check, exec and mx check all pass (mendixlabs/mxcli#1377).
+func warnOfflineWithoutPWA(ctx *ExecContext, s *ast.CreateNavigationStmt, kind string, stored *types.NavPWASettings) {
+	if !types.IsOfflineProfileKind(kind) {
+		return
+	}
+	has := stored != nil
+	if s.ProgressiveWebApp != nil {
+		has = !s.ProgressiveWebApp.Off
+	}
+	if has {
+		return
+	}
+	fmt.Fprintf(ctx.Output, "  warning: navigation %s is an offline profile without Progressive web app settings: Mendix registers "+
+		"no service worker for it, so no page opens without a network -- add `progressive web app ( Precaching: true )` to the statement\n",
+		mdlQuoted(s.ProfileName))
 }
 
 // checkProfileClauses refuses what the statement says that the profile cannot
@@ -156,7 +205,7 @@ func execAlterNavigation(ctx *ExecContext, s *ast.AlterNavigationStmt) error {
 // stayed as it was. Its flow home is a nanoflow — `home microflow` there is
 // what describe used to print, so it is read as the nanoflow and warned about —
 // while a web profile's is a microflow, so `home nanoflow` there is refused.
-func checkProfileClauses(ctx *ExecContext, s *ast.AlterNavigationStmt, isNative bool) error {
+func checkProfileClauses(ctx *ExecContext, s *ast.CreateNavigationStmt, isNative bool) error {
 	if !isNative {
 		for _, hp := range s.HomePages {
 			if hp.IsNanoflow {
@@ -179,6 +228,14 @@ func checkProfileClauses(ctx *ExecContext, s *ast.AlterNavigationStmt, isNative 
 		return refuse("not found page")
 	case s.ThrowSyncError != nil:
 		return refuse("on sync error")
+	case s.ProgressiveWebApp != nil:
+		return refuse("progressive web app")
+	// Navigation$NativeNavigationProfile declares neither AppTitle nor AppIcon,
+	// so these have nothing to be written to (ako/mxcli#1756).
+	case s.AppTitle != nil:
+		return refuse("app title")
+	case s.AppIcon != nil:
+		return refuse("app icon")
 	}
 	for _, hp := range s.HomePages {
 		if !hp.IsPage && !hp.IsNanoflow {
@@ -307,6 +364,12 @@ func menuItemActionMDL(ctx *ExecContext, item *types.NavMenuItem) (onClick, note
 	typeName, _ := doc["$Type"].(string)
 	rendered := renderClientActionMDL(ctx, doc)
 	switch {
+	case strings.HasSuffix(rendered, unsetTargetNoteTail):
+		// A stored action with its target unset (ako/mxcli#1728): say so and
+		// keep it.
+		what := strings.TrimSuffix(strings.TrimPrefix(rendered, "-- NOT re-executable: the action "), unsetTargetNoteTail)
+		return "", fmt.Sprintf("-- menu item %s: its action (%s) %s, so it has no target MDL can name; "+
+			"a rewrite keeps the stored action while the item states none", menuCaptionNote(item.Caption), typeName, what)
 	case strings.HasPrefix(rendered, "--"):
 		return "", fmt.Sprintf("-- menu item %s: %s; a rewrite keeps the stored action while the item states none",
 			menuCaptionNote(item.Caption), strings.TrimSpace(strings.TrimPrefix(rendered, "--")))
@@ -523,28 +586,47 @@ func listNavigation(ctx *ExecContext) error {
 }
 
 // listNavigationMenu handles SHOW NAVIGATION MENU [profile] command.
-// Displays the menu tree for a specific profile, or all profiles if none specified.
+// Lists the menu tree of a profile (or of every profile) as a table, one row
+// per item in describe order, with the Address an ALTER NAVIGATION writes to
+// reach it: the shortest unique caption path (`'Admin' > 'Users'`, `@n` where
+// captions repeat). A native profile's bottom bar has no address: alter
+// navigation does not edit it.
 func listNavigationMenu(ctx *ExecContext, profileName *ast.QualifiedName) error {
+	describeDefaultLanguage(ctx) // captions are read in it, as describe reads them
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
 	}
 
-	for _, p := range nav.Profiles {
-		if profileName != nil && !strings.EqualFold(p.Name, profileName.Name) {
-			continue
+	result := &TableResult{Columns: []string{"Profile", "Item", "Action", "Address"}}
+	profiles, items := 0, 0
+	if nav != nil {
+		for _, p := range nav.Profiles {
+			if profileName != nil && !strings.EqualFold(p.Name, profileName.Name) {
+				continue
+			}
+			profiles++
+			tree := backend.MenuTreeFromNavItems(p.MenuItems)
+			var walk func(list []*types.NavMenuItem, prefix backend.MenuItemPath)
+			walk = func(list []*types.NavMenuItem, prefix backend.MenuItemPath) {
+				for i, it := range list {
+					path := append(append(backend.MenuItemPath(nil), prefix...), i)
+					address := "-"
+					if !p.IsNative {
+						address = backend.ShortestMenuItemAddress(tree, path).String()
+					}
+					result.Rows = append(result.Rows, []any{p.Name,
+						strings.Repeat("  ", len(prefix)) + it.Caption,
+						strings.TrimPrefix(menuItemTarget(it), " -> "), address})
+					items++
+					walk(it.Items, path)
+				}
+			}
+			walk(p.MenuItems, nil)
 		}
-
-		fmt.Fprintf(ctx.Output, "-- Navigation Menu: %s (%s)\n", p.Name, p.Kind)
-		if len(p.MenuItems) == 0 {
-			fmt.Fprintln(ctx.Output, "  (no menu items)")
-		} else {
-			printMenuTree(ctx.Output, p.MenuItems, 0)
-		}
-		fmt.Fprintln(ctx.Output)
 	}
-
-	return nil
+	result.Summary = fmt.Sprintf("(%d menu items in %d navigation profiles)", items, profiles)
+	return writeResult(ctx, result)
 }
 
 // listNavigationHomes handles SHOW NAVIGATION HOMES command.
@@ -600,6 +682,10 @@ func flowHomeWord(p *types.NavigationProfile) string {
 // describeNavigation handles DESCRIBE NAVIGATION [profile] command.
 // Outputs a complete MDL-style description of a navigation profile.
 func describeNavigation(ctx *ExecContext, name ast.QualifiedName) error {
+	// A menu item's caption is read in the project's default language, as a
+	// page's texts are (model.SelectTranslation). The backend reads it through
+	// model.AuthoringLanguage, so it is resolved first.
+	describeDefaultLanguage(ctx)
 	nav, err := ctx.Backend.GetNavigation()
 	if err != nil {
 		return mdlerrors.NewBackend("get navigation", err)
@@ -633,6 +719,22 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	}
 
 	fmt.Fprintf(ctx.Output, "create or modify navigation %s\n", p.Name)
+
+	// Studio Pro's "Application title" and "Application icon", first as Studio
+	// Pro shows them (ako/mxcli#1756). Printed whenever something is stored --
+	// Studio Pro's blank-project 'Mendix' and Atlas_Core.Content.Mendix included,
+	// since that is what the browser tab shows and a description copied into
+	// another project should say so. An empty title or no icon is left out: the
+	// omitted clause keeps the stored value, so re-running the description is
+	// still a no-op. A native profile has neither.
+	if !p.IsNative {
+		if p.AppTitle != "" {
+			fmt.Fprintf(ctx.Output, "  app title %s\n", mdlQuote(ctx, p.AppTitle))
+		}
+		if p.AppIcon != "" {
+			fmt.Fprintf(ctx.Output, "  app icon %s\n", quoteQualifiedName(p.AppIcon))
+		}
+	}
 
 	// Home page. A native profile's flow home is a nanoflow; the reader keeps
 	// it in Microflow, and printing it as `home microflow` named the wrong kind
@@ -676,6 +778,23 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	// (unmeasured there), and exec refuses the clause on one.
 	if !p.ThrowPartialSyncError && !p.IsNative {
 		fmt.Fprintln(ctx.Output, "  on sync error continue")
+	}
+
+	// Emitted when the settings are stored (null is the default), with only
+	// the keys that differ from the platform defaults (R12).
+	if pwa := p.ProgressiveWebApp; pwa != nil && !p.IsNative {
+		var keys []string
+		if pwa.Precaching != types.NavPWADefaultPrecaching {
+			keys = append(keys, fmt.Sprintf("Precaching: %t", pwa.Precaching))
+		}
+		if pwa.InstallPrompt != types.NavPWADefaultInstallPrompt {
+			keys = append(keys, fmt.Sprintf("InstallPrompt: %t", pwa.InstallPrompt))
+		}
+		if len(keys) == 0 {
+			fmt.Fprintln(ctx.Output, "  progressive web app")
+		} else {
+			fmt.Fprintf(ctx.Output, "  progressive web app ( %s )\n", strings.Join(keys, ", "))
+		}
 	}
 
 	// Offline entities. These are re-executable now, so they are emitted as a
@@ -731,18 +850,6 @@ func countMenuItems(items []*types.NavMenuItem) int {
 		count += countMenuItems(item.Items)
 	}
 	return count
-}
-
-// printMenuTree prints a menu tree with indentation to an io.Writer.
-func printMenuTree(w io.Writer, items []*types.NavMenuItem, depth int) {
-	indent := strings.Repeat("  ", depth+1)
-	for _, item := range items {
-		target := menuItemTarget(item)
-		fmt.Fprintf(w, "%s%s%s\n", indent, item.Caption, target)
-		if len(item.Items) > 0 {
-			printMenuTree(w, item.Items, depth+1)
-		}
-	}
 }
 
 // menuItemTarget returns a display string for a menu item's action target.

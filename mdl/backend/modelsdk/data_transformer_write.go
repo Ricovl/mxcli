@@ -26,7 +26,8 @@ func (b *Backend) ListDataTransformers() ([]*model.DataTransformer, error) {
 	out := make([]*model.DataTransformer, 0, len(units))
 	for _, u := range units {
 		g := u.Element
-		dt := &model.DataTransformer{ContainerID: model.ID(u.ContainerID), Name: g.Name(), Excluded: g.Excluded()}
+		dt := &model.DataTransformer{ContainerID: model.ID(u.ContainerID), Name: g.Name(), Excluded: g.Excluded(),
+			Documentation: g.Documentation()} // mendixlabs/mxcli#1510
 		dt.ID = model.ID(g.ID())
 		dt.TypeName = "DataTransformers$DataTransformer"
 		if src := g.Source(); src != nil {
@@ -154,7 +155,7 @@ func dataTransformerToGen(dt *model.DataTransformer) element.Element {
 
 	g := newElem("DataTransformers$DataTransformer", string(dt.ID))
 	addStr(g, "Name", dt.Name)
-	addStr(g, "Documentation", "")
+	addStr(g, "Documentation", dt.Documentation)
 	addBool(g, "Excluded", dt.Excluded)
 	addStr(g, "ExportLevel", "Hidden")
 	addPart(g, "Source", source)

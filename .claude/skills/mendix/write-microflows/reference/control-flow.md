@@ -330,6 +330,8 @@ commit $Product;
 - **Leave `@position` out unless you are reproducing a hand-made diagram.** Without it the builder lays the flow out itself: the main line wraps onto rows past two canvas widths, a guard's branch drops into the lane below while the main line carries on above it, and a `case` of four or more branches leaves the decision in three groups so its lines do not cross. A statement with `@position` is never moved and is not measured against what is placed around it, so a few hand-placed statements in an otherwise automatic flow are what produces overlaps (mendixlabs/mxcli#1154)
 - `@position` always appears in DESCRIBE output; `@caption` only when custom; `@color` only when not Default
 - DESCRIBE MICROFLOW shows `@` annotations before their activities
+- `@anchor(from: X, to: Y)` names two different flows: `from:` is the side the flow **leaving** the statement starts from, `to:` the side the flow **arriving** at it enters by. An annotation never reaches the far end of its own outgoing flow — that end is the next statement's `to:`. A straight vertical edge from A down to B is `@anchor(from: bottom)` on A **and** `@anchor(to: top)` on B; `@anchor(from: bottom, to: top)` on A alone bends both of A's edges and leaves B entered on the left (ako/mxcli#1279). A `return`'s `from:` does nothing (an end event has no outgoing flow).
+- On a `case`, `@anchor(Open: (from: right), (empty): (from: bottom, to: top))` names each outcome's edge by its `when` value; an unnamed outcome keeps its default (up to three outcomes: top, right, bottom in `when` order). `true:`/`false:` on a `case`, or a value key on anything else, is refused (MDL092) (ako/mxcli#1492).
 - `@anchor(from: X)` is the side the flow **leaving** a statement starts from. On an `if` that is the flow out of its closing merge (the merge has no statement of its own, just as its position rides on the if as `@merge`); the if's `to:` is its incoming flow and `true:` / `false:` its branches. `@anchor(from: bottom, to: top, …)` on an if is how DESCRIBE writes a decision whose merge drops onto the next row (#767)
 - `@start(x, y)` positions the **start event** and goes on the first statement, because the start has no statement of its own. Omit it and the start is derived — one spacing unit (160) left of the first activity, on its centre line — and a rewrite re-derives it so the start follows the activities when they move. A start that is not at the derived spot was placed by hand (in Studio Pro or with `@start`): it survives a rewrite that does not mention it, and DESCRIBE emits `@start` for it. An explicit `@start` overrides both (#951)
 - `@position(x, y)` on a **parameter** goes inside the parameter list, ahead of the parameter it places — a parameter is a stored node with its own coordinates, and this is the only annotation it takes. Omit it and the parameters form a row along the top of the canvas (200;53, 300;53, …). The `@start` rule above applies unchanged: a parameter on that derived row is re-derived on a rewrite, one anywhere else was placed by hand, survives, and is emitted by DESCRIBE (#993). Before this, a hand-aligned parameter block was moved back onto the row by any rewrite — including a describe → exec of mxcli's own output:
@@ -340,6 +342,32 @@ commit $Product;
     $Feedback: MyModule.Feedback
   )
   ```
+
+### Disabled activities — `@excluded` on a statement
+
+`@excluded` **on a statement inside the body** is Studio Pro's **Disable
+activity** (right-click → Disable): the activity stays in the flow with its
+configuration and is skipped at runtime, greyed out until someone re-enables it.
+Use it for an activity mxcli cannot configure fully, so a developer can finish it
+in Studio Pro. `describe` prints it back, in microflows and nanoflows alike.
+(Before `create microflow` the same annotation is the *document's* "Exclude from
+project" — a different property.)
+
+```mdl
+mdl 1;
+create microflow MyModule.ACT_Process ($Order: MyModule.Order)
+begin
+  log info node 'Orders' 'processing';
+  @excluded
+  call microflow MyModule.SUB_NotifyLegacy(Order = $Order);
+  return;
+end;
+```
+
+Only an **activity** can be disabled — the property exists on the action activity
+alone. On a decision, a loop, `return` or `raise error` there is nowhere to put
+it, so it is dropped and `mxcli check` warns **MDL095**. Put it on the activities
+inside the branch or loop body instead (mendixlabs/mxcli#1139).
 ## Error Handling
 
 MDL supports error handling for activities that may fail (microflow calls, commits, external service calls, etc.).
@@ -432,7 +460,9 @@ begin
   -- The call output establishes $response — objects are never declared
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
     on error without rollback begin
-      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
+      -- `with stacktrace` ticks "Include latest stack trace" (after any
+      -- `with ({1} = …)` template parameters)
+      log error node 'ExternalAPI' 'API call failed for: ' + $RequestData with stacktrace;
       -- Not `$response = create …`: a variable name is unique flow-wide,
       -- handler included (MDL063, CE0111). The fallback gets its own name
       -- and the handler returns it.
@@ -456,12 +486,21 @@ knowing which one you are writing.
 |------|-----------|
 | `on error continue` | No error path at all |
 | `on error [without rollback] begin … return/throw end error` | Its own path, its own terminator |
-| `on error [without rollback] begin end error` | **Not a no-op** — falls through to whatever the *enclosing branch* does next |
+| `on error [without rollback] begin [ … ] end error` | **Falls through** — after the handler body (if any), continues with the statement after the failing activity |
 | `on error [without rollback] begin … join L; end error` | Rejoins the normal path at the merge labelled `L` |
 
-The empty form is the one that surprises people. It means "on error, do whatever
-the enclosing branch's continuation does" — which in a branch that returns
-something else is a value nowhere in the text. Prefer `join` when you mean it.
+The fall-through form holds inside a branch too: the statement after the failing
+activity is the next one in the same `if`/`case` arm or loop body, and for an
+arm's last activity it is whatever follows the `end if`/`end case` (in a loop
+body, the next iteration). The empty form is the one that surprises people: it
+is **not a no-op**, the error path just has no activities of its own.
+
+One refinement, because a failure never produces the activity's output: the
+error path skips the statements that read that output (`$N = call …;
+log … $N …;`) and rejoins after them. In an arm that ends in `return`, a handler
+that would have to skip leaves the arm instead and continues where the `if`
+does — which, in an arm that returns something else, is a value nowhere in the
+text. Prefer `join` when you mean a specific place.
 
 ```mdl
 mdl 1;

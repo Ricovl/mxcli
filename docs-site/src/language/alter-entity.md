@@ -176,10 +176,21 @@ ALTER ENTITY Sales.Order
 ALTER ENTITY Sales.Order
   ADD EVENT HANDLER ON AFTER CREATE CALL Sales.NotifyNewOrder();
 
--- Remove an event handler
+-- A second handler for the same event runs as well
 ALTER ENTITY Sales.Order
-  DROP EVENT HANDLER ON BEFORE COMMIT;
+  ADD EVENT HANDLER ON BEFORE COMMIT CALL Sales.CheckCredit($currentObject) RAISE ERROR;
+
+-- Remove an event handler: CALL names which one
+ALTER ENTITY Sales.Order
+  DROP EVENT HANDLER ON BEFORE COMMIT CALL Sales.CheckCredit;
 ```
+
+An entity may have several handlers for one event. A handler is identified by
+its moment, event **and** microflow: `ADD EVENT HANDLER` with another microflow
+adds a second one, and only the same microflow again is a duplicate (an error,
+or skipped with `IF NOT EXISTS`). `DROP EVENT HANDLER ON BEFORE COMMIT` without
+`CALL` works while the entity has one Before Commit handler; when it has several,
+it is refused and the error names them.
 
 | Moment | Returns | RAISE ERROR | Use case |
 |--------|---------|-------------|----------|

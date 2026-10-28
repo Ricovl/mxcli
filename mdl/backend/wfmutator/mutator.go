@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -96,9 +96,71 @@ func (m *Mutator) SetProperty(prop string, value string) error {
 		bsonnav.DSet(m.rawData, "DueDate", value)
 		return nil
 
+	case "annotation":
+		return m.setStartNote(value)
+
 	default:
 		return fmt.Errorf("unsupported workflow property: %s", prop)
 	}
+}
+
+// setStartNote sets the note on the workflow's start, the header's
+// `annotation '…'` (ako/mxcli#1717): the start activity's, where Studio Pro
+// stores and shows it. The workflow's own Annotation — shown nowhere, and where
+// mxcli wrote the note before — is cleared, or describe would still print the
+// note the statement replaced or removed.
+//
+// A workflow whose main flow has no start activity is one stored below Mendix
+// 11.3, which keeps the start implicit and the note as the workflow's own
+// Annotation (ako/mxcli#1754); the note is set there.
+func (m *Mutator) setStartNote(text string) error {
+	var start bson.D
+	for _, el := range bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(m.rawData, "Flow"), "Activities")) {
+		if d, ok := el.(bson.D); ok && bsonnav.DGetString(d, "$Type") == "Workflows$StartWorkflowActivity" {
+			start = d
+			break
+		}
+	}
+	if start == nil {
+		if setNote(m.rawData, "the workflow", text) == nil {
+			return nil
+		}
+		return fmt.Errorf("the workflow has no start activity to hold its note")
+	}
+	if err := setNote(start, "the workflow's start activity", text); err != nil {
+		return err
+	}
+	bsonnav.DSet(m.rawData, "Annotation", nil)
+	return nil
+}
+
+// setNote writes the note Studio Pro attaches to an activity (ako/mxcli#1717):
+// a Workflows$Annotation holding Description — the shape CREATE writes for
+// `@annotation '…'` — or null for "".
+// An existing note keeps its $ID. A document without the Annotation slot is
+// refused: every type with a note stores the slot, null when empty (11.15.0),
+// so a missing one is a type or version that has no note to write.
+func setNote(owner bson.D, what, text string) error {
+	for i := range owner {
+		if owner[i].Key != "Annotation" {
+			continue
+		}
+		note, _ := owner[i].Value.(bson.D)
+		switch {
+		case text == "":
+			owner[i].Value = nil
+		case note != nil && bsonnav.DSet(note, "Description", text):
+			// Edited in place, keeping the note's $ID.
+		default:
+			owner[i].Value = bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "Workflows$Annotation"},
+				{Key: "Description", Value: text},
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("%s has no annotation to set", what)
 }
 
 func (m *Mutator) SetPropertyWithEntity(prop string, value string, entity string) error {
@@ -155,6 +217,62 @@ func (m *Mutator) SetPropertyWithEntity(prop string, value string, entity string
 // Activity operations
 // ---------------------------------------------------------------------------
 
+// templateKeys maps SetTemplateParameters' property to the key of the
+// Microflows$StringTemplate it fills, on the workflow and on a user task.
+var templateKeys = map[string][2]string{
+	"display":     {"WorkflowName", ""},
+	"description": {"WorkflowDescription", "TaskDescription"},
+	"task_name":   {"", "TaskName"},
+}
+
+// SetTemplateParameters replaces a text's parameters with one
+// Microflows$TemplateParameter per expression — the shape the create path
+// writes (ako/mxcli#1714).
+func (m *Mutator) SetTemplateParameters(activityRef string, atPos int, prop string, params []string) error {
+	keys, ok := templateKeys[strings.ToLower(prop)]
+	if !ok {
+		return fmt.Errorf("%s is not a text with parameters", prop)
+	}
+	owner, key := m.rawData, keys[0]
+	if activityRef != "" {
+		actDoc, err := m.findActivityByCaption(activityRef, atPos)
+		if err != nil {
+			return err
+		}
+		owner, key = actDoc, keys[1]
+	}
+	if key == "" {
+		return fmt.Errorf("%s has no parameters here", prop)
+	}
+	tmpl := bsonnav.DGetDoc(owner, key)
+	if tmpl == nil {
+		if len(params) == 0 {
+			return nil
+		}
+		return fmt.Errorf("%s has no %s to give parameters", orWorkflow(activityRef), key)
+	}
+	list := bson.A{int32(2)}
+	for _, p := range params {
+		list = append(list, bson.D{
+			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+			{Key: "$Type", Value: "Microflows$TemplateParameter"},
+			{Key: "Expression", Value: p},
+		})
+	}
+	if !bsonnav.DSet(tmpl, "Parameters", list) {
+		return fmt.Errorf("%s's %s has no parameter list", orWorkflow(activityRef), key)
+	}
+	return nil
+}
+
+// orWorkflow names what SetTemplateParameters edits, for its errors.
+func orWorkflow(activityRef string) string {
+	if activityRef == "" {
+		return "the workflow"
+	}
+	return "activity " + activityRef
+}
+
 func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string, value string) error {
 	actDoc, err := m.findActivityByCaption(activityRef, atPos)
 	if err != nil {
@@ -186,6 +304,14 @@ func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string
 		}
 		return nil
 
+	case "task_name":
+		taskName := bsonnav.DGetDoc(actDoc, "TaskName")
+		if taskName == nil {
+			return fmt.Errorf("activity %q has no task name", activityRef)
+		}
+		bsonnav.DSet(taskName, "Text", value)
+		return nil
+
 	case "targeting_microflow":
 		userTargeting := bson.D{
 			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
@@ -207,6 +333,18 @@ func (m *Mutator) SetActivityProperty(activityRef string, atPos int, prop string
 	case "due_date":
 		bsonnav.DSet(actDoc, "DueDate", value)
 		return nil
+
+	case "annotation":
+		switch bsonnav.DGetString(actDoc, "$Type") {
+		case "Workflows$StartWorkflowActivity":
+			// The workflow's note, which describe prints in the header.
+			return m.setStartNote(value)
+		case "Workflows$EndWorkflowActivity", "Workflows$EndOfParallelSplitPathActivity", "Workflows$EndOfBoundaryEventPathActivity":
+			// Studio Pro's workflow editor draws no note on an end (11.15.0),
+			// and describe prints none: a note there is one nothing shows.
+			return fmt.Errorf("activity %q is an end of the flow, which shows no note", activityRef)
+		}
+		return setNote(actDoc, fmt.Sprintf("activity %q", activityRef), value)
 
 	default:
 		return fmt.Errorf("unsupported activity property: %s", prop)
@@ -540,7 +678,7 @@ func (m *Mutator) DropBranch(activityRef string, atPos int, branchName string) e
 // Boundary event operations
 // ---------------------------------------------------------------------------
 
-func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, activities []workflows.WorkflowActivity) error {
+func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType string, delay string, caption string, recurrence *workflows.Recurrence, activities []workflows.WorkflowActivity) error {
 	actDoc, err := m.findMemberTarget(activityRef, atPos, "insert boundary event", backend.WorkflowBoundaryEvents)
 	if err != nil {
 		return err
@@ -556,7 +694,7 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: typeName},
-		{Key: "Caption", Value: ""},
+		{Key: "Caption", Value: caption},
 	}
 
 	if delay != "" {
@@ -573,7 +711,19 @@ func (m *Mutator) InsertBoundaryEvent(activityRef string, atPos int, eventType s
 	eventDoc = append(eventDoc, bson.E{Key: "PersistentId", Value: bsonutil.NewIDBsonBinary()})
 
 	if typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
-		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: nil})
+		var rec any // null: fires once
+		if recurrence != nil {
+			rec = bson.D{
+				{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
+				{Key: "$Type", Value: "Workflows$LinearRecurrence"},
+				{Key: "Interval", Value: int32(recurrence.Interval)},
+				{Key: "IntervalType", Value: recurrence.IntervalType},
+				{Key: "MaxExecutions", Value: int32(recurrence.MaxExecutions)},
+			}
+		}
+		eventDoc = append(eventDoc, bson.E{Key: "Recurrence", Value: rec})
+	} else if recurrence != nil {
+		return fmt.Errorf("insert boundary event: only a non-interrupting timer repeats")
 	}
 
 	events := bsonnav.DGetArrayElements(bsonnav.DGet(actDoc, "BoundaryEvents"))

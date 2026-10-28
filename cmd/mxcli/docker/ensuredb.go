@@ -3,13 +3,16 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +22,8 @@ import (
 // fresh session comes up testable without a manual createdb (slice 2 of the
 // warm-loop proposal). It is best-effort: it starts the local Postgres service
 // if the port is down — via a service manager, or a user-owned initdb/pg_ctl
-// cluster when no service becomes ready (e.g. Arch, #823) — then ensures the app
+// cluster when no service becomes ready (e.g. Arch, #823), but never in place of
+// a stopped system cluster for the same port (ako/mxcli#866) — then ensures the app
 // role and database exist via a superuser (a trust connection over the
 // user-owned cluster's private socket, or `sudo -u postgres psql` for a system
 // cluster). For a non-local DB host it does nothing but verify reachability —
@@ -53,6 +57,197 @@ var currentEUID = os.Geteuid
 // failed service start could never deploy on the platform that needs it most
 // (#984). A variable so a stubbed PATH also gets a hermetic tool lookup.
 var postgresServerBinGlobs = []string{"/usr/lib/postgresql/*/bin"}
+
+// systemClusterRoot prefixes every well-known location probed for a system
+// cluster (see findSystemClusters), so a test can point the probe at a
+// temporary tree. Empty means the real filesystem root.
+var systemClusterRoot = ""
+
+// clusterProbeStat is the stat behind the system-cluster probe; a variable so a
+// test running as root can still exercise a permission-denied data directory.
+var clusterProbeStat = os.Stat
+
+// newClusterOptInEnv, set to 1, lets the user-owned fallback initialize a new
+// cluster although a stopped system cluster is configured for the same port —
+// the deliberate way past the ako/mxcli#866 refusal when that cluster is not
+// this app's and cannot be started (no sudo).
+const newClusterOptInEnv = "MXCLI_ENSURE_DB_NEW_CLUSTER"
+
+// systemClusterLayouts are the data directories a package or service manager
+// creates, beyond Debian's postgresql-common (read from /etc/postgresql). Paths
+// are slash-separated and taken relative to systemClusterRoot.
+var systemClusterLayouts = []struct {
+	glob string
+	kind clusterKind
+}{
+	{"/var/lib/postgresql/*/*", clusterDebian}, // a data directory whose /etc config is gone
+	{"/var/lib/pgsql/data", clusterSystemd},    // RHEL, Fedora, CentOS
+	{"/var/lib/pgsql/*/data", clusterSystemd},  // PGDG packages on RHEL
+	{"/var/lib/postgres/data", clusterSystemd}, // Arch
+	{"/opt/homebrew/var/postgres*", clusterHomebrew},
+	{"/usr/local/var/postgres*", clusterHomebrew},
+	{"C:/Program Files/PostgreSQL/*/data", clusterWindows},
+}
+
+type clusterKind int
+
+const (
+	clusterDebian clusterKind = iota
+	clusterSystemd
+	clusterHomebrew
+	clusterWindows
+)
+
+// systemCluster is a PostgreSQL cluster mxcli did not create: an initialized
+// data directory in a location a package or service manager uses.
+type systemCluster struct {
+	dataDir string
+	// port is the configured port, or PostgreSQL's default 5432 when the
+	// configuration cannot be read (a 0700 data directory, as a non-root user).
+	port string
+	kind clusterKind
+	// version and name identify a postgresql-common cluster, which
+	// pg_ctlcluster addresses by exactly those two.
+	version, name string
+}
+
+// startCommand is how a user starts this cluster by hand.
+func (c systemCluster) startCommand() string {
+	switch c.kind {
+	case clusterDebian:
+		if c.version != "" && c.name != "" {
+			return fmt.Sprintf("sudo pg_ctlcluster %s %s start   (or: sudo service postgresql start)", c.version, c.name)
+		}
+		return fmt.Sprintf("sudo service postgresql start   (or: sudo -u postgres pg_ctl -D %s start)", c.dataDir)
+	case clusterHomebrew:
+		return fmt.Sprintf("brew services start %s   (or: pg_ctl -D %s start)", filepath.Base(c.dataDir), c.dataDir)
+	case clusterWindows:
+		return fmt.Sprintf("net start postgresql-x64-%s   (as Administrator; or start it in services.msc)",
+			filepath.Base(filepath.Dir(c.dataDir)))
+	}
+	return fmt.Sprintf("sudo systemctl start postgresql   (or: sudo -u postgres pg_ctl -D %s start)", c.dataDir)
+}
+
+// clusterDataDirPresent reports whether dir is a data directory initdb has
+// populated. A PG_VERSION the probe may not read counts: as a non-root user,
+// /var/lib/postgresql/16/main is 0700 and owned by postgres, so stat is refused
+// rather than answered — and that user is exactly who #866 happened to.
+func clusterDataDirPresent(dir string) bool {
+	info, err := clusterProbeStat(dir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+	_, err = clusterProbeStat(filepath.Join(dir, "PG_VERSION"))
+	return err == nil || errors.Is(err, fs.ErrPermission)
+}
+
+var (
+	pgConfPortRe    = regexp.MustCompile(`^\s*port\s*=?\s*'?(\d+)'?`)
+	pgConfDataDirRe = regexp.MustCompile(`^\s*data_directory\s*=?\s*'([^']*)'`)
+)
+
+// readClusterConf returns the port and data_directory a postgresql.conf sets;
+// either is "" when the file is unreadable or leaves it at the default.
+func readClusterConf(path string) (port, dataDir string) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", ""
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		if m := pgConfPortRe.FindStringSubmatch(line); m != nil {
+			port = m[1]
+		}
+		if m := pgConfDataDirRe.FindStringSubmatch(line); m != nil {
+			dataDir = m[1]
+		}
+	}
+	return port, dataDir
+}
+
+// findSystemClusters lists the initialized PostgreSQL clusters a package or
+// service manager made on this machine, whether or not they are running.
+func findSystemClusters() []systemCluster {
+	at := func(p string) string { return filepath.Join(systemClusterRoot, filepath.FromSlash(p)) }
+	var out []systemCluster
+	seen := map[string]bool{}
+	add := func(c systemCluster) {
+		c.dataDir = filepath.Clean(c.dataDir)
+		if seen[c.dataDir] || !clusterDataDirPresent(c.dataDir) {
+			return
+		}
+		seen[c.dataDir] = true
+		if c.port == "" {
+			c.port = "5432"
+		}
+		out = append(out, c)
+	}
+
+	// Debian/Ubuntu postgresql-common: the configuration, port included, lives
+	// in /etc/postgresql/<version>/<name>/ and stays readable to every user.
+	confs, _ := filepath.Glob(at("/etc/postgresql/*/*/postgresql.conf"))
+	for _, conf := range confs {
+		clusterDir := filepath.Dir(conf)
+		name, version := filepath.Base(clusterDir), filepath.Base(filepath.Dir(clusterDir))
+		port, dataDir := readClusterConf(conf)
+		if dataDir == "" {
+			dataDir = "/var/lib/postgresql/" + version + "/" + name
+		}
+		add(systemCluster{dataDir: at(dataDir), port: port, kind: clusterDebian, version: version, name: name})
+	}
+
+	for _, layout := range systemClusterLayouts {
+		// A drive-letter glob is a RELATIVE path off Windows, resolved against
+		// the working directory; a /var glob means nothing on Windows.
+		if (layout.kind == clusterWindows) != (runtime.GOOS == "windows") {
+			continue
+		}
+		dirs, _ := filepath.Glob(at(layout.glob))
+		for _, dir := range dirs {
+			port, _ := readClusterConf(filepath.Join(dir, "postgresql.conf"))
+			add(systemCluster{dataDir: dir, port: port, kind: layout.kind})
+		}
+	}
+	return out
+}
+
+// conflictingSystemCluster returns the system cluster configured for port, if
+// one exists. The caller has already established that nothing listens there,
+// so a match is a cluster that is down.
+func conflictingSystemCluster(port string) (systemCluster, bool) {
+	for _, c := range findSystemClusters() {
+		if c.port == port {
+			return c, true
+		}
+	}
+	return systemCluster{}, false
+}
+
+// systemClusterDownError is the refusal to initialize a new cluster over a
+// stopped one. Its first line carries the data directory, because that is the
+// line a hook banner shows; nothing after it may read as a second error.
+func systemClusterDownError(c systemCluster) error {
+	return fmt.Errorf("refusing to create a new, empty PostgreSQL cluster: the cluster in %s "+
+		"(port %s) exists but is not running\n"+
+		"  The app's data, if it lives there, would be absent from a new cluster, and an empty\n"+
+		"  database looks exactly like a new one, so nothing would say so (ako/mxcli#866).\n"+
+		"  Start it, then rerun:\n"+
+		"    %s\n"+
+		"  If that cluster does not hold this app's data, create a new, empty one deliberately:\n"+
+		"    %s=1 mxcli run --local --ensure-db ...\n"+
+		"  or boot on the built-in database instead: --db-type hsqldb",
+		c.dataDir, c.port, c.startCommand(), newClusterOptInEnv)
+}
+
+// userClusterInitialized reports whether the user-owned cluster under
+// ~/.mxcli/postgres already exists — a restart of it is not a new database.
+func userClusterInitialized() bool {
+	_, dataDir, _, err := userClusterDirs()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(dataDir, "PG_VERSION"))
+	return err == nil
+}
 
 // onPath reports whether a command is resolvable through PATH.
 func onPath(name string) bool {
@@ -269,7 +464,10 @@ func EnsureDatabase(db *DBConfig, w io.Writer) error {
 	}
 
 	// Ensure the role and database exist (needs a local superuser).
-	su, err := resolveSuperuser(host, port)
+	su, err := resolveSuperuser(host, port, dbAdmin{User: db.AdminUser, Password: db.AdminPassword})
+	if errors.Is(err, errNoSuperuser) {
+		return fmt.Errorf("%w%s", err, noSuperuserHint(*db))
+	}
 	if err != nil {
 		return err
 	}
@@ -300,7 +498,8 @@ func canConnectDB(db DBConfig) bool {
 // startLocalPostgres starts the local PostgreSQL service, trying the common
 // service managers in turn. When none is present — e.g. on Arch — or they do
 // not produce a ready server, it falls back to a user-owned cluster started with
-// the portable initdb/pg_ctl tools (#823).
+// the portable initdb/pg_ctl tools (#823) — unless a system cluster configured
+// for the port exists and is down, which it refuses to paper over (#866).
 // It returns whatever the service managers reported, so a caller whose own
 // readiness wait then fails can say what this package already saw.
 func startLocalPostgres(host, port string, w io.Writer) ([]string, error) {
@@ -337,6 +536,27 @@ func startLocalPostgres(host, port string, w io.Writer) ([]string, error) {
 	// initial reachability check and this fallback.
 	if pingTCP(net.JoinHostPort(host, port), time.Second) == nil {
 		return serviceDiag, nil
+	}
+
+	// A system cluster configured for this port exists and is down — the
+	// service managers above did not bring it up. A new cluster here would
+	// answer every probe the app makes while holding none of its data, so the
+	// run would boot healthy against an empty database with nothing saying so
+	// (ako/mxcli#866). Refuse, unless the user-owned cluster already exists (a
+	// restart of it is not a new database) or the user opted in.
+	if sys, found := conflictingSystemCluster(port); found {
+		switch {
+		case userClusterInitialized():
+			_, dataDir, _, _ := userClusterDirs()
+			fmt.Fprintf(w, "  Note: using the user-owned cluster in %s; the system cluster in %s (port %s) "+
+				"is not running.\n  If the app's data is in that one, stop this cluster (pg_ctl -D %s stop) and start it:\n    %s\n",
+				dataDir, sys.dataDir, sys.port, dataDir, sys.startCommand())
+		case os.Getenv(newClusterOptInEnv) == "1":
+			fmt.Fprintf(w, "  %s=1: not starting the stopped cluster in %s; creating a new one instead.\n",
+				newClusterOptInEnv, sys.dataDir)
+		default:
+			return serviceDiag, withServiceDiag(systemClusterDownError(sys), serviceDiag)
+		}
 	}
 
 	// No service manager made PostgreSQL ready: start a user-owned cluster with
@@ -541,6 +761,12 @@ func startUserCluster(host, port string, w io.Writer) error {
 			return fmt.Errorf("initializing PostgreSQL cluster in %s: %w\n%s",
 				dataDir, err, strings.TrimSpace(string(out)))
 		}
+		// An empty database is indistinguishable from a new one, so the one
+		// moment that knows the difference has to say it (ako/mxcli#866).
+		fmt.Fprintf(w, "  WARNING: created a NEW, EMPTY PostgreSQL cluster in %s.\n"+
+			"           The app's database in it starts empty: no data from any other PostgreSQL\n"+
+			"           installation is in it. If the app had data elsewhere, stop here and start that server.\n",
+			dataDir)
 	} else if err != nil {
 		return fmt.Errorf("checking PostgreSQL cluster in %s: %w", dataDir, err)
 	}
@@ -621,14 +847,27 @@ func waitTCP(hostPort string, timeout time.Duration) error {
 	return fmt.Errorf("%s did not accept connections within %s", hostPort, timeout)
 }
 
+// dbAdmin is a PostgreSQL superuser login supplied by the user
+// (--db-admin-user/--db-admin-password). A server whose superuser has a password
+// — every Windows install, where the installer always sets one, and there is no
+// sudo either — can be provisioned no other way (mendixlabs/mxcli#1485).
+type dbAdmin struct{ User, Password string }
+
+func (a dbAdmin) given() bool { return a.User != "" || a.Password != "" }
+
 // superuser is how we reach a PostgreSQL superuser to provision the role and
 // database: a direct `psql -U postgres` against the user-owned cluster (over its
-// private socket), or `sudo -u postgres psql` over the system cluster's default
-// Unix socket. The latter preserves the peer-auth path used by Debian/Ubuntu.
+// private socket), `sudo -u postgres psql` over the system cluster's default
+// Unix socket (the peer-auth path used by Debian/Ubuntu), or the user's own
+// admin login over TCP.
 type superuser struct {
 	host, port string
-	sock       string // Unix-socket dir for the user-owned cluster; preferred over TCP
-	sudo       bool
+	// user is the role to connect as; empty means postgres. password, when set,
+	// reaches psql through PGPASSWORD, never argv, where any local user could
+	// read it from the process list.
+	user, password string
+	sock           string // Unix-socket dir for the user-owned cluster; preferred over TCP
+	sudo           bool
 	// viaRoot reaches the postgres account through root instead of directly.
 	// Devcontainers built from mcr.microsoft.com/devcontainers/base grant their
 	// non-root user sudo to root ONLY (`vscode ALL=(root) NOPASSWD:ALL`), so
@@ -674,7 +913,7 @@ func (s superuser) psql(args ...string) *exec.Cmd {
 	if host != "" {
 		base = append(base, "-h", host)
 	}
-	base = append(base, "-p", s.port, "-U", "postgres", "-d", "postgres")
+	base = append(base, "-p", s.port, "-U", s.psqlUser(), "-d", "postgres")
 	if s.sudo {
 		// -n prevents sudo from opening /dev/tty for a password; psql's -w above
 		// independently prevents a database-password prompt. Omit -h to retain the
@@ -688,19 +927,36 @@ func (s superuser) psql(args ...string) *exec.Cmd {
 		cmd.Env = withoutPostgresTargetEnv(os.Environ())
 		return cmd
 	}
-	return exec.Command("psql", append(base, args...)...)
+	cmd := exec.Command("psql", append(base, args...)...)
+	if s.password != "" {
+		cmd.Env = append(os.Environ(), "PGPASSWORD="+s.password)
+	}
+	return cmd
 }
 
-// resolveSuperuser picks a working superuser path: a direct connection (the
-// user-owned initdb cluster over its trust socket, or a plain loopback cluster —
-// the only paths that work without elevation on Arch) or `sudo -u postgres` for
-// a system cluster.
-func resolveSuperuser(host, port string) (superuser, error) {
+// resolveSuperuser picks a working superuser path: the user's own admin login
+// when one is given, otherwise a direct connection (the user-owned initdb cluster
+// over its trust socket, or a plain loopback cluster — the only paths that work
+// without elevation on Arch) or `sudo -u postgres` for a system cluster.
+func resolveSuperuser(host, port string, admin dbAdmin) (superuser, error) {
 	if !isLocalHost(host) {
 		return superuser{}, fmt.Errorf("refusing to use a local PostgreSQL superuser for non-local host %q", host)
 	}
+	if admin.given() {
+		// Explicit credentials are the only path tried: falling back to sudo
+		// after they fail would hide that the user's own login was rejected.
+		su := superuser{host: host, port: port, user: admin.User, password: admin.Password}
+		out, err := su.psql("-tAc", "select 1").CombinedOutput()
+		if err != nil {
+			return superuser{}, fmt.Errorf("connecting as PostgreSQL admin %q at %s: %w\n%s",
+				su.psqlUser(), net.JoinHostPort(host, port), err, strings.TrimSpace(string(out)))
+		}
+		return su, nil
+	}
 	// Prefer our cluster's private socket (trust); fall back to a plain
 	// loopback connection for a pre-existing cluster a user pointed us at.
+	// That one also succeeds with a password from PGPASSWORD or a .pgpass file,
+	// which psql reads on its own.
 	candidates := []superuser{{host: host, port: port}}
 	if _, _, sockDir, err := userClusterDirs(); err == nil {
 		candidates = append([]superuser{{host: host, port: port, sock: sockDir}}, candidates...)
@@ -720,9 +976,33 @@ func resolveSuperuser(host, port string) (superuser, error) {
 			}
 		}
 	}
-	return superuser{}, fmt.Errorf("no local PostgreSQL superuser available to create the " +
-		"role/database (tried a direct 'psql -U postgres' connection over the cluster socket " +
-		"and TCP, and non-interactive 'sudo -u postgres' both directly and via root)")
+	return superuser{}, errNoSuperuser
+}
+
+// errNoSuperuser is resolveSuperuser's refusal when nothing was given and no
+// passwordless path works. EnsureDatabase adds the way out, which needs the
+// app's database and role names.
+var errNoSuperuser = fmt.Errorf("no local PostgreSQL superuser available to create the " +
+	"role/database (tried a direct 'psql -U postgres' connection over the cluster socket " +
+	"and TCP, and non-interactive 'sudo -u postgres' both directly and via root)")
+
+// noSuperuserHint is the way past errNoSuperuser: the superuser's password (a
+// Windows install always has one), or the two statements to run by hand. The
+// app password is not echoed — this text lands in logs.
+func noSuperuserHint(db DBConfig) string {
+	return fmt.Sprintf("\n  If the postgres superuser has a password (the Windows installer always sets one),\n"+
+		"  pass it: --db-admin-user postgres --db-admin-password <password> (or set PGPASSWORD).\n"+
+		"  Or create the role and database yourself as a superuser, then rerun:\n"+
+		"    CREATE ROLE %s WITH LOGIN PASSWORD '<--db-password>' CREATEDB;\n"+
+		"    CREATE DATABASE %s OWNER %s;", db.User, db.Name, db.User)
+}
+
+// psqlUser is the role this superuser connects as.
+func (s superuser) psqlUser() string {
+	if s.user == "" {
+		return "postgres"
+	}
+	return s.user
 }
 
 // ensureRole creates the app login role if it does not already exist.

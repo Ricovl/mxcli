@@ -19,12 +19,23 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	// A FROM entity in another module writes a project that cannot be LOADED, so
 	// this must fail before the write — `check` reporting it is not enough for a
 	// script run with --no-check (the #833 lesson, same failure class).
 	if vs := ValidateAssociationModules(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n    %s", vs[0].Message, vs[0].Suggestion)
+	}
+
+	// The association's name becomes a member of its FROM entity (and of its
+	// TO entity under owner Both), which must be unique along that entity's
+	// generalization chain — CE0069 (ako/mxcli#1645). Before the module is
+	// auto-created, so a refusal leaves nothing behind.
+	if err := refuseMemberNameClash(ctx, s); err != nil {
+		return err
 	}
 
 	// Find or auto-create module
@@ -70,6 +81,16 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 		if isViewEntity(ep.entity) {
 			return viewEntityAssociationRefusal(s.Name.String(), ep.name)
 		}
+	}
+
+	// A persistable and a non-persistable entity may only be associated FROM the
+	// non-persistable one under owner Default — anything else is CE0001
+	// (ako/mxcli#819). The same function judges it in `check`.
+	if v := associationPersistenceViolation(s.Name,
+		ast.QualifiedName{Module: parentModule, Name: s.Parent.Name},
+		ast.QualifiedName{Module: childModule, Name: s.Child.Name},
+		s.Owner == ast.OwnerBoth, projectEntityPersistence(ctx)); v != nil {
+		return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
 	}
 
 	// Convert types
@@ -121,6 +142,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					assoc.ChildDeleteBehavior = &domainmodel.DeleteBehavior{Type: deleteBehavior, ErrorMessage: deleteMessage, ErrorMessageLanguage: deleteLang}
 					assoc.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), assoc.Documentation)
+					if s.ExportLevel != nil { // absent keeps the stored level (#1498)
+						assoc.ExportLevel = *s.ExportLevel
+					}
 					// Anchors are applied only when the statement names them —
 					// silence preserves what is stored, so a `create or modify`
 					// that is not about layout does not flatten a hand-tuned line.
@@ -139,6 +163,8 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			childRef := childModule + "." + s.Child.Name
 			for _, ca := range dm.CrossAssociations {
 				if ca.Name == s.Name.Name {
+					// Read before it is overwritten: the TO end may be moving.
+					oldToModule := qualifiedNameModule(ca.ChildRef)
 					ca.Type = assocType
 					ca.Owner = owner
 					if s.Storage != ast.StorageDefault { // as above (#704)
@@ -148,6 +174,9 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					ca.ChildRef = childRef
 					ca.Documentation = carriedDocumentation(
 						associationDocumentationStated(s), associationDocumentation(s), ca.Documentation)
+					if s.ExportLevel != nil { // as above (#1498)
+						ca.ExportLevel = *s.ExportLevel
+					}
 					if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 						return mdlerrors.NewBackend("update cross-module association", err)
 					}
@@ -155,7 +184,14 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 					invalidateDomainModelsCache(ctx)
 					ctx.trackModifiedDomainModel(module.ID, module.Name)
 					ctx.ReportMutation("Modified", "association: %s", s.Name)
-					return nil
+					// Under OWNER Both the TO entity holds a member entry, in its own
+					// module. Only the declaring module was reconciled (at the end of
+					// the program), so moving the TO end left the old TO entity's
+					// entry behind and never gave the new one its entry — CE0066 at
+					// both modules; changing the owner alone missed the TO module the
+					// same way (ako/mxcli#819).
+					return reconcileModulesAccess(ctx, "after modifying the association",
+						module.Name, oldToModule, childModule)
 				}
 			}
 		}
@@ -195,6 +231,7 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			StorageFormat: storageFormat,
 			ParentID:      parentID,
 			ChildRef:      childRef,
+			ExportLevel:   authoredExportLevel(s.ExportLevel),
 			ChildDeleteBehavior: &domainmodel.DeleteBehavior{
 				Type:                 deleteBehavior,
 				ErrorMessage:         deleteMessage,
@@ -228,6 +265,7 @@ func execCreateAssociation(ctx *ExecContext, s *ast.CreateAssociationStmt) error
 			StorageFormat: storageFormat,
 			ParentID:      parentID,
 			ChildID:       childID,
+			ExportLevel:   authoredExportLevel(s.ExportLevel),
 			ChildDeleteBehavior: &domainmodel.DeleteBehavior{
 				Type:                 deleteBehavior,
 				ErrorMessage:         deleteMessage,
@@ -269,6 +307,9 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	module, err := findModule(ctx, s.Name.Module)
 	if err != nil {
@@ -278,6 +319,21 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 	dm, err := ctx.Backend.GetDomainModel(module.ID)
 	if err != nil {
 		return mdlerrors.NewBackend("get domain model", err)
+	}
+
+	// `set owner both` across the persistence boundary is CE0001, as on create
+	// (ako/mxcli#819).
+	if s.Operation == ast.AlterAssociationSetOwner && s.Owner == ast.OwnerBoth {
+		if from, to, ok := storedAssociationEnds(ctx, s.Name); ok {
+			if v := associationPersistenceViolation(s.Name, from, to, true, projectEntityPersistence(ctx)); v != nil {
+				return mdlerrors.NewValidationf("%s\n    %s", v.Message, v.Suggestion)
+			}
+		}
+		// Owner Both makes it a member of the TO entity too (CE0069,
+		// ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
+		}
 	}
 
 	// Try intra-module associations first
@@ -298,10 +354,13 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 				assoc.Documentation = s.Comment
 			case ast.AlterAssociationSetAnchor:
 				applyAnchors(assoc, s.FromAnchor, s.ToAnchor)
+			case ast.AlterAssociationSetExportLevel:
+				assoc.ExportLevel = s.ExportLevel
 			}
 			want := alteredAssociationValue(s.Operation, assocAlterView{
 				del: assoc.ChildDeleteBehavior, owner: string(assoc.Owner), storage: string(assoc.StorageFormat),
 				doc: assoc.Documentation, lang: authoringLanguage(ctx), anchors: associationAnchors(assoc),
+				exportLevel: assoc.ExportLevel,
 			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update association", err)
@@ -333,6 +392,8 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 				ca.StorageFormat = domainmodel.AssociationStorageFormat(s.Storage.String())
 			case ast.AlterAssociationSetComment:
 				ca.Documentation = s.Comment
+			case ast.AlterAssociationSetExportLevel:
+				ca.ExportLevel = s.ExportLevel
 			case ast.AlterAssociationSetAnchor:
 				// DomainModels$CrossAssociation has no connection properties at
 				// all, and writing them there crashes Studio Pro (#50) — so this
@@ -343,7 +404,7 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			}
 			want := alteredAssociationValue(s.Operation, assocAlterView{
 				del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
-				doc: ca.Documentation, lang: authoringLanguage(ctx),
+				doc: ca.Documentation, lang: authoringLanguage(ctx), exportLevel: ca.ExportLevel,
 			})
 			if err := ctx.Backend.UpdateDomainModel(dm); err != nil {
 				return mdlerrors.NewBackend("update cross-module association", err)
@@ -351,11 +412,7 @@ func execAlterAssociation(ctx *ExecContext, s *ast.AlterAssociationStmt) error {
 			if err := verifyAssociationAltered(ctx, module.ID, s, want); err != nil {
 				return err
 			}
-			toModule := ""
-			if i := strings.LastIndex(ca.ChildRef, "."); i > 0 {
-				toModule = ca.ChildRef[:i]
-			}
-			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, toModule); err != nil {
+			if err := reconcileAfterAssociationAlter(ctx, s, module.Name, qualifiedNameModule(ca.ChildRef)); err != nil {
 				return err
 			}
 			fmt.Fprintf(ctx.Output, "Altered association: %s\n", s.Name)
@@ -381,15 +438,29 @@ func reconcileAfterAssociationAlter(ctx *ExecContext, s *ast.AlterAssociationStm
 	if s.Operation != ast.AlterAssociationSetOwner {
 		return nil
 	}
+	return reconcileModulesAccess(ctx, "after changing the owner", modules...)
+}
+
+// reconcileModulesAccess reconciles the entity access rules of each named module
+// once, after a write that changed which entities an association is a member of
+// — or removed associations outright. It is the one reconcile behind create,
+// alter and drop association and drop entity, so that every statement that can
+// leave a member entry behind reconciles the same set of modules the same way.
+//
+// The modules are named by the caller because the rule that needs fixing is not
+// always in the module written: an association is a member of its FROM entity,
+// and under OWNER Both of its TO entity, which for a cross-module association
+// lives in another module.
+func reconcileModulesAccess(ctx *ExecContext, why string, modules ...string) error {
 	invalidateHierarchy(ctx)
 	invalidateDomainModelsCache(ctx)
 	seen := map[string]bool{}
 	for _, name := range modules {
-		if name == "" || seen[name] {
+		if name == "" || seen[strings.ToLower(name)] {
 			continue
 		}
-		seen[name] = true
-		if err := reconcileModuleAccess(ctx, name, "after changing the owner"); err != nil {
+		seen[strings.ToLower(name)] = true
+		if err := reconcileModuleAccess(ctx, name, why); err != nil {
 			return err
 		}
 	}
@@ -428,8 +499,8 @@ func reconcileModuleAccess(ctx *ExecContext, moduleName, why string) error {
 // assocAlterView is the part of an association ALTER ASSOCIATION can change,
 // common to the same-module and the cross-module kind.
 type assocAlterView struct {
-	del                          *domainmodel.DeleteBehavior
-	owner, storage, doc, anchors string
+	del                                       *domainmodel.DeleteBehavior
+	owner, storage, doc, anchors, exportLevel string
 	// lang is the language the delete message is compared in — the one the
 	// alter wrote. Reading it back in en_US would compare against a stale
 	// translation the write carried over (mendixlabs/mxcli#1344).
@@ -458,6 +529,8 @@ func alteredAssociationValue(op ast.AlterAssociationOperation, v assocAlterView)
 		return v.doc
 	case ast.AlterAssociationSetAnchor:
 		return v.anchors
+	case ast.AlterAssociationSetExportLevel:
+		return v.exportLevel
 	}
 	return ""
 }
@@ -485,6 +558,7 @@ func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterA
 				got, found = alteredAssociationValue(s.Operation, assocAlterView{
 					del: a.ChildDeleteBehavior, owner: string(a.Owner), storage: string(a.StorageFormat),
 					doc: a.Documentation, lang: authoringLanguage(ctx), anchors: associationAnchors(a),
+					exportLevel: a.ExportLevel,
 				}), true
 				break
 			}
@@ -494,7 +568,7 @@ func verifyAssociationAltered(ctx *ExecContext, moduleID model.ID, s *ast.AlterA
 				if ca.Name == s.Name.Name {
 					got, found = alteredAssociationValue(s.Operation, assocAlterView{
 						del: ca.ChildDeleteBehavior, owner: string(ca.Owner), storage: string(ca.StorageFormat),
-						doc: ca.Documentation, lang: authoringLanguage(ctx),
+						doc: ca.Documentation, lang: authoringLanguage(ctx), exportLevel: ca.ExportLevel,
 					}), true
 					break
 				}
@@ -533,15 +607,10 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 	// rule that named it, which Mendix rejects with CE1613 "The selected
 	// association … no longer exists". Creating one already reconciles; dropping
 	// one has to as well, or the drop produces a model that will not build.
-	afterDrop := func() {
-		invalidateHierarchy(ctx)
-		invalidateDomainModelsCache(ctx)
-		if freshDM, err := ctx.Backend.GetDomainModel(module.ID); err == nil {
-			if count, err := ctx.Backend.ReconcileMemberAccesses(freshDM.ID, module.Name); err == nil && count > 0 {
-				fmt.Fprintf(ctx.Output, "Reconciled %d access rule(s) after dropping the association\n", count)
-			}
-		}
-		ctx.trackModifiedDomainModel(module.ID, module.Name)
+	// toModule is a cross-module association's TO end: under OWNER Both its
+	// entity holds an entry too, in a module this one is not (ako/mxcli#1449).
+	afterDrop := func(toModule string) error {
+		return reconcileModulesAccess(ctx, "after dropping the association", module.Name, toModule)
 	}
 
 	// A message definition holds the association by qualified name, and nothing
@@ -563,7 +632,9 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 			if err := ctx.Backend.DeleteAssociation(dm.ID, assoc.ID); err != nil {
 				return mdlerrors.NewBackend("delete association", err)
 			}
-			afterDrop()
+			if err := afterDrop(""); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped association: %s\n", s.Name)
 			return nil
 		}
@@ -573,7 +644,9 @@ func execDropAssociation(ctx *ExecContext, s *ast.DropAssociationStmt) error {
 			if err := ctx.Backend.DeleteCrossAssociation(dm.ID, ca.ID); err != nil {
 				return mdlerrors.NewBackend("delete cross-module association", err)
 			}
-			afterDrop()
+			if err := afterDrop(qualifiedNameModule(ca.ChildRef)); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped cross-module association: %s\n", s.Name)
 			return nil
 		}
@@ -746,7 +819,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 	// omitted; Table is not, so it is always printed — omitting it made a table
 	// association come back as column wherever the description was replayed
 	// (#704).
-	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior) {
+	formatAssocDetails := func(assocType domainmodel.AssociationType, assocOwner domainmodel.AssociationOwner, storageFormat domainmodel.AssociationStorageFormat, childDeleteBehavior *domainmodel.DeleteBehavior, exportLevel string) {
 		var clauses []string
 		if assocType == domainmodel.AssociationTypeReferenceSet {
 			clauses = append(clauses, "type ReferenceSet")
@@ -764,6 +837,9 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 		if del := describeDeleteClause(ctx, childDeleteBehavior); del != defaultDeleteClause {
 			clauses = append(clauses, del)
 		}
+		if c := exportLevelClause(exportLevel); c != "" { // mendixlabs/mxcli#1498
+			clauses = append(clauses, c)
+		}
 		for _, c := range clauses {
 			fmt.Fprintf(ctx.Output, "\n%s", c)
 		}
@@ -775,6 +851,11 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			fromEntity := entityNames[assoc.ParentID]
 			toEntity := entityNames[assoc.ChildID]
 
+			if isViewAssociationSource(assoc.Source) {
+				describeViewAssociation(ctx, module.Name+"."+assoc.Name, fromEntity, toEntity, assoc.ViewSourceReference)
+				return nil
+			}
+
 			if assoc.Documentation != "" {
 				outputJavadocIndented(ctx.Output, assoc.Documentation, "")
 			}
@@ -782,7 +863,7 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 			describeConnectionPoints(ctx, assoc)
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, assoc.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, toEntity)
-			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior)
+			formatAssocDetails(assoc.Type, assoc.Owner, assoc.StorageFormat, assoc.ChildDeleteBehavior, assoc.ExportLevel)
 			return nil
 		}
 	}
@@ -793,18 +874,49 @@ func describeAssociation(ctx *ExecContext, name ast.QualifiedName) error {
 				fromEntity = string(ca.ParentID)
 			}
 
+			if isViewAssociationSource(ca.Source) {
+				describeViewAssociation(ctx, module.Name+"."+ca.Name, fromEntity, ca.ChildRef, ca.ViewSourceReference)
+				return nil
+			}
+
 			if ca.Documentation != "" {
 				outputJavadocIndented(ctx.Output, ca.Documentation, "")
 			}
 
 			fmt.Fprintf(ctx.Output, "create or modify association %s.%s\n", module.Name, ca.Name)
 			fmt.Fprintf(ctx.Output, "from %s to %s", fromEntity, ca.ChildRef)
-			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior)
+			formatAssocDetails(ca.Type, ca.Owner, ca.StorageFormat, ca.ChildDeleteBehavior, ca.ExportLevel)
 			return nil
 		}
 	}
 
 	return mdlerrors.NewNotFound("association", name.String())
+}
+
+// describeViewAssociation describes an association a view entity's OQL
+// declares — a `<alias>.ID as <name>` select column — as a pointer to that
+// view entity, never as a statement.
+//
+// There is no statement that can say it: a plain `create association` with a
+// view entity at either end is CE6771, and check and exec both refuse one. The
+// column IS the declaration, and the view entity's own description carries it,
+// so re-executing that rebuilds the association (syncViewEntityAssociations).
+// Printing `create or modify association` here made `describe module` output
+// that its own check refused (mendixlabs/mxcli#1627).
+func describeViewAssociation(ctx *ExecContext, qualifiedName, fromEntity, toEntity, column string) {
+	if column == "" {
+		column = shortAssociationName(qualifiedName)
+	}
+	fmt.Fprintf(ctx.Output, "-- association %s (%s -> %s) is declared by view entity %s's OQL column `as %s`;\n",
+		qualifiedName, fromEntity, toEntity, fromEntity, column)
+	fmt.Fprintf(ctx.Output, "-- it has no statement of its own: describe entity %s to reproduce it\n", fromEntity)
+}
+
+// isViewAssociationSource reports whether an association's Source makes it a
+// view entity's OQL-declared association, which describes with the view entity
+// rather than on its own.
+func isViewAssociationSource(source string) bool {
+	return source == domainmodel.OqlViewAssociationSource
 }
 
 // statedStorageFormat maps an authored storage clause onto the stored value, and

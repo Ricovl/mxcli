@@ -563,7 +563,7 @@ create page PgTest.P010_Product_Sorted_filtered_styled_2 folder 'DataGrid' (
     PagingPosition: both, 
     designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
+    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false)
     column (attribute: Code, caption: 'SKU')
     column (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)
@@ -596,7 +596,7 @@ create page PgTest.P010_Product_Microflow_DataSource folder 'DataGrid' (
     PagingPosition: both, 
     designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal')
   ) {
-    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false, designproperties: ('Compact': on, 'Striped': on, 'Hover': on, 'Borders': 'Horizontal'))
+    column (attribute: Name, caption: 'Product Name', Alignment: left, WrapText: false)
     column (attribute: Code, caption: 'SKU')
     column (attribute: Price, caption: 'Unit Price', Alignment: right, WrapText: false)
     column (attribute: Stock, caption: 'Available', Alignment: right, WrapText: false)
@@ -2459,6 +2459,41 @@ create page PgTest.P036_ComboBox_Association folder 'ComboBox'
     combobox cmbProduct (label: 'Product', attribute: Order_Product, datasource: database PgTest.Product, CaptionAttribute: Name)
 
     textbox txtTotal (label: 'Total Amount', attribute: TotalAmount)
+
+    footer {
+      actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes close page, buttonstyle: default)
+    }
+  }
+};
+
+/**
+ * Order edit form with a ComboBox in database mode (mendixlabs/mxcli#1583).
+ * The options come from a datasource of their own, and the chosen option's
+ * value is stored on an attribute of the order — no association involved.
+ *
+ * - Database mode: COMBOBOX name (optionsSourceDatabaseDataSource: <source>, Attribute: TargetAttr,
+ *   CaptionAttribute: DisplayAttr, optionsSourceDatabaseValueAttribute: ValueAttr)
+ * - Naming optionsSourceDatabaseDataSource selects the mode; the generic
+ *   `datasource:` clause selects association mode.
+ * - The target takes String, Integer, Long or Enumeration (MDL-WIDGET39); with a
+ *   target, the value attribute is required (MDL-WIDGET16, CE0642 'Value').
+ *
+ * @param $Order The order to edit
+ */
+create page PgTest.P036b_ComboBox_Database folder 'ComboBox'
+(
+  params: (
+    $Order: PgTest.Order
+  ),
+  title: 'ComboBox Database Selection',
+  layout: Atlas_Core.PopupLayout
+)
+{
+  dataview dvOrder (datasource: $Order) {
+    -- Stores the chosen customer's City in the order's Notes, showing the Name
+    combobox cmbShipCity (label: 'Ship to city of', optionsSourceDatabaseDataSource: database PgTest.Customer,
+      attribute: Notes, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: City)
 
     footer {
       actionbutton btnSave (caption: 'Save', action: save changes close page, buttonstyle: success)

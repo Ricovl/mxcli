@@ -145,3 +145,22 @@ func TestBackslashQuoteHintUnderMdl1(t *testing.T) {
 		t.Fatalf("want the doubled-apostrophe hint, got %v", errs)
 	}
 }
+
+// Under mdl 0 (no header) a backslash escapes, so `\'` does NOT end the
+// literal. The hint used to say it did — the mdl 1 explanation printed for a
+// script that is not mdl 1.
+func TestBackslashQuoteHintUnderMdl0(t *testing.T) {
+	_, errs := Build(`create persistent entity M.Note (Text: String(200) default 'it\'s' x);`)
+	got := errsText(errs)
+	if len(errs) == 0 {
+		t.Fatal("expected a parse error")
+	}
+	if strings.Contains(got, "ends the string") {
+		t.Errorf("mdl 0 script told that `\\'` ends the literal:\n%s", got)
+	}
+	for _, want := range []string{"mdl 0", "does not end it", "'it''s'"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("hint does not mention %q:\n%s", want, got)
+		}
+	}
+}

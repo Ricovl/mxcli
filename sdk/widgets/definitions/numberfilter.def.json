@@ -6,6 +6,7 @@
   "propertyMappings": [
     {"propertyKey": "attrChoice", "value": "auto", "operation": "primitive"},
     {"propertyKey": "attributes", "source": "Attributes", "operation": "attributeObjects"},
-    {"propertyKey": "defaultFilter", "source": "FilterType", "operation": "primitive"}
+    {"propertyKey": "defaultFilter", "source": "FilterType", "operation": "primitive"},
+    {"propertyKey": "onChange", "source": "OnChange", "operation": "action"}
   ]
 }

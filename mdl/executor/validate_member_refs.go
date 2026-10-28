@@ -4,7 +4,6 @@ package executor
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -76,49 +75,32 @@ const (
 // error this exists to catch.
 func resolveMemberOnEntity(ctx *ExecContext, entityQN, memberName string) memberResolution {
 	b, ok := ctx.Backend.(entityLookupBackend)
-	if !ok || entityQN == "" || memberName == "" {
+	if !ok {
 		return memberUnknown
 	}
-	seen := map[string]bool{}
-	for currentQN := entityQN; currentQN != ""; {
-		if seen[currentQN] {
-			// A generalization cycle is not a model mxcli should reason about.
-			return memberUnknown
-		}
-		seen[currentQN] = true
+	res, _ := entityMemberKind(b, entityQN, memberName)
+	return res
+}
 
-		parts := strings.SplitN(currentQN, ".", 2)
-		if len(parts) != 2 {
-			return memberUnknown
-		}
-		mod, err := b.GetModuleByName(parts[0])
-		if err != nil || mod == nil {
-			return memberUnknown
-		}
-		dm, err := b.GetDomainModel(mod.ID)
-		if err != nil || dm == nil {
-			// The System module lands here. Silence, not a report.
-			return memberUnknown
-		}
-		entity := dm.FindEntityByName(parts[1])
-		if entity == nil {
-			return memberUnknown
-		}
-		for _, attr := range entity.Attributes {
-			if attr != nil && attr.Name == memberName {
-				return memberFound
-			}
-		}
-		// An association is a legal member of a CREATE / CHANGE too, and it is
-		// named on the entity that OWNS it rather than on either end, so it is
-		// checked against the module's whole association list rather than the
-		// entity's attributes.
-		if associationNamedInModule(dm, memberName) {
-			return memberFound
-		}
-		currentQN = entity.GeneralizationRef
+// backendRefusesModule reports whether the project's module list answers,
+// confidently, that no module of this name exists. A list that cannot be read
+// is NOT absence — this file's rule is silence over a guess
+// (TestResolveMemberOnEntity_SilentWhenTheModelCannotBeRead).
+func backendRefusesModule(ctx *ExecContext, qualifier string) bool {
+	b, ok := ctx.Backend.(entityLookupBackend)
+	if !ok {
+		return false
 	}
-	return memberMissing
+	mods, err := b.ListModules()
+	if err != nil {
+		return false
+	}
+	for _, m := range mods {
+		if m != nil && m.Name == qualifier {
+			return false
+		}
+	}
+	return true
 }
 
 // associationNamedInModule reports whether the domain model has an association
@@ -273,26 +255,10 @@ func associationEndsByName(ctx *ExecContext, dm *domainmodel.DomainModel, name s
 // chain for it would turn that into memberUnknown and cost the check its reach.
 func generalizationChain(ctx *ExecContext, entityQN string) ([]string, bool) {
 	b, ok := ctx.Backend.(entityLookupBackend)
-	if !ok || entityQN == "" {
+	if !ok {
 		return nil, false
 	}
-	var chain []string
-	seen := map[string]bool{}
-	for currentQN := entityQN; currentQN != ""; {
-		if seen[currentQN] {
-			// A generalization cycle is not a model mxcli should reason about.
-			return chain, false
-		}
-		seen[currentQN] = true
-		chain = append(chain, currentQN)
-
-		entity, ok := findEntityByQN(b, currentQN)
-		if !ok {
-			return chain, false
-		}
-		currentQN = entity.GeneralizationRef
-	}
-	return chain, true
+	return generalizationChainFor(b, entityQN)
 }
 
 // validateMemberReferences reports CREATE / CHANGE member names that do not
@@ -305,24 +271,61 @@ func validateMemberReferences(ctx *ExecContext, prog *ast.Program, sc *scriptCon
 		return nil
 	}
 	authored := authoredMembers(prog)
+	refs := newFlowMemberRefs(ctx, sc)
 	var out []string
 	for _, stmt := range prog.Statements {
 		switch s := stmt.(type) {
 		case *ast.CreateMicroflowStmt:
-			out = append(out, checkFlowMembers(ctx, sc, authored,
+			out = append(out, checkFlowMembers(ctx, sc, authored, refs,
 				s.Name.String(), s.Parameters, s.Body)...)
 		case *ast.CreateNanoflowStmt:
-			out = append(out, checkFlowMembers(ctx, sc, authored,
+			out = append(out, checkFlowMembers(ctx, sc, authored, refs,
 				s.Name.String(), s.Parameters, s.Body)...)
 		}
+		refs.declare(stmt)
 	}
 	return out
 }
 
 // checkFlowMembers walks one flow body, tracking which entity each variable
 // holds so a CHANGE can be resolved at all.
-func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
+func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool, refs *flowMemberRefs,
 	flowQN string, params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
+
+	var out []string
+	walkTypedFlow(ctx, sc, params, body, func(st ast.MicroflowStatement, vars map[string]string) {
+		out = append(out, refs.statementMembers(flowQN, st, vars)...)
+		switch s := st.(type) {
+		case *ast.CreateObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("create %s", s.EntityType.String()),
+				s.EntityType.String(), s.Changes)...)
+		case *ast.ChangeObjectStmt:
+			out = append(out, checkMembers(ctx, sc, authored, flowQN,
+				fmt.Sprintf("change $%s", s.Variable), vars[s.Variable], s.Changes)...)
+		case *ast.RetrieveStmt:
+			if s.Variable != "" && s.Source.Name != "" && s.StartVariable == "" {
+				out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
+			}
+		}
+	})
+	return out
+}
+
+// walkTypedFlow calls visit for every statement of a flow body — nested blocks,
+// loop bodies and custom error handlers included — with the entity each
+// variable is known to hold at that point. visit runs before the statement's
+// own output variable is typed, so a statement sees the variables it reads.
+//
+// It is the one variable-typing walk the --references checks share
+// (checkFlowMembers, the Protected-module member check): two copies of it would
+// drift on which statements type a variable, and a check that loses a variable
+// goes silent rather than wrong.
+//
+// sc resolves a `call microflow` output against the script's own definition of
+// the callee before the stored one; nil leaves call results untyped.
+func walkTypedFlow(ctx *ExecContext, sc *scriptContext, params []ast.MicroflowParam, body []ast.MicroflowStatement,
+	visit func(st ast.MicroflowStatement, vars map[string]string)) {
 
 	vars := map[string]string{}
 	for _, p := range params {
@@ -341,22 +344,15 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 
-	var out []string
 	var walk func(stmts []ast.MicroflowStatement)
 	walk = func(stmts []ast.MicroflowStatement) {
 		for _, st := range stmts {
+			visit(st, vars)
 			switch s := st.(type) {
 			case *ast.CreateObjectStmt:
 				if s.Variable != "" {
 					vars[s.Variable] = s.EntityType.String()
 				}
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("create %s", s.EntityType.String()),
-					s.EntityType.String(), s.Changes)...)
-			case *ast.ChangeObjectStmt:
-				entityQN := vars[s.Variable]
-				out = append(out, checkMembers(ctx, sc, authored, flowQN,
-					fmt.Sprintf("change $%s", s.Variable), entityQN, s.Changes)...)
 			case *ast.RetrieveStmt:
 				// Source is the ENTITY for a database retrieve and the
 				// ASSOCIATION for an association retrieve (StartVariable set).
@@ -367,12 +363,19 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 				case s.Variable == "" || s.Source.Name == "":
 				case s.StartVariable == "":
 					vars[s.Variable] = s.Source.String()
-					out = append(out, checkSortSystemMemberSpelling(ctx, sc, authored, flowQN, s.Source.String(), s.SortColumns)...)
 				default:
 					if from, ok := vars[strings.TrimPrefix(s.StartVariable, "$")]; ok {
 						if to, ok := associationTargetFrom(ctx, s.Source.String(), from); ok {
 							vars[s.Variable] = to
 						}
+					}
+				}
+			case *ast.CallMicroflowStmt:
+				// The callee's return type (ako/mxcli#1701): untyped, every
+				// member read on a call result was silent, in both checks.
+				if s.OutputVariable != "" && sc != nil {
+					if qn := sc.microflowReturnEntity(ctx, s.MicroflowName); qn != "" {
+						vars[s.OutputVariable] = qn
 					}
 				}
 			case *ast.IfStmt:
@@ -396,7 +399,49 @@ func checkFlowMembers(ctx *ExecContext, sc *scriptContext, authored map[string]b
 		}
 	}
 	walk(body)
-	return out
+}
+
+// microflowReturnEntity is the entity a call of qn yields — its object or list
+// return type — or "" when that is not established. The script's definition
+// wins: a `create or modify` is the signature exec writes, and typing the
+// call from the stored one would judge members against an entity the callee
+// no longer returns. Else the stored microflow, read once per name.
+func (sc *scriptContext) microflowReturnEntity(ctx *ExecContext, qn ast.QualifiedName) string {
+	if qn.Module == "" {
+		return ""
+	}
+	if sc.microflows[qn.String()] {
+		if sig := sc.flowParams[strings.ToLower(qn.String())]; sig != nil {
+			return sig.Returns
+		}
+		return ""
+	}
+	if e, ok := sc.storedReturns[qn.String()]; ok {
+		return e
+	}
+	e := storedMicroflowReturnEntity(ctx, qn)
+	if sc.storedReturns == nil {
+		sc.storedReturns = map[string]string{}
+	}
+	sc.storedReturns[qn.String()] = e
+	return e
+}
+
+func storedMicroflowReturnEntity(ctx *ExecContext, qn ast.QualifiedName) string {
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return ""
+	}
+	mfs, err := microflowsNamed(ctx, qn.Name)
+	if err != nil {
+		return ""
+	}
+	for _, mf := range mfs {
+		if mf != nil && h.GetModuleName(h.FindModuleID(mf.ContainerID)) == qn.Module {
+			return sdkDataTypeEntity(mf.ReturnType)
+		}
+	}
+	return ""
 }
 
 // checkMembers resolves each member of one CREATE / CHANGE.
@@ -426,10 +471,27 @@ func checkMembers(ctx *ExecContext, sc *scriptContext, authored map[string]bool,
 		if name == "" {
 			continue
 		}
-		// A qualified member is a different question with a different answer,
-		// and exec already refuses the one-qualifier form that cannot be an
-		// attribute (FINDINGS #51). Left alone here rather than second-guessed.
-		if strings.Contains(name, ".") {
+		// Qualified members are a different question with a different answer.
+		// `Module.Assoc` (one dot over a real module) is a legal association-set
+		// — exec's #51 refusal covers the association-less case — and
+		// `Module.Entity.Attribute` (two dots) a legal qualified attribute. But
+		// one dot over a NON-module qualifier (`Assoc.Attr`) is a member reached
+		// through an association, which Mendix's ChangeActionItem cannot
+		// represent: exec writes the name verbatim and mxbuild rejects the
+		// project with CE1613. Report it here so check and build agree; the
+		// writer refuses the same shape.
+		// (docs/12-bug-reports/2026-10-16-change-member-through-association.md)
+		if dot := strings.Index(name, "."); dot >= 0 {
+			// A module the script creates further up is a module, even though
+			// the project does not have it yet.
+			if strings.Count(name, ".") == 1 && !(sc != nil && sc.modules[name[:dot]]) &&
+				backendRefusesModule(ctx, name[:dot]) {
+				out = append(out, fmt.Sprintf(
+					"%s: %q on %s is a member reached through an association — a change item cannot set it. "+
+						"Retrieve the associated object and change that instead (`retrieve $obj from $var/%s;` then `change $obj (%s = ...)`); "+
+						"mxbuild rejects this form with CE1613",
+					flowQN, name, entityQN, name[:dot], name[dot+1:]))
+			}
 			continue
 		}
 		if authored[strings.ToLower(entityQN+"."+name)] {
@@ -557,40 +619,9 @@ func authoredMembers(prog *ast.Program) map[string]bool {
 // nearMembers lists what the entity does have, capped so a wide entity does not
 // bury the error. A typo is cheap to fix only when you can see what is there.
 func nearMembers(ctx *ExecContext, entityQN string) string {
-	const max = 10
 	b, ok := ctx.Backend.(entityLookupBackend)
 	if !ok {
 		return ""
 	}
-	parts := strings.SplitN(entityQN, ".", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-	mod, err := b.GetModuleByName(parts[0])
-	if err != nil || mod == nil {
-		return ""
-	}
-	dm, err := b.GetDomainModel(mod.ID)
-	if err != nil || dm == nil {
-		return ""
-	}
-	entity := dm.FindEntityByName(parts[1])
-	if entity == nil {
-		return ""
-	}
-	var names []string
-	for _, a := range entity.Attributes {
-		if a != nil {
-			names = append(names, a.Name)
-		}
-	}
-	if len(names) == 0 {
-		return ""
-	}
-	sort.Strings(names)
-	if len(names) > max {
-		return fmt.Sprintf(" — it has %s and %d more",
-			strings.Join(names[:max], ", "), len(names)-max)
-	}
-	return fmt.Sprintf(" — it has %s", strings.Join(names, ", "))
+	return nearMembersFor(b, entityQN)
 }

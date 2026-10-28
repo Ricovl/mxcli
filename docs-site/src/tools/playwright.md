@@ -66,10 +66,65 @@ FAIL 1 of 2 page(s)
 The verdict line is the same one `mxcli run --local --page-check` prints; both use
 one probe, and every page of a call is loaded in one headless browser.
 
+A page is measured once it has **settled**: no request to the app open for half a
+second, no progress indicator, and its text unchanged. The requests are the part
+that matters. While a list view's data source runs, the list view shows nothing
+that says so — no spinner, no "no items" placeholder — so a page caught then looks
+finished and simply empty (ako/mxcli#845). A page that has not settled within
+`--wait` (default 15s; a page that settles sooner is measured then) is reported as
+still loading and fails, naming what it was waiting for:
+
+```
+page /p/Order_Overview  title="Orders"  STILL LOADING  rows=0  text=37  console-errors=0
+  WAIT   not settled after 3.1s: still waiting for POST /xas/
+  FAIL   still loading when measured, so the verdict may describe a partly rendered page (raise --wait if it is only slow)
+```
+
+The sign-in form is not waited for: the client keeps a request open behind it, so
+it would otherwise run out the whole `--wait` and then read as still loading. Once
+the form holds still it is measured, and it fails as the sign-in form.
+
+A page with a list view, data grid or gallery always reports `rows=`, `rows=0`
+included, so an empty list does not read the same as a page without one.
+
+When the browser ends up somewhere other than the URL it was sent to, the verdict
+says where, as `url=`, right after the page — the title and heading that follow
+describe the page at *that* URL. A `/p/` URL that ends anywhere else fails: the
+runtime answers every `/p/<x>` with a redirect to `/#/<x>`, and the client sends one
+it has no page for to the home page, with HTTP 200 throughout (ako/mxcli#998). The
+match is exact, so `/p/Items` and `/p/items/` fail where `/p/items` passes.
+
+```
+page /p/doesnotexist  url=/  title="Mendix - Homepage"  h="Welcome to your homepage"  text=1925  console-errors=0
+  ALERT  The page you requested was not found. You are redirected to the home page.
+  FAIL   the browser ended on /, not on /p/doesnotexist: the client sends a /p/ URL it has no page for to the home page
+```
+
+A page that ends on the sign-in form (`url=/login.html#/items`) fails for that
+reason only.
+
+A page the signed-in user's roles may not open ends on the sign-in form too, but
+with `messageCode=403` in the URL: the runtime refuses the client's session request
+for that page with 403, and the client sends the browser to
+`/login.html?messageCode=403#/<page>`. The form shows no message, so the URL is the
+only thing that tells it from "not signed in". It fails as access denied, naming who
+the check signed in as; signing in again would get the same answer, so the check
+does not:
+
+```
+page /p/secret  url=/login.html?messageCode=403#/secret  ACCESS DENIED  title="Login"  h="Sign in"  text=34  console-errors=1
+  ERR    [Startup] An error occurred while creating a new session. i_: Internal server error …
+  HTTP   403 POST /xas/
+  FAIL   access denied: signed in as demo_user (user role User), the runtime refused /p/secret (403)
+```
+
+Check the page's allowed module roles (`mxcli -p app.mpr -c "show access on page
+Module.Page"`) against the user role's (`describe user role R`).
+
 | Exit status | Meaning |
 |---|---|
 | 0 | every page passed |
-| 1 | a page failed: HTTP error, sign-in form instead of the page (or a 401 from the runtime), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
+| 1 | a page failed: still loading when measured, HTTP error, access denied to the signed-in user (403), sign-in form instead of the page (or a 401 from the runtime), a `/p/` URL that ended elsewhere (no page has that URL), error banner or error dialog, console error, failed same-origin request, or a failed `--assert-*` |
 | 2 | the check could not run (no Node/Playwright, sign-in rejected, bad flag) |
 
 A warning banner or validation message is shown but does not fail the page.
@@ -83,12 +138,35 @@ A warning banner or validation message is shown but does not fail the page.
 | `-p app.mpr` only | a demo user of the project (an administrator first), when demo users are enabled |
 | none | nobody; a secured page fails with "the sign-in form is showing" |
 
+The sign-in happens on the **host of the pages checked**, not on `--base-url`: a
+session's cookies belong to the host they were set on, so one signed in on
+`localhost` is not sent to `127.0.0.1` or to another name for the same app. A page
+given as a full URL on another host (`mxcli playwright check http://frontend.local:8180/
+-p app.mpr`) gets a session of its own; before ako/mxcli#1216 it was checked with
+the base URL's session, showed the sign-in form on every run, and signed in again
+on each.
+
 The session is saved as a Playwright storage state under
 `<project>/.mxcli/playwright-check/<host>-<user>.json` (or `~/.mxcli/playwright-check/`
 without `-p`) and reused by the next check, so repeated checks do not sign in again —
-on the unlicensed runtime every sign-in takes one of a handful of session slots. When
-the runtime no longer knows the session (it restarted), the check signs in once more
-and reloads only the affected pages. `--fresh-login` ignores the saved session.
+on the unlicensed runtime every sign-in takes one of a handful of session slots, and
+a reused session stays one session however many checks run. When the runtime no
+longer knows the session (it restarted), the check signs in once more and reloads
+only the affected pages.
+
+- `--fresh-login` signs the saved session out, then signs in again.
+- `--sign-out` ends the run signed out and keeps nothing for the next check — for a
+  last check in a script that should leave no session behind.
+- A session the run signed in that got no page past the sign-in form is signed out
+  rather than kept: kept, every later check would sign in again beside it. A page
+  the user's roles may not open does not count — the runtime knew the session and
+  refused the page — so that session is kept and reused, and is not renewed either.
+
+Signing out is best effort and never changes the verdict; a sign-out that does not
+complete is reported on stderr, and that session expires on its own. When the
+runtime refuses a sign-in, the check reads `<project>/.mxcli/runtime.log` for the
+cause — the unlicensed runtime's session cap shows on the sign-in page only as
+"Sign in failed".
 
 The sign-in types into the Mendix login form, so the "setting `.value` leaves the
 field empty" problem of hand-written `eval` logins does not arise. When the app root
@@ -121,8 +199,9 @@ mxcli playwright check /p/Customer_Overview -p app.mpr \
 | `--assert-text` | | Text the page must contain (repeatable) |
 | `--assert-count` | | `SELECTOR OP N` that must hold (repeatable) |
 | `--screenshot` | | Also write a PNG here; the path is printed |
-| `--wait` | `4s` | Longest a page may keep changing after it mounts before it is measured |
-| `--fresh-login` | `false` | Ignore the saved session |
+| `--wait` | `15s` | Longest a page may keep loading after it mounts (open requests, changing text) before it is measured; the sign-in form is measured as soon as it holds still |
+| `--fresh-login` | `false` | Sign the saved session out and sign in again |
+| `--sign-out` | `false` | Sign out when the check is done instead of keeping the session |
 | `--allow-console-errors` | `false` | Report console errors without failing on them |
 
 The check needs Node and the Playwright package (`require('playwright')` or the

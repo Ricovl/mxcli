@@ -43,6 +43,11 @@ func (fb *flowBuilder) addLogMessageAction(s *ast.LogStmt) model.ID {
 	var templateText string
 	var templateParams []string
 
+	// The same function `mxcli check` runs (MDL-TEMPLATE01): an expression
+	// that also states `with (…)` has no template for the parameters to fill;
+	// its source text used to become the template (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
+
 	if len(s.Template) > 0 {
 		// Use provided template parameters
 		if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
@@ -91,7 +96,8 @@ func (fb *flowBuilder) addLogMessageAction(s *ast.LogStmt) model.ID {
 				fb.textLangOrDefault(): templateText,
 			},
 		},
-		TemplateParameters: templateParams,
+		TemplateParameters:    templateParams,
+		IncludeLastStackTrace: s.IncludeLatestStackTrace,
 	}
 
 	activity := &microflows.ActionActivity{
@@ -314,6 +320,10 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 	entityTypeParams := make(map[string]bool)
 	microflowTypeParams := make(map[string]bool)
 	resolvedBasicParams := make(map[string]bool)
+	// A text template and a custom document take neither an expression nor
+	// `empty` as Argument text; each has its own value (ako/mxcli#1451).
+	templateParams := make(map[string]bool)
+	documentParams := make(map[string]bool)
 	if jaDef != nil {
 		for _, p := range jaDef.Parameters {
 			switch p.ParameterType.(type) {
@@ -321,6 +331,10 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 				entityTypeParams[p.Name] = true
 			case *javaactions.MicroflowType:
 				microflowTypeParams[p.Name] = true
+			case *javaactions.StringTemplateParameterType:
+				templateParams[p.Name] = true
+			case *javaactions.CustomBlobDocumentType:
+				documentParams[p.Name] = true
 			default:
 				resolvedBasicParams[p.Name] = true
 			}
@@ -336,7 +350,27 @@ func (fb *flowBuilder) addCallJavaActionAction(s *ast.CallJavaActionStmt) model.
 
 		// Check if this parameter is typed to a type parameter (EntityTypeParameterType)
 		var value microflows.CodeActionParameterValue
-		if entityTypeParams[arg.Name] {
+		if len(arg.TemplateParams) > 0 && !templateParams[arg.Name] {
+			if jaDef == nil {
+				fb.addError("call java action %s: parameter %s: the action's parameters could not be read, "+
+					"so `with (…)` cannot be written as a text template", actionQN, arg.Name)
+			} else {
+				fb.addError("%s", notTemplateParamRefusal(actionQN, arg.Name))
+			}
+		}
+		if templateParams[arg.Name] {
+			v, msg := fb.javaActionTemplateValue(actionQN, arg)
+			if msg != "" {
+				fb.addError("%s", msg)
+			}
+			value = v
+		} else if documentParams[arg.Name] {
+			v, msg := javaActionDocumentValue(actionQN, arg)
+			if msg != "" {
+				fb.addError("%s", msg)
+			}
+			value = v
+		} else if entityTypeParams[arg.Name] {
 			// Entity type parameter: value is the entity qualified name, not the variable reference.
 			// When the argument is a variable like $Email, resolve its entity type from varTypes.
 			value = &microflows.EntityTypeCodeActionParameterValue{
@@ -687,7 +721,7 @@ func (fb *flowBuilder) addCallWebServiceAction(s *ast.CallWebServiceStmt) model.
 	}
 
 	if s.ErrorHandling != nil && len(s.ErrorHandling.Body) > 0 {
-		errorY := fb.posY + VerticalSpacing
+		errorY := fb.posY + ErrorHandlerPitch
 		mergeID := fb.addErrorHandlerFlow(activity.ID, activityX, s.ErrorHandling.Body)
 		fb.handleErrorHandlerMerge(mergeID, activity.ID, errorY)
 	}
@@ -1160,6 +1194,11 @@ func (fb *flowBuilder) addShowPageAction(s *ast.ShowPageStmt) model.ID {
 		action.PassedObject = "$" + s.ForObject
 	}
 
+	// "Number of pages to close" (mendixlabs/mxcli#1617); none when unstated.
+	if s.NumberOfPagesToClose != nil {
+		action.NumberOfPagesToClose = fb.exprToString(s.NumberOfPagesToClose)
+	}
+
 	// Set title override if specified
 	if s.Title != "" {
 		action.OverridePageTitle = &model.Text{
@@ -1226,6 +1265,11 @@ func (fb *flowBuilder) addShowMessageAction(s *ast.ShowMessageStmt) model.ID {
 	// For complex expressions, use {1} placeholder and add expression as parameter.
 	var templateText string
 	var templateParams []string
+
+	// MDL-TEMPLATE01: an expression followed by `with (…)` stored '{1}' with
+	// the expression and then the parameters, which no placeholder read
+	// (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
 
 	if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
 		templateText = fmt.Sprintf("%v", lit.Value)
@@ -1432,6 +1476,9 @@ func (fb *flowBuilder) addValidationFeedbackAction(s *ast.ValidationFeedbackStmt
 	var templateText string
 	var templateParams []string
 
+	// MDL-TEMPLATE01, as show message (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
+
 	if lit, ok := s.Message.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
 		// Simple string literal - use raw value directly as template text
 		templateText = fmt.Sprintf("%v", lit.Value)
@@ -1553,15 +1600,23 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 		httpConfig.HttpMethod = microflows.HttpMethodGet
 	}
 
-	// Set URL template
-	if lit, ok := s.URL.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
-		httpConfig.LocationTemplate = fmt.Sprintf("%v", lit.Value)
+	// The same function `mxcli check` runs (MDL-REST05): an expression that
+	// also states `with (…)` has no template for the parameters to fill.
+	if err := checkRestCallTemplatesStmt(s); err != nil {
+		fb.addError("%v", err)
+	}
+
+	// Set URL template. An expression URL is the template '{1}' with the
+	// expression as its parameter, not its own source text (ako/mxcli#1444).
+	url, urlParams := restCallTemplate(s.URL, s.URLParams)
+	if text, ok := restTemplateText(url); ok {
+		httpConfig.LocationTemplate = text
 	} else {
-		httpConfig.LocationTemplate = fb.exprToString(s.URL)
+		httpConfig.LocationTemplate = fb.exprToString(url)
 	}
 
 	// Set URL template parameters
-	for _, param := range s.URLParams {
+	for _, param := range urlParams {
 		httpConfig.LocationParams = append(httpConfig.LocationParams, fb.exprToString(param.Value))
 	}
 
@@ -1587,16 +1642,21 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 	if s.Body != nil {
 		switch s.Body.Type {
 		case ast.RestBodyCustom:
-			// Custom body template
+			// Custom body template. A body written as an expression
+			// (`Body: $Payload`) is the template '{1}' with the expression as
+			// its parameter — what Studio Pro stores for a template that only
+			// holds a variable. Storing the expression's source as the
+			// template sent the text "$Payload" (ako/mxcli#1444).
+			tmpl, params := restCallTemplate(s.Body.Template, s.Body.TemplateParams)
 			var template string
-			if lit, ok := s.Body.Template.(*ast.LiteralExpr); ok && lit.Kind == ast.LiteralString {
-				template = fmt.Sprintf("%v", lit.Value)
+			if text, ok := restTemplateText(tmpl); ok {
+				template = text
 			} else {
-				template = fb.exprToString(s.Body.Template)
+				template = fb.exprToString(tmpl)
 			}
 			// Extract template parameters
 			var templateParams []string
-			for _, param := range s.Body.TemplateParams {
+			for _, param := range params {
 				templateParams = append(templateParams, fb.exprToString(param.Value))
 			}
 			requestHandling = &microflows.CustomRequestHandling{
@@ -1699,10 +1759,14 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 		// three reference documents store Range.SingleObject=false.
 		singleObject := !s.Result.IsList
 		fso := false
-		if singleObject && fb.backend != nil {
+		contentType := ""
+		if fb.backend != nil {
 			if im, err := fb.backend.GetImportMappingByQualifiedName(
-				s.Result.MappingName.Module, s.Result.MappingName.Name); err == nil {
-				fso = fb.mappingRootIsList(im)
+				s.Result.MappingName.Module, s.Result.MappingName.Name); err == nil && im != nil {
+				if singleObject {
+					fso = fb.mappingRootIsList(im)
+				}
+				contentType = importMappingContentType(im)
 			}
 		}
 		rangeAll := false
@@ -1714,6 +1778,7 @@ func (fb *flowBuilder) addRestCallAction(s *ast.RestCallStmt) model.ID {
 			SingleObject:          singleObject,
 			ForceSingleOccurrence: &fso,
 			RangeSingleObject:     &rangeAll,
+			ContentType:           contentType,
 		}
 	case ast.RestResultNone:
 		resultHandling = &microflows.ResultHandlingNone{
@@ -2023,6 +2088,17 @@ func jsonMappingRootIsList(lookup jsonStructureLookup, im *model.ImportMapping) 
 	return types.JsonMappingRootIsList(lookup, im)
 }
 
+// importMappingContentType is the content type an import mapping call takes
+// for the mapping: XML when it is sourced from an XML schema or a web service
+// operation, JSON otherwise — what Studio Pro sets when the activity is opened
+// ("This action now imports XML"; mendixlabs/mxcli#1232).
+func importMappingContentType(im *model.ImportMapping) string {
+	if im.XmlSchema != "" || im.WebServiceSource.IsSet() {
+		return "Xml"
+	}
+	return "Json"
+}
+
 // addImportFromMappingAction adds an ImportXmlAction to the microflow.
 func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) model.ID {
 	activityX := fb.posX
@@ -2038,6 +2114,9 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 		MappingID:      model.ID(s.Mapping.String()),
 		ResultVariable: s.OutputVariable,
 		SingleObject:   true,
+		// The settings list (ako/mxcli#1681).
+		ParameterVariable: s.Parameter,
+		Commit:            s.Commit,
 	}
 
 	// The RANGE and the RESULT VARIABLE's type are two independent axes, and
@@ -2111,9 +2190,21 @@ func (fb *flowBuilder) addImportFromMappingAction(s *ast.ImportFromMappingStmt) 
 		case err != nil || im == nil:
 			fb.addError("import from mapping %s: import mapping not found in the project (create it above this microflow; an activity without its result entity makes the project unloadable)", s.Mapping.String())
 		default:
+			// The call's input object must match the mapping's declaration:
+			// mxbuild refuses either mismatch, and check cannot see it without
+			// the mapping (ako/mxcli#1681).
+			switch {
+			case im.ParameterEntity != "" && s.Parameter == "":
+				fb.addError("import from mapping %s: the mapping takes an input object of %s; pass it with `(Parameter: $Obj)` (mxbuild refuses the call without one: CE0244)",
+					s.Mapping.String(), im.ParameterEntity)
+			case im.ParameterEntity == "" && s.Parameter != "":
+				fb.addError("import from mapping %s: the mapping declares no input object, so `Parameter: $%s` has nothing to bind (mxbuild CE0246)",
+					s.Mapping.String(), s.Parameter)
+			}
 			if !rangeAuthored && fb.mappingRootIsList(im) {
 				resultHandling.SingleObject = false
 			}
+			resultHandling.ContentType = importMappingContentType(im)
 			if len(im.Elements) > 0 && im.Elements[0] != nil && im.Elements[0].Entity != "" {
 				resultEntityQN = im.Elements[0].Entity
 				resultHandling.ResultEntityID = model.ID(resultEntityQN)
@@ -2226,6 +2317,9 @@ func mappingRootPathCrossesArray(jsonPath string) bool {
 
 // addSendEmailAction creates a SEND EMAIL activity (Microflows$SendEmailAction).
 func (fb *flowBuilder) addSendEmailAction(s *ast.SendEmailStmt) model.ID {
+	// MDL-TEMPLATE01: a subject or body written as an expression with
+	// `with (…)` (ako/mxcli#1683).
+	fb.refuseMessageTemplates(s)
 	action := &microflows.SendEmailAction{
 		BaseElement:         model.BaseElement{ID: model.ID(types.GenerateID())},
 		ErrorHandlingType:   microflows.ErrorHandlingTypeRollback,
@@ -2311,7 +2405,13 @@ func (fb *flowBuilder) emailTemplate(c *ast.EmailTemplateClause) microflows.Emai
 		if len(c.Params) == 0 {
 			return microflows.EmailTemplate{Text: "{1}", Parameters: []string{fb.exprToString(c.Text)}}
 		}
-		return microflows.EmailTemplate{Text: fb.exprToString(c.Text), Parameters: fb.templateParamStrings(c.Params)}
+		// With parameters the text must be a string: a literal kept with its
+		// source because it spans lines is still one, stored as its value —
+		// its source, quotes and all, was the template. Any other expression
+		// is refused (MDL-TEMPLATE01, ako/mxcli#1683); its source text used to
+		// be stored as the template.
+		text, _ := restTemplateText(c.Text)
+		return microflows.EmailTemplate{Text: text, Parameters: fb.templateParamStrings(c.Params)}
 	}
 	return microflows.EmailTemplate{Text: fmt.Sprintf("%v", lit.Value), Parameters: fb.templateParamStrings(c.Params)}
 }

@@ -1,0 +1,140 @@
+mdl 1;
+-- ============================================================================
+-- Issue ako/mxcli#1639 — the catalog has no edge for the microflows a
+-- published OData service runs, so `refs`, `impact` and QUAL004 call them dead
+-- ============================================================================
+--
+-- Named with a topic prefix rather than a bare `1639-`: the historical files
+-- here are named after mendixlabs/mxcli PR numbers, and the fork's issue
+-- numbers collide with them.
+--
+-- A published OData resource's `ReadMode: microflow X` and the service's
+-- `Authentication: (microflow X)` are entry points: a client's request reaches
+-- them, nothing in the model calls them. The catalog recorded neither as an
+-- edge, so on the reporter's backend:
+--
+--   mxcli refs Formula1Backend.Read_Drivers
+--     (no references found: nothing in the catalog's reference graph points at …)
+--   mxcli lint
+--     ℹ Microflow 'Read_Drivers' is not called from anywhere. [QUAL004]
+--       → Remove if unused, …
+--
+-- for 34 Read_ microflows and the authentication microflow of six services —
+-- 35 of the backend's 43 QUAL004 findings. Same gap, same mechanism, on the
+-- siblings below: an OData action, a published REST service's authentication
+-- microflow, a business event handler. (A consumed OData service's
+-- configuration microflows got the same fix; they need a reachable $metadata
+-- to author, so they are covered by unit tests, not here.)
+--
+-- ----------------------------------------------------------------------------
+-- Running this example
+--
+--   mxcli exec catalog-1639-service-microflow-refs.mdl -p app.mpr
+--   mxcli -p app.mpr -c "refresh catalog full force"
+--   mxcli refs Svc.Read_Rows -p app.mpr
+--       # PUBLISHED_ODATA_SERVICE | Svc.LiveAPI | publish
+--   mxcli refs Svc.AuthenticateApiClient -p app.mpr      # same
+--   mxcli refs Svc.OD_Recalculate -p app.mpr             # same
+--   mxcli refs Svc.AuthenticateRestClient -p app.mpr
+--       # PUBLISHED_REST_SERVICE | Svc.PingAPI | publish
+--   mxcli refs Svc.OnCustomerChanged -p app.mpr
+--       # BUSINESS_EVENT_SERVICE | Svc.CustomerEvents | event
+--   mxcli refs Svc.NoCaller -p app.mpr
+--       # control: (no references found …)
+--   mxcli lint -p app.mpr
+--       # QUAL004 in Svc: Svc.NoCaller only
+--
+-- Custom authentication also needs app security on (CE6600) before mx check
+-- is clean; the edges do not depend on it.
+-- ============================================================================
+
+create module Svc;
+
+create non-persistent entity Svc.LiveRow ( RowKey: string(60), Label: string(200) );
+
+create microflow Svc.Read_Rows ()
+returns List of Svc.LiveRow as $Rows
+begin
+  $Rows = create list of Svc.LiveRow;
+  return $Rows;
+end;
+
+create microflow Svc.AuthenticateApiClient (
+  $Headers: List of System.HttpHeader
+)
+returns System.User as $User
+begin
+  return empty;
+end;
+
+create microflow Svc.OD_Recalculate ( $Note: string )
+returns Boolean as $Ok
+begin
+  return true;
+end;
+
+create published odata service Svc.LiveAPI (
+  path: 'odata/live/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Svc.LiveAPI',
+  ServiceName: 'LiveAPI',
+  Authentication: (microflow Svc.AuthenticateApiClient)
+)
+{
+  publish entity Svc.LiveRow as 'Rows' (
+    ReadMode: microflow Svc.Read_Rows,
+    InsertMode: not_supported, UpdateMode: not_supported, DeleteMode: not_supported,
+    Countable: false, TopSupported: false, SkipSupported: false
+  )
+  expose ( RowKey as 'rowKey' (KEY), Label as 'label' )
+  publish microflow Svc.OD_Recalculate as 'Recalculate'
+    expose ( Note as 'note' );
+};
+
+create microflow Svc.PRS_Ping ( $httpRequest: System.HttpRequest )
+returns String as $R
+begin
+  return 'pong';
+end;
+
+create microflow Svc.AuthenticateRestClient (
+  $httpRequest: System.HttpRequest
+)
+returns System.User as $User
+begin
+  return empty;
+end;
+
+create published rest service Svc.PingAPI (
+  Path: 'rest/ping/v1',
+  Version: '1.0.0',
+  ServiceName: 'Ping API',
+  Authentication: (microflow Svc.AuthenticateRestClient)
+)
+{
+  resource 'ping' {
+    get '' microflow Svc.PRS_Ping;
+  }
+};
+
+create persistent entity Svc.BE_CustomerChanged ( CustomerId: long );
+
+create microflow Svc.OnCustomerChanged ( $Event: Svc.BE_CustomerChanged ) begin
+  log info 'changed';
+end;
+
+create business event service Svc.CustomerEvents
+(
+  ServiceName: 'CustomerEvents',
+  EventNamePrefix: ''
+)
+{
+  message CustomerChanged (CustomerId: long) subscribe
+    entity Svc.BE_CustomerChanged microflow Svc.OnCustomerChanged;
+};
+
+-- control: nothing runs this one
+create microflow Svc.NoCaller () begin
+  log info 'never';
+end;

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 )
 
 // TestContentsDirResolvesForV2 pins the defect itself: a v2 project must report
@@ -69,7 +69,7 @@ func TestParseMicroflowFromRawDecodesRealUnit(t *testing.T) {
 	var pickedName string
 	for _, ref := range refs {
 		var raw map[string]any
-		if err := bson.Unmarshal(ref.Contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(ref.Contents, &raw); err != nil {
 			continue
 		}
 		if name, _ := raw["Name"].(string); name == "NewAccount" {
@@ -113,7 +113,7 @@ func TestParseNanoflowFromRawDecodesRealUnit(t *testing.T) {
 	var picked map[string]any
 	for _, ref := range refs {
 		var raw map[string]any
-		if err := bson.Unmarshal(ref.Contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(ref.Contents, &raw); err != nil {
 			continue
 		}
 		if nf := b.ParseNanoflowFromRaw(raw, "", ""); nf != nil &&

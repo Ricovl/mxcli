@@ -38,37 +38,8 @@ func AugmentTemplate(tmpl *WidgetTemplate, def *mpk.WidgetDefinition) error {
 	}
 
 	// Build set of existing template property keys (non-system only)
-	templateKeys := make(map[string]bool)
-	// Also build a map of XML type -> exemplar index for cloning
-	typeExemplars := make(map[string]int) // ValueType.Type -> index in propTypes
 	systemKeys := def.SystemPropertyKeys()
-
-	for i, pt := range propTypes {
-		ptMap, ok := pt.(map[string]any)
-		if !ok {
-			continue
-		}
-		key, _ := ptMap["PropertyKey"].(string)
-		if key == "" {
-			continue
-		}
-		// Skip system properties
-		if systemKeys[key] {
-			continue
-		}
-		templateKeys[key] = true
-
-		// Record exemplar for this value type
-		vt, ok := getMapField(ptMap, "ValueType")
-		if ok {
-			vtType, _ := vt["Type"].(string)
-			if vtType != "" {
-				if _, exists := typeExemplars[vtType]; !exists {
-					typeExemplars[vtType] = i
-				}
-			}
-		}
-	}
+	templateKeys, _ := topLevelExemplars(propTypes, systemKeys)
 
 	// Determine mpk property keys (regular only)
 	mpkKeys := def.PropertyKeys()
@@ -114,6 +85,13 @@ func AugmentTemplate(tmpl *WidgetTemplate, def *mpk.WidgetDefinition) error {
 			}
 			propTypes, objProps = removeProperties(propTypes, objProps, staleSet)
 		}
+
+		// Exemplar indices are positions in propTypes, so they are taken AFTER the
+		// stale removal above. Taken before it, every removal ahead of an exemplar
+		// shifted it onto a different property: on a 10.24.0 project (Data Widgets
+		// 2.30.3) the new `filterList` object list was cloned from an Integer
+		// property and lost its nested ObjectType — CE0463 (mendixlabs/mxcli#1424).
+		_, typeExemplars := topLevelExemplars(propTypes, systemKeys)
 
 		// Create a cloner for property pair deep-cloning
 		cloner := defaultCloner()
@@ -226,6 +204,34 @@ func AugmentTemplate(tmpl *WidgetTemplate, def *mpk.WidgetDefinition) error {
 	return nil
 }
 
+// topLevelExemplars indexes a widget's top-level PropertyTypes, skipping system
+// properties: the set of keys present, and for each ValueType.Type the index of
+// the first PropertyType of that type (the exemplar a missing property of the
+// same type is cloned from). Indices are only valid for propTypes as passed.
+func topLevelExemplars(propTypes []any, systemKeys map[string]bool) (keys map[string]bool, exemplars map[string]int) {
+	keys = make(map[string]bool)
+	exemplars = make(map[string]int)
+	for i, pt := range propTypes {
+		ptMap, ok := pt.(map[string]any)
+		if !ok {
+			continue
+		}
+		key, _ := ptMap["PropertyKey"].(string)
+		if key == "" || systemKeys[key] {
+			continue
+		}
+		keys[key] = true
+		if vt, ok := getMapField(ptMap, "ValueType"); ok {
+			if vtType, _ := vt["Type"].(string); vtType != "" {
+				if _, exists := exemplars[vtType]; !exists {
+					exemplars[vtType] = i
+				}
+			}
+		}
+	}
+	return keys, exemplars
+}
+
 // reorderPropertyTypes reorders the top-level ObjectType.PropertyTypes to match the
 // installed .mpk's property declaration order. Leading array markers are preserved;
 // keys the .mpk does not declare (system/accessibility props absent from
@@ -306,20 +312,59 @@ func reorderObjectTypePropertyTypes(objType map[string]any, props []mpk.Property
 	}
 }
 
-// mpkPropDefsByKey indexes a widget's PropertyDefs by key, across both top-level and
-// nested (object-list) properties.
+// scopedKey is how the reconcile passes address a property: its key for a
+// top-level property, "listKey/key" for a sub-property of an object list.
+//
+// A bare key is NOT unique across scopes. Data Widgets 2.30.3 declares `filter`
+// twice — a column's `filter` (widgets) and a `filterList` item's `filter`
+// (attribute) — and a flat by-key index let the later one overwrite the column's
+// definition: Type, Caption, AllowedTypes, DataSourceProperty and Required all
+// came from the wrong property, which is CE0463 on every Data grid 2 mxcli wrote
+// to a 10.24.0 project (mendixlabs/mxcli#1424).
+func scopedKey(prefix, key string) string {
+	if prefix == "" {
+		return key
+	}
+	return prefix + "/" + key
+}
+
+// walkPropertyTypes calls fn for every WidgetPropertyType under node with its
+// scoped key, descending into nested object-list ObjectTypes.
+func walkPropertyTypes(node any, prefix string, fn func(pt map[string]any, scoped string)) {
+	switch v := node.(type) {
+	case map[string]any:
+		if v["$Type"] == "CustomWidgets$WidgetPropertyType" {
+			if key, _ := v["PropertyKey"].(string); key != "" {
+				scoped := scopedKey(prefix, key)
+				fn(v, scoped)
+				prefix = scoped
+			}
+		}
+		for _, val := range v {
+			walkPropertyTypes(val, prefix, fn)
+		}
+	case []any:
+		for _, item := range v {
+			walkPropertyTypes(item, prefix, fn)
+		}
+	}
+}
+
+// mpkPropDefsByKey indexes a widget's PropertyDefs by scoped key (see scopedKey),
+// across both top-level and nested (object-list) properties.
 func mpkPropDefsByKey(def *mpk.WidgetDefinition) map[string]mpk.PropertyDef {
 	out := map[string]mpk.PropertyDef{}
-	var add func([]mpk.PropertyDef)
-	add = func(props []mpk.PropertyDef) {
+	var add func(string, []mpk.PropertyDef)
+	add = func(prefix string, props []mpk.PropertyDef) {
 		for _, p := range props {
-			out[p.Key] = p
+			scoped := scopedKey(prefix, p.Key)
+			out[scoped] = p
 			if len(p.Children) > 0 {
-				add(p.Children)
+				add(scoped, p.Children)
 			}
 		}
 	}
-	add(def.Properties)
+	add("", def.Properties)
 	return out
 }
 
@@ -329,36 +374,26 @@ func mpkPropDefsByKey(def *mpk.WidgetDefinition) map[string]mpk.PropertyDef {
 // Only non-empty .mpk values are applied (the .mpk always carries a category/caption;
 // DefaultValue is present for enumeration/boolean/integer types).
 func reconcilePropertyMetadata(node any, byKey map[string]mpk.PropertyDef) {
-	switch v := node.(type) {
-	case map[string]any:
-		if v["$Type"] == "CustomWidgets$WidgetPropertyType" {
-			if key, _ := v["PropertyKey"].(string); key != "" {
-				if pd, ok := byKey[key]; ok {
-					if pd.Category != "" {
-						v["Category"] = pd.Category
-					}
-					if pd.Caption != "" {
-						v["Caption"] = pd.Caption
-					}
-					if pd.Description != "" {
-						v["Description"] = pd.Description
-					}
-					if pd.DefaultValue != "" {
-						if vt, ok := v["ValueType"].(map[string]any); ok {
-							vt["DefaultValue"] = pd.DefaultValue
-						}
-					}
-				}
+	walkPropertyTypes(node, "", func(v map[string]any, scoped string) {
+		pd, ok := byKey[scoped]
+		if !ok {
+			return
+		}
+		if pd.Category != "" {
+			v["Category"] = pd.Category
+		}
+		if pd.Caption != "" {
+			v["Caption"] = pd.Caption
+		}
+		if pd.Description != "" {
+			v["Description"] = pd.Description
+		}
+		if pd.DefaultValue != "" {
+			if vt, ok := v["ValueType"].(map[string]any); ok {
+				vt["DefaultValue"] = pd.DefaultValue
 			}
 		}
-		for _, val := range v {
-			reconcilePropertyMetadata(val, byKey)
-		}
-	case []any:
-		for _, item := range v {
-			reconcilePropertyMetadata(item, byKey)
-		}
-	}
+	})
 }
 
 // reconcileValueTypesFromMPK overwrites the schema-derived scalar fields of every
@@ -375,82 +410,91 @@ func reconcileValueTypesFromMPK(tmpl *WidgetTemplate, byKey map[string]mpk.Prope
 	// PropertyType $IDs whose Type changed → their Object WidgetValue must be reset.
 	changedTypeIDs := map[string]mpk.PropertyDef{}
 
-	var walk func(any)
-	walk = func(node any) {
-		switch v := node.(type) {
-		case map[string]any:
-			if v["$Type"] == "CustomWidgets$WidgetPropertyType" {
-				if key, _ := v["PropertyKey"].(string); key != "" {
-					if pd, ok := byKey[key]; ok {
-						if vt, ok := v["ValueType"].(map[string]any); ok {
-							bsonType := xmlTypeToBSONType(pd.Type)
-							if bsonType != "" {
-								if old, _ := vt["Type"].(string); old != bsonType {
-									if id, _ := v["$ID"].(string); id != "" {
-										changedTypeIDs[id] = pd
-									}
-								}
-								vt["Type"] = bsonType
-							}
-							vt["Required"] = pd.Required
-							vt["IsList"] = pd.IsList
-							vt["Multiline"] = pd.Multiline
-							vt["DefaultValue"] = pd.DefaultValue
-							vt["AllowedTypes"] = buildAllowedTypesArray(pd.AllowedTypes)
-							vt["SelectionTypes"] = buildSelectionTypesArray(pd.SelectionTypes)
-							vt["DataSourceProperty"] = pd.DataSource
-							// Normalize the mutually-exclusive type-specific fields to the
-							// authoritative .mpk type. A ValueType cloned from a wrong-typed
-							// exemplar (or whose Type changed across widget versions) otherwise
-							// keeps stale fields that don't apply to its current type — e.g. a
-							// TextTemplate carrying EnumerationValues from an Enumeration
-							// exemplar, or a Widgets property carrying a cloned ReturnType.
-							// mxbuild emits these empty for the non-matching type, so a
-							// leftover is a within-key definition mismatch → CE0463.
-							switch bsonType {
-							case "Enumeration":
-								vt["EnumerationValues"] = buildEnumValuesArray(pd.EnumValues)
-								vt["ReturnType"] = nil
-							case "Expression":
-								vt["EnumerationValues"] = []any{float64(2)}
-								if pd.ReturnType != "" || pd.ReturnTypeAssignableTo != "" {
-									vt["ReturnType"] = buildReturnType(pd.ReturnType, pd.ReturnTypeAssignableTo)
-								} else {
-									vt["ReturnType"] = nil
-								}
-							default:
-								vt["EnumerationValues"] = []any{float64(2)}
-								vt["ReturnType"] = nil
-							}
-							// Widget-shipped caption/template translations (from the .mpk
-							// <translations>), emitted into the definition as a
-							// WidgetTranslation list. Absent here → CE0463 on widgets that
-							// ship localized captions (DataGrid2 nl_NL).
-							if len(pd.Translations) > 0 {
-								vt["Translations"] = buildTranslationsArray(pd.Translations)
-							}
-							// The package's action variables. A template from an older
-							// widget version (or one cloned without them) otherwise keeps
-							// a list that disagrees with the installed definition — CE0463
-							// (#1200). Rewritten only when it differs, so a template that
-							// already agrees keeps its entries as they are.
-							if !actionVariablesMatch(vt["ActionVariables"], pd.ActionVariables) {
-								vt["ActionVariables"] = buildActionVariablesArray(pd.ActionVariables)
-							}
-						}
-					}
+	walkPropertyTypes(tmpl.Type, "", func(v map[string]any, scoped string) {
+		pd, ok := byKey[scoped]
+		if !ok {
+			return
+		}
+		vt, ok := v["ValueType"].(map[string]any)
+		if !ok {
+			return
+		}
+		bsonType := xmlTypeToBSONType(pd.Type)
+		if bsonType != "" {
+			if old, _ := vt["Type"].(string); old != bsonType {
+				if id, _ := v["$ID"].(string); id != "" {
+					changedTypeIDs[id] = pd
 				}
 			}
-			for _, val := range v {
-				walk(val)
-			}
-		case []any:
-			for _, item := range v {
-				walk(item)
-			}
+			vt["Type"] = bsonType
 		}
-	}
-	walk(tmpl.Type)
+		vt["Required"] = pd.Required
+		vt["IsList"] = pd.IsList
+		vt["Multiline"] = pd.Multiline
+		vt["DefaultValue"] = pd.DefaultValue
+		vt["AllowedTypes"] = buildAllowedTypesArray(pd.AllowedTypes)
+		vt["SelectionTypes"] = buildSelectionTypesArray(pd.SelectionTypes)
+		vt["DataSourceProperty"] = pd.DataSource
+		// Association definition fields. Overwritten wherever the ValueType carries
+		// them (never added — see syncDefinitionAttrs on #759): an augment-added
+		// property is cloned from an exemplar of the same Type, so without this a
+		// column's `filterAssociationOptionLabelAttr` (Attribute) inherited the
+		// exemplar attribute's [Reference, ReferenceSet] while `filterAssociation`
+		// kept an empty list and no selectable-objects link — CE0463 on Data
+		// Widgets 2.30.3 (mendixlabs/mxcli#1424).
+		if _, ok := vt["AssociationTypes"]; ok {
+			vt["AssociationTypes"] = buildAllowedTypesArray(pd.AssociationTypes)
+		}
+		if _, ok := vt["SelectableObjectsProperty"]; ok {
+			vt["SelectableObjectsProperty"] = pd.SelectableObjects
+		}
+		// Normalize the mutually-exclusive type-specific fields to the
+		// authoritative .mpk type. A ValueType cloned from a wrong-typed
+		// exemplar (or whose Type changed across widget versions) otherwise
+		// keeps stale fields that don't apply to its current type — e.g. a
+		// TextTemplate carrying EnumerationValues from an Enumeration
+		// exemplar, or a Widgets property carrying a cloned ReturnType.
+		// mxbuild emits these empty for the non-matching type, so a
+		// leftover is a within-key definition mismatch → CE0463.
+		switch bsonType {
+		case "Enumeration":
+			vt["EnumerationValues"] = buildEnumValuesArray(pd.EnumValues)
+			vt["ReturnType"] = nil
+		case "Expression":
+			vt["EnumerationValues"] = []any{float64(2)}
+			if pd.ReturnType != "" || pd.ReturnTypeAssignableTo != "" {
+				vt["ReturnType"] = buildReturnType(pd.ReturnType, pd.ReturnTypeAssignableTo)
+			} else {
+				vt["ReturnType"] = nil
+			}
+		default:
+			vt["EnumerationValues"] = []any{float64(2)}
+			vt["ReturnType"] = nil
+		}
+		// Widget-shipped caption/template translations (from the .mpk
+		// <translations>), emitted into the definition as a
+		// WidgetTranslation list. Absent here → CE0463 on widgets that
+		// ship localized captions (DataGrid2 nl_NL).
+		//
+		// Also when the package ships NONE: the template's are then stale. Data
+		// Widgets 2.30.3's drop-down filter declares no translations for
+		// `emptyOptionCaption`, the 3.4-era template carries None/Niets, and
+		// `mx update-widgets` drops them — CE0463 on a 10.24.0 project
+		// (mendixlabs/mxcli#1424, doctype-tests/31 ddfStatus/ddfActive).
+		if len(pd.Translations) > 0 {
+			vt["Translations"] = buildTranslationsArray(pd.Translations)
+		} else if _, ok := vt["Translations"]; ok {
+			vt["Translations"] = []any{float64(2)}
+		}
+		// The package's action variables. A template from an older
+		// widget version (or one cloned without them) otherwise keeps
+		// a list that disagrees with the installed definition — CE0463
+		// (#1200). Rewritten only when it differs, so a template that
+		// already agrees keeps its entries as they are.
+		if !actionVariablesMatch(vt["ActionVariables"], pd.ActionVariables) {
+			vt["ActionVariables"] = buildActionVariablesArray(pd.ActionVariables)
+		}
+	})
 
 	if len(changedTypeIDs) == 0 {
 		return
@@ -605,18 +649,11 @@ func buildSelectionTypesArray(names []string) []any {
 // across both top-level and nested (object-list) properties.
 func mpkEnumValuesByKey(def *mpk.WidgetDefinition) map[string][]mpk.EnumValue {
 	out := map[string][]mpk.EnumValue{}
-	var add func([]mpk.PropertyDef)
-	add = func(props []mpk.PropertyDef) {
-		for _, p := range props {
-			if len(p.EnumValues) > 0 {
-				out[p.Key] = p.EnumValues
-			}
-			if len(p.Children) > 0 {
-				add(p.Children)
-			}
+	for scoped, p := range mpkPropDefsByKey(def) {
+		if len(p.EnumValues) > 0 {
+			out[scoped] = p.EnumValues
 		}
 	}
-	add(def.Properties)
 	return out
 }
 
@@ -624,25 +661,13 @@ func mpkEnumValuesByKey(def *mpk.WidgetDefinition) map[string][]mpk.EnumValue {
 // whose key has a .mpk option set, rebuilds its ValueType.EnumerationValues from
 // the .mpk so the embedded Type's enum members exactly match the installed widget.
 func reconcileEnumValues(node any, byKey map[string][]mpk.EnumValue) {
-	switch v := node.(type) {
-	case map[string]any:
-		if v["$Type"] == "CustomWidgets$WidgetPropertyType" {
-			if vt, ok := v["ValueType"].(map[string]any); ok && vt["Type"] == "Enumeration" {
-				if key, _ := v["PropertyKey"].(string); key != "" {
-					if opts, ok := byKey[key]; ok {
-						vt["EnumerationValues"] = buildEnumValuesArray(opts)
-					}
-				}
+	walkPropertyTypes(node, "", func(v map[string]any, scoped string) {
+		if vt, ok := v["ValueType"].(map[string]any); ok && vt["Type"] == "Enumeration" {
+			if opts, ok := byKey[scoped]; ok {
+				vt["EnumerationValues"] = buildEnumValuesArray(opts)
 			}
 		}
-		for _, val := range v {
-			reconcileEnumValues(val, byKey)
-		}
-	case []any:
-		for _, item := range v {
-			reconcileEnumValues(item, byKey)
-		}
-	}
+	})
 }
 
 // buildEnumValuesArray builds a CustomWidgets$WidgetEnumerationValue list (with the
@@ -688,6 +713,8 @@ func augmentNestedObjectType(propTypes []any, objProps []any, mpkProp mpk.Proper
 
 	if len(staleKeys) > 0 {
 		nestedPropTypes, nestedObjProps = removeNestedProperties(nestedPropTypes, nestedObjProps, staleKeys)
+		// Re-index: the removal shifted every exemplar behind it (see AugmentTemplate).
+		_, nestedExemplars = buildExemplarIndex(nestedPropTypes)
 	}
 
 	nestedPropTypes, nestedObjProps, err := addMissingProperties(nestedPropTypes, nestedObjProps, nestedExemplars, missing)
@@ -905,6 +932,14 @@ func createDefaultWidgetValue(vtID string, bsonType string, p mpk.PropertyDef) m
 	case "Enumeration":
 		if p.DefaultValue != "" {
 			val["PrimitiveValue"] = p.DefaultValue
+		}
+	case "Expression":
+		// The declared default expression, as Studio Pro writes it. Left empty,
+		// a defaulted expression the script does not name fails the build —
+		// the Calendar's `editable` (defaultValue="true") was CE0642 "Property
+		// 'Editable' is required" on every page (mendixlabs/mxcli#1578).
+		if p.DefaultValue != "" {
+			val["Expression"] = p.DefaultValue
 		}
 	case "TextTemplate":
 		// Populate the default template with the widget's shipped caption
@@ -1291,64 +1326,33 @@ func remapObjectTypePointers(objProps []any, idRemap map[string]string) {
 // but the XML does not carry is left alone — overwriting it with a zero value
 // would trade one definition mismatch for another.
 func syncDefinitionAttrs(propTypes []any, props []mpk.PropertyDef) {
-	byKey := make(map[string]*mpk.PropertyDef, len(props))
-	var index func([]mpk.PropertyDef)
-	index = func(ps []mpk.PropertyDef) {
-		for i := range ps {
-			byKey[ps[i].Key] = &ps[i]
-			if len(ps[i].Children) > 0 {
-				index(ps[i].Children)
-			}
+	// Scoped keys: a bare key is not unique across object lists (see scopedKey).
+	byKey := mpkPropDefsByKey(&mpk.WidgetDefinition{Properties: props})
+	walkPropertyTypes(propTypes, "", func(ptMap map[string]any, scoped string) {
+		p, ok := byKey[scoped]
+		if !ok {
+			return
 		}
-	}
-	index(props)
-
-	var walk func([]any)
-	walk = func(pts []any) {
-		for _, pt := range pts {
-			ptMap, ok := pt.(map[string]any)
-			if !ok {
-				continue
-			}
-			if key, _ := ptMap["PropertyKey"].(string); key != "" {
-				if p := byKey[key]; p != nil {
-					// These live on the PropertyType's ValueType, not on the
-					// PropertyType itself — targeting the wrong node made this a
-					// silent no-op. Verified against `mx update-widgets` output:
-					// the differing paths are
-					// PropertyTypes[N]/ValueType/{Required,OnChangeProperty}.
-					//
-					// Update in place only. Adding a key the node does not already
-					// carry invents a property this Mendix version may not define —
-					// the mendixlabs/mxcli#759 failure shape.
-					target := ptMap
-					if vt, ok := getMapField(ptMap, "ValueType"); ok {
-						target = vt
-					}
-					if _, ok := target["Required"]; ok {
-						target["Required"] = p.Required
-					}
-					if _, ok := target["OnChangeProperty"]; ok {
-						target["OnChangeProperty"] = p.OnChange
-					}
-				}
-			}
-			// Object-typed properties nest their own PropertyTypes.
-			if vt, ok := getMapField(ptMap, "ValueType"); ok {
-				if ot, ok := getMapField(vt, "ObjectType"); ok {
-					if nested, ok := getArrayField(ot, "PropertyTypes"); ok {
-						walk(nested)
-					}
-				}
-			}
-			if ot, ok := getMapField(ptMap, "ObjectType"); ok {
-				if nested, ok := getArrayField(ot, "PropertyTypes"); ok {
-					walk(nested)
-				}
-			}
+		// These live on the PropertyType's ValueType, not on the
+		// PropertyType itself — targeting the wrong node made this a
+		// silent no-op. Verified against `mx update-widgets` output:
+		// the differing paths are
+		// PropertyTypes[N]/ValueType/{Required,OnChangeProperty}.
+		//
+		// Update in place only. Adding a key the node does not already
+		// carry invents a property this Mendix version may not define —
+		// the mendixlabs/mxcli#759 failure shape.
+		target := ptMap
+		if vt, ok := getMapField(ptMap, "ValueType"); ok {
+			target = vt
 		}
-	}
-	walk(propTypes)
+		if _, ok := target["Required"]; ok {
+			target["Required"] = p.Required
+		}
+		if _, ok := target["OnChangeProperty"]; ok {
+			target["OnChangeProperty"] = p.OnChange
+		}
+	})
 }
 
 // NewPropertyPair builds the (WidgetPropertyType, WidgetProperty) pair for a property

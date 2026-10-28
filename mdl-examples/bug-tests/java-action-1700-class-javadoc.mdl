@@ -1,0 +1,53 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1700 (mendixlabs/mxcli#1653): the .java file mxcli writes has no
+-- class javadoc
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   mxbuild writes a Java action's documentation as a javadoc block above
+--   `public class`. The file `create [or modify] java action` wrote never had
+--   it: a new action got none, and a rewrite removed the one a build had
+--   written. The next build put it back, so every rewrite was a pair of
+--   unrelated diffs in version control.
+--
+-- After fix:
+--   The file holds the block exactly as mxbuild writes it, so a build after
+--   the statement leaves the file unchanged — and the second statement, which
+--   states no documentation, keeps the stored one in the model and the file.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/java-action-1700-class-javadoc.mdl -p app.mpr
+--   grep -B3 'public class FormatAmount' javasource/bugtest1700/actions/FormatAmount.java
+--   Expected, above the class line:
+--     /**
+--      * Formats an amount as text with two decimals.
+--      *
+--      * Rounds half up.
+--      */
+--   Then build (mxcli docker build, or mxbuild --target=deploy): the file is
+--   byte-identical before and after.
+-- ============================================================================
+
+create module BugTest1700;
+
+/**
+ * Formats an amount as text with two decimals.
+ *
+ * Rounds half up.
+ */
+create java action BugTest1700.FormatAmount(
+  /** The amount to format. */
+  Amount: Decimal not null
+) returns String as $FormattedAmount
+as $$
+return String.format("%.2f", Amount);
+$$;
+
+-- No doc comment: the stored documentation is kept, and so is the javadoc.
+create or modify java action BugTest1700.FormatAmount(
+  Amount: Decimal not null
+) returns String as $FormattedAmount
+as $$
+return String.format("%.2f", Amount);
+$$;

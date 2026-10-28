@@ -70,15 +70,21 @@ So:
 - **Default to `mxcli playwright check`** (app already running) **or `run --page-check`**
   (while booting it). They answer the question and leave the PNG unread. The exit
   status is the verdict: 0 every page passed; 1 a page showed an error banner or
-  dialog, a console error, a failed request, an HTTP error, the sign-in form, or a
-  failed `--assert-*`; 2 the check could not run.
+  dialog, a console error, a failed request, an HTTP error, the sign-in form, a
+  page the signed-in role may not open (`ACCESS DENIED`, `messageCode=403` — a
+  page-access problem, not a sign-in one), a `/p/` URL that ended elsewhere
+  (`url=/`: no page has that URL, so the home page rendered), or a failed
+  `--assert-*`; 2 the check could not run.
 - **Never hand-roll a playwright-cli login/goto/sleep sequence** to look at a page
   (`playwright-cli open …/login.html; fill …; click …; goto …; sleep 6; eval …;
   screenshot`). `playwright check` does all of it in one call: it signs in with
   `--user/--password`, `--role R` (the project's demo user for that role) or, with
   only `-p`, a demo user; it saves the session under `.mxcli/playwright-check/` and
   reuses it, renewing it when the runtime restarted; it waits for the page to
-  settle instead of sleeping. Hand-written `playwright-cli` is for **interaction**
+  settle instead of sleeping — including for its data sources, whose requests it
+  watches, since a list view shows no spinner while one runs. A page that does not
+  settle within `--wait` is reported `STILL LOADING` and fails, rather than passing
+  on whatever had rendered. Hand-written `playwright-cli` is for **interaction**
   (click, fill, submit) — and then put it in a `playwright verify` script.
 - **Take a screenshot when the question is genuinely about appearance** — layout,
   spacing, colour, "does this look right" — and then take it **once**, at the end:

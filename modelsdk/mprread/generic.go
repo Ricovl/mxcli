@@ -75,6 +75,11 @@ func ListUnitsWithContainerWhere[T element.Element](r *mmpr.Reader, keep func(bs
 	if err != nil {
 		return nil, err
 	}
+	return decodeUnits[T](refs, typeName, keep)
+}
+
+// decodeUnits decodes the refs of typeName that keep accepts (nil keeps all).
+func decodeUnits[T element.Element](refs []mmpr.UnitRef, typeName string, keep func(bson.Raw) bool) ([]Unit[T], error) {
 	dec := codec.NewDecoder(codec.DefaultRegistry)
 	out := make([]Unit[T], 0, len(refs))
 	for _, ref := range refs {
@@ -175,6 +180,18 @@ func ListUnitsWithContainerCached[T element.Element](r *mmpr.Reader) ([]Unit[T],
 func decodeCacheDisabled() bool {
 	v := strings.TrimSpace(os.Getenv("MXCLI_NO_DECODE_CACHE"))
 	return v != "" && v != "0" && !strings.EqualFold(v, "false")
+}
+
+// ListUnitsInContainer decodes the units of type T whose ContainerID is
+// containerID, and reads no other unit: a lookup of one module's domain model
+// reads one document, not the project's (mendixlabs/mxcli#1616).
+func ListUnitsInContainer[T element.Element](r *mmpr.Reader, containerID model.ID) ([]Unit[T], error) {
+	typeName := bsonTypeName[T]()
+	refs, err := r.ListUnitsByTypeInContainer(typeName, string(containerID))
+	if err != nil {
+		return nil, err
+	}
+	return decodeUnits[T](refs, typeName, nil)
 }
 
 // UnitHeader is what a name listing needs of a unit, read without decoding it.

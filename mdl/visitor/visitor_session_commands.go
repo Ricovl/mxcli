@@ -42,6 +42,12 @@ func (b *Builder) ExitUtilityStatement(ctx *parser.UtilityStatementContext) {
 		// where a session command belongs, under every language version.
 		return
 	}
+	if b.syntaxErrorLines[ctx.GetStart().GetLine()] {
+		// Error recovery made it of a line that already failed to parse —
+		// `alter workflow M.W set (Key: …)` without its braces reads as `set
+		// (key` (ako/mxcli#1717) — and the syntax error is the one to act on.
+		return
+	}
 	if b.gate(sessionCommandInScript, ctx) {
 		b.addError(fmt.Errorf("line %d: `%s` is a session command, not a model statement: under %s a script "+
 			"holds model statements only. Type it at the REPL, or use the command-line flag "+

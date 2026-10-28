@@ -63,6 +63,12 @@ type scriptContext struct {
 	// (Module.Action -> parameter name). Such a parameter takes a microflow
 	// NAME, never an expression (mendixlabs/mxcli#1210).
 	javaActionFlowParams map[string]map[string]bool
+	// Text-template parameters of the Java actions the script creates
+	// (Module.Action -> parameter name), and the agent-editor documents it
+	// creates (CustomDocumentTypeName + " " + Module.Name): what a call's
+	// template and document arguments are checked against (ako/mxcli#1451).
+	javaActionTemplateParams map[string]map[string]bool
+	customDocuments          map[string]bool
 
 	// Entities the script declares, and those it alters, for resolving the
 	// bare members of a retrieve constraint on an entity the project does not
@@ -94,6 +100,7 @@ type scriptContext struct {
 	// task page, the targeting microflow, the context entity and the workflow are
 	// ordinarily one script.
 	pageParams            map[string][]string // Module.Page (lower-cased) -> parameter entities
+	pageParamNames        map[string][]string // Module.Page (lower-cased) -> parameter names, for show page arguments
 	entityGeneralizations map[string]string   // Module.Entity (lower-cased) -> generalization, "" for none
 
 	// Associations and entity attributes declared in the script, for
@@ -115,6 +122,11 @@ type scriptContext struct {
 	// associationShapes holds the same associations' multiplicity, so a list
 	// widget over one can be judged before it is built (MDL-ASSOCDS01).
 	associationShapes map[string]assocShape
+
+	// storedReturns caches the entity each stored microflow a call names
+	// returns, for typing a call result (microflowReturnEntity); filled on
+	// demand.
+	storedReturns map[string]string
 
 	// warnings are findings that do not block: dangling references in an
 	// EXCLUDED document, which Mendix itself does not validate. Reported so
@@ -144,9 +156,11 @@ func newScriptContext() *scriptContext {
 		imageCollections:      make(map[string]bool),
 		images:                make(map[string]bool),
 
-		javaActionFlowParams: make(map[string]map[string]bool),
-		entityDecls:          make(map[string]*ast.CreateEntityStmt),
-		alteredEntities:      make(map[string]bool),
+		javaActionFlowParams:     make(map[string]map[string]bool),
+		javaActionTemplateParams: make(map[string]map[string]bool),
+		customDocuments:          make(map[string]bool),
+		entityDecls:              make(map[string]*ast.CreateEntityStmt),
+		alteredEntities:          make(map[string]bool),
 
 		javaActions:       make(map[string][]string),
 		javaScriptActions: make(map[string][]string),
@@ -158,6 +172,7 @@ func newScriptContext() *scriptContext {
 		flowParams:        make(map[string]*flowSignature),
 
 		pageParams:            make(map[string][]string),
+		pageParamNames:        make(map[string][]string),
 		entityGeneralizations: make(map[string]string),
 	}
 }
@@ -182,6 +197,31 @@ func (sc *scriptContext) recordEntityAttrs(s *ast.CreateEntityStmt) {
 // switches over the same statement types, so a case added to one and not the
 // other is collected on one path only — which is how this rule first shipped
 // firing against stored associations but not script-declared ones.
+func (sc *scriptContext) recordViewAssociations(s *ast.CreateViewEntityStmt) {
+	// A view entity's associations are its `<alias>.ID as <Name>` columns: the
+	// view entity is the FROM end, the selected entity the TO end, and the
+	// association lives in the view's module (oql_view_associations.go).
+	//
+	// They are registered exactly as a script's CREATE ASSOCIATION is, so every
+	// checker that resolves association names sees them. Without that, the
+	// constraint `[M.Stats_Customer = $currentObject]` on the view entity — the
+	// remedy MDL-ASSOCDS02 names — was refused as naming "neither an attribute
+	// nor an association" whenever the view came from the same script.
+	for _, col := range viewAssociationColumns(s.Query.RawQuery) {
+		to := parseQN(col.Entity)
+		if to.Module == "" {
+			continue
+		}
+		name := ast.QualifiedName{Module: s.Name.Module, Name: col.Name}
+		sc.recordAssociation(&ast.CreateAssociationStmt{
+			Name: name, Parent: s.Name, Child: to, Type: ast.AssocReference, Owner: ast.OwnerDefault,
+		})
+		shape := sc.associationShapes[strings.ToLower(name.String())]
+		shape.view = true
+		sc.associationShapes[strings.ToLower(name.String())] = shape
+	}
+}
+
 func (sc *scriptContext) recordAssociation(s *ast.CreateAssociationStmt) {
 	if s.Name.Module == "" || s.Name.Name == "" {
 		return
@@ -246,6 +286,7 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.entities[s.Name.String()] = true
 			sc.viewEntities[s.Name.String()] = true
+			sc.recordViewAssociations(s)
 		}
 	case *ast.CreateExternalEntityStmt:
 		if s.Name.Module != "" {
@@ -289,6 +330,7 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.pages[s.Name.String()] = true
 			sc.recordPageParams(s.Name.String(), s.Parameters)
+			sc.recordPageParamNames(s.Name.String(), s.Parameters)
 		}
 	case *ast.CreateSnippetStmtV3:
 		if s.Name.Module != "" {
@@ -318,7 +360,16 @@ func (sc *scriptContext) collectSingle(stmt ast.Statement) {
 		if s.Name.Module != "" {
 			sc.javaActions[s.Name.String()] = codeActionParamNames(s.Parameters)
 			sc.javaActionFlowParams[s.Name.String()] = microflowTypedParams(s.Parameters)
+			sc.javaActionTemplateParams[s.Name.String()] = templateTypedParams(s.Parameters)
 		}
+	case *ast.CreateAgentStmt:
+		sc.customDocuments["agenteditor.agent "+s.Name.String()] = true
+	case *ast.CreateModelStmt:
+		sc.customDocuments["agenteditor.model "+s.Name.String()] = true
+	case *ast.CreateKnowledgeBaseStmt:
+		sc.customDocuments["agenteditor.knowledgebase "+s.Name.String()] = true
+	case *ast.CreateConsumedMCPServiceStmt:
+		sc.customDocuments["agenteditor.consumedMCPService "+s.Name.String()] = true
 	case *ast.CreateQueueStmt:
 		if s.Name.Module != "" {
 			sc.queues[strings.ToLower(s.Name.String())] = true
@@ -435,6 +486,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 		}
 	}
 	errors = append(errors, validateForwardPageRefs(ctx, prog)...)
+	// A rewrite exec would refuse for the widgets MDL cannot author that it
+	// deletes (mendixlabs/mxcli#1622).
+	errors = append(errors, validateUnauthorableRewrites(ctx, prog)...)
 	// The same for the other references exec resolves in statement order, where
 	// the later definition is a `create or modify` (mendixlabs/mxcli#1211, #1212).
 	errors = append(errors, validateForwardDefRefs(ctx, prog)...)
@@ -450,6 +504,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// worse than the two above: a module-qualified role here makes the project
 	// unloadable rather than merely failing the build (mendixlabs/mxcli#1001).
 	errors = append(errors, validateNavigationRoles(ctx, prog)...)
+	// Resolve the pages and flows a navigation profile or menu document names:
+	// home, login and not-found pages and every menu item. Written by name and
+	// unchecked, so a typo was CE1613 at build time, after the whole menu had
+	// been rewritten.
+	errors = append(errors, validateNavigationTargets(ctx, prog, sc)...)
 	// Resolve what a GRANT / REVOKE, a user role and a demo user name: the
 	// entity, document or member, and the module and user roles. exec refuses
 	// the grants after the statements before them are written, and writes the
@@ -467,6 +526,11 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	for _, msg := range validateMemberReferences(ctx, prog, sc) {
 		errors = append(errors, mdlerrors.NewValidation(msg))
 	}
+	// MDL-RETRIEVE03 over an association: whether `retrieve $L from $h/M.A`
+	// binds a list depends on the association and on which end $h is, so the
+	// no-project rule cannot judge it. Using that list as an object built as
+	// CE0117 / CE7247 (mendixlabs/mxcli#1516).
+	errors = append(errors, validateAssociationRetrieveListUse(ctx, prog, sc)...)
 	// Resolve the MEMBERS inside a widget's XPath constraint. The entity in
 	// `database from Mod.Entity` was resolved and the `where […]` was not, so a
 	// member that does not exist reached mxbuild as CE1613
@@ -477,11 +541,42 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// widget that is already stored, so its property can only be resolved
 	// against the document — which is why it passed check and failed exec.
 	errors = append(errors, validateAlterSetProperties(ctx, prog, sc)...)
+	// A SET or ALTER STYLING that styles a stored snippet call: valid, and
+	// useless — a snippet call renders no element (mendixlabs/mxcli#1511).
+	// What the target IS lives only in the document. Warns, never blocks.
+	validateStoredSnippetCallAppearance(ctx, prog, sc)
 	// The entity an ALTER's INSERT / REPLACE binds against is in the stored
 	// document, not the statement. Where it has none (a missing flow source, or
 	// no data container at all) a bare binding is written bare and the project
 	// no longer loads — CREATE PAGE already refused this at check time.
 	errors = append(errors, validateAlterUnscopedBindings(ctx, prog, sc)...)
+	// An ALTER PAGE's INSERT / REPLACE / DROP targets and the references its
+	// inserted widgets carry: only the document was resolved, so a typo in
+	// either passed check and stopped exec (mendixlabs/mxcli#1472).
+	errors = append(errors, validateAlterPageReferences(ctx, prog, sc)...)
+	// The same for ALTER NAVIGATION / ALTER MENU: the function exec runs, on a
+	// copy of the stored menu that is never saved.
+	errors = append(errors, validateAlterNavigationReferences(ctx, prog)...)
+	// `Module.Enum.Key` in any expression: the key must be one of the
+	// enumeration's values (mendixlabs/mxcli#1472).
+	errors = append(errors, validateEnumValueRefs(ctx, prog, sc)...)
+	// `[%UserRole_X%]` in any XPath constraint: X must be a user role, matched
+	// case-sensitively, or mxbuild reports CE1613 — and then no CE0161 at all
+	// (ako/mxcli#1723).
+	errors = append(errors, validateUserRoleTokens(ctx, prog, sc)...)
+	// A reference into a Protected (add-on) module's Hidden element, and a
+	// Usable microflow there exposing a Hidden entity: mxbuild's CE1406 and
+	// CE5400, after exec has written the model (mendixlabs/mxcli#1498).
+	errors = append(errors, validateProtectedModuleRefs(ctx, prog, sc)...)
+	// A business event message attribute named like a member its entity
+	// inherits (BusinessEvents.PublishedBusinessEvent's, read from the project):
+	// mxbuild reports the duplicate after exec wrote it (mendixlabs/mxcli#1525).
+	errors = append(errors, validateBusinessEventInheritedMembers(ctx, prog, sc)...)
+	// A member named like one already on its entity's generalization chain —
+	// inherited, a specialization's, or the entity's own other kind: mxbuild's
+	// CE0069, after exec wrote it (ako/mxcli#1645). Replayed in statement
+	// order, judged by the verdict exec gives.
+	errors = append(errors, validateMemberNameClashes(ctx, prog)...)
 	return errors, sc.warnings
 }
 
@@ -646,6 +741,10 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				}
 			}
 		}
+		// The microflows its event handlers call (mendixlabs/mxcli#1472).
+		if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), s.EventHandlers); err != nil {
+			return err
+		}
 		// Validate index columns
 		for _, idx := range s.Indexes {
 			for _, col := range idx.Columns {
@@ -741,6 +840,8 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateListOperationSystemMembers(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("microflow", s.Name.String(), refErrors)
@@ -758,9 +859,21 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
 		}
+		// A bare `returns Module.Name` that names an enumeration is one: exec
+		// retypes it the same way before it validates the rule. One that names
+		// nothing is reported as that, not as "not a Boolean or an enumeration".
+		ruleReturn := s.ReturnType
+		if ruleReturn != nil && ctx.Connected() {
+			r := newDeclaredTypeResolver(ctx, sc)
+			if retyped, ok := r.bareEnumeration(ruleReturn.Type); ok {
+				ruleReturn = &ast.MicroflowReturnType{Type: retyped, Variable: ruleReturn.Variable}
+			} else if msg := r.check(ruleReturn.Type, "return type of rule "+s.Name.String()); msg != "" {
+				return mdlerrors.NewValidationf("rule '%s' has reference errors:\n  - %s", s.Name.String(), msg)
+			}
+		}
 		// The same validateRule the executor calls, so `check` and `exec` cannot
 		// disagree about what a rule may contain.
-		if errMsg := validateRule(s.Name.String(), s.Body, s.ReturnType); errMsg != "" {
+		if errMsg := validateRule(s.Name.String(), s.Body, ruleReturn); errMsg != "" {
 			return mdlerrors.NewValidationf("%s", strings.TrimRight(errMsg, "\n"))
 		}
 		if validationErrors := ValidateRuleBody(s); len(validationErrors) > 0 {
@@ -795,6 +908,8 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		refErrors := validateFlowBodyReferences(ctx, s.Body, sc)
 		if ctx.Connected() {
 			refErrors = append(refErrors, validateRetrieveOperandTypes(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateRetrieveSystemMemberPaths(ctx, s.Parameters, s.Body, sc)...)
+			refErrors = append(refErrors, validateListOperationSystemMembers(ctx, s.Parameters, s.Body, sc)...)
 		}
 		if len(refErrors) > 0 && s.Excluded {
 			sc.warnExcluded("nanoflow", s.Name.String(), refErrors)
@@ -853,6 +968,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
+		// A DataGrid 2 column or filter attribute the grid's entity lacks
+		// (mendixlabs/mxcli#1472) — CE1613, unless Mendix skips the document.
+		if colErrors := datagridColumnAttrErrors(pageWidgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if s.Excluded || carriedExclusion(ctx, "page", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("page", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("page '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
+		}
 	case *ast.CreateLayoutStmt:
 		// A layout's widgets name things too — a menu widget's menu document
 		// above all, since layouts are where menu widgets live. Before
@@ -907,6 +1032,14 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
 				s.Name.String(), strings.Join(scopeErrors, "\n  - "))
 		}
+		if colErrors := datagridColumnAttrErrors(s.Widgets, "", newColumnAttrJudge(ctx, sc)); len(colErrors) > 0 {
+			if carriedExclusion(ctx, "snippet", s.Name, s.IsReplace || s.IsModify) {
+				sc.warnExcluded("snippet", s.Name.String(), colErrors)
+			} else {
+				return mdlerrors.NewValidationf("snippet '%s' has attribute binding errors:\n  - %s",
+					s.Name.String(), strings.Join(colErrors, "\n  - "))
+			}
+		}
 	case *ast.CreateWorkflowStmt:
 		// Two reference passes. Missing targets first: a name that resolves to
 		// nothing is the more basic error, and reporting "parameter not mapped"
@@ -920,6 +1053,16 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if len(refErrors) > 0 {
 			return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
 				s.Name.String(), strings.Join(refErrors, "\n  - "))
+		}
+	case *ast.CreateJavaActionStmt:
+		// The signature's bare Module.Name types, which exec resolves and
+		// refuses (ako/mxcli#935).
+		if errs := codeActionSignatureErrors(ctx, sc, "java action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("java action", s.Name.String(), nil, errs)
+		}
+	case *ast.CreateJavaScriptActionStmt:
+		if errs := codeActionSignatureErrors(ctx, sc, "javascript action", s.Name, s.Parameters, s.ReturnType); len(errs) > 0 {
+			return flowValidationError("javascript action", s.Name.String(), nil, errs)
 		}
 	case *ast.CreatePublishedRestServiceStmt:
 		return validatePublishedRestAuthMicroflow(ctx, s.Authentication, sc)
@@ -941,6 +1084,12 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
 			}
+		}
+		// The entities the query reads from (mendixlabs/mxcli#1472): first,
+		// because every column of a missing source goes untyped below.
+		if srcErrors := viewSourceEntityErrors(ctx, s.Query.RawQuery, sc); len(srcErrors) > 0 {
+			return mdlerrors.NewValidationf("view entity '%s':\n  - %s",
+				s.Name.String(), strings.Join(srcErrors, "\n  - "))
 		}
 		// An `<alias>.ID` column names an association, and the name has to be
 		// free in the module — reported here because the fix is a rename, and a
@@ -966,6 +1115,11 @@ func validateWithContext(ctx *ExecContext, stmt ast.Statement, sc *scriptContext
 		if s.Name.Module != "" && !sc.modules[s.Name.Module] {
 			if _, err := findModule(ctx, s.Name.Module); err != nil {
 				return mdlerrors.NewNotFound("module", s.Name.Module)
+			}
+		}
+		if s.Operation == ast.AlterEntityAddEventHandler && s.EventHandler != nil {
+			if err := validateEntityEventHandlers(ctx, sc, s.Name.String(), []ast.EventHandlerDef{*s.EventHandler}); err != nil {
+				return err
 			}
 		}
 		// ADD/DROP ATTRIBUTE on a view entity is refused by exec; say so here
@@ -1370,6 +1524,10 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 		}
 	}
 
+	if len(refs.pageCalls) > 0 {
+		errors = append(errors, validateShowPageParams(ctx, refs.pageCalls, sc)...)
+	}
+
 	if len(refs.javaActions) > 0 {
 		known := buildJavaActionQualifiedNames(ctx)
 		for _, ref := range refs.javaActions {
@@ -1389,6 +1547,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			if declared, inScript := sc.javaActions[ref.name]; inScript {
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
 				errors = append(errors, microflowParamArgErrors(ref, sc.javaActionFlowParams[ref.name])...)
+				errors = append(errors, javaActionCallValueErrors(ctx, sc, ref, sc.javaActionTemplateParams[ref.name], nil)...)
 				continue
 			}
 			if !known[ref.name] {
@@ -1398,14 +1557,22 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 			if ja, err := ctx.Backend.ReadJavaActionByName(ref.name); err == nil && ja != nil {
 				declared := []string{} // read: an action with no parameters is known to have none
 				flowParams := map[string]bool{}
+				templates := map[string]bool{}
+				documents := map[string]string{}
 				for _, p := range ja.Parameters {
 					declared = append(declared, p.Name)
-					if _, isFlow := p.ParameterType.(*javaactions.MicroflowType); isFlow {
+					switch pt := p.ParameterType.(type) {
+					case *javaactions.MicroflowType:
 						flowParams[p.Name] = true
+					case *javaactions.StringTemplateParameterType:
+						templates[p.Name] = true
+					case *javaactions.CustomBlobDocumentType:
+						documents[p.Name] = pt.DocumentType
 					}
 				}
 				errors = append(errors, validateCodeActionParams("java action", ref, declared)...)
 				errors = append(errors, microflowParamArgErrors(ref, flowParams)...)
+				errors = append(errors, javaActionCallValueErrors(ctx, sc, ref, templates, documents)...)
 			}
 		}
 	}
@@ -1444,7 +1611,7 @@ func validateFlowBodyReferences(ctx *ExecContext, body []ast.MicroflowStatement,
 	}
 
 	if len(refs.retrieves) > 0 {
-		errors = append(errors, validateRetrieveConstraints(ctx, refs.retrieves)...)
+		errors = append(errors, validateRetrieveConstraints(ctx, refs.retrieves, sc)...)
 		errors = append(errors, validateXPathAssociations(ctx, refs.retrieves, sc)...)
 		errors = append(errors, validateRetrieveMembers(ctx, refs.retrieves, sc)...)
 	}
@@ -1472,27 +1639,30 @@ var baseSystemMemberRe = regexp.MustCompile(`(^|[^/\w.])System\.(owner|changedBy
 // changedBy / changedDate / createdDate member referenced on an entity that
 // doesn't store it. This is the legitimate "owned by current user" pattern that
 // silently fails when owner isn't enabled (issue #641).
-func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstraintRef) []string {
+//
+// An entity the same script declares is judged from its declaration: judging
+// only stored entities let the ordinary shape — one script creating the entity
+// and the microflow — pass check and exec and fail the build (ako/mxcli#1306).
+func validateRetrieveConstraints(ctx *ExecContext, retrieves []retrieveConstraintRef, sc *scriptContext) []string {
 	entities := buildEntityIndex(ctx)
 	if entities == nil {
 		return nil
 	}
 	var errors []string
 	for _, r := range retrieves {
-		ent := entities[r.entity]
-		if ent == nil {
+		if entities[r.entity] == nil && (sc == nil || sc.entityDecls[r.entity] == nil) {
 			continue // entity-not-found is reported separately
 		}
 		for _, m := range baseSystemMemberRe.FindAllStringSubmatch(r.constraint, -1) {
 			member := m[2]
-			stores, known := systemMemberStoredOnChain(entities, r.entity, systemMemberStore[member])
+			stores, root, known := scriptSystemMemberRoot(entities, sc, r.entity, systemMemberStore[member])
 			if stores || !known {
 				continue
 			}
 			errors = append(errors, fmt.Sprintf(
 				"constraint references System.%s on %s, but the entity does not store %s — Studio Pro rejects this with CE0161. "+
-					"Enable it first: alter entity %s add attribute %s: auto%s",
-				member, r.entity, member, r.entity, member, strings.ToLower(member)))
+					"Enable it first: %s",
+				member, r.entity, member, systemMemberStoreFix(root, member)))
 		}
 	}
 	return errors
@@ -1550,6 +1720,48 @@ func systemMemberRoot(index map[string]*domainmodel.Entity, entityQN, member str
 		qn = e.GeneralizationRef
 	}
 	return false, "", false
+}
+
+// scriptSystemMemberRoot is systemMemberRoot over the project AND the entities
+// the script declares. A declared entity stores a member when its declaration
+// carries the member's Auto* pseudo-type, and its generalization is the
+// declaration's. An entity the script alters is not judged: the alter may be
+// what adds the member, and what it leaves is not worked out here.
+func scriptSystemMemberRoot(index map[string]*domainmodel.Entity, sc *scriptContext, entityQN, member string) (stores bool, rootQN string, known bool) {
+	seen := map[string]bool{}
+	for qn := entityQN; qn != "" && !seen[qn]; {
+		seen[qn] = true
+		if sc == nil {
+			return systemMemberRoot(index, qn, member)
+		}
+		if sc.alteredEntities[qn] {
+			return false, "", false
+		}
+		decl := sc.entityDecls[qn]
+		if decl == nil {
+			return systemMemberRoot(index, qn, member)
+		}
+		if decl.Generalization == nil {
+			for _, a := range decl.Attributes {
+				if systemMemberOfPseudoType(a.Type.Kind) == member {
+					return true, qn, true
+				}
+			}
+			return false, qn, true
+		}
+		qn = decl.Generalization.String()
+	}
+	return false, "", false
+}
+
+// systemMemberStoreFix is the statement that makes rootQN store member — the
+// root, because Mendix keeps the system members there and refuses them on a
+// specialization — or why there is none for a System root.
+func systemMemberStoreFix(rootQN, member string) string {
+	if strings.HasPrefix(rootQN, "System.") {
+		return "System entities cannot be changed, so nothing in the project can make " + rootQN + " store it"
+	}
+	return fmt.Sprintf("alter entity %s add attribute %s: %s", rootQN, member, autoTypeName(member))
 }
 
 // systemChainRoot names the root of a System entity's generalization chain.
@@ -1616,7 +1828,10 @@ type flowRefCollector struct {
 	nanoflows  []string
 	// flowCalls are the microflow and nanoflow calls with the parameter names
 	// written on them, for the CE1613 parameter-name check (#953).
-	flowCalls         []flowCallRef
+	flowCalls []flowCallRef
+	// pageCalls are the show page actions with arguments, for the same check
+	// (mendixlabs/mxcli#1617).
+	pageCalls         []codeActionCallRef
 	javaActions       []codeActionCallRef
 	javaScriptActions []codeActionCallRef
 	entities          []entityRef
@@ -1743,6 +1958,9 @@ func (c *flowRefCollector) collectFromStatements(stmts []ast.MicroflowStatement)
 		case *ast.ShowPageStmt:
 			if s.PageName.Module != "" {
 				c.pages = append(c.pages, s.PageName.String())
+				if names := showPageArgNames(s.Arguments); len(names) > 0 {
+					c.pageCalls = append(c.pageCalls, codeActionCallRef{name: s.PageName.String(), argNames: names})
+				}
 			}
 		case *ast.CallMicroflowStmt:
 			if s.MicroflowName.Module != "" {
@@ -1882,6 +2100,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// MDL092: an @anchor parameter the visitor cannot use is dropped, the edge
 	// keeping its default sides — the same class as MDL060 (mendixlabs/mxcli#992).
 	"MDL092": true,
+	// MDL094: a loop over a path, `loop $c in $Parent/Mod.Assoc`. The model's
+	// loop holds a list VARIABLE, so the builder has nowhere to put the path and
+	// writes a loop over nothing — CE0099 on 11.12.1 (mendixlabs/mxcli#199).
+	"MDL094": true,
 	// MDL076: `on error continue` on an activity that rejects it is CE6035 at
 	// build time — every row of continueUnsupportedOn was measured on 11.14.0.
 	// check reported it; exec without the pre-check (-c, the REPL, --no-check)
@@ -1904,6 +2126,10 @@ var execEnforcedMicroflowRules = map[string]bool{
 	// member, measured on 11.6.6 (mendixlabs/mxcli#1422). The builder refuses
 	// it too, for the flows this AST walk cannot type.
 	"MDL-RETRIEVE03": true,
+	// MDL-CHANGE01: a create or change object member naming System.owner /
+	// System.changedBy is CE1050 "Unknown association", measured on 11.12.5
+	// for every entity shape, microflow and nanoflow (mendixlabs/mxcli#1612).
+	"MDL-CHANGE01": true,
 }
 
 // validateMicroflowRules runs the MDL0xx microflow rule set (ValidateMicroflow)

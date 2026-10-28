@@ -340,21 +340,25 @@ DISCONNECT;`,
 
 	Register(SyntaxFeature{
 		Path:    "navigation.create",
-		Summary: "Create or replace a navigation profile with home pages, menus, and login page",
+		Summary: "Create or replace a navigation profile with home pages, menus, login page, and app title and icon",
 		Keywords: []string{
 			"create navigation", "replace navigation", "home page",
 			"login page", "not found page", "menu item", "menu icon",
 			"navigation profile", "phone profile", "tablet profile",
 			"offline profile", "offline navigation", "sync", "synchronization",
-			"offline sync", "offline entity", "pwa", "download mode",
+			"offline sync", "offline entity", "pwa", "progressive web app", "service worker", "precaching", "download mode",
 			"throw error", "sync error", "partial sync", "server rejects",
+			"app title", "application title", "browser tab", "tab title", "app icon", "application icon",
 		},
 		Syntax: `CREATE OR MODIFY NAVIGATION <profile>
+  [APP TITLE 'text']
+  [APP ICON Module.Collection.Image | APP ICON NONE]
   HOME PAGE Module.Page | HOME MICROFLOW Module.Flow | HOME NANOFLOW Module.Flow
   [HOME PAGE Module.Page FOR UserRole]
   [LOGIN PAGE Module.LoginPage]
   [NOT FOUND PAGE Module.Custom404]
   [ON SYNC ERROR THROW|CONTINUE]
+  [PROGRESSIVE WEB APP [( Precaching: true|false, InstallPrompt: true|false )] | PROGRESSIVE WEB APP OFF]
   [SYNC (
     SYNC Module.Entity ONLINE;
     SYNC Module.Entity ALL;
@@ -373,6 +377,15 @@ DISCONNECT;`,
     MENU 'Group' [( Icon: Module.IconCollection.Name )] { ... }
   }];
 
+-- Every clause is optional, and an OMITTED clause leaves the stored value
+-- alone: a statement that states only a { } menu keeps the home page, the
+-- role home pages, the login page and the not-found page (mendixlabs/mxcli#1522).
+-- A stated clause replaces what it names: { } the whole menu, SYNC ( ) the
+-- whole list, HOME ... FOR R the home page of role R only (other roles keep
+-- theirs). To change ONE menu item, or to clear a role's home page, the login
+-- page or the not-found page, use ALTER NAVIGATION (mxcli syntax
+-- navigation.alter): it edits the stored profile and touches nothing else.
+--
 -- The menu items are the profile's CHILDREN, in { } after its clauses, like a
 -- page's widgets: no ; between them, since a child ends in ) or }. An item's
 -- action is OnClick: in the words a page action uses. The old spelling,
@@ -386,9 +399,19 @@ DISCONNECT;`,
 -- other than Web has no spelling, is flagged with a comment, and is kept
 -- while the item's caption and action are unchanged.
 --
+-- APP TITLE is Studio Pro's "Application title", the prefix of every browser
+-- tab: a new project's reads "Mendix - <page title>" until it is set. It is
+-- written as the title's item in the project's DEFAULT language, as a menu
+-- caption is, and its other languages are kept (translate it with CREATE OR
+-- MODIFY TRANSLATIONS without IN <Module>: the navigation is project-level).
+-- APP ICON is the "Application icon", an image (Module.Collection.Image),
+-- resolved like any image reference by check --references and by exec; NONE
+-- clears it. OMITTED, both stay as stored (ako/mxcli#1756).
+--
 -- A NATIVE profile's flow home is HOME NANOFLOW; mxcli writes its home pages
 -- and SYNC block only and refuses a { } block (the bottom bar), LOGIN PAGE,
--- NOT FOUND PAGE and ON SYNC ERROR on it.
+-- NOT FOUND PAGE, ON SYNC ERROR, PROGRESSIVE WEB APP, APP TITLE and APP ICON
+-- on it.
 
 -- FOR takes a USER role, written BARE (FOR Administrator). User roles are
 -- project-level and have no module part; a module role is a different thing
@@ -443,11 +466,25 @@ DISCONNECT;`,
 -- An invented name ("Mobile") is an error: the runtime routes on User-Agent to
 -- Mendix's own kinds, so a profile the platform does not define can never route.
 --
+-- PROGRESSIVE WEB APP is Studio Pro's "Progressive web app" settings
+-- (Navigation$ProgressiveWebAppSettings), null until set. An OFFLINE profile
+-- needs them: without them Mendix registers no service worker ("registerServiceWorker":
+-- false in the built index.js), so no page opens without a network, while
+-- check, exec and mx check all pass (mendixlabs/mxcli#1377). Exec warns about
+-- an offline profile left without them. The keys are the stored names:
+--   Precaching      pre-load the app's pages and resources (default false)
+--   InstallPrompt   allow the "Add to home screen" prompt (default true)
+-- A key the clause leaves out takes its default (a bare clause writes both
+-- defaults), OFF stores null again, and OMITTING the clause
+-- leaves the stored settings alone. DESCRIBE emits it when settings are
+-- stored, naming only the keys that differ from the defaults.
+--
 -- An OFFLINE profile restricts every page it can reach -- an attribute may be
 -- bound across at most ONE association hop (CE6206). Creating one reports the
 -- documents in the project that already exceed that.`,
 		Example: `mdl 1;
 CREATE OR MODIFY NAVIGATION Responsive
+  APP TITLE 'Order Desk'
   HOME PAGE MyModule.Home_Web
   HOME PAGE MyModule.AdminDashboard FOR Administrator
   LOGIN PAGE Administration.Login
@@ -470,21 +507,85 @@ CREATE OR MODIFY NAVIGATION TabletOffline
 
 	Register(SyntaxFeature{
 		Path:    "navigation.alter",
-		Summary: "Modify navigation via round-trip: DESCRIBE, edit, CREATE OR MODIFY",
+		Summary: "Edit one navigation profile's menu items and page clauses in place (ALTER NAVIGATION)",
 		Keywords: []string{
-			"alter navigation", "modify navigation", "update navigation",
-			"round-trip", "edit menu",
+			"alter navigation", "modify navigation", "update navigation", "edit menu",
+			"add menu item", "insert menu item", "remove menu item", "drop menu item",
+			"move menu item", "rename menu item", "menu item caption", "drop login page",
+			"drop not found page", "clear login page", "drop home page", "role home page",
 		},
-		Syntax:  "-- Round-trip workflow:\n-- 1. DESCRIBE NAVIGATION <profile>;\n-- 2. Copy output, modify\n-- 3. Paste as CREATE OR MODIFY NAVIGATION ...",
-		Example: "-- Inspect current state\nDESCRIBE NAVIGATION Responsive;\n-- Copy output, modify, paste back as CREATE OR MODIFY",
-		SeeAlso: []string{"navigation.create", "navigation.show"},
+		Syntax: `ALTER NAVIGATION <profile> {
+  INSERT BEFORE | AFTER | INTO <item> { <menu items> }
+  INSERT { <menu items> }                    -- append to the top level
+  REPLACE <item> WITH { <menu items> }
+  MOVE <item> BEFORE | AFTER | INTO <item>
+  DROP <item> [, <item> ...]
+  SET ( Caption: '...', OnClick: <action> | NOTHING,
+        Icon: Module.Collection.name | GLYPH <n> | IMAGE Module.Images.name | NONE ) ON <item>
+
+  SET HOME PAGE | MICROFLOW Module.Name [FOR <UserRole>]
+  DROP HOME PAGE FOR <UserRole>
+  SET LOGIN PAGE Module.Page          DROP LOGIN PAGE
+  SET NOT FOUND PAGE Module.Page      DROP NOT FOUND PAGE
+};
+
+<item> is the caption DESCRIBE prints, as a path written outer to inner:
+  'Users'               the item captioned Users, anywhere in the menu
+  'Admin' > 'Users'     Users directly under Admin (one level per >)
+  'Admin' > 'Users'@2   the 2nd Users under Admin; @n picks among same captions
+  ''@2                  the 2nd item with an empty caption (icon-only)
+LIST NAVIGATION MENU <profile> prints every item's shortest address.
+
+-- The operations apply in order to the stored profile, each target found in
+-- the menu as the operations before it left it, and are written once: a
+-- refusal anywhere writes nothing. Items the statement does not name keep
+-- their stored bytes ($ID, translations, actions MDL cannot spell); MOVE
+-- carries the item itself, sub-items included. Fragment items are written
+-- exactly as in CREATE NAVIGATION, so DESCRIBE output pastes in.
+--
+-- mxcli never guesses: an address that matches nothing or several items is
+-- refused, listing the address of each candidate. Positional addresses do
+-- not exist.
+--
+-- Refused: INSERT/MOVE INTO an item that has an action, and an OnClick other
+-- than NOTHING on an item with sub-items (CE0548) -- SET ( OnClick: NOTHING )
+-- first; DROP HOME PAGE without FOR (a web profile needs one, CE0527) -- SET
+-- HOME PAGE changes it; a native profile (its bottom bar is not written by
+-- mxcli); a profile the project lacks (CREATE OR MODIFY NAVIGATION adds one).
+--
+-- Caption: writes the project's default language and keeps the others, as
+-- ALTER PAGE does; an address matches the caption DESCRIBE prints, which is
+-- the default-language one.
+--
+-- Only what the statement says is checked (references, icons, roles): a
+-- stored item it does not name is not re-validated. CHECK -p --references
+-- runs the same resolution as exec against the stored menu.`,
+		Example: `mdl 1;
+ALTER NAVIGATION Responsive {
+  INSERT AFTER 'Home' {
+    MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview, Icon: Atlas_Core.Atlas."list-bullets" )
+  }
+  INSERT INTO 'Admin' { MENU ITEM 'Audit log' ( OnClick: SHOW PAGE Shop.AuditLog_Overview ) }
+  SET ( Caption: 'User accounts' ) ON 'Admin' > 'Users';
+  REPLACE 'Help' WITH {
+    MENU 'Help' {
+      MENU ITEM 'Documentation' ( OnClick: OPEN LINK 'https://example.com/docs' )
+    }
+  }
+  MOVE 'Log out' AFTER 'Help';
+  DROP 'Old import';
+  SET LOGIN PAGE Shop.CustomLogin;
+  DROP NOT FOUND PAGE;
+  DROP HOME PAGE FOR Administrator;
+};`,
+		SeeAlso: []string{"navigation.create", "navigation.show", "navigation.menu-document.alter"},
 	})
 
 	// ── Settings ────────────────────────────────────────────────────────
 
 	Register(SyntaxFeature{
 		Path:    "settings",
-		Summary: "Project settings — model, configuration, constants, language, workflows",
+		Summary: "Project settings — model, configuration, constants, language, workflows, web UI",
 		Keywords: []string{
 			"settings", "project settings", "configuration",
 			"startup", "shutdown", "hash algorithm", "java version",
@@ -580,7 +681,7 @@ create or modify translations in Administration for nl_NL (
 
 	Register(SyntaxFeature{
 		Path:    "settings.alter",
-		Summary: "Modify project settings — model, configuration, constants, language, workflows",
+		Summary: "Modify project settings — model, configuration, constants, language, workflows, web UI",
 		Keywords: []string{
 			"alter settings", "modify settings", "change settings",
 			"after startup", "before shutdown", "hash algorithm",
@@ -588,6 +689,7 @@ create or modify translations in Administration for nl_NL (
 			"add language", "remove language", "enable language", "translations",
 			"optimistic locking", "concurrency", "lost update",
 			"workflow group", "workflow groups", "add group", "task assignment",
+			"web ui", "webui", "react client", "optimized client", "classic client", "jvm parameters", "proxy",
 		},
 		Syntax: `ALTER SETTINGS RUNTIME (<key>: <value>, ...);
 ALTER SETTINGS CONFIGURATION '<name>' (<key>: <value>, ...);
@@ -602,6 +704,7 @@ ALTER SETTINGS WORKFLOWS (UserEntity: '<qualifiedName>');
 ALTER SETTINGS WORKFLOWS ADD [OR MODIFY] GROUP '<name>' [(Description: '<text>')];
 ALTER SETTINGS WORKFLOWS MODIFY GROUP '<name>' (Description: '<text>');
 ALTER SETTINGS WORKFLOWS DROP GROUP '<name>';
+ALTER SETTINGS WEBUI (OptimizedClient: 'Yes' | 'No' | 'MigrationMode');
 CREATE [OR MODIFY] CONFIGURATION '<name>' [(<key>: <value>, ...)];
 DROP CONFIGURATION '<name>';
 
@@ -621,6 +724,15 @@ CREATE CONFIGURATION 'Production' (
   DatabaseType: 'PostgreSql',
   HttpPortNumber: 8080
 );
+-- Server tab > Extra JVM parameters, e.g. a proxy for the runtime JVM.
+ALTER SETTINGS CONFIGURATION 'Default' (
+  ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'
+);
+
+-- WEBUI picks the client the app runs on: Yes is the React client, No the
+-- classic (Dojo) one, MigrationMode Mendix's mixed mode. Widgets differ per
+-- client, so check it (LIST SETTINGS) before choosing one.
+ALTER SETTINGS WEBUI (OptimizedClient: 'Yes');
 
 -- LANGUAGE ADD/REMOVE change the ENABLED languages — the list under App
 -- Settings > Languages, and the only languages a build emits anything for. A
@@ -1094,9 +1206,10 @@ RENAME MODULE OldModule TO NewModule [DRY RUN];
 -- rewritten (Module.Old -> Module.New, Module.Old.Attr -> Module.New.Attr).
 -- That covers calls, page and microflow parameters, show-page actions,
 -- navigation, security, attribute types, association ends.
--- A name inside free text — a microflow expression, an XPath string — is not
--- such a string and is left as it was; build or 'mxcli docker check' reports
--- what remains.
+-- Inside an expression or XPath, a constant (@Module.Old) and an enumeration
+-- value (Module.Old.Value) are rewritten too; text in a string literal is not.
+-- Any other name inside free text is left as it was; build or
+-- 'mxcli docker check' reports what remains.
 --
 -- RENAME JAVA ACTION also renames the .java source file and the class in it
 -- (class, constructor, toString); the user and extra code are left as written.
@@ -1172,7 +1285,7 @@ mxcli -p app.mpr --json -c "LIST FOLDERS IN MyModule"
 		Syntax: `SEARCH '<query>';
 
 -- CLI
-mxcli search -p app.mpr "<query>" [--format table|names|json] [-q]
+mxcli search -p app.mpr "<query>" [--format table|names|json] [-q] [--fail-on-match] [--exclude-marketplace]
 
 -- Raw FTS queries
 SELECT * FROM CATALOG.STRINGS WHERE strings MATCH '<query>';
@@ -1182,6 +1295,12 @@ SEARCH 'Customer';
 
 -- CLI with piping
 mxcli search -p app.mpr "validation" -q --format names
+
+-- Gate: exit 1 on a hit, 0 on none (2 when the search cannot run)
+mxcli search -p app.mpr "TODO" --fail-on-match
+
+-- Leave out hits inside Marketplace modules
+mxcli search -p app.mpr "TODO" --exclude-marketplace
 
 -- FTS5 operators
 SEARCH 'word1 OR word2';

@@ -10,6 +10,38 @@ import (
 
 // Input Widgets
 
+// ReadOnlyStyles are the members of Mendix's "Read-only style", stored as
+// ReadOnlyStyle on a check box, text box, text area, date picker, radio button
+// group and data view.
+var ReadOnlyStyles = []string{"Inherit", "Control", "Text"}
+
+// CanonicalReadOnlyStyle matches s case-insensitively against ReadOnlyStyles
+// and returns the member as Mendix spells it.
+func CanonicalReadOnlyStyle(s string) (string, bool) {
+	for _, v := range ReadOnlyStyles {
+		if strings.EqualFold(strings.TrimSpace(s), v) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// KeyboardTypes are the members of a text box's "Keyboard type", the keyboard
+// a native app opens for it (Forms$TextBox.KeyboardType, mendixmodelsdk; Studio
+// Pro's default is Default).
+var KeyboardTypes = []string{"Default", "NumberPad", "DecimalPad", "EmailAddress", "PhonePad", "URL"}
+
+// CanonicalKeyboardType matches s case-insensitively against KeyboardTypes and
+// returns the member as Mendix spells it.
+func CanonicalKeyboardType(s string) (string, bool) {
+	for _, v := range KeyboardTypes {
+		if strings.EqualFold(strings.TrimSpace(s), v) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 // WidgetVariable is an input widget's SourceVariable: the Forms$PageVariable
 // that names which object the widget's attribute is read from when that is not
 // simply the enclosing data context. Studio Pro stores a widget-scoped one —
@@ -34,6 +66,13 @@ type TextBox struct {
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
 	IsPassword        bool               `json:"isPassword,omitempty"`
+	// KeyboardType is one of KeyboardTypes; empty writes Default. It was
+	// hard-coded, so a rewrite reset a native text box's keyboard
+	// (ako/mxcli#1209).
+	KeyboardType string `json:"keyboardType,omitempty"`
+	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
+	// Studio Pro's default, Inherit (ako/mxcli#977).
+	ReadOnlyStyle string `json:"readOnlyStyle,omitempty"`
 	// ValidationExpression / ValidationMessage are the two fields of the widget's
 	// Forms$WidgetValidation. Without them a rewrite wrote the empty default over
 	// whatever Studio Pro had stored (ako/mxcli#550).
@@ -42,6 +81,14 @@ type TextBox struct {
 	ReadOnly             bool         `json:"readOnly,omitempty"`
 	OnChangeAction       ClientAction `json:"onChangeAction,omitempty"`
 	OnEnterAction        ClientAction `json:"onEnterAction,omitempty"`
+	// OnEnterAction / OnLeaveAction are Studio Pro's Events → "On enter" and
+	// "On leave" (focus in, focus out), stored on every input widget. nil
+	// writes the empty NoAction (ako/mxcli#1743).
+	OnLeaveAction ClientAction `json:"onLeaveAction,omitempty"`
+	// OnEnterKeyPressAction is Studio Pro's Events → "On enter key press",
+	// Forms$TextBox.OnEnterKeyPressAction. A text box's only: Forms$TextArea
+	// declares no such slot. nil writes the empty NoAction (ako/mxcli#1743).
+	OnEnterKeyPressAction ClientAction `json:"onEnterKeyPressAction,omitempty"`
 	// SubmitBehaviour is Forms$TextBox/TextArea.SubmitBehaviour: "OnEndEditing"
 	// (Studio Pro's default) or "WhileEditing", which submits as the user types.
 	// SubmitOnInputDelay is the debounce in milliseconds that goes with it; nil
@@ -62,9 +109,20 @@ type TextArea struct {
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
 	CounterMessage    *model.Text        `json:"counterMessage,omitempty"`
-	Rows              int                `json:"rows,omitempty"`
-	ReadOnly          bool               `json:"readOnly,omitempty"`
-	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	// NumberOfLines is Forms$TextArea.NumberOfLines; nil writes Studio Pro's
+	// default, 5 (52 of 58 text areas in PedApp and TestApp). Studio Pro also
+	// stores 0, which an int defaulting on zero could not express (ako/mxcli#977).
+	NumberOfLines *int32 `json:"numberOfLines,omitempty"`
+	// Autocomplete is Forms$TextArea.Autocomplete; nil writes true, the
+	// default (ako/mxcli#977).
+	Autocomplete *bool `json:"autocomplete,omitempty"`
+	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
+	// Studio Pro's default, Inherit (ako/mxcli#977).
+	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
+	ReadOnly       bool         `json:"readOnly,omitempty"`
+	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 	// SubmitBehaviour / SubmitOnInputDelay: as on TextBox.
 	SubmitBehaviour    string `json:"submitBehaviour,omitempty"`
 	SubmitOnInputDelay *int   `json:"submitOnInputDelay,omitempty"`
@@ -94,8 +152,13 @@ type DatePicker struct {
 	// defaults (Date). It replaced a DateFormat string nothing read, so every
 	// picker was written as date-only (ako/mxcli#968).
 	FormattingInfo *FormattingInfo `json:"formattingInfo,omitempty"`
-	ReadOnly       bool            `json:"readOnly,omitempty"`
-	OnChangeAction ClientAction    `json:"onChangeAction,omitempty"`
+	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
+	// Studio Pro's default, Inherit (ako/mxcli#977).
+	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
+	ReadOnly       bool         `json:"readOnly,omitempty"`
+	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // DropDown represents a drop-down selection widget.
@@ -108,6 +171,8 @@ type DropDown struct {
 	EmptyOption       *model.Text        `json:"emptyOption,omitempty"`
 	ReadOnly          bool               `json:"readOnly,omitempty"`
 	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	OnEnterAction     ClientAction       `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction     ClientAction       `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // ReferenceSelector represents a reference selector widget.
@@ -170,6 +235,8 @@ type CheckBox struct {
 	// DataGrid2 cell (ako/mxcli#490).
 	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
 	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // RadioButtons represents a radio button group widget.
@@ -180,8 +247,13 @@ type RadioButtons struct {
 	AttributeRefSteps []AttributeRefStep `json:"attributeRefSteps,omitempty"` // association hops when the attribute is reached over associations (AttributeRef.EntityRef)
 	SourceVariable    *WidgetVariable    `json:"sourceVariable,omitempty"`    // widget-scoped variable the attribute is read from (#826)
 	RenderDirection   RenderDirection    `json:"renderDirection,omitempty"`
-	ReadOnly          bool               `json:"readOnly,omitempty"`
-	OnChangeAction    ClientAction       `json:"onChangeAction,omitempty"`
+	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
+	// Studio Pro's default, Inherit (ako/mxcli#977).
+	ReadOnlyStyle  string       `json:"readOnlyStyle,omitempty"`
+	ReadOnly       bool         `json:"readOnly,omitempty"`
+	OnChangeAction ClientAction `json:"onChangeAction,omitempty"`
+	OnEnterAction  ClientAction `json:"onEnterAction,omitempty"` // as on TextBox
+	OnLeaveAction  ClientAction `json:"onLeaveAction,omitempty"` // as on TextBox
 }
 
 // RenderDirection represents the direction for rendering.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -138,17 +138,17 @@ func (b *Backend) UpdatePublishedRestServiceRoles(unitID model.ID, roles []strin
 // output of a Studio Pro service turned its Basic and Session authentication
 // off (ako/mxcli#571). They are written from the model now, and an unstated
 // setting is carried by the executor, which reads it with the service. So are
-// the authentication Parameters, since mendixlabs/mxcli#1417.
+// the authentication Parameters, since mendixlabs/mxcli#1417, and the
+// Documentation, since the doc comment states it (mendixlabs/mxcli#1510).
 var publishedRestServiceUnauthored = []string{
 	"CorsConfiguration",
-	"Documentation",
 	"PublicDocumentation",
 }
 
 func publishedRestServiceToGen(svc *model.PublishedRestService) element.Element {
 	g := newElem("Rest$PublishedRestService", string(svc.ID))
 	addStr(g, "Name", svc.Name)
-	addStr(g, "Documentation", "")
+	addStr(g, "Documentation", svc.Documentation)
 	addBool(g, "Excluded", svc.Excluded)
 	addStr(g, "ExportLevel", "Hidden")
 	addStr(g, "Path", svc.Path)

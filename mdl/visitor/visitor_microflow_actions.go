@@ -13,7 +13,7 @@ import (
 )
 
 // buildLogStatement converts LOG statement context to LogStmt.
-// Grammar: LOG logLevel? (NODE expression)? expression logTemplateParams?
+// Grammar: LOG logLevel? (NODE expression)? expression logTemplateParams? logStackTrace?
 func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 	if ctx == nil {
 		return nil
@@ -66,6 +66,9 @@ func buildLogStatement(ctx parser.ILogStatementContext) *ast.LogStmt {
 			stmt.Template = buildTemplateParams(tplParams)
 		}
 	}
+
+	// WITH STACKTRACE: "Include latest stack trace" (mendixlabs/mxcli#1543)
+	stmt.IncludeLatestStackTrace = logCtx.LogStackTrace() != nil
 
 	// Check for ON ERROR clause
 	if errClause := logCtx.OnErrorClause(); errClause != nil {
@@ -731,7 +734,14 @@ func buildCallArgumentList(ctx parser.ICallArgumentListContext) []ast.CallArgume
 			ca.Value = &ast.BlankExpr{}
 		} else if expr := arg.Expression(); expr != nil {
 			value := buildSourceExpression(expr)
-			ca.Value = appendExpressionListTrailingWhitespace(listCtx, nextParserRuleContext(allArgs, i), expr, value)
+			if tp := arg.TemplateParams(); tp != nil {
+				// The template text ends at `with`, so there is no trailing
+				// whitespace before `)` to keep.
+				ca.Value = value
+				ca.TemplateParams = buildTemplateParams(tp)
+			} else {
+				ca.Value = appendExpressionListTrailingWhitespace(listCtx, nextParserRuleContext(allArgs, i), expr, value)
+			}
 		}
 
 		args = append(args, ca)
@@ -1282,6 +1292,8 @@ func buildShowPageStatement(ctx parser.IShowPageStatementContext) *ast.ShowPageS
 							stmt.ModalForm = b
 						}
 					}
+				case "numberofpagestoclose":
+					stmt.NumberOfPagesToClose = change.Value
 				}
 			}
 		}

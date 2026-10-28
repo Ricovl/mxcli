@@ -74,6 +74,7 @@ func validatePluggableAttributeScopes(ctx *ExecContext, layout string, params []
 		types:       checkMemberTypeIndex(ctx, sc),
 		reactClient: usesReactClient(ctx) && !layoutIsNative(ctx, layout),
 		assocs:      checkAssociationShapes(ctx, sc),
+		pb:          &pageBuilder{ctx: ctx, backend: ctx.Backend, execCache: ctx.Cache},
 	}
 	for _, w := range widgets {
 		v.walk(w, dataContext{})
@@ -95,6 +96,15 @@ type attributeScopeValidator struct {
 
 	// assocs feeds MDL-ASSOCDS01 (validate_assoc_list_source.go).
 	assocs map[string]assocShape
+
+	// pb answers the association-as-attribute question with exec's own
+	// function (validate_assoc_as_attribute.go).
+	pb *pageBuilder
+}
+
+// paramEntity is the entity of the document parameter `$name`, or "".
+func (v *attributeScopeValidator) paramEntity(name string) string {
+	return v.pageParams[strings.ToLower(name)]
 }
 
 func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
@@ -104,6 +114,7 @@ func (v *attributeScopeValidator) walk(w *ast.WidgetV3, enclosing dataContext) {
 	inner := childContext(enclosing, w.GetDataSource(), v.sigs, v.pageParams)
 	v.checkInputBinding(w, enclosing)
 	v.checkAssocListSource(w, enclosing)
+	v.checkViewAssocReverse(w, enclosing)
 	v.checkReactUnsupported(w)
 	if v.registry == nil {
 		// No registry: the pluggable half cannot run, and a pluggable widget's
@@ -186,6 +197,7 @@ func (v *attributeScopeValidator) checkWidget(w *ast.WidgetV3, def *WidgetDefini
 		values[key] = val
 	}
 	sources := map[string]bool{}
+	fromMapping := map[string]bool{}
 	for _, m := range mappings {
 		if m.Source != "" {
 			sources[m.Source] = true
@@ -199,6 +211,7 @@ func (v *attributeScopeValidator) checkWidget(w *ast.WidgetV3, def *WidgetDefini
 		}
 		if val != "" {
 			set(m.PropertyKey, val)
+			fromMapping[m.PropertyKey] = true
 		}
 	}
 	for propName, propVal := range w.Properties {
@@ -218,6 +231,15 @@ func (v *attributeScopeValidator) checkWidget(w *ast.WidgetV3, def *WidgetDefini
 	for _, key := range order {
 		entry, declared := ids[key]
 		scope := resolveBindingScope(entry.DataSourceProperty, declared, outer, dsEntities, "")
+		// An association where the attribute belongs: exec refuses it in the
+		// engine's Attribute mapping, so only a value that mapping reads is
+		// judged (mendixlabs/mxcli#1440).
+		if fromMapping[key] {
+			if err := associationAsAttributeError(v.pb, w, key, values[key], scope.Entity, v.paramEntity); err != nil {
+				v.errs = append(v.errs, err.Error())
+				continue
+			}
+		}
 		if err := misboundAttributeError(
 			"widget `"+w.Name+"` property `"+key+"`",
 			values[key], scope, outer, dsEntities, v.index,

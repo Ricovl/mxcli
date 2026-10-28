@@ -30,6 +30,10 @@ func listSettings(ctx *ExecContext) error {
 		Columns: []string{"Section", "Key Values"},
 	}
 
+	if id := projectID(ctx); id != "" {
+		tr.Rows = append(tr.Rows, []any{"Project", "ID: " + id + " (read-only; Business Events app id)"})
+	}
+
 	if ps.Model != nil {
 		ms := ps.Model
 		values := []string{}
@@ -102,6 +106,18 @@ func listSettings(ctx *ExecContext) error {
 	return writeResult(ctx, tr)
 }
 
+// projectID is the $ID of the Projects$Project root unit: the container every
+// module points to, and the app id Business Events registers under — so two
+// apps made from one model (a copied .mpr, a template) share it
+// (mendixlabs/mxcli#1526). Read-only; empty when the backend cannot say.
+func projectID(ctx *ExecContext) string {
+	id, err := ctx.Backend.GetProjectRootID()
+	if err != nil {
+		return ""
+	}
+	return id
+}
+
 // describeSettings outputs the full MDL description of all settings.
 // describeSettings prints the project settings as re-executable `alter settings`
 // statements. With configName set (DESCRIBE SETTINGS CONFIGURATION 'X') it
@@ -121,6 +137,25 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		return describeSettingsConfiguration(ctx, ps, configName)
 	}
 
+	// The project id has no `alter settings` spelling — it is the identity of
+	// the model — so it is printed as a comment and the output still executes.
+	if id := projectID(ctx); id != "" {
+		fmt.Fprintf(ctx.Output, "-- Project ID: %s (read-only; Business Events uses it as the app id, and a copy of the model shares it)\n\n", id)
+	}
+
+	writeProjectSettingsMDL(ctx, ps, nil)
+	return nil
+}
+
+// constantValueFunc renders the value of a configuration's constant override
+// in a settings description; nil prints it as a quoted literal.
+type constantValueFunc func(configuration, constant, value string) string
+
+// writeProjectSettingsMDL prints the settings document as DESCRIBE SETTINGS
+// does, below the project id (which is not part of the document). diff-local
+// renders the settings unit with it, passing a constantValue that masks the
+// values, so the two cannot drift apart (ako/mxcli#1512).
+func writeProjectSettingsMDL(ctx *ExecContext, ps *model.ProjectSettings, constantValue constantValueFunc) {
 	// Model settings
 	if ps.Model != nil {
 		ms := ps.Model
@@ -178,7 +213,7 @@ func describeSettings(ctx *ExecContext, configName string) error {
 	// Configuration settings
 	if ps.Configuration != nil {
 		for _, cfg := range ps.Configuration.Configurations {
-			writeSettingsConfiguration(ctx, cfg)
+			writeSettingsConfiguration(ctx, cfg, constantValue)
 		}
 	}
 
@@ -247,7 +282,14 @@ func describeSettings(ctx *ExecContext, configName string) error {
 		}
 	}
 
-	return nil
+	// Web UI settings: which client the app runs on. Emitted only when the
+	// project stores the property, so the output replays (ALTER refuses one the
+	// part does not carry).
+	if ps.WebUI != nil && ps.WebUI.UseOptimizedClient != "" {
+		if stored := storedWebUISettings(ps); stored == nil || settingsoverlay.Has(stored, "UseOptimizedClient") {
+			fmt.Fprintf(ctx.Output, "alter settings webui (\n  OptimizedClient: %s\n);\n\n", mdlQuoted(ps.WebUI.UseOptimizedClient))
+		}
+	}
 }
 
 // modelSettingKeys names every property the ALTER SETTINGS MODEL switch below
@@ -321,11 +363,43 @@ var sslCertificateAlgorithmValues = []string{
 	string(metamodel.SettingsSslCertificateAlgorithmSunX509),
 }
 
+// useOptimizedClientValues are the members of Settings.UseOptimizedClient, the
+// Web UI setting that picks the client the app runs on: Yes is the React client,
+// No the classic (Dojo) one, MigrationMode Mendix's mixed mode. In the Model SDK's
+// declaration order; no member carries a version gate of its own.
+var useOptimizedClientValues = []string{
+	string(metamodel.SettingsUseOptimizedClientNo),
+	string(metamodel.SettingsUseOptimizedClientYes),
+	string(metamodel.SettingsUseOptimizedClientMigrationMode),
+}
+
+// configurationSettingKeys names every property ALTER SETTINGS CONFIGURATION and
+// CREATE CONFIGURATION assign. DatabaseUseIntegratedSecurity and the Open*Port
+// flags are read and written back as stored, but no statement sets them.
+var configurationSettingKeys = []string{
+	"DatabaseType",
+	"DatabaseUrl",
+	"DatabaseName",
+	"DatabaseUserName",
+	"DatabasePassword",
+	"HttpPortNumber",
+	"ServerPortNumber",
+	"ApplicationRootUrl",
+	"ExtraJvmParameters",
+	"MaxJavaHeapSize",
+}
+
+// webUISettingKeys names every property ALTER SETTINGS WEBUI assigns.
+// OptimizedClient is the spelling `show settings` prints and the skills point to;
+// it is stored as UseOptimizedClient.
+var webUISettingKeys = []string{"OptimizedClient"}
+
 // settingsEnumValues maps "<section>/<key>" to the enumeration members accepted for
 // it, for the properties validated as settingsKindEnum.
 var settingsEnumValues = map[string][]string{
 	"model/FirstDayOfWeek":          firstDayOfWeekValues,
 	"model/SslCertificateAlgorithm": sslCertificateAlgorithmValues,
+	"webui/OptimizedClient":         useOptimizedClientValues,
 }
 
 // settingsEnum canonicalises an enumeration-typed settings value to the member
@@ -348,6 +422,17 @@ func settingsEnum(key, valStr string, members []string) (string, error) {
 func storedModelSettings(ps *model.ProjectSettings) map[string]any {
 	for _, part := range ps.RawParts {
 		if t, _ := part["$Type"].(string); t == "Settings$ModelSettings" {
+			return part
+		}
+	}
+	return nil
+}
+
+// storedWebUISettings returns the raw Web UI settings part, or nil when it is not
+// in RawParts — the same contract as storedModelSettings.
+func storedWebUISettings(ps *model.ProjectSettings) map[string]any {
+	for _, part := range ps.RawParts {
+		if t, _ := part["$Type"].(string); settingsoverlay.IsWebUIPart(t) {
 			return part
 		}
 	}
@@ -394,6 +479,13 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// The refusals that need no project — an unknown section or key, a verb the
+	// section does not define. `mxcli check` reports the same errors from the
+	// same function, so a script that cannot run does not pass the check
+	// (mendixlabs/mxcli#1549).
+	if errs := settingsStatementErrors(stmt); len(errs) > 0 {
+		return errs[0]
+	}
 
 	ps, err := ctx.Backend.GetProjectSettings()
 	if err != nil {
@@ -436,20 +528,12 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 	// on it, so they are dispatched before the key/value sections — as the
 	// language forms below are, and for the same reason.
 	if stmt.AddGroup || stmt.ModifyGroup || stmt.UpsertGroup || stmt.RemoveGroup {
-		if section != "workflows" {
-			return mdlerrors.NewUnsupported(fmt.Sprintf(
-				"GROUP is only defined for the WORKFLOWS section, not %s", stmt.Section))
-		}
 		return alterSettingsWorkflowGroup(ctx, ps, stmt)
 	}
 
 	// ADD/REMOVE change the list of ENABLED languages rather than a key on the
 	// settings part, so they are dispatched before the key/value sections.
 	if stmt.AddLanguage || stmt.ModifyLanguage || stmt.UpsertLanguage || stmt.RemoveLanguage {
-		if section != "language" {
-			return mdlerrors.NewUnsupported(fmt.Sprintf(
-				"add/remove is only defined for the LANGUAGE section, not %s", stmt.Section))
-		}
 		switch {
 		case stmt.UpsertLanguage:
 			return alterSettingsLanguageUpsert(ctx, ps, stmt)
@@ -475,9 +559,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 			// project", sending the reader after a version problem that does not
 			// exist instead of at the misspelling in front of them.
 			if !isKnownModelSetting(key) {
-				return mdlerrors.NewUnsupported(fmt.Sprintf(
-					"unknown model setting: %s\n  valid keys: %s",
-					key, strings.Join(modelSettingKeys, ", ")))
+				return unknownSettingsKey("model", key)
 			}
 			// The overlay will not introduce a property the stored document does
 			// not carry, so refuse here rather than reporting a success that
@@ -559,9 +641,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				}
 				ps.Model.UseOQLVersion2 = v
 			default:
-				return mdlerrors.NewUnsupported(fmt.Sprintf(
-					"unknown model setting: %s\n  valid keys: %s",
-					key, strings.Join(modelSettingKeys, ", ")))
+				return unknownSettingsKey("model", key)
 			}
 		}
 
@@ -582,7 +662,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				ps.Language.DefaultLanguageCode = valStr
 
 			default:
-				return mdlerrors.NewUnsupported("unknown language setting: " + key)
+				return unknownSettingsKey("language", key)
 			}
 		}
 
@@ -608,7 +688,34 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 				}
 				ps.Workflows.WorkflowEngineParallelism = v
 			default:
-				return mdlerrors.NewUnsupported("unknown workflow setting: " + key)
+				return unknownSettingsKey("workflows", key)
+			}
+		}
+
+	case "webui":
+		if ps.WebUI == nil {
+			return mdlerrors.NewNotFound("settings section", "webui")
+		}
+		storedWebUI := storedWebUISettings(ps)
+		for key, val := range stmt.Properties {
+			valStr := settingsValueToString(val)
+			switch key {
+			case "OptimizedClient":
+				// The overlay is presence-gated (the property arrived in 9.10), so
+				// refuse rather than report a success that changes nothing.
+				if storedWebUI != nil && !settingsoverlay.Has(storedWebUI, "UseOptimizedClient") {
+					return mdlerrors.NewUnsupported(
+						"this project does not store the Web UI setting UseOptimizedClient\n" +
+							"  Mendix added it in 9.10; mxcli will not introduce a property the project's " +
+							"Mendix version does not define.")
+				}
+				v, err := settingsEnum(key, valStr, useOptimizedClientValues)
+				if err != nil {
+					return err
+				}
+				ps.WebUI.UseOptimizedClient = v
+			default:
+				return unknownSettingsKey("webui", key)
 			}
 		}
 
@@ -619,7 +726,7 @@ func alterSettings(ctx *ExecContext, stmt *ast.AlterSettingsStmt) error {
 		return alterSettingsConstant(ctx, ps, stmt)
 
 	default:
-		return mdlerrors.NewUnsupported(fmt.Sprintf("unknown settings section: %s (expected model, configuration, constant, LANGUAGE, or workflows)", section))
+		return unknownSettingsSection(section)
 	}
 
 	// Write updated settings
@@ -725,8 +832,22 @@ func alterSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, stm
 			cfg.ServerPortNumber = v
 		case "ApplicationRootUrl":
 			cfg.ApplicationRootUrl = valStr
+		case "ExtraJvmParameters":
+			// Studio Pro's Configuration ▸ Server ▸ "Extra JVM parameters", e.g. a
+			// proxy: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'. Stored
+			// verbatim; every supported Mendix version carries the property
+			// (mendixlabs/mxcli#131).
+			cfg.ExtraJvmParameters = valStr
+		case "MaxJavaHeapSize":
+			// Server ▸ Java heap ▸ Maximum size (in MB). The model has no
+			// Default/Custom flag: 0 is Studio Pro's "Default".
+			v, err := settingsInt(key, valStr)
+			if err != nil {
+				return err
+			}
+			cfg.MaxJavaHeapSize = v
 		default:
-			return mdlerrors.NewUnsupported("unknown configuration setting: " + key)
+			return unknownSettingsKey("configuration", key)
 		}
 	}
 
@@ -853,6 +974,9 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	if errs := unknownSettingsKeys("configuration", stmt.Properties); len(errs) > 0 {
+		return errs[0]
+	}
 
 	ps, err := ctx.Backend.GetProjectSettings()
 	if err != nil {
@@ -921,8 +1045,16 @@ func createConfiguration(ctx *ExecContext, stmt *ast.CreateConfigurationStmt) er
 			newCfg.ServerPortNumber = v
 		case "ApplicationRootUrl":
 			newCfg.ApplicationRootUrl = valStr
+		case "ExtraJvmParameters":
+			newCfg.ExtraJvmParameters = valStr
+		case "MaxJavaHeapSize":
+			v, err := settingsInt(key, valStr)
+			if err != nil {
+				return err
+			}
+			newCfg.MaxJavaHeapSize = v
 		default:
-			return mdlerrors.NewUnsupported("unknown configuration property: " + key)
+			return unknownSettingsKey("configuration", key)
 		}
 	}
 
@@ -1044,7 +1176,7 @@ func settingsValueToString(val any) string {
 }
 
 // writeSettingsConfiguration emits one configuration as re-executable MDL.
-func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration) {
+func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration, constantValue constantValueFunc) {
 	var parts []string
 	parts = append(parts, "  DatabaseType: "+mdlQuoted(cfg.DatabaseType))
 	parts = append(parts, "  DatabaseUrl: "+mdlQuoted(cfg.DatabaseUrl))
@@ -1060,6 +1192,12 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 	parts = append(parts, fmt.Sprintf("  ServerPortNumber: %d", cfg.ServerPortNumber))
 	if cfg.ApplicationRootUrl != "" {
 		parts = append(parts, "  ApplicationRootUrl: "+mdlQuoted(cfg.ApplicationRootUrl))
+	}
+	if cfg.ExtraJvmParameters != "" {
+		parts = append(parts, "  ExtraJvmParameters: "+mdlQuoted(cfg.ExtraJvmParameters))
+	}
+	if cfg.MaxJavaHeapSize != 0 {
+		parts = append(parts, fmt.Sprintf("  MaxJavaHeapSize: %d", cfg.MaxJavaHeapSize))
 	}
 	if cfg.DatabasePassword != "" {
 		fmt.Fprintf(ctx.Output, "-- DatabasePassword is set in configuration %s and is not printed; "+
@@ -1084,8 +1222,12 @@ func writeSettingsConfiguration(ctx *ExecContext, cfg *model.ServerConfiguration
 				cv.ConstantId, cfg.Name)
 			continue
 		}
+		value := mdlQuoted(cv.Value)
+		if constantValue != nil {
+			value = constantValue(cfg.Name, cv.ConstantId, cv.Value)
+		}
 		fmt.Fprintf(ctx.Output, "alter settings constant %s value %s\n  in configuration %s;\n\n",
-			mdlQuoted(cv.ConstantId), mdlQuoted(cv.Value), mdlQuoted(cfg.Name))
+			mdlQuoted(cv.ConstantId), value, mdlQuoted(cfg.Name))
 	}
 }
 
@@ -1096,7 +1238,7 @@ func describeSettingsConfiguration(ctx *ExecContext, ps *model.ProjectSettings, 
 	if ps.Configuration != nil {
 		for _, cfg := range ps.Configuration.Configurations {
 			if strings.EqualFold(cfg.Name, name) {
-				writeSettingsConfiguration(ctx, cfg)
+				writeSettingsConfiguration(ctx, cfg, nil)
 				return nil
 			}
 			available = append(available, "'"+cfg.Name+"'")

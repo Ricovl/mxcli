@@ -93,6 +93,14 @@ func (s *memberSpeller) respell(st ast.MicroflowStatement) {
 	switch x := st.(type) {
 	case *ast.RetrieveStmt:
 		if x.StartVariable != "" {
+			// describe prints the stored association, which is qualified; a
+			// bare one is the same retrieve when the builder resolves it to
+			// that association (ako/mxcli#1690).
+			if x.Source.Module == "" {
+				if qn, _, v := s.fb.resolveBareAssociationFrom(s.entities[x.StartVariable], x.Source.Name); v == bareAssocResolved {
+					x.Source.Module, x.Source.Name, _ = strings.Cut(qn, ".")
+				}
+			}
 			return
 		}
 		for i := range x.SortColumns {
@@ -129,15 +137,21 @@ func (s *memberSpeller) respell(st ast.MicroflowStatement) {
 		if entity == "" {
 			return
 		}
+		if (x.Operation == ast.ListOpFind || x.Operation == ast.ListOpFilter) && (x.ByExpression || !ast.IsMemberEquality(x.Condition)) {
+			// The by-expression operation. The builder writes a bare member
+			// of the list's entity as `$currentObject/<member>` (#1002), and
+			// describe prints what is stored, so the bare spelling never
+			// matched its own stored activity (ako/mxcli#856).
+			x.Condition = s.qualifiedPredicate(x.Condition, x.InputVariable, entity)
+			return
+		}
 		if (x.Operation == ast.ListOpFind || x.Operation == ast.ListOpFilter) && !x.ByExpression && ast.IsMemberEquality(x.Condition) {
 			binary := x.Condition.(*ast.BinaryExpr)
 			name, ok := listOperationFieldName(binary.Left)
 			if !ok {
 				return
 			}
-			short := s.member(entity, name, func(attr, assoc string) string {
-				return lastSegment(attr + assoc)
-			})
+			short := s.member(entity, name, extractFieldName)
 			if short != name {
 				binary.Left = &ast.IdentifierExpr{Name: short}
 			}
@@ -170,6 +184,27 @@ func (s *memberSpeller) member(entity, name string, spell func(attr, assoc strin
 		return name
 	}
 	return short
+}
+
+// qualifiedPredicate returns a find or filter predicate over list (whose
+// elements are entity) with its bare members written as the builder stores
+// them, by the builder's own rewrite (qualifyIteratorAttributes). A predicate
+// the builder would refuse — a bare name that is no member — is returned as
+// written: the build reports it.
+func (s *memberSpeller) qualifiedPredicate(cond ast.Expression, list, entity string) ast.Expression {
+	if cond == nil {
+		return nil
+	}
+	saved := s.fb.varTypes
+	s.fb.varTypes = map[string]string{list: "List of " + entity}
+	s.fb.errors = nil
+	q := s.fb.qualifyIteratorAttributes(cond, list, "find")
+	failed := len(s.fb.errors) > 0
+	s.fb.varTypes, s.fb.errors = saved, nil
+	if failed {
+		return cond
+	}
+	return q
 }
 
 func (s *memberSpeller) resolve(entity, name string) (attr, assoc string, ok bool) {

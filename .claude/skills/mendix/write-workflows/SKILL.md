@@ -10,19 +10,20 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 
 | lines | section |
 |---|---|
-| 35-46 | When to Use This Skill |
-| 47-110 | Syntax — CREATE WORKFLOW |
-| 111-282 | Activities |
-| 283-289 | DROP WORKFLOW |
-| 290-355 | ALTER WORKFLOW |
-| 356-376 | DESCRIBE round-trip |
-| 377-397 | Activity names, and why `jump to` depends on them |
-| 398-418 | Rewriting an existing workflow |
-| 419-506 | Microflow statements for workflow tasks |
-| 507-527 | System-module enumerations are synthesized, not stored |
-| 528-644 | Platform rules |
-| 645-675 | Observing a running workflow |
-| 676-685 | Validate before presenting |
+| 36-47 | When to Use This Skill |
+| 48-118 | Syntax — CREATE WORKFLOW |
+| 119-301 | Activities |
+| 302-308 | DROP WORKFLOW |
+| 309-376 | ALTER WORKFLOW |
+| 377-397 | DESCRIBE round-trip |
+| 398-418 | Activity names, and why `jump to` depends on them |
+| 419-439 | Rewriting an existing workflow |
+| 440-449 | Task pages |
+| 450-537 | Microflow statements for workflow tasks |
+| 538-558 | System-module enumerations are synthesized, not stored |
+| 559-683 | Platform rules |
+| 684-714 | Observing a running workflow |
+| 715-724 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -56,7 +57,7 @@ named neither the clause nor the rule. See `ako/mxcli#586`.)
 mdl 1;
 create workflow Module.ApprovalFlow
   parameter $Context: Module.Request        -- REQUIRED: must be a $-variable + context entity
-  display 'Request Approval'                 -- optional human-readable name
+  display 'Approval for {1}' with ({1} = $Context/Title)  -- optional; `with` fills {n}
   description 'Approves incoming requests'   -- optional
   export level Hidden                        -- optional: Hidden | API (default Hidden)
   overview page Module.WF_Overview           -- optional; takes a System.Workflow param
@@ -101,10 +102,17 @@ written **last** silently winning.
 variable in the header, mxcli writes the parameter as `WorkflowContext`, so
 `$WorkflowContext/Attribute` is the canonical way to reach it in an expression.
 The name you declared (`$Context` above) and any casing of the canonical name
-(`$workflowContext`) are rewritten to it on write — in decision conditions, user
-task due dates and XPath targeting, wait-for-timer delays, and `with (…)`
-parameter mappings. Anything else is an undefined variable and Mendix fails the
-build with `CE0117 "Error(s) in expression."`.
+(`$workflowContext`) are rewritten to it on write, in every workflow expression.
+
+**The only other variable is `$WorkflowInstance`** — the running workflow
+(`System.Workflow`), what a microflow's `Workflow: System.Workflow` parameter
+takes: `call microflow M.ACT_Log(Workflow = $WorkflowInstance, Item =
+$WorkflowContext)`. **Not `$Workflow`** (the microflow's parameter name), and
+not `$currentUser`, `$currentSession` or `$WorkflowUserTask` — each is `CE0117
+"Error(s) in expression."`, and `check` refuses them as `MDL-WF19`. One place
+sees only the context: the workflow's own header `due date`. Measured on 11.6.6
+and 11.15.0. A call with no argument list binds a `System.Workflow` parameter to
+`$WorkflowInstance` and every other one to the context.
 
 `create or modify workflow …` is supported (`create or replace` is its deprecated spelling, MDL-DEPR001).
 
@@ -185,9 +193,20 @@ begin
 end workflow;
 ```
 
+A `call workflow` mapping is always keyed `WorkflowContext` — the one parameter a
+workflow has, whatever its header calls it: `(WorkflowContext = $WorkflowContext/M.A_B/M.B)`.
+Any other key is CE1613 (`MDL-WF18`); a path must name the target entity (else CE0117).
+
+**Targeting by role:** the constraint is evaluated on the user, so it names the
+user's members with no entity in front — `targeting users xpath
+[System.UserRoles = '[%UserRole_Manager%]']`. `[System.User/Name = …]` is CE0161
+(`check -p --references` reports it, ako/mxcli#1711); an unknown role is CE1613,
+which hides every CE0161 from mx check. Measured: [reference/targeting.md](reference/targeting.md).
+
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
-as in a microflow; the workflow's own note is the header clause
-`annotation '…'`, and an event sub-process takes `@annotation` before
+as in a microflow; the note on the workflow's start is the header clause
+`annotation '…'` (below Mendix 11.3, where the start is implicit, the
+workflow's own note), and an event sub-process takes `@annotation` before
 `event subprocess`. One note per activity; no other `@` annotation is accepted.
 
 ```sql
@@ -207,7 +226,7 @@ end workflow;
 > the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
 > at check and exec time. Attach the note to an activity with `@annotation`.
 
-**Boundary events** attach a timer to a user task / call-microflow / wait:
+**Boundary events** attach a timer to a user task, call microflow, call workflow or wait:
 
 ```sql
 mdl 1;
@@ -217,7 +236,7 @@ begin
   user task Review 'Review'
     page Module.ReviewPage
     outcomes 'Done' { }
-    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) caption 'Escalate' {
       call microflow Module.ACT_Escalate;
     };
 end workflow;
@@ -228,14 +247,14 @@ end workflow;
   runtime then **refuses to start the application** ("Class
   'Workflows$TimerBoundaryEvent' could not be found"). mxcli refuses the bare form
   on Mendix 11 (MDL-WF07).
-- **The delay is a DateTime expression**, such as `'addDays([%CurrentDateTime%], 3)'`
-  — not an ISO duration like `'P3D'`.
-- **Every boundary path must end** in a jump, an end, or Mendix's end-of-path
-  marker, and mxcli now appends the marker for you — so a path may end in a
-  `call microflow`, as above. Without it the two kinds fail in different places:
-  an interrupting path is **CE0105** at build, and a non-interrupting one builds
-  cleanly and then stops the runtime from starting ("Expected the flow to end with
-  an end event"). Use `jump to <task>` when the path should return to the task.
+- **The delay is a DateTime expression** (`addDays([%CurrentDateTime%], 3)`, not `'P3D'`). A **reminder** repeats a non-interrupting timer: `… timer addDays([%CurrentDateTime%], 1) repeat every 1 day at most 5 times { … }` — minute(s) to month(s), the count includes the first firing and is at least 2 (MDL-WF22); a timer event sub-process start takes it on 11.15+.
+- **Every boundary path must end**, and mxcli ends one that runs to its last
+  activity as Studio Pro does (ako/mxcli#1712): an **interrupting** path with an
+  End — the timeout ends the workflow; `describe` shows `end workflow;` — and a
+  non-interrupting one with the end-of-path marker, as an interrupting one under a
+  parallel split or a non-interrupting path, where an End is CE1844. Unended, an
+  interrupting path is **CE0105** and a non-interrupting one stops the runtime from
+  starting. To carry on, end the path with `jump to <activity>` (or `<task>`).
 - **A notification boundary event** (Mendix 11.11+) fires when `notify workflow`
   targets it, so it takes a **name** instead of a delay:
   `boundary event interrupting notification Withdrawn 'Request withdrawn' { end workflow; }`.
@@ -318,9 +337,11 @@ caption `'Start'`) is addressable too, but nothing goes before it — `insert
 before start1` is refused (it would be `CE9526`); use `insert after start1`.
 
 Workflow keys: `Display`, `Description`, `ExportLevel`, `DueDate`,
-`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`. Activity keys
-(with `on <activity>`): `Page`, `Description`, `Targeting: microflow M.F` /
-`Targeting: xpath [ … ]`, `DueDate`.
+`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`, `Annotation` (the
+header's `annotation '…'`, the start's note). Activity keys (with `on
+<activity>`): `Page`, `Description`, `TaskName`, `Targeting: microflow M.F` /
+`Targeting: xpath [ … ]`, `DueDate`, `Annotation` (its `@annotation '…'`; `''`
+removes a note, and an end takes none).
 
 **Adding to an activity: `insert into`.** What goes in the braces is the
 activity's own clause, as `create workflow` writes it — and it has to match the
@@ -416,14 +437,24 @@ mxcli refuses the two cases where that would lose something:
 The safe way to change one activity in a workflow carrying hand-placed structure
 is `ALTER WORKFLOW`, which mutates in place and touches nothing else.
 
+## Task pages
+
+A task page needs **a claim button and one `complete task '<Outcome>'` button per
+outcome**. Mendix adds none; without them every instance waits at the task while
+mx check and the build pass (`mxcli check` warns MDL-WF20). The button is the
+page's own action, no microflow needed — but the user must have claimed the task:
+on 11.13.0 an unclaimed task's button fails, "it is not assigned to you". Do not
+add a microflow per outcome to mirror progress into a status attribute; the
+workflow records it. Template, measurement, and the inbox/admin/start buttons (`open user task`, `open workflow`, `call workflow`): [reference/task-pages.md](reference/task-pages.md).
+
 ## Microflow statements for workflow tasks
 
 These run **inside a microflow** (not in the workflow body) and drive a running
-workflow / its tasks. They are easy to miss — there is no `complete task`:
+workflow / its tasks (on a page, a task is finished with `complete task`, above):
 
 - `set task outcome $Task 'Approve';` — completes a `System.WorkflowUserTask` with a
-  named outcome. This is how a microflow (e.g. a task page's button) finishes a task
-  and does the domain work; the outcome branches still record which one was chosen.
+  named outcome, when completing it is part of other work a microflow does; the
+  outcome branches still record which one was chosen.
 - `$Notified = notify workflow $Wf target Module.Workflow.Name;` resumes the element
   it names — a notification-started event sub-process, a notification activity, a
   notification boundary event or a wait for notification. **The target is
@@ -436,9 +467,9 @@ workflow / its tasks. They are easy to miss — there is no `complete task`:
   `pause all` / `unpause all` after it is Studio Pro's "Pause / Unpause instances".
   A bare `lock workflow all` is refused (MDL-WF17) — it built as CE1825.
 
-A common shape: the task page's buttons call a microflow that does the change and
-then `set task outcome $Task '<Outcome>'`, leaving the workflow's outcome branch
-bodies empty.
+When one click must do domain work and complete the task, a button calls a
+microflow that does the change and then `set task outcome $Task '<Outcome>'` —
+a microflow per outcome, so prefer `complete task` buttons otherwise.
 
 **The outcome is a literal, by design.** Mendix stores
 `Microflows$SetTaskOutcomeAction.Outcome` by name — a reference to one outcome of
@@ -554,6 +585,13 @@ values. The full list and the System **entities** are in `system-module`.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
   `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
 
+- **`auto assign single user` assigns a task when its targeting yields exactly one user**
+  (Studio Pro's "Auto-assign when targeting results in one user"), on either task kind.
+  Without it that user cannot complete the task from a microflow (`set task outcome`)
+  until it is assigned — the runtime refuses with "it is not assigned to you". Omitted
+  it is off, as Studio Pro creates a task; `describe` prints it when set, and a
+  `create or modify` that drops a stored one is refused.
+
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,
   in any order (see the clause-order note below). The rules (`decide by`):
@@ -594,7 +632,7 @@ values. The full list and the System **entities** are in `system-module`.
     Pro stores a list, not a flag), so it needs Mendix 11.6+; name the types on
     older projects.
 - A user task needs a **task page** to be useful; without one Mendix flags the
-  task (`CE1834`). Bind the page to `System.WorkflowUserTask`.
+  task (`CE1834`). Bind it to `System.WorkflowUserTask`; see "Task pages" above.
 - **The task page takes the TASK, not the workflow's context object.** It must
   declare a `System.WorkflowUserTask` parameter: a page with no parameters is
   `CE7410`, a page whose parameters are all something else (the usual mistake:
@@ -638,9 +676,10 @@ values. The full list and the System **entities** are in `system-module`.
   string, still parses with the same meaning but is deprecated (MDL-DEPR008);
   `mxcli fmt --upgrade` rewrites it.
 - The context **Parameter entity must be persistent**.
-- Write the context variable as **`$WorkflowContext`**, matching the parameter
-  name exactly. Mendix expressions are case-sensitive on 11.9+, so a lowercase
-  `$workflowContext` is an undefined variable and yields `CE0117`.
+- Write the context variable as **`$WorkflowContext`** and the workflow as
+  **`$WorkflowInstance`**, spelled exactly. Mendix expressions are
+  case-sensitive, so a lowercase `$workflowInstance` is `CE0117` as stored;
+  mxcli rewrites the casing of both on write.
 
 ## Observing a running workflow
 

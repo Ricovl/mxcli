@@ -13,16 +13,16 @@ description: "Connect a Mendix app to an external database over JDBC with the Ex
 | 30-32 | Purpose |
 | 33-49 | When to Use This Skill |
 | 50-84 | Prerequisites |
-| 85-193 | Database Connection Syntax |
-| 194-255 | Query Definition Syntax |
-| 256-353 | Complete Examples |
-| 354-369 | Viewing Connections |
-| 370-390 | Best Practices |
-| 391-404 | Troubleshooting |
-| 405-416 | Related Commands |
-| 417-542 | Executing Queries from Microflows |
-| 543-557 | Importing Data from External Databases |
-| 558-561 | References |
+| 85-199 | Database Connection Syntax |
+| 200-261 | Query Definition Syntax |
+| 262-359 | Complete Examples |
+| 360-375 | Viewing Connections |
+| 376-396 | Best Practices |
+| 397-410 | Troubleshooting |
+| 411-422 | Related Commands |
+| 423-548 | Executing Queries from Microflows |
+| 549-563 | Importing Data from External Databases |
+| 564-567 | References |
 
 <!-- /skill-index -->
 # Skill: Create External Database Connections
@@ -180,7 +180,13 @@ mxcli sync-java-deps -p app.mpr --check  # report what is missing, exit 1 (build
 ```
 
 `mxcli run --local` does this automatically for anything not already in
-`vendorlib/`, so the warm loop works from a fresh clone. Dropping the jar into
+`vendorlib/`, so the warm loop works from a fresh clone. The sync runs Gradle
+**without a daemon** (`-Dorg.gradle.daemon=false` appended to `GRADLE_OPTS`): a
+daemon an earlier `mx`/`mxbuild` left behind used to hang it for ten minutes and
+more with no output (ako/mxcli#1340). A sync still running prints `still resolving
+Java dependencies... (30s)` every 30s and is killed after 10 minutes with the
+likely cause and its last output; `MXCLI_SYNC_JAVA_DEPS_TIMEOUT=30m` (or `0`)
+raises the bound for a genuinely slow download. Dropping the jar into
 `userlib/` by hand works too — it is the same classpath — but then the model and
 the file system disagree about where the dependency comes from.
 

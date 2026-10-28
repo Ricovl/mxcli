@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -13,24 +13,24 @@ import (
 
 // entityRefSteps returns every DomainModels$EntityRefStep document of an
 // encoded IndirectEntityRef, in order.
-func entityRefSteps(t *testing.T, src bsonv1.D) []bsonv1.D {
+func entityRefSteps(t *testing.T, src bson.D) []bson.D {
 	t.Helper()
-	entityRef, ok := docGet(src, "EntityRef").(bsonv1.D)
+	entityRef, ok := docGet(src, "EntityRef").(bson.D)
 	if !ok {
 		t.Fatalf("EntityRef not a document (got %T)", docGet(src, "EntityRef"))
 	}
-	arr, ok := docGet(entityRef, "Steps").(bsonv1.A)
+	arr, ok := docGet(entityRef, "Steps").(bson.A)
 	if !ok {
 		t.Fatalf("Steps not a list (got %T)", docGet(entityRef, "Steps"))
 	}
-	var out []bsonv1.D
+	var out []bson.D
 	for _, e := range arr {
 		switch v := e.(type) {
-		case bsonv1.D:
+		case bson.D:
 			out = append(out, v)
-		case bsonv1.A:
+		case bson.A:
 			for _, inner := range v {
-				if d, ok := inner.(bsonv1.D); ok {
+				if d, ok := inner.(bson.D); ok {
 					out = append(out, d)
 				}
 			}
@@ -78,7 +78,7 @@ func TestAssociationSource_MultiHop_OneStepPerHop(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc := encodeWidget(t, tc.widget())
-			src, ok := docGet(doc, "DataSource").(bsonv1.D)
+			src, ok := docGet(doc, "DataSource").(bson.D)
 			if !ok {
 				t.Fatalf("DataSource not serialized (got %T)", docGet(doc, "DataSource"))
 			}

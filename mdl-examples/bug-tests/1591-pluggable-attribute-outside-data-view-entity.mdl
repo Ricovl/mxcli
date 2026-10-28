@@ -1,0 +1,64 @@
+mdl 1;
+-- ============================================================================
+-- Pluggable attribute property bound outside the data view entity
+-- (mendixlabs/mxcli#1591)
+-- ============================================================================
+--
+-- Symptom (before fix), Mendix 11.12.5:
+--
+--   1. `eventDataAttribute: EventData` inside a data view over $Entry
+--      (ChartEntry, which has no EventData) passed `check --references` and
+--      `exec`; mx check then reported
+--        [CE1613] "The selected attribute 'MyFirstModule.ChartEntry.EventData'
+--        no longer exists." at Custom chart 'chart1'
+--   2. Written qualified (MyFirstModule.ChartContext.EventData) it was stored
+--      as such, but DESCRIBE printed `eventDataAttribute: EventData`, and
+--      re-running the description rebound it to ChartEntry — case 1 again.
+--
+-- Root cause:
+--   1. misboundAttributeError refused a name only when ANOTHER entity in scope
+--      had it, and let a name no entity has through as "a typo other checks
+--      own" — none did.
+--   2. The generic pluggable describer shortened every attribute, and a data
+--      view over a page parameter put the parameter's NAME in scope instead of
+--      its entity, so the two could not be compared.
+--
+-- Follow-up: the qualified form was itself the wrong shape. Stored as the
+-- AttributeRef alone, mx check reports
+--   [CE7247] "Attribute 'MyFirstModule.ChartContext.EventData' is not an
+--   attribute of entity 'MyFirstModule.ChartEntry'." at Custom chart 'chart1'
+-- What Studio Pro stores for an attribute of another page parameter is the
+-- AttributeRef plus a SourceVariable naming the parameter — spelled
+-- `$Ctx.EventData`, which a generic attribute key refused as MDL-WIDGET42.
+-- It is now written as that pair (mx check: 0 errors on 11.12.5), DESCRIBE
+-- prints it back as `$Ctx.EventData`, and the qualified name of an entity the
+-- property does not bind to is refused, naming CE7247 and `$Param.EventData`.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/1591-pluggable-attribute-outside-data-view-entity.mdl -p app.mpr
+--   mxcli docker check -p app.mpr                       → 0 errors
+--   mxcli -p app.mpr -c "describe page BugTest1591.ChartPage"
+--     → eventDataAttribute: $Ctx.EventData
+--   Changing that line to `eventDataAttribute: EventData` is refused by check:
+--   "`EventData` is not an attribute of BugTest1591.ChartEntry …"; to
+--   `BugTest1591.ChartContext.EventData`, by check as CE7247.
+-- ============================================================================
+
+create module BugTest1591;
+
+create non-persistent entity BugTest1591.ChartContext (EventData: String(unlimited));
+create non-persistent entity BugTest1591.ChartEntry (JsonData: String(unlimited), JsonLayout: String(unlimited));
+
+create page BugTest1591.ChartPage (
+  Title: 'Chart',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Ctx: BugTest1591.ChartContext, $Entry: BugTest1591.ChartEntry )
+) {
+  dataview dvEntry (DataSource: $Entry) {
+    customchart chart1 (
+      dataAttribute: JsonData,
+      layoutAttribute: JsonLayout,
+      eventDataAttribute: $Ctx.EventData
+    )
+  }
+};

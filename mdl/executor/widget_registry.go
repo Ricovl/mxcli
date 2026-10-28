@@ -19,6 +19,7 @@ type WidgetRegistry struct {
 	byMDLName       map[string]*WidgetDefinition // keyed by uppercase MDLName
 	byWidgetID      map[string]*WidgetDefinition // keyed by widgetId
 	knownOperations map[string]bool              // operations accepted during validation
+	embeddedIDs     map[string]string            // uppercase MDLName → widgetId of the embedded (built-in) definition
 	projectPath     string                       // set by LoadWidgetRegistry; lets validation resolve editorConfig visibility rules for built-in widgets whose .def.json carries none
 }
 
@@ -71,6 +72,7 @@ func NewWidgetRegistryWithOps(extraOps map[string]bool) (*WidgetRegistry, error)
 		byMDLName:       make(map[string]*WidgetDefinition),
 		byWidgetID:      make(map[string]*WidgetDefinition),
 		knownOperations: ops,
+		embeddedIDs:     make(map[string]string),
 	}
 
 	entries, err := definitions.EmbeddedFS.ReadDir(".")
@@ -98,11 +100,10 @@ func NewWidgetRegistryWithOps(extraOps map[string]bool) (*WidgetRegistry, error)
 		}
 
 		def.MDLName = strings.ToLower(def.MDLName)
-		for i := range def.ChildSlots {
-			def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
-		}
+		lowerSlotContainers(&def)
 		reg.byMDLName[strings.ToUpper(def.MDLName)] = &def
 		reg.byWidgetID[def.WidgetID] = &def
+		reg.embeddedIDs[strings.ToUpper(def.MDLName)] = def.WidgetID
 	}
 
 	return reg, nil
@@ -197,10 +198,25 @@ func (r *WidgetRegistry) loadDefinitionsFromDir(dir string) error {
 		}
 
 		def.MDLName = strings.ToLower(def.MDLName)
-		for i := range def.ChildSlots {
-			def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
-		}
+		lowerSlotContainers(&def)
 		upperName := strings.ToUpper(def.MDLName)
+		// A definition for a DIFFERENT widget must never take a built-in
+		// keyword: `widget init` used to name the native Image `image` and the
+		// native RadioButtons `radiobuttons`, and those files are still on
+		// users' disks (mendixlabs/mxcli#1463). Keep the widget reachable by id
+		// and leave the keyword with the widget it documents.
+		builtinID, isEmbedded := r.embeddedIDs[upperName]
+		if isBuilderOwnedWidgetKeyword(def.MDLName) || (isEmbedded && builtinID != def.WidgetID) {
+			builtin := "a built-in Forms widget"
+			if isEmbedded {
+				builtin = builtinID
+			}
+			log.Printf("warning: widget definition %q (%s) is not registered as `%s` — that keyword is %s. "+
+				"Use `pluggablewidget '%s'`, or give the definition another mdlName (or delete the file and re-run `mxcli widget init`)",
+				filePath, def.WidgetID, def.MDLName, builtin, def.WidgetID)
+			r.byWidgetID[def.WidgetID] = &def
+			continue
+		}
 		if existing, ok := r.byMDLName[upperName]; ok {
 			// Skip user skeleton definitions (no mappings/modes) when built-in has mappings
 			if len(def.PropertyMappings) == 0 && len(def.Modes) == 0 &&
@@ -215,6 +231,22 @@ func (r *WidgetRegistry) loadDefinitionsFromDir(dir string) error {
 		r.byWidgetID[def.WidgetID] = &def
 	}
 	return nil
+}
+
+// lowerSlotContainers lower-cases every child slot's container keyword — the
+// definition's own and each mode's — which is how applyChildSlots looks a
+// child's keyword up. A mode's slots were left as written, so a mode-scoped
+// slot (a combo box's custom content, ako/mxcli#1744) spelled in upper case,
+// as every built-in definition spells its containers, matched no child.
+func lowerSlotContainers(def *WidgetDefinition) {
+	for i := range def.ChildSlots {
+		def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
+	}
+	for m := range def.Modes {
+		for i := range def.Modes[m].ChildSlots {
+			def.Modes[m].ChildSlots[i].MDLContainer = strings.ToLower(def.Modes[m].ChildSlots[i].MDLContainer)
+		}
+	}
 }
 
 // validateDefinitionOperations checks that all operation names in a definition
@@ -245,8 +277,11 @@ func (r *WidgetRegistry) validateDefinitionOperations(def *WidgetDefinition, sou
 
 // sourceOperationCompatible checks that a mapping's Source and Operation are compatible.
 var incompatibleSourceOps = map[string]map[string]bool{
-	"Attribute":   {"association": true, "datasource": true},
-	"Attributes":  {"association": true, "datasource": true, "attribute": true},
+	"Attribute": {"association": true, "datasource": true},
+	// Attributes → attribute is the list keyword feeding ONE attribute property
+	// (a drop-down filter's `attr`, #1519); resolveMapping refuses a list of more
+	// than one rather than keeping the first.
+	"Attributes":  {"association": true, "datasource": true},
 	"Association": {"attribute": true, "datasource": true},
 	"DataSource":  {"attribute": true, "association": true},
 }

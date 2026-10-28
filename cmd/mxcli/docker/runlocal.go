@@ -54,6 +54,9 @@ type LocalRunOptions struct {
 	// wrote into the deployment. Empty means "every constant keeps its default",
 	// which is what a local run always did before — see runconstants.go.
 	ConstantOverrides map[string]string
+	// JVMArgs are that configuration's JVM options (Java heap maximum, Extra JVM
+	// parameters) for the runtime JVM — see LocalRuntimeOptions.JVMArgs.
+	JVMArgs []string
 	// DeployDir is where the serve Deploy target writes (default <projectDir>/deployment).
 	DeployDir string
 	// MxBuildPath overrides mxbuild resolution (optional).
@@ -62,6 +65,13 @@ type LocalRunOptions struct {
 	AppPort   int
 	AdminPort int
 	ServePort int
+	// ListenAddr is the address the app binds to. Empty means 127.0.0.1, which
+	// is loopback-only on purpose. Set it to 0.0.0.0 to let the app be reached
+	// from other machines on the network; pair that with a reachable
+	// ApplicationRootUrl (--runtime-setting) if the app builds absolute URLs,
+	// because the runtime does not derive one (see warnWildcardWithoutRootURL).
+	// The M2EE admin API is unaffected and stays on loopback.
+	ListenAddr string
 	// AdminPass is the M2EE admin password (default is a fixed local-dev value).
 	AdminPass string
 	// DB is the Postgres the runtime connects to (devcontainer defaults applied).
@@ -224,6 +234,12 @@ func (o *LocalRunOptions) applyDatabaseDefaults() error {
 	if o.DB.Name == "" {
 		o.DB.Name = deriveDBName(o.ProjectPath)
 	}
+	// The admin login only provisions; nothing else would use it, so accepting
+	// it alone would suggest it had been applied.
+	if (o.DB.AdminUser != "" || o.DB.AdminPassword != "") && !o.EnsureDB {
+		return fmt.Errorf("--db-admin-user/--db-admin-password are used only by --ensure-db, " +
+			"to create the role and database — add --ensure-db")
+	}
 	if IsFileBasedDBType(kind) {
 		// The built-in database is a file: it has no host or credentials, and
 		// accepting them would imply a connection that never happens.
@@ -288,6 +304,54 @@ func buildRuntimeSettings(metrics, trace bool, raw []string) (map[string]any, er
 	return out, nil
 }
 
+// scheduledEventExecutionKey is the runtime setting that decides which
+// scheduled events run. The runtime's own default is NONE.
+const scheduledEventExecutionKey = "ScheduledEventExecution"
+
+// withScheduledEventsDefault makes run --local boot with scheduled events
+// running (mendixlabs/mxcli#1528). Without it the runtime default NONE applies
+// and an app's scheduled events silently never fire; the only trace is a
+// "Synchronizing scheduled events: None" runtime log line. An explicit
+// --runtime-setting ScheduledEventExecution=... wins. It returns the settings,
+// the effective value, and whether the default was applied.
+//
+// Only RunLocal calls this: the test runner (StartLocalApp) keeps the runtime
+// default so a scheduled event cannot fire in the middle of a test run.
+func withScheduledEventsDefault(settings map[string]any) (map[string]any, string, bool) {
+	if v, ok := settings[scheduledEventExecutionKey]; ok {
+		return settings, fmt.Sprint(v), false
+	}
+	if settings == nil {
+		settings = map[string]any{}
+	}
+	settings[scheduledEventExecutionKey] = "ALL"
+	return settings, "ALL", true
+}
+
+// scheduledEventsLine is the start-summary line naming the scheduled-event
+// setting. count < 0 means the count is unknown and is left out.
+func scheduledEventsLine(value string, defaulted bool, count int) string {
+	line := "Scheduled events: " + value
+	if count >= 0 {
+		line += fmt.Sprintf(" (%d defined)", count)
+	}
+	if defaulted {
+		line += " — override with --runtime-setting ScheduledEventExecution=NONE"
+	} else {
+		line += " (from --runtime-setting)"
+	}
+	return line
+}
+
+// countScheduledEvents counts the model's scheduled events; -1 when unreadable.
+func countScheduledEvents(reader backend.FullBackend) int {
+	events, err := reader.ListScheduledEvents()
+	if err != nil {
+		return -1
+	}
+	return len(events)
+}
+
 // parseRuntimeSetting splits "Key=Value"; Value is parsed as JSON when possible
 // (so arrays/objects/numbers/bools pass through typed), else kept as a string.
 func parseRuntimeSetting(s string) (string, any, error) {
@@ -343,6 +407,28 @@ func applicationRootURLFrom(settings *model.ProjectSettings) (rootURL, configNam
 	return first, firstName
 }
 
+// warnWildcardWithoutRootURL warns when the app binds every interface but
+// nothing gives the runtime the URL it is reached at. The runtime does NOT
+// derive one from the bind address: measured on 11.12.1,
+// Core.getConfiguration().getApplicationRootUrl() is null after a boot with no
+// ApplicationRootUrl, under 127.0.0.1 and 0.0.0.0 alike, and is the passed value
+// under --runtime-setting. So anything that builds an absolute URL from it
+// (OIDC/SAML redirect URIs, links in emails) has no host another machine can
+// use, while the app itself answers fine — the client uses relative URLs. A
+// warning rather than a refusal: plenty of apps build no absolute URL at all.
+func warnWildcardWithoutRootURL(stderr io.Writer, listen string, port int, appRootURL string, settings map[string]any) {
+	if !isWildcardListenAddr(listen) || appRootURL != "" {
+		return
+	}
+	if _, ok := settings["ApplicationRootUrl"]; ok {
+		return
+	}
+	fmt.Fprintf(stderr, "Warning: --listen-addr %s with no application root URL — the runtime does not derive one, "+
+		"so absolute URLs the app builds from it (SSO redirects, links in emails) have no host another machine can open. "+
+		"Pass --runtime-setting ApplicationRootUrl=http://<this-host>:%d/ or set one naming a real host in the configuration.\n",
+		listen, port)
+}
+
 // customHostRootURL reports whether an ApplicationRootUrl names a host worth
 // telling the runtime about.
 //
@@ -350,8 +436,7 @@ func applicationRootURLFrom(settings *model.ProjectSettings) (rootURL, configNam
 // mean "chosen". Passing that back would be a behaviour change for every
 // existing project — and an actively wrong one under --app-port, where the
 // stock value names a port the app is not serving on. A loopback host also adds
-// nothing: with no ApplicationRootUrl the runtime derives one from the listen
-// address, which is the same thing. So only a real host name — the case this
+// nothing another machine could use. So only a real host name — the case this
 // exists for, giving each app in a solution its own name — is honoured.
 func customHostRootURL(rootURL string) bool {
 	if rootURL == "" {
@@ -621,6 +706,7 @@ func RunLocal(opts LocalRunOptions) error {
 	// separate step; collect them here so the boot can vendor any that are
 	// missing (mxcli-formula1 findings #12).
 	declaredJars := declaredJarDependencies(reader)
+	scheduledEventCount := countScheduledEvents(reader)
 	reader.Disconnect()
 	version := pv.ProductVersion
 	fmt.Fprintf(w, "  Mendix version: %s\n", version)
@@ -788,6 +874,9 @@ func RunLocal(opts LocalRunOptions) error {
 	if err != nil {
 		return err
 	}
+	runtimeSettings, schedValue, schedDefaulted := withScheduledEventsDefault(runtimeSettings)
+	fmt.Fprintln(w, scheduledEventsLine(schedValue, schedDefaulted, scheduledEventCount))
+	warnWildcardWithoutRootURL(stderr, opts.ListenAddr, opts.AppPort, appRootURL, runtimeSettings)
 	traceService := opts.TraceService
 	if opts.Trace && traceService == "" {
 		traceService = strings.TrimSuffix(filepath.Base(opts.ProjectPath), filepath.Ext(opts.ProjectPath))
@@ -800,6 +889,7 @@ func RunLocal(opts LocalRunOptions) error {
 		JavaMajor:          javaMajor,
 		AppPort:            opts.AppPort,
 		AdminPort:          opts.AdminPort,
+		ListenAddr:         opts.ListenAddr,
 		AdminPass:          opts.AdminPass,
 		ApplicationRootUrl: appRootURL,
 		DB:                 opts.DB,
@@ -809,6 +899,7 @@ func RunLocal(opts LocalRunOptions) error {
 		TraceServiceName:   traceService,
 		TraceOTLPEndpoint:  opts.TraceOTLP,
 		ConstantOverrides:  opts.ConstantOverrides,
+		JVMArgs:            opts.JVMArgs,
 		Env:                opts.Env,
 		Stdout:             w,
 		Stderr:             stderr,
@@ -845,6 +936,11 @@ func RunLocal(opts LocalRunOptions) error {
 	})
 
 	fmt.Fprintf(w, "\nApp is running at %s\n", rt.AppURL())
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, u := range networkAppURLs(opts.ListenAddr, opts.AppPort, addrs) {
+			fmt.Fprintf(w, "  from the network: %s\n", u)
+		}
+	}
 	// The local runtime boots with the live-preview dev flags (see
 	// LocalRuntimeOptions.jvmArgs), so `mxcli oql` can query it directly — and it
 	// now defaults to the local admin password, so no M2EE_ADMIN_PASS is needed
@@ -979,18 +1075,31 @@ func RunLocal(opts LocalRunOptions) error {
 // still answers" the only evidence available. A non-zero exit is what any
 // supervisor — a shell loop, systemd, a container restart policy — already knows
 // how to act on.
+//
+// The reason is read from the runtime log FILE as well as from the JVM's own
+// output: the application log — where the licence's "Maximum run time
+// exceeded" is written — reaches only the file subscriber, never stdout
+// (ako/mxcli#1542). It travels as RuntimeStoppedError.Reason so the run state
+// can record it for `run status`.
 func runtimeStoppedError(rt *LocalRuntime) error {
+	fileLog := currentRuntimeLog(rt.opts.RuntimeLogPath)
+	reason := stopReason(fileLog, filepath.Base(rt.opts.RuntimeLogPath))
+	if reason == "" {
+		reason = stopReason(rt.Log(), "runtime output")
+	}
 	detail := ""
-	if reason := runtimeExitReason(rt.Log()); reason != "" {
+	if long := runtimeExitReason(rt.Log() + "\n" + fileLog); long != "" {
+		detail = "\n  " + long
+	} else if reason != "" {
 		detail = "\n  " + reason
 	}
 	if err := rt.ExitErr(); err != nil {
 		detail += "\n  the runtime process exited with: " + err.Error()
 	}
-	return fmt.Errorf("the app stopped: the Mendix runtime is no longer running%s\n"+
+	return &RuntimeStoppedError{Reason: reason, msg: fmt.Sprintf("the app stopped: the Mendix runtime is no longer running%s\n"+
 		"  mxcli is exiting rather than staying up over a dead app — a tunnel or reverse proxy\n"+
 		"  keeps answering after the runtime is gone, so \"the URL responds\" is not evidence\n"+
-		"  the app is alive. Re-run to restart it.", detail)
+		"  the app is alive. Restart it: mxcli run restart -p <app.mpr>, or re-run.", detail)}
 }
 
 // maybeScreenshot captures the app (best-effort) when --screenshot is set. A
@@ -1311,6 +1420,8 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 		DeployDir: opts.DeployDir, MxBuildPath: mxbuildPath, Timeout: opts.WebClientTimeout, Stdout: opts.Stdout,
 	})
 
+	builds := &serveRecovery{serve: serve, deployDir: opts.DeployDir, out: w}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
@@ -1392,8 +1503,11 @@ func watchAndApply(opts LocalRunOptions, serve *ServeServer, rt *LocalRuntime, b
 			// change that makes mxbuild recreate web/ (a domain model change) fails
 			// until the bundler lets go; the supervisor stops it, rebuilds, and
 			// starts a fresh one on the new web/ (#1342).
+			// The build goes through serveRecovery, which restarts mxbuild --serve
+			// when a build leaves state only a fresh process clears — e.g. an
+			// "applied" reload whose dist/ lost every page (mendixlabs/mxcli#1580).
 			build, freshBundle, err := bundler.BuildReleasingWebDir(func() (*BuildResult, error) {
-				return serve.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
+				return builds.Build(BuildRequest{Target: TargetDeploy, ProjectFilePath: opts.ProjectPath})
 			})
 			if err != nil {
 				fmt.Fprintf(opts.Stderr, "  build error: %v\n", err)
@@ -1533,7 +1647,9 @@ func reportPageChecks(opts LocalRunOptions, rt *LocalRuntime) {
 	for i, t := range targets {
 		pages[i] = PageTarget{URL: resolveScreenshotURL(rt.AppURL(), t)}
 	}
-	sigs, err := ProbePages(ProbeOptions{Pages: pages, Storage: opts.screenshotStorage, WaitMs: 4000})
+	// WaitMs is left to the probe's default: a cap that a page settling sooner
+	// does not pay, and long enough for the first data source of a cold runtime.
+	sigs, err := ProbePages(ProbeOptions{Pages: pages, Storage: opts.screenshotStorage})
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "  page check skipped: %v\n", err)
 		return

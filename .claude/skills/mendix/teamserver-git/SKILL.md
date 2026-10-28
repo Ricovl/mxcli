@@ -12,11 +12,11 @@ description: "Commit, branch and push a Mendix project in git the way Studio Pro
 |---|---|
 | 35-41 | The rule: let Studio Pro do version control when it can |
 | 42-55 | Branches: create them on the server |
-| 56-78 | Commit from the agent |
-| 79-93 | Push the branch and the notes together, and soon |
-| 94-106 | Never rewrite or merge model history with git |
-| 107-117 | Reading what Studio Pro recorded |
-| 118-126 | Checklist |
+| 56-97 | Commit from the agent |
+| 98-112 | Push the branch and the notes together, and soon |
+| 113-125 | Never rewrite or merge model history with git |
+| 126-136 | Reading what Studio Pro recorded |
+| 137-145 | Checklist |
 
 <!-- /skill-index -->
 # Working with Git on a Mendix Team Server Project
@@ -55,6 +55,21 @@ Suggest that first. Everything below is for committing from the agent.
 
 ## Commit from the agent
 
+The one command does it all — hashes, staging, commit, the note:
+
+```bash
+mxcli git commit -m "<what changed for the user>" -p app.mpr
+```
+
+It repairs ContentsHash mismatches from the files first (MISSING/ORPHAN refuse
+the commit), stages everything and unstages the files Studio Pro never commits
+(`project-settings.user.json`, `*.mpr.lock`, `*.mpr.bak`, `.mendix-cache/`,
+`deployment/`, `theme-cache/`, `.mxcli/`), commits, and attaches the note. Add
+`--push` to push the branch and the notes ref together; `--dry-run` stages,
+reports and unstages without committing. Refused while the `.mpr.lock` exists.
+
+The manual equivalent, one step at a time:
+
 ```bash
 mxcli fix hashes -p app.mpr                     # unit index matches the files (exit 0)
 git add App.mpr mprcontents <other source you changed>
@@ -75,6 +90,10 @@ mxcli git note -p app.mpr --write               # attach the mx_metadata note
   so run it after committing. It never overwrites a note Studio Pro wrote
   (`--force` does) and it does replace Studio Pro's placeholders. Without
   `--write` it only previews.
+- A repository that has known only plain git may drift further: missing
+  `mendix.*`/`core.autocrlf` local config, an SSH remote Studio Pro cannot
+  use, notes missing or malformed across history. `mxcli git doctor` reports
+  all of it in one pass and `--fix` repairs it.
 
 ## Push the branch and the notes together, and soon
 

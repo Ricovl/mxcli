@@ -156,10 +156,15 @@ type WidgetDescription struct {
 
 // DescribedContainer is one child slot or object list of a widget.
 type DescribedContainer struct {
-	Keyword     string   `json:"keyword"`
-	PropertyKey string   `json:"propertyKey"`
-	Kind        string   `json:"kind"` // "child slot" | "object list"
-	ItemKeys    []string `json:"itemKeys,omitempty"`
+	Keyword     string `json:"keyword"`
+	PropertyKey string `json:"propertyKey"`
+	Kind        string `json:"kind"` // "child slot" | "object list"
+	// Mode names the definition mode a child slot belongs to, for a slot that
+	// is a container only in that mode — a combo box's custom content is
+	// association mode's or database mode's (ako/mxcli#1744). Empty for a slot
+	// of every configuration.
+	Mode     string   `json:"mode,omitempty"`
+	ItemKeys []string `json:"itemKeys,omitempty"`
 	// Authorable reports whether `<keyword> name (…)` actually parses inside a
 	// widget body today. It is derived by parsing a probe, never from a list:
 	// the bug this description exists to help with (mendixlabs/mxcli#1036) was
@@ -496,6 +501,9 @@ func PrintWidgetDescription(out io.Writer, d WidgetDescription) {
 			if !c.Authorable {
 				mark = "  NOT authorable from MDL yet"
 			}
+			if c.Mode != "" {
+				mark += " (" + c.Mode + " only)"
+			}
 			fmt.Fprintf(out, "  %-34s %-12s -> %s%s\n", c.Keyword, c.Kind, c.PropertyKey, mark)
 			if len(c.ItemKeys) > 0 {
 				fmt.Fprintf(out, "  %-34s   items: %s\n", "", strings.Join(c.ItemKeys, ", "))
@@ -592,6 +600,16 @@ func describeContainers(def *WidgetDefinition) []DescribedContainer {
 			Keyword: kw, PropertyKey: cs.PropertyKey, Kind: "child slot",
 			Authorable: containerKeywordParses(kw, true),
 		})
+	}
+	for i := range def.Modes {
+		for _, cs := range def.Modes[i].ChildSlots {
+			kw := strings.ToLower(cs.MDLContainer)
+			out = append(out, DescribedContainer{
+				Keyword: kw, PropertyKey: cs.PropertyKey, Kind: "child slot",
+				Mode:       modeLabel(&def.Modes[i]),
+				Authorable: containerKeywordParses(kw, true),
+			})
+		}
 	}
 	for _, ol := range def.ObjectLists {
 		kw := strings.ToLower(ol.MDLContainer)
@@ -712,6 +730,13 @@ func buildUsageExample(d WidgetDescription) (example string, omitted []string) {
 	for _, c := range d.Containers {
 		if !c.Authorable {
 			omitted = append(omitted, c.Keyword)
+			continue
+		}
+		// A mode's slot is a container in that mode only, and the example is
+		// written in the unconditioned one, where check refuses the block
+		// (MDL-WIDGET30) — a combo box's custom content (ako/mxcli#1744).
+		if c.Mode != "" {
+			omitted = append(omitted, c.Keyword+" — "+c.Mode+" only")
 			continue
 		}
 		n++
@@ -946,7 +971,22 @@ func definitionDefaults(def *WidgetDefinition) map[string]string {
 		}
 	}
 	collect(def.PropertyMappings)
-	for _, mode := range def.Modes {
+	// The example is a bare widget, so it builds in the unconditioned mode, and
+	// that mode's constants are the ones the validator reads (widgetValueMap
+	// ignores an inactive mode's, #1519). Collecting every mode let a
+	// conditioned one speak for the example: Combo box's database mode set
+	// `source` to "database", the example was narrowed for database mode, and
+	// MDL-WIDGET10 then flagged the database-only settings it emitted
+	// (mendixlabs/mxcli#1583). A definition with no unconditioned mode keeps
+	// the old reading.
+	modes := def.Modes
+	for i := range def.Modes {
+		if def.Modes[i].Condition == "" {
+			modes = def.Modes[i : i+1]
+			break
+		}
+	}
+	for _, mode := range modes {
 		collect(mode.PropertyMappings)
 	}
 	return out

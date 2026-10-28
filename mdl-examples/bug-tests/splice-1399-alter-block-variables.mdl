@@ -1,0 +1,82 @@
+-- ============================================================================
+-- ako/mxcli#1399 (mendixlabs/mxcli#1517) — variables of one alter block,
+-- and a producer moved upstream of where it was
+-- ============================================================================
+--
+-- The operations of one `alter microflow` block — and the patch a
+-- `create or modify` splices with, which is one — write ONE flow, but two of
+-- their variable verdicts were still taken against the flow as stored:
+--
+--   Repro B  a fragment was built knowing only the stored flow's variables,
+--            so `set $Late = …` in a replaced loop failed at exec with
+--            "variable 'Late' is not declared" although the insert before it
+--            in the same block declares $Late upstream — while check passed
+--            with a "not predicted" note.
+--
+--   Used return  a producer moved earlier (`$Code = call …` above the
+--            declare it followed) was refused "the fragment declares $Code,
+--            which the microflow already has" by the stored $Code the same
+--            patch drops, and in the other order "$Code is still used by:
+--            log …; return $Code" by readers the moved producer now feeds.
+--
+-- To reproduce: exec this file against any project. Expected:
+--   Altered microflow BugTest1399.LoopFlow
+--   Modified microflow: BugTest1399.MoveFlow (spliced: 1 inserted, 1 dropped)
+-- Before the fix exec stopped at the alter ("the fragment has errors: variable
+-- 'Late' is not declared") and rolled the whole script back; without the
+-- alter it stopped at the second MoveFlow statement. mx check: 0 errors.
+-- The file can be run again: LoopFlow is dropped and made afresh, and
+-- MoveFlow moves its producer back and forth.
+
+mdl 1;
+
+create module BugTest1399;
+
+create or modify persistent entity BugTest1399.Item (
+  Name: String(100)
+);
+
+create or modify microflow BugTest1399.Helper () returns String
+begin
+  return 'x';
+end;
+
+-- Repro B: the replaced loop sets the variable the insert declares.
+drop microflow if exists BugTest1399.LoopFlow;
+
+create microflow BugTest1399.LoopFlow ($Items: List of BugTest1399.Item)
+begin
+  declare $X Integer = 0;
+  loop $It in $Items
+  begin
+    log info node 'BugTest1399' $It/Name;
+  end loop;
+  log info node 'BugTest1399' 'done';
+end;
+
+alter microflow BugTest1399.LoopFlow {
+  insert after declare $X Integer = 0 begin declare $Late Integer = 0; end;
+  replace loop $It in $Items with begin
+    loop $It in $Items
+    begin
+      set $Late = $Late + 1;
+    end loop;
+  end;
+};
+
+-- Used return: the producer of the returned $Code moves above the declare.
+create or modify microflow BugTest1399.MoveFlow () returns String
+begin
+  declare $N Integer = 1;
+  $Code = call microflow BugTest1399.Helper();
+  log info node 'BugTest1399' $Code;
+  return $Code;
+end;
+
+create or modify microflow BugTest1399.MoveFlow () returns String
+begin
+  $Code = call microflow BugTest1399.Helper();
+  declare $N Integer = 1;
+  log info node 'BugTest1399' $Code;
+  return $Code;
+end;

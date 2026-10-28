@@ -1,0 +1,55 @@
+mdl 1;
+-- =============================================================================
+-- DOMAIN-MODEL EXPORT LEVELS
+-- =============================================================================
+--
+-- `export level api | hidden` on an entity, an attribute, an association and an
+-- enumeration — the clause microflows already take. API is Studio Pro's
+-- "Usable"; Hidden is the default. It matters in a Protected (add-on) module,
+-- where mxbuild refuses CE5400 (a Usable microflow exposing a Hidden entity or
+-- enumeration) and CE1406 (another module using a Hidden element). An absent
+-- clause keeps what is stored. `mxcli syntax domain-model.export-level`.
+-- Mendix 9.3+ (mendixlabs/mxcli#1498).
+-- =============================================================================
+
+CREATE MODULE ExportLevels;
+
+-- On create: the entity's clause follows the attribute list, an attribute's
+-- follows its type and constraints.
+CREATE PERSISTENT ENTITY ExportLevels.Customer (
+  Name: String(100) NOT NULL EXPORT LEVEL api,
+  Notes: String(200)
+) EXPORT LEVEL api;
+
+CREATE NON-PERSISTENT ENTITY ExportLevels.Filter EXPORT LEVEL api;
+
+CREATE PERSISTENT ENTITY ExportLevels.Order ( Number: String(20) EXPORT LEVEL api )
+INDEX (Number)
+EXPORT LEVEL api;
+
+CREATE ASSOCIATION ExportLevels.Order_Customer
+  FROM ExportLevels.Order TO ExportLevels.Customer
+  TYPE Reference
+  EXPORT LEVEL api;
+
+CREATE ENUMERATION ExportLevels.Status ( Open 'Open', Closed 'Closed' ) EXPORT LEVEL api;
+
+-- On an existing element.
+ALTER ENTITY ExportLevels.Customer SET EXPORT LEVEL hidden;
+ALTER ENTITY ExportLevels.Customer MODIFY ATTRIBUTE Notes: String(200) EXPORT LEVEL api;
+ALTER ENTITY ExportLevels.Customer ADD ATTRIBUTE Email: String(200) EXPORT LEVEL api;
+ALTER ASSOCIATION ExportLevels.Order_Customer SET EXPORT LEVEL hidden;
+ALTER ENUMERATION ExportLevels.Status SET EXPORT LEVEL hidden;
+
+-- A rewrite without the clause keeps the stored level: Order stays Usable.
+CREATE OR MODIFY PERSISTENT ENTITY ExportLevels.Order ( Number: String(30) ) INDEX (Number);
+
+-- A Usable microflow. In a Protected module its signature must use Usable
+-- elements: Order is, Status no longer is (CE5400 there — `check -p
+-- --references` says so); in this ordinary module both are fine.
+CREATE MICROFLOW ExportLevels.API_Open ($order: ExportLevels.Order, $status: ENUM ExportLevels.Status)
+RETURNS Boolean
+EXPORT LEVEL api
+BEGIN
+  RETURN true;
+END;

@@ -49,6 +49,33 @@ func buildEventHandlers(ctx *ExecContext, defs []ast.EventHandlerDef) ([]*domain
 	return handlers, nil
 }
 
+// matchEventHandlers returns the indexes of the entity's handlers for moment and
+// event, narrowed to those calling mfQN when it is non-empty. An entity may carry
+// several handlers for one event (mendixlabs/mxcli#1540), so (moment, event) alone
+// is not an identity — the microflow is part of it.
+func matchEventHandlers(ctx *ExecContext, entity *domainmodel.Entity, moment, event, mfQN string) []int {
+	var out []int
+	for i, eh := range entity.EventHandlers {
+		if eh.Moment != domainmodel.EventMoment(moment) || eh.Event != domainmodel.EventType(event) {
+			continue
+		}
+		if mfQN != "" && storedHandlerMicroflow(ctx, eh) != mfQN {
+			continue
+		}
+		out = append(out, i)
+	}
+	return out
+}
+
+// storedHandlerMicroflow is the qualified name of the microflow a stored handler
+// calls. The read path fills MicroflowName; the ID is the fallback, as in describe.
+func storedHandlerMicroflow(ctx *ExecContext, eh *domainmodel.EventHandler) string {
+	if eh.MicroflowName == "" && eh.MicroflowID != "" {
+		return lookupMicroflowName(ctx, eh.MicroflowID)
+	}
+	return eh.MicroflowName
+}
+
 // checkBeforeCreateHandlerHasNoParameters refuses to wire a microflow that takes
 // parameters to a BEFORE CREATE event handler.
 //
@@ -89,6 +116,9 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
 	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 
 	// An unqualified EXTENDS target is refused here as well as at check time:
 	// `exec --no-check` skips the pre-flight, and this is the case that writes a
@@ -114,6 +144,14 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	// A member name must be unique along the generalization chain — up to the
+	// root, System entities included, and down through the specializations
+	// (CE0069, ako/mxcli#1645). The verdict check gives; before the module is
+	// auto-created, so a refusal leaves nothing behind.
+	if err := refuseMemberNameClash(ctx, s); err != nil {
+		return err
 	}
 
 	// Find or auto-create module
@@ -259,6 +297,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 			Name:          a.Name,
 			Documentation: doc,
 			Type:          convertDataType(a.Type),
+			ExportLevel:   authoredExportLevel(a.ExportLevel),
 		}
 		attr.ID = attrID
 
@@ -375,6 +414,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		HasChangedBy:    storeChangedBy,
 		HasCreatedDate:  storeCreatedDate,
 		HasChangedDate:  storeChangedDate,
+		ExportLevel:     authoredExportLevel(s.ExportLevel),
 	}
 	if autoPlace {
 		// The next grid slot whose box clears everything already in the module.
@@ -458,6 +498,7 @@ func execCreateEntity(ctx *ExecContext, s *ast.CreateEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "entity: %s", s.Name)
+		noteKeptNotLocalized(ctx, s.Name.String(), keptNotLocalized(entity.Attributes, statedLocalize(s.Attributes)))
 		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 	} else {
 		// Create new entity
@@ -528,6 +569,11 @@ func mergeDeclaredOntoStoredEntity(stored, declared *domainmodel.Entity, s *ast.
 	} else {
 		merged.Documentation = declared.Documentation
 	}
+	// EXPORT LEVEL likewise: an absent clause ("" on the rebuilt entity) keeps
+	// the stored level (mendixlabs/mxcli#1498).
+	if declared.ExportLevel != "" {
+		merged.ExportLevel = declared.ExportLevel
+	}
 	return &merged
 }
 
@@ -572,19 +618,56 @@ func carryStoredAttributeState(stored *domainmodel.Entity, declared []*domainmod
 		if !stated[a.Name] {
 			carryStoredLocalizeDate(old.Type, a.Type)
 		}
+		if a.ExportLevel == "" {
+			a.ExportLevel = old.ExportLevel // no EXPORT LEVEL clause: keep it (#1498)
+		}
 	}
 }
 
 // carryStoredLocalizeDate copies a stored DateTime's LocalizeDate onto a rebuilt
 // type that is still a DateTime. A type change is the statement's to decide, so
-// nothing carries onto (or from) another type.
-func carryStoredLocalizeDate(stored, rebuilt domainmodel.AttributeType) {
+// nothing carries onto (or from) another type. It reports whether that kept a
+// stored `not localized` — the case noteKeptNotLocalized tells the user about.
+func carryStoredLocalizeDate(stored, rebuilt domainmodel.AttributeType) bool {
 	dt, ok := rebuilt.(*domainmodel.DateTimeAttributeType)
 	if !ok {
-		return
+		return false
 	}
 	if odt, ok := stored.(*domainmodel.DateTimeAttributeType); ok {
 		dt.LocalizeDate = odt.LocalizeDate
+		return !odt.LocalizeDate
+	}
+	return false
+}
+
+// keptNotLocalized names the attributes a rewrite left `not localized` without
+// the statement saying so: an unstated `localized` on a DateTime defaults to
+// localized for a new attribute, so a written false on an unstated one can only
+// be the carried stored value.
+func keptNotLocalized(attrs []*domainmodel.Attribute, stated map[string]bool) []string {
+	var names []string
+	for _, a := range attrs {
+		if a == nil || stated[a.Name] {
+			continue
+		}
+		if dt, ok := a.Type.(*domainmodel.DateTimeAttributeType); ok && !dt.LocalizeDate {
+			names = append(names, a.Name)
+		}
+	}
+	return names
+}
+
+// noteKeptNotLocalized says when an unstated `localized` kept a stored `not
+// localized` (mendixlabs/mxcli#1521). The carry is deliberate — a rewrite must
+// not flip a Studio Pro choice it has no words for (#743) — but it is invisible
+// in the statement, and the reporter's script that meant the default left a
+// DateTime in UTC with no trace. Stated values and stored-localized attributes
+// are never noted.
+func noteKeptNotLocalized(ctx *ExecContext, entity string, names []string) {
+	for _, n := range names {
+		fmt.Fprintf(ctx.Output,
+			"  Note: %s.%s keeps its stored `not localized` (the statement does not say); "+
+				"write `%s: DateTime localized` to change it.\n", entity, n, n)
 	}
 }
 
@@ -625,6 +708,7 @@ var entityFieldsDeclaredByStatement = map[string]bool{
 	"GeneralizationRef": true,
 	"Generalization":    true,
 	"GeneralizationID":  true,
+	"ExportLevel":       true, // when stated: "" keeps the stored level (#1498)
 	// ContainerID and the embedded BaseElement identify the stored element, so
 	// they are preserved. `entity.ID = existingEntity.ID` at the call site says
 	// the same thing about the ID; the merge is where it now comes from.
@@ -942,9 +1026,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 	}
 
 	// Version pre-check
-	if err := checkFeature(ctx, "domain_model", "view_entities",
-		"create view entity",
-		"upgrade your project to 10.18+ or use a regular entity with a microflow data source"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -1001,6 +1083,15 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		return mdlerrors.NewAlreadyExistsMsg("entity", s.Name.Module+"."+s.Name.Name, fmt.Sprintf("entity already exists: %s.%s (use create or modify to update, or create or replace to drop and recreate)", s.Name.Module, s.Name.Name))
 	}
 
+	// The query to store. A statement whose query is what the stored one
+	// describes to keeps the stored bytes: describe cannot carry whitespace or
+	// comments outside the query's tokens, and replaying it re-indented the
+	// stored OQL (mendixlabs/mxcli#1627).
+	query := s.Query.RawQuery
+	if existingEntity != nil {
+		query = carriedViewQuery(query, existingEntity.OqlQuery)
+	}
+
 	// CREATE OR REPLACE: delete existing entity and source doc, then recreate
 	if existingEntity != nil && s.CreateOrReplace {
 		// Preserve location from old entity if no explicit position
@@ -1044,7 +1135,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		module.ID,
 		s.Name.Module,
 		s.Name.Name,
-		s.Query.RawQuery,
+		query,
 		s.Documentation,
 	)
 	if err != nil {
@@ -1061,7 +1152,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 	}
 	// A DateTime column's LocalizeDate is the source attribute's, not Mendix's
 	// default: a mismatch is CE6770 (#1297).
-	localize := viewDateTimeLocalize(ctx, s.Query.RawQuery, s.Attributes)
+	localize := viewDateTimeLocalize(ctx, query, s.Attributes)
 	var attrs []*domainmodel.Attribute
 	for _, a := range s.Attributes {
 		attr := &domainmodel.Attribute{
@@ -1070,6 +1161,7 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			Value: &domainmodel.AttributeValue{
 				ViewReference: a.Name, // OQL column alias matches attribute name
 			},
+			ExportLevel: authoredExportLevel(a.ExportLevel),
 		}
 		if dt, ok := attr.Type.(*domainmodel.DateTimeAttributeType); ok && a.Type.Localize == ast.LocalizeUnstated {
 			if l, ok := localize[a.Name]; ok {
@@ -1081,6 +1173,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			attr.ID = ea.ID
 			if ea.Value != nil {
 				attr.Value.ID = ea.Value.ID
+			}
+			if attr.ExportLevel == "" {
+				attr.ExportLevel = ea.ExportLevel // no clause: keep it (#1498)
 			}
 		}
 		attrs = append(attrs, attr)
@@ -1097,7 +1192,8 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		Attributes:        attrs,
 		Source:            "DomainModels$OqlViewEntitySource",
 		SourceDocumentRef: sourceDocRef,
-		OqlQuery:          s.Query.RawQuery,
+		OqlQuery:          query,
+		ExportLevel:       authoredExportLevel(s.ExportLevel),
 	}
 	if autoPlace {
 		entity.Location = dmlayout.Place(dm, entity)
@@ -1123,6 +1219,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 		// A rewrite that carried no doc comment keeps the stored one (#1018).
 		merged.Documentation = carriedDocumentation(
 			s.DocumentationSet, s.Documentation, existingEntity.Documentation)
+		if s.ExportLevel != nil { // absent keeps the stored level (#1498)
+			merged.ExportLevel = *s.ExportLevel
+		}
 		// The ID and the Source object ID (CE-6770) are the stored ones.
 		entity = &merged
 		created = entity
@@ -1159,11 +1258,11 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 			created = stored
 		}
 	}
-	if nameErrors := validateViewAssociationNames(ctx, s.Name.Module, s.Name.Name, s.Query.RawQuery, nil); len(nameErrors) > 0 {
+	if nameErrors := validateViewAssociationNames(ctx, s.Name.Module, s.Name.Name, query, nil); len(nameErrors) > 0 {
 		return mdlerrors.NewValidationf("view entity '%s':\n  - %s",
 			s.Name.String(), strings.Join(nameErrors, "\n  - "))
 	}
-	if err := syncViewEntityAssociations(ctx, module.ID, s.Name.Module, created, s.Query.RawQuery); err != nil {
+	if err := syncViewEntityAssociations(ctx, module.ID, s.Name.Module, created, query); err != nil {
 		return err
 	}
 	invalidateHierarchy(ctx)
@@ -1176,6 +1275,9 @@ func execCreateViewEntity(ctx *ExecContext, s *ast.CreateViewEntityStmt) error {
 func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
+	}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
 	}
 
 	// Find module
@@ -1210,6 +1312,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		}
 		if isViewEntity(entity) {
 			return viewEntityAttributeSetRefusal(s.Name.String(), "add", a.Name)
+		}
+		// Not a name another member on the chain has (CE0069, ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
 		}
 		// A specialization cannot store a system member (see
 		// checkSpecializationSystemMembers): setting the flag here would be
@@ -1263,6 +1369,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			Name:          a.Name,
 			Documentation: a.Documentation,
 			Type:          convertDataType(a.Type),
+			ExportLevel:   authoredExportLevel(a.ExportLevel),
 		}
 		attr.ID = attrID
 		if a.Calculated {
@@ -1341,6 +1448,10 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		}
 		if target == nil {
 			return mdlerrors.NewNotFoundMsg("attribute", s.AttributeName, fmt.Sprintf("attribute '%s' not found on entity %s", s.AttributeName, s.Name))
+		}
+		// Nor a rename into one (CE0069, ako/mxcli#1645).
+		if err := refuseMemberNameClash(ctx, s); err != nil {
+			return err
 		}
 		target.Name = s.NewName
 		// The entity's own access and validation rules hold the attribute's
@@ -1445,6 +1556,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 			return err
 		}
 		found := false
+		keptUnlocalized := false
 		storedSignatures := attributeSignatures(entity)
 		for _, attr := range entity.Attributes {
 			if attr.Name == s.AttributeName {
@@ -1454,7 +1566,7 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 				// the statement says `localized` / `not localized` (#1373);
 				// rebuilding the type reset it to true.
 				if s.DataType.Localize == ast.LocalizeUnstated {
-					carryStoredLocalizeDate(storedType, attr.Type)
+					keptUnlocalized = carryStoredLocalizeDate(storedType, attr.Type)
 				}
 				if s.Calculated {
 					attrValue, err := resolveCalculatedValue(ctx, s.CalculatedMicroflow, s.Name.String(), s.AttributeName, s.DataType)
@@ -1481,6 +1593,9 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 					}
 					attr.Value = &domainmodel.AttributeValue{DefaultValue: defaultStr}
 				}
+				if s.ModifyExportLevel != nil {
+					attr.ExportLevel = *s.ModifyExportLevel
+				}
 				found = true
 				break
 			}
@@ -1494,6 +1609,9 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		invalidateHierarchy(ctx)
 		invalidateDomainModelsCache(ctx)
 		ctx.ReportMutation("Modified", "attribute '%s' on entity %s", s.AttributeName, s.Name)
+		if keptUnlocalized {
+			noteKeptNotLocalized(ctx, s.Name.String(), []string{s.AttributeName})
+		}
 		resyncViewsOverSource(ctx, s.Name.String(), changedAttributes(storedSignatures, entity))
 
 	case ast.AlterEntityDropAttribute:
@@ -1660,6 +1778,14 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		invalidateDomainModelsCache(ctx)
 		fmt.Fprintf(ctx.Output, "Set documentation on entity %s\n", s.Name)
 
+	case ast.AlterEntitySetExportLevel:
+		entity.ExportLevel = s.ExportLevel
+		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
+			return mdlerrors.NewBackend("set export level", err)
+		}
+		invalidateDomainModelsCache(ctx)
+		ctx.ReportMutation("Set", "export level %s on entity %s", exportLevelKeyword(s.ExportLevel), s.Name)
+
 	case ast.AlterEntitySetPosition:
 		if s.Position == nil {
 			return mdlerrors.NewValidation("no position provided")
@@ -1785,61 +1911,77 @@ func execAlterEntity(ctx *ExecContext, s *ast.AlterEntityStmt) error {
 		if err != nil {
 			return err
 		}
-		// Reject duplicate (same Moment + Event)
-		for _, existing := range entity.EventHandlers {
-			if existing.Moment == ehs[0].Moment && existing.Event == ehs[0].Event {
-				// An event handler has no other re-run route: a defensive
-				// drop-then-add fails on the drop when it is absent and on the
-				// add when it is present. IF NOT EXISTS makes the script
-				// idempotent, like ADD ATTRIBUTE. (mxcli-todo findings #18)
-				if s.IfNotExists {
-					fmt.Fprintf(ctx.Output, "Event handler %s %s already exists on %s, skipping\n",
-						s.EventHandler.Moment, s.EventHandler.Event, s.Name)
-					return nil
-				}
-				return mdlerrors.NewAlreadyExistsMsg("event handler",
-					fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event),
-					fmt.Sprintf("event handler already exists for %s %s on %s (use ADD EVENT HANDLER IF NOT EXISTS to make the script re-runnable)", s.EventHandler.Moment, s.EventHandler.Event, s.Name))
+		// A handler is identified by its moment, event AND microflow: Studio
+		// Pro allows several handlers for one event, and CREATE OR MODIFY
+		// stores them, so only the same microflow on the same event is a
+		// duplicate (mendixlabs/mxcli#1540). mxbuild accepts even that
+		// (measured 11.12.4, 0 errors); refusing it is what stops a re-run
+		// from wiring the microflow twice, so it would run twice per commit.
+		mfQN := s.EventHandler.Microflow.String()
+		label := fmt.Sprintf("%s %s call %s", s.EventHandler.Moment, s.EventHandler.Event, mfQN)
+		if matches := matchEventHandlers(ctx, entity, s.EventHandler.Moment, s.EventHandler.Event, mfQN); len(matches) > 0 {
+			// An event handler has no other re-run route: a defensive
+			// drop-then-add fails on the drop when it is absent and on the
+			// add when it is present. IF NOT EXISTS makes the script
+			// idempotent, like ADD ATTRIBUTE. (mxcli-todo findings #18)
+			if s.IfNotExists {
+				fmt.Fprintf(ctx.Output, "Event handler %s already exists on %s, skipping\n", label, s.Name)
+				return nil
 			}
+			return mdlerrors.NewAlreadyExistsMsg("event handler", label,
+				fmt.Sprintf("event handler %s already exists on %s (use ADD EVENT HANDLER IF NOT EXISTS to make the script re-runnable)", label, s.Name))
 		}
 		entity.EventHandlers = append(entity.EventHandlers, ehs[0])
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("add event handler", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Added event handler %s %s on %s\n",
-			s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+		fmt.Fprintf(ctx.Output, "Added event handler %s on %s\n", label, s.Name)
 
 	case ast.AlterEntityDropEventHandler:
 		if s.EventHandler == nil {
 			return mdlerrors.NewValidation("missing event handler reference")
 		}
-		moment := domainmodel.EventMoment(s.EventHandler.Moment)
-		event := domainmodel.EventType(s.EventHandler.Event)
-		idx := -1
-		for i, eh := range entity.EventHandlers {
-			if eh.Moment == moment && eh.Event == event {
-				idx = i
-				break
-			}
+		mfQN := ""
+		if s.EventHandler.Microflow.Name != "" {
+			mfQN = s.EventHandler.Microflow.String()
 		}
-		if idx < 0 {
+		label := fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event)
+		if mfQN != "" {
+			label += " call " + mfQN
+		}
+		matches := matchEventHandlers(ctx, entity, s.EventHandler.Moment, s.EventHandler.Event, mfQN)
+		if len(matches) == 0 {
 			if s.IfExists {
-				fmt.Fprintf(ctx.Output, "Event handler %s %s not present on %s, skipping\n",
-					s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+				fmt.Fprintf(ctx.Output, "Event handler %s not present on %s, skipping\n", label, s.Name)
 				return nil
 			}
-			return mdlerrors.NewNotFoundMsg("event handler",
-				fmt.Sprintf("%s %s", s.EventHandler.Moment, s.EventHandler.Event),
-				fmt.Sprintf("event handler %s %s not found on %s (use DROP EVENT HANDLER IF EXISTS to make the script re-runnable)", s.EventHandler.Moment, s.EventHandler.Event, s.Name))
+			return mdlerrors.NewNotFoundMsg("event handler", label,
+				fmt.Sprintf("event handler %s not found on %s (use DROP EVENT HANDLER IF EXISTS to make the script re-runnable)", label, s.Name))
+		}
+		// Without CALL the drop has to be unambiguous. Taking the first match
+		// would remove whichever handler happens to be stored first, which
+		// is not necessarily the one the author meant — and IF EXISTS does
+		// not help, since the question is which, not whether.
+		if len(matches) > 1 {
+			names := make([]string, 0, len(matches))
+			for _, i := range matches {
+				names = append(names, storedHandlerMicroflow(ctx, entity.EventHandlers[i]))
+			}
+			return mdlerrors.NewValidationf("entity %s has %d %s event handlers (%s); name the one to drop: drop event handler on %s %s call %s",
+				s.Name, len(matches), label, strings.Join(names, ", "),
+				strings.ToLower(s.EventHandler.Moment), strings.ToLower(s.EventHandler.Event), names[0])
+		}
+		idx := matches[0]
+		if mfQN == "" {
+			label += " call " + storedHandlerMicroflow(ctx, entity.EventHandlers[idx])
 		}
 		entity.EventHandlers = append(entity.EventHandlers[:idx], entity.EventHandlers[idx+1:]...)
 		if err := ctx.Backend.UpdateEntity(dm.ID, entity); err != nil {
 			return mdlerrors.NewBackend("drop event handler", err)
 		}
 		invalidateDomainModelsCache(ctx)
-		fmt.Fprintf(ctx.Output, "Dropped event handler %s %s from %s\n",
-			s.EventHandler.Moment, s.EventHandler.Event, s.Name)
+		fmt.Fprintf(ctx.Output, "Dropped event handler %s from %s\n", label, s.Name)
 
 	case ast.AlterEntitySetAllowCreateChangeLocally:
 		entity.CreateChangeLocally = s.BoolValue
@@ -1931,6 +2073,16 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 			// Warn about references before deleting (best-effort)
 			warnEntityReferences(ctx, s.Name.String())
 
+			// DeleteEntity removes every association with this entity at either
+			// end, in other modules too, and their member entries stay behind on
+			// the entity at the other end: CE1613 "The selected association …
+			// no longer exists" (ako/mxcli#1449). Which modules hold those rules
+			// has to be read before the delete, while the associations exist.
+			reconcile, err := associationMemberModules(ctx, module.Name, entity)
+			if err != nil {
+				return err
+			}
+
 			// If this is a view entity, also delete the associated ViewEntitySourceDocument
 			if entity.Source == "DomainModels$OqlViewEntitySource" {
 				if err := ctx.Backend.DeleteViewEntitySourceDocumentByName(s.Name.Module, s.Name.Name); err != nil {
@@ -1941,12 +2093,46 @@ func execDropEntity(ctx *ExecContext, s *ast.DropEntityStmt) error {
 				return mdlerrors.NewBackend("delete entity", err)
 			}
 			invalidateDomainModelsCache(ctx)
+			if err := reconcileModulesAccess(ctx, "after dropping the entity", reconcile...); err != nil {
+				return err
+			}
 			fmt.Fprintf(ctx.Output, "Dropped entity: %s\n", s.Name)
 			return nil
 		}
 	}
 
 	return mdlerrors.NewNotFoundMsg("entity", fmt.Sprint(s.Name), fmt.Sprintf("entity not found: %s", s.Name))
+}
+
+// associationMemberModules names every module whose access rules can hold a
+// member entry for an association with entity (of module moduleName) at one end:
+// the entity's own module, which declares the associations it is the FROM end
+// of; the module of each TO end of those that are cross-module, whose entity is
+// a member under OWNER Both; and every module declaring a cross-module
+// association TO the entity, whose FROM entity holds the entry. The last two are
+// why reconciling the dropped entity's module alone is not enough.
+func associationMemberModules(ctx *ExecContext, moduleName string, entity *domainmodel.Entity) ([]string, error) {
+	modules := []string{moduleName}
+	dms, err := ctx.Backend.ListDomainModels()
+	if err != nil {
+		return nil, mdlerrors.NewBackend("list domain models", err)
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return nil, mdlerrors.NewBackend("build hierarchy", err)
+	}
+	qn := moduleName + "." + entity.Name
+	for _, dm := range dms {
+		for _, ca := range dm.CrossAssociations {
+			switch {
+			case ca.ParentID == entity.ID:
+				modules = append(modules, qualifiedNameModule(ca.ChildRef))
+			case strings.EqualFold(ca.ChildRef, qn):
+				modules = append(modules, h.GetModuleName(dm.ContainerID))
+			}
+		}
+	}
+	return modules, nil
 }
 
 // warnEntityReferences prints a warning if the entity is referenced by other elements.

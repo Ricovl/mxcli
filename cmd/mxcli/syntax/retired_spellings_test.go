@@ -25,8 +25,10 @@ func TestSyntaxDocs_NoRetiredSpellings(t *testing.T) {
 			"the parser rejects it: \"'Binds:' is no longer supported, use 'Attribute:' instead\"",
 		},
 		{
+			// Not retired since ako/mxcli#1516 — `()` parses and stores nothing —
+			// but the reference shows the form DESCRIBE writes.
 			"MICROFLOW Module.MF()",
-			"a zero-argument microflow DATASOURCE takes no parentheses (unlike RETRIEVE/CALL, where they are normal)",
+			"the reference shows a zero-argument call or data source the way DESCRIBE writes it, without parentheses; `()` is accepted and means the same (ako/mxcli#1516)",
 		},
 	}
 

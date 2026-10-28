@@ -17,14 +17,19 @@ import (
 // refused the flow, leaving the script half-applied. The verdict build now
 // resolves calls to flows the script itself declares.
 
-// verdictActStored is the flow as stored: a retrieve whose output a later
-// change reads. Moving both into a sub-flow and calling it replaces the
-// retrieve while the change still reads $Reporter, which the splice refuses.
+// verdictActStored is the flow as stored: a log, a loop and a log. The new
+// body calls a sub-flow and also adds a decision to the loop's body, which
+// the splice refuses (a plain activity it splices there, ako/mxcli#1693). (It used to move a retrieve and its reader into the
+// sub-flow, refused "$Reporter is still used by" — a false refusal, since
+// the reader goes too, which mendixlabs/mxcli#1517 fixed.)
 const verdictActStored = `mdl 1;
-create microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback)
+create microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback, $Items: List of FeedbackModule.Feedback)
 begin
-  retrieve $Reporter from System.User first;
-  change $F (Subject = $Reporter/Name);
+  log info node 'X' 'start';
+  loop $It in $Items
+  begin
+    commit $It;
+  end loop;
   log info node 'X' 'done';
 end;`
 
@@ -35,9 +40,16 @@ begin
 end;`
 
 func verdictActCallingSub(sub string) string {
-	return `create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback)
+	return `create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback, $Items: List of FeedbackModule.Feedback)
 begin
   call microflow MyFirstModule.` + sub + ` (F = $F);
+  loop $It in $Items
+  begin
+    commit $It;
+    if $It/Subject = empty then
+      log info node 'X' 'committed';
+    end if;
+  end loop;
   log info node 'X' 'done';
 end;`
 }
@@ -61,7 +73,7 @@ func verdictRefusals(vs []linter.Violation) string {
 	return strings.Join(says, "\n")
 }
 
-const stillUsed = "is still used by"
+const stillUsed = "changes inside its body"
 
 func TestCheckFlowVerdicts_CallToFlowTheScriptCreates(t *testing.T) {
 	exec, out, _ := openPedAppCopy(t)

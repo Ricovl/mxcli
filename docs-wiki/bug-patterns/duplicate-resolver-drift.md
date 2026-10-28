@@ -57,7 +57,12 @@ one reader, one renderer, one resolver — and taking the type set from
 *Per-doctype copies.* A behaviour implemented per document type drifts by
 construction. The folder clause is the clean example: every doctype's `FOLDER`
 handling had the same bug, and the report that named one of them read as a
-doctype-specific defect.
+doctype-specific defect. Its inverse — *which module owns this document?* — has
+been answered by `GetModule(doc.ContainerID)` in one engine after another, which
+is right only at the module root: the executor's reference checker (#1071), then
+the MCP backend's page mutator and constant/workflow updates (#1593), each beside
+a folder-aware resolver it did not call. The error names the folder's ID as a
+"module not found", which is the tell.
 
 *Two walks over one tree.* The duplication does not need two *resolvers* — two
 traversals of the same structure drift the same way, and faster, because each
@@ -78,6 +83,19 @@ each round of fixes (#997, #794, #839) synchronised one more spot while the
 next rehearsal found phantoms on 66 scripts (#907). The remedy was the general
 one taken literally: diff now runs exec itself on a scratch copy and compares
 units, so there is no second answer left to drift.
+
+`diff-local` is the same shape with no exec to run instead: the older revision
+is not a project anything can DESCRIBE, so it renders each unit's BSON with its
+own per-doctype renderers, and every doctype they render lossily was counted
+as modified and printed nothing — a stub body (mendixlabs/mxcli#1080, #1393),
+a type with no case (project settings, ako/mxcli#1512), a member never printed
+(entity access rules, ako/mxcli#1562). A probe of one statement per kind found
+nine more silent unit kinds. The class is bounded at
+the comparison, not per renderer: git has already said the bytes differ, so
+identical renderings can only mean a lossy renderer, and the unit is reported
+with the property paths that changed — the walker `mxcli diff` uses, now
+shared. A renderer is extended by running the describer's own writer on the
+parsed old document (`Parse…FromRaw`), never by writing a second one.
 
 *A hand-kept list of statement kinds.* The most prolific variant found this
 cycle, because a `switch` over AST types is how everything in the executor is

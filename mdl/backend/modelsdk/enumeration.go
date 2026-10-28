@@ -54,6 +54,7 @@ func enumToModel(e *genEnum.Enumeration, containerID model.ID) *model.Enumeratio
 		Name:          e.Name(),
 		Documentation: e.Documentation(),
 		Excluded:      e.Excluded(),
+		ExportLevel:   e.ExportLevel(),
 	}
 	out.ID = model.ID(e.ID())
 	out.TypeName = "Enumerations$Enumeration"

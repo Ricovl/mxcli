@@ -7,8 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
@@ -254,7 +253,7 @@ func idField(d bson.D, key string) (string, bool) {
 		switch v := e.Value.(type) {
 		case []byte:
 			return fmt.Sprintf("%x", v), true
-		case primitive.Binary:
+		case bson.Binary:
 			return fmt.Sprintf("%x", v.Data), true
 		case string:
 			return v, true

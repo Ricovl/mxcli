@@ -316,6 +316,27 @@ access is out of date". The one exception is entities extending `System.User`, w
 inherited platform members Mendix manages and which must not be granted. See
 `manage-security`.
 
+**Member names are unique along the chain.** An inherited member *is* a member of
+the child, so the child cannot declare one of the same name — not an attribute, and
+not an association it owns (the association's name is a member of its FROM entity,
+and under `owner both` of its TO entity too). That holds up the chain to the System
+entities (`System.User` has `Name` and the association `UserRoles`;
+`System.FileDocument` has `Name` and `Size`) and down it: a generalization cannot
+gain a member a specialization already declares. An entity's own attribute and
+association cannot share a name either. Names that differ only in case do not
+collide. `mxcli check` refuses each (MDL-MEMBER01); Mendix reports CE0069
+"Duplicate member name".
+
+```sql
+mdl 1;
+-- ❌ WRONG: Employee inherits Name from Person — CE0069 "Duplicate member name 'Name'."
+create persistent entity Module.Person (Name: string(100));
+create persistent entity Module.Employee extends Module.Person (Name: string(100));
+```
+
+Drop the child's copy and use the inherited one, or give it another name
+(`DisplayName`).
+
 #### System Attributes (Auditing)
 
 Mendix supports four built-in auditing properties on persistent entities. Declare them as regular attributes using pseudo-types (like `autonumber`):
@@ -435,15 +456,15 @@ on after create call Sales.ACT_InitDefaults;
 alter entity Sales.Order
   add event handler on before delete call Sales.ACT_CheckCanDelete raise error;
 
--- Drop via ALTER ENTITY
+-- Drop via ALTER ENTITY (call names which, when the event has several)
 alter entity Sales.Order
-  drop event handler on before commit;
+  drop event handler on before commit call Sales.ACT_ValidateOrder;
 ```
 
 **Moments**: `before`, `after`
 **Events**: `create`, `commit`, `delete`, `rollback`
 
-Each (Moment, Event) combination can only have one handler per entity. The microflow must exist (the executor validates the reference). `raise error` is optional — without it, the handler runs but its return value doesn't affect the operation.
+An entity may have several handlers for one (Moment, Event), as in Studio Pro: a handler is identified by its moment, event and microflow, so `add event handler` with another microflow adds a second one, and `drop event handler … call Mod.MF` says which to remove (without `call`, a drop matching several is refused). The microflow must exist (the executor validates the reference). `raise error` is optional — without it, the handler runs but its return value doesn't affect the operation.
 
 ### Associations
 
@@ -534,6 +555,12 @@ both is refused as **MDL085**.
 - `both` - Both sides own the association (bidirectional)
 - `Parent` - Only parent (TO) entity owns
 - `Child` - Only child (FROM) entity owns
+
+> **Persistent ↔ non-persistent: FROM the non-persistent entity, owner `default`.**
+> That is the only shape Mendix accepts between a persistable and a
+> non-persistable entity; a persistent FROM end or `owner both` is **CE0001**, and
+> `mxcli check` refuses it as **MDL-ASSOC01** (`alter association … set owner
+> both` too).
 
 > **Use `default` ownership for a normal to-one reference.** Reserve `owner both`
 > for a `ReferenceSet` (many-to-many). On a plain `type reference`, `owner both`
@@ -682,8 +709,9 @@ create persistent entity Module."VATRate" (
 > quoted** (the check strips the quotes and still flags them): `Type` (CE7247, MDL021),
 > the audit attributes `CreatedDate` / `ChangedDate` / `Owner` / `ChangedBy` (MDL020 — use
 > the `AutoCreatedDate` / `AutoChangedDate` / `AutoOwner` / `AutoChangedBy` pseudo-types
-> instead), plus `ID`, `GUID`, `CurrentUser` and the Java-keyword list. `"Type": String`
-> fails MDL021 — rename to `ResourceType` / `TypeValue`.
+> instead), plus `ID`, `GUID`, `CurrentUser`, `Object` and the Java-keyword list. `"Type": String`
+> fails MDL021 — rename to `ResourceType` / `TypeValue`. The same list applies to page,
+> snippet, Java action and JavaScript action **parameters** (MDL-PARAM01).
 
 > **Caveat 2 — a third grammar: OQL, where quoting DOES work.** `Year`, `Month`,
 > `Quarter`, `Week`, `Day`, `Hour`, `Minute`, `Second`, `Weekday`, `DayOfYear`,

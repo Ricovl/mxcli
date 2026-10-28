@@ -138,6 +138,10 @@ type NavigationListItem struct {
 	Class          string `json:"class,omitempty"`
 	Style          string `json:"style,omitempty"`
 	DynamicClasses string `json:"dynamicClasses,omitempty"`
+	// ConditionalVisibility is the item's own Forms$ConditionalVisibilitySettings
+	// — an expression, attribute condition and/or module roles, as a widget's.
+	// nil is the null Studio Pro stores on an unrestricted item (#1460).
+	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
 }
 
 // LinkButton represents a link-style button.
@@ -187,6 +191,21 @@ type FlowCallSettings struct {
 	FormValidations string            `json:"formValidations,omitempty"` // microflow only: "" (All) | All | Widget | None
 }
 
+// FlowOutputMapping is Forms$OutputMapping, one row of Studio Pro's "Return
+// value mappings": a value read from the flow's result into the page.
+//
+// The target is an attribute of the data container's object (TargetAttribute,
+// qualified) or a page variable (TargetVariable, stored in the mapping's
+// SourceVariable despite the name). The source is an attribute of the returned
+// object (SourceAttribute, qualified) or an Expression; neither set means the
+// return value itself.
+type FlowOutputMapping struct {
+	TargetAttribute string `json:"targetAttribute,omitempty"`
+	TargetVariable  string `json:"targetVariable,omitempty"`
+	SourceAttribute string `json:"sourceAttribute,omitempty"`
+	Expression      string `json:"expression,omitempty"`
+}
+
 // ConfirmationInfo is Forms$ConfirmationInfo: the question asked before a flow
 // call runs, and the captions of its two buttons.
 type ConfirmationInfo struct {
@@ -226,6 +245,8 @@ type PageClientParameterMapping struct {
 	// explicit mapping whose Variable is a Forms$PageVariable, as Studio Pro
 	// does. Empty means the argument is the context object, which Mendix infers
 	// from an empty ParameterMappings array (#296). See mendixlabs/mxcli#1403.
+	// "widget" is a control-bar button passing its grid's selection, Variable
+	// then naming the grid (mendixlabs/mxcli#122).
 	VariableKind string `json:"variableKind,omitempty"`
 }
 
@@ -274,6 +295,9 @@ type MicroflowClientAction struct {
 	MicroflowID       model.ID                     `json:"microflowId"`
 	MicroflowName     string                       `json:"microflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*MicroflowParameterMapping `json:"parameterMappings,omitempty"`
+	// OutputMappings are the call's return value mappings (Mendix 11.5),
+	// stored in its MicroflowSettings.
+	OutputMappings []*FlowOutputMapping `json:"outputMappings,omitempty"`
 }
 
 func (MicroflowClientAction) isClientAction() {}
@@ -299,6 +323,8 @@ type NanoflowClientAction struct {
 	NanoflowID        model.ID                    `json:"nanoflowId"`
 	NanoflowName      string                      `json:"nanoflowName,omitempty"` // Qualified name for BSON serialization
 	ParameterMappings []*NanoflowParameterMapping `json:"parameterMappings,omitempty"`
+	// OutputMappings are the call's return value mappings (Mendix 11.5).
+	OutputMappings []*FlowOutputMapping `json:"outputMappings,omitempty"`
 }
 
 func (NanoflowClientAction) isClientAction() {}
@@ -388,6 +414,43 @@ type SetTaskOutcomeClientAction struct {
 }
 
 func (SetTaskOutcomeClientAction) isClientAction() {}
+
+// OpenUserTaskClientAction is Studio Pro's "Show user task page": it opens the
+// page of the user task in the enclosing data container. AssignOnOpen is
+// "Auto-assign"; OpenWhenAssigned is "Who can open", true for "Users with
+// access" and false for "Assigned user". Nil leaves either unwritten, for a
+// project older than Mendix 9.20, which introduced both.
+type OpenUserTaskClientAction struct {
+	model.BaseElement
+	ActionExecution
+	AssignOnOpen     *bool `json:"assignOnOpen,omitempty"`
+	OpenWhenAssigned *bool `json:"openWhenAssigned,omitempty"`
+}
+
+func (OpenUserTaskClientAction) isClientAction() {}
+
+// OpenWorkflowClientAction is Studio Pro's "Show workflow admin page": it opens
+// the admin page of the workflow in the enclosing data container. DefaultPage
+// is a page qualified name, "" for none.
+type OpenWorkflowClientAction struct {
+	model.BaseElement
+	ActionExecution
+	DefaultPage string `json:"defaultPage,omitempty"`
+}
+
+func (OpenWorkflowClientAction) isClientAction() {}
+
+// CallWorkflowClientAction is Studio Pro's "Call workflow": it starts the
+// workflow with the enclosing data container's object as its context.
+type CallWorkflowClientAction struct {
+	model.BaseElement
+	ActionExecution
+	WorkflowName string            `json:"workflowName,omitempty"` // Qualified name e.g. "Module.Workflow"
+	ClosePage    bool              `json:"closePage"`
+	Confirmation *ConfirmationInfo `json:"confirmation,omitempty"`
+}
+
+func (CallWorkflowClientAction) isClientAction() {}
 
 // LinkType represents the type of link.
 type LinkType string

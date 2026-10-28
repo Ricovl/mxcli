@@ -4,6 +4,7 @@ package docker
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -108,21 +109,44 @@ func (s CheckSpec) CountSelectors() []string {
 
 // EvaluatePage returns the reasons a page fails, empty when it passes.
 //
-// A page fails when the browser was refused it (HTTP >= 400), when it shows
-// the sign-in form instead of itself, when it shows an error banner or error
+// A page fails when it was still loading when the wait ran out, when the
+// browser was refused it (HTTP >= 400), when the runtime refused it to the
+// signed-in user (403: the user's roles may not open it), when it shows
+// the sign-in form instead of itself, when a /p/ URL ended somewhere else (an
+// unknown page URL lands on the home page), when it shows an error banner or error
 // dialog, when the console reports an error, when a same-origin request it
 // made failed, or when an assertion does not hold. Warnings and validation
 // messages are reported in the verdict but do not fail it.
 func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 	var fails []string
+	// A page measured before it finished loading may be missing exactly what
+	// the check is for — the rows of a list whose data had not arrived
+	// (ako/mxcli#845) — so it cannot pass, whatever else it shows. The sign-in
+	// form is not that page, and no longer wait would turn it into the page:
+	// its failure below is the one that says what to do.
+	if sig.Unsettled && !sig.LoginForm {
+		fails = append(fails, "still loading when measured, so the verdict may describe a partly "+
+			"rendered page (raise --wait if it is only slow)")
+	}
 	if sig.Status >= 400 {
 		fails = append(fails, fmt.Sprintf("HTTP %d", sig.Status))
 	}
 	switch {
+	case sig.AccessDenied():
+		fails = append(fails, sig.accessDeniedReason())
 	case sig.LoginForm:
 		fails = append(fails, "the sign-in form is showing, not the page (pass --user/--password or --role)")
 	case sig.NeedsLogin():
 		fails = append(fails, "not signed in: the runtime answered 401 (pass --user/--password or --role)")
+	}
+	// Everything else describes the page the browser ended on. For an unknown
+	// /p/ URL that is the home page, which renders cleanly (ako/mxcli#998).
+	if requested, landed, home := sig.wrongPage(); requested != "" {
+		f := fmt.Sprintf("the browser ended on %s, not on %s", landed, requested)
+		if home {
+			f += ": the client sends a /p/ URL it has no page for to the home page"
+		}
+		fails = append(fails, f)
 	}
 	if n := len(sig.ErrorAlerts); n > 0 {
 		fails = append(fails, fmt.Sprintf("%d error banner(s)", n))
@@ -130,8 +154,15 @@ func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 	// On the sign-in form the client's own 401s are the consequence of not
 	// being signed in, not separate failures; counting them would bury the one
 	// reason that matters.
+	//
+	// A refused page never started at all: the 403 and the client's "[Startup]
+	// An error occurred while creating a new session" are the refusal itself,
+	// so none of them count. They stay on the verdict's ERR and HTTP lines.
 	consoleErrs, httpErrs := sig.ConsoleErrors, sig.HTTPErrors
-	if sig.NeedsLogin() {
+	switch {
+	case sig.AccessDenied():
+		consoleErrs, httpErrs = nil, nil
+	case sig.NeedsLogin():
 		consoleErrs, httpErrs = without401(consoleErrs), without401(httpErrs)
 	}
 	if n := len(consoleErrs); n > 0 && !spec.AllowConsoleErrors {
@@ -165,7 +196,15 @@ func EvaluatePage(sig PageSignals, spec CheckSpec) []string {
 // signed in: the sign-in form is up, or the runtime refused the client's
 // session with a 401. A session the runtime has forgotten (it restarted) shows
 // the second: the client gets a 401 and renders nothing, with no form at all.
+//
+// A page the user may not open also ends on the sign-in form, but the browser
+// is signed in: the runtime knew the session and refused the page. Signing in
+// again as the same user gets the same answer, so that is not this — and
+// reading it as this replaced a live session with a new one on every check.
 func (s PageSignals) NeedsLogin() bool {
+	if s.AccessDenied() {
+		return false
+	}
 	if s.LoginForm || s.Status == 401 {
 		return true
 	}
@@ -175,6 +214,40 @@ func (s PageSignals) NeedsLogin() bool {
 		}
 	}
 	return false
+}
+
+// AccessDenied reports that the runtime refused the page to the browser's
+// signed-in user: the user's roles may not open it. Measured on 11.13 and
+// 11.15: the runtime answers the client's session request for such a page
+// (POST /xas/ get_session_data, referrer the page) with 403, and the client
+// goes to /login.html?messageCode=403#/<page>. That is the sign-in form, with
+// no message on it — login.js misreads the code, so its "not enough
+// permissions" text never shows, and it would be translated if it did.
+// Anonymous, or with a session the runtime has forgotten, the same request is
+// answered 401 and the client goes to /login.html#/<page>: the same form
+// without the code, guest access on or off. So the code in the URL is the one
+// signal that tells "sign in" from "this user may not".
+func (s PageSignals) AccessDenied() bool {
+	if s.FinalURL == "" {
+		return false
+	}
+	u, err := url.Parse(s.FinalURL)
+	if err != nil {
+		return false
+	}
+	return u.Query().Get("messageCode") == "403"
+}
+
+// accessDeniedReason is the failure for a page the signed-in user was refused.
+func (s PageSignals) accessDeniedReason() string {
+	page := "the page"
+	if req, _, ok := s.locations(); ok {
+		page = relativeURL(req)
+	}
+	if s.SignedInAs == "" {
+		return fmt.Sprintf("access denied: the runtime refused %s to the signed-in user (403)", page)
+	}
+	return fmt.Sprintf("access denied: signed in as %s, the runtime refused %s (403)", s.SignedInAs, page)
 }
 
 func without401(ss []string) []string {

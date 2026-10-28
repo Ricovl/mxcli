@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -27,8 +27,8 @@ import (
 // SnippetParameter (58) and Widget (17, a grid's selection — no MDL syntax).
 
 // paramVariable returns the Variable sub-document of a parameter mapping, or nil.
-func paramVariable(pm bsonv1.D) bsonv1.D {
-	v, ok := docGet(pm, "Variable").(bsonv1.D)
+func paramVariable(pm bson.D) bson.D {
+	v, ok := docGet(pm, "Variable").(bson.D)
 	if !ok {
 		return nil
 	}
@@ -70,7 +70,7 @@ func TestMicroflowActionBindsPageParameterThroughVariable(t *testing.T) {
 			{ParameterName: "BufferDefinition", Variable: "$BufferDefinition", VariableKind: "parameter"},
 		},
 	}
-	settings, ok := docGet(encodeAction(t, a), "MicroflowSettings").(bsonv1.D)
+	settings, ok := docGet(encodeAction(t, a), "MicroflowSettings").(bson.D)
 	if !ok {
 		t.Fatalf("MicroflowSettings missing")
 	}
@@ -117,7 +117,7 @@ func TestFlowActionKeepsLiteralArgumentAsExpression(t *testing.T) {
 			{ParameterName: "KeepAsTargetUser", Expression: "true"},
 		},
 	}
-	settings, _ := docGet(encodeAction(t, a), "MicroflowSettings").(bsonv1.D)
+	settings, _ := docGet(encodeAction(t, a), "MicroflowSettings").(bson.D)
 	pm := firstParamMapping(t, settings)
 
 	if got := docGet(pm, "Expression"); got != "true" {

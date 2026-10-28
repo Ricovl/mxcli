@@ -405,6 +405,10 @@ func (unimplemented) Disconnect() error {
 	return errUnimplemented("Disconnect")
 }
 
+func (unimplemented) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) error {
+	return errUnimplemented("EditConsumedRestService")
+}
+
 func (unimplemented) ExportJSON() ([]uint8, error) {
 	var r0 []uint8
 	return r0, errUnimplemented("ExportJSON")
@@ -909,9 +913,19 @@ func (unimplemented) MoveViewEntitySourceDocument(_ string, _ model.ID, _ string
 	return errUnimplemented("MoveViewEntitySourceDocument")
 }
 
+func (unimplemented) OpenMenuDocumentForMutation(_ model.ID) (backend.MenuMutator, error) {
+	var r0 backend.MenuMutator
+	return r0, errUnimplemented("OpenMenuDocumentForMutation")
+}
+
 func (unimplemented) OpenMicroflowForMutation(_ model.ID) (backend.MicroflowMutator, error) {
 	var r0 backend.MicroflowMutator
 	return r0, errUnimplemented("OpenMicroflowForMutation")
+}
+
+func (unimplemented) OpenNavigationProfileForMutation(_ string) (backend.NavigationProfileMutator, error) {
+	var r0 backend.NavigationProfileMutator
+	return r0, errUnimplemented("OpenNavigationProfileForMutation")
 }
 
 func (unimplemented) OpenPageForMutation(_ model.ID) (backend.PageMutator, error) {
@@ -929,6 +943,11 @@ func (unimplemented) PageLayoutName(_ model.ID) (string, error) {
 	return r0, errUnimplemented("PageLayoutName")
 }
 
+func (unimplemented) ParseDomainModelFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) (*domainmodel.DomainModel, error) {
+	var r0 *domainmodel.DomainModel
+	return r0, errUnimplemented("ParseDomainModelFromRaw")
+}
+
 func (unimplemented) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (*microflows.Microflow, error) {
 	var r0 *microflows.Microflow
 	return r0, errUnimplemented("ParseMicroflowBSON")
@@ -942,6 +961,11 @@ func (unimplemented) ParseMicroflowFromRaw(_ map[string]interface{}, _ model.ID,
 func (unimplemented) ParseNanoflowFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) *microflows.Nanoflow {
 	var r0 *microflows.Nanoflow
 	return r0
+}
+
+func (unimplemented) ParseProjectSettingsFromRaw(_ map[string]interface{}) (*model.ProjectSettings, error) {
+	var r0 *model.ProjectSettings
+	return r0, errUnimplemented("ParseProjectSettingsFromRaw")
 }
 
 func (unimplemented) Path() string {
@@ -1016,8 +1040,8 @@ func (unimplemented) RemoveUserRole(_ model.ID, _ string) error {
 	return errUnimplemented("RemoveUserRole")
 }
 
-func (unimplemented) RenameDocumentByName(_ string, _ string, _ string) error {
-	return errUnimplemented("RenameDocumentByName")
+func (unimplemented) RenameDocument(_ model.ID, _ string, _ string) error {
+	return errUnimplemented("RenameDocument")
 }
 
 func (unimplemented) RenameJavaScriptSourceFile(_ string, _ string, _ string) error {
@@ -1058,6 +1082,10 @@ func (unimplemented) SetDomainModelAnnotations(_ model.ID, _ []*domainmodel.Anno
 
 func (unimplemented) SetDomainModelDocumentation(_ model.ID, _ string) error {
 	return errUnimplemented("SetDomainModelDocumentation")
+}
+
+func (unimplemented) SetProjectAdminPassword(_ model.ID, _ string) error {
+	return errUnimplemented("SetProjectAdminPassword")
 }
 
 func (unimplemented) SetProjectAdminUserName(_ model.ID, _ string) error {
@@ -1283,7 +1311,7 @@ func (unimplemented) WriteJavaScriptSourceFile(_ string, _ string, _ string, _ [
 	return errUnimplemented("WriteJavaScriptSourceFile")
 }
 
-func (unimplemented) WriteJavaSourceFile(_ string, _ string, _ string, _ []*types.JavaActionParameter, _ types.CodeActionReturnType, _ []string, _ string) error {
+func (unimplemented) WriteJavaSourceFile(_ string, _ string, _ string, _ []*types.JavaActionParameter, _ types.CodeActionReturnType, _ []string, _ *string, _ string) error {
 	return errUnimplemented("WriteJavaSourceFile")
 }
 

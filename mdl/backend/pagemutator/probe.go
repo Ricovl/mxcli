@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -129,4 +129,18 @@ func (m *Mutator) WidgetStorageType(widgetRef string) (bsonType, widgetID string
 		widgetID = bsonnav.DGetString(t, "WidgetId")
 	}
 	return bsonType, widgetID
+}
+
+// DocumentPlatform reports whether the document is a native one, so its widgets
+// take the native design-property definitions (ako/mxcli#1679). A snippet says
+// so in its Type and a layout in its content's $Type; a page is native when its
+// layout is, so it names that layout (FormCall.Form) for the caller to resolve.
+func (m *Mutator) DocumentPlatform() (native bool, layout string) {
+	switch m.containerType {
+	case backend.ContainerSnippet:
+		return bsonnav.DGetString(m.rawData, "Type") == "Native", ""
+	case backend.ContainerLayout:
+		return bsonnav.DGetString(bsonnav.DGetDoc(m.rawData, "Content"), "$Type") == "Forms$NativeLayoutContent", ""
+	}
+	return false, bsonnav.DGetString(bsonnav.DGetDoc(m.rawData, "FormCall"), "Form")
 }

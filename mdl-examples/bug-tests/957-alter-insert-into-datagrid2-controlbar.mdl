@@ -1,0 +1,41 @@
+mdl 1;
+-- mendixlabs/mxcli#957: after `drop` removed a Data grid 2's last control-bar
+-- button, describe printed no `controlbar` block and every route back was
+-- refused: `insert into controlBar1` ("not found" — the bar stores no name)
+-- and `insert into dataGrid1` ("not a simple container"). The slot itself was
+-- still in the model, empty.
+--
+-- A pluggable widget's slot is now addressed by the widget and the keyword
+-- describe prints, like a data view's footer: `dataGrid1.controlbar`.
+--
+-- Expected: the describe below shows dgItems with
+--   controlbar { actionbutton btnAdd (Caption: 'Add', …) }
+
+create module Bug957;
+
+create persistent entity Bug957.Item (Name: string(50));
+
+create page Bug957.Items (
+  title: 'Items',
+  layout: Atlas_Core.Atlas_Default
+) {
+  datagrid dgItems (DataSource: database Bug957.Item) {
+    controlbar {
+      actionbutton btnOld (Caption: 'Old', Action: close page)
+    }
+    column (Attribute: Name)
+  }
+};
+
+-- Empty the bar, then bring a button back into it.
+alter page Bug957.Items {
+  drop btnOld
+};
+
+alter page Bug957.Items {
+  insert into dgItems.controlbar {
+    actionbutton btnAdd (Caption: 'Add', Action: close page)
+  }
+};
+
+describe page Bug957.Items;

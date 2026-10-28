@@ -10,19 +10,20 @@ description: "Create and manage JSON structures, import mappings and export mapp
 
 | lines | section |
 |---|---|
-| 32-109 | Key Concepts |
-| 110-121 | Export Mappings |
-| 122-186 | JSON Structures |
-| 187-228 | Message Definitions |
-| 229-389 | Import Mappings |
-| 390-487 | Export Mappings |
-| 488-505 | Starting a Mapping Below the Payload Root |
-| 506-575 | Microflow Actions |
-| 576-588 | Browse |
-| 589-636 | Export Workflow: PE → NPE → JSON |
-| 637-643 | Realistic Example: Countries REST API |
-| 644-667 | Placing Documents in Folders |
-| 668-682 | Common Mistakes |
+| 33-110 | Key Concepts |
+| 111-122 | Export Mappings |
+| 123-187 | JSON Structures |
+| 188-229 | Message Definitions |
+| 230-393 | Import Mappings |
+| 394-491 | Export Mappings |
+| 492-509 | Starting a Mapping Below the Payload Root |
+| 510-593 | Microflow Actions |
+| 594-606 | Browse |
+| 607-654 | Export Workflow: PE → NPE → JSON |
+| 655-661 | Realistic Example: Countries REST API |
+| 662-685 | Placing Documents in Folders |
+| 686-701 | Documentation |
+| 702-716 | Common Mistakes |
 
 <!-- /skill-index -->
 # JSON Structures, Import Mappings & Export Mappings
@@ -385,6 +386,9 @@ Using `parameter` without declaring one is refused — the build reports it as
 CE0279. The declared entity must match the microflow's parameter type, which the
 build checks as CE0282.
 
+The **activity** that calls such a mapping passes the object in its settings
+list, `(Parameter: $Obj)` — see "Settings" under Import from Mapping below.
+
 ---
 
 ## Export Mappings
@@ -514,6 +518,20 @@ $PetResponse = import from mapping Module.IMM_Pet($JsonContent);
 -- Without result variable (persistent entities, stores to DB)
 import from mapping Module.IMM_Pet($JsonContent);
 ```
+
+#### Settings — the input object and the commit mode
+
+A settings list after the source variable holds the activity's dialog:
+
+```sql
+import from mapping Module.IMM_Embed($Json) (Parameter: $Collection);
+$Pets = import from mapping Module.IMM_Pets($Json) (Commit: No) all;
+```
+
+- `Parameter: $Obj` — the mapping's input object. **Required** for a mapping
+  declared with `parameter Module.Entity` (without it mxbuild reports CE0244),
+  and refused on a mapping without one (CE0246); `exec` refuses both.
+- `Commit: Yes | YesWithoutEvents | No` — omitted means YesWithoutEvents.
 
 #### Range — how much of the result to bind
 
@@ -664,6 +682,22 @@ adding a folder to an existing script is safe and removing one is a no-op.
 `describe` emits the clause, so a description replays into the same folder.
 
 See `organize-project` for `move` and the full folder story.
+
+## Documentation
+
+A `/** … */` doc comment directly above the `create` is the document's
+documentation — for JSON structures, import and export mappings alike (and for
+published REST services and data transformers). It is what `lint` QUAL002 asks
+for, and `describe` prints it back. On `create or modify`, **no** comment keeps
+the stored text and an empty `/** */` clears it:
+
+```mdl
+mdl 1;
+/** Maps the order payload of the shop API onto Sales.Order. */
+create or modify import mapping Sales.IMM_Order
+  with json structure Sales.JSON_Order
+{ create Sales.Order { OrderId = id, Total = total } };
+```
 
 ## Common Mistakes
 

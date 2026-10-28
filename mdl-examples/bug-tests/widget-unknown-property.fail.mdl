@@ -1,0 +1,39 @@
+mdl 1;
+-- ============================================================================
+-- Unknown properties on a built-in widget are silently dropped (now refused)
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   A property a core (non-pluggable) widget doesn't consume — a typo like
+--   `Contnet`, or a genuinely unsupported key — passed `mxcli check` + `exec`
+--   with no error and was silently dropped on write. Pluggable widgets already
+--   rejected unknown keys (MDL-WIDGET01); built-in widgets had no such check.
+--
+-- Fix:
+--   MDL-WIDGET07 — a WARNING on any property outside the union of every
+--   built-in widget's vocabulary, with a "did you mean" hint.
+--
+--   Superseded by ako/mxcli#1698: each built-in widget is now judged by the
+--   properties ITS builder writes (widget_native_props.go), which is what made
+--   a refusal safe. Under `mdl 1;` (this script) both keys below are refused
+--   (MDL-WIDGET52), so the script is a negative test; without the header they
+--   are dropped and warned about (MDL-V1-WIDGETPROP). Renamed from
+--   widget-unknown-property.mdl.
+--
+-- Usage (expect two MDL-WIDGET52 errors — check fails):
+--   mxcli check mdl-examples/bug-tests/widget-unknown-property.fail.mdl
+-- ============================================================================
+
+create or modify page MyFirstModule.P_UnknownProp
+( Title: 'Unknown prop', Layout: Atlas_Core.Atlas_Default )
+{
+  -- all recognized → no warning
+  dynamictext ok ( Content: 'hi', Class: 'c', DynamicClasses: if true then 'a' else '', RenderMode: H1 )
+  -- typo of a real property → MDL-WIDGET52 "did you mean `Content`?"
+  dynamictext typo ( Content: 'hi', Contnet: 'oops' )
+  -- genuinely unknown property → MDL-WIDGET52 (no suggestion)
+  dynamictext unknown ( Content: 'hi', TotallyMadeUp: 'x' )
+  -- describe-vocabulary props on a native image → no warning
+  image img ( ImageType: imageUrl, ImageUrl: 'https://example.com/x.png',
+              WidthUnit: pixels, Width: 36, HeightUnit: pixels, Height: 36 )
+};

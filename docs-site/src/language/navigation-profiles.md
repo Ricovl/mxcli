@@ -17,12 +17,16 @@ A navigation profile defines the navigation structure for a specific device type
 The web kinds are a closed set and the profile is **created** if the project
 does not have it yet. The offline kinds are the online names plus `Offline`.
 
-## CREATE OR REPLACE NAVIGATION
+## CREATE OR MODIFY NAVIGATION
 
-Replaces an entire navigation profile:
+Sets the clauses it states on a navigation profile. Every clause is optional,
+and an omitted clause keeps the stored value: a statement with only a menu
+keeps the home page, role home pages, login page and not-found page. The
+`{ }` block replaces the whole menu, and `HOME … FOR <UserRole>` replaces the
+home page of that role only.
 
 ```sql
-CREATE OR REPLACE NAVIGATION <Profile>
+CREATE OR MODIFY NAVIGATION <Profile>
   HOME PAGE <Module>.<Page>
   [HOME PAGE <Module>.<Page> FOR <UserRole>]
   [LOGIN PAGE <Module>.<Page>]
@@ -96,7 +100,7 @@ The words are the values Mendix stores, not Studio Pro's captions — its
 "All Objects" is `all` and its "By XPath" is `where`. Copying a caption gives a
 parse error rather than a broken document.
 
-See [ALTER NAVIGATION](../reference/navigation/alter-navigation.md#offline-synchronization)
+See [CREATE NAVIGATION](../reference/navigation/create-navigation.md#offline-synchronization)
 for the full reference.
 
 ## DESCRIBE NAVIGATION
@@ -111,7 +115,28 @@ DESCRIBE NAVIGATION;
 DESCRIBE NAVIGATION Responsive;
 ```
 
-The output is round-trippable -- you can copy it, modify it, and execute it as a `CREATE OR REPLACE NAVIGATION` statement.
+The output is round-trippable -- you can copy it, modify it, and execute it as a `CREATE OR MODIFY NAVIGATION` statement.
+
+## ALTER NAVIGATION
+
+To change one menu item, or to clear a page clause, edit the stored profile
+instead of restating it. The items are addressed by the captions DESCRIBE
+prints, as a path (`'Admin' > 'Users'`); `LIST NAVIGATION MENU` prints each
+item's address.
+
+```sql
+ALTER NAVIGATION Responsive {
+  INSERT AFTER 'Home' { MENU ITEM 'Orders' ( OnClick: SHOW PAGE Shop.Order_Overview ) }
+  SET ( Caption: 'User accounts' ) ON 'Admin' > 'Users';
+  MOVE 'Log out' AFTER 'Help';
+  DROP 'Old import';
+  DROP NOT FOUND PAGE;
+};
+```
+
+Everything the statement does not name stays exactly as stored. See
+[ALTER NAVIGATION](../reference/navigation/alter-navigation.md) for every
+operation; `ALTER MENU` does the same for a menu document.
 
 ## See Also
 

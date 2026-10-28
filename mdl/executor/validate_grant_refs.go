@@ -79,6 +79,7 @@ type grantResolver struct {
 	userRolesRead bool
 	entities      map[string]bool
 	docs          map[string]map[string]bool
+	xpath         *grantXPathResolver // built on the first WHERE
 }
 
 func (g *grantResolver) recordLater(stmt ast.Statement) {
@@ -144,6 +145,7 @@ func (g *grantResolver) check(stmt ast.Statement) []string {
 		roles(s.Roles, true)
 		if entityOK {
 			add(g.memberProblem(s.Entity, s.Rights))
+			add(g.xpathProblem(s.Entity, s.XPathConstraint))
 		}
 	case *ast.RevokeEntityAccessStmt:
 		g.entityTargetProblem(s.Entity, &out)
@@ -205,6 +207,18 @@ func (g *grantResolver) check(stmt ast.Statement) []string {
 		if s.GuestUserRole != "" {
 			add(g.userRoleProblem(s.GuestUserRole))
 		}
+	case *ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
+		// `Visible: roles (…)` stores the names unresolved, as `create user
+		// role` does — a dangling one is CE1613 a build later (#1460).
+		forEachWidget(stmt, func(w *ast.WidgetV3, where string) {
+			for _, r := range widgetVisibleRoles(w) {
+				if qn, ok := splitQualified(r); ok {
+					if msg := g.moduleRoleProblem(qn); msg != "" {
+						add(where + ": Visible: roles: " + msg)
+					}
+				}
+			}
+		})
 	}
 	return out
 }
@@ -467,9 +481,65 @@ func (g *grantResolver) userRoleProblem(name string) string {
 // with "entity … has no member(s) …". Only a stored entity is judged, and not
 // one the script alters: a member list built from a declaration or an altered
 // entity would be a second, drifting copy of exec's.
+// xpathProblem resolves the members an access rule's WHERE names, against the
+// granted entity (mendixlabs/mxcli#1472). The constraint is judged as exec
+// stores it (accessRuleXPathConstraint), by the walk the widget and retrieve
+// constraints use, over the project and what the whole script declares — exec
+// writes the rule unresolved, so a member created further down is no defect.
+// Measured on 11.13.0 at security level Prototype:
+//
+//	where [Administration.NoSuchAssoc/…]  CE1613 "The selected association
+//	  'Administration.NoSuchAssoc' no longer exists." at Access rule of entity
+//
+// (At level Off mxbuild does not check access rules at all; the rule is still
+// dangling, and fails the build the day security is switched on.)
+func (g *grantResolver) xpathProblem(qn ast.QualifiedName, xpath string) string {
+	if strings.TrimSpace(xpath) == "" {
+		return ""
+	}
+	name := qn.String()
+	if g.whole.indirectEntities[name] {
+		return "" // members not known to the script
+	}
+	if g.xpath == nil {
+		m, resolve := scriptXPathResolver(g.ctx, g.whole)
+		// Case-insensitive, as mxbuild is here: measured on 11.13.0, an
+		// attribute `status` constrained as [Status = 'Open'] builds clean
+		// (doctype-tests/08 does exactly that).
+		ix := checkAttributeIndex(g.ctx, g.whole)
+		folded := func(entityQN, member string) memberResolution {
+			r := resolve(entityQN, member)
+			if r == memberMissing {
+				if found, _ := ix.declares(entityQN, member); found {
+					return memberFound
+				}
+			}
+			return r
+		}
+		g.xpath = &grantXPathResolver{model: m, resolve: folded}
+	}
+	stored := accessRuleXPathConstraint(g.ctx, xpath, name)
+	var bad []string
+	for _, b := range unresolvableXPathStepsWith(g.ctx, g.xpath.model, stored, name, g.xpath.resolve) {
+		bad = append(bad, fmt.Sprintf("%s %q", b.kind, b.name))
+	}
+	if len(bad) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("the access rule's constraint names %s, which %s neither an attribute nor an association of %s — "+
+		"mxbuild reports CE1613 \"The selected … no longer exists\" at the access rule",
+		strings.Join(bad, ", "), plural(len(bad), "is", "are"), name)
+}
+
+// grantXPathResolver caches the XPath walk's inputs for a script's grants.
+type grantXPathResolver struct {
+	model   *scriptXPathModel
+	resolve func(entityQN, member string) memberResolution
+}
+
 func (g *grantResolver) memberProblem(qn ast.QualifiedName, rights []ast.EntityAccessRight) string {
 	name := qn.String()
-	if g.whole.entities[name] || g.whole.indirectEntities[name] || g.whole.alteredEntities[name] {
+	if g.whole.indirectEntities[name] {
 		return ""
 	}
 	var readMembers, writeMembers []string
@@ -484,20 +554,67 @@ func (g *grantResolver) memberProblem(qn ast.QualifiedName, rights []ast.EntityA
 	if len(readMembers) == 0 && len(writeMembers) == 0 {
 		return ""
 	}
+	if g.whole.entities[name] || g.whole.alteredEntities[name] {
+		return g.laterAssociationProblem(qn, readMembers, writeMembers)
+	}
 	members, ok := grantableMemberNames(g.ctx, qn)
 	if !ok {
 		return ""
 	}
-	// An association the script declares becomes a member exec will find.
-	for assoc := range g.whole.associations {
+	// An association created above the grant is a member exec will find; one
+	// created below it is not yet (laterAssociationProblem).
+	for assoc := range g.sc.associations {
 		members[assoc] = true
 	}
 	unknown := unmatchedGrantMembers(readMembers, writeMembers, members)
 	if len(unknown) == 0 {
 		return ""
 	}
+	if later := g.laterAssociationProblem(qn, readMembers, writeMembers); later != "" {
+		var rest []string
+		for _, m := range unknown {
+			if g.whole.associations[m] == "" {
+				rest = append(rest, m)
+			}
+		}
+		if len(rest) == 0 {
+			return later
+		}
+		return fmt.Sprintf("%s; and it has no member(s) %s at all", later, strings.Join(rest, ", "))
+	}
 	return fmt.Sprintf("entity %s has no member(s) %s; grant only names members of the entity or of an entity it inherits from",
 		name, strings.Join(unknown, ", "))
+}
+
+// laterAssociationProblem reports the members a grant names that are
+// associations a LATER statement creates. exec resolves the member list when
+// it writes the grant, so it refuses them — and `describe` used to print an
+// entity's grant ahead of the associations it names, which `check` passed
+// because it resolved them against the whole script (mendixlabs/mxcli#1409).
+//
+// It is the one member check made for an entity the script declares or
+// alters: the rest of such an entity's member list would be a second, drifting
+// copy of exec's, but an association is a statement of its own whose position
+// the script decides.
+func (g *grantResolver) laterAssociationProblem(qn ast.QualifiedName, readMembers, writeMembers []string) string {
+	stored, _ := grantableMemberNames(g.ctx, qn)
+	var later []string
+	seen := map[string]bool{}
+	for _, list := range [][]string{readMembers, writeMembers} {
+		for _, m := range list {
+			if seen[m] || stored[m] || g.sc.associations[m] != "" || g.whole.associations[m] == "" {
+				continue
+			}
+			seen[m] = true
+			later = append(later, m)
+		}
+	}
+	if len(later) == 0 {
+		return ""
+	}
+	sort.Strings(later)
+	return fmt.Sprintf("entity %s has no member(s) %s yet — the association is created later in this script; "+
+		"move the grant below that create statement", qn.String(), strings.Join(later, ", "))
 }
 
 // grantableMemberNames is the set of member names execGrantEntityAccess builds
@@ -598,6 +715,12 @@ func grantStatementLabel(stmt ast.Statement) string {
 		return fmt.Sprintf("create demo user '%s'", s.UserName)
 	case *ast.AlterProjectSecurityStmt:
 		return "alter app security"
+	case *ast.CreatePageStmtV3:
+		return "create page " + s.Name.String()
+	case *ast.CreateSnippetStmtV3:
+		return "create snippet " + s.Name.String()
+	case *ast.AlterPageStmt:
+		return "alter " + strings.ToLower(s.ContainerType) + " " + s.PageName.String()
 	}
 	return "statement"
 }

@@ -8,8 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -29,8 +28,8 @@ func uid(name string) string {
 	return types.BlobToUUID(b)
 }
 
-func bin(name string) primitive.Binary {
-	return primitive.Binary{Subtype: 0, Data: types.UUIDToBlob(uid(name))}
+func bin(name string) bson.Binary {
+	return bson.Binary{Subtype: 0, Data: types.UUIDToBlob(uid(name))}
 }
 
 func obj(name, typ string, x, y int) bson.D {
@@ -92,41 +91,72 @@ type fakeDeps struct{ saved []byte }
 
 func (d *fakeDeps) SerializeObject(o microflows.MicroflowObject) (bson.D, error) {
 	typ := "Microflows$ActionActivity"
-	if _, ok := o.(*microflows.ExclusiveMerge); ok {
+	switch o.(type) {
+	case *microflows.ExclusiveMerge:
 		typ = "Microflows$ExclusiveMerge"
+	case *microflows.Annotation:
+		typ = "Microflows$Annotation"
 	}
 	p := o.GetPosition()
 	sz := objectSize(o)
-	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(o.GetID()))}},
+	doc := bson.D{
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(o.GetID()))}},
 		{Key: "$Type", Value: typ},
 		{Key: "RelativeMiddlePoint", Value: fmt.Sprintf("%d;%d", p.X, p.Y)},
 		{Key: "Size", Value: fmt.Sprintf("%d;%d", sz.X, sz.Y)},
-	}, nil
+	}
+	// A loop carries its body, as the codec writes it (ReplaceLoopBody reads
+	// it from there).
+	if l, ok := o.(*microflows.LoopedActivity); ok {
+		doc[1].Value = "Microflows$LoopedActivity"
+		body := bson.A{int32(3)}
+		if l.ObjectCollection != nil {
+			for _, b := range l.ObjectCollection.Objects {
+				bd, err := d.SerializeObject(b)
+				if err != nil {
+					return nil, err
+				}
+				body = append(body, bd)
+			}
+		}
+		doc = append(doc, bson.E{Key: "ObjectCollection", Value: bson.D{
+			{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(types.GenerateID())}},
+			{Key: "$Type", Value: "Microflows$MicroflowObjectCollection"},
+			{Key: "Objects", Value: body},
+		}})
+	}
+	// The error handling is stored on the action, as the codec writes it.
+	if eh := microflows.ObjectErrorHandlingType(o); eh != "" {
+		doc = append(doc, bson.E{Key: "Action", Value: bson.D{
+			{Key: "$Type", Value: "Microflows$MicroflowCallAction"},
+			{Key: "ErrorHandlingType", Value: string(eh)},
+		}})
+	}
+	return doc, nil
 }
 
 func (d *fakeDeps) SerializeSequenceFlow(f *microflows.SequenceFlow) (bson.D, error) {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.ID))}},
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(f.ID))}},
 		{Key: "$Type", Value: "Microflows$SequenceFlow"},
 		{Key: "DestinationConnectionIndex", Value: int32(f.DestinationConnectionIndex)},
-		{Key: "DestinationPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
+		{Key: "DestinationPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
 		{Key: "IsErrorHandler", Value: f.IsErrorHandler},
 		{Key: "Line", Value: bson.D{
 			{Key: "DestinationControlVector", Value: f.DestinationControlVector},
 			{Key: "OriginControlVector", Value: f.OriginControlVector},
 		}},
 		{Key: "OriginConnectionIndex", Value: int32(f.OriginConnectionIndex)},
-		{Key: "OriginPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
+		{Key: "OriginPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
 	}, nil
 }
 
 func (d *fakeDeps) SerializeAnnotationFlow(f *microflows.AnnotationFlow) (bson.D, error) {
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.ID))}},
+		{Key: "$ID", Value: bson.Binary{Data: types.UUIDToBlob(string(f.ID))}},
 		{Key: "$Type", Value: "Microflows$AnnotationFlow"},
-		{Key: "DestinationPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
-		{Key: "OriginPointer", Value: primitive.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
+		{Key: "DestinationPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.DestinationID))}},
+		{Key: "OriginPointer", Value: bson.Binary{Data: types.UUIDToBlob(string(f.OriginID))}},
 	}, nil
 }
 
@@ -159,6 +189,17 @@ func newMutator(t *testing.T, doc bson.D) (*Mutator, *fakeDeps) {
 		t.Fatal(err)
 	}
 	return m, deps
+}
+
+// oneDecision is a fragment holding a decision, in builder coordinates.
+func oneDecision() *backend.MicroflowFragment {
+	id := model.ID(types.GenerateID())
+	split := &microflows.ExclusiveSplit{BaseMicroflowObject: microflows.BaseMicroflowObject{
+		BaseElement: model.BaseElement{ID: id},
+		Position:    model.Point{X: 360, Y: 200},
+		Size:        model.Size{Width: 60, Height: 60},
+	}}
+	return &backend.MicroflowFragment{Objects: []microflows.MicroflowObject{split}, Entry: id, Exit: id}
 }
 
 // oneActivity is a single-activity fragment in builder coordinates.
@@ -286,10 +327,12 @@ func TestSplice_Refusals(t *testing.T) {
 		op    func(m *Mutator) error
 		want  string
 	}{
-		{"insert inside a loop", withLoop, loopFlows,
-			func(m *Mutator) error { return m.InsertAfter(model.ID(uid("inner")), oneActivity()) }, "inside a loop"},
-		{"drop inside a loop", withLoop, loopFlows,
-			func(m *Mutator) error { return m.Drop(model.ID(uid("inner"))) }, "inside a loop"},
+		// Inside a loop body the splice puts plain activities only
+		// (ako/mxcli#1693); a decision changes the body's shape.
+		{"insert a decision inside a loop", withLoop, loopFlows,
+			func(m *Mutator) error { return m.InsertAfter(model.ID(uid("inner")), oneDecision()) }, "inside a loop body"},
+		{"move inside a loop", withLoop, loopFlows,
+			func(m *Mutator) error { return m.Move(model.ID(uid("inner")), model.Point{X: 1, Y: 1}) }, "inside a loop body"},
 		{"insert before a join", twoIn, twoInFlows,
 			func(m *Mutator) error { return m.InsertBefore(model.ID(uid("b")), oneActivity()) }, "2 flows enter"},
 		{"insert after the end", line(), lineFlows(),
@@ -315,11 +358,11 @@ func TestSplice_Refusals(t *testing.T) {
 			if !bytes.Equal(before, after) {
 				t.Error("a refused operation changed the document")
 			}
-			// create or modify does not edit inside a loop either, so the
-			// in-loop refusal advises the alter that does: replace the loop.
-			if tc.want == "inside a loop" {
-				if !strings.Contains(err.Error(), "replace loop") || strings.Contains(err.Error(), "create or modify") {
-					t.Errorf("want advice to replace the loop, not create or modify: %v", err)
+			// The in-loop refusal advises the alter that makes any change of
+			// a body: replace the loop's body (ako/mxcli#1693).
+			if tc.want == "inside a loop body" {
+				if !strings.Contains(err.Error(), "replace the loop's body") || strings.Contains(err.Error(), "create or modify") {
+					t.Errorf("want advice to replace the loop's body, not create or modify: %v", err)
 				}
 			}
 		})
@@ -548,7 +591,7 @@ func TestSplice_ReplaceInsideALoopIsInPlace(t *testing.T) {
 			}
 			// What the replace should leave: the stored unit with the
 			// target's document swapped, and the body flow repointed.
-			newID := primitive.Binary{Data: types.UUIDToBlob(string(frag.Entry))}
+			newID := bson.Binary{Data: types.UUIDToBlob(string(frag.Entry))}
 			wantObjs, wantFlows := build()
 			oc := dDoc(wantObjs[2], "ObjectCollection")
 			body := arrayElements(dGet(oc, "Objects"))
@@ -577,16 +620,12 @@ func TestSplice_ReplaceInsideALoopIsInPlace(t *testing.T) {
 		})
 	}
 
-	// Two activities for one would change the body's shape: refused.
-	t.Run("two for one refused", func(t *testing.T) {
+	// A decision for an activity would change the body's shape: refused.
+	t.Run("a decision for an activity refused", func(t *testing.T) {
 		objs, flows := build()
 		m, _ := newMutator(t, unit(objs, flows))
-		frag := oneActivity()
-		second := oneActivity()
-		frag.Objects = append(frag.Objects, second.Objects...)
-		frag.Exit = second.Exit
-		err := m.Replace(model.ID(uid("inner")), frag)
-		if err == nil || !strings.Contains(err.Error(), "replace the whole loop") {
+		err := m.Replace(model.ID(uid("inner")), oneDecision())
+		if err == nil || !strings.Contains(err.Error(), "replace the loop's body") {
 			t.Fatalf("want the in-loop refusal, got %v", err)
 		}
 	})

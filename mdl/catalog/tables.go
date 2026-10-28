@@ -7,12 +7,33 @@ package catalog
 //
 // History:
 //
-//	26 (incremental refresh): unit_stamps records each MPR v2 unit's stamp,
+//	30 (incremental refresh): unit_stamps records each MPR v2 unit's stamp,
 //	    and the per-document tables an incremental refresh rebuilds (flows,
 //	    domain models, pages, snippets, widgets, refs, permissions, xpath,
 //	    strings) gain UnitId, the unit each row was built from. A cached
 //	    catalog has neither, so it could never refresh incrementally and
 //	    would keep checking freshness by the .mpr mtime alone.
+//	    30, not 26: 26 to 29 were taken upstream in parallel.
+//	29 (service microflow edges): refs gains the edges from an integration
+//	    service to the microflows it runs — a published OData resource's
+//	    read/change microflows, its actions and authentication microflow, a
+//	    published REST service's authentication microflow (`publish`), a
+//	    business event handler (`event`), a consumed OData service's
+//	    configuration microflows (`call`) (ako/mxcli#1639). No column changes,
+//	    but a cached catalog would keep answering "no references" for every one
+//	    of them until something else rebuilt it.
+//	28 (message definitions): message_definition_collections and
+//	    message_definitions, unioned into objects as
+//	    MESSAGE_DEFINITION_COLLECTION / MESSAGE_DEFINITION, so documents()
+//	    lists them (ako/mxcli#1433). Without the bump a cached catalog has
+//	    neither view and an objects view that omits them.
+//	    28, not 26: it was written as 26 beside the user-roles change, which
+//	    merged first as 27, so a cache built at 27 lacks these tables.
+//	27 (user roles): a user_roles table with each project user role's
+//	    Description (ako/mxcli#1442). Its own number, not 26: the message
+//	    definitions change took 26 in parallel, and a cache built at 26 by
+//	    either alone would never rebuild for the other. Without the bump a
+//	    cached catalog has no user_roles table at all.
 //	25 (documentation in the strings index): strings gains a row for the
 //	    documentation of every element the catalog reads a Description for
 //	    (entities, attributes, constants, pages, ...), so SEARCH finds words
@@ -142,7 +163,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "26"
+const CatalogSchemaVersion = "30"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -164,7 +185,7 @@ const MetaSchemaVersion = "schema_version"
 //
 // Tables that were already clean (only `ProjectId` + `SnapshotId`, no
 // denormalized columns) keep their original shape:
-// navigation_menu_items, navigation_role_homes, role_mappings, refs,
+// navigation_menu_items, navigation_role_homes, user_roles, role_mappings, refs,
 // permissions, constant_values.
 func (c *Catalog) createTables() error {
 	schemas := []string{
@@ -659,6 +680,32 @@ func (c *Catalog) createTables() error {
 			SnapshotId TEXT
 		)`,
 		viewWithFullSnapshot("data_transformers"),
+
+		// message definitions, in both storage shapes: the collection that
+		// holds several definitions (Mendix < 11.15) and the one-definition
+		// MessageDefinition2 document that replaced it (ako/mxcli#1433).
+		`CREATE TABLE IF NOT EXISTS message_definition_collections_data (
+			Id TEXT PRIMARY KEY,
+			Name TEXT,
+			QualifiedName TEXT,
+			ModuleName TEXT,
+			Folder TEXT,
+			Description TEXT,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
+		viewWithFullSnapshot("message_definition_collections"),
+		`CREATE TABLE IF NOT EXISTS message_definitions_data (
+			Id TEXT PRIMARY KEY,
+			Name TEXT,
+			QualifiedName TEXT,
+			ModuleName TEXT,
+			Folder TEXT,
+			Description TEXT,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
+		viewWithFullSnapshot("message_definitions"),
 
 		// agent-editor documents (CustomBlobDocuments, discriminated by
 		// CustomDocumentType into agent / model / knowledge base / MCP service).
@@ -1186,6 +1233,18 @@ func (c *Catalog) createTables() error {
 		)`,
 		viewWithFullSnapshot("jar_dependencies"),
 
+		// user_roles — one row per project user role, carrying the
+		// documentation Studio Pro shows in Project Security (ako/mxcli#1442).
+		`CREATE TABLE IF NOT EXISTS user_roles (
+			Id INTEGER PRIMARY KEY AUTOINCREMENT,
+			Name TEXT NOT NULL,
+			Description TEXT,
+			IsAnonymous INTEGER,
+			ModuleRoleCount INTEGER,
+			ProjectId TEXT,
+			SnapshotId TEXT
+		)`,
+
 		// role_mappings, refs, permissions, constant_values — already clean
 		`CREATE TABLE IF NOT EXISTS role_mappings (
 			Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1391,6 +1450,14 @@ func (c *Catalog) createTables() error {
 			SELECT Id, 'DATA_TRANSFORMER' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
 			FROM data_transformers
+			UNION ALL
+			SELECT Id, 'MESSAGE_DEFINITION_COLLECTION' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
+				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
+			FROM message_definition_collections
+			UNION ALL
+			SELECT Id, 'MESSAGE_DEFINITION' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
+				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource
+			FROM message_definitions
 			UNION ALL
 			SELECT Id, 'AGENT' as ObjectType, Name, QualifiedName, ModuleName, Folder, Description,
 				ProjectId, ProjectName, SnapshotId, SnapshotDate, SnapshotSource

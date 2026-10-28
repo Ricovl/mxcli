@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
@@ -29,8 +30,8 @@ import (
 // Atlas_Core ships (glyphicons-halflings-regular.woff): 247 codes, and it agrees
 // with mxbuild on both measured points.
 
-func glyphStmt(code int) *ast.AlterNavigationStmt {
-	return &ast.AlterNavigationStmt{
+func glyphStmt(code int) *ast.CreateNavigationStmt {
+	return &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{{
 			Caption:  "Overview",
@@ -108,7 +109,7 @@ func TestMDL078_IgnoresNonGlyphIcons(t *testing.T) {
 // Sub-items render in the flyout a collapsed rail opens, so a bad code there
 // breaks the same build. The walk is recursive for the same reason MDL077's is.
 func TestMDL078_WalksSubItems(t *testing.T) {
-	stmt := &ast.AlterNavigationStmt{
+	stmt := &ast.CreateNavigationStmt{
 		ProfileName: "Responsive",
 		MenuItems: []ast.NavMenuItemDef{{
 			Caption:  "Group",
@@ -206,5 +207,68 @@ func TestMDL078_ReachesAWidgetGlyph(t *testing.T) {
 	}
 	if v[0].RuleID != "MDL078" {
 		t.Errorf("RuleID = %q, want MDL078", v[0].RuleID)
+	}
+}
+
+// mendixlabs/mxcli#1522: MDL078 is an ERROR, so `check` fails and `exec`
+// refuses the script before anything is written. As a warning, exec applied it
+// and `mxbuild --target=deploy` then died with an unhandled
+// InvalidOperationException ("Sequence contains no matching element", exit 1)
+// and wrote no error file, while `mx check` passed -- so a build gate had
+// nothing to report.
+func TestMDL078_IsAnError(t *testing.T) {
+	v := validateGlyphCodes(glyphStmt(57388)) // the issue's code
+	if len(v) != 1 {
+		t.Fatalf("got %d violations, want 1", len(v))
+	}
+	if v[0].Severity != linter.SeverityError {
+		t.Errorf("MDL078 severity = %v, want error -- exec only refuses on errors", v[0].Severity)
+	}
+	if !strings.Contains(v[0].Message, "57388") || !strings.Contains(v[0].Message, "Overview") {
+		t.Errorf("the message does not name the glyph and where it is: %s", v[0].Message)
+	}
+	// The way out names real glyphs: the defined codes either side of it.
+	// 57388 (0xE02C) sits in the gap between 57385 play-circle and 57392 repeat.
+	for _, want := range []string{"57385 (play-circle)", "57392 (repeat)", "list glyphs"} {
+		if !strings.Contains(v[0].Suggestion, want) {
+			t.Errorf("the suggestion does not mention %q: %s", want, v[0].Suggestion)
+		}
+	}
+}
+
+// Past the font's last icon there is no code above to offer, only below.
+func TestMDL078_SuggestsOnlyTheNeighboursThatExist(t *testing.T) {
+	v := validateGlyphCodes(glyphStmt(70000))
+	if len(v) != 1 {
+		t.Fatalf("got %d violations, want 1", len(v))
+	}
+	if !strings.Contains(v[0].Suggestion, "63743") {
+		t.Errorf("the suggestion does not offer the font's last code: %s", v[0].Suggestion)
+	}
+}
+
+// The gate exec runs is ValidateProgram: a script with an undefined glyph on a
+// menu item, a menu document or a page widget reports MDL078 as an error there,
+// which is what makes exec refuse it.
+func TestValidateProgram_UndefinedGlyphRefusesExec(t *testing.T) {
+	for name, src := range map[string]string{
+		"navigation": `create or modify navigation Responsive
+  home page M.P
+{ menu item 'A' ( OnClick: show page M.P, Icon: glyph 57388 ) };`,
+		"menu document": `create or modify menu M.Menu {
+  menu item 'A' ( OnClick: show page M.P, Icon: glyph 57388 )
+};`,
+		"page widget": `create page M.Q (title: 'Q', layout: Atlas_Core.Atlas_Default)
+{ actionbutton btn (caption: 'Go', action: nothing, icon: glyph 57388) };`} {
+		t.Run(name, func(t *testing.T) {
+			got := ruleSeverities(ValidateProgram(build(t, src), ""))
+			sev, ok := got["MDL078"]
+			if !ok {
+				t.Fatalf("no MDL078; got %v", got)
+			}
+			if sev != linter.SeverityError {
+				t.Errorf("MDL078 severity = %v, want error", sev)
+			}
+		})
 	}
 }

@@ -78,6 +78,28 @@ func (r *Reader) ListUnitsByType(typePrefix string) ([]UnitRef, error) {
 	return result, nil
 }
 
+// ListUnitsByTypeInContainer returns the units of exactly typeName whose
+// ContainerID is containerID, reading the contents of those units only: a
+// lookup of one module's domain model must not read every module's
+// (mendixlabs/mxcli#1616).
+func (r *Reader) ListUnitsByTypeInContainer(typeName, containerID string) ([]UnitRef, error) {
+	var units []rawUnit
+	var err error
+	if r.version == MPRVersionV2 {
+		units, err = r.listUnitsByTypeV2In(typeName, containerID)
+	} else {
+		units, err = r.listUnitsByTypeV1In(typeName, containerID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	result := make([]UnitRef, len(units))
+	for i, u := range units {
+		result[i] = UnitRef{ID: u.ID, ContainerID: u.ContainerID, Type: u.Type, Contents: u.Contents}
+	}
+	return result, nil
+}
+
 // listUnitsByType returns all units of exactly the given storage type. An empty
 // typeName returns every unit.
 //
@@ -92,8 +114,10 @@ func (r *Reader) listUnitsByType(typeName string) ([]rawUnit, error) {
 }
 
 // listUnitTypes returns every unit's metadata and $Type without reading the
-// contents of any unit whose type is already indexed (Contents is nil). For
-// callers that need the project's shape, not its documents.
+// contents of any unit whose type is already indexed (Contents is nil): on v2
+// the index is keyed by ContentsHash and persisted (reader_units_v2.go), on v1
+// by blob length (reader_units_v1.go). For callers that need the project's
+// shape, not its documents.
 func (r *Reader) listUnitTypes() ([]rawUnit, error) {
 	if r.version != MPRVersionV2 {
 		return r.listUnitTypesV1()
@@ -133,6 +157,12 @@ func (r *Reader) cachedUnitsOfType(typeName string) (_ []cachedUnit, ok bool, er
 // listUnitsByTypeV2 handles MPR v2 format (contents in mprcontents folder).
 // Uses caching to avoid reading every file for each query.
 func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
+	return r.listUnitsByTypeV2In(typeName, "")
+}
+
+// listUnitsByTypeV2In is listUnitsByTypeV2 restricted to one container ("" for
+// any), filtered before any contents are read.
+func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, error) {
 	if !r.unitCacheValid {
 		if err := r.buildUnitCache(); err != nil {
 			return nil, err
@@ -142,6 +172,9 @@ func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
 	// Filter by type using cache, only read contents for matching units.
 	var units []rawUnit
 	for _, cu := range r.unitCache {
+		if containerID != "" && cu.ContainerID != containerID {
+			continue
+		}
 		if typeName == "" || cu.Type == typeName {
 			contents, err := r.readMprContents(cu.ID)
 			if err != nil {

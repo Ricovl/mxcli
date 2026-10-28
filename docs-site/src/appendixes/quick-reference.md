@@ -164,6 +164,7 @@ CREATE PUBLISHED ODATA SERVICE MyModule.CustomerAPI (
 | Close page | `CLOSE PAGE [n];` | `n` pages, default 1 |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` | Requires attribute path + MESSAGE |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'message';` | |
+| Log with stack trace | `LOG ERROR 'message' [WITH ({1} = $v)] WITH STACKTRACE;` | "Include latest stack trace" |
 | Position | `@position(x, y)` | Canvas position (before activity) |
 | Start event | `@start(x, y)` | Canvas position of the start, on the **first** statement. Omit it and the start is placed one spacing unit left of the first activity and MOVES with it on a rewrite; a start that is not at that derived spot is treated as hand-placed, survives a rewrite, and is emitted by DESCRIBE (#951) |
 | Caption | `@caption 'text'` | Custom caption (before activity) |
@@ -228,7 +229,8 @@ Nested folders use `/` separator: `'Parent/Child/Grandchild'`. Missing folders a
 | Set security level | `ALTER APP SECURITY ( SecurityLevel: OFF\|PROTOTYPE\|PRODUCTION );` | |
 | Toggle demo users | `ALTER APP SECURITY ( EnableDemoUsers: TRUE\|FALSE );` | |
 | Toggle guest access | `ALTER APP SECURITY ( EnableGuestAccess: TRUE, GuestUserRole: UserRole );` / `( EnableGuestAccess: FALSE )` | Anonymous users; role required (CE0133) |
-| Rename admin user | `ALTER APP SECURITY ( AdminUserName: 'appadmin' );` | Default `MxAdmin`; the password is not settable from MDL |
+| Rename admin user | `ALTER APP SECURITY ( AdminUserName: 'appadmin' );` | Default `MxAdmin` |
+| Set admin password | `ALTER APP SECURITY ( AdminPassword: 'N3w-Admin-Passw0rd' );` | Resolves CE0129 "Administrator password has not been set"; `''` is refused |
 | Create demo user | `CREATE DEMO USER 'name' ( Password: 'pass', [Entity: Module.Entity,] UserRoles: (UserRole, ...) );` | The clause form `PASSWORD … (…)` warns MDL-DEPR137 |
 | Drop demo user | `DROP DEMO USER [IF EXISTS] 'name';` | `IF EXISTS` makes a cleanup script re-runnable |
 
@@ -283,7 +285,7 @@ END WORKFLOW;
 | List menu tree | `LIST NAVIGATION MENU [Profile];` | Menu tree for profile or all |
 | List home pages | `LIST NAVIGATION HOMES;` | Home page assignments across profiles |
 | Describe navigation | `DESCRIBE NAVIGATION [Profile];` | Full MDL output (round-trippable) |
-| Create/replace navigation | `CREATE OR REPLACE NAVIGATION Profile ...;` | Full replacement of profile |
+| Create/replace navigation | `CREATE OR REPLACE NAVIGATION Profile ...;` | Sets the stated clauses; an omitted clause keeps its stored value, a `{ }` menu replaces the whole menu |
 
 **Navigation Example:**
 ```sql
@@ -330,6 +332,7 @@ CREATE OR MODIFY NAVIGATION Responsive
 | Describe Java action | `DESCRIBE JAVA ACTION Module.Name;` | Full MDL output with signature |
 | Create Java action | `CREATE JAVA ACTION Module.Name(params) RETURNS type AS $$ ... $$;` | Inline Java code |
 | Create with type params | `CREATE JAVA ACTION Module.Name(EntityType: ENTITY <pEntity>, Obj: pEntity) ...;` | Generic type parameters |
+| Describe a parameter, name the return value | `CREATE JAVA ACTION Module.Name(/** The text. */ Input: String) RETURNS String AS $Result AS $$ ... $$;` | `/** … */` before a parameter is its description; `AS $Name` the return value's name |
 | Create exposed action | `... EXPOSED AS 'Caption' IN 'Category' AS $$ ... $$;` | Toolbox-visible in Studio Pro |
 | Drop Java action | `DROP JAVA ACTION Module.Name;` | Delete a Java action |
 | Call from microflow | `$Result = CALL JAVA ACTION Module.Name(Param = value);` | Inside BEGIN...END |
@@ -387,7 +390,9 @@ MDL uses explicit property declarations for pages:
 | `Draggable` | `true`, `false` | `true` | `Draggable: false` |
 | `Hidable` | `yes`, `hidden`, `no` | `yes` | `Hidable: no` |
 | `ColumnWidth` | `autoFill`, `autoFit`, `manual` | `autoFill` | `ColumnWidth: manual` |
-| `Size` | integer (px) | `1` | `Size: 200` |
+| `Size` | integer — a relative weight, not px | `1` | `Size: 2` — under `ColumnWidth: manual` only, rendered `2fr` against `1fr` per autoFill column |
+| `minWidth` | `auto`, `minContent`, `manual` | `auto` | `minWidth: manual` — under `ColumnWidth: autoFit` only |
+| `minWidthLimit` | integer (px) | `100` | `minWidthLimit: 220` — the minimum in pixels, under `ColumnWidth: autoFit, minWidth: manual` |
 | `Visible` | expression | `true` | `Visible: $showColumn` — evaluated once for the grid: a page variable or parameter, never `$currentObject` (MDL-WIDGET43, CE0117) |
 | `DynamicCellClass` | expression | (empty) | `DynamicCellClass: if $currentObject/Stock < 10 then 'text-danger' else ''` |
 | `Tooltip` | text string | (empty) | `Tooltip: 'Price in USD'` |
@@ -417,6 +422,7 @@ CREATE PAGE MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `LAYOUTGRID`, `ROW`, `COLUMN`, `CONTAINER`, `CUSTOMCONTAINER`
 - Input: `TEXTBOX`, `TEXTAREA`, `CHECKBOX`, `RADIOBUTTONS`, `DATEPICKER`, `COMBOBOX`
+  - `COMBOBOX` modes: enumeration `(Attribute: EnumAttr)`; association `(Attribute: Assoc, DataSource: DATABASE Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, Attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `DataSource:` association mode. Custom content (several attributes per option) is a body block of the mode: `{ optionssourceassociationcustomcontent { … } }` in association mode, `{ optionssourcedatabasecustomcontent { … } }` in database mode, its widgets bound to the option entity
 - Display: `DYNAMICTEXT`, `DATAGRID`, `GALLERY`, `LISTVIEW`, `IMAGE`, `STATICIMAGE`, `DYNAMICIMAGE`
 - Actions: `ACTIONBUTTON`, `LINKBUTTON`, `NAVIGATIONLIST`
 - Structure: `DATAVIEW`, `HEADER`, `FOOTER`, `CONTROLBAR`, `SNIPPETCALL`

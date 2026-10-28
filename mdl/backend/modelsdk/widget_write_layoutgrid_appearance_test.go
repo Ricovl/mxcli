@@ -3,9 +3,8 @@
 package modelsdkbackend
 
 import (
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"testing"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -18,7 +17,7 @@ func designPropKeys(t *testing.T, appearance any) []string {
 	if !ok {
 		t.Fatalf("Appearance is %T, want a document", appearance)
 	}
-	list, _ := a["DesignProperties"].(primitive.A)
+	list, _ := a["DesignProperties"].(bson.A)
 	var keys []string
 	for _, item := range list {
 		if m, ok := item.(map[string]any); ok {
@@ -67,7 +66,7 @@ func TestLayoutGridRowColumnToGen_CarriesAppearanceAndAlignment(t *testing.T) {
 		t.Errorf("row design properties %v, want [Column gap Cards style]", keys)
 	}
 
-	col := doc["Columns"].(primitive.A)[1].(map[string]any) // [0] is the list marker
+	col := doc["Columns"].(bson.A)[1].(map[string]any) // [0] is the list marker
 	if col["VerticalAlignment"] != "Center" {
 		t.Errorf("column VerticalAlignment = %v, want Center", col["VerticalAlignment"])
 	}
@@ -93,7 +92,7 @@ func TestLayoutGridRowColumnToGen_DefaultsUnchanged(t *testing.T) {
 	if keys := designPropKeys(t, doc["Appearance"]); len(keys) != 0 {
 		t.Errorf("row design properties %v, want none", keys)
 	}
-	col := doc["Columns"].(primitive.A)[1].(map[string]any)
+	col := doc["Columns"].(bson.A)[1].(map[string]any)
 	if col["VerticalAlignment"] != "None" {
 		t.Errorf("column VerticalAlignment = %v, want None", col["VerticalAlignment"])
 	}

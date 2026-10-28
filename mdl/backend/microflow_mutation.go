@@ -30,6 +30,11 @@ type MicroflowFragment struct {
 	// nothing around it is moved to make room (ako/mxcli#818). Unset, the
 	// mutator translates it into the gap it is spliced into.
 	Placed bool
+	// Pinned are the objects whose position the script states on the canvas —
+	// a note's `position:` — rather than relative to the fragment. They stay
+	// where they are when the fragment is translated into place, and take no
+	// part in the room it needs (mendixlabs/mxcli#1598, case 1).
+	Pinned map[model.ID]bool
 }
 
 // MicroflowMutator splices into one stored microflow or nanoflow (ADR-0012
@@ -44,13 +49,46 @@ type MicroflowMutator interface {
 	InsertBefore(target model.ID, frag *MicroflowFragment) error
 	// Replace puts frag in target's place and removes target.
 	Replace(target model.ID, frag *MicroflowFragment) error
-	// Drop removes target and joins its incoming flows to its successor.
+	// Drop removes target and joins its incoming flows to its successor. A
+	// decision of the shape `alter … insert` produces goes with its paths and
+	// its merge (ako/mxcli#1694); any other decision is refused.
 	Drop(target model.ID) error
+	// ReplaceLoopBody replaces everything inside the loop target by the body
+	// of the one loop frag holds — the loop restated with its new body, as the
+	// builder made it — and keeps the loop itself: its $ID, position,
+	// iterator, list and the flows and notes around it (ako/mxcli#1693). The
+	// box keeps its size where the new body fits it, and grows where it does
+	// not.
+	ReplaceLoopBody(target model.ID, frag *MicroflowFragment) error
+	// DecisionNodes returns the activities on the paths of the decision
+	// target when it has the shape `alter … insert` produces — two paths of
+	// plain activities, or none, rejoining at one merge — which a Drop or a
+	// Replace of it takes out with it (ako/mxcli#1694); nil for any other
+	// target.
+	DecisionNodes(target model.ID) []model.ID
 	// RemoveNotes removes the annotations attached to target, with their
 	// lines, so that a Replace or Drop after it does not keep them
 	// (ako/mxcli#859: a `create or modify` states an activity's notes). A
 	// note also attached to another object is refused.
 	RemoveNotes(target model.ID) error
+	// AddNotes attaches notes to target, which stays as it is — a decision or
+	// an end event, whose notes change without the node being replaced
+	// (mendixlabs/mxcli#1517). frag holds one stand-in object, frag.Entry, and
+	// the notes the builder attached to it: each note is drawn where it is
+	// relative to the stand-in, but relative to target, and its line runs to
+	// target.
+	AddNotes(target model.ID, frag *MicroflowFragment) error
+	// LinkNote draws a line from note, a note already in the flow, to object,
+	// an object in the flow — one an earlier call added included — unless one
+	// is drawn already. The note keeps its $ID, text and place; the line
+	// attaches at the sides of the two that face each other where they are
+	// drawn now (ako/mxcli#1695).
+	LinkNote(note, object model.ID) error
+	// SetFreeNotes replaces the flow's free notes — notes on the canvas,
+	// attached to nothing — by the ones frag holds (its Annotation objects
+	// that no line in it attaches; its other objects are ignored). Nothing
+	// else changes (mendixlabs/mxcli#1517).
+	SetFreeNotes(frag *MicroflowFragment) error
 	// SetReturnValue sets the expression the end event target returns, in
 	// place; "" is no value.
 	SetReturnValue(target model.ID, value string) error
@@ -61,6 +99,15 @@ type MicroflowMutator interface {
 	// Move sets where the top-level node target is drawn, and nothing else:
 	// its flows keep their ends, sides and curves (ako/mxcli#818).
 	Move(target model.ID, to model.Point) error
+	// Pin says the script states that a node is drawn at the point at — a
+	// stored node, or one a fragment places there. An insert or replace that
+	// would move the node drawn there to make room is refused instead, so the
+	// stored flow keeps saying what the script says (mendixlabs/mxcli#1598,
+	// case 6).
+	Pin(at model.Point) error
+	// PinInLoop is Pin for a node of the body of the loop: at is in the loop
+	// box's coordinates (ako/mxcli#1693).
+	PinInLoop(loop model.ID, at model.Point) error
 	// SetHeader writes the document properties of declared — a
 	// *microflows.Microflow or *microflows.Nanoflow built from the statement,
 	// with every property it does not state carried from the stored one — onto

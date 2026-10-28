@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-196 | Syntax |
-| 197-267 | Basic Examples |
-| 268-289 | Modifying Existing Pages |
-| 290-377 | Conditional Visibility and Editability |
-| 378-541 | Known Limitations |
-| 542-550 | Tips |
-| 551-577 | Related Commands |
-| 578-602 | PLUGGABLEWIDGET Escape Hatch |
-| 603-606 | See Also |
+| 47-220 | Syntax |
+| 221-291 | Basic Examples |
+| 292-316 | Modifying Existing Pages |
+| 317-420 | Conditional Visibility and Editability |
+| 421-585 | Known Limitations |
+| 586-594 | Tips |
+| 595-621 | Related Commands |
+| 622-646 | PLUGGABLEWIDGET Escape Hatch |
+| 647-650 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -63,6 +63,14 @@ create [or replace] page Module.PageName
 }
 ```
 
+**Parameter names are held to the platform's reserved words.** A page or snippet
+parameter named `Context`, `Type`, `Id`, `Owner`, `Object`, `CurrentUser` or a Java
+keyword (`Class`, `New`, …), in any case, is CE7247 "The name 'Context' is a reserved
+word." at build time — and quoting does not help. `mxcli check` refuses it (MDL-PARAM01).
+Name the parameter after its entity (`$Sale`) or qualify it (`$LaneContext`). The
+system variable names (`$currentObject`, `$latestError`, …) are *not* on this list for
+pages.
+
 **Pop-up dimensions** (`PopupWidth` / `PopupHeight` / `PopupResizable`) apply when the
 page is opened in a pop-up. They are optional — omitting them uses the Mendix defaults
 (600 × 600, not resizable). Unlike the other header keywords, these property names are
@@ -91,6 +99,9 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` |
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
 | Submit while typing | `SubmitBehaviour: WhileEditing` (+ `SubmitOnInputDelay: <ms>`) on textbox / textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — default `OnEndEditing` / `300` |
+| Native keyboard | `KeyboardType: EmailAddress` (`NumberPad`, `DecimalPad`, `PhonePad`, `URL`) on textbox | `textbox tbEmail (attribute: Email, KeyboardType: EmailAddress)` — default `Default` |
+| Act on Enter | `OnEnterKeyPress: <action>` on a textbox only | `textbox tbSearch (attribute: Query, OnEnterKeyPress: call microflow Mod.ACT_Search(Query = $currentObject))` — Studio Pro's "On enter key press"; same action forms as `OnChange:`. No other widget has it (a textarea neither): refused there |
+| Focus in / out | `OnEnter: <action>`, `OnLeave: <action>` on any input widget | `datepicker dp (attribute: Due, OnLeave: call microflow Mod.ACT_Validate(Item = $currentObject))` — Studio Pro's "On enter" / "On leave"; focus, not the Enter key |
 | Layout grid width | `Width: FullWidth \| FixedWidth` on layoutgrid | `layoutgrid lg (Width: FixedWidth) { ... }` — default `FullWidth` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
@@ -130,7 +141,9 @@ create page MyModule.OrderDetail folder 'Orders/Details'
 
 ### Styling: Class, Style, and DesignProperties
 
-Three styling mechanisms can be applied to any widget:
+Three styling mechanisms can be applied to any widget — except a `snippetcall`,
+which renders no element of its own, so its styling never reaches the page
+(MDL-WIDGET48 / lint MPR013); style a container around or inside it instead:
 
 **CSS Class** — Atlas UI utility classes or custom CSS classes:
 ```sql
@@ -189,10 +202,21 @@ container ctnHero (
 }
 ```
 
-> `mxcli check` **warns** (MDL-WIDGET07) when a built-in widget carries an
-> unrecognized property (a typo, or a property mxcli doesn't persist) — it would
-> otherwise be silently dropped on write. It is a warning, not an error, so the
-> check still passes; fix the spelling or remove the property.
+> **Each built-in widget takes its own properties, not every widget's.** An
+> input widget's label is `Label:`; `Caption:` is a button's (and a data grid
+> column's). A property the widget does not take — `Caption:` on a `textbox`,
+> `Label:` on an `actionbutton`, `Visible:` on a `snippetcall`, a misspelt key —
+> is **refused** under `mdl 1;` (MDL-WIDGET52, by `check` and by `exec`, with
+> nothing written) and warned about without the header (MDL-V1-WIDGETPROP); it
+> used to be silently dropped. The message names what was most likely meant and
+> lists the properties that widget takes.
+>
+> ```sql
+> -- ❌ WRONG: a text box has no Caption — refused (MDL-WIDGET52)
+> textbox tbName (Attribute: Name, Caption: 'Name')
+> -- ✅ an input's label is Label:
+> textbox tbName (Attribute: Name, Label: 'Name')
+> ```
 
 ## Basic Examples
 
@@ -284,6 +308,9 @@ Use `create or modify page` on an existing page only if your MDL scripts created
 and nobody has edited it in Studio Pro since. A Studio Pro-authored page is changed
 with `alter page`, even for a large change: re-creating it from `describe` output has
 dropped translations. See [choose-edit-mode](../choose-edit-mode/SKILL.md).
+Re-running `describe` output does not upgrade a pluggable widget either: the rewrite
+keeps each stored widget's schema, as Studio Pro does, so CE0463 after a widget
+package upgrade is cleared by `mxcli fix widgets -p app.mpr`, not by a rewrite.
 
 See the dedicated skill file: [ALTER PAGE/SNIPPET](../alter-page/SKILL.md)
 
@@ -333,6 +360,22 @@ value") — list the Boolean/enumeration values that SHOW the widget; `empty` is
 ```sql
 container cntRunning (visible: Status in (Running, empty)) { ... }
 textbox txtPassword (label: 'Password', attribute: Password, visible: IsLocalUser in (true))
+```
+
+**Visible for module roles** (Studio Pro's role-based visibility) is a separate
+setting — a second `visible:` line that combines with either condition above. It
+works on widgets, tab pages and navigation-list items; `check --references`
+refuses a role that does not exist:
+
+```sql
+mdl 1;
+create page MyModule.Request_Review (title: 'Review', layout: Atlas_Core.Atlas_Default) {
+  container cntAdmin (visible: roles (MyModule.Administrator)) {
+    dynamictext txtAdmin (content: 'Administrators only')
+  }
+  actionbutton btnClose (caption: 'Close', action: close page,
+    visible: false, visible: roles (MyModule.Manager))
+};
 ```
 
 
@@ -473,7 +516,8 @@ lists them and `describe icon collection Atlas_Core.Atlas_Filled` lists the name
 A glyph has a code and no name. The codes are **sparse**, and an undefined one
 fails only at `mxbuild --target=deploy` — with *"An exception occurred while
 exporting page '<name>'"*, naming the page and never the icon — so `mxcli check`
-reports it as **MDL078** first. Browse them with `list glyphs`.
+refuses it as **MDL078**, an error (`exec` writes nothing), naming the defined
+glyphs either side of the code. Browse them with `list glyphs`.
 
 `describe page` emits all three forms, so describe → exec round-trips a button's
 icon whichever kind it is.

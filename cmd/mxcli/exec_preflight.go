@@ -43,7 +43,14 @@ func execPreflight(exec *executor.Executor, prog *ast.Program, projectPath, scri
 				// A called microflow the script does not create is read from the
 				// project for MDL-WORKFLOW10 (ako/mxcli#943).
 				violations = append(violations, executor.StoredTaskClaimViolations(prog, b)...)
+				// A task page the script does not create is read from the project
+				// for MDL-WF20 (ako/mxcli#1710).
+				violations = append(violations, executor.StoredTaskPageOutcomeViolations(prog, b)...)
 			}
+			// A statement the project's Mendix version cannot store
+			// (MDL-VERSION01): the gate its handler applies when reached,
+			// after the statements before it (mendixlabs/mxcli#1434).
+			violations = append(violations, exec.CheckVersionGates(prog)...)
 		}
 		printPreflightViolations(violations, script, showInfo, w, color)
 		if summary := linter.Summarize(violations); summary.Errors > 0 {

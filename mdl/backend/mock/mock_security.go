@@ -39,6 +39,13 @@ func (m *MockBackend) SetProjectAdminUserName(unitID model.ID, name string) erro
 	return fmt.Errorf("MockBackend.SetProjectAdminUserName not configured")
 }
 
+func (m *MockBackend) SetProjectAdminPassword(unitID model.ID, password string) error {
+	if m.SetProjectAdminPasswordFunc != nil {
+		return m.SetProjectAdminPasswordFunc(unitID, password)
+	}
+	return fmt.Errorf("MockBackend.SetProjectAdminPassword not configured")
+}
+
 func (m *MockBackend) SetProjectStrictMode(unitID model.ID, enabled bool) error {
 	if m.SetProjectStrictModeFunc != nil {
 		return m.SetProjectStrictModeFunc(unitID, enabled)

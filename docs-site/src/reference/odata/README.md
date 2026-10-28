@@ -46,6 +46,12 @@ CREATE EXTERNAL ENTITIES FROM Module.Service ENTITIES (Customer, Order);
 CREATE OR MODIFY EXTERNAL ENTITIES FROM Module.Service;
 ```
 
+Each entity is named after its OData **entity type**, as Studio Pro names it: an
+entity type `Part` exposed as entity set `Parts` becomes `Module.Part`. The entity
+set is kept as the entity's remote entity set. A re-import finds an entity by the
+service and entity set it maps first, so an entity that an earlier mxcli version
+named after the set (`Module.Parts`) is updated in place and keeps its name.
+
 ### Complex types are flattened
 
 The Mendix domain model has no complex types. A property typed as an OData
@@ -79,6 +85,23 @@ Two more consequences:
   an entity backed by an entity set. On a derived or contained type they are
   neither. `CE6630` fires in both directions here, so this follows the contract
   rather than a fixed answer.
+
+### Navigation properties become associations
+
+Each navigation property whose target is also imported becomes an association.
+A navigation property with a `Partner` is one end of a bidirectional
+relationship, and Mendix does not accept its ends as separate associations
+(`CE6618` "Navigation '…' is not available in the OData service"):
+
+| Navigation | Association |
+|------------|-------------|
+| No `Partner` | One per navigation property — `Reference`, or `ReferenceSet` for a collection |
+| One-to-many pair (`Lines` / `ParentBuffer`) | One `Reference` from the single-valued end, naming both navigation properties |
+| Many-to-many or one-to-one pair | None. Mendix offers no such navigation; the import lists the pair as not imported |
+
+A re-import of a module that an earlier mxcli version imported the old way lists
+the associations that fail with `CE6618` as `drop association …;` lines. Run them,
+then run the import again.
 
 ## Contract Browsing Statements
 

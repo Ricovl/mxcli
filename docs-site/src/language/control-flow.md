@@ -211,9 +211,12 @@ The handler is flow, so it is written `BEGIN … END ERROR` like every other flo
 
 A handler that does not end in `RETURN` or `RAISE ERROR` falls through: after it
 runs, the microflow continues with the statement after the activity, through a
-merge placed where the two paths meet. `DESCRIBE` writes the merge's position as
-`@merge(x, y)` on the activity, the same annotation a decision uses for the merge
-that closes it. A handler that rejoins somewhere else names that point with
+merge placed where the two paths meet. Inside an `IF`, `CASE` or loop body that is
+the next statement of the same branch; for a branch's last activity it is what
+follows the `END IF` / `END CASE`. Statements that read the activity's output are
+skipped on the error path, since a failed activity produced none. `DESCRIBE`
+writes the merge's position as `@merge(x, y)` on the activity, the same
+annotation a decision uses for the merge that closes it. A handler that rejoins somewhere else names that point with
 `JOIN <label>` and `MERGE <label>`.
 
 ### Error Handling Examples

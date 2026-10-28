@@ -9,7 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -49,7 +50,7 @@ func main() {
 		}
 
 		var raw map[string]any
-		if err := bson.Unmarshal(data, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(data, &raw); err != nil {
 			continue
 		}
 

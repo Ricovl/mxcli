@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -116,6 +117,10 @@ func (pb *pageBuilder) buildDataViewV3(w *ast.WidgetV3) (*pages.DataView, error)
 	for _, child := range w.Children {
 		// Check if this is a FOOTER widget - its children go to FooterWidgets
 		if child.Type == "footer" {
+			// The block is a slot; nothing of its own is stored (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "dataview footer", child); err != nil {
+				return nil, err
+			}
 			if !showFooterSet {
 				dv.ShowFooter = true
 			}
@@ -223,12 +228,14 @@ func (pb *pageBuilder) buildColumnSpecFromAST(child *ast.WidgetV3) (*backend.Dat
 		Properties:        columnSpecProperties(child),
 	}
 	for _, grandchild := range child.Children {
-		if filterWidgetID := dataGridFilterWidgetID(grandchild.Type); filterWidgetID != "" {
-			fw, err := pb.widgetBackend.BuildFilterWidget(backend.FilterWidgetSpec{
-				WidgetID:        filterWidgetID,
-				FilterName:      grandchild.Name,
-				VisibilityRules: resolveWidgetVisibilityRules(pb.backend.Path(), filterWidgetID),
-			}, pb.backend.Path())
+		if dataGridFilterWidgetID(grandchild.Type) != "" {
+			// Through the pluggable engine and the filter's own definition, as
+			// CREATE builds a column's filter. Built from the widget id and name
+			// alone, the filter's properties were never read: a drop-down
+			// filter's `attributes: [Status]` was stored as attrChoice "auto"
+			// with an empty `attr`, check clean (mendixlabs/mxcli#1519 item 2,
+			// the ALTER path #1422 left).
+			fw, err := pb.buildWidgetV3(grandchild)
 			if err != nil {
 				return nil, mdlerrors.NewBackend("build column filter widget", err)
 			}
@@ -396,6 +403,10 @@ func (pb *pageBuilder) buildListViewV3(w *ast.WidgetV3) (*pages.ListView, error)
 			lv.Widgets = append(lv.Widgets, widget)
 			continue
 		}
+		// A specialization template stores its widgets only (ako/mxcli#1698).
+		if err := refuseNativeWidgetProps(pb.ctx, "listview template", child); err != nil {
+			return nil, err
+		}
 		tpl, err := pb.buildListViewTemplateV3(child, w.Name, listEntity, seen)
 		if err != nil {
 			return nil, err
@@ -549,8 +560,27 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 		}
 	}
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	tbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textbox", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	tb.ReadOnlyStyle = tbStyle
+
+	// KeyboardType; unset writes Default (ako/mxcli#1209).
+	if tb.KeyboardType, err = textBoxKeyboardType(w); err != nil {
+		return nil, err
+	}
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &tb.OnEnterAction, &tb.OnLeaveAction); err != nil {
+		return nil, err
+	}
+	// The "On enter key press" action, a text box's only (ako/mxcli#1743).
+	if tb.OnEnterKeyPressAction, err = pb.buildInputEventAction(w, "OnEnterKeyPress", "OnEnterKeyPressAction"); err != nil {
 		return nil, err
 	}
 
@@ -609,8 +639,35 @@ func (pb *pageBuilder) buildTextAreaV3(w *ast.WidgetV3) (*pages.TextArea, error)
 		}
 	}
 
+	// NumberOfLines and Autocomplete; unset keeps Studio Pro's 5 lines and
+	// Autocomplete on (ako/mxcli#977).
+	if raw, ok := lookupPropCI(w, "NumberOfLines"); ok {
+		n, ok := nonNegativeInt32(raw)
+		if !ok {
+			return nil, mdlerrors.NewValidationf("textarea %q: NumberOfLines is a whole number of 0 or more, not %v", w.Name, raw)
+		}
+		ta.NumberOfLines = &n
+	}
+	if raw, ok := lookupPropCI(w, "Autocomplete"); ok {
+		v, err := propBool(raw)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("textarea Autocomplete", err)
+		}
+		ta.Autocomplete = &v
+	}
+
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	taStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "textarea", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	ta.ReadOnlyStyle = taStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &ta.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &ta.OnEnterAction, &ta.OnLeaveAction); err != nil {
 		return nil, err
 	}
 
@@ -659,8 +716,18 @@ func (pb *pageBuilder) buildDatePickerV3(w *ast.WidgetV3) (*pages.DatePicker, er
 	}
 	dp.FormattingInfo = fi
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	dpStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "datepicker", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	dp.ReadOnlyStyle = dpStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &dp.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &dp.OnEnterAction, &dp.OnLeaveAction); err != nil {
 		return nil, err
 	}
 
@@ -784,6 +851,9 @@ func (pb *pageBuilder) buildDropdownV3(w *ast.WidgetV3) (*pages.DropDown, error)
 	if err := pb.applyOnChangeV3(w, &dd.OnChangeAction); err != nil {
 		return nil, err
 	}
+	if err := pb.applyInputFocusEventsV3(w, &dd.OnEnterAction, &dd.OnLeaveAction); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, dd.ID); err != nil {
 		return nil, err
@@ -837,6 +907,9 @@ func (pb *pageBuilder) buildCheckBoxV3(w *ast.WidgetV3) (*pages.CheckBox, error)
 	if err := pb.applyOnChangeV3(w, &cb.OnChangeAction); err != nil {
 		return nil, err
 	}
+	if err := pb.applyInputFocusEventsV3(w, &cb.OnEnterAction, &cb.OnLeaveAction); err != nil {
+		return nil, err
+	}
 
 	if err := pb.registerWidgetName(w.Name, cb.ID); err != nil {
 		return nil, err
@@ -858,10 +931,8 @@ func readOnlyStyleValue(raw, kind, widgetName string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
-	for _, member := range []string{"Inherit", "Control", "Text"} {
-		if strings.EqualFold(raw, member) {
-			return member, nil
-		}
+	if member, ok := pages.CanonicalReadOnlyStyle(raw); ok {
+		return member, nil
 	}
 	return "", mdlerrors.NewValidationf(
 		"%s %q: ReadOnlyStyle %q is not a Mendix read-only style — use Inherit, Control or Text",
@@ -896,8 +967,18 @@ func (pb *pageBuilder) buildRadioButtonsV3(w *ast.WidgetV3) (*pages.RadioButtons
 		return nil, err
 	}
 
+	// ReadOnlyStyle, as on a checkbox; unset keeps Inherit (ako/mxcli#977).
+	rbStyle, err := readOnlyStyleValue(w.GetStringProp("ReadOnlyStyle"), "radiobuttons", w.Name)
+	if err != nil {
+		return nil, err
+	}
+	rb.ReadOnlyStyle = rbStyle
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &rb.OnChangeAction); err != nil {
+		return nil, err
+	}
+	if err := pb.applyInputFocusEventsV3(w, &rb.OnEnterAction, &rb.OnLeaveAction); err != nil {
 		return nil, err
 	}
 
@@ -953,6 +1034,21 @@ func (pb *pageBuilder) buildDynamicTextV3(w *ast.WidgetV3) (*pages.DynamicText, 
 	// Handle RenderMode
 	if rm := w.GetRenderMode(); rm != "" {
 		dt.RenderMode = pages.TextRenderMode(rm)
+	}
+	// NativeTextStyle is RenderMode's counterpart on a native page. MDL had no
+	// spelling for it, so the writer stored Text and a native heading
+	// round-tripped into body text (ako/mxcli#1677).
+	if s := w.GetStringProp("NativeTextStyle"); s != "" {
+		style, ok := pages.CanonicalNativeTextStyle(s)
+		if !ok {
+			names := make([]string, len(pages.NativeTextStyles))
+			for i, v := range pages.NativeTextStyles {
+				names[i] = string(v)
+			}
+			return nil, mdlerrors.NewValidationf("dynamictext %q: unknown NativeTextStyle %q — valid styles are %s",
+				w.Name, s, strings.Join(names, ", "))
+		}
+		dt.NativeTextStyle = style
 	}
 
 	// Handle Content
@@ -1190,9 +1286,48 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 		btn.RenderMode = pages.ButtonRenderModeLink
 	}
 
+	face, err := pb.buildButtonFaceV3(w)
+	if err != nil {
+		return nil, err
+	}
+	btn.CaptionTemplate, btn.Tooltip = face.caption, face.tooltip
+	if face.style != "" {
+		btn.ButtonStyle = face.style
+	}
+	btn.Icon = face.icon
+
+	// Handle Action
+	if action := w.GetAction(); action != nil {
+		act, err := pb.buildClientActionV3(action)
+		if err != nil {
+			return nil, mdlerrors.NewBackend("build action", err)
+		}
+		btn.Action = act
+	}
+
+	if err := pb.registerWidgetName(w.Name, btn.ID); err != nil {
+		return nil, err
+	}
+
+	return btn, nil
+}
+
+// buttonFace is what a button shows: its caption, tooltip, style and icon.
+// An action button and a sidebar toggle button share it.
+type buttonFace struct {
+	caption *pages.ClientTemplate
+	tooltip *model.Text
+	style   pages.ButtonStyle // "" when the author did not say
+	icon    *pages.Icon
+}
+
+// buildButtonFaceV3 reads a button's Caption (with CaptionParams), Tooltip,
+// ButtonStyle and Icon.
+func (pb *pageBuilder) buildButtonFaceV3(w *ast.WidgetV3) (buttonFace, error) {
+	var face buttonFace
 	// Handle Caption
 	if caption := w.GetCaption(); caption != "" {
-		btn.CaptionTemplate = &pages.ClientTemplate{
+		face.caption = &pages.ClientTemplate{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Forms$ClientTemplate",
@@ -1216,14 +1351,14 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 		if params == nil {
 			params = w.GetContentParams()
 		}
-		btn.CaptionTemplate.Parameters = pb.buildClientTemplateParams(params)
+		face.caption.Parameters = pb.buildClientTemplateParams(params)
 	}
 
 	// Tooltip is a plain Texts$Text in the authoring language. The grammar and
 	// MDL-WIDGET07 both accepted it while nothing here read it, so it was
 	// dropped without a word (mendixlabs/mxcli#1307).
 	if tooltip := w.GetStringProp("Tooltip"); tooltip != "" {
-		btn.Tooltip = &model.Text{
+		face.tooltip = &model.Text{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
 				TypeName: "Texts$Text",
@@ -1238,35 +1373,57 @@ func (pb *pageBuilder) buildButtonV3(w *ast.WidgetV3) (*pages.ActionButton, erro
 	if style := w.GetButtonStyle(); style != "" {
 		canonical, ok := pages.CanonicalButtonStyle(style)
 		if !ok {
-			return nil, mdlerrors.NewValidationf(
+			return face, mdlerrors.NewValidationf(
 				"button %q: unknown button style %q — valid styles are %s",
 				w.Name, style, strings.Join(pages.ValidButtonStyleList(), ", "),
 			)
 		}
-		btn.ButtonStyle = canonical
-	}
-
-	// Handle Action
-	if action := w.GetAction(); action != nil {
-		act, err := pb.buildClientActionV3(action)
-		if err != nil {
-			return nil, mdlerrors.NewBackend("build action", err)
-		}
-		btn.Action = act
+		face.style = canonical
 	}
 
 	// Handle Icon (#602, #1059): one of Mendix's three icon elements.
 	icon, err := buildWidgetIcon(w)
 	if err != nil {
+		return face, err
+	}
+	face.icon = icon
+	return face, nil
+}
+
+// buildSidebarToggleV3 builds the button that opens and closes a responsive
+// layout's sidebar (mendixlabs/mxcli#1220). Its face is an action button's,
+// with the same defaults; it has no action.
+func (pb *pageBuilder) buildSidebarToggleV3(w *ast.WidgetV3) (*pages.SidebarToggleButton, error) {
+	tb := &pages.SidebarToggleButton{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$SidebarToggleButton",
+			},
+			Name: w.Name,
+		},
+		ButtonStyle: pages.ButtonStyleDefault,
+		RenderMode:  pages.ButtonRenderModeButton,
+	}
+	face, err := pb.buildButtonFaceV3(w)
+	if err != nil {
 		return nil, err
 	}
-	btn.Icon = icon
-
-	if err := pb.registerWidgetName(w.Name, btn.ID); err != nil {
+	tb.CaptionTemplate, tb.Tooltip, tb.Icon = face.caption, face.tooltip, face.icon
+	if face.style != "" {
+		tb.ButtonStyle = face.style
+	}
+	switch mode := w.GetStringProp("RenderMode"); {
+	case mode == "", strings.EqualFold(mode, "Button"):
+	case strings.EqualFold(mode, "Link"):
+		tb.RenderMode = pages.ButtonRenderModeLink
+	default:
+		return nil, mdlerrors.NewValidationf("sidebartoggle %q: unknown RenderMode %q — valid modes are Button, Link", w.Name, mode)
+	}
+	if err := pb.registerWidgetName(w.Name, tb.ID); err != nil {
 		return nil, err
 	}
-
-	return btn, nil
+	return tb, nil
 }
 
 // buildNavigationListV3 creates a NavigationList widget from V3 syntax.
@@ -1284,6 +1441,10 @@ func (pb *pageBuilder) buildNavigationListV3(w *ast.WidgetV3) (*pages.Navigation
 	// Build items from children (ITEM widgets)
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "item" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "navigationlist item", child); err != nil {
+				return nil, err
+			}
 			item, err := pb.buildNavigationListItemV3(child)
 			if err != nil {
 				return nil, err
@@ -1323,6 +1484,18 @@ func (pb *pageBuilder) buildNavigationListItemV3(w *ast.WidgetV3) (*pages.Naviga
 	item.Class = w.GetClass()
 	item.Style = w.GetStyle()
 	item.DynamicClasses = w.GetDynamicClasses()
+
+	// The item's visibility, as a widget's: expression or attribute condition,
+	// and module roles beside either (#1460).
+	item.ConditionalVisibility = expressionVisibility(w)
+	if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
+		cvs, err := pb.visibleWhenSettings(w, vw)
+		if err != nil {
+			return nil, err
+		}
+		item.ConditionalVisibility = cvs
+	}
+	item.ConditionalVisibility = withVisibleRoles(item.ConditionalVisibility, w)
 
 	// Set caption from Caption property
 	if caption := w.GetCaption(); caption != "" {
@@ -1699,6 +1872,33 @@ func lookupPropCI(w *ast.WidgetV3, key string) (any, bool) {
 		}
 	}
 	return nil, false
+}
+
+// nonNegativeInt32 reads a whole-number property value of 0 or more that fits
+// the 32-bit integer Mendix stores. A string is parsed at that width, so no
+// value is narrowed after the fact.
+func nonNegativeInt32(v any) (int32, bool) {
+	var s string
+	switch n := v.(type) {
+	case int:
+		s = strconv.Itoa(n)
+	case int64:
+		s = strconv.FormatInt(n, 10)
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		s = strconv.FormatFloat(n, 'f', -1, 64)
+	case string:
+		s = strings.TrimSpace(n)
+	default:
+		return 0, false
+	}
+	i, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || i < 0 {
+		return 0, false
+	}
+	return int32(i), true
 }
 
 // propBool coerces a widget property value to a bool. GetBoolProp cannot be used

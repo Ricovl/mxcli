@@ -103,7 +103,7 @@ func assocToGen(a *domainmodel.Association) *genDm.Association {
 	out := genDm.NewAssociation()
 	out.SetName(a.Name)
 	out.SetDocumentation(a.Documentation)
-	out.SetExportLevel("Hidden")
+	out.SetExportLevel(orDefault(a.ExportLevel, "Hidden"))
 	out.SetParentID(element.ID(string(a.ParentID)))
 	out.SetChildID(element.ID(string(a.ChildID)))
 	out.SetType(string(a.Type))
@@ -263,11 +263,13 @@ func entityToGen(e *domainmodel.Entity, moduleName string, major int) *genDm.Ent
 		out.SetSource(externalEntitySourceToGen(e))
 	}
 	// ExportLevel is a mandatory scalar NewEntity's pending applyDefaults does not
-	// yet set (engalar tech-debt Fix 4). The entity GUID and the empty member
+	// yet set (engalar tech-debt Fix 4), so an unset one is written "Hidden"; a
+	// rewrite of a stored entity carries the stored level onto it instead
+	// (carryStoredEntity). The entity GUID and the empty member
 	// arrays (Attributes/AccessRules/…) legacy also emits are NOT settable on the
 	// gen Entity / not emitted for unset PartLists — that residual is the
 	// documented applyDefaults gap (see the write-parity known-gap test).
-	out.SetExportLevel("Hidden")
+	out.SetExportLevel(orDefault(e.ExportLevel, "Hidden"))
 
 	if e.GeneralizationRef != "" {
 		g := genDm.NewGeneralization()
@@ -610,7 +612,7 @@ func attributeToGen(a *domainmodel.Attribute, isExternal bool) *genDm.Attribute 
 	out := genDm.NewAttribute()
 	out.SetName(a.Name)
 	out.SetDocumentation(a.Documentation)
-	out.SetExportLevel("Hidden")
+	out.SetExportLevel(orDefault(a.ExportLevel, "Hidden"))
 	out.SetType(attributeTypeToGen(a.Type))
 
 	def := ""

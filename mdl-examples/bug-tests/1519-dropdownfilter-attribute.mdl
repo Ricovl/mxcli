@@ -1,0 +1,31 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1519 (item 2) — a drop-down filter loses its attribute
+-- ============================================================================
+--
+-- `dropdownfilter f (attributes: [Status])` stored attrChoice "auto" with an
+-- empty `attr`: check, exec and mx check were clean, describe printed a bare
+-- `dropdownfilter`, and in a gallery (no column to inherit an attribute from)
+-- the filter failed at runtime with "Unable to get filter store".
+--
+-- Expected now: both filters store attrChoice "linked" + attr = Bug1519.Item.Status,
+-- `mx check` reports 0 errors, and DESCRIBE PAGE prints
+-- `dropdownfilter … (Attributes: [Status])` for each. Listing two attributes is
+-- refused (MDL-WIDGET47): the widget has one attribute slot.
+
+create module Bug1519;
+create enumeration Bug1519.ItemStatus ( Open 'Open', Closed 'Closed' );
+create persistent entity Bug1519.Item ( Name: String(100), Status: Enum Bug1519.ItemStatus );
+
+create page Bug1519.Item_Overview ( Title: 'Items', Layout: Atlas_Core.Atlas_Default ) {
+  datagrid dg ( DataSource: database from Bug1519.Item ) {
+    column (Attribute: Name, Caption: 'Name') { textfilter tfName }
+    column (Attribute: Status, Caption: 'Status') { dropdownfilter ddfColumn (attributes: [Status]) }
+  }
+  gallery gal ( DataSource: database from Bug1519.Item ) {
+    filter { dropdownfilter ddfGallery (attributes: [Status]) }
+    template { dynamictext txtName (Content: 'item') }
+  }
+};
+
+describe page Bug1519.Item_Overview;

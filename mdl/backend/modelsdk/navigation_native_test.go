@@ -5,8 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	v2bson "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
@@ -17,19 +16,19 @@ import (
 // and an icon like a menu item, and the reader took only its legacy Page — so
 // describe showed a nanoflow tab as an item with no action and no icon.
 func TestNativeProfile_ReadsBottomBarActionAndIcon(t *testing.T) {
-	text := func(s string) v2bson.D {
-		return v2bson.D{{Key: "$Type", Value: "Texts$Text"}, {Key: "Items", Value: v2bson.A{int32(3),
-			v2bson.D{{Key: "$Type", Value: "Texts$Translation"}, {Key: "LanguageCode", Value: "en_US"}, {Key: "Text", Value: s}}}}}
+	text := func(s string) bson.D {
+		return bson.D{{Key: "$Type", Value: "Texts$Text"}, {Key: "Items", Value: bson.A{int32(3),
+			bson.D{{Key: "$Type", Value: "Texts$Translation"}, {Key: "LanguageCode", Value: "en_US"}, {Key: "Text", Value: s}}}}}
 	}
-	raw, err := v2bson.Marshal(v2bson.D{
+	raw, err := bson.Marshal(bson.D{
 		{Key: "$Type", Value: "Navigation$NativeNavigationProfile"},
 		{Key: "Name", Value: "NativePhone"},
-		{Key: "BottomBarItems", Value: v2bson.A{int32(2), v2bson.D{
+		{Key: "BottomBarItems", Value: bson.A{int32(2), bson.D{
 			{Key: "$Type", Value: "NativePages$BottomBarItem"},
-			{Key: "Action", Value: v2bson.D{{Key: "$Type", Value: "Forms$CallNanoflowClientAction"},
+			{Key: "Action", Value: bson.D{{Key: "$Type", Value: "Forms$CallNanoflowClientAction"},
 				{Key: "DisabledDuringExecution", Value: true}, {Key: "Nanoflow", Value: "M.ShowReports"}}},
 			{Key: "Caption", Value: text("Reports")},
-			{Key: "Icon", Value: v2bson.D{{Key: "$Type", Value: "Forms$IconCollectionIcon"}, {Key: "Image", Value: "Atlas_Core.Atlas.home"}}},
+			{Key: "Icon", Value: bson.D{{Key: "$Type", Value: "Forms$IconCollectionIcon"}, {Key: "Image", Value: "Atlas_Core.Atlas.home"}}},
 			{Key: "Page", Value: ""},
 		}}},
 	})

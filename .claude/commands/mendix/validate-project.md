@@ -10,7 +10,7 @@ This is the same validation that Studio Pro performs - it checks for consistency
 
 ## Prerequisites
 
-The `mx` command must be available. In a dev container, run `mxcli setup mxbuild -p app.mpr` to auto-download it.
+The `mx` command must be available; `mxcli docker check` does not download it. In a dev container, run `mxcli setup mxbuild -p app.mpr` once to download it.
 
 **Where to find `mx`:**
 
@@ -23,14 +23,11 @@ The `mx` command must be available. In a dev container, run `mxcli setup mxbuild
 ## Command
 
 ```bash
-# In dev container (after mxcli setup mxbuild -p app.mpr)
+# After mxcli setup mxbuild -p app.mpr (docker check does not download mxbuild)
 mxcli docker check -p app.mpr
 
-# Or use the integrated command (auto-downloads mxbuild)
-mxcli docker check -p app.mpr
-
-# With explicit path
-/path/to/mxbuild/modeler/mx check /path/to/project.mpr
+# With an explicit MxBuild (still checks a temporary copy; bare `mx check` writes into the project)
+mxcli docker check -p app.mpr --mxbuild-path /path/to/mxbuild
 ```
 
 ## Example Output

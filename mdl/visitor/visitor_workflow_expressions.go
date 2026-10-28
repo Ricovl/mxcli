@@ -3,6 +3,7 @@
 package visitor
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -149,4 +150,58 @@ func gluesToWord(s string) bool {
 		return unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune("_$'\"`%", r)
 	}
 	return false
+}
+
+// buildWorkflowTemplateParams reads the `with ({1} = <expression>, …)` that
+// fills a workflow text's placeholders (ako/mxcli#1714). Each expression is kept
+// as written, as workflowExpressionText keeps every workflow expression; the
+// deprecated `parameters ['…', …]` numbers its values in order.
+func buildWorkflowTemplateParams(ctx parser.ITemplateParamsContext) []ast.WorkflowTemplateParam {
+	if ctx == nil {
+		return nil
+	}
+	pc, ok := ctx.(*parser.TemplateParamsContext)
+	if !ok {
+		return nil
+	}
+	var out []ast.WorkflowTemplateParam
+	for _, p := range pc.AllTemplateParam() {
+		tp, ok := p.(*parser.TemplateParamContext)
+		if !ok || tp.NUMBER_LITERAL() == nil || tp.Expression() == nil {
+			continue // a syntax error, already reported
+		}
+		index, err := strconv.Atoi(tp.NUMBER_LITERAL().GetText())
+		if err != nil {
+			continue
+		}
+		out = append(out, ast.WorkflowTemplateParam{Index: index, Expression: bareArgumentText(tp.Expression())})
+	}
+	if arr := pc.ArrayLiteral(); arr != nil {
+		if al, ok := arr.(*parser.ArrayLiteralContext); ok {
+			for i, lit := range al.AllLiteral() {
+				out = append(out, ast.WorkflowTemplateParam{Index: i + 1, Expression: lit.GetText()})
+			}
+		}
+	}
+	return out
+}
+
+// buildWorkflowRecurrence reads `repeat every <n> <unit> at most <m> times`
+// (ako/mxcli#1716); nil when the timer has none. The unit is kept as written.
+func buildWorkflowRecurrence(ctx parser.IWorkflowRecurrenceContext) *ast.WorkflowRecurrenceNode {
+	rc, ok := ctx.(*parser.WorkflowRecurrenceContext)
+	if !ok || rc == nil {
+		return nil
+	}
+	r := &ast.WorkflowRecurrenceNode{}
+	if t := rc.GetInterval(); t != nil {
+		r.Interval, _ = strconv.Atoi(t.GetText())
+	}
+	if t := rc.GetMaxExecutions(); t != nil {
+		r.MaxExecutions, _ = strconv.Atoi(t.GetText())
+	}
+	if u := rc.GetUnit(); u != nil {
+		r.Unit = identifierOrKeywordText(u)
+	}
+	return r
 }

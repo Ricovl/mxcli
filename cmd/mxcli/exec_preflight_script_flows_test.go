@@ -20,7 +20,7 @@ import (
 
 // A `create or modify` whose new body calls a flow the statement before it
 // creates: exec's preflight said nothing, so exec wrote the new sub-flow and
-// then refused the modify (MDL-V1-REBUILD, "$Reporter is still used by"),
+// then refused the modify (MDL-V1-REBUILD; here a loop-body change),
 // leaving the script half-applied. The preflight must refuse it before
 // anything is written.
 func TestExecPreflightRefusesModifyCallingFlowTheScriptCreates(t *testing.T) {
@@ -56,10 +56,13 @@ func TestExecPreflightRefusesModifyCallingFlowTheScriptCreates(t *testing.T) {
 		return prog
 	}
 	if err := exec.ExecuteProgram(parse(`mdl 1;
-create microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback)
+create microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback, $Items: List of FeedbackModule.Feedback)
 begin
-  retrieve $Reporter from System.User first;
-  change $F (Subject = $Reporter/Name);
+  log info node 'X' 'start';
+  loop $It in $Items
+  begin
+    commit $It;
+  end loop;
   log info node 'X' 'done';
 end;`)); err != nil {
 		t.Fatalf("setup: %v", err)
@@ -77,15 +80,22 @@ begin
   retrieve $Reporter from System.User first;
   change $F (Subject = $Reporter/Name);
 end;
-create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback)
+create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback, $Items: List of FeedbackModule.Feedback)
 begin
   call microflow MyFirstModule.VerdictNewSub (F = $F);
+  loop $It in $Items
+  begin
+    commit $It;
+    if $It/Subject = empty then
+      log info node 'X' 'no subject';
+    end if;
+  end loop;
   log info node 'X' 'done';
 end;`)
 	if refusal == "" || !strings.Contains(refusal, "Nothing was written") {
 		t.Fatalf("want the pre-flight to refuse the script, got %q\n%s", refusal, out)
 	}
-	if !strings.Contains(out, "is still used by") {
+	if !strings.Contains(out, "changes inside its body") {
 		t.Errorf("pre-flight output must carry exec's refusal:\n%s", out)
 	}
 	if strings.Contains(out, "not predicted") {
@@ -95,10 +105,13 @@ end;`)
 	// Control: a modify that only changes a log message is spliced; the
 	// pre-flight lets it run and reports nothing unpredicted.
 	refusal, out = run(`mdl 1;
-create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback)
+create or modify microflow MyFirstModule.VerdictAct ($F: FeedbackModule.Feedback, $Items: List of FeedbackModule.Feedback)
 begin
-  retrieve $Reporter from System.User first;
-  change $F (Subject = $Reporter/Name);
+  log info node 'X' 'start';
+  loop $It in $Items
+  begin
+    commit $It;
+  end loop;
   log info node 'X' 'finished';
 end;`)
 	if refusal != "" || strings.Contains(out, "not predicted") {

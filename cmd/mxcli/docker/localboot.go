@@ -42,6 +42,11 @@ type DBConfig struct {
 	Name     string
 	User     string
 	Password string
+	// AdminUser/AdminPassword are a superuser login for --ensure-db to create
+	// the role and database with, when no passwordless path exists (mendixlabs/mxcli#1485).
+	// They are never passed to the runtime.
+	AdminUser     string
+	AdminPassword string
 }
 
 // IsFileBased reports whether this is the runtime's built-in file database, which
@@ -72,7 +77,9 @@ type LocalRuntimeOptions struct {
 	AppPort int
 	// AdminPass is the M2EE admin password (required).
 	AdminPass string
-	// ListenAddr binds both the admin API and the app (default 127.0.0.1).
+	// ListenAddr is the address the app binds to (default 127.0.0.1). It does
+	// NOT affect the M2EE admin API, which is always loopback (see
+	// m2eeAdminListenAddr).
 	ListenAddr string
 	// DTAPMode is D/A/T/P (default "D").
 	DTAPMode string
@@ -90,6 +97,11 @@ type LocalRuntimeOptions struct {
 	// merged over the defaults mxbuild wrote into the deployment. See
 	// mergeConstantOverrides.
 	ConstantOverrides map[string]string
+	// JVMArgs are the running configuration's JVM options — its Java heap
+	// maximum and Extra JVM parameters, already split into arguments — which
+	// Studio Pro passes to the runtime JVM. They go after mxcli's own -D flags and
+	// before -jar.
+	JVMArgs []string
 	// Trace attaches the bundled OpenTelemetry Java agent to the runtime JVM
 	// (traces via the console exporter → the tee'd runtime log). The caller should
 	// also set OpenTelemetry._RuntimeSpanFilters via RuntimeSettings — unfiltered
@@ -252,13 +264,27 @@ func (o *LocalRuntimeOptions) launcherJar() string {
 // silently returns 0 rows (findings #36). `run --local` is always a development
 // loop (it forces DTAPMode=D), so enabling live preview unconditionally matches
 // what docker mode already does.
+//
+// The configuration's JVMArgs come after those flags, so a property the
+// configuration sets deliberately wins (the JVM keeps the last -D for a name),
+// and before -jar, after which they would be the runtime's arguments instead.
 func (o *LocalRuntimeOptions) jvmArgs() []string {
-	return []string{
+	args := []string{
 		"-Dmendix.live-preview=enabled",
 		"-Dmendix.running.locally.by.studiopro=true",
-		"-jar", o.launcherJar(), o.DeployDir,
 	}
+	args = append(args, o.JVMArgs...)
+	return append(args, "-jar", o.launcherJar(), o.DeployDir)
 }
+
+// m2eeAdminListenAddr is the address the M2EE admin API binds to, and the
+// address mxcli talks to it on. Always loopback, deliberately independent of
+// LocalRuntimeOptions.ListenAddr: the admin API is a privileged surface (it
+// boots the app, rewrites configuration, runs actions) and widening the app
+// bind must not widen it onto the network as a side effect. A wildcard would
+// not be a valid client destination anyway — 0.0.0.0 is a bind address, not a
+// host, so a client dialling it is not portable.
+const m2eeAdminListenAddr = "127.0.0.1"
 
 // localRuntimeEnv builds the environment for the runtime JVM, layered on the
 // current process environment. PrepareMxCommand later adds the FreeType fix.
@@ -268,7 +294,7 @@ func localRuntimeEnv(o LocalRuntimeOptions) []string {
 	env := append(os.Environ(),
 		"M2EE_ADMIN_PASS="+o.AdminPass,
 		fmt.Sprintf("M2EE_ADMIN_PORT=%d", o.AdminPort),
-		"M2EE_ADMIN_LISTEN_ADDRESSES="+o.ListenAddr,
+		"M2EE_ADMIN_LISTEN_ADDRESSES="+m2eeAdminListenAddr,
 		"MX_INSTALL_PATH="+o.InstallPath,
 		"MX_LOG_LEVEL=i",
 	)
@@ -376,7 +402,8 @@ func runtimeConfigParams(o LocalRuntimeOptions, constants map[string]string) map
 		"MicroflowConstants": constants,
 	}
 	// Only set ApplicationRootUrl when the app is served behind an external URL;
-	// on a plain local run the runtime defaults it from the listen address.
+	// on a plain local run it stays unset (the runtime does not derive one from
+	// the listen address; see warnWildcardWithoutRootURL).
 	if o.ApplicationRootUrl != "" {
 		params["ApplicationRootUrl"] = o.ApplicationRootUrl
 	}
@@ -512,7 +539,9 @@ func StartLocalRuntime(opts LocalRuntimeOptions) (*LocalRuntime, error) {
 	rt := &LocalRuntime{
 		opts: opts,
 		m2ee: M2EEOptions{
-			Host:    opts.ListenAddr,
+			// The admin API is always loopback, independent of the app bind:
+			// see m2eeAdminListenAddr.
+			Host:    m2eeAdminListenAddr,
 			Port:    opts.AdminPort,
 			Token:   opts.AdminPass,
 			Direct:  true,
@@ -699,9 +728,11 @@ func (rt *LocalRuntime) Restart() error {
 	return rt.spawnAndConfigure()
 }
 
-// AppURL is the base URL the app serves on.
+// AppURL is the base URL mxcli reaches the app on — health checks, screenshots,
+// the "app is running" line. It is a destination, not the bind: under a
+// wildcard --listen-addr it names loopback (see appDialHost).
 func (rt *LocalRuntime) AppURL() string {
-	return fmt.Sprintf("http://%s:%d/", rt.opts.ListenAddr, rt.opts.AppPort)
+	return appURLFor(rt.opts.ListenAddr, rt.opts.AppPort)
 }
 
 // HealthOK reports whether the app answers an HTTP request (any status < 500).

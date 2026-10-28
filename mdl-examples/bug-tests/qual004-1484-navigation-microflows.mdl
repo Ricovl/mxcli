@@ -1,0 +1,69 @@
+mdl 1;
+-- ============================================================================
+-- Issue ako/mxcli#1484 (upstream mendixlabs/mxcli#1579) — QUAL004 reports a
+-- microflow started only from the navigation as "not called from anywhere"
+-- ============================================================================
+--
+-- Named with a topic prefix rather than a bare `1484-`: the historical files
+-- here are named after mendixlabs/mxcli PR numbers, and the fork's issue
+-- numbers collide with them.
+--
+-- A profile's home microflow and a menu item's `call microflow` are entry
+-- points: the client starts them, nothing in the model calls them. The catalog
+-- records both (`home_page` / `menu_item` edges, which `mxcli refs` lists), but
+-- QUAL004 decided "has a caller" from its own list of reference kinds,
+-- MICROFLOW_ENTRY_KINDS, which had the page kinds for the navigation and not the
+-- microflow ones. So it said:
+--
+--   ℹ Microflow 'NAV_Home' is not called from anywhere. [QUAL004]
+--       at Shop.Shop.NAV_Home
+--       → Remove if unused, ...
+--
+-- The rule now counts every edge into a document — the same graph `refs` and
+-- CATALOG.GRAPH_DEAD_ASSETS read — so a kind the catalog adds later cannot fall
+-- behind it. (The doubled module in `at Shop.Shop.NAV_Home` was a separate
+-- defect in the lint location, fixed alongside.)
+--
+-- ----------------------------------------------------------------------------
+-- Running this example (QUAL004 is a Starlark rule: the project needs
+-- .claude/lint-rules/orphaned_elements.star, which `mxcli init` writes)
+--
+--   mxcli exec qual004-1484-navigation-microflows.mdl -p app.mpr
+--   mxcli -p app.mpr -c "refresh catalog full force"
+--   mxcli refs Shop.NAV_Orders -p app.mpr
+--       # NAVIGATION | Navigation.Responsive | menu_item
+--   mxcli lint -p app.mpr
+--       # expected in Shop: QUAL004 for Shop.NAV_Unused only, `at Shop.NAV_Unused`
+--       # before the fix: also Shop.NAV_Home and Shop.NAV_Orders
+-- ============================================================================
+
+create module Shop;
+
+-- started only from the navigation
+create microflow Shop.NAV_Home ()
+begin
+  log info node 'Shop' 'home';
+end;
+
+create microflow Shop.NAV_Orders ()
+begin
+  log info node 'Shop' 'orders';
+end;
+
+-- control: no caller at all — still reported, also with a NAV_ name
+create microflow Shop.NAV_Unused ()
+begin
+  log info node 'Shop' 'never';
+end;
+
+-- control: no caller, but an entry-point prefix exempts it by name
+create microflow Shop.ACT_Entry ()
+begin
+  log info node 'Shop' 'act';
+end;
+
+create or modify navigation Responsive
+  home microflow Shop.NAV_Home
+{
+  menu item 'Orders' ( OnClick: call microflow Shop.NAV_Orders )
+};

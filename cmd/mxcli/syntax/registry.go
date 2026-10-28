@@ -23,6 +23,8 @@ var registeredPaths = map[string]bool{}
 
 // topicAliases maps legacy topic names and common variants to registry paths.
 var topicAliases = map[string]string{
+	// ALTER MENU lives with the menu document it edits.
+	"menu.alter": "navigation.menu-document.alter",
 	// Connection aliases
 	"connection":  "connect",
 	"open":        "connect",

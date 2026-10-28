@@ -5,7 +5,7 @@ package pagemutator
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -103,5 +103,71 @@ func TestSetWidgetProperty_Editable_NoSuchProperty(t *testing.T) {
 	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
 	if err := m.SetWidgetProperty("ctn", "Editable", true); err == nil {
 		t.Fatal("set Editable on a container succeeded; it has no Editable property")
+	}
+}
+
+// ako/mxcli#1676: from Mendix 10.7 a data view stores the Always/Never/
+// Conditional enum as `Editability` and has no `Editable` at all (Model SDK:
+// Forms$DataView `editable` Deleted 10.7.0, `editability` Introduced 10.7.0;
+// all 41 data views in the Studio Pro-authored PedApp fixture). The setter only
+// looked at `Editable`, so `set Editable = Never on dataView1` was refused as
+// "a data view has no Editable property".
+func TestSetWidgetProperty_Editable_DataViewEditability(t *testing.T) {
+	w := bson.D{
+		{Key: "$Type", Value: "Forms$DataView"},
+		{Key: "Name", Value: "dataView1"},
+		{Key: "Editability", Value: "Always"},
+		{Key: "ConditionalEditabilitySettings", Value: nil},
+	}
+	rawData := makeRawPage(w)
+	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+	stored := func() bson.D { return findBsonWidget(rawData, "dataView1").widget }
+
+	if err := m.SetWidgetProperty("dataView1", "Editable", "Never"); err != nil {
+		t.Fatalf("set Editable = Never on a data view: %v", err)
+	}
+	if got := bsonnav.DGet(stored(), "Editability"); got != "Never" {
+		t.Fatalf("Editability = %#v, want \"Never\"", got)
+	}
+	if got := bsonnav.DGet(stored(), "Editable"); got != nil {
+		t.Fatalf("the setter added an `Editable` key (%#v) that a 10.7+ data view does not declare", got)
+	}
+	if err := m.SetWidgetProperty("dataView1", "EditableIf", "$currentObject/Open"); err != nil {
+		t.Fatalf("set EditableIf: %v", err)
+	}
+	if got := bsonnav.DGet(stored(), "Editability"); got != "Conditional" {
+		t.Fatalf("Editability = %#v after set Editable = [expr], want \"Conditional\"", got)
+	}
+	if err := m.SetWidgetProperty("dataView1", "Editable", "Always"); err != nil {
+		t.Fatalf("set Editable = Always: %v", err)
+	}
+	if got := bsonnav.DGet(stored(), "Editability"); got != "Always" {
+		t.Fatalf("Editability = %#v, want \"Always\"", got)
+	}
+	if s := bsonnav.DGet(stored(), "ConditionalEditabilitySettings"); s != nil {
+		t.Fatalf("ConditionalEditabilitySettings = %#v after set Editable = Always, want null", s)
+	}
+}
+
+// ako/mxcli#1677: `alter page … set (NativeTextStyle: …)` on a dynamic text
+// writes the stored enum in place, canonically spelled, and refuses a value
+// outside it.
+func TestSetWidgetProperty_NativeTextStyle(t *testing.T) {
+	w := bson.D{
+		{Key: "$Type", Value: "Forms$DynamicText"},
+		{Key: "Name", Value: "text4"},
+		{Key: "RenderMode", Value: "Text"},
+		{Key: "NativeTextStyle", Value: "Text"},
+	}
+	rawData := makeRawPage(w)
+	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+	if err := m.SetWidgetProperty("text4", "NativeTextStyle", "heading3"); err != nil {
+		t.Fatalf("set NativeTextStyle = heading3: %v", err)
+	}
+	if got := bsonnav.DGet(findBsonWidget(rawData, "text4").widget, "NativeTextStyle"); got != "Heading3" {
+		t.Fatalf("NativeTextStyle = %#v, want \"Heading3\"", got)
+	}
+	if err := m.SetWidgetProperty("text4", "NativeTextStyle", "H3"); err == nil {
+		t.Fatal("set NativeTextStyle = H3 succeeded; want an error naming the valid styles")
 	}
 }

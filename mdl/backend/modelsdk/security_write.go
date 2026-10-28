@@ -219,13 +219,25 @@ func (b *Backend) SetProjectStrictMode(unitID model.ID, enabled bool) error {
 
 // SetProjectAdminUserName renames the built-in administrator account
 // (Security$ProjectSecurity.AdminUserName, MxAdmin by default). The password
-// is left as stored: MDL does not set it (mendixlabs/mxcli#624).
+// is left as stored.
 func (b *Backend) SetProjectAdminUserName(unitID model.ID, name string) error {
 	ps, err := b.loadProjectSecurityGen(unitID)
 	if err != nil {
 		return err
 	}
 	ps.SetAdminUserName(name)
+	return b.persistUnit(unitID, ps)
+}
+
+// SetProjectAdminPassword sets the built-in administrator's password
+// (Security$ProjectSecurity.AdminPassword), which Studio Pro stores in the
+// model as entered. The user name is left as stored (mendixlabs/mxcli#624).
+func (b *Backend) SetProjectAdminPassword(unitID model.ID, password string) error {
+	ps, err := b.loadProjectSecurityGen(unitID)
+	if err != nil {
+		return err
+	}
+	ps.SetAdminPassword(password)
 	return b.persistUnit(unitID, ps)
 }
 

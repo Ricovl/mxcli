@@ -44,7 +44,25 @@ func (b *Builder) ExitCallArgument(ctx *parser.CallArgumentContext) {
 			"call nanoflow; bind the parameter to a value, or to `empty`",
 			tok.GetLine(), tok.GetColumn()))
 	}
+	if tp := ctx.TemplateParams(); tp != nil && !isJavaActionCallArgument(ctx) {
+		tok := tp.GetStart()
+		b.addError(fmt.Errorf("line %d:%d `with ({1} = …)` fills a text-template parameter, which only "+
+			"call java action has; bind this parameter to an expression",
+			tok.GetLine(), tok.GetColumn()))
+	}
 	b.recordDollarArgument(ctx.VARIABLE())
+}
+
+// isJavaActionCallArgument reports whether a call argument belongs to a call
+// java action — the one call whose parameters can be text templates
+// (StringTemplate(Text|Sql)), filled with `with ({1} = …)` (ako/mxcli#1451).
+func isJavaActionCallArgument(ctx *parser.CallArgumentContext) bool {
+	list := ctx.GetParent()
+	if list == nil {
+		return false
+	}
+	_, ok := list.GetParent().(*parser.CallJavaActionStatementContext)
+	return ok
 }
 
 // isFlowCallArgument reports whether a call argument belongs to a call
@@ -195,6 +213,17 @@ func BareExpression(expr string) bool {
 		return false
 	}
 	return bareArgumentText(ctx.(parser.IExpressionContext)) == expr
+}
+
+// ParsesAsExpression reports whether text is one MDL expression, read with the
+// same grammar rule as a bare `Visible: <expr>` / `Editable: <expr>`. check asks
+// it of a quoted condition, whose text the parser otherwise never sees.
+func ParsesAsExpression(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	_, ok := parseRule(text, func(p *parser.MDLParser) antlr.ParserRuleContext { return p.Expression() })
+	return ok
 }
 
 // bareArgumentText is the expression a bare workflow argument stores: its

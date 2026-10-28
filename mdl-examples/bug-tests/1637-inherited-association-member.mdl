@@ -1,0 +1,40 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1637 — a member association inherited from another module
+-- ============================================================================
+--
+-- An association lives in its FROM entity's module. HR.Emp extends Other.Person,
+-- so it inherits Other.Person_Dept — an association of module Other. describe
+-- prints a find's association short (`find $l by Person_Dept = $d`), and the
+-- builder looked a bare name up only in HR, so executing that description (or
+-- writing the name bare by hand) stored the ATTRIBUTE HR.Emp.Person_Dept:
+--   [CE1613] "The selected attribute 'HR.Emp.Person_Dept' no longer exists."
+-- (measured on 11.12.5; re-running over the stored flow said "Unchanged", so
+-- only a rebuild showed it). A bare name now resolves through the
+-- generalization chain, after the inherited attributes. Each form below builds
+-- clean on 11.12.5.
+-- ============================================================================
+
+create module B1637Base;
+create module B1637;
+
+create persistent entity B1637Base.Person ("Name": String(50));
+create persistent entity B1637Base.Dept ("Name": String(50));
+create association B1637Base.Person_Dept from B1637Base.Person to B1637Base.Dept;
+
+create persistent entity B1637.Emp extends B1637Base.Person ("Code": String(10));
+
+-- Qualified, as written — describe prints it as `by Person_Dept`.
+create or modify microflow B1637.Emp_FirstInDept ($Emps: List of B1637.Emp, $Dept: B1637Base.Dept)
+returns B1637.Emp as $Emp
+begin
+  $Emp = find $Emps by B1637Base.Person_Dept = $Dept;
+end;
+
+-- The short spelling describe prints, in a find and in a create.
+create or modify microflow B1637.Emp_HireInto ($Emps: List of B1637.Emp, $Dept: B1637Base.Dept)
+returns B1637.Emp as $New
+begin
+  $Found = filter $Emps by Person_Dept = $Dept;
+  $New = create B1637.Emp (Code = 'new', Person_Dept = $Dept);
+end;

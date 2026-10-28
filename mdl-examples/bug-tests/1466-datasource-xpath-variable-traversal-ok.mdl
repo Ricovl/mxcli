@@ -1,0 +1,76 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — controls for the page-datasource arm of MDL055
+-- ============================================================================
+--
+-- Every page here MUST pass `mxcli check`. Each was exec'd into a fresh 11.13.0
+-- and a fresh 11.14.0 project and `mx check` reported 0 errors, so a rule that
+-- flags any of them refuses MDL that builds:
+--
+--   [Mod.A = $currentObject/Mod.B]        one hop — the form the issue reported
+--   [Mod.A/Mod.E/Mod.B = $currentObject]  the inverted form
+--   [Name = $currentObject/Label]         the context object's own attribute
+--
+--   [Mod.A = $currentObject/Mod.S]        one hop onto a SPECIALIZATION of A's target
+--   [Mod.AS = $currentObject/Mod.B]       A's target specializes the comparand's
+--
+-- and, for the combo box caption (MDL-WIDGET16, CE0642 when missing):
+--
+--   CaptionAttribute: Name                                  association mode
+--   optionsSourceAssociationCaptionType: expression + expr  association mode
+--   no caption at all                                       ENUMERATION mode
+--
+-- The CE0161 forms are in the .fail.mdl files beside this one: two hops
+-- (…-variable-traversal.fail.mdl, MDL055), a comparand on an unrelated entity
+-- (…-comparand-entity.fail.mdl, MDL-XPATH02) and an unqualified comparand
+-- association (…-comparand-unqualified.fail.mdl, MDL-XPATH01); the CE0642 one
+-- is 1466-combobox-caption-required.fail.mdl.
+-- ============================================================================
+
+create module Bug1466;
+create persistent entity Bug1466.Region (Name: String(100));
+create persistent entity Bug1466.District (Name: String(100));
+create persistent entity Bug1466.SubRegion extends Bug1466.Region (Extra: String(10));
+create enumeration Bug1466.Kind (Near 'Near', Far 'Far');
+create persistent entity Bug1466.AreaPicker (Label: String(50), Kind: Enumeration(Bug1466.Kind));
+create association Bug1466.District_Region from Bug1466.District to Bug1466.Region type Reference;
+create association Bug1466.AreaPicker_Region from Bug1466.AreaPicker to Bug1466.Region type Reference;
+create association Bug1466.AreaPicker_District from Bug1466.AreaPicker to Bug1466.District type Reference;
+create association Bug1466.AreaPicker_SubRegion from Bug1466.AreaPicker to Bug1466.SubRegion type Reference;
+create association Bug1466.District_SubRegion from Bug1466.District to Bug1466.SubRegion type Reference;
+
+create page Bug1466.Controls (
+  Params: ($Picker: Bug1466.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvPicker (DataSource: $Picker) {
+          combobox cbOneHop (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_Region = $currentObject/Bug1466.AreaPicker_Region],
+            CaptionAttribute: Name)
+          combobox cbInverted (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_Region/Bug1466.Region/Bug1466.AreaPicker_Region = $currentObject],
+            CaptionAttribute: Name)
+          combobox cbOwnAttr (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Name = $currentObject/Label],
+            CaptionAttribute: Name)
+          combobox cbSpecialization (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_Region = $currentObject/Bug1466.AreaPicker_SubRegion],
+            CaptionAttribute: Name)
+          combobox cbGeneralization (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District where [Bug1466.District_SubRegion = $currentObject/Bug1466.AreaPicker_Region],
+            CaptionAttribute: Name)
+          combobox cbExprCaption (Association: Bug1466.AreaPicker_District,
+            DataSource: database Bug1466.District,
+            optionsSourceAssociationCaptionType: expression,
+            optionsSourceAssociationCaptionExpression: '$currentObject/Name')
+          combobox cbEnum (Attribute: Kind)
+          listview lv (DataSource: database from Bug1466.District where [Bug1466.District_Region = $currentObject/Bug1466.AreaPicker_Region]) {
+            dynamictext t (Content: '{1}', ContentParams: ({1} = Name))
+          }
+        }
+      }
+    }
+  }
+};

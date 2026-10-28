@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -44,11 +44,11 @@ func TestCustomWidgetVisibilityEditability_SameShapeAsTextBox(t *testing.T) {
 		t.Errorf("CustomWidget Editable = %v, want Conditional", got)
 	}
 	for _, key := range []string{"ConditionalVisibilitySettings", "ConditionalEditabilitySettings"} {
-		want, ok := docGet(tbDoc, key).(bsonv1.D)
+		want, ok := docGet(tbDoc, key).(bson.D)
 		if !ok {
 			t.Fatalf("text box %s not serialized: %T", key, docGet(tbDoc, key))
 		}
-		got, ok := docGet(cwDoc, key).(bsonv1.D)
+		got, ok := docGet(cwDoc, key).(bson.D)
 		if !ok {
 			t.Fatalf("custom widget %s not serialized: %T", key, docGet(cwDoc, key))
 		}
@@ -62,7 +62,7 @@ func TestCustomWidgetVisibilityEditability_SameShapeAsTextBox(t *testing.T) {
 }
 
 // shape is a document's keys with their values, minus $ID.
-func shape(d bsonv1.D) []string {
+func shape(d bson.D) []string {
 	var out []string
 	for _, e := range d {
 		if e.Key == "$ID" {

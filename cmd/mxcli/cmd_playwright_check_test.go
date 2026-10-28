@@ -25,7 +25,7 @@ func TestPlaywrightCheckFlags(t *testing.T) {
 	if err != nil || cmd != playwrightCheckCmd {
 		t.Fatalf("playwright check not registered: %v", err)
 	}
-	for _, f := range []string{"user", "password", "role", "assert-text", "assert-count", "screenshot", "base-url", "fresh-login", "wait"} {
+	for _, f := range []string{"user", "password", "role", "assert-text", "assert-count", "screenshot", "base-url", "fresh-login", "sign-out", "wait"} {
 		if cmd.Flags().Lookup(f) == nil {
 			t.Errorf("missing flag --%s", f)
 		}

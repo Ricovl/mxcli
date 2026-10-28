@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -72,33 +72,98 @@ func TestSetWidgetAction_ReplacesAction(t *testing.T) {
 	}
 }
 
+// TestSetWidgetAction_WritesTheWidgetsOwnClickKey is ako/mxcli#1503
+// (mendixlabs/mxcli#1592): a widget's on-click action is not always stored as
+// Action. A container keeps it in OnClickAction; a list view and both image
+// viewers in ClickAction. `set (Action: …) on card1` was refused for a
+// container CREATE had just written with an action, with a message naming "a
+// clickable container" as a valid target.
+//
+// The write has to land in the key the type declares and add no other:
+// Studio Pro throws on a stored property its type does not have, while mxbuild
+// tolerates it, so an Action key on a container builds clean and fails to open.
+func TestSetWidgetAction_WritesTheWidgetsOwnClickKey(t *testing.T) {
+	for _, tc := range []struct {
+		typeName, key string
+	}{
+		{"Forms$ActionButton", "Action"},
+		{"Forms$DivContainer", "OnClickAction"},
+		{"Forms$ListView", "ClickAction"},
+		{"Forms$StaticImageViewer", "ClickAction"},
+		{"Forms$DynamicImageViewer", "ClickAction"},
+	} {
+		t.Run(tc.typeName, func(t *testing.T) {
+			w := bson.D{
+				{Key: "$Type", Value: tc.typeName},
+				{Key: "Name", Value: "w1"},
+				{Key: tc.key, Value: bson.D{
+					{Key: "$Type", Value: "Forms$MicroflowAction"},
+					{Key: "Microflow", Value: "M.ACT_OpenOld"},
+				}},
+				{Key: "Class", Value: "card"},
+			}
+			raw := makeRawPage(w)
+			newAction := bson.D{
+				{Key: "$Type", Value: "Forms$MicroflowAction"},
+				{Key: "Microflow", Value: "M.ACT_OpenNew"},
+			}
+			m := New(raw, model.ID("unit-1"), &stubActionDeps{serialized: newAction})
+
+			if err := m.SetWidgetAction("w1", &pages.MicroflowClientAction{MicroflowName: "M.ACT_OpenNew"}); err != nil {
+				t.Fatalf("SetWidgetAction: %v", err)
+			}
+
+			got := m.widgetFinder(m.rawData, "w1").widget
+			if mf := bsonnav.DGet(bsonnav.DGetDoc(got, tc.key), "Microflow"); mf != "M.ACT_OpenNew" {
+				t.Errorf("%s.Microflow = %v, want M.ACT_OpenNew", tc.key, mf)
+			}
+			for _, other := range []string{"Action", "OnClickAction", "ClickAction"} {
+				if other != tc.key && bsonnav.DGet(got, other) != nil {
+					t.Errorf("%s written on a %s, whose click action is %s", other, tc.typeName, tc.key)
+				}
+			}
+			if len(got) != len(w) {
+				t.Errorf("widget has %d keys after the set, want %d — a set adds no property", len(got), len(w))
+			}
+			if c := bsonnav.DGet(got, "Class"); c != "card" {
+				t.Errorf("Class = %v, want card — a set must not disturb sibling properties", c)
+			}
+		})
+	}
+}
+
 // TestSetWidgetAction_RefusesWidgetWithoutAction is the guard-don't-drop half.
 //
 // Studio Pro resolves every stored property against the type's property list and
 // throws on one it does not know, while mxbuild's deserializer tolerates it — so
-// writing an Action onto a container would build clean and then fail to open.
-// Refusing is the only safe answer, and the build is not a safety net here.
+// writing an Action onto a widget with no click action would build clean and
+// then fail to open. Refusing is the only safe answer, and the build is not a
+// safety net here.
+//
+// The fixture used to be a container without an OnClickAction, a shape no model
+// holds — every stored container has one — and it pinned the refusal #1503
+// reported.
 func TestSetWidgetAction_RefusesWidgetWithoutAction(t *testing.T) {
-	container := bson.D{
-		{Key: "$Type", Value: "Forms$DivContainer"},
-		{Key: "Name", Value: "c1"},
+	text := bson.D{
+		{Key: "$Type", Value: "Forms$DynamicText"},
+		{Key: "Name", Value: "t1"},
 	}
-	raw := makeRawPage(container)
-	m := New(raw, model.ID("unit-1"), &stubActionDeps{serialized: bson.D{{Key: "$Type", Value: "Forms$MicroflowClientAction"}}})
+	raw := makeRawPage(text)
+	m := New(raw, model.ID("unit-1"), &stubActionDeps{serialized: bson.D{{Key: "$Type", Value: "Forms$MicroflowAction"}}})
 
-	err := m.SetWidgetAction("c1", &pages.MicroflowClientAction{MicroflowName: "M.ACT_Save"})
+	err := m.SetWidgetAction("t1", &pages.MicroflowClientAction{MicroflowName: "M.ACT_Save"})
 	if err == nil {
-		t.Fatal("expected an error setting Action on a container")
+		t.Fatal("expected an error setting Action on a dynamic text")
 	}
-	for _, want := range []string{"c1", "Forms$DivContainer", "no Action property"} {
+	for _, want := range []string{"t1", "Forms$DynamicText", "no on-click action"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %q", err.Error(), want)
 		}
 	}
 	// And nothing was written.
-	widget := m.widgetFinder(m.rawData, "c1")
-	if bsonnav.DGet(widget.widget, "Action") != nil {
-		t.Error("Action was written to a widget that has no such property")
+	widget := m.widgetFinder(m.rawData, "t1")
+	if len(widget.widget) != len(text) {
+		t.Errorf("widget has %d keys after a refused set, want %d", len(widget.widget), len(text))
 	}
 }
 

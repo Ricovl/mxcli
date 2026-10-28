@@ -48,6 +48,9 @@ type CreateEntityStmt struct {
 	// comment clears it (mendixlabs/mxcli#1018).
 	DocumentationSet bool
 	CreateOrModify   bool // true for CREATE OR MODIFY
+	// ExportLevel is "API" or "Hidden" from an EXPORT LEVEL clause; nil keeps
+	// the stored level (Hidden on a new element). mendixlabs/mxcli#1498.
+	ExportLevel *string
 }
 
 func (s *CreateEntityStmt) isStatement() {}
@@ -77,16 +80,17 @@ const (
 	AlterEntityDropIndex                                        // DROP INDEX
 	AlterEntitySetPosition                                      // SET POSITION (x, y)
 	AlterEntityAddEventHandler                                  // ADD EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK CALL Mod.MF
-	AlterEntityDropEventHandler                                 // DROP EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK
+	AlterEntityDropEventHandler                                 // DROP EVENT HANDLER ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK [CALL Mod.MF]
 	AlterEntitySetAllowCreateChangeLocally                      // SET ALLOW_CREATE_CHANGE_LOCALLY = true/false
 	AlterEntityDropDefault                                      // DROP DEFAULT ON ATTRIBUTE — clear a default value
+	AlterEntitySetExportLevel                                   // SET EXPORT LEVEL API | HIDDEN
 )
 
 // EventHandlerDef represents an event handler in CREATE/ALTER ENTITY syntax.
 type EventHandlerDef struct {
 	Moment            string        // "Before" or "After"
 	Event             string        // "Create", "Commit", "Delete", "Rollback"
-	Microflow         QualifiedName // Microflow to call
+	Microflow         QualifiedName // Microflow to call; on DROP, empty unless CALL names one
 	RaiseErrorOnFalse bool          // RAISE ERROR clause present
 	PassEventObject   bool          // Whether to pass entity object (default true)
 }
@@ -112,13 +116,17 @@ type AlterEntityStmt struct {
 	ModifyUniqueError  string
 	ModifyHasDefault   bool
 	ModifyDefaultValue any
-	Documentation      string           // For SET DOCUMENTATION
-	Comment            string           // For SET COMMENT
-	Index              *Index           // For ADD INDEX, and DROP INDEX by column list
-	IndexName          string           // For DROP INDEX by ordinal name ("idx1", "idx2", ...)
-	Position           *Position        // For SET POSITION
-	EventHandler       *EventHandlerDef // For ADD/DROP EVENT HANDLER
-	BoolValue          bool             // For SET ALLOW_CREATE_CHANGE_LOCALLY
+	// ModifyExportLevel is MODIFY ATTRIBUTE's EXPORT LEVEL clause; nil keeps
+	// the stored level.
+	ModifyExportLevel *string
+	ExportLevel       string           // For SET EXPORT LEVEL: "API" or "Hidden"
+	Documentation     string           // For SET DOCUMENTATION
+	Comment           string           // For SET COMMENT
+	Index             *Index           // For ADD INDEX, and DROP INDEX by column list
+	IndexName         string           // For DROP INDEX by ordinal name ("idx1", "idx2", ...)
+	Position          *Position        // For SET POSITION
+	EventHandler      *EventHandlerDef // For ADD/DROP EVENT HANDLER
+	BoolValue         bool             // For SET ALLOW_CREATE_CHANGE_LOCALLY
 	// Idempotency guards (findings #10). IfNotExists on ADD ATTRIBUTE skips the
 	// add (with a notice) when the attribute already exists; IfExists on DROP
 	// ATTRIBUTE skips the drop when it is already gone — so a domain script
@@ -164,8 +172,9 @@ func (s *AlterEntitiesStmt) isStatement() {}
 
 // ViewAttribute represents an attribute in a view entity.
 type ViewAttribute struct {
-	Name string
-	Type DataType
+	Name        string
+	Type        DataType
+	ExportLevel *string // EXPORT LEVEL clause; nil keeps the stored level (#1498)
 }
 
 // OQLQuery represents a simplified OQL query for view entities.
@@ -185,6 +194,8 @@ type CreateViewEntityStmt struct {
 	DocumentationSet bool // see mendixlabs/mxcli#1018: absent preserves, empty clears
 	CreateOrModify   bool
 	CreateOrReplace  bool
+	// ExportLevel: see CreateEntityStmt.ExportLevel.
+	ExportLevel *string
 }
 
 func (s *CreateViewEntityStmt) isStatement() {}

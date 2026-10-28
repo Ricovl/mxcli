@@ -21,7 +21,7 @@ Displays a summary of all configured navigation profiles, showing the profile ty
 
 Displays the menu tree for one or all navigation profiles. When a profile is specified, only that profile's menu is shown. Without a profile, all profiles' menus are displayed.
 
-The menu tree is rendered as an indented hierarchy showing menu labels and their target pages.
+The menu is listed as a table, one row per item in the order DESCRIBE prints them: the profile, the caption indented by depth, the action's target, and the **Address** — the shortest unique caption path that [ALTER NAVIGATION](alter-navigation.md) takes to reach the item (`'Admin' > 'Users'`, or `'Home'@2` where captions repeat). A native profile's bottom bar has no address, because ALTER NAVIGATION does not edit it.
 
 ### LIST NAVIGATION HOMES
 
@@ -64,4 +64,4 @@ DESCRIBE NAVIGATION Responsive;
 
 ## See Also
 
-[ALTER NAVIGATION](alter-navigation.md)
+[CREATE NAVIGATION](create-navigation.md), [ALTER NAVIGATION](alter-navigation.md)

@@ -1,0 +1,52 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1723 — "check --references: an XPath `[%UserRole_X%]` token naming
+-- no user role passes, then fails mx check with CE1613 (and hides every CE0161)"
+-- ============================================================================
+--
+-- `[%UserRole_<Name>%]` names a user role of the project, matched
+-- case-sensitively. Measured with mx check on mxbuild 11.15.0, the same script
+-- with the role as the only variable:
+--
+--   '[%UserRole_User%]'      clean
+--   '[%UserRole_Manager%]'   CE1613 "The selected user role 'Manager' no longer exists."
+--   '[%UserRole_user%]'      CE1613
+--
+-- at the retrieve, the list view and the access rule below alike. With a CE1613
+-- anywhere in the app, mx check reported no CE0161 at all.
+--
+-- EXPECTED: `mxcli check` passes this file, and so does `check -p <app.mpr>
+-- --references` on an app with the standard User role. Replacing `User` with
+-- `Manager` (or `user`) is reported at each of the three statements, naming the
+-- project's roles (and the right spelling, for a case mismatch).
+-- Guard: mdl/executor/validate_user_role_tokens_test.go.
+-- ============================================================================
+
+create module BugRoleToken1723;
+
+create persistent entity BugRoleToken1723.Doc (
+  Title: String(200),
+  owner: AutoOwner
+);
+
+create microflow BugRoleToken1723.ACT_UsersInRole ()
+returns Boolean
+begin
+  retrieve $Users from System.User where [System.UserRoles = '[%UserRole_User%]'];
+  return true;
+end;
+
+create page BugRoleToken1723.User_Overview
+(
+  title: 'Users',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  listview lvUsers (datasource: database from System.User where [System.UserRoles = '[%UserRole_User%]']) {
+    dynamictext txtName (Content: '{1}', ContentParams: ({1} = Name))
+  }
+};
+
+create module role BugRoleToken1723.Reader;
+grant read * on entity BugRoleToken1723.Doc to BugRoleToken1723.Reader
+  where [System.owner/System.User/System.UserRoles = '[%UserRole_User%]'];

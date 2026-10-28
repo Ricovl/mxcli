@@ -1,0 +1,33 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1502: `marketplace update --save-edits` misses cross-module
+-- associations that target entities inside the updated module
+-- ============================================================================
+--
+-- Symptom (before fix): an association a LOCAL module owns, pointing at an
+-- entity of the marketplace module, was never saved by --save-edits, and the
+-- update (which did not refuse — the module itself was unedited) deleted it:
+-- DROP MODULE removes the module's entities, and DeleteEntity cascades into
+-- every other domain model to remove the cross-module associations that reach
+-- a deleted entity by name. Studio Pro then reports the missing association.
+--
+-- After fix: `marketplace diff` lists it under "Reaching in from other
+-- modules", `marketplace update` refuses without --force and names it, and
+-- --save-edits writes association-MyFirstModule_Config_Account.mdl, which
+-- replays after the update.
+--
+-- Usage (on a project with Administration installed from the marketplace):
+--   mxcli exec mdl-examples/bug-tests/1502-marketplace-save-edits-cross-module-association.mdl -p app.mpr
+--   mxcli marketplace diff 23513 -p app.mpr
+--   mxcli marketplace update 23513 -p app.mpr --to <version> --save-edits ./local-edits
+--   mxcli marketplace update 23513 -p app.mpr --to <version> --force
+--   mxcli exec ./local-edits/association-MyFirstModule_Config_Account.mdl -p app.mpr
+-- ============================================================================
+
+create persistent entity MyFirstModule.Config (
+  Note: String(100)
+);
+
+create association MyFirstModule.Config_Account
+  from MyFirstModule.Config
+  to Administration.Account;

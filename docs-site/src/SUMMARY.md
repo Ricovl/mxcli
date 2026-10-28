@@ -248,6 +248,7 @@
 - [Microflow Statements](reference/microflow/README.md)
   - [CREATE MICROFLOW](reference/microflow/create-microflow.md)
   - [CREATE NANOFLOW](reference/microflow/create-nanoflow.md)
+  - [ALTER MICROFLOW / NANOFLOW](reference/microflow/alter-microflow.md)
   - [DROP MICROFLOW / NANOFLOW](reference/microflow/drop-microflow.md)
   - [CREATE JAVA ACTION](reference/microflow/create-java-action.md)
   - [CREATE JAVASCRIPT ACTION](reference/microflow/create-javascript-action.md)
@@ -266,6 +267,7 @@
   - [CREATE DEMO USER](reference/security/create-demo-user.md)
   - [UPDATE SECURITY](reference/security/update-security.md)
 - [Navigation Statements](reference/navigation/README.md)
+  - [CREATE NAVIGATION](reference/navigation/create-navigation.md)
   - [ALTER NAVIGATION](reference/navigation/alter-navigation.md)
   - [LIST NAVIGATION](reference/navigation/list-navigation.md)
   - [CREATE MENU](reference/navigation/menu.md)
@@ -374,5 +376,7 @@
 # Blog
 
 - [Blog](blog/index.md)
+  - [Release: mxcli v0.28.0](blog/v0.28.0-release.md)
+  - [Release: mxcli v0.27.0](blog/v0.27.0-release.md)
   - [Release: mxcli v0.26.0](blog/v0.26.0-release.md)
   - [Introducing mxcli](blog/introduction.md)

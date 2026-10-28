@@ -274,9 +274,19 @@ alterStatement
     // The old per-action form: each alternative of alterWorkflowAction is a
     // registered alias (MDL-DEPR140-149).
     | ALTER WORKFLOW qualifiedName alterWorkflowAction+ SEMICOLON?
+    // The generic ALTER on a navigation profile's menu and page clauses, and
+    // on a menu document's items (accepted proposal
+    // PROPOSAL_alter_navigation_menu_items): its targets are menu items,
+    // addressed by caption path, and its fragments are menu items written as
+    // `create navigation` writes them.
+    | ALTER NAVIGATION (qualifiedName | IDENTIFIER) LBRACE alterNavigationOperation+ RBRACE
+    | ALTER MENU_KW qualifiedName LBRACE alterMenuOperation+ RBRACE
     | alterMessageDefinitionCollectionStatement
     | alterMessageDefinitionStatement
     | ALTER PUBLISHED REST SERVICE qualifiedName alterPublishedRestServiceAction (COMMA? alterPublishedRestServiceAction)*
+    // Edits the stored consumed REST service in place: an operation the statement
+    // does not name is written back as stored (mendixlabs/mxcli#1608).
+    | ALTER consumedRestServiceKw qualifiedName alterConsumedRestServiceAction (COMMA? alterConsumedRestServiceAction)*
     | ALTER aiModelKw qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER KNOWLEDGE BASE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
     | ALTER CONSUMED MCP SERVICE qualifiedName SET agentEditorAlterAssignment (COMMA agentEditorAlterAssignment)*
@@ -431,10 +441,20 @@ alterFragment
 // holding the widget named t1, `nav item('Home')` for the one whose text is
 // Home, and `nav item@2` for the second item. With a selector, @n chooses among
 // the items that match it.
+//
+// The same address reaches a pluggable widget's object-list item — an
+// Accordion group, a Pop-up menu item — which stores no name either
+// (PROPOSAL_alter_object_list_item_address.md): `acc1 item@1` is the group,
+// INSERT INTO it fills its body slot, and `acc1 item@1.headercontent` names
+// another of its slots, as `grid.controlbar` names a widget's.
+//
+// A legacy table's cell has no name either and sits at a grid position, so it
+// is addressed by that position, 1-based: `table1 cell(row, column)`.
 alterTarget
     : identifierOrKeyword COLUMN LPAREN (attributePathV3 | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
-    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)?
-    | identifierOrKeyword ITEM AT NUMBER_LITERAL
+    | identifierOrKeyword ITEM LPAREN (identifierOrKeyword | STRING_LITERAL) RPAREN (AT NUMBER_LITERAL)? (DOT itemSlot=identifierOrKeyword)?
+    | identifierOrKeyword ITEM AT NUMBER_LITERAL (DOT itemSlot=identifierOrKeyword)?
+    | identifierOrKeyword CELL LPAREN cellRow=NUMBER_LITERAL COMMA cellColumn=NUMBER_LITERAL RPAREN
     | identifierOrKeyword (DOT identifierOrKeyword)? (AT NUMBER_LITERAL)?
     | STRING_LITERAL (AT NUMBER_LITERAL)?
     ;
@@ -448,9 +468,15 @@ alterTarget
  *   insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;
  *   insert before 'Email is Valid?' begin … end;
  *   replace commit $Order with begin commit $Order with events; end;
+ *   replace body of loop $Line in $Lines with begin commit $Line; end;
  *   drop log * node 'Debug' *;
  * }
  * ```
+ *
+ * `replace body of <loop>` keeps the stored loop — its element ID, position,
+ * iterator and list — and replaces only what is inside it (ako/mxcli#1693).
+ * Its alternative comes first: a pattern target is any run of tokens, so
+ * `body of loop …` would otherwise also read as the target of a plain replace.
  *
  * A fragment is written exactly as the same statements are in `create
  * microflow`. A target is a content address, resolved by mfmutator: `$Var`
@@ -461,6 +487,7 @@ alterTarget
  */
 alterFlowOperation
     : INSERT (AFTER | BEFORE) alterFlowTarget alterFlowFragment SEMICOLON?
+    | REPLACE BODY OF alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | REPLACE alterFlowTarget WITH alterFlowFragment SEMICOLON?
     | DROP alterFlowTarget SEMICOLON
     ;
@@ -622,6 +649,89 @@ navigationClause
     // claiming a heavily-used identifier as a keyword is not worth the closer
     // paraphrase.
     | ON SYNC ERROR (THROW | CONTINUE)
+    // Studio Pro's "Progressive web app" settings, stored as the profile's
+    // Navigation$ProgressiveWebAppSettings: null unless set. An offline profile
+    // without them gets no service worker, so no page opens without a network
+    // (mendixlabs/mxcli#1377). The keys are the stored property names,
+    // Precaching and InstallPrompt (R3, R10); a bare clause sets the platform
+    // defaults, OFF stores null again, and an omitted clause leaves them alone.
+    | PROGRESSIVE WEB APP (settingsItemOptions | OFF)?
+    // Studio Pro's "Application title" and "Application icon": the profile's
+    // AppTitle (a Texts$Text, "Mendix" in a new project, which the runtime puts
+    // in the browser tab as "Mendix - <page title>") and AppIcon (an
+    // Images$Image, by name). Clauses like the page clauses, with no new token:
+    // APP, TITLE and ICON were all keywords already, and every one of them is
+    // in `keyword`, so `app` and `icon` stay usable as names. The title is
+    // written in the project's default language, other languages kept; NONE
+    // clears the icon (listed first: qualifiedName would also take the
+    // keyword). An omitted clause keeps what is stored (ako/mxcli#1756).
+    | APP TITLE STRING_LITERAL
+    | APP ICON (NONE | qualifiedName)
+    ;
+
+/**
+ * `alter navigation` / `alter menu` operations (ADR-0012 decision 2, accepted
+ * proposal PROPOSAL_alter_navigation_menu_items):
+ *
+ * ```mdl
+ * alter navigation Responsive {
+ *   insert after 'Home' { menu item 'Orders' ( OnClick: show page Shop.Orders ) }
+ *   insert into 'Admin' { menu item 'Audit log' ( OnClick: show page Shop.Audit ) }
+ *   insert { menu item 'Last' ( OnClick: sign out ) }       -- append to the top level
+ *   replace 'Help' with { menu 'Help' { … } }
+ *   move 'Log out' after 'Help';
+ *   drop 'Old import', 'Admin' > 'Legacy';
+ *   set ( Caption: 'User accounts', Icon: none ) on 'Admin' > 'Users';
+ *   set home page Shop.Home for Administrator;
+ *   drop home page for Administrator;
+ *   set login page Shop.Login;      drop login page;
+ *   set not found page Shop.Oops;   drop not found page;
+ * }
+ * ```
+ *
+ * A fragment is navMenuChildren, exactly the block `create navigation` and
+ * `create menu` take, so describe output pastes into it. A page clause is the
+ * `create navigation` clause after `set` or `drop`. A bare `drop home page` is
+ * parsed so the refusal can say why (CE0527), not to be executed.
+ */
+alterNavigationOperation
+    : alterMenuOperation
+    | SET HOME (PAGE | MICROFLOW) qualifiedName (FOR qualifiedName)? SEMICOLON?
+    | DROP HOME PAGE (FOR qualifiedName)? SEMICOLON?
+    | SET LOGIN PAGE qualifiedName SEMICOLON?
+    | DROP LOGIN PAGE SEMICOLON?
+    | SET NOT FOUND PAGE qualifiedName SEMICOLON?
+    | DROP NOT FOUND PAGE SEMICOLON?
+    ;
+
+alterMenuOperation
+    : INSERT (BEFORE | AFTER | INTO) alterMenuTarget navMenuChildren SEMICOLON?
+    | INSERT navMenuChildren SEMICOLON?
+    | REPLACE alterMenuTarget WITH navMenuChildren SEMICOLON?
+    | MOVE alterMenuTarget (BEFORE | AFTER | INTO) alterMenuTarget SEMICOLON?
+    | DROP alterMenuTarget (COMMA alterMenuTarget)* SEMICOLON?
+    | SET LPAREN alterMenuItemProp (COMMA alterMenuItemProp)* COMMA? RPAREN ON alterMenuTarget SEMICOLON?
+    ;
+
+// A menu item has no name, so it is addressed by the caption describe prints,
+// as a path written outer to inner: 'Admin' > 'Users'. The first segment
+// matches anywhere in the tree, each further one a direct sub-item of the one
+// before; @n picks the n-th match of its own segment (backend.ResolveMenuItemAddress).
+alterMenuTarget
+    : alterMenuTargetSegment (GREATER_THAN alterMenuTargetSegment)*
+    ;
+
+alterMenuTargetSegment
+    : STRING_LITERAL (AT NUMBER_LITERAL)?
+    ;
+
+// The keys `create` uses for an item, plus Caption, which `create` writes
+// positionally. `Icon: none` stores no icon. NONE comes first: a qualifiedName
+// would also accept the keyword.
+alterMenuItemProp
+    : CAPTION COLON STRING_LITERAL
+    | ONCLICK COLON navMenuAction
+    | ICON COLON (NONE | navMenuIconValue)
     ;
 
 // Offline synchronization, one statement per entity, mirroring the MENU block:

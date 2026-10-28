@@ -90,6 +90,9 @@ func (b *Builder) ExitCreateEntityStatement(ctx *parser.CreateEntityStatementCon
 						stmt.EventHandlers = append(stmt.EventHandlers, *eh)
 					}
 				}
+				if el := optCtx.MicroflowExportLevelClause(); el != nil {
+					stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+				}
 			}
 		}
 	}
@@ -186,12 +189,18 @@ func (b *Builder) buildViewEntity(ctx *parser.CreateEntityStatementContext) {
 		if attrList := bodyCtx.AttributeDefinitionList(); attrList != nil {
 			stmt.Attributes = buildViewAttributes(attrList)
 		}
+		if opts := bodyCtx.EntityOptions(); opts != nil {
+			for _, opt := range opts.(*parser.EntityOptionsContext).AllEntityOption() {
+				if el := opt.(*parser.EntityOptionContext).MicroflowExportLevelClause(); el != nil {
+					stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+				}
+			}
+		}
 	}
 
 	// OQL Query - use token stream to preserve whitespace, and walk parse tree for structured data
 	if oqlCtx := ctx.OqlQuery(); oqlCtx != nil {
-		firstIndent, firstIsIndent := leadingLineWhitespace(oqlCtx)
-		raw := dedentOQL(extractOriginalText(oqlCtx), firstIndent, firstIsIndent)
+		raw := viewQueryText(ctx, oqlCtx)
 		stmt.Query = ast.OQLQuery{
 			RawQuery: raw,
 			Parsed:   buildOQLParsed(oqlCtx.(*parser.OqlQueryContext), raw),
@@ -199,6 +208,128 @@ func (b *Builder) buildViewEntity(ctx *parser.CreateEntityStatementContext) {
 	}
 
 	b.statements = append(b.statements, stmt)
+}
+
+// viewQueryText is the text a view entity stores for its query: from the query's
+// first token to its last, widened over any comment between `as (` and the
+// first token and between the last token and `)`, then dedented (#653).
+//
+// The lexer skips comments, so the rule's own token span cannot see them: a
+// comment heading or closing the query was dropped from every script, and from
+// every describe → exec into another project, where there is no stored text to
+// keep (ako/mxcli#1632). Only comments widen the span — the whitespace outside
+// it is the script's layout, which is what the dedent already accounts for.
+func viewQueryText(ctx *parser.CreateEntityStatementContext, oqlCtx parser.IOqlQueryContext) string {
+	q := oqlCtx.(antlr.ParserRuleContext)
+	start, stop := q.GetStart(), q.GetStop()
+	if start == nil || stop == nil || start.GetInputStream() == nil ||
+		start.GetStart() < 0 || stop.GetStop() < start.GetStart() {
+		firstIndent, firstIsIndent := leadingLineWhitespace(q)
+		return dedentOQL(extractOriginalText(q), firstIndent, firstIsIndent)
+	}
+	is := start.GetInputStream()
+	from, to := start.GetStart(), stop.GetStop()
+
+	// Before the query: back to the `(`, or to `as` when there is none.
+	open := ctx.LPAREN()
+	if open == nil {
+		open = ctx.AS()
+	}
+	if open != nil {
+		if p := open.GetSymbol().GetStop() + 1; p < from {
+			if c := firstOuterComment([]rune(is.GetText(p, from-1))); c >= 0 {
+				from = p + c
+			}
+		}
+	}
+	// After it: up to the `)`. Without one the statement's terminator follows
+	// directly, so there is no region a comment could sit in.
+	if closing := ctx.RPAREN(); closing != nil {
+		if p := closing.GetSymbol().GetStart() - 1; p > to {
+			if e := lastOuterCommentEnd([]rune(is.GetText(to+1, p))); e >= 0 {
+				to = to + 1 + e
+			}
+		}
+	}
+
+	firstIndent, firstIsIndent := lineIndentBefore(is, from)
+	return dedentOQL(is.GetText(from, to), firstIndent, firstIsIndent)
+}
+
+// firstOuterComment returns the index of the first comment in a region that
+// holds only whitespace and comments, or -1 when it holds no comment or holds
+// anything else (then the span is left as it was).
+func firstOuterComment(region []rune) int {
+	for i := 0; i < len(region); i++ {
+		switch {
+		case isOQLSpace(region[i]):
+			continue
+		case startsComment(region, i):
+			return i
+		default:
+			return -1
+		}
+	}
+	return -1
+}
+
+// lastOuterCommentEnd returns the index of the last character of the last
+// comment in a region that holds only whitespace and comments, or -1.
+func lastOuterCommentEnd(region []rune) int {
+	last := -1
+	for i := 0; i < len(region); {
+		switch {
+		case isOQLSpace(region[i]):
+			i++
+		case i+1 < len(region) && region[i] == '-' && region[i+1] == '-':
+			j := i
+			for j < len(region) && region[j] != '\n' && region[j] != '\r' {
+				if !isOQLSpace(region[j]) {
+					last = j
+				}
+				j++
+			}
+			i = j
+		case i+1 < len(region) && region[i] == '/' && region[i+1] == '*':
+			end := -1
+			for j := i + 2; j+1 < len(region); j++ {
+				if region[j] == '*' && region[j+1] == '/' {
+					end = j + 1
+					break
+				}
+			}
+			if end < 0 {
+				return -1
+			}
+			last, i = end, end+1
+		default:
+			return -1
+		}
+	}
+	return last
+}
+
+func startsComment(r []rune, i int) bool {
+	return i+1 < len(r) && ((r[i] == '-' && r[i+1] == '-') || (r[i] == '/' && r[i+1] == '*'))
+}
+
+func isOQLSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\r' || r == '\n' || r == '\v' || r == '\f'
+}
+
+// lineIndentBefore returns the text between the start of pos's line and pos,
+// and whether it is all whitespace — leadingLineWhitespace for a position that
+// is not a token's.
+func lineIndentBefore(is antlr.CharStream, pos int) (string, bool) {
+	lineStart := pos
+	for lineStart > 0 && is.GetText(lineStart-1, lineStart-1) != "\n" {
+		lineStart--
+	}
+	if lineStart == pos {
+		return "", true
+	}
+	prefix := is.GetText(lineStart, pos-1)
+	return prefix, strings.TrimLeft(prefix, " \t") == ""
 }
 
 // leadingLineWhitespace returns the text between the start of the line holding
@@ -518,7 +649,11 @@ func buildViewAttributes(attrList parser.IAttributeDefinitionListContext) []ast.
 			attr.Type = buildDataType(dt)
 		}
 		for _, c := range defCtx.AllAttributeConstraint() {
-			applyLocalizeConstraint(&attr.Type, c.(*parser.AttributeConstraintContext))
+			cc := c.(*parser.AttributeConstraintContext)
+			applyLocalizeConstraint(&attr.Type, cc)
+			if el := cc.MicroflowExportLevelClause(); el != nil {
+				attr.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 		attrs = append(attrs, attr)
 	}
@@ -704,6 +839,8 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 						}
 					case c.LOCALIZED() != nil:
 						applyLocalizeConstraint(&stmt.DataType, c)
+					case c.MicroflowExportLevelClause() != nil:
+						stmt.ModifyExportLevel = exportLevelOf(c.MicroflowExportLevelClause().(*parser.MicroflowExportLevelClauseContext))
 					}
 				}
 				b.statements = append(b.statements, stmt)
@@ -750,6 +887,16 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 					Name:          name,
 					Operation:     ast.AlterEntitySetDocumentation,
 					Documentation: unquoteStringLit(ctx.STRING_LITERAL()),
+				})
+				return
+			}
+
+			// SET EXPORT LEVEL API | HIDDEN
+			if el := ctx.MicroflowExportLevelClause(); ctx.SET() != nil && el != nil {
+				b.statements = append(b.statements, &ast.AlterEntityStmt{
+					Name:        name,
+					Operation:   ast.AlterEntitySetExportLevel,
+					ExportLevel: *exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext)),
 				})
 				return
 			}
@@ -820,7 +967,7 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 				return
 			}
 
-			// DROP EVENT HANDLER ON Moment Type
+			// DROP EVENT HANDLER ON Moment Type [CALL Mod.Microflow]
 			if ctx.DROP() != nil && ctx.EVENT() != nil && ctx.HANDLER() != nil {
 				eh := &ast.EventHandlerDef{}
 				if m := ctx.EventMoment(); m != nil {
@@ -838,6 +985,9 @@ func (b *Builder) ExitAlterEntityAction(ctx *parser.AlterEntityActionContext) {
 					case "ROLLBACK":
 						eh.Event = "RollBack"
 					}
+				}
+				if qn := ctx.QualifiedName(); qn != nil {
+					eh.Microflow = buildQualifiedName(qn)
 				}
 				b.statements = append(b.statements, &ast.AlterEntityStmt{
 					Name:         name,

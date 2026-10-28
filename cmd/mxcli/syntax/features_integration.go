@@ -219,7 +219,7 @@ func init() {
 			"body binary", "binary", "upload", "post binary",
 			"headers", "authentication", "basic auth", "timeout", "request body", "template",
 		},
-		Syntax: "[$Var =] CALL REST SERVICE GET|POST|PUT|PATCH|DELETE '<url>' [WITH ({1} = expr, ...)] [(\n" +
+		Syntax: "[$Var =] CALL REST SERVICE GET|POST|PUT|PATCH|DELETE ('<url>' [WITH ({1} = expr, ...)] | <expr>) [(\n" +
 			"  Headers: ('Name': expr, ...),\n" +
 			"  Authentication: BASIC (Username: expr, Password: expr),\n" +
 			"  Body: TEMPLATE '<template>' [WITH ({1} = expr)]\n" +
@@ -234,6 +234,13 @@ func init() {
 			"-- The clauses `header 'N' = v`, `auth basic $u password $p`, `body ...`\n" +
 			"-- and `timeout n` are the deprecated spelling (MDL-DEPR720); `mxcli fmt\n" +
 			"-- --upgrade` rewrites them, and the two forms cannot be mixed.\n\n" +
+			"-- The URL and a custom body are templates: '...{1}...' WITH ({1} = expr)\n" +
+			"-- fills each {n}. An expression instead (`Body: $Payload`, a URL like\n" +
+			"-- `@Module.BaseUrl + '/rates'`) sends its VALUE: it is stored as the\n" +
+			"-- template '{1}' with the expression as its parameter — what Studio Pro\n" +
+			"-- stores — and describe prints that form. An expression has no {n} to\n" +
+			"-- fill, so one followed by WITH (...) is refused (MDL-REST05).\n" +
+			"-- `Body: TEMPLATE '$Payload'` is the literal text $Payload.\n\n" +
 			"RETURNS String                          -- the response body as a string\n" +
 			"RETURNS response                        -- the whole System.HttpResponse object\n" +
 			"RETURNS Module.MyFile                   -- store the body in a file document\n" +
@@ -328,11 +335,12 @@ func init() {
 		Summary: "Create consumed REST clients with operations, mappings, and authentication",
 		Keywords: []string{
 			"create consumed rest service", "create rest client", "rest client", "consume rest", "rest operation",
+			"alter consumed rest service", "add operation", "modify operation", "drop operation",
 			"get", "post", "put", "delete", "patch",
 			"body", "response", "mapping", "authentication",
 			"json structure", "import mapping", "export mapping",
 		},
-		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key': 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: JSON AS $var | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' (Body: binary $Doc/Contents)`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
+		Syntax:  "CREATE [OR MODIFY] CONSUMED REST SERVICE Module.Name (\n  BaseUrl: 'https://...',\n  Authentication: NONE | BASIC (...)\n)\n{\n  OPERATION Name (\n    Method: GET|POST|PUT|DELETE|PATCH,\n    Path: '/path/{param}',\n    Parameters: ($param: Type),\n    Query: ($param: Type),\n    Headers: ('Key': 'Value'),\n    Timeout: 30,\n    Body: JSON FROM $var | MAPPING Entity { jsonField = Attribute, ... },\n    Response: NONE | JSON [AS $var] | STRING | FILE | STATUS | MAPPING Entity { Attribute = jsonField, ... }\n  )\n};\n\n-- Change an existing service without restating it. An operation no action names\n-- is left exactly as stored (also one made in Studio Pro); MODIFY writes only the\n-- keys it lists. CREATE OR MODIFY instead replaces the whole operation list.\nALTER CONSUMED REST SERVICE Module.Name\n  ADD OPERATION Name ( ... ),\n  MODIFY OPERATION Name ( Timeout: 60 ),\n  DROP OPERATION Name,\n  SET ( BaseUrl: '...', Authentication: NONE | BASIC (...) );\n\n-- The response variable is not stored (the call site binds it), so describe\n-- prints `Response: JSON`; `AS $var` is optional.\n-- An operation is a child of the service, so its properties are in ( ).\n-- `OPERATION Name { ... }` is the deprecated spelling (MDL-DEPR070).\n\n-- MAPPING takes a target ENTITY plus a body listing the JSON fields; Mendix\n-- stores it inline on the operation. An existing import/export mapping\n-- document cannot be referenced here (rejected as MDL-REST01).\n-- There is no FILE request body: Mendix's consumed operation stores one of\n-- Rest$JsonBody, Rest$StringBody or Rest$ImplicitMappingBody, so a file\n-- document has nowhere to go. `Body: FILE FROM $Doc` is rejected as\n-- MDL-REST02 rather than sent as the literal text \"$Doc\" (it used to be,\n-- returning 200 with a 4-byte payload). Binary POST lives on the\n-- microflow activity: `call rest service post '<url>' (Body: binary $Doc/Contents)`.\n-- `Response: FILE AS $Doc` is unaffected — downloads work.",
 		Example: "CREATE CONSUMED REST SERVICE Module.PetStore (\n  BaseUrl: 'https://petstore.example.com/api',\n  Authentication: NONE\n)\n{\n  OPERATION GetPet (\n    Method: GET,\n    Path: '/pets/{id}',\n    Parameters: ($id: String),\n    Query: ($verbose: String),\n    Response: MAPPING Module.Pet {\n      Name = name,\n      Status = status\n    }\n  )\n};",
 		SeeAlso: []string{"rest", "rest.published"},
 	})
@@ -348,7 +356,7 @@ func init() {
 			"basic authentication", "active session", "authentication microflow",
 			"authentication parameter", "header parameter", "api key", "token",
 		},
-		Syntax: "CREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
+		Syntax: "[/** documentation */]\nCREATE [OR MODIFY] PUBLISHED REST SERVICE Module.Name (\n  Path: 'rest/api/v1',\n  Version: '1.0.0',\n  ServiceName: 'My API',\n  [Authentication: none | ( basic, session, microflow Module.Authenticate [( $Param: query|header ['HttpName'] [description '...'], ... )] )]\n)\n{\n  RESOURCE 'name' {\n    GET '' MICROFLOW Module.GetAll;\n    GET '{id}' MICROFLOW Module.GetById;\n    POST '' MICROFLOW Module.Create\n      [IMPORT MAPPING Module.IMM] [EXPORT MAPPING Module.EMM]\n      [COMMIT Yes | YesWithoutEvents | No];   -- no COMMIT clause: Yes\n  }\n};\n\n" +
 			"-- Operation parameters come from the microflow, as Studio Pro derives them:\n" +
 			"--   a parameter named in the path ('{id}')  -> path parameter\n" +
 			"--   an object or a list                     -> the body\n" +
@@ -374,6 +382,9 @@ func init() {
 			"-- list only when it differs from that default.\n" +
 			"-- With authentication on, grant at least one module role (CE0338);\n" +
 			"-- custom authentication also needs app security on (CE6600).\n\n" +
+			"-- Documentation: the /** ... */ doc comment above CREATE, the service's own\n" +
+			"-- documentation (not the OpenAPI description, which MDL keeps unchanged).\n" +
+			"-- On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"ALTER PUBLISHED REST SERVICE Module.Name SET ( Version: '2.0.0', Authentication: (session) );\nALTER PUBLISHED REST SERVICE Module.Name SET Version = '2.0.0';\nALTER PUBLISHED REST SERVICE Module.Name ADD RESOURCE 'items' { ... };\nALTER PUBLISHED REST SERVICE Module.Name DROP RESOURCE 'legacy';\nDROP PUBLISHED REST SERVICE Module.Name;",
 		Example: "mdl 1;\nCREATE PUBLISHED REST SERVICE Module.OrderAPI (\n  Path: 'rest/orders/v1',\n  Version: '1.0.0',\n  ServiceName: 'Order API',\n  Authentication: (basic, session)\n)\n{\n  RESOURCE 'orders' {\n    GET '' MICROFLOW Module.GetAllOrders;\n    GET '{id}' MICROFLOW Module.GetOrderById;\n    POST '' MICROFLOW Module.CreateOrder;\n    DELETE '{id}' MICROFLOW Module.DeleteOrder;\n  }\n};\n\nGRANT ACCESS ON PUBLISHED REST SERVICE Module.OrderAPI\n  TO Module.User, Module.Admin;",
 		SeeAlso: []string{"rest", "rest.consumed"},
@@ -606,9 +617,10 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"xpath", "constraint", "where", "predicate",
 			"filter", "retrieve", "association path", "enumeration",
 			"formatting", "readable", "line length", "wrap", "multi-line",
+			"constant", "@",
 		},
-		Syntax:  "WHERE [condition]\nWHERE [cond1][cond2]          -- implicit AND\nWHERE [cond1] AND [cond2]\nWHERE [cond1] OR [cond2]\n\nHow it is STORED is mxcli's choice, not your whitespace: a constraint is\nrebuilt from its parse tree on every write, so the layout is derived from the\nexpression. 80 columns or fewer is stored exactly as written. Longer is broken\nat its top-level and/or joints, one clause per line, so it can be read in\nStudio Pro's XPath editor without scrolling sideways:\n\n  [\n    Archived = false\n    and Status = 'Open'\n    and ReportedOn > '[%BeginOfCurrentDay%]'\n  ]\n\nWhere and/or meet, the and-runs get explicit parentheses (Mendix binds `and`\ntighter). A clause with no boolean joint — one long comparison or association\npath — is left whole and over width. DESCRIBE puts it back on one line, and\nre-executing that re-derives the same stored text.",
-		Example: "RETRIEVE $Orders FROM Module.Order\n  WHERE [State = 'Completed'][IsPaid = true]\n  SORT BY OrderDate DESC;\n\n-- Enumeration attribute: qualified name preferred (mxcli converts to 'Open' in BSON)\nRETRIEVE $Open FROM Module.Order\n  WHERE [Status = Module.OrderStatus.Open];\n\n-- OR: string literal form also accepted\nRETRIEVE $Open FROM Module.Order\n  WHERE [Status = 'Open'];\n\n-- Association path traversal\nWHERE [Module.Order_Customer/Module.Customer/Name = $Name]\n\n-- Mendix tokens\nWHERE [System.owner = '[%CurrentUser%]']",
+		Syntax:  "WHERE [condition]\nWHERE [cond1][cond2]          -- implicit AND\nWHERE [cond1] AND [cond2]\nWHERE [cond1] OR [cond2]\n\nA constraint cannot reference a constant: [Total > @Module.C_Limit] is\nrefused (MDL-XPATH03) — mxbuild rejects it with CE0161 in a retrieve, a data\nsource, an access rule and a user task's targeting. Assign the constant to a\nvariable and compare with the variable.\n\nHow it is STORED is mxcli's choice, not your whitespace: a constraint is\nrebuilt from its parse tree on every write, so the layout is derived from the\nexpression. 80 columns or fewer is stored exactly as written. Longer is broken\nat its top-level and/or joints, one clause per line, so it can be read in\nStudio Pro's XPath editor without scrolling sideways:\n\n  [\n    Archived = false\n    and Status = 'Open'\n    and ReportedOn > '[%BeginOfCurrentDay%]'\n  ]\n\nWhere and/or meet, the and-runs get explicit parentheses (Mendix binds `and`\ntighter). A clause with no boolean joint — one long comparison or association\npath — is left whole and over width. DESCRIBE puts it back on one line, and\nre-executing that re-derives the same stored text.",
+		Example: "RETRIEVE $Orders FROM Module.Order\n  WHERE [State = 'Completed'][IsPaid = true]\n  SORT BY OrderDate DESC;\n\n-- Enumeration attribute: qualified name preferred (mxcli converts to 'Open' in BSON)\nRETRIEVE $Open FROM Module.Order\n  WHERE [Status = Module.OrderStatus.Open];\n\n-- OR: string literal form also accepted\nRETRIEVE $Open FROM Module.Order\n  WHERE [Status = 'Open'];\n\n-- Association path traversal\nWHERE [Module.Order_Customer/Module.Customer/Name = $Name]\n\n-- Mendix tokens\nWHERE [System.owner = '[%CurrentUser%]']\n\n-- A constant, through a variable\nDECLARE $Limit Integer = @Module.C_Limit;\nRETRIEVE $Big FROM Module.Order\n  WHERE [Total > $Limit];",
 		SeeAlso: []string{"xpath.functions"},
 	})
 
@@ -645,9 +657,10 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 		Keywords: []string{
 			"create java action", "or modify java action", "type parameter", "entity parameter",
 			"exposed as", "returns", "generics", "drop java action",
+			"extra code", "helper method", "import",
 		},
-		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name[<T, ...>] [FOLDER 'path'](\n  Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$;\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].\n\nType parameters: an ENTITY <T> parameter declares T. A type parameter no\nENTITY <T> parameter names is declared in the header, Module.Name<T>; an\nunqualified type that is neither is refused (MDL-JA01), since it would be\nwritten as an entity with no module (CE1613).",
-		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL\n) RETURNS String\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Type parameter with no entity selector: the argument's entity binds it\nCREATE JAVA ACTION Utils.Describe<T>(\n  Obj: T NOT NULL\n) RETURNS String\nAS $$\nreturn Obj.toString();\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
+		Syntax:  "CREATE [OR MODIFY] JAVA ACTION Module.Name[<T, ...>] [FOLDER 'path'](\n  [/** description */] Param: Type [NOT NULL],\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity\n) RETURNS ReturnType [AS $ReturnName]\n[EXPOSED AS 'Label' IN 'Category'\n   [ICON 'icon.png'] [ICON DARK 'icon-dark.png']\n   [IMAGE 'image.png'] [IMAGE DARK 'image-dark.png']]\n[NOT EXPOSED]\nAS $$\n// Java code — AS $$ ... $$ is mandatory, cannot be omitted\n$$\n[EXTRA CODE $$\n// helper methods, constants, nested classes beside executeAction()\n$$];\n\nOR MODIFY: updates signature/body in-place, preserves UUID.\n\nEXPOSED AS puts the action in Studio Pro's toolbox. The icon is a 64x64 PNG\nand the image a 256x192 PNG, read from disk relative to the .mdl file's own directory.\nAn OMITTED clause preserves what is stored — including bitmaps set in Studio\nPro — so removing an entry is NOT EXPOSED, and clearing one bitmap is\nDROP ICON / DROP IMAGE [DARK].\n\nA parameter's description is a /** ... */ doc comment before it, as on an\nentity attribute; AS $ReturnName names the return value (the default name of\nthe variable a microflow call stores it in), as on a microflow. Leaving either\nout keeps what is stored; a new action gets no description and ReturnValueName.\n\nThe .java file is written as mxbuild writes it, so a build leaves it unchanged:\nthe action's own /** ... */ (before CREATE) is the class javadoc, and a rewrite\nwithout one keeps the stored documentation.\n\nThe file has two more sections a regeneration keeps, and the statement states\nboth: an import line in the body goes to the import list, and EXTRA CODE $$ ... $$\nis the EXTRA CODE section (helpers the body calls). An OMITTED EXTRA CODE keeps\nthe stored section; EXTRA CODE $$ $$ clears it. DESCRIBE prints the imports a\ndeveloper added and the section, so its output rebuilds the same file\n(ako/mxcli#1702).\n\nType parameters: an ENTITY <T> parameter declares T. A type parameter no\nENTITY <T> parameter names is declared in the header, Module.Name<T>; an\nunqualified type that is neither is refused (MDL-JA01), since it would be\nwritten as an entity with no module (CE1613).\n\nA bare Module.Name type is an entity or an enumeration, whichever the project\n(or an earlier statement of the script) has; ENUM Module.Name says enumeration\nexplicitly. A name that is neither is refused by check --references and exec,\nsince it would be written as an entity that does not exist (CE1613).\n\nRETURNS takes Boolean, Integer, Long, Decimal, String, DateTime, an enumeration,\nan entity, a list, a type parameter or Void; leaving it out returns Boolean.\nAny other type is refused (MDL-JA03) — StringTemplate(...) is a parameter\ntype only.",
+		Example: "mdl 1;\nCREATE JAVA ACTION Utils.FormatCurrency(\n  /** The amount to format. */\n  Amount: Decimal NOT NULL\n) RETURNS String AS $FormattedAmount\nEXPOSED AS 'Format Currency' IN 'Formatting'\n  ICON 'assets/currency-64.png'\n  IMAGE 'assets/currency-256.png'\nAS $$\nreturn String.format(\"%.2f\", Amount);\n$$;\n\n-- Generic entity validator with type parameter\nCREATE JAVA ACTION Utils.IsValid(\n  EntityType: ENTITY <pEntity> NOT NULL,\n  Obj: pEntity NOT NULL\n) RETURNS Boolean\nAS $$\nreturn Obj != null;\n$$;\n\n-- Type parameter with no entity selector: the argument's entity binds it\nCREATE JAVA ACTION Utils.Describe<T>(\n  Obj: T NOT NULL\n) RETURNS String\nAS $$\nreturn Obj.toString();\n$$;\n\n-- A helper in the EXTRA CODE section, and the import it needs\nCREATE JAVA ACTION Utils.Twice(N: Integer NOT NULL) RETURNS Integer\nAS $$\nimport java.util.Objects;\nreturn twice(Objects.requireNonNull(N));\n$$\nEXTRA CODE $$\nprivate static long twice(long n) {\n\treturn n * 2L;\n}\n$$;\n\n-- Idempotent update (preserves UUID)\nCREATE OR MODIFY JAVA ACTION Utils.FormatCurrency(\n  Amount: Decimal NOT NULL,\n  Decimals: Integer NOT NULL\n) RETURNS String\nAS $$\nreturn String.format(\"%.\" + Decimals + \"f\", Amount);\n$$;",
 		SeeAlso: []string{"java-action", "javascript-action"},
 	})
 
@@ -658,7 +671,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"javascript action", "javascript", "js action", "call javascript",
 			"platform", "exposed as", "javascriptaction",
 		},
-		Syntax:  "LIST JAVASCRIPT ACTIONS [IN Module];\nDESCRIBE JAVASCRIPT ACTION Module.Name;\nCREATE [OR MODIFY] JAVASCRIPT ACTION Module.Name [FOLDER 'path'](...) RETURNS Type [PLATFORM Web|Native|Hybrid|All] AS $$ ... $$;\nDROP JAVASCRIPT ACTION Module.Name;\n\nWrites the unit plus javascriptsource/<Module>/actions/<Name>.js. AS $$ ... $$ is mandatory. PLATFORM defaults to Web.",
+		Syntax:  "LIST JAVASCRIPT ACTIONS [IN Module];\nDESCRIBE JAVASCRIPT ACTION Module.Name;\nCREATE [OR MODIFY] JAVASCRIPT ACTION Module.Name [FOLDER 'path'](...) RETURNS Type [AS $ReturnName] [PLATFORM Web|Native|Hybrid|All] AS $$ ... $$;\nDROP JAVASCRIPT ACTION Module.Name;\n\nParameters, their /** ... */ descriptions and AS $ReturnName are written as for a Java action (see java-action.create).\n\nWrites the unit plus javascriptsource/<Module>/actions/<Name>.js. AS $$ ... $$ is mandatory. PLATFORM defaults to Web. The body sees each parameter with its first character lower-cased (ReadOnly is readOnly, URL is uRL), as mxbuild generates the signature.",
 		Example: "mdl 1;\nCREATE JAVASCRIPT ACTION Utils.IsStrictMode() RETURNS Boolean\nPLATFORM Web\nAS $$\nreturn Promise.resolve((function(){ return !this; })());\n$$;\n\n-- Exposed, native, with parameters\nCREATE JAVASCRIPT ACTION Utils.ShowToast(\n  Message: String NOT NULL,\n  Duration: Integer\n) RETURNS Boolean\nEXPOSED AS 'Show Toast' IN 'UI'\nPLATFORM Native\nAS $$\nreturn Promise.resolve(true);\n$$;",
 		SeeAlso: []string{"java-action"},
 	})
@@ -766,7 +779,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"\n" +
 			"-- Prefer an icon COLLECTION reference where the icon exists there: it is a\n" +
 			"-- model reference that `check --references` resolves, while a glyph code is\n" +
-			"-- an unchecked integer until MDL078 sees it.",
+			"-- an integer that MDL078 checks against the font and refuses if undefined.",
 		SeeAlso: []string{"icon-collection", "navigation.create"},
 	})
 
@@ -784,6 +797,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"object handling", "converter", "value transform", "custom handling", "by microflow",
 		},
 		Syntax: "LIST IMPORT MAPPINGS [IN Module];\nDESCRIBE IMPORT MAPPING Module.Name;\n" +
+			"[/** documentation */]\n" +
 			"CREATE [OR MODIFY] IMPORT MAPPING Module.Name [FOLDER 'path']\n" +
 			"  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n" +
 			"    | WITH MESSAGE DEFINITION Module.Collection.Definition\n" +
@@ -794,6 +808,8 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"    Attr = a/b/c,\n" +
 			"    Assoc/Module.Child = nestedKey { ... }\n  }\n};\nDROP IMPORT MAPPING Module.Name;\n\n" +
 			"OR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+			"Documentation: the /** ... */ doc comment above CREATE (QUAL002 asks for\n" +
+			"it). On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"Nested members (Attr = a/b/c):\n" +
 			"  Reaches a leaf several levels down with NO entity for the levels in\n" +
 			"  between — the shape Studio Pro produces when you tick a nested leaf\n" +
@@ -848,7 +864,9 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"with json structure", "with message definition", "null values",
 			"as jsonKey", "converter", "value transform",
 		},
-		Syntax: "LIST EXPORT MAPPINGS [IN Module];\nDESCRIBE EXPORT MAPPING Module.Name;\nCREATE [OR MODIFY] EXPORT MAPPING Module.Name [FOLDER 'path']\n  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n    | WITH MESSAGE DEFINITION Module.Collection.Definition\n    | WITH XML SCHEMA Module.Schema\n  [NULL VALUES LeaveOutElement|SendAsNil]\n{\n  Module.Entity {\n    jsonField = Attr,\n    jsonField = Module.MF(Attr),          -- value transform\n    group AS key { ... },                 -- entity-less grouping node\n    Assoc/Module.Child AS nestedKey { ... }\n  }\n};\nDROP EXPORT MAPPING Module.Name;\n\nOR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+		Syntax: "LIST EXPORT MAPPINGS [IN Module];\nDESCRIBE EXPORT MAPPING Module.Name;\n[/** documentation */]\nCREATE [OR MODIFY] EXPORT MAPPING Module.Name [FOLDER 'path']\n  WITH JSON STRUCTURE Module.JsonStruct [ROOT a/b/c]\n    | WITH MESSAGE DEFINITION Module.Collection.Definition\n    | WITH XML SCHEMA Module.Schema\n  [NULL VALUES LeaveOutElement|SendAsNil]\n{\n  Module.Entity {\n    jsonField = Attr,\n    jsonField = Module.MF(Attr),          -- value transform\n    group AS key { ... },                 -- entity-less grouping node\n    Assoc/Module.Child AS nestedKey { ... }\n  }\n};\nDROP EXPORT MAPPING Module.Name;\n\nOR MODIFY: updates mapping in-place, preserves UUID.\n\n" +
+			"Documentation: the /** ... */ doc comment above CREATE, as on an import\n" +
+			"mapping. On OR MODIFY no comment keeps the stored text, /** */ clears it.\n\n" +
 			"Grouping nodes (group as key { ... }):\n" +
 			"  A JSON object with no Mendix object behind it — Studio Pro's\n" +
 			"  entity-less object element. It may hold OBJECT elements only: a\n" +
@@ -874,7 +892,7 @@ DESCRIBE DATABASE CONNECTION Ops.Erp;`,
 			"data transformer", "create data transformer", "drop data transformer",
 			"list data transformers", "jslt", "xslt", "transform",
 		},
-		Syntax:  "LIST DATA TRANSFORMERS [IN Module];\nDESCRIBE DATA TRANSFORMER Module.Name;\nCREATE [OR MODIFY] DATA TRANSFORMER Module.Name [FOLDER 'path']\n  SOURCE JSON '{ ... }'\n{\n  JSLT 'single-line-expression';\n  -- or multi-line:\n  JSLT $$\n{ ... }\n  $$;\n};\nDROP DATA TRANSFORMER Module.Name;\n\nOR MODIFY: updates transformer in-place, preserves UUID.",
+		Syntax:  "LIST DATA TRANSFORMERS [IN Module];\nDESCRIBE DATA TRANSFORMER Module.Name;\n[/** documentation */]\nCREATE [OR MODIFY] DATA TRANSFORMER Module.Name [FOLDER 'path']\n  SOURCE JSON '{ ... }'\n{\n  JSLT 'single-line-expression';\n  -- or multi-line:\n  JSLT $$\n{ ... }\n  $$;\n};\nDROP DATA TRANSFORMER Module.Name;\n\nOR MODIFY: updates transformer in-place, preserves UUID.\n\nDocumentation: the /** ... */ doc comment above CREATE. On OR MODIFY no\ncomment keeps the stored text, /** */ clears it.",
 		Example: "mdl 1;\nCREATE DATA TRANSFORMER ETL.FlattenOrder\n  SOURCE JSON '{\"order\": {\"id\": 1, \"total\": 99.0}}'\n{\n  JSLT '{\"id\": .order.id, \"total\": .order.total}';\n};\n\n-- Multi-line JSLT\nCREATE OR MODIFY DATA TRANSFORMER ETL.WeatherSummary\n  SOURCE JSON '{\"current\": {\"temp\": 12.8, \"wind\": 18.3}}'\n{\n  JSLT $$\n{\n  \"temperature\": .current.temp,\n  \"wind_speed\":  .current.wind\n}\n  $$;\n};",
 		SeeAlso: []string{"integration"},
 	})

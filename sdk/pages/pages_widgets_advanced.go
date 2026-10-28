@@ -6,7 +6,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Navigation Widgets
@@ -87,6 +87,36 @@ type SimpleMenuBar struct {
 	// MenuSource is the older polymorphic form, kept because the type is
 	// exported. Nothing reads or writes it.
 	MenuSource MenuSource `json:"menuSource,omitempty"`
+}
+
+// SidebarToggleButton is the button that opens and closes a responsive
+// layout's sidebar — Atlas's slide-in navigation on phones and tablets
+// (mendixlabs/mxcli#1220).
+//
+// Measured on Atlas_Core.Atlas_Default (11.13.0): Appearance, ButtonStyle,
+// CaptionTemplate, ConditionalVisibilitySettings, Icon, Name, RenderType,
+// TabIndex, Tooltip — an action button's keys without the action, which is
+// fixed: the button toggles the sidebar.
+type SidebarToggleButton struct {
+	BaseWidget
+	CaptionTemplate *ClientTemplate  `json:"captionTemplate,omitempty"`
+	Tooltip         *model.Text      `json:"tooltip,omitempty"`
+	Icon            *Icon            `json:"icon,omitempty"`
+	ButtonStyle     ButtonStyle      `json:"buttonStyle,omitempty"`
+	RenderMode      ButtonRenderMode `json:"renderMode,omitempty"`
+}
+
+// LayoutHeader is a phone or tablet layout's header bar (Forms$Header): two
+// widget lists, left and right. Atlas's Phone_ and Tablet_ layouts keep their
+// HeaderLeft / HeaderRight placeholders in it, and Phone_Sidebar /
+// Tablet_Sidebar their sidebar toggle.
+//
+// Measured on Atlas_Core (11.13.0): Appearance, LeftWidgets, Name,
+// RightWidgets, TabIndex, both lists marker 2.
+type LayoutHeader struct {
+	BaseWidget
+	LeftWidgets  []Widget `json:"leftWidgets,omitempty"`
+	RightWidgets []Widget `json:"rightWidgets,omitempty"`
 }
 
 // MenuOrientation represents menu orientation.

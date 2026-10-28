@@ -1,0 +1,51 @@
+mdl 1;
+-- ============================================================================
+-- Bug: a merge with one incoming path was not represented by describe
+-- (ako/mxcli#1277; mendixlabs/mxcli#923, MF_RT_Chain)
+-- ============================================================================
+--
+-- `join finish; merge finish;` builds a merge only one path enters. DESCRIBE
+-- walked through it and printed "WARNING: the merge at (1330, 350) is not
+-- represented in this description ... re-executing this MDL DELETES it" -
+-- for a node exec had just written from ordinary MDL.
+--
+-- Fixed: on the main line the merge is described as written
+-- (`join junction1; merge junction1;`), so the description rebuilds it and has
+-- nothing to warn about. In a branch or loop body it is still walked through,
+-- and the warning now says what is true: `create or modify` from the
+-- description leaves the merge in place, a rebuild removes it.
+--
+-- Verify: exec, then
+--   mxcli -p app.mpr -c "describe microflow MyFirstModule.MF_RT_Chain"
+-- Expected: no WARNING line; `join junction1;` / `merge junction1;` before the
+-- return. Executing the description reports `Unchanged microflow`.
+-- ============================================================================
+
+create or modify microflow MyFirstModule.MF_RT_Chain () returns string as $Out
+begin
+  declare $Out string = 'a';
+
+  if 1 = 1 then
+    if 2 = 2 then
+      set $Out = 'healthy';
+      join emit;
+    else
+      set $Out = 'watch';
+      join review;
+    end if;
+  else
+    set $Out = 'low';
+    join review;
+  end if;
+
+  merge review;
+  log info node 'T' 'review';
+  join emit;
+
+  merge emit;
+  log info node 'T' 'emit';
+  join finish;
+
+  merge finish;
+  return $Out;
+end;

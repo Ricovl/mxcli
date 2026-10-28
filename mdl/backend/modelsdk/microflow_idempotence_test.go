@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"github.com/mendixlabs/mxcli/modelsdk/canon"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ADR-0008 decision 1, end to end on a real MPR v2 project: writing the same
@@ -52,14 +52,14 @@ func storedUnit(t *testing.T, proj string, id model.ID) []byte {
 func stableIDOf(t *testing.T, raw []byte) []byte {
 	t.Helper()
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		t.Fatalf("unmarshal unit: %v", err)
 	}
 	v, ok := doc["StableId"]
 	if !ok {
 		return nil
 	}
-	b, ok := v.(primitive.Binary)
+	b, ok := v.(bson.Binary)
 	if !ok {
 		t.Fatalf("StableId is %T, expected binary", v)
 	}

@@ -371,30 +371,7 @@ Container Runtime:
 					fmt.Printf("  Created %d command files in .claude/commands/\n", cmdCount)
 				}
 
-				lintRuleCount := 0
-				err = fs.WalkDir(lintRulesFS, "lint-rules", func(path string, d fs.DirEntry, err error) error {
-					if err != nil {
-						return err
-					}
-					if d.IsDir() {
-						return nil
-					}
-					content, err := lintRulesFS.ReadFile(path)
-					if err != nil {
-						return err
-					}
-					targetPath := filepath.Join(lintRulesDir, d.Name())
-					if err := os.WriteFile(targetPath, content, 0644); err != nil {
-						return err
-					}
-					lintRuleCount++
-					return nil
-				})
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "  Error writing lint rules: %v\n", err)
-				} else {
-					fmt.Printf("  Created %d lint rule files in .claude/lint-rules/\n", lintRuleCount)
-				}
+				initBundledLintRules(lintRulesDir)
 			}
 
 			// OpenCode-specific: write commands, lint rules, and skills
@@ -424,34 +401,11 @@ Container Runtime:
 					fmt.Printf("  Created %d command files in .opencode/commands/\n", cmdCount)
 				}
 
-				lintRuleCount := 0
 				// Only write lint rules from the OpenCode path when Claude is not also
 				// being initialised — the Claude path already writes the same files to
 				// .claude/lint-rules/ and we don't want duplicate log output or writes.
 				if !slices.Contains(tools, "claude") {
-					err = fs.WalkDir(lintRulesFS, "lint-rules", func(path string, d fs.DirEntry, err error) error {
-						if err != nil {
-							return err
-						}
-						if d.IsDir() {
-							return nil
-						}
-						content, err := lintRulesFS.ReadFile(path)
-						if err != nil {
-							return err
-						}
-						targetPath := filepath.Join(lintRulesDir, d.Name())
-						if err := os.WriteFile(targetPath, content, 0644); err != nil {
-							return err
-						}
-						lintRuleCount++
-						return nil
-					})
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "  Error writing lint rules: %v\n", err)
-					} else {
-						fmt.Printf("  Created %d lint rule files in .claude/lint-rules/\n", lintRuleCount)
-					}
+					initBundledLintRules(lintRulesDir)
 				}
 
 				skillCount2, err := writeWrappedSkills(opencodeSkillsDir, wrapSkillContent)
@@ -615,6 +569,17 @@ Container Runtime:
 	},
 }
 
+// initBundledLintRules writes the bundled lint rules for an explicit init,
+// keeping the ones the project edited or moved to a new name
+// (mendixlabs/mxcli#1615), and says which.
+func initBundledLintRules(lintRulesDir string) {
+	res, err := writeBundledLintRules(lintRulesDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "  Error writing lint rules: %v\n", err)
+	}
+	printBundledLintRuleWrite(os.Stdout, res)
+}
+
 // defaultLintConfig is the lint configuration written into a freshly
 // initialised project. System is excluded because its contents are Mendix's,
 // not the developer's: you cannot document its entities, give them access
@@ -648,6 +613,9 @@ excludeModules:
 #     severity: warning
 #     options:
 #       maxObjects: 20
+#   QUAL004:            # orphaned elements: name prefixes of entry points
+#     options:
+#       entry_point_prefixes: [ACT_, SCH_, WS_, REST_, OData_]
 rules: {}
 `
 

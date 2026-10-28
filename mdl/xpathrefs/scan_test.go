@@ -5,7 +5,7 @@ package xpathrefs
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -314,5 +314,46 @@ func TestScanPreservesTheRestOfTheDocument(t *testing.T) {
 	}
 	if n, _ := got[0].Value.(string); n != "ACT_Find" {
 		t.Errorf("the document name changed to %q", n)
+	}
+}
+
+// TestScanDoesNotWriteUnitsWhoseConstraintsSpanLines is the unit-level
+// regression test for ako/mxcli#1506 (mendixlabs/mxcli#1596): renaming an
+// attribute no constraint names rewrote every document holding a multi-line
+// constraint — in the issue's larger project, 147 units in 21 modules — and
+// reported each as an updated constraint.
+//
+// The third unit is the control. It does name the attribute, so it must be
+// written; without it, a store that never recorded writes would pass the
+// "nothing written" half of this test.
+func TestScanDoesNotWriteUnitsWhoseConstraintsSpanLines(t *testing.T) {
+	s := &memStore{units: []*types.RawUnit{
+		// Same entity, the attribute not named.
+		retrieveUnit("mf-1", "ACT_Fetch", "Sales.Person", "[LastName = 'Open']\n[Email = 'X']"),
+		// Another entity — the issue's microflow in an unrelated module.
+		retrieveUnit("mf-2", "ACT_Unrelated", "Sales.Order", "[FirstName = 'A']\n[Total != 2]"),
+		// The control: names the attribute across a line break.
+		widgetUnit("pg-1", "Person_Overview", "Sales.Person", "[LastName = 'L']\n[FirstName = 'Ada']"),
+	}}
+
+	res, err := renameIn(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"mf-1", "mf-2"} {
+		if b, ok := s.written[id]; ok {
+			t.Errorf("unit %s names no renamed attribute but was written: %q", id, constraintsIn(t, b))
+		}
+	}
+	b, ok := s.written["pg-1"]
+	if !ok {
+		t.Fatal("control: the unit that names the attribute was not written")
+	}
+	got := constraintsIn(t, b)
+	if want := "[LastName = 'L']\n[GivenName = 'Ada']"; len(got) != 1 || got[0] != want {
+		t.Errorf("control: got %q, want [%q] — the line break must survive a real rename", got, want)
+	}
+	if res.Total() != 1 || res.Units != 1 {
+		t.Errorf("reported %d constraint(s) in %d document(s), want 1 in 1: %+v", res.Total(), res.Units, res.Rewritten)
 	}
 }

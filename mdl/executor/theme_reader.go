@@ -76,13 +76,32 @@ type ThemeRegistry struct {
 	// WidgetProperties maps design-properties.json widget type key to its properties.
 	// Keys: "Widget", "DivContainer", "Button", "DataGrid", pluggable widget IDs, etc.
 	WidgetProperties map[string][]ThemeProperty
+	// NativeWidgetProperties are the same groups from the native
+	// design-properties.json files. A native page's widgets resolve against
+	// these (ForPlatform): the two platforms declare different types and options
+	// for the same key, so typing a native widget against the web definitions
+	// stored Atlas's native `'Color': 'Brand primary'` option as a custom colour
+	// (ako/mxcli#1679).
+	NativeWidgetProperties map[string][]ThemeProperty
+}
+
+// ForPlatform returns the registry a document of that platform resolves its
+// design properties against: the receiver for a web document, a view over the
+// native definitions for a native one. Nil stays nil.
+func (r *ThemeRegistry) ForPlatform(native bool) *ThemeRegistry {
+	if r == nil || !native {
+		return r
+	}
+	return &ThemeRegistry{WidgetProperties: r.NativeWidgetProperties, NativeWidgetProperties: r.NativeWidgetProperties}
 }
 
 // loadThemeRegistry reads and merges all design-properties.json files from the project's
-// themesource directories (themesource/*/web/design-properties.json).
+// themesource directories (themesource/*/web/design-properties.json, and the
+// native ones into NativeWidgetProperties).
 func loadThemeRegistry(projectDir string) (*ThemeRegistry, error) {
 	registry := &ThemeRegistry{
-		WidgetProperties: make(map[string][]ThemeProperty),
+		WidgetProperties:       make(map[string][]ThemeProperty),
+		NativeWidgetProperties: make(map[string][]ThemeProperty),
 	}
 
 	themesourceDir := filepath.Join(projectDir, "themesource")
@@ -100,24 +119,25 @@ func loadThemeRegistry(projectDir string) (*ThemeRegistry, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		dpPath := filepath.Join(themesourceDir, entry.Name(), "web", "design-properties.json")
-		if _, err := os.Stat(dpPath); os.IsNotExist(err) {
-			continue
-		}
+		for platform, into := range map[string]map[string][]ThemeProperty{
+			"web":    registry.WidgetProperties,
+			"native": registry.NativeWidgetProperties,
+		} {
+			dpPath := filepath.Join(themesourceDir, entry.Name(), platform, "design-properties.json")
+			data, err := os.ReadFile(dpPath)
+			if err != nil {
+				continue // Absent or unreadable
+			}
 
-		data, err := os.ReadFile(dpPath)
-		if err != nil {
-			continue // Skip unreadable files
-		}
+			fileProps, err := parseDesignPropertiesJSON(data)
+			if err != nil {
+				continue // Skip malformed files
+			}
 
-		fileProps, err := parseDesignPropertiesJSON(data)
-		if err != nil {
-			continue // Skip malformed files
-		}
-
-		// Merge into registry
-		for widgetType, props := range fileProps {
-			registry.WidgetProperties[widgetType] = append(registry.WidgetProperties[widgetType], props...)
+			// Merge into registry
+			for widgetType, props := range fileProps {
+				into[widgetType] = append(into[widgetType], props...)
+			}
 		}
 	}
 
@@ -135,10 +155,22 @@ func parseDesignPropertiesJSON(data []byte) (map[string][]ThemeProperty, error) 
 	return fileProps, nil
 }
 
+// pageThemeKey is the group a page's own design properties are declared in. A
+// page does not inherit "Widget" but "Document": Atlas Core 4.1.3's native theme
+// declares 'Spacing top' (Inner small/medium/large) and 'Background color' there,
+// and mxbuild types a page's 'Spacing left' against Document's options, refusing
+// Widget's 'Small' with CE6085 "Unknown option Small" (ako/mxcli#1678).
+const pageThemeKey = "Page"
+
 // GetPropertiesForWidget returns properties applicable to a widget type,
-// including inherited "Widget" properties that apply to all widget types.
+// including inherited "Widget" properties that apply to all widget types. For
+// pageThemeKey it returns the page's: "Document", then "Page".
 func (r *ThemeRegistry) GetPropertiesForWidget(widgetTypeKey string) []ThemeProperty {
 	var result []ThemeProperty
+	if widgetTypeKey == pageThemeKey {
+		result = append(result, r.WidgetProperties["Document"]...)
+		return append(result, r.WidgetProperties[pageThemeKey]...)
+	}
 
 	// Add inherited "Widget" properties first (apply to all widgets)
 	if widgetProps, ok := r.WidgetProperties["Widget"]; ok {
@@ -153,6 +185,19 @@ func (r *ThemeRegistry) GetPropertiesForWidget(widgetTypeKey string) []ThemeProp
 	}
 
 	return result
+}
+
+// declaresGroup reports whether the theme defines design properties for key,
+// so a validator knows the full property set rather than guessing.
+func (r *ThemeRegistry) declaresGroup(key string) bool {
+	if _, ok := r.WidgetProperties[key]; ok {
+		return true
+	}
+	if key == pageThemeKey {
+		_, ok := r.WidgetProperties["Document"]
+		return ok
+	}
+	return false
 }
 
 // mdlKeywordStorageType maps each MDL keyword that builds a NATIVE widget to the
@@ -216,6 +261,8 @@ var mdlKeywordStorageType = map[string]string{
 	"navigationtree":  "Forms$NavigationTree",
 	"menubar":         "Forms$MenuBar",
 	"simplemenubar":   "Forms$SimpleMenuBar",
+	"sidebartoggle":   "Forms$SidebarToggleButton",
+	"layoutheader":    "Forms$Header",
 	"placeholder":     "Forms$Placeholder",
 }
 
@@ -326,8 +373,12 @@ var storageTypeThemeKeys = map[string]string{
 	"NavigationTree":     "NavigationTree",
 	"MenuBar":            "MenuBar",
 	"SimpleMenuBar":      "SimpleMenuBar",
-	"Placeholder":        "Placeholder",
-	"SnippetCallWidget":  "SnippetCallWidget",
+	// A Button subclass, so Studio Pro applies Atlas's "Button" group — the
+	// Size: Large Atlas_Default's toggle carries comes from it.
+	"SidebarToggleButton": "Button",
+	"Header":              "Header",
+	"Placeholder":         "Placeholder",
+	"SnippetCallWidget":   "SnippetCallWidget",
 }
 
 // bsonTypeToDesignPropsKey maps BSON $Type values to design-properties.json keys:

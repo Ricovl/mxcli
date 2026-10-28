@@ -215,12 +215,18 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 
 	// Build column property key map from Type.ObjectType.PropertyTypes -> columns -> ValueType.ObjectType.PropertyTypes
 	colPropKeyMap := buildColumnPropertyKeyMap(ctx, w)
+	// The widget's own property keys, to find the `columns` list by name.
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
 
 	// Search through properties for columns
 	props := getBsonArrayElements(obj["Properties"])
 	for _, prop := range props {
 		propMap, ok := prop.(map[string]any)
 		if !ok {
+			continue
+		}
+		propKey := propTypeKeyMap[extractBinaryID(propMap["TypePointer"])]
+		if propKey != "" && propKey != "columns" {
 			continue
 		}
 		value, ok := propMap["Value"].(map[string]any)
@@ -238,13 +244,23 @@ func extractDataGrid2Columns(ctx *ExecContext, w map[string]any, entityContext .
 			entCtx = entityContext[0]
 		}
 		var columns []rawDataGridColumn
+		colSchemas := objectListPropertySchemas(w, "columns")
 		for _, colObj := range objects {
 			colMap, ok := colObj.(map[string]any)
 			if !ok {
 				continue
 			}
 			col := extractDataGrid2Column(ctx, colMap, colPropKeyMap, entCtx)
-			if col.Attribute != "" || col.Caption != "" {
+			col.ExtraProps, col.OmittedProps = extractDataGrid2ColumnByKeyProps(ctx, colMap, colSchemas, entCtx)
+			// Every object of the resolved `columns` list is a column. The
+			// actions column has no attribute and an empty header, and keeping
+			// only columns with one of those dropped it with all its widgets,
+			// so the next describe -> edit -> exec deleted it
+			// (mendixlabs/mxcli#1520). Only when the key did not resolve does
+			// the heuristic separate columns from another object list, widened
+			// to a column that carries content or a content mode.
+			if propKey == "columns" || col.Attribute != "" || col.Caption != "" ||
+				col.ShowContentAs != "" || len(col.ContentWidgets) > 0 || len(col.FilterWidgets) > 0 {
 				columns = append(columns, col)
 			}
 		}
@@ -570,7 +586,6 @@ func extractTextTemplateText(value map[string]any) (string, map[string]any) {
 	return "", nil
 }
 
-// extractTextTemplateParameters extracts parameters from a TextTemplate (Forms$ClientTemplate).
 // sourceVariableBinding reads the SourceVariable of a stored
 // Forms$ClientTemplateParameter and reports which variable it names, and whether
 // that variable is a page-level LOCAL one.
@@ -607,6 +622,10 @@ func sourceVariableBinding(param map[string]any) (name string, isLocal bool) {
 	return "", false
 }
 
+// extractTextTemplateParameters renders the parameters of a stored
+// Forms$ClientTemplate as the MDL values of its `{n} = …` list. It is the one
+// reader of a template parameter: the core describer's
+// extractClientTemplateParameters delegates here.
 func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any) []string {
 	params := getBsonArrayElements(textTemplate["Parameters"])
 	if params == nil || len(params) == 0 {
@@ -622,10 +641,16 @@ func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any
 		// One suffix per emitted param, in the same order, zipped in after the
 		// value string is chosen so a DataGrid2 dynamic-text column's per-parameter
 		// formatting round-trips through DESCRIBE (ledger #77).
-		suffixes = append(suffixes, formatParamFormatSuffix(pMap))
+		suffixes = append(suffixes, formatParamFormatSuffix(ctx, pMap))
 		// Check for Expression first (literal value)
 		if expr, ok := pMap["Expression"].(string); ok && expr != "" {
-			result = append(result, expr)
+			// The expression as stored. `toString($Order/Total)` used to be
+			// unwrapped to `$Order.Total`, the spelling mxcli once wrapped in
+			// toString itself; that spelling now binds the attribute (#823,
+			// MDL-V1-TEMPLATEATTR), so unwrapping changed the page's output on
+			// describe -> exec. The write side stores a non-attribute value as
+			// an expression (isTemplateExpression), so the text round-trips.
+			result = append(result, strings.TrimSpace(expr))
 			continue
 		}
 
@@ -639,6 +664,14 @@ func extractTextTemplateParameters(ctx *ExecContext, textTemplate map[string]any
 
 		// Check for AttributeRef
 		if attrRef, ok := pMap["AttributeRef"].(map[string]any); ok && attrRef != nil {
+			// Attribute navigated over associations (AttributeRef.EntityRef):
+			// reconstruct the "Assoc/.../Attr" path so DESCRIBE round-trips. The
+			// bare attribute re-executes against the widget's own entity (CE1365,
+			// mendixlabs/mxcli#1494).
+			if assocPath := associationTemplateParamPath(attrRef); assocPath != "" {
+				result = append(result, assocPath)
+				continue
+			}
 			if attr, ok := attrRef["Attribute"].(string); ok {
 				if sourceVarName != "" {
 					// Has SourceVariable - this is a page parameter reference
@@ -1157,6 +1190,27 @@ func extractCustomWidgetPropertyString(ctx *ExecContext, w map[string]any, prope
 	return ""
 }
 
+// extractCustomWidgetPropertySelection reads the Selection a named property
+// holds ("None", "Single", "Multi"); "" when the widget has no such property.
+func extractCustomWidgetPropertySelection(ctx *ExecContext, w map[string]any, propertyKey string) string {
+	obj, ok := w["Object"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	propTypeKeyMap := buildPropertyTypeKeyMap(w, false)
+	for _, prop := range getBsonArrayElements(obj["Properties"]) {
+		propMap, ok := prop.(map[string]any)
+		if !ok || propTypeKeyMap[extractBinaryID(propMap["TypePointer"])] != propertyKey {
+			continue
+		}
+		if value, ok := propMap["Value"].(map[string]any); ok {
+			sel, _ := value["Selection"].(string)
+			return sel
+		}
+	}
+	return ""
+}
+
 // extractCustomWidgetPropertyAttributes extracts attribute references from a CustomWidget property.
 func extractCustomWidgetPropertyAttributes(ctx *ExecContext, w map[string]any, propertyKey string) []string {
 	obj, ok := w["Object"].(map[string]any)
@@ -1243,7 +1297,12 @@ func isKnownCustomWidgetType(widgetType string) bool {
 
 // extractExplicitProperties extracts non-default property values from a CustomWidget BSON.
 // Returns attribute references and primitive values for properties that differ from defaults.
-func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicitProp {
+//
+// enclosingEntity is the entity of the data container the widget sits in. An
+// attribute property linked to no datasource binds to that object, so one of
+// another entity keeps its qualified name: shortened, re-exec bound it to the
+// container's entity (mendixlabs/mxcli#1591, CE1613).
+func extractExplicitProperties(ctx *ExecContext, w map[string]any, enclosingEntity ...string) []rawExplicitProp {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
 		return nil
@@ -1254,6 +1313,11 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		return nil
 	}
 	valueTypes := buildPropertyValueTypeMap(w)
+	schemas := widgetPropertySchemas(w)
+	enclosing := ""
+	if len(enclosingEntity) > 0 {
+		enclosing = enclosingEntity[0]
+	}
 
 	var result []rawExplicitProp
 	props := getBsonArrayElements(obj["Properties"])
@@ -1275,9 +1339,19 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 		// Check for AttributeRef (attribute binding)
 		if attrRef, ok := value["AttributeRef"].(map[string]any); ok && attrRef != nil {
 			if attr := extractString(attrRef["Attribute"]); attr != "" {
+				described := describeAttr(ctx, attr)
+				if param := parameterSourceName(value["SourceVariable"]); param != "" && attrRef["EntityRef"] == nil {
+					// Read from a page or snippet parameter: `$Param.Attr`. The
+					// qualified name re-executes without the SourceVariable —
+					// CE7247 (mendixlabs/mxcli#1591).
+					described = parameterAttributeMDL(param, attr)
+				} else if schemas[typePointerID].DataSourceProperty == "" && strings.Contains(enclosing, ".") &&
+					!strings.EqualFold(attributeEntity(attr), enclosing) {
+					described = attr
+				}
 				result = append(result, rawExplicitProp{
 					Key:   propKey,
-					Value: describeAttr(ctx, attr),
+					Value: described,
 					IsRef: true,
 				})
 				continue
@@ -1294,6 +1368,22 @@ func extractExplicitProperties(ctx *ExecContext, w map[string]any) []rawExplicit
 				ValueType: valueTypes[typePointerID],
 				Params:    extractTextTemplateParameters(ctx, tt),
 			})
+			continue
+		}
+
+		// An expression property: its text, quoted. This path had no branch for
+		// one, so a stored expression was described as absent — the Calendar's
+		// `editable` and `showEventDate` (mendixlabs/mxcli#1578). Only an
+		// Expression-typed property is read: a value of another type keeps
+		// whatever its PrimitiveValue says below.
+		if valueTypes[typePointerID] == "Expression" {
+			if expr := extractString(value["Expression"]); expr != "" {
+				result = append(result, rawExplicitProp{
+					Key:       propKey,
+					Value:     expr,
+					ValueType: "Expression",
+				})
+			}
 			continue
 		}
 

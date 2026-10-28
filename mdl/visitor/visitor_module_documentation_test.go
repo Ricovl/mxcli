@@ -55,8 +55,8 @@ func TestCreateModuleDocCommentIsStored(t *testing.T) {
 
 // mendixlabs/mxcli#1314: "alter app security has no property "AdminUserName"".
 // Security$ProjectSecurity.AdminUserName is the name of the built-in
-// administrator account (MxAdmin by default); the password stays out of MDL
-// (mendixlabs/mxcli#624).
+// administrator account (MxAdmin by default); its password is
+// TestAlterAppSecurityAdminPassword (mendixlabs/mxcli#624).
 func TestAlterAppSecurityAdminUserName(t *testing.T) {
 	prog := mustBuild(t, "alter app security (AdminUserName: 'appadmin');")
 	want := &ast.AlterProjectSecurityStmt{AdminUserName: "appadmin"}

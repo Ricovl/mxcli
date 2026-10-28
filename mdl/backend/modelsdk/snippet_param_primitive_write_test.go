@@ -7,7 +7,7 @@ import (
 
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // mendixlabs/mxcli#1028 — shape guard on the one builder that now serves both

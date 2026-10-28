@@ -1,0 +1,54 @@
+mdl 1;
+-- ============================================================================
+-- Bug: adding a note to one statement re-laid out the row after it
+-- (ako/mxcli#1508, case 1; mendixlabs/mxcli#1598)
+-- ============================================================================
+--
+-- Run this file once, then edit the second ACT_NoteSplice below: it is the
+-- same flow with one note added before `declare $D`. Before the fix the
+-- `create or modify` spliced the noted statement in as a replacement whose box
+-- ran from the activity to the note, so the note was stored at x 3390 instead
+-- of 1500 and every later activity shifted by +1180px (a size-only note:
+-- +140..+280px).
+--
+-- Fixed: a note takes no room on the line it documents, and a note with a
+-- stated position stays where the script puts it.
+--
+-- Verify: exec, then
+--   mxcli -p app.mpr -c "describe microflow MyFirstModule.ACT_NoteSplice with handles"
+-- Expected: the second create or modify leaves every activity where the first
+-- put it, and the note is stored at (1500, 600).
+-- ============================================================================
+
+create persistent entity MyFirstModule.SpliceItem (Code: String(50), Status: String(50), Amount: Integer);
+
+create or modify microflow MyFirstModule.ACT_NoteSplice ($Amt: Integer) returns Boolean as $Ok
+begin
+  declare $Ok Boolean = false;
+  declare $Total Integer = 0;
+  retrieve $Items from MyFirstModule.SpliceItem;
+  loop $I in $Items begin
+    set $Total = $Total + 1;
+    log info node 'Probe' 'step ' + toString($Total);
+  end loop;
+  if $Total > 3 then set $Ok = true; else set $Ok = false; end if;
+  declare $A Integer = 1; declare $B Integer = 2; declare $C Integer = 3;
+  declare $D Integer = 4; declare $E Integer = 5; declare $F Integer = 6;
+  return $Ok;
+end;
+
+create or modify microflow MyFirstModule.ACT_NoteSplice ($Amt: Integer) returns Boolean as $Ok
+begin
+  declare $Ok Boolean = false;
+  declare $Total Integer = 0;
+  retrieve $Items from MyFirstModule.SpliceItem;
+  loop $I in $Items begin
+    set $Total = $Total + 1;
+    log info node 'Probe' 'step ' + toString($Total);
+  end loop;
+  if $Total > 3 then set $Ok = true; else set $Ok = false; end if;
+  declare $A Integer = 1; declare $B Integer = 2; declare $C Integer = 3;
+  @annotation(text: 'note D', position: (1500, 600), size: (200, 80))
+  declare $D Integer = 4; declare $E Integer = 5; declare $F Integer = 6;
+  return $Ok;
+end;

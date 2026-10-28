@@ -27,6 +27,7 @@ Common version gates:
 | Feature | Requires | Workaround for older versions |
 |---------|----------|-------------------------------|
 | VIEW ENTITY | 10.18+ | Regular entity with microflow data source |
+| `STRING_AGG(expr, 'sep')` in a view entity's OQL | 11.2+, or 10.24.22+ on the 10.24 line | Build the joined string in a microflow. Its column is String(200) from 11.7 (and on 10.24), but the argument's own type on 11.2–11.6 |
 | REST query params | 11.0+ | Build query string manually in microflow |
 | DB runtime connection | 11.0+ | Hardcode connection in Database Connector config |
 | Design properties v3 | 11.0+ | Use Atlas v2 design properties |

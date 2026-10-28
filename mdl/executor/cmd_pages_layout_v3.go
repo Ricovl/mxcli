@@ -25,9 +25,11 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 	// does not declare it and no Studio Pro layout carries it.
 	for k := range s.Properties {
 		if !strings.EqualFold(k, "LayoutType") && !strings.EqualFold(k, "Class") &&
-			!strings.EqualFold(k, "Style") && !strings.EqualFold(k, "Layout") {
+			!strings.EqualFold(k, "Style") && !strings.EqualFold(k, "Layout") &&
+			!strings.EqualFold(k, "ShowBottomBar") {
 			return nil, mdlerrors.NewValidation(fmt.Sprintf(
-				"layout %s: unknown property %q (a layout header takes layouttype, class, style and layout; "+
+				"layout %s: unknown property %q (a layout header takes layouttype, class, style, layout "+
+					"and, on a native layout, showbottombar; "+
 					"which placeholder is \"main\" is set by naming one Main, not by a property)",
 				s.Name.String(), k))
 		}
@@ -47,6 +49,9 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 			"layout %s: unknown layouttype %q (want Responsive, Phone, Tablet, ModalPopup, Default or Popup)",
 			s.Name.String(), layoutType))
 	}
+	// A native layout's widgets take the native design-property definitions
+	// (ako/mxcli#1679).
+	pb.themeRegistry = pb.themeRegistry.ForPlatform(native)
 
 	layout := &pages.Layout{
 		BaseElement: model.BaseElement{
@@ -102,6 +107,10 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 	if err != nil {
 		return nil, err
 	}
+	expanded, err = pb.applyNativeLayoutParts(s, layout, props, expanded)
+	if err != nil {
+		return nil, err
+	}
 	for _, astWidget := range expanded {
 		w, err := pb.buildWidgetV3(astWidget)
 		if err != nil {
@@ -111,6 +120,65 @@ func (pb *pageBuilder) buildLayoutV3(s *ast.CreateLayoutStmt) (*pages.Layout, er
 	}
 
 	return layout, nil
+}
+
+// applyNativeLayoutParts reads what a native layout keeps beside its content
+// tree — `showbottombar: true`, `region header { placeholder X }` and
+// `region sidebar { … }` — and returns the remaining top-level widgets. On a
+// web layout every one of them is refused: Forms$WebLayoutContent has none.
+func (pb *pageBuilder) applyNativeLayoutParts(s *ast.CreateLayoutStmt, layout *pages.Layout, props *ast.WidgetV3, widgets []*ast.WidgetV3) ([]*ast.WidgetV3, error) {
+	for k, v := range props.Properties {
+		if !strings.EqualFold(k, "ShowBottomBar") {
+			continue
+		}
+		if !layout.Native {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layout %s: showbottombar is a native layout's property; a web layout has no bottom bar setting", s.Name.String()))
+		}
+		on, ok := v.(bool)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("layout %s: showbottombar takes true or false", s.Name.String()))
+		}
+		layout.ShowBottomBar = on
+	}
+	var rest []*ast.WidgetV3
+	for _, w := range widgets {
+		if !strings.EqualFold(w.Type, "region") {
+			rest = append(rest, w)
+			continue
+		}
+		part := strings.ToLower(w.Name)
+		if !layout.Native || (part != "header" && part != "sidebar") {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layout %s: a region at the top of a layout is a native layout's `region header { placeholder X }` "+
+					"or `region sidebar { … }`; a web layout's regions belong to its scrollcontainer", s.Name.String()))
+		}
+		switch part {
+		case "header":
+			if layout.HeaderPlaceholder != nil || len(w.Children) != 1 || !strings.EqualFold(w.Children[0].Type, "placeholder") {
+				return nil, mdlerrors.NewValidation(fmt.Sprintf(
+					"layout %s: `region header` holds exactly one placeholder — the one on the header's right", s.Name.String()))
+			}
+			ph, err := pb.buildPlaceholderV3(w.Children[0])
+			if err != nil {
+				return nil, err
+			}
+			layout.HeaderPlaceholder = ph.(*pages.LayoutPlaceholder)
+		case "sidebar":
+			if layout.Sidebar {
+				return nil, mdlerrors.NewValidation(fmt.Sprintf("layout %s: region sidebar given twice", s.Name.String()))
+			}
+			layout.Sidebar = true
+			for _, c := range w.Children {
+				cw, err := pb.buildWidgetV3(c)
+				if err != nil {
+					return nil, mdlerrors.NewBackend("build widget", err)
+				}
+				layout.SidebarWidgets = append(layout.SidebarWidgets, cw)
+			}
+		}
+	}
+	return rest, nil
 }
 
 // platformForLayoutType maps a layout type onto the platform that uses it.
@@ -168,6 +236,15 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		duplicates = append(duplicates, l.ID)
 	}
 
+	// A rewrite must not delete widgets MDL cannot author (mendixlabs/mxcli#1622).
+	// describe finds a layout by name, so only a name with one stored layout
+	// can be described.
+	if stored != nil && len(duplicates) == 0 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "layout", s.Name, stored.ID, s.AllWidgets()); err != nil {
+			return err
+		}
+	}
+
 	pb := &pageBuilder{
 		ctx:              ctx,
 		backend:          ctx.Backend,
@@ -182,7 +259,16 @@ func execCreateLayout(ctx *ExecContext, s *ast.CreateLayoutStmt) error {
 		widgetBackend:    ctx.Backend,
 		// The root of a document that this pass walks in full: there is no
 		// enclosing data widget, so there is no context object. #1029.
-		argCtx: atDocumentRoot(),
+		argCtx:           atDocumentRoot(),
+		isDocumentWidget: widgetNameSet(s.AllWidgets()),
+	}
+
+	// As for pages and snippets (#721 L4, #832): a layout's pluggable widgets
+	// were rebuilt from the template on every rewrite, unchanged or not.
+	if stored != nil && len(duplicates) == 0 {
+		pb.storedPluggables = loadPluggablePassthrough(ctx, stored.ID, func() error {
+			return describeLayout(ctx, s.Name)
+		})
 	}
 
 	// Built before the old one is deleted: a build failure must leave the

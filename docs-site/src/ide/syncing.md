@@ -15,13 +15,22 @@ It is quiet when everything is already current.
 | Component | Refreshed by `--sync-skills` | What is never touched |
 |-----------|------------------------------|-----------------------|
 | Skills | `.ai-context/skills/` and `.claude/skills/` | skill directories mxcli does not ship |
-| Lint rules | the bundled rules in `.claude/lint-rules/`, identified by file name | any rule file under another name — your own rules |
+| Lint rules | the bundled rules in `.claude/lint-rules/`, while each file is a version mxcli shipped | a bundled rule you edited; any rule file under another name — your own rules |
 | `CLAUDE.md`, `AGENTS.md` | the part between the `<!-- mxcli:begin … -->` and `<!-- mxcli:end -->` markers | everything outside the markers; a file that does not exist is not created |
 | Version stamp | `.ai-context/mxcli-tooling.json` | — |
 
-A bundled lint rule file belongs to mxcli, like a skill: an edit to it is
-overwritten. To change a bundled rule, copy it under a new file name and rule
-ID, or override its severity or options in `.claude/lint-config.yaml`.
+A bundled lint rule is refreshed only while its file is a version mxcli itself
+shipped. Once you edit it, it is yours: `--sync-skills` and `mxcli init` keep
+it and say so on the first sync by a new mxcli, and it no longer receives
+mxcli's updates to the rule. Delete the file to take the current version back.
+
+Moving an edited rule to a new file name works too. A bundled rule is not
+written while another file in `.claude/lint-rules/` defines its rule ID, so the
+stock copy does not come back beside yours and report the same rule twice.
+
+Prefer the options and overrides in `.claude/lint-config.yaml` where a rule has
+them (`severity`, `options`, or `enabled: false` to switch it off): those keep
+receiving the rule's fixes.
 
 ### The mxcli section of CLAUDE.md and AGENTS.md
 

@@ -54,6 +54,12 @@ var churnIsIntended = map[string][]string{}
 // decision — but "registered with the codec" is narrower than "minted fresh".
 // When adding a writer that mints an identity by hand, either register it so
 // this guard can see it, or carry it in canon and say so here.
+//
+// BusinessEvents$Channel.ChannelName is the same blind spot (mendixlabs/mxcli#1525):
+// a random hex string minted by the executor on every build, and the Kafka topic
+// subscribers in other apps listen on. It is carried by message name in the
+// executor (businessEventIdentityCarry), which is the layer that knows which
+// stored channel a declared message is.
 
 func TestFreshGUIDFieldsHaveAnIdentityDecision(t *testing.T) {
 	registered := codec.FreshGUIDRegistrations()

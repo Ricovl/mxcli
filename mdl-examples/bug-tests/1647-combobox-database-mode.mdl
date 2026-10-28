@@ -1,0 +1,51 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1647 — a combo box in database mode (Studio Pro "Source:
+-- Database") did not survive describe → exec. Measured on TestApp
+-- (Studio Pro-authored, 11.14.0): WorkflowCommons.User_WorkflowGroup_Select
+-- and WorkflowGroup_User_Select, rebuilt from their description (drop +
+-- create), came back with comboBox1 as source 'context', selection Single —
+-- mx check CE0642 "Property 'Caption'/'Entity' is required" ×4 and CE0115 on
+-- the button passing $comboBox1 to a list parameter ×2. Describe printed the
+-- database source as the association mode's `DataSource:`.
+--
+-- Fixed by the database mode mendixlabs/mxcli#1583 (ako/mxcli#1488) gave the
+-- definition: the same rebuild now stores both combo boxes as Studio Pro does
+-- and builds at 0 errors. This script is the TestApp shape on a fresh project:
+-- a multi-selection database combo box whose selection is passed to a list.
+--
+-- Expected (measured 11.13.0): check -p passes with no MDL-WIDGET06; cbGroups
+-- stores source 'database', the data source on DbA.Grp, item selection Multi
+-- and the caption on DbA.Grp.Name; describe prints
+-- `optionsSourceDatabaseDataSource: …, CaptionAttribute: Name,
+-- optionsSourceDatabaseItemSelection: Multi`; describe → exec is "Unchanged";
+-- mx check 0 errors.
+-- ============================================================================
+
+create module DbA;
+
+create persistent entity DbA.Grp (Name: String(100));
+create persistent entity DbA.Holder (Note: String(100));
+
+create microflow DbA.ACT_AddGroups ($Groups: list of DbA.Grp)
+begin
+  return;
+end;
+
+create page DbA.P_Pick (Title: 'Pick', Layout: Atlas_Core.Atlas_Default, Params: ($Holder: DbA.Holder)) {
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dvHolder (DataSource: $Holder) {
+          combobox cbGroups (
+            optionsSourceDatabaseDataSource: database from DbA.Grp sort by Name asc,
+            optionsSourceDatabaseItemSelection: 'Multi',
+            optionsSourceDatabaseCaptionAttribute: Name
+          )
+          -- The selection is a list here, so it fits the list parameter.
+          actionbutton btnAdd (Caption: 'Add', Action: call microflow DbA.ACT_AddGroups(Groups = $cbGroups))
+        }
+      }
+    }
+  }
+};

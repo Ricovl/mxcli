@@ -140,7 +140,7 @@ create or modify workflow WFTest.OrderApproval
 begin
   user task ReviewOrder 'Review the order'
     page WFTest.TaskPage
-    targeting xpath [Status = 'Draft']
+    targeting xpath [Active = true()]
     description 'Please review this order'
     outcomes
       'Approve' { call microflow WFTest.ACT_Process; }
@@ -182,7 +182,7 @@ alter workflow WFTest.OrderApproval {
 
 alter workflow WFTest.OrderApproval { set (Page: WFTest.AlternateTaskPage) on ReviewOrder; };
 alter workflow WFTest.OrderApproval { set (Description: 'Updated instructions') on ReviewOrder; };
-alter workflow WFTest.OrderApproval { set (Targeting: xpath [Status = 'Pending']) on ReviewOrder; };
+alter workflow WFTest.OrderApproval { set (Targeting: xpath [Blocked = false()]) on ReviewOrder; };
 alter workflow WFTest.OrderApproval { set (Targeting: microflow WFTest.ACT_TargetUsers) on ReviewOrder; };
 alter workflow WFTest.OrderApproval { set (DueDate: '') on ReviewOrder; };
 alter workflow WFTest.OrderApproval { set (Description: 'Referenced by caption') on 'Review the order'; };

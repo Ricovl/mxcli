@@ -37,6 +37,14 @@ type flowBuilder struct {
 	flows           []*microflows.SequenceFlow
 	annotationFlows []*microflows.AnnotationFlow
 
+	// storedNotes resolves `@annotation(existing: '…')` to the note of the
+	// stored flow with that text, keyed by the text as the script writes it.
+	// Set only for an alter fragment, by resolveStoredNotes, which refuses a
+	// text that names no note or several; nil means there is no stored flow
+	// to attach to — a create body — and the form is refused
+	// (ako/mxcli#1695).
+	storedNotes map[string]*microflows.Annotation
+
 	// annotationsByLabel resolves `@annotation(id: n1)` back to the Annotation
 	// its first mention created, so a note wired to several activities is ONE
 	// object with several flows — the shape Mendix stores and the shape MDL
@@ -93,6 +101,16 @@ type flowBuilder struct {
 	// splitID→nextActivity flow — which is emitted one iteration later by the
 	// outer loop, not by addIfStatement.
 	nextFlowAnchor *ast.FlowAnchors
+
+	// atBodyTail is set while the LAST statement of a loop body is built, and
+	// passed on to the last statement of each branch of an IF there. An IF/ELSE
+	// at the tail joins nothing — both branches end the iteration — so it gets
+	// no merge (mendixlabs/mxcli#884). Whoever reads it clears it.
+	atBodyTail bool
+
+	// statedNotes are the notes whose position the script states, which a
+	// spliced fragment pins in place (see recordStatedNote).
+	statedNotes map[model.ID]bool
 	// curveByOrigin holds each statement's @curve keyed by the activity it was
 	// written on, applied to that activity's outgoing flows by applyFlowCurves
 	// once the graph is complete. (#884)
@@ -105,6 +123,10 @@ type flowBuilder struct {
 	// is derived from the first annotated activity as before.
 	startPosition *model.Point
 	backend       backend.FullBackend // For looking up page/microflow references
+	// assocCatalog is the project's associations with their ends, read once
+	// per flow for the bare association names a retrieve resolves
+	// (ako/mxcli#1690). nil until first needed.
+	assocCatalog *associationCatalog
 	// quiet silences the builder's own stderr warnings. Set for describe's
 	// layout check (derivedFlowLayout), which rebuilds a flow it only reads and
 	// must not repeat, once per round, a warning nobody asked for.

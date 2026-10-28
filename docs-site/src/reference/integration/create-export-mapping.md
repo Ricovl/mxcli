@@ -3,6 +3,7 @@
 ## Synopsis
 
 ```sql
+[ /** description */ ]
 CREATE [ OR MODIFY ] EXPORT MAPPING module.Name
     [ FOLDER 'folder_path' ]
     [ WITH JSON STRUCTURE module.JsonStructure ]
@@ -57,6 +58,9 @@ If `OR MODIFY` is specified and the mapping already exists, it is updated in pla
 `FOLDER 'folder_path'`
 :   Optional. Places the document in the named module folder, creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
 
+`/** description */`
+:   Optional. The documentation of the export mapping, as a doc comment before the statement. `lint` QUAL002 reports a export mapping without it, and `DESCRIBE` prints it back. On `CREATE OR MODIFY`, no doc comment keeps the stored documentation and an empty `/** */` clears it.
+
 `WITH JSON STRUCTURE module.JsonStructure`
 :   Associates the mapping with the named JSON structure.
 
@@ -72,6 +76,15 @@ If `OR MODIFY` is specified and the mapping already exists, it is updated in pla
     every mapping — there is no `CREATE XML SCHEMA` in MDL, so an XML schema is
     only ever something imported into the project by hand, and having none is the
     ordinary case. The same resolution applies to `WITH JSON STRUCTURE`.
+
+    MDL cannot state the XML half of such a mapping — the schema element it is
+    rooted at, or the schema path of each element — and mxcli does not read the
+    XSD to derive them. So `CREATE OR MODIFY` of an existing XML-schema mapping
+    that carries them is accepted only when the statement is the mapping's own
+    `DESCRIBE` output, which reports `Unchanged` and writes nothing; any other
+    rewrite is refused rather than written without its root element (which
+    mxbuild reports as CE0270 "No root element could be found in the schema").
+    Edit such a mapping in Studio Pro.
 
 `NULL VALUES LeaveOutElement | SendAsNil`
 :   Controls null serialisation. Defaults to `LeaveOutElement`.

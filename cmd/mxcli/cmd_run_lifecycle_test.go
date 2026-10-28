@@ -79,7 +79,7 @@ func TestStatusLine(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			line, code := statusLine(c.st, c.alive, c.source, now, c.leftovers)
+			line, code := statusLine(c.st, statusProbes{alive: c.alive, leftovers: c.leftovers}, c.source, now)
 			if code != c.wantCode {
 				t.Errorf("exit %d, want %d (%s)", code, c.wantCode, line)
 			}

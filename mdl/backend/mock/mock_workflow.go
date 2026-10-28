@@ -67,6 +67,13 @@ func (m *MockBackend) UpdateProjectSettings(ps *model.ProjectSettings) error {
 	return nil
 }
 
+func (m *MockBackend) ParseProjectSettingsFromRaw(raw map[string]any) (*model.ProjectSettings, error) {
+	if m.ParseProjectSettingsFromRawFunc != nil {
+		return m.ParseProjectSettingsFromRawFunc(raw)
+	}
+	return nil, fmt.Errorf("MockBackend.ParseProjectSettingsFromRaw not configured")
+}
+
 // ---------------------------------------------------------------------------
 // ImageBackend
 // ---------------------------------------------------------------------------

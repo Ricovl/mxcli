@@ -5,7 +5,7 @@ package modelsdkbackend
 import (
 	"testing"
 
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -14,9 +14,9 @@ import (
 // Forms$FormattingInfo on every date picker and text box, so `DateFormat: Time`
 // was stored as Date and a date-time picker came back date-only.
 
-func formattingOf(t *testing.T, doc bsonv1.D) map[string]any {
+func formattingOf(t *testing.T, doc bson.D) map[string]any {
 	t.Helper()
-	fi, ok := docGet(doc, "FormattingInfo").(bsonv1.D)
+	fi, ok := docGet(doc, "FormattingInfo").(bson.D)
 	if !ok {
 		t.Fatalf("FormattingInfo = %#v, want a Forms$FormattingInfo document", docGet(doc, "FormattingInfo"))
 	}

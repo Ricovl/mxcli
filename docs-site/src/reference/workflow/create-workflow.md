@@ -6,8 +6,8 @@
 CREATE [ OR MODIFY ] WORKFLOW module.Name
     PARAMETER $Variable: module.Entity
     [ OVERVIEW PAGE module.PageName ]
-    [ DISPLAY 'caption' ]
-    [ DESCRIPTION 'text' ]
+    [ DISPLAY 'caption' [ WITH ( {1} = expression, ... ) ] ]
+    [ DESCRIPTION 'text' [ WITH ( {1} = expression, ... ) ] ]
 BEGIN
     activities
 END WORKFLOW
@@ -115,9 +115,14 @@ User tasks, call microflow activities, and wait-for-notification activities supp
 USER TASK name 'caption'
     PAGE module.Page
     OUTCOMES 'Done' { }
-    BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) { activities }
+    BOUNDARY EVENT INTERRUPTING TIMER addHours([%CurrentDateTime%], 1) CAPTION 'Escalate' { activities }
     BOUNDARY EVENT NON INTERRUPTING TIMER addMinutes([%CurrentDateTime%], 30) { activities }
+    BOUNDARY EVENT NON INTERRUPTING TIMER addDays([%CurrentDateTime%], 1) REPEAT EVERY 1 DAY AT MOST 5 TIMES { activities }
 ```
+
+`REPEAT EVERY <n> <unit> AT MOST <m> TIMES` makes a non-interrupting timer a repeating reminder: it fires at the delay, then every `<n>` minutes, hours, days, weeks or months, `<m>` times in all (the first firing counts, so `<m>` is at least 2). A timer-started event sub-process takes the same clause on Mendix 11.15 and later.
+
+`CAPTION '<caption>'` after the delay is the text Studio Pro shows on the timer; it is optional.
 
 ## Parameters
 
@@ -135,6 +140,9 @@ USER TASK name 'caption'
 
 `DESCRIPTION 'text'`
 :   Optional description of the workflow's purpose.
+
+`WITH ( {1} = expression, ... )`
+:   Fills the `{1}`, `{2}`, … placeholders of `DISPLAY` or `DESCRIPTION` from expressions over `$WorkflowContext`, as a log message's template does: `DISPLAY 'Approval for {1}' WITH ({1} = $WorkflowContext/Title)`. A user task's `TASK NAME '…'` (what the task inbox shows; the caption when omitted) and `DESCRIPTION '…'` take the same clause, and may also use `$WorkflowInstance`. A placeholder no parameter fills is CE0720, which `mxcli check` reports as MDL-WF21.
 
 ## Examples
 

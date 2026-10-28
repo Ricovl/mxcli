@@ -1,0 +1,53 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1291 (mendixlabs/mxcli#1236): describe dropped an association
+-- ComboBox's Attribute: and CaptionAttribute: when it had an OnChange
+-- ============================================================================
+--
+-- Symptom (nightly-20260927-95091765, Mendix 11.12.1):
+--   combobox comboBox1 (Label: 'Customer', DataSource: database from
+--     MyModule.Customer where [Active = true] sort by Name asc,
+--     OnChange: microflow MyModule.ACT_Order_CustomerChanged, ...)
+--   "No `Attribute:` and no `CaptionAttribute:`" — though both are stored, so
+--   re-executing the description writes an unbound combo box, silently.
+--
+-- Cause: `w.OnChange != ""` in the generic pluggable branch's has-content
+-- guard (added for Slider/StarRating) captured the combo box ahead of its own
+-- branch, and the generic branch never emits Content or CaptionAttribute.
+-- Not specific to Studio Pro authoring: this script's own output reproduces it
+-- on 95091765. The write side was always correct.
+--
+-- Fix: the OnChange term is gated with !isKnownCustomWidgetType (already on
+-- main; TestDescribeComboboxWithOnChangeKeepsItsBinding).
+--
+-- Verify: exec, then the describe below must show `Attribute:` and
+-- `CaptionAttribute:` next to `OnChange:`; describe → exec reports
+-- "Unchanged page"; `mxcli docker check` 0 errors (11.12.1). With the guard
+-- reverted, the re-executed description fails CE0642 "Property 'Entity' is
+-- required." and "Property 'Caption' is required." on comboBox1.
+-- ============================================================================
+
+create persistent entity MyFirstModule.Customer ( Name: String(200), Active: Boolean default true );
+create persistent entity MyFirstModule.CustomerOrder ( Number: Integer );
+create association MyFirstModule.CustomerOrder_Customer from MyFirstModule.CustomerOrder to MyFirstModule.Customer;
+
+create or modify microflow MyFirstModule.ACT_CustomerOrder_CustomerChanged ($CustomerOrder: MyFirstModule.CustomerOrder)
+begin
+end;
+
+create or modify page MyFirstModule.CustomerOrder_Edit
+( Title: 'Order', Layout: Atlas_Core.Atlas_Default, Params: ( $CustomerOrder: MyFirstModule.CustomerOrder ) )
+{
+  dataview dataView1 (datasource: $CustomerOrder) {
+    combobox comboBox1 (
+      Label: 'Customer',
+      Attribute: CustomerOrder_Customer,
+      DataSource: database from MyFirstModule.Customer where [Active = true] sort by Name asc,
+      CaptionAttribute: Name,
+      OnChange: call microflow MyFirstModule.ACT_CustomerOrder_CustomerChanged(CustomerOrder = $currentObject),
+      DesignProperties: ('Align self': 'Right')
+    )
+  }
+};
+
+describe page MyFirstModule.CustomerOrder_Edit;

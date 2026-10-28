@@ -11,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -118,27 +117,13 @@ var communitiesOnlyTables = map[string]bool{
 	"graph_integration_surface": true,
 }
 
-// extractTableFromQuery extracts the table name after FROM in a converted catalog query.
-func extractTableFromQuery(query string) string {
-	lower := strings.ToLower(query)
-	idx := strings.Index(lower, "from ")
-	if idx == -1 {
-		return ""
-	}
-	rest := strings.TrimSpace(lower[idx+5:])
-	// Table name is the next word
-	end := strings.IndexAny(rest, " \t\n;,)")
-	if end == -1 {
-		return rest
-	}
-	return rest[:end]
-}
-
-// warnIfCatalogModeInsufficient checks if the query targets a table that requires
-// a higher catalog build mode than what's currently cached, and prints a warning.
-func warnIfCatalogModeInsufficient(ctx *ExecContext, query string) {
-	table := extractTableFromQuery(query)
-	if table == "" {
+// warnIfCatalogModeInsufficient warns for each queried table that requires a
+// higher catalog build mode than what's currently cached. tables are the ones
+// rewriteCatalogTableRefs found, so every table of a join or subquery is
+// checked, and a literal containing "from" cannot stand in for one — the old
+// guess took the word after the first "from " in the text (ako/mxcli#1450).
+func warnIfCatalogModeInsufficient(ctx *ExecContext, tables []string) {
+	if len(tables) == 0 {
 		return
 	}
 
@@ -157,14 +142,17 @@ func warnIfCatalogModeInsufficient(ctx *ExecContext, query string) {
 	modeRank := map[string]int{"fast": 1, "full": 2, "source": 3}
 	currentRank := modeRank[buildMode]
 
-	if communitiesOnlyTables[table] && !graphAnalysis {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
-		return
-	}
-	if sourceOnlyTables[table] && currentRank < modeRank["source"] {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
-	} else if fullOnlyTables[table] && currentRank < modeRank["full"] {
-		fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
+	for _, table := range tables {
+		switch {
+		case communitiesOnlyTables[table]:
+			if !graphAnalysis {
+				fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog communities (not run for this catalog)\n", strings.ToUpper(table))
+			}
+		case sourceOnlyTables[table] && currentRank < modeRank["source"]:
+			fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full source (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		case fullOnlyTables[table] && currentRank < modeRank["full"]:
+			fmt.Fprintf(ctx.progress(), "Warning: CATALOG.%s requires refresh catalog full (current mode: %s)\n", strings.ToUpper(table), buildMode)
+		}
 	}
 }
 
@@ -178,10 +166,10 @@ func execCatalogQuery(ctx *ExecContext, query string) error {
 	}
 
 	// Convert CATALOG.xxx table names to actual table names
-	query = convertCatalogTableNames(query)
+	query, tables := rewriteCatalogTableRefs(query)
 
 	// Warn if querying a table that requires a higher build mode
-	warnIfCatalogModeInsufficient(ctx, query)
+	warnIfCatalogModeInsufficient(ctx, tables)
 
 	// Execute query
 	result, err := ctx.Catalog.Query(query)
@@ -977,16 +965,12 @@ func writeCatalogStatusJSON(ctx *ExecContext) error {
 	return enc.Encode(status)
 }
 
-// catalogTableRefRe matches a `CATALOG.<name>` table reference (case-insensitive).
-var catalogTableRefRe = regexp.MustCompile(`(?i)\bcatalog\.([a-z_][a-z0-9_]*)`)
-
 // convertCatalogTableNames strips the CATALOG. prefix from table references so the
-// query runs against the underlying SQLite views/tables. Generic by design: any
-// CATALOG.<name> is rewritten, so new catalog views (e.g. the graph_* analysis
-// views) work without maintaining a per-name allowlist. An unknown name simply
-// yields SQLite's "no such table" rather than a silent passthrough.
+// query runs against the underlying SQLite views/tables; string literals, quoted
+// identifiers and comments are left alone. See rewriteCatalogTableRefs.
 func convertCatalogTableNames(query string) string {
-	return catalogTableRefRe.ReplaceAllString(query, "$1")
+	converted, _ := rewriteCatalogTableRefs(query)
+	return converted
 }
 
 // outputCatalogResults outputs query results in table or JSON format.
@@ -1173,50 +1157,112 @@ func preWarmCache(ctx *ExecContext) {
 	describeDefaultLanguage(ctx)
 }
 
+// SearchOptions narrow or harden a search. The zero value is what the SEARCH
+// statement uses.
+type SearchOptions struct {
+	// ExcludeMarketplace drops hits in modules downloaded from the Marketplace,
+	// so an audit of the app's own text does not report a vendor's.
+	ExcludeMarketplace bool
+	// Strict returns the index's error for a query it cannot run (an FTS5 syntax
+	// error, say) instead of reporting "no matches". A caller that gates on the
+	// absence of hits needs the difference: "nothing found" and "could not look"
+	// are not the same answer.
+	Strict bool
+}
+
+// marketplaceModuleFilter is the WHERE fragment that keeps a search to modules
+// the project owns. A module's Source is empty unless it came from the
+// Marketplace (see the modules table).
+//
+// Only the current snapshot's modules count: the modules view holds a row per
+// snapshot, and a module that came from the Marketplace in an older one would
+// otherwise be left out of every later search. The current snapshot is the
+// latest one recorded, as AddGraphAnalysis reads it.
+const marketplaceModuleFilter = " and ModuleName not in (select Name from modules" +
+	" where COALESCE(Source, '') <> ''" +
+	" and SnapshotId = (select SnapshotId from snapshots order by rowid desc limit 1))"
+
+// searchSQL returns the strings-index and source-index queries for a search.
+func searchSQL(query string, opts SearchOptions) (stringsSQL, sourceSQL string) {
+	filter := ""
+	if opts.ExcludeMarketplace {
+		filter = marketplaceModuleFilter
+	}
+	q := escapeFTSQuery(query)
+	stringsSQL = fmt.Sprintf(
+		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s'%s limit 50",
+		q, filter)
+	sourceSQL = fmt.Sprintf(
+		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s'%s limit 50",
+		q, filter)
+	return stringsSQL, sourceSQL
+}
+
+// runSearchQuery runs one of the two search queries. An error is swallowed and
+// reported as no rows unless opts.Strict is set — the long-standing behaviour
+// of SEARCH, kept for it.
+func runSearchQuery(ctx *ExecContext, sql string, opts SearchOptions) (*catalog.QueryResult, error) {
+	res, err := ctx.Catalog.Query(sql)
+	if err != nil {
+		if opts.Strict {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return res, nil
+}
+
 // execSearch handles SEARCH 'query' command.
 func execSearch(ctx *ExecContext, stmt *ast.SearchStmt) error {
+	_, err := searchTable(ctx, stmt.Query, SearchOptions{})
+	return err
+}
+
+// searchTable prints the human-readable result of a search and returns how many
+// hits it printed.
+func searchTable(ctx *ExecContext, query string, opts SearchOptions) (int, error) {
 	if !ctx.Connected() {
-		return mdlerrors.NewNotConnected()
+		return 0, mdlerrors.NewNotConnected()
 	}
 
 	// Ensure catalog is built (at least full mode for strings table)
 	if err := ensureCatalog(ctx, true); err != nil {
-		return err
+		return 0, err
 	}
 
-	query := stmt.Query
-	found := false
+	stringsSQL, sourceSQL := searchSQL(query, opts)
+	hits := 0
 
 	// Search strings table
-	stringsQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s' limit 50",
-		escapeFTSQuery(query))
-	strResult, err := ctx.Catalog.Query(stringsQuery)
-	if err == nil && strResult.Count > 0 {
-		found = true
+	strResult, err := runSearchQuery(ctx, stringsSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if strResult != nil && strResult.Count > 0 {
+		hits += strResult.Count
 		fmt.Fprintf(ctx.Output, "\nString Matches (%d)\n", strResult.Count)
 		fmt.Fprintln(ctx.Output, strings.Repeat("─", 40))
 		outputCatalogResults(ctx, strResult)
 	}
 
 	// Search source table (if available)
-	sourceQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s' limit 50",
-		escapeFTSQuery(query))
-	srcResult, err := ctx.Catalog.Query(sourceQuery)
-	if err == nil && srcResult.Count > 0 {
-		found = true
+	srcResult, err := runSearchQuery(ctx, sourceSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if srcResult != nil && srcResult.Count > 0 {
+		hits += srcResult.Count
 		fmt.Fprintf(ctx.Output, "\nSource Matches (%d)\n", srcResult.Count)
 		fmt.Fprintln(ctx.Output, strings.Repeat("─", 40))
 		outputCatalogResults(ctx, srcResult)
 	}
 
-	if !found {
+	if hits == 0 {
 		fmt.Fprintln(ctx.Output, "No matches found.")
 	}
 	warnIfSourceIndexMissing(ctx)
 
-	return nil
+	return hits, nil
 }
 
 // warnIfSourceIndexMissing says, on the diagnostics channel, that a search did
@@ -1268,17 +1314,24 @@ func escapeFTSQuery(q string) string {
 // search performs a full-text search with the specified output format.
 // Format can be: "table" (default), "names" (just qualified names), "json"
 func search(ctx *ExecContext, query, format string) error {
+	_, err := searchWith(ctx, query, format, SearchOptions{})
+	return err
+}
+
+// searchWith is search with options. It returns how many hits it found, which
+// is the number a caller gating on "no match" needs.
+func searchWith(ctx *ExecContext, query, format string, opts SearchOptions) (int, error) {
 	if !ctx.Connected() {
-		return mdlerrors.NewNotConnected()
+		return 0, mdlerrors.NewNotConnected()
 	}
 
 	if format != "names" && format != "json" { // "table" (default)
-		return execSearch(ctx, &ast.SearchStmt{Query: query})
+		return searchTable(ctx, query, opts)
 	}
 
 	// Ensure catalog is built (at least full mode for strings table)
 	if err := ensureCatalog(ctx, true); err != nil {
-		return err
+		return 0, err
 	}
 
 	type searchResult struct {
@@ -1293,12 +1346,14 @@ func search(ctx *ExecContext, query, format string) error {
 	var allResults []searchResult
 	seen := make(map[string]bool) // For deduplicating names format
 
+	stringsSQL, sourceSQL := searchSQL(query, opts)
+
 	// Search strings table
-	stringsQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(strings, 2, '>>>', '<<<', '...', 32) as Match, StringContext, ModuleName from strings where strings match '%s' limit 50",
-		escapeFTSQuery(query))
-	strResult, err := ctx.Catalog.Query(stringsQuery)
-	if err == nil && strResult.Count > 0 {
+	strResult, err := runSearchQuery(ctx, stringsSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if strResult != nil && strResult.Count > 0 {
 		for _, row := range strResult.Rows {
 			r := searchResult{
 				QualifiedName: fmt.Sprintf("%v", row[0]),
@@ -1313,11 +1368,11 @@ func search(ctx *ExecContext, query, format string) error {
 	}
 
 	// Search source table (if available)
-	sourceQuery := fmt.Sprintf(
-		"select QualifiedName, ObjectType, snippet(source, 2, '>>>', '<<<', '...', 48) as Match, ModuleName from source where source match '%s' limit 50",
-		escapeFTSQuery(query))
-	srcResult, err := ctx.Catalog.Query(sourceQuery)
-	if err == nil && srcResult.Count > 0 {
+	srcResult, err := runSearchQuery(ctx, sourceSQL, opts)
+	if err != nil {
+		return 0, err
+	}
+	if srcResult != nil && srcResult.Count > 0 {
 		for _, row := range srcResult.Rows {
 			r := searchResult{
 				QualifiedName: fmt.Sprintf("%v", row[0]),
@@ -1337,7 +1392,7 @@ func search(ctx *ExecContext, query, format string) error {
 			fmt.Fprintln(ctx.Output, "[]")
 		}
 		warnIfSourceIndexMissing(ctx)
-		return nil
+		return 0, nil
 	}
 
 	switch format {
@@ -1353,18 +1408,26 @@ func search(ctx *ExecContext, query, format string) error {
 	case "json":
 		jsonBytes, err := json.MarshalIndent(allResults, "", "  ")
 		if err != nil {
-			return err
+			return 0, err
 		}
 		fmt.Fprintln(ctx.Output, string(jsonBytes))
 	}
 
 	warnIfSourceIndexMissing(ctx)
-	return nil
+	return len(allResults), nil
 }
 
 // Search performs a full-text search with the specified output format.
 func (e *Executor) Search(query, format string) error {
-	return search(e.newExecContext(context.Background()), query, format)
+	_, err := e.SearchWith(query, format, SearchOptions{})
+	return err
+}
+
+// SearchWith performs a full-text search and returns the number of hits it
+// found (at most 50 per index), so a caller can act on "found something" without
+// parsing the output it just printed.
+func (e *Executor) SearchWith(query, format string, opts SearchOptions) (int, error) {
+	return searchWith(e.newExecContext(context.Background()), query, format, opts)
 }
 
 // builtinWidgetMetas adapts the built-in WidgetRegistry's definitions into

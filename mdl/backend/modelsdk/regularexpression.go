@@ -4,8 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	regex "github.com/mendixlabs/mxcli/mdl/regularexpressions"
 	"github.com/mendixlabs/mxcli/model"
@@ -24,7 +25,7 @@ func (b *Backend) ListRegularExpressions() ([]*model.RegularExpression, error) {
 	out := make([]*model.RegularExpression, 0, len(units))
 	for _, u := range units {
 		var doc bson.M
-		if err := bson.Unmarshal(u.Contents, &doc); err != nil {
+		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			return nil, fmt.Errorf("unmarshal regular expression %s: %w", u.ID, err)
 		}
 		out = append(out, regex.Parse(doc, model.ID(u.ID), model.ID(u.ContainerID)))

@@ -132,6 +132,12 @@ func checkOwnContainerName(w *ast.WidgetV3, nearest, locationPrefix string) []li
 			flag(p.written+" expression", v, "CE0117")
 		}
 	}
+	// A quoted `Editable: '<expr>'` is the same condition as the bare one.
+	if _, routed := w.Properties["EditableIf"]; !routed {
+		if expr, ok := editableCondition(w); ok {
+			flag("Editable expression", expr, "CE0117")
+		}
+	}
 	return out
 }
 
@@ -209,7 +215,7 @@ func controlBarSuggestion(controlBarOf string) string {
 		return "Move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter instead of $currentObject."
 	}
 	return fmt.Sprintf(
-		"Pass the selection of `%s` instead — `Action: microflow M.F(Param = $%s)`, with `Selection:` set on the widget. "+
+		"Pass the selection of `%s` instead — `Param = $%s` in a microflow call or a show page, with `Selection:` set on the widget. "+
 			"Or move the button into a grid column (row-scoped) so it has a current row, or pass a page parameter.",
 		controlBarOf, controlBarOf)
 }

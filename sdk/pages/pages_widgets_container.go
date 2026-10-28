@@ -3,6 +3,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -36,6 +38,10 @@ type LayoutGridRow struct {
 	VerticalAlignment       string                `json:"verticalAlignment,omitempty"`   // "None" (default), "Start", "Center", "End"
 	HorizontalAlignment     string                `json:"horizontalAlignment,omitempty"` // "None" (default), "Start", "Center", "End"
 	NoSpacingBetweenColumns bool                  `json:"noSpacingBetweenColumns,omitempty"`
+	// ConditionalVisibility is the row's own visibility condition
+	// (Forms$LayoutGridRow.ConditionalVisibilitySettings); nil writes Studio
+	// Pro's null (mendixlabs/mxcli#1461). A column has no such slot.
+	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
 }
 
 // LayoutGridColumn represents a column in a layout grid. Like a row it has an
@@ -65,9 +71,26 @@ type Container struct {
 type ContainerRenderMode string
 
 const (
-	ContainerRenderModeDiv  ContainerRenderMode = "Div"
-	ContainerRenderModeForm ContainerRenderMode = "Form"
+	ContainerRenderModeDiv ContainerRenderMode = "Div"
 )
+
+// ContainerRenderModes are the members of Forms$DivContainer.RenderMode — the
+// HTML element the container renders as (modelsdk/gen/pages ContainerRenderMode).
+var ContainerRenderModes = []ContainerRenderMode{
+	"Div", "Section", "Article", "Header", "Footer", "Main", "Nav", "Aside", "Hgroup", "Address",
+}
+
+// CanonicalContainerRenderMode returns the stored spelling of a container's
+// RenderMode, matched case-insensitively. A value outside the enumeration is
+// not one Studio Pro can open, so callers refuse it rather than store it.
+func CanonicalContainerRenderMode(s string) (ContainerRenderMode, bool) {
+	for _, m := range ContainerRenderModes {
+		if strings.EqualFold(s, string(m)) {
+			return m, true
+		}
+	}
+	return "", false
+}
 
 // GroupBox represents a group box container.
 type GroupBox struct {
@@ -96,6 +119,10 @@ type TabPage struct {
 	// tab page is not a widget (no BaseWidget, no Appearance), so it carries
 	// its own (mendixlabs/mxcli#1465).
 	ConditionalVisibility *ConditionalVisibilitySettings `json:"conditionalVisibility,omitempty"`
+	// Badge is Forms$TabPage.Badge, the text template shown beside the caption
+	// (a counter, say); nil writes none, as Studio Pro stores an unset one
+	// (mendixlabs/mxcli#1644).
+	Badge *ClientTemplate `json:"badge,omitempty"`
 }
 
 // GetName returns the tab page's name.
@@ -110,9 +137,31 @@ func (tp *TabPage) GetName() string {
 // is the flat form some older documents use and is kept for reading them.
 type ScrollContainer struct {
 	BaseWidget
-	ScrollBehavior ScrollBehavior           `json:"scrollBehavior"`
-	Regions        []*ScrollContainerRegion `json:"regions,omitempty"`
-	Widgets        []Widget                 `json:"widgets,omitempty"`
+	ScrollBehavior ScrollBehavior `json:"scrollBehavior"`
+	// LayoutMode is how the regions share the frame (ako/mxcli#1703): in
+	// Headline the top region runs the full width and the left region starts
+	// under it; in Sidebar the left region runs the full height and the top
+	// bar sits beside it. Empty leaves it unwritten, which Studio Pro reads as
+	// DefaultScrollContainerLayoutMode.
+	LayoutMode string                   `json:"layoutMode,omitempty"`
+	Regions    []*ScrollContainerRegion `json:"regions,omitempty"`
+	Widgets    []Widget                 `json:"widgets,omitempty"`
+}
+
+// ScrollContainerLayoutModes are the members of Forms$ScrollContainer.LayoutMode
+// (generated/metamodel PagesLayoutMode), spelled as stored.
+var ScrollContainerLayoutModes = []string{"Headline", "Sidebar"}
+
+// DefaultScrollContainerLayoutMode is the mode Studio Pro stores on a scroll
+// container that was never set, and fills in when the key is absent
+// (modelsdk/canon's measured property defaults). describe leaves it unsaid.
+const DefaultScrollContainerLayoutMode = "Headline"
+
+// CanonicalScrollContainerLayoutMode returns the stored spelling of a scroll
+// container's LayoutMode, matched case-insensitively. Shared by the CREATE
+// LAYOUT builder and the ALTER mutator, so the two accept the same values.
+func CanonicalScrollContainerLayoutMode(s string) (string, bool) {
+	return canonicalMember(s, ScrollContainerLayoutModes...)
 }
 
 // ScrollContainerRegion is one of a ScrollContainer's five slots.
@@ -126,8 +175,13 @@ type ScrollContainerRegion struct {
 	Slot     ScrollContainerSlot `json:"slot"`
 	Size     int                 `json:"size,omitempty"`
 	SizeMode string              `json:"sizeMode,omitempty"`
-	Class    string              `json:"class,omitempty"`
-	Widgets  []Widget            `json:"widgets,omitempty"`
+	// ToggleMode is how a sidebar toggle button opens and closes the region:
+	// None, PushContentAside, SlideOverContent, ShrinkContentInitiallyOpen or
+	// ShrinkContentInitiallyClosed. Empty writes None. A layout with a toggle
+	// and no toggleable region is CE0628 (mendixlabs/mxcli#1220).
+	ToggleMode string   `json:"toggleMode,omitempty"`
+	Class      string   `json:"class,omitempty"`
+	Widgets    []Widget `json:"widgets,omitempty"`
 }
 
 // ScrollContainerSlot names one of the five regions.

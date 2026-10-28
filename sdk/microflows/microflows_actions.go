@@ -508,6 +508,9 @@ type ShowPageAction struct {
 	PassedObject          string                  `json:"passedObject,omitempty"`
 	OverridePageTitle     *model.Text             `json:"overridePageTitle,omitempty"`
 	PageParameterMappings []*PageParameterMapping `json:"pageParameterMappings,omitempty"`
+	// NumberOfPagesToClose is the expression for how many pages to close before
+	// the page opens; "" (Studio Pro's default) closes none (mendixlabs/mxcli#1617).
+	NumberOfPagesToClose string `json:"numberOfPagesToClose,omitempty"`
 }
 
 func (ShowPageAction) isMicroflowAction() {}
@@ -809,12 +812,37 @@ type StringTemplateParameterValue struct {
 
 func (StringTemplateParameterValue) isCodeActionParameterValue() {}
 
-// TypedTemplate represents a typed template with arguments.
+// TypedTemplate represents a typed template with arguments: the value of a
+// Java action parameter of type StringTemplate (Text or Sql). Text holds {1},
+// {2}, … placeholders, one argument per placeholder.
 type TypedTemplate struct {
 	model.BaseElement
-	Arguments []string `json:"arguments,omitempty"`
-	Text      string   `json:"text,omitempty"`
+	Arguments []*TypedTemplateArgument `json:"arguments,omitempty"`
+	Text      string                   `json:"text,omitempty"`
 }
+
+// TypedTemplateArgument is one {n} argument of a TypedTemplate
+// (Microflows$PrimitiveTypedTemplateArgument): an expression and the type of
+// its result, one of String, Integer, Decimal, Boolean, DateTime. mxbuild
+// checks the expression against Type (CE0117 on a mismatch, and an absent Type
+// reads as String); the runtime hands Type to the Java action with the value
+// (ITemplateParameter.getParameterType).
+type TypedTemplateArgument struct {
+	model.BaseElement
+	Expression string `json:"expression,omitempty"`
+	Type       string `json:"type,omitempty"`
+}
+
+// CustomBlobDocumentCodeActionParameterValue is the document passed to a Java
+// action parameter of a custom document type (CodeActions$
+// CustomBlobDocumentParameterType, e.g. an agent-editor Agent): a by-name
+// reference to the document, never an expression.
+type CustomBlobDocumentCodeActionParameterValue struct {
+	model.BaseElement
+	CustomDocument string `json:"customDocument,omitempty"` // BY_NAME_REFERENCE: qualified document name
+}
+
+func (CustomBlobDocumentCodeActionParameterValue) isCodeActionParameterValue() {}
 
 // ExpressionBasedCodeActionParameterValue is an expression-based parameter value.
 type ExpressionBasedCodeActionParameterValue struct {
@@ -1161,6 +1189,26 @@ type ResultHandlingMapping struct {
 	// than merely undescribed).
 	LimitExpression  string `json:"limitExpression,omitempty"`
 	OffsetExpression string `json:"offsetExpression,omitempty"`
+
+	// ContentType is the ImportMappingCall's "Json" or "Xml", which follows the
+	// mapping's source: XML for an XML schema or a web service operation. A
+	// constant "Json" made mx check refuse a web-service mapping with "The
+	// selected import mapping cannot handle content type JSON"
+	// (mendixlabs/mxcli#1232). Empty writes "Json".
+	ContentType string `json:"contentType,omitempty"`
+
+	// ParameterVariable is the variable holding the mapping's input object,
+	// ImportMappingCall.ParameterVariableName; empty for a mapping without one.
+	// Commit is the call's Yes / YesWithoutEvents / No; empty writes
+	// YesWithoutEvents. MDL could say neither before ako/mxcli#1681.
+	ParameterVariable string `json:"parameterVariable,omitempty"`
+	Commit            string `json:"commit,omitempty"`
+
+	// ResultType is the stored result VariableType's $Type, "" when none is
+	// stored. Read only: it tells a stored activity Mendix cannot load (an
+	// object or list type naming no entity, mendixlabs/mxcli#1418) from one that
+	// stores no result at all.
+	ResultType string `json:"resultType,omitempty"`
 }
 
 func (ResultHandlingMapping) isResultHandling() {}

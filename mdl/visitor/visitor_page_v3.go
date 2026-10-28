@@ -144,6 +144,9 @@ func (b *Builder) parsePageHeaderV3(ctx parser.IPageHeaderV3Context, stmt *ast.C
 			if str := prop.STRING_LITERAL(); str != nil {
 				stmt.Style = unquoteStringLit(str)
 			}
+		} else if dp := prop.DesignPropertyListV3(); dp != nil {
+			// DesignProperties: ( … ) — the page's own (ako/mxcli#1678)
+			stmt.DesignProperties = buildDesignPropertyListV3(dp)
 		} else if id := prop.IDENTIFIER(); id != nil {
 			// Generic page header property (e.g. PopupWidth: 800). Only the
 			// pop-up dimensions are recognized; anything else is a typo/unsupported.
@@ -183,7 +186,7 @@ func (b *Builder) applyGenericPageHeaderProp(stmt *ast.CreatePageStmtV3, name st
 		stmt.PopupCloseAction = strings.Trim(fmt.Sprintf("%v", val), `"'`)
 	default:
 		b.addError(fmt.Errorf("line %d:%d: unknown page property %q "+
-			"(supported: Title, Layout, Url, Folder, Params, Variables, PopupWidth, PopupHeight, PopupResizable, PopupCloseAction, Class, Style)",
+			"(supported: Title, Layout, Url, Folder, Params, Variables, PopupWidth, PopupHeight, PopupResizable, PopupCloseAction, Class, Style, DesignProperties)",
 			tok.GetLine(), tok.GetColumn(), name))
 	}
 }
@@ -891,6 +894,17 @@ func parseWidgetPropertyV3(ctx parser.IWidgetPropertyV3Context, widget *ast.Widg
 
 	// Visible: [expression] (conditional visibility) or Visible: false (static)
 	if propCtx.VISIBLE() != nil {
+		// `Visible: roles (Mod.A, …)` — Studio Pro's "Visible for module roles",
+		// kept under its own key so it combines with the condition forms below
+		// (mendixlabs/mxcli#1460).
+		if rl := propCtx.VisibleRoleListV3(); rl != nil {
+			var roles []string
+			for _, qn := range rl.AllQualifiedName() {
+				roles = append(roles, getQualifiedNameText(qn))
+			}
+			widget.Properties["VisibleRoles"] = roles
+			return
+		}
 		// `Visible: Attr in (v1, …)` — Studio Pro's "based on attribute value".
 		if propCtx.IN() != nil {
 			vw := &ast.VisibleWhenV3{}
@@ -1091,6 +1105,11 @@ func buildDataSourceV3(ctx parser.IDataSourceExprV3Context) *ast.DataSourceV3 {
 		if argsCtx := dsCtx.MicroflowArgsV3(); argsCtx != nil {
 			ds.Args = buildMicroflowArgsV3(argsCtx)
 		}
+		if sc := dsCtx.ActionSettingsV3(); sc != nil {
+			if s := buildActionSettingsV3(sc); s != nil {
+				ds.FormValidations = s.FormValidations
+			}
+		}
 	} else if dsCtx.NANOFLOW() != nil {
 		// NANOFLOW Module.Flow
 		ds.Type = "nanoflow"
@@ -1250,6 +1269,18 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if str := actCtx.STRING_LITERAL(); str != nil {
 			action.OutcomeValue = unquoteStringLit(str)
 		}
+	} else if actCtx.OPEN() != nil && actCtx.USER() != nil {
+		action.Type = "openUserTask"
+	} else if actCtx.OPEN() != nil && actCtx.WORKFLOW() != nil {
+		action.Type = "openWorkflow"
+	} else if actCtx.CALL() != nil && actCtx.WORKFLOW() != nil {
+		action.Type = "callWorkflow"
+		if qn := actCtx.QualifiedName(); qn != nil {
+			action.Target = getQualifiedNameText(qn)
+		}
+	}
+	if rc := actCtx.ActionReturnsV3(); rc != nil {
+		action.Returns = buildActionReturnsV3(rc)
 	}
 	if sc := actCtx.ActionSettingsV3(); sc != nil {
 		action.Settings = buildActionSettingsV3(sc)
@@ -1262,6 +1293,26 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 	}
 
 	return action
+}
+
+// buildActionReturnsV3 builds a flow call's `returns ( … )` list.
+func buildActionReturnsV3(ctx parser.IActionReturnsV3Context) []ast.FlowReturnV3 {
+	var out []ast.FlowReturnV3
+	for _, rc := range ctx.(*parser.ActionReturnsV3Context).AllActionReturnV3() {
+		r := rc.(*parser.ActionReturnV3Context)
+		var ret ast.FlowReturnV3
+		if v := r.VARIABLE(); v != nil {
+			ret.Target = strings.TrimPrefix(v.GetText(), "$")
+			ret.Variable = true
+		} else if pn := r.ParameterName(); pn != nil {
+			ret.Target = parameterNameText(pn)
+		}
+		if expr := r.Expression(); expr != nil {
+			ret.Source = expressionSourceText(expr)
+		}
+		out = append(out, ret)
+	}
+	return out
 }
 
 // buildMicroflowArgsV3 builds flow arguments from the parse context.
@@ -1470,6 +1521,12 @@ func buildParamFormatV3(ctx parser.IParamFormatV3Context) *ast.ParamFormatV3 {
 			continue
 		}
 		val := strings.Trim(vc.GetText(), "'\"")
+		// A string value is unescaped like any other literal: a date pattern
+		// quotes literal text (`h ''at'' mm` is `h 'at' mm`), and stripping the
+		// outer quotes alone stored the doubled ones (ako/mxcli#977).
+		if pv, ok := vc.(*parser.PropertyValueV3Context); ok && pv.STRING_LITERAL() != nil {
+			val = unquoteStringLit(pv.STRING_LITERAL())
+		}
 		f.Props = append(f.Props, ast.ParamFormatProp{
 			Key:   strings.ToLower(id.GetText()),
 			Value: val,
@@ -1986,6 +2043,10 @@ func xpathExprToString(expr ast.Expression) string {
 		return e.Name + "(" + strings.Join(args, ", ") + ")"
 	case *ast.TokenExpr:
 		return "[%" + e.Token + "%]"
+	case *ast.ConstantRefExpr:
+		// Without a case the constant rendered as "": a data source written
+		// `where Total > @Shop.C_Limit` stored `[Total > ]` (ako/mxcli#1685).
+		return "@" + e.QualifiedName.String()
 	case *ast.ParenExpr:
 		return "(" + xpathExprToString(e.Inner) + ")"
 	case *ast.IdentifierExpr:

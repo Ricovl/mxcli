@@ -24,5 +24,11 @@
     "devDependencies": {
         "@mendix/pluggable-widgets-tools": "11.12.1",
         "@types/big.js": "^6.2.2"
+    },
+    "overrides": {
+        "postcss-selector-parser": "^7.1.6",
+        "@istanbuljs/load-nyc-config": {
+            "js-yaml": "^4.1.0"
+        }
     }
 }

@@ -5,8 +5,7 @@ package pagemutator
 import (
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -14,7 +13,7 @@ import (
 // mendixlabs/mxcli#1247: REPLACE of a pluggable widget by one of the same
 // package keeps every stored property the statement does not change.
 
-func bid(s string) primitive.Binary { return primitive.Binary{Data: []byte(s)} }
+func bid(s string) bson.Binary { return bson.Binary{Data: []byte(s)} }
 
 // comboDoc builds a pluggable widget the way the three sources differ: each has
 // its own element IDs (prefix), and the given property values.

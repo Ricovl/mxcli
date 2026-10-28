@@ -1,0 +1,81 @@
+mdl 1;
+-- ============================================================================
+-- RENAME of a document in a folder of the same name renamed the FOLDER
+-- ako/mxcli#1443 (mirror of mendixlabs/mxcli#1545)
+-- ============================================================================
+--
+-- One folder per page or microflow is a common layout. On such a document,
+-- `rename page Shop1443.Order_Overview to Order_List` renamed the folder
+-- 'Order_Overview' to 'Order_List', left the page as it was, printed
+-- "Renamed page: …", and the reference sweep had already pointed the show-page
+-- action at the new name:
+--   CE1613 The selected page 'Shop1443.Order_List' no longer exists.
+-- Likewise for microflows, nanoflows, constants, enumerations, Java actions and
+-- workflows — every kind RENAME handles as a document.
+--
+-- Cause: the document rename looked its target up again by bare name among
+-- every unit in the module's containers, whatever its $Type, and took the first.
+-- A folder is such a unit, and a FOLDER clause inserts the folder before the
+-- document it holds. The rename now acts on the document the statement resolved,
+-- by ID, and refuses a folder or module outright.
+--
+-- Expected after exec: LIST FOLDERS IN Shop1443 still shows the folders
+-- 'Order_Overview' and 'Order_Process', now holding Order_List and Order_Handle;
+-- mx check reports 0 errors (4× CE1613 before the fix). The last rename is the
+-- issue's control: a page in a differently named folder, always renamed right.
+-- Go test: mdl/executor/rename_same_named_folder_test.go.
+-- ============================================================================
+
+create module Shop1443;
+
+create persistent entity Shop1443.Order (
+  Number: String(50)
+);
+
+create page Shop1443.Order_Overview folder 'Order_Overview' (
+  Title: 'Orders',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtTitle (Content: 'Orders')
+};
+
+create microflow Shop1443.ACT_Order_Overview_Open ()
+begin
+  show page Shop1443.Order_Overview();
+end;
+
+create microflow Shop1443.Order_Process ($Order: Shop1443.Order) folder 'Order_Process'
+begin
+  return;
+end;
+
+create microflow Shop1443.ACT_Order_Process_Call ($Order: Shop1443.Order)
+begin
+  call microflow Shop1443.Order_Process(Order = $Order);
+end;
+
+create nanoflow Shop1443.NF_Order () folder 'NF_Order'
+begin
+  return;
+end;
+
+create nanoflow Shop1443.NF_Order_Call ()
+begin
+  call nanoflow Shop1443.NF_Order();
+end;
+
+create page Shop1443.Customer_Overview folder 'Customers' (
+  Title: 'Customers',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtTitle (Content: 'Customers')
+};
+
+rename page Shop1443.Order_Overview to Order_List;
+rename microflow Shop1443.Order_Process to Order_Handle;
+rename nanoflow Shop1443.NF_Order to NF_Order_Handle;
+
+-- Control: the folder's name differs from the page's.
+rename page Shop1443.Customer_Overview to Customer_List;
+
+list folders in Shop1443;

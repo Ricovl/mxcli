@@ -144,13 +144,13 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// Display name
-	if targetWf.WorkflowName != "" {
-		lines = append(lines, fmt.Sprintf("  display %s", mdlQuoted(targetWf.WorkflowName)))
+	if targetWf.WorkflowName != "" || len(targetWf.WorkflowNameParams) > 0 {
+		lines = append(lines, "  display "+workflowTemplateMDL(targetWf.WorkflowName, targetWf.WorkflowNameParams))
 	}
 
 	// Description
-	if targetWf.WorkflowDescription != "" {
-		lines = append(lines, fmt.Sprintf("  description %s", mdlQuoted(targetWf.WorkflowDescription)))
+	if targetWf.WorkflowDescription != "" || len(targetWf.WorkflowDescriptionParams) > 0 {
+		lines = append(lines, "  description "+workflowTemplateMDL(targetWf.WorkflowDescription, targetWf.WorkflowDescriptionParams))
 	}
 
 	// Export level (only emit when non-empty)
@@ -169,9 +169,10 @@ func describeWorkflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	}
 
 	// The note attached to the workflow's start. It was a `--` comment, which
-	// a replay dropped (ako/mxcli#707).
-	if targetWf.Annotation != "" {
-		lines = append(lines, fmt.Sprintf("  annotation %s", mdlQuoted(targetWf.Annotation)))
+	// a replay dropped (ako/mxcli#707); it is the start activity's, as Studio
+	// Pro shows it (ako/mxcli#1717).
+	if note := targetWf.StartNote(); note != "" {
+		lines = append(lines, fmt.Sprintf("  annotation %s", mdlQuoted(note)))
 	}
 
 	lines = append(lines, formatWorkflowEventHandlers(ctx, targetWf.EventHandlers)...)
@@ -259,10 +260,18 @@ func formatBoundaryEvents(ctx *ExecContext, events []*workflows.BoundaryEvent, i
 				header += " " + mdlQuoted(event.Caption)
 			}
 			lines = append(lines, header)
-		} else if event.TimerDelay != "" {
-			lines = append(lines, fmt.Sprintf("%s%s %s", indent, keyword, workflowExpressionMDL(event.TimerDelay)))
 		} else {
-			lines = append(lines, fmt.Sprintf("%s%s", indent, keyword))
+			header := indent + keyword
+			if event.TimerDelay != "" {
+				header += " " + workflowExpressionMDL(event.TimerDelay)
+			}
+			if event.Recurrence != nil {
+				header += " " + recurrenceMDL(event.Recurrence)
+			}
+			if event.Caption != "" {
+				header += " caption " + mdlQuoted(event.Caption)
+			}
+			lines = append(lines, header)
 		}
 		if event.Flow != nil && len(event.Flow.Activities) > 0 {
 			lines = append(lines, fmt.Sprintf("%s{", indent))
@@ -297,6 +306,9 @@ func formatEventSubProcesses(ctx *ExecContext, esps []*workflows.EventSubProcess
 		}
 		if start.Timer {
 			header += fmt.Sprintf(" on %s timer %s", trigger, workflowExpressionMDL(start.FirstExecutionTime))
+			if start.Recurrence != nil {
+				header += " " + recurrenceMDL(start.Recurrence)
+			}
 			if start.Name != "" {
 				header += " as " + mdlIdent(start.Name)
 			}
@@ -528,6 +540,10 @@ func formatUserTask(ctx *ExecContext, a *workflows.UserTask, indent string) []st
 			}
 		}
 	}
+	// Off is what a task gets without the clause, so only on is printed.
+	if a.AutoAssignSingleTargetUser {
+		lines = append(lines, indent+"  auto assign single user")
+	}
 
 	if a.OnCreated != "" {
 		lines = append(lines, fmt.Sprintf("%s  on created microflow %s", indent, a.OnCreated))
@@ -542,9 +558,15 @@ func formatUserTask(ctx *ExecContext, a *workflows.UserTask, indent string) []st
 		lines = append(lines, fmt.Sprintf("%s  due date %s", indent, workflowExpressionMDL(a.DueDate)))
 	}
 
+	// Task name: printed only when it is not what a task without the clause
+	// gets, its caption (ako/mxcli#1714).
+	if (a.TaskName != "" && a.TaskName != caption) || len(a.TaskNameParams) > 0 {
+		lines = append(lines, indent+"  task name "+workflowTemplateMDL(a.TaskName, a.TaskNameParams))
+	}
+
 	// Task description
-	if a.TaskDescription != "" {
-		lines = append(lines, fmt.Sprintf("%s  description %s", indent, mdlQuoted(a.TaskDescription)))
+	if a.TaskDescription != "" || len(a.TaskDescriptionParams) > 0 {
+		lines = append(lines, indent+"  description "+workflowTemplateMDL(a.TaskDescription, a.TaskDescriptionParams))
 	}
 
 	if a.IsMulti {
@@ -945,6 +967,25 @@ func targetingXPathMDL(ctx *ExecContext, xpath string) string {
 // the MDL expression grammar cannot parse) is written in the deprecated string
 // form, which carries it byte for byte: describe must never alter a stored
 // expression.
+// recurrenceMDL is a timer's recurrence as MDL writes it (ako/mxcli#1716).
+func recurrenceMDL(r *workflows.Recurrence) string {
+	return fmt.Sprintf("repeat every %d %s at most %d times", r.Interval, workflows.RecurrenceUnitWord(r.IntervalType, r.Interval), r.MaxExecutions)
+}
+
+// workflowTemplateMDL is a workflow text as MDL writes it: the quoted text, then
+// `with ({1} = …, …)` when expressions fill its placeholders (ako/mxcli#1714).
+func workflowTemplateMDL(text string, params []string) string {
+	out := mdlQuoted(text)
+	if len(params) == 0 {
+		return out
+	}
+	parts := make([]string, len(params))
+	for i, p := range params {
+		parts[i] = fmt.Sprintf("{%d} = %s", i+1, p)
+	}
+	return out + " with (" + strings.Join(parts, ", ") + ")"
+}
+
 func workflowExpressionMDL(expr string) string {
 	if visitor.BareExpression(expr) {
 		return expr

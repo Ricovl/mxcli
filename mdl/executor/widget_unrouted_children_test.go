@@ -167,7 +167,7 @@ func TestUnroutedRuleStaysQuietWhenItCannotKnow(t *testing.T) {
 // uses for the same property, not a list to search.
 func TestUnroutedMessageNamesThisWidgetsSpelling(t *testing.T) {
 	def := datagridLikeDef()
-	msg := unroutedChildMessage(def, wdg("filter", "f"))
+	msg := unroutedChildMessage(def, wdg("datagrid2", "dg"), wdg("filter", "f"))
 	if !strings.Contains(msg, "`controlbar`") {
 		t.Errorf("message does not name DataGrid's spelling of the slot: %s", msg)
 	}
@@ -175,7 +175,7 @@ func TestUnroutedMessageNamesThisWidgetsSpelling(t *testing.T) {
 		t.Errorf("message does not say what would happen: %s", msg)
 	}
 	// Control: a child with no counterpart elsewhere gets no invented advice.
-	if m := unroutedChildMessage(def, wdg("actionbutton", "btn")); strings.Contains(m, "spelled") {
+	if m := unroutedChildMessage(def, wdg("datagrid2", "dg"), wdg("actionbutton", "btn")); strings.Contains(m, "spelled") {
 		t.Errorf("invented an alternative spelling for a widget that has none: %s", m)
 	}
 }

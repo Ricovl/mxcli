@@ -293,3 +293,92 @@ func TestCheck_ClassicDropDownOnNativePageIsClean(t *testing.T) {
 		t.Fatalf("native page: MDL-WIDGET39 (CE2421) still applies, got %q", errs)
 	}
 }
+
+// A combo box in enumeration mode (no options data source) binds its attribute
+// to `attributeEnumeration`, which takes only an Enumeration. Measured on fresh
+// 11.14.0 and 11.13.0 projects, one combo box per attribute type: every type but
+// Enumeration was CE7247 "Only attributes of type Enumeration are allowed here."
+// — Boolean included, though the widget has a separate Boolean source that MDL
+// does not write. `check --references` passed all eight.
+func TestCheck_ComboBoxEnumerationModeAttributeTypes(t *testing.T) {
+	ctx := typeCheckCtx(t, "No")
+	attrs := map[string]string{
+		"Name": "String", "Color": "Enumeration", "Flag": "Boolean", "WhenAt": "DateTime",
+		"Num": "Integer", "LongNum": "Long", "Amount": "Decimal", "Seq": "AutoNumber", "Blob": "Binary",
+	}
+	for attrName, kind := range attrs {
+		body := fmt.Sprintf(`dataview dv (datasource: $Thing) { combobox cb1 (label: 'x', attribute: %s) }`, attrName)
+		errs := typeErrs(t, ctx, body, nil)
+		if want := kind != "Enumeration"; (len(errs) > 0) != want {
+			t.Errorf("combobox on %s (%s): flagged=%v, want %v (%q)", attrName, kind, len(errs) > 0, want, errs)
+		}
+	}
+}
+
+// The reported case, and what its message must carry.
+func TestCheck_ComboBoxOnBooleanIsCE7247(t *testing.T) {
+	ctx := typeCheckCtx(t, "Yes")
+	errs := typeErrs(t, ctx, `dataview dv (datasource: $Thing) { combobox cbFlag (label: 'F', attribute: Flag) }`, nil)
+	if len(errs) != 1 {
+		t.Fatalf("want one error, got %q", errs)
+	}
+	for _, want := range []string{"MDL-WIDGET39", "CE7247", "cbFlag", "Sales.Thing.Flag", "Boolean",
+		"Only attributes of type Enumeration are allowed here.", "`checkbox`", "`radiobuttons`"} {
+		if !strings.Contains(errs[0], want) {
+			t.Errorf("error should mention %q, got: %s", want, errs[0])
+		}
+	}
+	if strings.Contains(errs[0], "CE2421") {
+		t.Errorf("a combo box is CE7247, not the built-in widgets' CE2421: %s", errs[0])
+	}
+}
+
+// Association mode binds an association, not `attributeEnumeration`: a data
+// source puts the combo box in it whichever key names the association, so the
+// attribute-type rule does not apply.
+func TestCheck_ComboBoxAssociationModeIsNotTypeChecked(t *testing.T) {
+	ctx := typeCheckCtx(t, "Yes")
+	errs := typeErrs(t, ctx, `dataview dv (datasource: $Thing) {
+    combobox cb1 (label: 'O', attribute: Thing_Other, datasource: database Sales.Other, CaptionAttribute: Txt)
+  }`, nil)
+	for _, e := range errs {
+		if strings.Contains(e, "MDL-WIDGET39") {
+			t.Fatalf("association mode judged as an enumeration binding: %s", e)
+		}
+	}
+}
+
+// mendixlabs/mxcli#1583: a combo box in DATABASE mode — selected by naming its
+// own datasource, `optionsSourceDatabaseDataSource` — stores the chosen value on
+// `databaseAttributeString`, which takes String, Integer, Long or Enumeration.
+// Judged as enumeration mode, a String target was refused with CE7247, so the
+// MDL describe prints for such a combo box could not be re-executed. Measured on
+// a fresh 11.12.5 project (Combo box 2.5.0), one combo box per type: Boolean,
+// DateTime, Decimal, AutoNumber and Binary are CE7247 "Only attributes of type
+// String, Integer, Long, Enumeration are allowed here."; the other four build.
+func TestCheck_ComboBoxDatabaseModeAttributeTypes(t *testing.T) {
+	ctx := typeCheckCtx(t, "Yes")
+	attrs := map[string]string{
+		"Name": "String", "Color": "Enumeration", "Num": "Integer", "LongNum": "Long",
+		"Flag": "Boolean", "WhenAt": "DateTime", "Amount": "Decimal", "Seq": "AutoNumber", "Blob": "Binary",
+	}
+	accepted := map[string]bool{"String": true, "Enumeration": true, "Integer": true, "Long": true}
+	for _, spelling := range []string{"Attribute", "databaseAttributeString"} {
+		for attrName, kind := range attrs {
+			body := fmt.Sprintf(`dataview dv (datasource: $Thing) { combobox cb1 (optionsSourceDatabaseDataSource: database from Sales.Other, `+
+				`%s: %s, CaptionAttribute: Txt, optionsSourceDatabaseValueAttribute: Txt) }`, spelling, attrName)
+			errs := typeErrs(t, ctx, body, nil)
+			if want := !accepted[kind]; (len(errs) > 0) != want {
+				t.Errorf("%s: %s (%s): flagged=%v, want %v (%q)", spelling, attrName, kind, len(errs) > 0, want, errs)
+				continue
+			}
+			if len(errs) > 0 {
+				for _, want := range []string{"MDL-WIDGET39", "CE7247", "String, Integer, Long, Enumeration"} {
+					if !strings.Contains(errs[0], want) {
+						t.Errorf("%s: %s: error should mention %q, got: %s", spelling, attrName, want, errs[0])
+					}
+				}
+			}
+		}
+	}
+}

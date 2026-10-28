@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend/mfmutator"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/linter"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
@@ -112,6 +113,22 @@ func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
 			}
 		}
 	}
+	// Each flow change predicted as spliced is applied to a simulation — held
+	// in memory, read back, never written — so a later statement on the same
+	// flow is predicted against what exec will see there, not given up on
+	// (mendixlabs/mxcli#1517). Discarded when the check ends.
+	simulating := false
+	if sim, ok := ctx.Backend.(writeSimulator); ok {
+		if discard, ok := sim.SimulateWrites(); ok {
+			defer discard()
+			simulating = true
+		}
+	}
+	// applied says whether a predicted change reached the simulation, after
+	// which the flow is predicted as it is there rather than as "touched".
+	applied := func(vs []linter.Violation, dep string, apply func() bool) bool {
+		return simulating && apply != nil && len(vs) == 0 && dep == "" && apply()
+	}
 	undeclare := func(qn ast.QualifiedName) {
 		delete(ctx.scriptFlows, scriptFlowKey(false, qn.String()))
 		delete(ctx.scriptFlows, scriptFlowKey(true, qn.String()))
@@ -143,7 +160,9 @@ func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
 		}
 		r.Unpredicted = append(r.Unpredicted, UnpredictedFlow{Kind: kind, Name: qn.String(), Reason: reason})
 	}
-	modify := func(d *flowDecl, ruled bool) {
+	// modify predicts a `create or modify`, and reports whether its change
+	// reached the simulation.
+	modify := func(d *flowDecl, ruled bool) bool {
 		why, skip := stale(d.nanoflow, d.name)
 		switch {
 		case skip:
@@ -152,42 +171,46 @@ func checkFlowVerdicts(ctx *ExecContext, prog *ast.Program) FlowVerdictReport {
 				unpredicted(d.nanoflow, d.name, "an earlier statement of the script "+why)
 			}
 		case ruled:
-			vs, dep := flowModifyViolations(ctx, d)
+			vs, dep, apply := flowModifyViolations(ctx, d)
 			r.Violations = append(r.Violations, vs...)
 			if dep != "" {
 				unpredicted(d.nanoflow, d.name, dep)
 			}
+			return applied(vs, dep, apply)
 		}
+		return false
 	}
 
 	for _, stmt := range prog.Statements {
 		switch s := stmt.(type) {
 		case *ast.CreateMicroflowStmt:
-			if s.CreateOrModify {
-				modify(microflowDecl(s), validateMicroflowRules(s) == nil)
+			if !(s.CreateOrModify && modify(microflowDecl(s), validateMicroflowRules(s) == nil)) {
+				touched[key(false, s.Name)] = "creates or changes it"
 			}
-			touched[key(false, s.Name)] = "creates or changes it"
 			declare(false, s.Name, s.ReturnType)
 		case *ast.CreateNanoflowStmt:
-			if s.CreateOrModify {
-				modify(nanoflowDecl(s), true)
+			if !(s.CreateOrModify && modify(nanoflowDecl(s), true)) {
+				touched[key(true, s.Name)] = "creates or changes it"
 			}
-			touched[key(true, s.Name)] = "creates or changes it"
 			declare(true, s.Name, s.ReturnType)
 		case *ast.AlterFlowStmt:
+			simulated := false
 			if why, skip := stale(s.Nanoflow, s.Name); skip {
 			} else if why != "" {
 				if flowStored(ctx, s.Nanoflow, s.Name) {
 					unpredicted(s.Nanoflow, s.Name, "an earlier statement of the script "+why)
 				}
 			} else {
-				vs, dep := alterFlowViolations(ctx, s)
+				vs, dep, apply := alterFlowViolations(ctx, s)
 				r.Violations = append(r.Violations, vs...)
 				if dep != "" {
 					unpredicted(s.Nanoflow, s.Name, dep)
 				}
+				simulated = applied(vs, dep, apply)
 			}
-			touched[key(s.Nanoflow, s.Name)] = "alters it"
+			if !simulated {
+				touched[key(s.Nanoflow, s.Name)] = "alters it"
+			}
 		case *ast.DropMicroflowStmt:
 			touched[key(false, s.Name)] = touchDropped
 			undeclare(s.Name)
@@ -253,21 +276,34 @@ func flowStored(ctx *ExecContext, nanoflow bool, qn ast.QualifiedName) bool {
 	return !errors.As(err, &nf)
 }
 
+// writeSimulator is the optional backend capability check predicts a script's
+// flow changes in order with (modelsdk Backend.SimulateWrites).
+type writeSimulator interface {
+	SimulateWrites() (discard func(), ok bool)
+}
+
 // flowModifyViolations is the check-time report of decideFlowModify. dep is
 // non-empty when the stored flow's verdict cannot be predicted because the
-// declared one does not build: it says what the body depends on.
-func flowModifyViolations(ctx *ExecContext, d *flowDecl) (_ []linter.Violation, dep string) {
+// declared one does not build: it says what the body depends on. apply, when
+// not nil, writes the spliced change the way exec would — into the
+// simulation check holds open — and reports whether it did; a change that
+// also moves the flow to another folder is not applied, as that is not a unit
+// update.
+func flowModifyViolations(ctx *ExecContext, d *flowDecl) (_ []linter.Violation, dep string, apply func() bool) {
 	if _, _, _, err := d.build(ctx); err != nil {
 		// Not predictable against the stored project (see CheckFlowVerdicts);
 		// a flow that is not stored is a create, with no verdict to predict.
 		if flowStored(ctx, d.nanoflow, d.name) {
-			return nil, buildDependency(err.Error())
+			return nil, buildDependency(err.Error()), nil
 		}
-		return nil, ""
+		return nil, "", nil
 	}
 	v := decideFlowModify(ctx, d)
 	if v.why == nil {
-		return nil, ""
+		if p := v.plan; p != nil && v.err == nil && !movesFolder(d.folder, p.storedFolder) {
+			apply = func() bool { return p.mut == nil || p.mut.Save() == nil }
+		}
+		return nil, "", apply
 	}
 	loc := linter.Location{Module: d.name.Module, DocumentType: d.kind(), DocumentName: d.name.Name}
 	if v.refused {
@@ -276,14 +312,14 @@ func flowModifyViolations(ctx *ExecContext, d *flowDecl) (_ []linter.Violation, 
 			Severity: linter.SeverityError,
 			Message:  "exec would refuse this statement: " + flowRefusal(d, v.why).Error(),
 			Location: loc,
-		}}, ""
+		}}, "", nil
 	}
 	return []linter.Violation{{
 		RuleID:   FlowRebuildRule,
 		Severity: linter.SeverityWarning,
 		Message:  flowRebuildWarning(ctx, d, v.why),
 		Location: loc,
-	}}, ""
+	}}, "", nil
 }
 
 // buildDependency condenses a build error ("microflow 'M.N' has validation
@@ -301,38 +337,70 @@ func buildDependency(msg string) string {
 }
 
 // alterFlowViolations is the check-time report of an alter exec would refuse.
-func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Violation, dep string) {
+// apply, when not nil, writes the alter into the simulation check holds open,
+// as flowModifyViolations' does.
+func alterFlowViolations(ctx *ExecContext, s *ast.AlterFlowStmt) (_ []linter.Violation, dep string, apply func() bool) {
 	a, err := loadAlterFlow(ctx, s)
 	if err != nil {
-		return nil, "" // no such flow: reference validation reports it
+		return nil, "", nil // no such flow: reference validation reports it
+	}
+	refusal := func(err error) []linter.Violation {
+		return []linter.Violation{{
+			RuleID:   alterFlowRefusedRule,
+			Severity: linter.SeverityError,
+			Message:  "exec would refuse this statement and write nothing: " + err.Error(),
+			Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
+		}}
+	}
+	// A stored note named by a text that names none, or several, is a
+	// refusal, not something the script could still declare: resolved before
+	// a fragment is built, by the function exec's plan calls (ako/mxcli#1695).
+	if err := a.resolveStoredNotes(); err != nil {
+		return refusal(err), "", nil
 	}
 	// A fragment that does not build against the stored project is not
 	// predictable (see CheckFlowVerdicts). Only the builder's own errors say
-	// so; a fragment that builds and cannot be spliced is a refusal.
+	// so; a fragment that builds and cannot be spliced is a refusal. Each is
+	// built knowing what the operations before it declare, as exec builds it
+	// (ako/mxcli#1399).
 	for _, op := range s.Operations {
 		if len(op.Body) == 0 {
 			continue
 		}
+		body := op.Body
+		if op.Op == ast.AlterFlowReplaceBody {
+			// A loop's new body is built inside the loop restated, as exec
+			// builds it (replaceBody): its iterator is typed from the list.
+			// A target that is no stored loop is the plan's to refuse.
+			c, err := mfmutator.ResolveText(a.cands, op.Target)
+			if err != nil {
+				continue
+			}
+			header, err := a.storedLoopStatement(ctx, c)
+			if err != nil {
+				continue
+			}
+			body = []ast.MicroflowStatement{withLoopBody(header, op.Body)}
+		}
 		fb := a.fragmentBuilder(ctx)
-		fb.buildFlowGraph(op.Body, nil)
+		oc := fb.buildFlowGraph(body, nil)
 		if errs := fb.GetErrors(); len(errs) > 0 {
-			return nil, buildDependency(strings.Join(errs, "\n"))
+			return nil, buildDependency(strings.Join(errs, "\n")), nil
+		}
+		if oc != nil {
+			a.opVars = a.opVars.with(declaredVarsOf(fb, oc.Objects))
 		}
 	}
-	_, err = a.plan(ctx)
+	a.opVars = fragmentVars{} // the plan below starts from the stored flow, as exec's does
+	mut, err := a.plan(ctx)
 	if err == nil {
-		return nil, ""
+		return nil, "", func() bool { return mut.Save() == nil }
 	}
 	var nf *mdlerrors.NotFoundError
 	if errors.As(err, &nf) {
-		return nil, ""
+		return nil, "", nil
 	}
-	return []linter.Violation{{
-		RuleID:   alterFlowRefusedRule,
-		Severity: linter.SeverityError,
-		Message:  "exec would refuse this statement and write nothing: " + err.Error(),
-		Location: linter.Location{Module: s.Name.Module, DocumentType: s.Kind(), DocumentName: s.Name.Name},
-	}}, ""
+	return refusal(err), "", nil
 }
 
 // FormatUnpredictedFlows is the note check and exec's preflight print for

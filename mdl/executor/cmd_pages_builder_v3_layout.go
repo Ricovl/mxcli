@@ -33,6 +33,10 @@ func (pb *pageBuilder) buildLayoutGridV3(w *ast.WidgetV3) (*pages.LayoutGrid, er
 	// Build rows from children
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "row" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "layoutgrid row", child); err != nil {
+				return nil, err
+			}
 			row, err := pb.buildLayoutGridRowV3(child)
 			if err != nil {
 				return nil, err
@@ -71,10 +75,21 @@ func (pb *pageBuilder) buildLayoutGridRowV3(w *ast.WidgetV3) (*pages.LayoutGridR
 		}
 		row.NoSpacingBetweenColumns = !v
 	}
+	// A row's own visibility (Forms$LayoutGridRow.ConditionalVisibilitySettings).
+	// Like a tab page, a row is built here and not by buildWidgetV3, whose tail
+	// applies Visible: to every widget, so it was parsed and dropped
+	// (mendixlabs/mxcli#1461).
+	if row.ConditionalVisibility, err = pb.childVisibility(w); err != nil {
+		return nil, err
+	}
 
 	// Build columns from children
 	for _, child := range w.Children {
 		if strings.ToLower(child.Type) == "column" {
+			// Built here, not by buildWidgetV3 (ako/mxcli#1698).
+			if err := refuseNativeWidgetProps(pb.ctx, "layoutgrid column", child); err != nil {
+				return nil, err
+			}
 			col, err := pb.buildLayoutGridColumnV3(child)
 			if err != nil {
 				return nil, err
@@ -199,7 +214,9 @@ func (pb *pageBuilder) buildContainerWithRowV3(w *ast.WidgetV3) (*pages.Containe
 	// The appearance written on a top-level `row` is the container's
 	// (applyWidgetAppearance sets it there); writing it on the row too would
 	// apply every class and design property twice.
+	// Its Visible: likewise (buildWidgetV3's tail sets it on the container).
 	row.Class, row.Style, row.DynamicClasses, row.DesignProperties = "", "", "", nil
+	row.ConditionalVisibility = nil
 	lg.Rows = append(lg.Rows, row)
 	container.Widgets = append(container.Widgets, lg)
 
@@ -259,9 +276,19 @@ func (pb *pageBuilder) buildContainerV3(w *ast.WidgetV3) (*pages.Container, erro
 		},
 	}
 
-	// Handle RenderMode
+	// Handle RenderMode. The codec stores it verbatim, so an unknown member is
+	// refused here rather than written into a document Studio Pro cannot open.
 	if rm := w.GetRenderMode(); rm != "" {
-		container.RenderMode = pages.ContainerRenderMode(rm)
+		mode, ok := pages.CanonicalContainerRenderMode(rm)
+		if !ok {
+			names := make([]string, len(pages.ContainerRenderModes))
+			for i, m := range pages.ContainerRenderModes {
+				names[i] = string(m)
+			}
+			return nil, mdlerrors.NewValidationf("container %q: unknown RenderMode %q — valid modes are %s",
+				w.Name, rm, strings.Join(names, ", "))
+		}
+		container.RenderMode = mode
 	}
 
 	// Handle Action / OnClick property — a Container is clickable in Mendix via
@@ -342,13 +369,15 @@ func (pb *pageBuilder) buildTabPageV3(w *ast.WidgetV3) (*pages.TabPage, error) {
 	// Visibility: a tab page bypasses buildWidgetV3, whose common tail applies
 	// it to every widget, so it is applied here — it used to be parsed and
 	// dropped, the tab always visible (mendixlabs/mxcli#1465).
-	tp.ConditionalVisibility = expressionVisibility(w)
-	if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
-		cvs, err := pb.visibleWhenSettings(w, vw)
-		if err != nil {
-			return nil, err
-		}
-		tp.ConditionalVisibility = cvs
+	cvs, err := pb.childVisibility(w)
+	if err != nil {
+		return nil, err
+	}
+	tp.ConditionalVisibility = cvs
+
+	// Its badge (mendixlabs/mxcli#1644, tabpage_badge.go).
+	if tp.Badge, err = pb.buildTabPageBadge(w); err != nil {
+		return nil, err
 	}
 
 	// Build child widgets
@@ -510,4 +539,19 @@ func (pb *pageBuilder) buildControlBarV3(w *ast.WidgetV3) (*pages.Container, err
 	}
 
 	return controlBar, nil
+}
+
+// childVisibility is the ConditionalVisibilitySettings for `Visible:` on an
+// element its parent builds outside buildWidgetV3 — a tab page (#1465) or a
+// layout-grid row (#1461) — in either form: an expression, or `Attr in (…)` —
+// plus any `Visible: roles (…)` (#1460). nil when there is none.
+func (pb *pageBuilder) childVisibility(w *ast.WidgetV3) (*pages.ConditionalVisibilitySettings, error) {
+	if vw, ok := w.Properties["VisibleWhen"].(*ast.VisibleWhenV3); ok && vw != nil {
+		cvs, err := pb.visibleWhenSettings(w, vw)
+		if err != nil {
+			return nil, err
+		}
+		return withVisibleRoles(cvs, w), nil
+	}
+	return withVisibleRoles(expressionVisibility(w), w), nil
 }

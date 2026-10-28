@@ -32,6 +32,7 @@ package executor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -82,25 +83,86 @@ func validateWidgetActionSlot(w *ast.WidgetV3, locationPrefix string) []linter.V
 	// Iterated over a fixed slice rather than over w.Properties: map order is
 	// not stable, and a widget with two faulty slots must report them the same
 	// way every run (CLAUDE.md, determinism).
-	for _, key := range actionSlotKeys {
-		raw, present := w.Properties[key]
-		if !present {
+	for _, slot := range actionSlotKeys {
+		for _, key := range actionSlotSpellings(w, slot) {
+			raw := w.Properties[key]
+			if _, ok := raw.(*ast.ActionV3); ok {
+				continue
+			}
+			out = append(out, linter.Violation{
+				RuleID:   "MDL-WIDGET28",
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: widget `%s` has `%s: %s`, which is not an action — the widget is written with "+
+						"no action at all and renders as a dead control (Mendix accepts it, so the build stays clean)",
+					locationPrefix, w.Name, key, renderActionSlotValue(raw)),
+				Suggestion: actionSlotSuggestion(raw),
+			})
+		}
+	}
+	return append(out, validateInputEventActions(w, locationPrefix)...)
+}
+
+// validateInputEventActions is the same rule for an input widget's event
+// actions with no grammar keyword, such as a text box's `OnEnterKeyPress:`
+// (input_event_actions.go, ako/mxcli#1743). They arrive through the generic
+// `key: value` branch, where a flow call written without `call` is a data
+// source the builder converts — so the shape is judged by the functions the
+// builder uses, not by "is it an *ast.ActionV3". Writing one under both of its
+// names is MDL-WIDGET18, a value the builder refuses. A widget without the
+// slot is not judged here: the per-kind property check refuses the key.
+func validateInputEventActions(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	kind := strings.ToLower(w.Type)
+	var out []linter.Violation
+	for _, ev := range inputEventActions {
+		if !ev.kinds[kind] {
 			continue
 		}
-		if _, ok := raw.(*ast.ActionV3); ok {
+		canon, hasCanon := lookupPropCI(w, ev.key)
+		alias, hasAlias := lookupPropCI(w, ev.stored)
+		key, raw, err := inputEventPick(ev.key, canon, hasCanon, ev.stored, alias, hasAlias)
+		if err != nil {
+			out = append(out, violation18(locationPrefix, w, err.Error()))
 			continue
 		}
-		out = append(out, linter.Violation{
-			RuleID:   "MDL-WIDGET28",
-			Severity: linter.SeverityError,
-			Message: fmt.Sprintf(
-				"%s: widget `%s` has `%s: %s`, which is not an action — the widget is written with "+
-					"no action at all and renders as a dead control (Mendix accepts it, so the build stays clean)",
-				locationPrefix, w.Name, key, renderActionSlotValue(raw)),
-			Suggestion: actionSlotSuggestion(raw),
-		})
+		if raw == nil {
+			continue
+		}
+		if _, err := inputEventValue(key, raw); err != nil {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET28",
+				Severity:   linter.SeverityError,
+				Message:    fmt.Sprintf("%s: widget `%s`: %s", locationPrefix, w.Name, err.Error()),
+				Suggestion: actionSlotSuggestion(raw),
+			})
+		}
 	}
 	return out
+}
+
+// actionSlotSpellings are the property keys on w that spell slot. A value that
+// does not parse keeps its key AS WRITTEN, so `onClick: TOTALLY_MADE_UP` — the
+// spelling the skills teach — is stored under "onClick", and an exact lookup of
+// "OnClick" missed it: the widget was written with no action and nothing said
+// so (found with ako/mxcli#1698, whose per-widget rule now leaves these to this
+// one). On a built-in widget every case of the slot's name is that slot. On a
+// pluggable widget only the exact spelling is: its keys are its package's own,
+// and one of them may be an `action` that is not an action slot.
+func actionSlotSpellings(w *ast.WidgetV3, slot string) []string {
+	if _, native := nativeWidgetKinds[strings.ToLower(w.Type)]; !native {
+		if _, ok := w.Properties[slot]; ok {
+			return []string{slot}
+		}
+		return nil
+	}
+	var keys []string
+	for k := range w.Properties {
+		if strings.EqualFold(k, slot) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // renderActionSlotValue prints the offending value the way the author wrote it,

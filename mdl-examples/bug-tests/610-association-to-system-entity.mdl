@@ -13,6 +13,13 @@ mdl 1;
 --
 -- Fix: findEntity now resolves the module from dm.ContainerID.
 --
+-- Second half (ako/mxcli#1255): exec then wrote the association and still
+-- exited 1 — "failed to reconcile access rules of module System: load domain
+-- model 00000000-0000-0000-0000-000000000002: … no such file or directory".
+-- System's domain model is virtual, so reconcileModuleAccess skips it.
+-- TestCreateAssociationToSystemEntity_ExecAgreesWithCheck runs this through
+-- exec on PedApp; on 11.12.5 the result is `mx check` clean.
+--
 -- Run against a project that has MyFirstModule.Cars (e.g. test5):
 --   ./bin/mxcli exec mdl-examples/bug-tests/610-association-to-system-entity.mdl -p <project>.mpr
 --

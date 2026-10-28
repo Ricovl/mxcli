@@ -1,0 +1,20 @@
+-- ako/mxcli#1514 (upstream mendixlabs/mxcli#1604), the negative side: text
+-- under an @expect that does not continue the expression is not skipped. Its
+-- text runs on to the next @tag or the end of the comment, so the sentence
+-- below is part of the assertion, which then cannot be compiled — an ERROR
+-- (MDL-TEST01 in check), never a pass on the first line alone. Skipping
+-- untagged lines is exactly how the truncation went unseen.
+--
+--   mxcli check mdl-examples/bug-tests/test-runner-1514-text-after-expect.fail.test.mdl
+--
+-- fails with: @expect $r = 'a;b' Checks that the separator survives.: unexpected
+-- trailing input ... (this @expect spans 2 lines ... put a description before
+-- the first tag). Before the fix it passed, asserting $r = 'a;b'.
+mdl 1;
+/**
+ * @test trailing prose
+ * @expect $r = 'a;b'
+ * Checks that the separator survives.
+ */
+$r = call microflow Probe.SUB_Make();
+/

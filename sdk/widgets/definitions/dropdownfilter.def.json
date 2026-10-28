@@ -33,12 +33,39 @@
           "propertyKey": "refCaption",
           "source": "CaptionAttribute",
           "operation": "attribute"
+        },
+        {
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
+        }
+      ]
+    },
+    {
+      "name": "attribute",
+      "condition": "hasAttributes",
+      "description": "Custom attribute — `attributes: [Attr]` names the ONE attribute the filter compares. DataWidgets 3.x stores it on `attr`, which the widget's editorConfig shows only when attrChoice is \"linked\" (Custom); it has no `attributes` list and no `defaultFilter`, the text filter's keys this mode used to write to, so the attribute was dropped (mendixlabs/mxcli#1519). This is the form a gallery's filter bar needs: there is no column to inherit an attribute from. More than one attribute is refused — the widget has a single slot.",
+      "propertyMappings": [
+        {
+          "propertyKey": "attrChoice",
+          "value": "linked",
+          "operation": "primitive"
+        },
+        {
+          "propertyKey": "attr",
+          "source": "Attributes",
+          "operation": "attribute"
+        },
+        {
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
         }
       ]
     },
     {
       "name": "default",
-      "description": "Attribute mode — filter on the column's own attribute.",
+      "description": "Auto — no attribute given: the filter takes the attribute of the Data grid 2 column it sits in (attrChoice \"auto\"), so it only works inside a column.",
       "propertyMappings": [
         {
           "propertyKey": "attrChoice",
@@ -46,14 +73,9 @@
           "operation": "primitive"
         },
         {
-          "propertyKey": "attributes",
-          "source": "Attributes",
-          "operation": "attributeObjects"
-        },
-        {
-          "propertyKey": "defaultFilter",
-          "source": "FilterType",
-          "operation": "primitive"
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
         }
       ]
     }

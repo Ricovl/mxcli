@@ -3,15 +3,93 @@
 package visitor
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/antlr4-go/antlr/v4"
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
 
+// routineHeader is the header a create microflow, nanoflow and rule statement
+// share.
+type routineHeader interface {
+	antlr.ParserRuleContext
+	IfNotExists() parser.IIfNotExistsContext
+	QualifiedName() parser.IQualifiedNameContext
+	LPAREN() antlr.TerminalNode
+	MicroflowParameterList() parser.IMicroflowParameterListContext
+	MicroflowReturnType() parser.IMicroflowReturnTypeContext
+	MicroflowOptions() parser.IMicroflowOptionsContext
+	BEGIN() antlr.TerminalNode
+}
+
+// refuseRoutineHeaderWithoutParens refuses a header written without its
+// parameter parentheses, `create microflow M.F returns Boolean` or `… M.F $l:
+// List of M.Item returns …` (mendixlabs/mxcli#1514). The grammar accepts the
+// bare form only so that this is the one error the mistake produces: left to
+// ANTLR, recovery inserted the `(`, read `returns` as a parameter name and
+// swallowed the body into its type, and every error it reported — `missing ':'
+// at 'Boolean'`, `extraneous input 'return'` three lines down — pointed past
+// the mistake. The error sits where the `(` belongs and shows the header as
+// written, with them added.
+func (b *Builder) refuseRoutineHeaderWithoutParens(ctx routineHeader, kind string) {
+	name := ctx.QualifiedName()
+	if ctx.LPAREN() != nil || name == nil || name.GetStop() == nil {
+		return
+	}
+	header := "create "
+	if c := findParentCreateStatement(ctx); c != nil && c.OR() != nil {
+		if c.MODIFY() != nil {
+			header += "or modify "
+		} else {
+			header += "or replace "
+		}
+	}
+	header += kind + " "
+	if ctx.IfNotExists() != nil {
+		header += "if not exists "
+	}
+	header += name.GetText() + " ("
+	params := ctx.MicroflowParameterList()
+	if params != nil {
+		header += extractExpressionText(params)
+	}
+	header += ")"
+	if ret := ctx.MicroflowReturnType(); ret != nil {
+		header += " " + extractExpressionText(ret)
+	}
+
+	// Point at what follows the name — the token the `(` should precede, and
+	// the one ANTLR's own error named.
+	at := name.GetStop()
+	line, col := at.GetLine(), at.GetColumn()+len(at.GetText())
+	var next antlr.Token
+	switch {
+	case params != nil:
+		next = params.GetStart()
+	case ctx.MicroflowReturnType() != nil:
+		next = ctx.MicroflowReturnType().GetStart()
+	case ctx.MicroflowOptions() != nil:
+		next = ctx.MicroflowOptions().GetStart()
+	case ctx.BEGIN() != nil:
+		next = ctx.BEGIN().GetSymbol()
+	}
+	if next != nil {
+		line, col = next.GetLine(), next.GetColumn()
+	}
+	topic := "microflow"
+	if kind != "microflow" {
+		topic += "." + kind // microflow.nanoflow, microflow.rule
+	}
+	b.addError(fmt.Errorf("line %d:%d a %s header needs its parameter list in parentheses, even when it is "+
+		"empty — they are not optional: write `%s`. See: mxcli syntax %s", line, col, kind, header, topic))
+}
+
 func (b *Builder) ExitCreateMicroflowStatement(ctx *parser.CreateMicroflowStatementContext) {
+	b.refuseRoutineHeaderWithoutParens(ctx, "microflow")
 	stmt := &ast.CreateMicroflowStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
@@ -51,6 +129,7 @@ func (b *Builder) ExitCreateMicroflowStatement(ctx *parser.CreateMicroflowStatem
 	if createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
 			stmt.CreateOrModify = true
+			stmt.CreateOrReplace = createStmt.REPLACE() != nil
 		}
 		for _, ann := range createStmt.AllAnnotation() {
 			annCtx := ann.(*parser.AnnotationContext)
@@ -66,6 +145,7 @@ func (b *Builder) ExitCreateMicroflowStatement(ctx *parser.CreateMicroflowStatem
 }
 
 func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatementContext) {
+	b.refuseRoutineHeaderWithoutParens(ctx, "nanoflow")
 	stmt := &ast.CreateNanoflowStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
@@ -91,6 +171,12 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 			if exposed := optCtx.MicroflowExposedClause(); exposed != nil {
 				stmt.Expose = append(stmt.Expose, buildExposeActionClause(exposed))
 			}
+			// A nanoflow stores an export level like a microflow. The clause
+			// parsed here and was dropped, so `export level api` wrote Hidden
+			// (mendixlabs/mxcli#1498).
+			if el := optCtx.MicroflowExportLevelClause(); el != nil {
+				stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
+			}
 		}
 	}
 
@@ -104,6 +190,7 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 	if createStmt != nil {
 		if createStmt.OR() != nil && (createStmt.MODIFY() != nil || createStmt.REPLACE() != nil) {
 			stmt.CreateOrModify = true
+			stmt.CreateOrReplace = createStmt.REPLACE() != nil
 		}
 		for _, ann := range createStmt.AllAnnotation() {
 			annCtx := ann.(*parser.AnnotationContext)
@@ -123,6 +210,7 @@ func (b *Builder) ExitCreateNanoflowStatement(ctx *parser.CreateNanoflowStatemen
 // ExitCreateRuleStatement mirrors ExitCreateNanoflowStatement — a rule shares the
 // microflow header and body grammar, so the only difference is the AST node.
 func (b *Builder) ExitCreateRuleStatement(ctx *parser.CreateRuleStatementContext) {
+	b.refuseRoutineHeaderWithoutParens(ctx, "rule")
 	stmt := &ast.CreateRuleStmt{
 		Name: buildQualifiedName(ctx.QualifiedName()),
 	}
@@ -453,6 +541,17 @@ func applyEntityAccessAnnotation(createStmt parser.ICreateStatementContext) *boo
 	return nil
 }
 
+// exportLevelOf maps an EXPORT LEVEL clause's keyword to the member's stored
+// spelling — never the user's casing, which is not what MicroflowsExportLevel
+// declares.
+func exportLevelOf(elCtx *parser.MicroflowExportLevelClauseContext) *string {
+	level := types.ExportLevelHidden
+	if elCtx.API() != nil {
+		level = types.ExportLevelAPI
+	}
+	return &level
+}
+
 // applyMicroflowDocumentProperty reads the URL / EXPORT LEVEL / concurrency
 // header clauses onto the statement.
 //
@@ -486,14 +585,7 @@ func applyMicroflowDocumentProperty(stmt *ast.CreateMicroflowStmt, optCtx *parse
 	}
 
 	if el := optCtx.MicroflowExportLevelClause(); el != nil {
-		elCtx := el.(*parser.MicroflowExportLevelClauseContext)
-		// The keyword, mapped to the member's stored spelling — never the user's
-		// casing, which is not what MicroflowsExportLevel declares.
-		level := types.ExportLevelHidden
-		if elCtx.API() != nil {
-			level = types.ExportLevelAPI
-		}
-		stmt.ExportLevel = &level
+		stmt.ExportLevel = exportLevelOf(el.(*parser.MicroflowExportLevelClauseContext))
 	}
 
 	if c := optCtx.MicroflowConcurrencyClause(); c != nil {

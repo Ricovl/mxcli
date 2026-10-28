@@ -90,7 +90,9 @@ BirthDate: DateTime NOT LOCALIZED,  -- not localized
 - On a **new** attribute, no clause means localized.
 - On a **rewrite** — `CREATE OR MODIFY ENTITY` or `MODIFY ATTRIBUTE` — no clause
   keeps the value already stored (a Studio Pro-authored non-localized attribute
-  stays non-localized); a stated clause wins.
+  stays non-localized); a stated clause wins. When the keep is a stored
+  `not localized`, the statement prints a `Note:` naming the attribute and the
+  `DateTime localized` spelling that changes it.
 - On a **view entity** the value follows the OQL source attribute and needs no
   clause; a stated one overrides it, and a mismatch with the source is CE6770.
 - On any type other than DateTime the clause is an error: there is nowhere to

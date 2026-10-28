@@ -105,6 +105,7 @@ func describePublishedRestService(ctx *ExecContext, name ast.QualifiedName) erro
 		if folderPath := h.BuildFolderPath(svc.ContainerID); folderPath != "" {
 			folder = " folder " + mdlQuote(ctx, folderPath)
 		}
+		writeDocumentDocComment(ctx.Output, svc.Documentation) // mendixlabs/mxcli#1510
 		fmt.Fprintf(ctx.Output, "create or modify published rest service %s%s (\n", qualifiedName, folder)
 		fmt.Fprintf(ctx.Output, "  Path: %s", mdlQuoted(svc.Path))
 		if svc.Version != "" {
@@ -542,9 +543,7 @@ func execCreatePublishedRestService(ctx *ExecContext, s *ast.CreatePublishedRest
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "published_rest_service",
-		"create published rest service",
-		"upgrade your project to 10.0+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -579,8 +578,12 @@ func execCreatePublishedRestService(ctx *ExecContext, s *ast.CreatePublishedRest
 		Path:        s.Path,
 		Version:     s.Version,
 		ServiceName: s.ServiceName,
+		// The doc comment (mendixlabs/mxcli#1510).
+		Documentation: s.Documentation,
 	}
 	if existing != nil {
+		// A rewrite that carried no doc comment keeps the stored one (#1018).
+		svc.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
 		svc.ID = existing.ID
 		svc.AllowedRoles = existing.AllowedRoles
 		// Excluded is model state, not script state (#914).
@@ -881,9 +884,7 @@ func execAlterPublishedRestService(ctx *ExecContext, s *ast.AlterPublishedRestSe
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	if err := checkFeature(ctx, "integration", "published_rest_alter",
-		"alter published rest service",
-		"upgrade your project to 10.0+"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

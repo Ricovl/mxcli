@@ -20,6 +20,15 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
+	// A text template is a Java action type only (MDL-JSA01).
+	if bad := unsupportedJavaScriptActionTypes(s); len(bad) > 0 {
+		return mdlerrors.NewValidationf("%s", strings.Join(bad, "\n"))
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -43,6 +52,13 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		return mdlerrors.NewNotFound("module", s.Name.Module)
 	}
 
+	// A bare Module.Name in the signature is an entity or an enumeration, which
+	// only the project can say (ako/mxcli#935).
+	params, returnType, err := settleCodeActionSignature(ctx, "javascript action "+s.Name.String(), s.Parameters, s.ReturnType)
+	if err != nil {
+		return err
+	}
+
 	// Detect an existing action of the same name (for CREATE OR MODIFY).
 	existing, err := ctx.Backend.ListJavaScriptActions()
 	if err != nil {
@@ -55,13 +71,15 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 	var existingActionInfo *types.MicroflowActionInfo
 	var existingJSDoc string
 	haveExistingJS := false
-	// A parameter's Description and Category have no MDL spelling — DESCRIBE
-	// prints the description as a comment — so a rewrite carries them from the
-	// stored parameter of the same name, as the Java twin does (#731).
+	// A parameter's Category has no MDL spelling, and its Description is set
+	// only by a `/** … */` before it, so a rewrite carries both from the stored
+	// parameter of the same name unless the statement says otherwise, as the
+	// Java twin does (#731, mendixlabs/mxcli#1588).
 	storedParams := map[string]*types.JavaActionParameter{}
 	// The stored parameter names in order, for sourceUnchanged below.
 	var storedParamNames []string
-	// No MDL spelling for either, so a rewrite carries them; the defaults are
+	// The export level has no MDL spelling and the return value's name is set
+	// only by `returns T as $Name`, so a rewrite carries them; the defaults are
 	// Studio Pro's. "Public", which this hardcoded, is not a member of
 	// JavaScriptActionsExportLevel (API | Hidden) — see the Java twin.
 	exportLevel, defaultReturnName := "Hidden", "ReturnValueName"
@@ -110,6 +128,10 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		newID = existingID
 	}
 
+	if s.ReturnName != "" {
+		defaultReturnName = s.ReturnName
+	}
+
 	jsa := &types.JavaScriptAction{
 		BaseElement:             model.BaseElement{ID: newID, TypeName: "JavaScriptActions$JavaScriptAction"},
 		ContainerID:             containerID,
@@ -138,7 +160,7 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 		typeParamNames[tpName] = true
 	}
 
-	for _, param := range s.Parameters {
+	for _, param := range params {
 		p := &types.JavaActionParameter{
 			BaseElement: model.BaseElement{
 				ID:       model.ID(types.GenerateID()),
@@ -170,26 +192,30 @@ func execCreateJavaScriptAction(ctx *ExecContext, s *ast.CreateJavaScriptActionS
 				p.ParameterType = astDataTypeToJavaActionParamType(param.Type)
 			}
 		}
+		var storedDescription string
 		if sp := storedParams[param.Name]; sp != nil {
-			p.Description = sp.Description
+			storedDescription = sp.Description
 			p.Category = sp.Category
 		}
+		p.Description = carriedDocumentation(param.DescriptionSet, param.Description, storedDescription)
 		jsa.Parameters = append(jsa.Parameters, p)
 	}
 
-	if isTypeParamRef(s.ReturnType, typeParamNames) {
-		tpName := getTypeParamRefName(s.ReturnType)
+	if isTypeParamRef(returnType, typeParamNames) {
+		tpName := getTypeParamRefName(returnType)
 		jsa.ReturnType = &types.TypeParameter{
 			BaseElement:     model.BaseElement{ID: model.ID(types.GenerateID())},
 			TypeParameterID: typeParamNameToID[tpName],
 			TypeParameter:   tpName,
 		}
-	} else if l := listOfTypeParameter(s.ReturnType, typeParamNameToID); l != nil {
+	} else if l := listOfTypeParameter(returnType, typeParamNameToID); l != nil {
 		// `returns list of T` — without this it became a list of the entity `.T`,
 		// the JavaScript twin of the Java action's #1183.
 		jsa.ReturnType = l
 	} else {
-		jsa.ReturnType = astDataTypeToJavaActionReturnType(s.ReturnType)
+		if jsa.ReturnType, err = astDataTypeToJavaActionReturnType(returnType); err != nil {
+			return mdlerrors.NewValidationf("javascript action %s: %v", s.Name.String(), err)
+		}
 	}
 
 	if jsa.MicroflowActionInfo, err = mergeMicroflowActionInfo(ctx,

@@ -281,7 +281,12 @@ func actionFromGen(el element.Element) microflows.MicroflowAction {
 	case *genMf.ShowPageAction:
 		// Storage $Type Microflows$ShowFormAction. The FormSettings tree is written
 		// raw (Form / ParameterMappings with legacy keys), so read it from raw.
-		out := &microflows.ShowPageAction{ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType())}
+		out := &microflows.ShowPageAction{
+			ErrorHandlingType: microflows.ErrorHandlingType(a.ErrorHandlingType()),
+			// Unread, an action that closes a page described as one that closes
+			// none (mendixlabs/mxcli#1617).
+			NumberOfPagesToClose: a.NumberOfPagesToClose(),
+		}
 		out.ID = model.ID(a.ID())
 		if fs, ok := a.Raw().Lookup("FormSettings").DocumentOK(); ok {
 			out.FormSettingsID = model.ID(rawStr(fs, "$ID"))
@@ -752,8 +757,27 @@ func codeActionParameterValueFromRaw(doc bson.Raw) microflows.CodeActionParamete
 		if tt, ok := doc.Lookup("TypedTemplate").DocumentOK(); ok {
 			t := &microflows.TypedTemplate{Text: rawStr(tt, "Text")}
 			t.ID = model.ID(rawStr(tt, "$ID"))
+			if arr, ok := tt.Lookup("Arguments").ArrayOK(); ok {
+				vals, _ := arr.Values()
+				for _, av := range vals {
+					ad, ok := av.DocumentOK()
+					if !ok {
+						continue // the list's leading marker
+					}
+					a := &microflows.TypedTemplateArgument{
+						Expression: rawStr(ad, "Expression"),
+						Type:       rawStr(ad, "Type"),
+					}
+					a.ID = model.ID(rawStr(ad, "$ID"))
+					t.Arguments = append(t.Arguments, a)
+				}
+			}
 			v.TypedTemplate = t
 		}
+		return v
+	case "Microflows$CustomBlobDocumentCodeActionParameterValue":
+		v := &microflows.CustomBlobDocumentCodeActionParameterValue{CustomDocument: rawStr(doc, "CustomDocument")}
+		v.ID = id
 		return v
 	case "Microflows$ExpressionBasedCodeActionParameterValue":
 		v := &microflows.ExpressionBasedCodeActionParameterValue{Expression: rawStr(doc, "Expression")}
@@ -940,6 +964,9 @@ func readMappingCall(doc, imc bson.Raw) (h *microflows.ResultHandlingMapping, fo
 		mapping = rawStr(imc, "ReturnValueMapping")
 	}
 	h.MappingID = model.ID(mapping)
+	h.ContentType = rawStr(imc, "ContentType")
+	h.ParameterVariable = rawStr(imc, "ParameterVariableName")
+	h.Commit = rawStr(imc, "Commit")
 	force, _ = imc.Lookup("ForceSingleOccurrence").BooleanOK()
 	h.ForceSingleOccurrence = &force
 	// The Range is polymorphic: a ConstantRange carries SingleObject (All/First)
@@ -963,6 +990,7 @@ func readMappingCall(doc, imc bson.Raw) (h *microflows.ResultHandlingMapping, fo
 		h.ResultEntityID = model.ID(rawStr(vt, "Entity"))
 		vtType = rawStr(vt, "$Type")
 	}
+	h.ResultType = vtType
 	return h, force, vtType
 }
 

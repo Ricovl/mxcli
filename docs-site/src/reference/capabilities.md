@@ -84,7 +84,7 @@ Everything mxcli can do, organized by use case.
 | Capability | Command | Status |
 |---|---|---|
 | REST clients | `CREATE CONSUMED REST SERVICE` | Consumed REST services |
-| OpenAPI import | `CREATE CONSUMED REST SERVICE (OpenAPI: '...')` | Generate REST client from OpenAPI 3.0 spec |
+| OpenAPI import | `CREATE CONSUMED REST SERVICE (OpenAPI: '...')` | Generate REST client from an OpenAPI 3.x spec (Swagger 2.0 refused; responses imported as JSON, no entities yet) |
 | Business events | `CREATE BUSINESS EVENT SERVICE` | Event definitions |
 | Database connections | `CREATE DATABASE CONNECTION` | External SQL |
 | OData services | `LIST CONSUMED ODATA SERVICES/SERVICES` | Read-only browsing |
@@ -135,6 +135,7 @@ Everything mxcli can do, organized by use case.
 | Marketplace browse | `mxcli marketplace search/info/versions` | Discover content; `--min-mendix` compatibility filter |
 | Marketplace download | `mxcli marketplace download <id> [--version X]` | Fetch a content version's `.mpk` to disk |
 | Marketplace install | `mxcli marketplace install <id> -p app.mpr` | Widget → `widgets/`; new module → `mx module-import`; existing module reported, not updated |
+| Marketplace package | `mxcli marketplace package <Module> -p app.mpr [-o dir]` | Export a module as a `.mpk` via `mx create-module-package` (module's own libs only; warns about other modules' files); installs back with `install --file` |
 
 ## Known Limitations
 

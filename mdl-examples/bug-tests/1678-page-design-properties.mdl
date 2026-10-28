@@ -1,0 +1,36 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1678 — the design properties stored on the page itself
+-- (Forms$Page Appearance.DesignProperties) were dropped on describe → exec:
+-- `describe page` printed none of them in the header and exec wrote an empty
+-- list. Login_Native and Logboek_Overview_Native lost 'Spacing top': 'Inner
+-- large' and 'Spacing bottom': 'Inner large'; Home_Native lost 'Background
+-- color': 'Background Primary'.
+--
+-- Those are stock Atlas: Atlas Core 4.1.3's native design-properties.json
+-- declares them in its "Document" group, beside the page-only "Page" group. A
+-- page takes Document and Page, not Widget — mxbuild types a page's 'Spacing
+-- left' against Document's options and refuses Widget's 'Small' with CE6085.
+--
+-- The header now takes `DesignProperties: ( … )`, describe prints it, and a
+-- page-level `alter page … set ('Key': value)` writes one. Measured on 11.13.0
+-- with stock Atlas, after a BSON edit giving Home_Native the three values:
+--
+--   before the fix: describe prints none; exec → "Replaced page", list empty
+--   after:          describe prints them; check -p clean; exec → "Unchanged
+--                   page"; mx check 0 errors
+-- ============================================================================
+
+create module BugPageDesignProps;
+
+create page BugPageDesignProps.Home_Native (
+  Title: 'Home',
+  Layout: Atlas_Core.NativePhone_Default,
+  DesignProperties: ('Spacing top': 'Inner large', 'Spacing bottom': 'Inner large')
+) {
+  dynamictext text4 (Content: 'JTS boat log')
+};
+
+alter page BugPageDesignProps.Home_Native {
+  set ('Background color': 'Background Primary', 'Hide header bottom border': on)
+};

@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/model"
 )
 
 // Routing a design property written by `ALTER PAGE … SET` (ako/mxcli#515).
@@ -71,6 +74,58 @@ func storedWidgetDesignPropsKey(mutator backend.PageMutator, widgetRef string) s
 	return ""
 }
 
+// documentPlatformReporter is the optional half of a PageMutator that knows the
+// platform of the document it edits.
+type documentPlatformReporter interface {
+	DocumentPlatform() (native bool, layout string)
+}
+
+// documentTheme is the theme registry the design properties of a mutator's
+// document resolve against: the native definitions for a native page, snippet
+// or layout, the web ones otherwise (ako/mxcli#1679). A page is native when its
+// layout is.
+func documentTheme(ctx *ExecContext, mutator backend.PageMutator) *ThemeRegistry {
+	reg := ctx.GetThemeRegistry()
+	r, ok := mutator.(documentPlatformReporter)
+	if reg == nil || !ok {
+		return reg
+	}
+	native, layout := r.DocumentPlatform()
+	if !native && layout != "" {
+		native = layoutNamedIsNative(ctx, layout)
+	}
+	return reg.ForPlatform(native)
+}
+
+// storedSnippetIsNative reports whether the stored snippet's Type is Native.
+func storedSnippetIsNative(ctx *ExecContext, id model.ID) bool {
+	raw, err := ctx.Backend.GetRawUnitBytes(id)
+	if err != nil {
+		return false
+	}
+	t, ok := bson.Raw(raw).Lookup("Type").StringValueOK()
+	return ok && t == "Native"
+}
+
+// layoutNamedIsNative reports whether the layout with this qualified name is a
+// native one; false when there is none.
+func layoutNamedIsNative(ctx *ExecContext, qualifiedName string) bool {
+	layouts, err := ctx.Backend.ListLayouts()
+	if err != nil {
+		return false
+	}
+	h, err := getHierarchy(ctx)
+	if err != nil || h == nil {
+		return false
+	}
+	for _, l := range layouts {
+		if h.GetModuleName(h.FindModuleID(l.ContainerID))+"."+l.Name == qualifiedName {
+			return l.Native
+		}
+	}
+	return false
+}
+
 // designPropertyForStoredWidget returns the theme's declaration of key for the
 // stored widget, or nil when this is not a design property of it.
 //
@@ -85,6 +140,11 @@ func designPropertyForStoredWidget(theme *ThemeRegistry, mutator backend.PageMut
 		return nil
 	}
 	dpKey := storedWidgetDesignPropsKey(mutator, widgetRef)
+	if widgetRef == "" && mutator != nil && mutator.ContainerType() == backend.ContainerPage {
+		// A page-level SET: the page's own design properties, which the theme
+		// declares under "Page" (ako/mxcli#1678).
+		dpKey = pageThemeKey
+	}
 	if dpKey == "" {
 		return nil
 	}

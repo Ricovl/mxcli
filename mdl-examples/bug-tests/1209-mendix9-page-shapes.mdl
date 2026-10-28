@@ -1,0 +1,52 @@
+mdl 1;
+-- ako/mxcli#1209: on Mendix 9.24 `describe` dropped every widget's design
+-- properties, and a rebuilt text box lost its KeyboardType and Placeholder, so
+-- a describe → exec round trip removed them.
+--
+-- Three page properties are stored in another shape below a version boundary
+-- (measured on Studio Pro-authored 9.24.30 pages, mendixmodelsdk):
+--
+--   design property  Type/StringValue/BooleanValue  below 10.2 (Value from 10.2)
+--   data view        Editable: true|false           below 10.7 (Editability from 10.7)
+--   text box         Placeholder: Texts$Text        below 10.11 (PlaceholderTemplate from 10.11)
+--
+-- describe read only the newer shapes, and the writer wrote only them: on 9.24
+-- the first two were refused, and the placeholder was written under a key 9.24
+-- does not read. KeyboardType had no MDL spelling at all and was written as
+-- Default on every version.
+--
+-- Run it on a fresh 9.24.30 app (`mxcli new … --version 9.24.30.51827`):
+-- exec, then `mxcli docker check` reports the blank app's error count, and
+-- `describe page Probe1209.Contact_Edit` prints every property below. The
+-- design properties are Atlas 9.24's own: 'Spacing bottom' and 'Color' are
+-- dropdowns, 'Hide on phone' is a toggle.
+
+create module Probe1209;
+
+create persistent entity Probe1209.Contact (
+  Email: String(200)
+);
+
+create page Probe1209.Contact_Edit (
+  Title: 'Contact',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Contact: Probe1209.Contact )
+) {
+  dynamictext heading (Content: 'Contact', RenderMode: H3,
+    DesignProperties: ('Spacing bottom': 'Outer small', 'Color': 'Detail color'))
+  layoutgrid grid {
+    row {
+      column (DesktopWidth: AutoFill) {
+        dataview dv (DataSource: $Contact, Editable: Never, DesignProperties: ('Hide on phone': on)) {
+          textbox txtEmail (Label: 'Email', Attribute: Email,
+            Placeholder: 'you@example.com', KeyboardType: EmailAddress)
+        }
+      }
+    }
+  }
+};
+
+-- ALTER STYLING on a stored entry: below 10.2 the entry has no Value to set,
+-- and the set used to report success and change nothing.
+alter styling on page Probe1209.Contact_Edit widget heading
+  set ( 'Color': 'Header color' );

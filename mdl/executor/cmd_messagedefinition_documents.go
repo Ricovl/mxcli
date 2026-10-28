@@ -51,13 +51,6 @@ func messageCollectionsRemovedError(ctx *ExecContext, statement string) error {
 			"definition, and a mapping names one as Module.Name", statement, version))
 }
 
-// requireMessageDefinitionDocuments refuses the per-document form below 11.15.
-func requireMessageDefinitionDocuments(ctx *ExecContext, statement string) error {
-	return checkFeature(ctx, "integration", "message_definition_document", statement,
-		"below Mendix 11.15 a message definition is an entry of a collection: "+
-			"create message definition collection Module.Name { definition Name for Module.Entity { … } };")
-}
-
 // projectStoresMessageDocuments reports whether the connected project stores
 // message definitions as MessageDefinition2 documents.
 func projectStoresMessageDocuments(ctx *ExecContext) bool {
@@ -123,7 +116,7 @@ func execCreateMessageDefinition(ctx *ExecContext, s *ast.CreateMessageDefinitio
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
-	if err := requireMessageDefinitionDocuments(ctx, "create message definition"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 	existing := findMessageDefinitionDocument(ctx, s.Name.Module, s.Name.Name)

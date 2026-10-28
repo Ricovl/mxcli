@@ -50,9 +50,22 @@ func validateNanoflowWith(stmt *ast.CreateNanoflowStmt, voids *voidCodeActions) 
 	v.checkDuplicateVariableNames(v.params, stmt.Body)
 	// A nanoflow's show message has the same ShowMessageType (mendixlabs/mxcli#1280).
 	v.checkShowMessageType(stmt.Body)
+	// MDL-TEMPLATE01: a nanoflow's log, show message and validation feedback
+	// store the same templates (ako/mxcli#1683).
+	v.checkMessageTemplates(stmt.Body)
 	v.checkVoidCallOutputUse(v.params, stmt.Body)
 	// MDL-SET01: a nanoflow's Change variable is as primitive-only (CE7247).
 	v.checkSetOnObjectVariable(v.params, stmt.Body)
+	// MDL-CHANGE01: System.owner / System.changedBy are CE1050 in a nanoflow's
+	// create and change too, measured on 11.12.5 (mendixlabs/mxcli#1612).
+	v.checkSystemMemberChange(stmt.Body)
+	// MDL-FLOW05: a nanoflow's flow is built by the same builder, so a statement
+	// after a return is dead there too (mendixlabs/mxcli#1491).
+	v.checkUnreachableStatements(stmt.Body)
+	// MDL049 / MDL094: a bare association path returned, or a loop over a path.
+	// Measured on 11.12.1, a nanoflow's return is CE0117 as a microflow's is,
+	// and its loop is built from the same AST (mendixlabs/mxcli#199).
+	v.checkAssociationPathValues(stmt.Body)
 	// The nanoflow restrictions exec's build refuses (validateNanoflow): an
 	// action a nanoflow cannot hold, an error-handling clause its activity
 	// rejects (CE6035), a Binary return. They ran only inside exec, so `check`

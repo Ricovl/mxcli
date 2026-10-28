@@ -41,3 +41,15 @@ column (attribute: Order_Customer/Name, caption: 'Customer') {
 ```
 
 A `datefilter` compares one date; `FilterType: between` makes the column a range.
+
+**A filter's own action is `OnChange:`** — the `onChange` slot every filter
+declares ("Action to be triggered when the value or filter changes"), on the
+text, number, date and drop-down filter alike:
+
+```sql
+column (attribute: Name) { textfilter f1 (OnChange: call nanoflow Sales.NAV_FilterChanged) }
+```
+
+`describe` prints it back, so a filter's action survives a describe → edit →
+exec cycle. (Before ako/mxcli#854 it had no write path: refused under `mdl 1;`,
+dropped with MDL-V1-ACTIONSLOT under mdl 0.)

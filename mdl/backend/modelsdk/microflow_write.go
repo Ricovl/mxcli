@@ -77,6 +77,7 @@ func init() {
 	codec.RegisterTypeDefaults("Microflows$TypedTemplate", codec.TypeDefaults{
 		MandatoryListMarkers: map[string]int32{"Arguments": 2},
 	})
+	codec.RegisterListMarker("Microflows$PrimitiveTypedTemplateArgument", 2)
 	// EXECUTE DATABASE QUERY action: both mapping lists empty as marker 2; their
 	// child mapping $Types use marker 2 too.
 	codec.RegisterListMarker("DatabaseConnector$ConnectionParameterMapping", 2)
@@ -304,7 +305,7 @@ func microflowToGen(mf *microflows.Microflow, v flowVersion) *genMf.Microflow {
 	// Object collection (parameters merged first, then objects).
 	oc := genMf.NewMicroflowObjectCollection()
 	for i, p := range mf.Parameters {
-		oc.AddObjects(microflowParameterToGen(p, i, v))
+		oc.AddObjects(microflowParameterToGen(p, i, mf.Parameters, v))
 	}
 	if mf.ObjectCollection != nil {
 		for _, obj := range mf.ObjectCollection.Objects {
@@ -494,11 +495,14 @@ func annotationFlowToGen(af *microflows.AnnotationFlow, v flowVersion) element.E
 	g.SetID(element.ID(af.ID))
 	g.SetOriginID(element.ID(af.OriginID))
 	g.SetDestinationID(element.ID(af.DestinationID))
-	// A note sits ABOVE the element it documents, so its line leaves the note's
-	// bottom edge and enters the element's top. Both indexes were 0 (top), which
-	// drew the line out of the top of the note and back down around it.
-	g.SetOriginConnectionIndex(2)
-	g.SetDestinationConnectionIndex(0)
+	// The builder picks the sides that face each other (orientAnnotationFlows);
+	// a flow nothing oriented is drawn as for a note ABOVE its element — out of
+	// the note's bottom edge, into the element's top. Both indexes were once 0
+	// (top), which drew the line out of the top of the note and back down
+	// around it.
+	sides := af.SidesOrDefault()
+	g.SetOriginConnectionIndex(int32(sides.Origin))
+	g.SetDestinationConnectionIndex(int32(sides.Destination))
 	// An annotation flow is a Flow like a sequence flow, with the same floors:
 	// the Line was written from 10.0 on, six minors before it existed.
 	if v.hasLine() {
@@ -883,7 +887,9 @@ func microflowActionToGen(action microflows.MicroflowAction) element.Element {
 		g.SetID(element.ID(a.ID))
 		g.SetErrorHandlingType(orDefault(string(a.ErrorHandlingType), "Rollback"))
 		g.SetPageSettings(showPageFormSettingsToGen(a))
-		g.SetNumberOfPagesToClose("")
+		// An expression; "" (the default) closes no page. It was always written
+		// as "", whatever the statement said (mendixlabs/mxcli#1617).
+		g.SetNumberOfPagesToClose(a.NumberOfPagesToClose)
 		return g
 	case *microflows.ClosePageAction:
 		// Storage $Type Microflows$CloseFormAction. The count is the string
@@ -1030,11 +1036,14 @@ func importXmlActionToGen(a *microflows.ImportXmlAction) element.Element {
 	}
 
 	imc := newElem("Microflows$ImportMappingCall", "")
-	addStr(imc, "Commit", "YesWithoutEvents")
-	addStr(imc, "ContentType", "Json")
+	// Both were constants, so a mapping with an input object could not be
+	// called (mxbuild CE0244) and a non-default commit mode was unwritable
+	// (ako/mxcli#1681).
+	addStr(imc, "Commit", orDefault(rh.Commit, "YesWithoutEvents"))
+	addStr(imc, "ContentType", orDefault(rh.ContentType, "Json"))
 	addBool(imc, "ForceSingleOccurrence", forceSingle)
 	addStr(imc, "ObjectHandlingBackup", "Create")
-	addStr(imc, "ParameterVariableName", "")
+	addStr(imc, "ParameterVariableName", rh.ParameterVariable)
 	addPart(imc, "Range", importMappingRangeToGen(rh))
 	addStr(imc, "ReturnValueMapping", string(rh.MappingID))
 
@@ -1092,13 +1101,33 @@ func exportXmlActionToGen(a *microflows.ExportXmlAction) element.Element {
 func codeActionParameterValueToGen(v microflows.CodeActionParameterValue) element.Element {
 	switch val := v.(type) {
 	case *microflows.StringTemplateParameterValue:
+		// A text-template (or SQL-template) Java action parameter: the text with
+		// {n} placeholders plus one PrimitiveTypedTemplateArgument per
+		// placeholder, each an expression and its result type
+		// (ako/mxcli#1451; shape from the metamodel, accepted by mxbuild 11.13).
 		g := newElem("Microflows$StringTemplateParameterValue", string(val.ID))
 		if val.TypedTemplate != nil {
 			tt := newElem("Microflows$TypedTemplate", string(val.TypedTemplate.ID))
-			addPartList(tt, "Arguments", nil) // empty (marker 2, registered in init)
+			var args []element.Element
+			for _, a := range val.TypedTemplate.Arguments {
+				if a == nil {
+					continue
+				}
+				ae := newElem("Microflows$PrimitiveTypedTemplateArgument", string(a.ID))
+				addStr(ae, "Expression", a.Expression)
+				addStr(ae, "Type", a.Type)
+				args = append(args, ae)
+			}
+			addPartList(tt, "Arguments", args) // marker 2, registered in init
 			addStr(tt, "Text", val.TypedTemplate.Text)
 			addPart(g, "TypedTemplate", tt)
 		}
+		return g
+	case *microflows.CustomBlobDocumentCodeActionParameterValue:
+		// A document of a custom type (an agent-editor Agent), by name
+		// (ako/mxcli#1451).
+		g := newElem("Microflows$CustomBlobDocumentCodeActionParameterValue", string(val.ID))
+		addStr(g, "CustomDocument", val.CustomDocument)
 		return g
 	case *microflows.ExpressionBasedCodeActionParameterValue:
 		g := newElem("Microflows$ExpressionBasedCodeActionParameterValue", string(val.ID))
@@ -1515,15 +1544,15 @@ func memberChangeToGen(m *microflows.MemberChange) element.Element {
 }
 
 // microflowParameterToGen builds a gen MicroflowParameter. An authored position
-// is written as given; without one the position derives from the index, matching
-// the legacy serializer.
-func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, v flowVersion) element.Element {
+// is written as given; without one the position derives from the index and the
+// names of all the flow's parameters (params), which space the row.
+func microflowParameterToGen(p *microflows.MicroflowParameter, idx int, params []*microflows.MicroflowParameter, v flowVersion) element.Element {
 	g := genMf.NewMicroflowParameter()
 	g.SetID(element.ID(p.ID))
 	g.SetDocumentation(p.Documentation)
 	g.SetHasVariableNameBeenChanged(false)
 	g.SetName(p.Name)
-	pos := microflows.DerivedParameterPosition(idx)
+	pos := microflows.DerivedParameterPosition(idx, params)
 	if p.Position != nil {
 		pos = *p.Position
 	}
@@ -1847,7 +1876,7 @@ func restResultHandlingToGen(rh microflows.ResultHandling, outputVar string) ele
 		}
 		imc := newElem("Microflows$ImportMappingCall", "")
 		addStr(imc, "Commit", "YesWithoutEvents")
-		addStr(imc, "ContentType", "Json")
+		addStr(imc, "ContentType", orDefault(h.ContentType, "Json"))
 		addBool(imc, "ForceSingleOccurrence", forceSingle)
 		addStr(imc, "ObjectHandlingBackup", "Create")
 		addStr(imc, "ParameterVariableName", "")

@@ -24,6 +24,9 @@ import (
 //   - MDL-WIDGET40 / CE0582: the classic drop-down on a project that uses the
 //     React client.
 //
+// MDL-WIDGET39 also judges the pluggable combo box in enumeration mode, the one
+// pluggable input whose attribute type mxbuild checks the same way (CE7247).
+//
 // Both are questions about the model (the attribute's type, the project's client
 // setting), so they live in the --references tier with the pluggable-widget
 // attribute-scope check, sharing its data-context walk. Without -p neither can
@@ -39,7 +42,8 @@ const (
 type inputAttributeRule struct {
 	label   string          // mxbuild's name for the widget, as its messages print it
 	accepts map[string]bool // attribute kinds (see attributeKind) it takes
-	listed  string          // mxbuild's own list, verbatim from CE2421
+	listed  string          // mxbuild's own list, verbatim from its message
+	code    string          // the error mxbuild reports for a type outside accepts
 }
 
 // builtinInputAttributeRules is the measured matrix, not the Model SDK's: every
@@ -52,12 +56,49 @@ type inputAttributeRule struct {
 // widget's CE2421 list is what it offers, not proof of what it refuses.
 var builtinInputAttributeRules = map[string]inputAttributeRule{
 	"textbox": {"text box", kindSet("String", "HashedString", "Integer", "Long", "Decimal", "AutoNumber"),
-		"Hashed string, Integer, Long, String, Decimal, AutoNumber"},
-	"textarea":     {"text area", kindSet("String"), "String"},
-	"datepicker":   {"date picker", kindSet("DateTime"), "Date and time"},
-	"checkbox":     {"check box", kindSet("Boolean"), "Boolean"},
-	"radiobuttons": {"radio buttons", kindSet("Boolean", "Enumeration"), "Boolean, Enumeration"},
-	"dropdown":     {"drop-down", kindSet("Enumeration"), "Enumeration"},
+		"Hashed string, Integer, Long, String, Decimal, AutoNumber", "CE2421"},
+	"textarea":     {"text area", kindSet("String"), "String", "CE2421"},
+	"datepicker":   {"date picker", kindSet("DateTime"), "Date and time", "CE2421"},
+	"checkbox":     {"check box", kindSet("Boolean"), "Boolean", "CE2421"},
+	"radiobuttons": {"radio buttons", kindSet("Boolean", "Enumeration"), "Boolean, Enumeration", "CE2421"},
+	"dropdown":     {"drop-down", kindSet("Enumeration"), "Enumeration", "CE2421"},
+}
+
+// comboBoxEnumerationRule is the pluggable combo box with no options data
+// source. Enumeration mode writes the attribute to `attributeEnumeration`, whose
+// AllowedTypes is Enum alone. Measured on fresh 11.14.0 and 11.13.0 projects,
+// one combo box per kind: every kind but Enumeration was CE7247 "Only attributes
+// of type Enumeration are allowed here." Boolean is among them — the widget has
+// a separate Boolean source (`attributeBoolean`), which MDL does not write.
+var comboBoxEnumerationRule = inputAttributeRule{"combo box", kindSet("Enumeration"), "Enumeration", "CE7247"}
+
+// comboBoxDatabaseRule is the combo box in database mode, which stores the
+// chosen option's value on `databaseAttributeString` (mendixlabs/mxcli#1583).
+// Measured on a fresh 11.12.5 project, Combo box 2.5.0, one combo box per
+// kind: Boolean, DateTime, Decimal, AutoNumber and Binary were CE7247 "Only
+// attributes of type String, Integer, Long, Enumeration are allowed here."
+// Its attribute may also be written under that key.
+var comboBoxDatabaseRule = inputAttributeRule{"combo box", kindSet("String", "Integer", "Long", "Enumeration"),
+	"String, Integer, Long, Enumeration", "CE7247"}
+
+// inputAttributeRuleFor is the rule w's attribute is judged by. A combo box
+// is judged in the mode exec builds it in (comboBoxMode): the association mode
+// binds an association, not an attribute, so it has none.
+func inputAttributeRuleFor(w *ast.WidgetV3) (rule inputAttributeRule, isComboBox, ok bool) {
+	if w.TypeIsGeneric {
+		return inputAttributeRule{}, false, false
+	}
+	if strings.EqualFold(w.Type, "combobox") {
+		if comboBoxHasOptionsDataSource(w) {
+			return inputAttributeRule{}, true, false
+		}
+		if comboBoxMode(w) == "database" {
+			return comboBoxDatabaseRule, true, true
+		}
+		return comboBoxEnumerationRule, true, true
+	}
+	rule, ok = builtinInputAttributeRules[strings.ToLower(w.Type)]
+	return rule, false, ok
 }
 
 // measuredAttributeKinds are the kinds the matrix was measured against. A kind
@@ -217,6 +258,10 @@ func checkMemberTypeIndex(ctx *ExecContext, sc *scriptContext) memberTypeIndex {
 		parents: map[string]string{},
 		assocs:  map[string][2]string{},
 	}
+	// No project (a script checked on its own): the index is the script's.
+	if ctx == nil || ctx.Backend == nil {
+		return overlayScriptMembers(ix, sc)
+	}
 	if modules, err := getModulesFromCache(ctx); err == nil {
 		moduleNames := make(map[model.ID]string, len(modules))
 		for _, m := range modules {
@@ -260,6 +305,11 @@ func checkMemberTypeIndex(ctx *ExecContext, sc *scriptContext) memberTypeIndex {
 			}
 		}
 	}
+	return overlayScriptMembers(ix, sc)
+}
+
+// overlayScriptMembers lays what the script declares over the project's index.
+func overlayScriptMembers(ix memberTypeIndex, sc *scriptContext) memberTypeIndex {
 	if sc == nil {
 		return ix
 	}
@@ -291,14 +341,19 @@ func checkMemberTypeIndex(ctx *ExecContext, sc *scriptContext) memberTypeIndex {
 	return ix
 }
 
-// checkInputBinding judges one built-in input widget's attribute against the
-// entity its enclosing data container supplies.
+// checkInputBinding judges one input widget's attribute — a built-in input, or
+// a combo box in enumeration mode — against the entity its enclosing data
+// container supplies.
 func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing dataContext) {
-	rule, ok := builtinInputAttributeRules[strings.ToLower(w.Type)]
-	if !ok || w.TypeIsGeneric {
+	rule, isComboBox, ok := inputAttributeRuleFor(w)
+	if !ok {
 		return
 	}
-	attr := strings.TrimPrefix(w.GetAttribute(), "$currentObject/")
+	attr := w.GetAttribute()
+	if attr == "" && isComboBox && comboBoxMode(w) == "database" {
+		attr = w.GetStringProp("databaseAttributeString")
+	}
+	attr = strings.TrimPrefix(attr, "$currentObject/")
 	if attr == "" || strings.HasPrefix(attr, "$") || enclosing.unresolved || len(enclosing.entities) == 0 {
 		return
 	}
@@ -320,7 +375,9 @@ func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing d
 		return
 	}
 	if !found {
-		if len(segs) == 1 {
+		// The CE1613 below was measured for the built-in inputs only; a combo
+		// box over a bare association is left unjudged rather than guessed at.
+		if len(segs) == 1 && !isComboBox {
 			if assocQN, _, isAssoc := v.types.follow(name, entity); isAssoc {
 				v.errs = append(v.errs, fmt.Sprintf(
 					"widget `%s` (%s): `%s` is the association %s, not an attribute — an input widget binds an "+
@@ -338,8 +395,8 @@ func (v *attributeScopeValidator) checkInputBinding(w *ast.WidgetV3, enclosing d
 	}
 	msg := fmt.Sprintf(
 		"widget `%s` (%s) is bound to %s.%s, a%s %s attribute; the %s widget takes only attributes of type %s — "+
-			"mxbuild reports CE2421 \"Only attributes of type %s are allowed here.\"",
-		w.Name, strings.ToLower(w.Type), declaring, a.name, anPrefix(a.kind), a.kind, rule.label, rule.listed, rule.listed)
+			"mxbuild reports %s \"Only attributes of type %s are allowed here.\"",
+		w.Name, strings.ToLower(w.Type), declaring, a.name, anPrefix(a.kind), a.kind, rule.label, rule.listed, rule.code, rule.listed)
 	if alt := widgetsAccepting(a.kind); alt != "" {
 		msg += " For " + a.kind + ", use " + alt + "."
 	}

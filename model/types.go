@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // ID represents a unique identifier for model elements.
@@ -205,6 +205,10 @@ type Enumeration struct {
 	// carry the stored value rather than default it to false (#914).
 	Excluded bool               `json:"excluded,omitempty"`
 	Values   []EnumerationValue `json:"values,omitempty"`
+	// ExportLevel is "Hidden" or "API" (Studio Pro's "Usable"), which matters in
+	// a Protected (add-on) module (CE5400). The writer writes a set level and,
+	// for "", keeps the stored one (mendixlabs/mxcli#1498).
+	ExportLevel string `json:"exportLevel,omitempty"`
 }
 
 // GetName returns the enumeration's name.
@@ -789,6 +793,11 @@ type PublishedRestService struct {
 	Excluded     bool                     `json:"excluded,omitempty"`
 	AllowedRoles []string                 `json:"allowedRoles,omitempty"`
 	Resources    []*PublishedRestResource `json:"resources,omitempty"`
+	// Documentation is the service's own Documentation property — the
+	// developer-facing text Studio Pro shows on the document, not
+	// PublicDocumentation, the OpenAPI description consumers read
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 
 	// AuthenticationTypes are the methods a caller may authenticate with, in
 	// the order stored: "Basic", "Session", "Microflow". Empty is "Requires
@@ -985,6 +994,9 @@ type DataTransformer struct {
 	SourceJSON  string                 `json:"sourceJson,omitempty"` // source content
 	Steps       []*DataTransformerStep `json:"steps,omitempty"`
 	Excluded    bool                   `json:"excluded,omitempty"`
+	// Documentation is the transformer's Documentation property
+	// (mendixlabs/mxcli#1510).
+	Documentation string `json:"documentation,omitempty"`
 }
 
 // GetName returns the transformer's name.
@@ -1225,6 +1237,13 @@ type ImportMapping struct {
 	// one: the properties are read so a rewrite can be refused rather than
 	// silently dropping the binding (ako/mxcli#365).
 	WebServiceSource WebServiceMappingSource `json:"webServiceSource,omitempty"`
+	// RootElementName is the schema element an XML-schema (or SOAP) mapping is
+	// rooted at, stored as XsdRootElementName. MDL cannot state it and mxcli does
+	// not read an XSD, so it is carried, never derived: a rewrite that wrote ""
+	// left the mapping with CE0270 "No root element could be found in the
+	// schema" (mendixlabs/mxcli#1623). Empty for a JSON or message-definition
+	// mapping.
+	RootElementName string `json:"rootElementName,omitempty"`
 	// ParameterEntity is the entity of the mapping's INPUT object, stored as
 	// ParameterType — a DataTypes$ObjectType naming it. Empty means the mapping
 	// takes none, which Mendix stores as the DataTypes$UnknownType marker rather
@@ -1483,7 +1502,10 @@ type ExportMapping struct {
 	// one: the properties are read so a rewrite can be refused rather than
 	// silently dropping the binding (ako/mxcli#365).
 	WebServiceSource WebServiceMappingSource `json:"webServiceSource,omitempty"`
-	Elements         []*ExportMappingElement `json:"elements,omitempty"`
+	// RootElementName is the XML schema element the mapping produces, stored
+	// as XsdRootElementName — see ImportMapping.RootElementName.
+	RootElementName string                  `json:"rootElementName,omitempty"`
+	Elements        []*ExportMappingElement `json:"elements,omitempty"`
 }
 
 // GetName returns the export mapping's name.

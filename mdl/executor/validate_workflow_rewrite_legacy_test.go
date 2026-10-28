@@ -3,17 +3,18 @@
 package executor
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // legacyShaped returns raw decoded the way the legacy engine's GetRawUnit
 // decodes a unit — bson.Unmarshal into map[string]any — which yields arrays as
-// primitive.A. Measured end to end: on the legacy engine a `create or modify`
+// bson.A. Measured end to end: on the legacy engine a `create or modify`
 // that restated none of a workflow's two event handlers was written ("Created
 // workflow") and deleted them, while the modelsdk engine refused it.
 func legacyShaped(t *testing.T, raw map[string]any) map[string]any {
@@ -23,7 +24,7 @@ func legacyShaped(t *testing.T, raw map[string]any) map[string]any {
 		t.Fatal(err)
 	}
 	var out map[string]any
-	if err := bson.Unmarshal(data, &out); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(data, &out); err != nil {
 		t.Fatal(err)
 	}
 	return out

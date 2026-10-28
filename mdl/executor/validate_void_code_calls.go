@@ -63,6 +63,12 @@ type voidCodeActions struct {
 	unknownIsVoid bool
 	// shared, when set, carries project resolutions across runs (the editor).
 	shared *CodeActionCache
+
+	// declared types: which qualified names are enumerations and which are
+	// entities, for MDL043's wording (validate_declare_enum.go). The script's
+	// own come from the program; the project's are read once, on first ask.
+	scriptKinds  map[string]declaredTypeKind
+	projectKinds map[string]declaredTypeKind
 }
 
 // voidness is what the resolver knows about one action.
@@ -109,6 +115,10 @@ func newVoidCodeActions(prog *ast.Program, open func() backend.FullBackend) *voi
 			r.script[flowKey(false, s.Name.String())] = s.ReturnType == nil || s.ReturnType.Type.Kind == ast.TypeVoid
 		case *ast.CreateNanoflowStmt:
 			r.script[flowKey(true, s.Name.String())] = s.ReturnType == nil || s.ReturnType.Type.Kind == ast.TypeVoid
+		case *ast.CreateEnumerationStmt:
+			r.recordScriptKind(s.Name.String(), declKindEnumeration)
+		case *ast.CreateEntityStmt:
+			r.recordScriptKind(s.Name.String(), declKindEntity)
 		}
 	}
 	return r

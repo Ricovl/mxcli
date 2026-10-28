@@ -24,13 +24,15 @@
     ALTER SETTINGS WORKFLOWS MODIFY GROUP 'name' ( Description: 'text' )
     ALTER SETTINGS WORKFLOWS DROP GROUP 'name'
 
+    ALTER SETTINGS WEBUI ( OptimizedClient: 'Yes' | 'No' | 'MigrationMode' )
+
 ## Description
 
 Modifies project settings by category. Each category has its own syntax and available keys. Properties are written `Key: value` in a parenthesised list, as in every other MDL statement; the older `key = value, ...` without parentheses still runs and warns `MDL-DEPR060`, and `mxcli fmt --upgrade` rewrites it.
 
 **MODEL** settings control application-level behavior such as the after-startup microflow, hashing algorithm, and Java version.
 
-**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). Settings include database type, database URL, HTTP port number, and other runtime parameters. The configuration name must be enclosed in single quotes.
+**CONFIGURATION** settings control named runtime configurations. Each project can have multiple configurations (e.g., `default`, `staging`, `production`). The keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`, `DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`, `ApplicationRootUrl`, `ExtraJvmParameters` (Studio Pro's Server ▸ Extra JVM parameters) and `MaxJavaHeapSize` (Server ▸ Java heap ▸ Maximum size, in MB; `0` is Studio Pro's "Default"). The configuration name must be enclosed in single quotes.
 
 **CONSTANT** settings override the default value of a project constant within a specific runtime configuration. The constant is named as MDL names a constant everywhere, `@Module.Name`; the configuration name is enclosed in single quotes. The older quoted constant name (`CONSTANT 'Module.Name'`) still parses and warns `MDL-DEPR085`; `mxcli fmt --upgrade` rewrites it.
 
@@ -41,6 +43,15 @@ list of **enabled** languages — the only ones a build emits translations for.
 used for workflow tasks and default task parallelism, and the **workflow
 groups** — the named buckets under App Settings ▸ Workflows ▸ Groups that a user
 task's group targeting selects from. Groups need Mendix **11.2** or later.
+
+**WEBUI** settings choose the client the app runs on: `OptimizedClient: 'Yes'` is
+the React client, `'No'` the classic (Dojo) client, `'MigrationMode'` Mendix's
+mixed mode. The value is matched case-insensitively; anything else is rejected by
+`mxcli check` (MDL-SET03) and by the executor.
+
+A section or key that does not exist is rejected by `mxcli check` (MDL-SET04) with
+the message the executor gives, so a script that cannot run does not pass the
+check.
 
 ## Parameters
 
@@ -82,6 +93,17 @@ ALTER SETTINGS CONFIGURATION 'default' ( DatabaseType: 'POSTGRESQL' );
 ```sql
 ALTER SETTINGS CONFIGURATION 'production' ( DatabaseUrl: 'jdbc:postgresql://dbhost:5432/myapp' );
 ```
+
+### Pass extra JVM parameters
+
+```sql
+ALTER SETTINGS CONFIGURATION 'default' ( ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888' );
+```
+
+The value is stored as written and is what Studio Pro passes to the JVM when it
+runs the app. `mxcli run --local` and `mxcli test --local` pass it too, after
+`-Xmx<n>m` for a non-zero `MaxJavaHeapSize`, and print which options they pass
+(without `-D` values).
 
 ### Override a constant in a configuration
 
@@ -177,6 +199,16 @@ List the groups with [`LIST WORKFLOW GROUPS`](list-describe-settings.md).
 ```sql
 ALTER SETTINGS RUNTIME ( JavaVersion: '17' );
 ```
+
+### Switch to the classic web client
+
+```sql
+ALTER SETTINGS WEBUI ( OptimizedClient: 'No' );
+```
+
+Stored as `UseOptimizedClient` on the Web UI settings part (Mendix 9.10 and
+later). `DESCRIBE SETTINGS` emits the statement, and `LIST SETTINGS` shows the
+value as `OptimizedClient`.
 
 ### Remove a constant override from a configuration
 

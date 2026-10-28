@@ -18,7 +18,9 @@ func widget07Hits(t *testing.T, body string) int {
 	}
 	n := 0
 	for _, v := range ValidateWidgetPropertiesForStatement(prog.Statements[0], LoadWidgetRegistry("")) {
-		if v.RuleID == "MDL-WIDGET07" {
+		// A built-in widget's own verdict replaced the union allow-list for
+		// the widgets that have one (ako/mxcli#1698); either is the judge.
+		if v.RuleID == "MDL-WIDGET07" || v.RuleID == nativeWidgetPropDropped.Code {
 			n++
 			t.Logf("%s", v.Message)
 		}

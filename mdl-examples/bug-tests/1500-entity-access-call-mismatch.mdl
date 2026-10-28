@@ -1,0 +1,69 @@
+mdl 1;
+-- ============================================================================
+-- Regression: mendixlabs/mxcli#1500 - `check -p --references` passes a flow
+-- without entity access that calls a flow with entity access; mxbuild
+-- refuses it
+-- ============================================================================
+--
+-- Symptom (before fix, Mendix 11.14.0):
+--   `check -p --references` printed "no flow change exec would refuse … no
+--   used flow left without access" and "Check passed!", and mxbuild then
+--   reported:
+--     CE0114 A microflow that does not apply entity access can only call
+--     microflows that also do not apply entity access.
+--
+-- After fix:
+--   `check -p` reports MDL-SEC22 (error) on BugTest1500.DS_Tile_Count, naming
+--   both settings and the CE0114 rule. Measured with mxbuild 11.13.0 and
+--   11.14.0: the same holds for a decision on a rule that applies entity
+--   access ("can only call rules …"); the reverse direction, on -> on and
+--   off -> off build clean, as do a nanoflow caller and an excluded caller. The
+--   controls below are those clean shapes and are not reported.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/1500-entity-access-call-mismatch.mdl -p app.mpr --references
+--   Expect exactly one MDL-SEC22, on DS_Tile_Count. Exec it anyway and
+--   `mxcli docker check` reports exactly one CE0114, at the same call.
+-- ============================================================================
+
+create module BugTest1500;
+create persistent entity BugTest1500.Entity ( Name: String(100) );
+
+@applyentityaccess(true)
+create microflow BugTest1500.SUB_Scoped_List () returns List of BugTest1500.Entity
+begin
+  retrieve $L from BugTest1500.Entity;
+  return $L;
+end;
+
+@applyentityaccess(false)
+create microflow BugTest1500.SUB_Unscoped_Count () returns Integer
+begin
+  return 0;
+end;
+
+-- The reported shape: off -> on. MDL-SEC22 / CE0114.
+@applyentityaccess(false)
+create or modify microflow BugTest1500.DS_Tile_Count () returns Integer
+begin
+  $List = call microflow BugTest1500.SUB_Scoped_List();
+  $n = count $List;
+  return $n;
+end;
+
+-- Control: on -> off builds clean.
+@applyentityaccess(true)
+create microflow BugTest1500.DS_Scoped_Calls_Unscoped () returns Integer
+begin
+  $n = call microflow BugTest1500.SUB_Unscoped_Count();
+  return $n;
+end;
+
+-- Control: on -> on builds clean.
+@applyentityaccess(true)
+create microflow BugTest1500.DS_Scoped_Calls_Scoped () returns Integer
+begin
+  $List = call microflow BugTest1500.SUB_Scoped_List();
+  $n = count $List;
+  return $n;
+end;

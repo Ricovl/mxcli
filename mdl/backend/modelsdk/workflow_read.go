@@ -54,6 +54,9 @@ func workflowFromGen(g *genWf.Workflow, containerID model.ID) *workflows.Workflo
 		DueDate:             g.DueDate(),
 		WorkflowName:        workflowTemplateText(g.WorkflowName()),
 		WorkflowDescription: workflowTemplateText(g.WorkflowDescription()),
+
+		WorkflowNameParams:        workflowTemplateParams(g.WorkflowName()),
+		WorkflowDescriptionParams: workflowTemplateParams(g.WorkflowDescription()),
 	}
 	w.ID = model.ID(g.ID())
 	w.TypeName = "Workflows$Workflow"
@@ -173,15 +176,18 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 	switch a := el.(type) {
 	case *genWf.UserTask:
 		t := &workflows.UserTask{
-			Page:            a.PageQualifiedName(),
-			UserTaskEntity:  a.UserTaskEntityQualifiedName(),
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), nil),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
+			Page:                  a.PageQualifiedName(),
+			UserTaskEntity:        a.UserTaskEntityQualifiedName(),
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), nil),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$UserTask")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		if t.Page == "" {
 			t.Page = taskPageName(a.TaskPage())
 		}
@@ -189,28 +195,34 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 		return t
 	case *genWf.SingleUserTaskActivity:
 		t := &workflows.UserTask{
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), a.UserTargeting()),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
-			Page:            taskPageName(a.TaskPage()),
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), a.UserTargeting()),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
+			Page:                  taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$SingleUserTaskActivity")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
 		t.Outcomes = userTaskOutcomesFromGen(a.OutcomesItems())
 		return t
 	case *genWf.MultiUserTaskActivity:
 		t := &workflows.UserTask{
-			IsMulti:         true,
-			TaskName:        workflowTemplateText(a.TaskName()),
-			TaskDescription: workflowTemplateText(a.TaskDescription()),
-			DueDate:         a.DueDate(),
-			UserSource:      userSourceFromGen(a.UserSource(), a.UserTargeting()),
-			OnCreated:       microflowEventName(a.OnCreatedEvent()),
-			Page:            taskPageName(a.TaskPage()),
+			IsMulti:               true,
+			TaskName:              workflowTemplateText(a.TaskName()),
+			TaskDescription:       workflowTemplateText(a.TaskDescription()),
+			TaskNameParams:        workflowTemplateParams(a.TaskName()),
+			TaskDescriptionParams: workflowTemplateParams(a.TaskDescription()),
+			DueDate:               a.DueDate(),
+			UserSource:            userSourceFromGen(a.UserSource(), a.UserTargeting()),
+			OnCreated:             microflowEventName(a.OnCreatedEvent()),
+			Page:                  taskPageName(a.TaskPage()),
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$MultiUserTaskActivity")
+		t.AutoAssignSingleTargetUser = a.AutoAssignSingleTargetUser()
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
 		t.Outcomes = userTaskOutcomesFromGen(a.OutcomesItems())
 		t.AwaitAllUsers = a.AwaitAllUsers()
@@ -245,6 +257,7 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 		}
 		setWfBase(&t.BaseWorkflowActivity, a.ID(), a.Name(), a.Caption(), a.Annotation(), "Workflows$CallWorkflowActivity")
 		t.BoundaryEvents = boundaryEventsFromGen(a.BoundaryEventsItems())
+		t.ParameterMappings = workflowParamMappingsFromGen(a.ParameterMappingsItems())
 		return t
 	case *genWf.ExclusiveSplitActivity:
 		t := &workflows.ExclusiveSplitActivity{Expression: a.Expression()}
@@ -301,6 +314,10 @@ func workflowSimpleActivityFromGen(el element.Element) workflows.WorkflowActivit
 	case "Workflows$StartWorkflowActivity":
 		a := &workflows.StartWorkflowActivity{}
 		setBase(&a.BaseWorkflowActivity)
+		// The note Studio Pro shows on the start (ako/mxcli#1717).
+		if s, ok := el.(*genWf.StartWorkflowActivity); ok {
+			a.Annotation = annotationText(s.Annotation())
+		}
 		return a
 	case "Workflows$EndWorkflowActivity":
 		a := &workflows.EndWorkflowActivity{}
@@ -349,6 +366,9 @@ func workflowSimpleActivityFromGen(el element.Element) workflows.WorkflowActivit
 			setBase(&a.BaseWorkflowActivity)
 			if timer {
 				a.FirstExecutionTime = genWf.RawFieldString(raw, "FirstExecutionTime")
+				if child, err := codec.DecodeChild(raw, "Recurrence"); err == nil {
+					a.Recurrence = recurrenceFromGen(child)
+				}
 			}
 			return a
 		}
@@ -391,6 +411,28 @@ func microflowParamMappingsFromGen(items []element.Element) []*workflows.Paramet
 	var out []*workflows.ParameterMapping
 	for _, el := range items {
 		pm, ok := el.(*genWf.MicroflowCallParameterMapping)
+		if !ok {
+			continue
+		}
+		m := &workflows.ParameterMapping{
+			Parameter:  pm.ParameterQualifiedName(),
+			Expression: pm.Expression(),
+		}
+		m.ID = model.ID(pm.ID())
+		out = append(out, m)
+	}
+	return out
+}
+
+// workflowParamMappingsFromGen is the call-workflow twin of
+// microflowParamMappingsFromGen. Without it DESCRIBE printed a bare
+// `call workflow M.WF_Child;` for a call that maps an association path, and
+// re-executing that output let autoBindCallWorkflow write the default
+// `$WorkflowContext` mapping in its place (mendixlabs/mxcli#1531).
+func workflowParamMappingsFromGen(items []element.Element) []*workflows.ParameterMapping {
+	var out []*workflows.ParameterMapping
+	for _, el := range items {
+		pm, ok := el.(*genWf.WorkflowCallParameterMapping)
 		if !ok {
 			continue
 		}
@@ -452,6 +494,8 @@ func userSourceFromGen(source, targeting element.Element) workflows.UserSource {
 		return &workflows.XPathBasedUserSource{XPath: s.XPathConstraint()}
 	case *genWf.XPathUserTargeting:
 		return &workflows.XPathBasedUserSource{XPath: s.XPathConstraint()}
+	case *genWf.XPathGroupTargeting:
+		return &workflows.XPathGroupSource{XPath: s.XPathConstraint()}
 	default:
 		return &workflows.NoUserSource{}
 	}
@@ -507,6 +551,23 @@ func workflowTemplateText(el element.Element) string {
 		return st.Text()
 	}
 	return ""
+}
+
+// workflowTemplateParams is the expressions filling a workflow text's {1},
+// {2}, … in order. The stored Microflows$TemplateParameter decodes as gen's
+// TemplateArgument, whose storage name it is.
+func workflowTemplateParams(el element.Element) []string {
+	st, ok := el.(*genMf.StringTemplate)
+	if !ok || st == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range st.ArgumentsItems() {
+		if ta, ok := a.(*genMf.TemplateArgument); ok && ta != nil {
+			out = append(out, ta.Expression())
+		}
+	}
+	return out
 }
 
 // setWfBase fills a semantic BaseWorkflowActivity from common gen accessors.
@@ -577,11 +638,12 @@ func boundaryEventFromGen(el element.Element) *workflows.BoundaryEvent {
 	if be.TimerDelay == "" {
 		be.TimerDelay = t.Delay()
 	}
-	switch el.(type) {
+	switch ni := el.(type) {
 	case *genWf.InterruptingTimerBoundaryEvent:
 		be.EventType = "InterruptingTimer"
 	case *genWf.NonInterruptingTimerBoundaryEvent:
 		be.EventType = "NonInterruptingTimer"
+		be.Recurrence = recurrenceFromGen(ni.Recurrence())
 	case *genWf.TimerBoundaryEvent:
 		be.EventType = "Timer"
 	default:
@@ -591,4 +653,14 @@ func boundaryEventFromGen(el element.Element) *workflows.BoundaryEvent {
 		be.Flow = workflowFlowFromGen(f)
 	}
 	return be
+}
+
+// recurrenceFromGen reads a stored Workflows$LinearRecurrence; nil for none
+// (ako/mxcli#1716).
+func recurrenceFromGen(el element.Element) *workflows.Recurrence {
+	lr, ok := el.(*genWf.LinearRecurrence)
+	if !ok || lr == nil {
+		return nil
+	}
+	return &workflows.Recurrence{IntervalType: lr.IntervalType(), Interval: int(lr.Interval()), MaxExecutions: int(lr.MaxExecutions())}
 }

@@ -3,9 +3,10 @@
 package executor
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 )
@@ -113,7 +114,7 @@ func findImportedServiceDoc(b backend.FullBackend, qualifiedName string) []byte 
 // different name in it.
 func serviceNameFromImportedService(contents []byte, operationName string) string {
 	var doc map[string]any
-	if err := bson.Unmarshal(contents, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &doc); err != nil {
 		return ""
 	}
 	services := typedArrayElements(docLookup(doc["Description"], "Services"))
@@ -156,7 +157,7 @@ func resolveWebServiceOperationElement(b backend.FullBackend, qualifiedName, ope
 		return ""
 	}
 	var doc map[string]any
-	if err := bson.Unmarshal(matched, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(matched, &doc); err != nil {
 		return ""
 	}
 	for _, svc := range typedArrayElements(docLookup(doc["Description"], "Services")) {
@@ -336,7 +337,7 @@ func resolveImportMappingEntity(b backend.FullBackend, qualifiedName string) str
 // structure rather than to the result.
 func rootMappingEntity(contents []byte) string {
 	var doc map[string]any
-	if err := bson.Unmarshal(contents, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(contents, &doc); err != nil {
 		return ""
 	}
 	for _, el := range typedArrayElements(doc["Elements"]) {

@@ -1,0 +1,38 @@
+mdl 1;
+-- ako/mxcli#1674 — MOVE ENUMERATION to another module left every reference
+-- outside the domain models naming the old module.
+--
+-- execMove returned from the enumeration case before the cross-module reference
+-- sweep that every other document's move runs; moveEnumeration itself updated
+-- only domain-model attribute types. The move reported success, and mx check
+-- then reported CE1613 at the parameter, the variable's type and value, the end
+-- event and the return type:
+--
+--   [error] [CE1613] "The selected enumeration 'Bug1674A.Status' no longer exists." at Parameter 'In'
+--   [error] [CE1613] "The selected enumeration value 'Bug1674A.Status.Open' no longer exists." at Create variable activity
+--
+--   mxcli exec mdl-examples/bug-tests/move-1674-enumeration-cross-module.mdl -p app.mpr
+--   mx check app.mpr
+--   mxcli -p app.mpr -c "describe microflow Bug1674A.UseStatus"
+--
+-- Expected: 0 errors; describe names Bug1674B.Status throughout, and the move
+-- prints "Updated references in 1 document(s)". The entity attribute was always
+-- updated. An enumeration value inside a LONGER expression ($In = X.Open or …)
+-- is rewritten by the expression-aware sweep of ako/mxcli#1671.
+
+create module if not exists Bug1674A;
+create module if not exists Bug1674B;
+
+create or modify enumeration Bug1674A.Status (Open 'Open', Closed 'Closed');
+create or modify persistent entity Bug1674A.Order (Number: String(20), State: enum Bug1674A.Status);
+
+create or modify microflow Bug1674A.UseStatus ($In: enum Bug1674A.Status) returns enum Bug1674A.Status
+begin
+  declare $S enum Bug1674A.Status = Bug1674A.Status.Open;
+  if $In = empty then
+    return Bug1674A.Status.Closed;
+  end if;
+  return $S;
+end;
+
+move enumeration Bug1674A.Status to Bug1674B;

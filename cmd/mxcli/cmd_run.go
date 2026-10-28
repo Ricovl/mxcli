@@ -99,7 +99,9 @@ console exporter omits timestamps and parent span IDs, so for flame charts pass
 instead. Use --runtime-setting Key=Value (repeatable) to merge any other runtime setting into
 the boot config (the admin config action replaces rather than merges, so mxcli
 folds these into its single boot call), e.g. a different Metrics.Registries type or
-custom OpenTelemetry span filters.
+custom OpenTelemetry span filters. Scheduled events run (ScheduledEventExecution=ALL,
+where the runtime's own default is NONE); --runtime-setting ScheduledEventExecution=NONE
+turns them off.
 
 Examples:
   mxcli run --local -p app.mpr
@@ -157,6 +159,14 @@ Examples:
 		watch, _ := cmd.Flags().GetBool("watch")
 		setupOnly, _ := cmd.Flags().GetBool("setup")
 
+		// Refused here, before --detach and before the build, rather than as a
+		// bind failure in the runtime log minutes later.
+		listenAddr, _ := cmd.Flags().GetString("listen-addr")
+		if err := docker.ValidateListenAddr(listenAddr); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
 		// --detach: start this same command as a background service and return
 		// once its app is serving, or its boot failed. The child is told it is
 		// the child, so it runs the loop rather than detaching again.
@@ -193,6 +203,8 @@ Examples:
 		dbName, _ := cmd.Flags().GetString("db-name")
 		dbUser, _ := cmd.Flags().GetString("db-user")
 		dbPassword, _ := cmd.Flags().GetString("db-password")
+		dbAdminUser, _ := cmd.Flags().GetString("db-admin-user")
+		dbAdminPassword, _ := cmd.Flags().GetString("db-admin-password")
 		screenshot, _ := cmd.Flags().GetBool("screenshot")
 		pageCheck, _ := cmd.Flags().GetBool("page-check")
 		screenshotPath, _ := cmd.Flags().GetString("screenshot-path")
@@ -228,10 +240,12 @@ Examples:
 			os.Exit(1)
 		}
 		reportConstantChain(os.Stdout, overrides)
+		reportJVMArgs(os.Stdout, overrides)
 
 		opts := docker.LocalRunOptions{
 			ProjectPath:        projectPath,
 			ConstantOverrides:  overrides.Values,
+			JVMArgs:            overrides.JVMArgs,
 			Hub:                hub,
 			HubSecret:          hubSecret,
 			HubKey:             hubKey,
@@ -244,6 +258,7 @@ Examples:
 			AppPort:            appPort,
 			AdminPort:          adminPort,
 			ServePort:          servePort,
+			ListenAddr:         listenAddr,
 			MxBuildPath:        mxbuildPath,
 			Watch:              watch,
 			WebClientTimeout:   webClientTimeout,
@@ -264,11 +279,13 @@ Examples:
 			TraceService:       traceService,
 			TraceOTLP:          traceOTLP,
 			DB: docker.DBConfig{
-				Type:     dbType,
-				Host:     dbHost,
-				Name:     dbName,
-				User:     dbUser,
-				Password: dbPassword,
+				Type:          dbType,
+				Host:          dbHost,
+				Name:          dbName,
+				User:          dbUser,
+				Password:      dbPassword,
+				AdminUser:     dbAdminUser,
+				AdminPassword: dbAdminPassword,
 			},
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
@@ -325,7 +342,12 @@ Examples:
 				fmt.Fprintf(os.Stderr, "Warning: could not publish the dev-loop handshake: %v\n", err)
 			}
 		}
-		defer removeDevLoopHandshake(projectPath)
+		// Withdrawn only by this process, and only if it published one: a
+		// `--setup` run (the SessionStart hook, on every resume and compaction)
+		// used to delete the handshake of the detached run serving the app
+		// (ako/mxcli#1542). The deferred call covers a panic; the normal paths
+		// withdraw right after recording the end in the run state, below.
+		defer withdrawDevLoopHandshake(projectPath, os.Getpid())
 
 		// Publish the run's state for `mxcli run status/wait/stop` — for a
 		// foreground run too, so another terminal (or an agent) can manage it.
@@ -346,12 +368,16 @@ Examples:
 		}
 
 		err = docker.RunLocal(opts)
+		// One moment, two files: the run state says stopped (with the reason, when
+		// the runtime stopped on its own) before the handshake disappears, so a
+		// caller that finds run-local.json gone finds the explanation in `run
+		// status` (ako/mxcli#1542).
 		state.Exit(err)
+		withdrawDevLoopHandshake(projectPath, os.Getpid())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			// os.Exit skips deferred calls, so remove explicitly here.
 			hosted.Remove()
-			removeDevLoopHandshake(projectPath)
 			os.Exit(1)
 		}
 	},
@@ -379,6 +405,7 @@ func init() {
 	runCmd.Flags().Bool("setup", false, "Prepare prerequisites (cache MxBuild+runtime, ensure DB) and exit without booting — for a SessionStart hook")
 	runCmd.Flags().Int("app-port", 0, "HTTP port for the app (default 8080)")
 	runCmd.Flags().Int("admin-port", 0, "M2EE admin API port (default 8090)")
+	runCmd.Flags().String("listen-addr", "", "Address the app binds to (default 127.0.0.1, loopback only). Must be an IP address. Set 0.0.0.0 (or :: for IPv6 too) to reach the app from other machines on the network; the URLs it is reachable at are printed once it runs. If the app builds absolute URLs (SSO redirects, links in emails), pair it with a reachable root URL — an ApplicationRootUrl naming a real host in the model, or --runtime-setting ApplicationRootUrl=http://<host>:<port>/ — because the runtime does not derive one from this address (a warning says so). The M2EE admin API is unaffected and always stays on 127.0.0.1.")
 	runCmd.Flags().Int("serve-port", 0, "mxbuild --serve port (default 6543)")
 	runCmd.Flags().String("mxbuild-path", "", "Path to the mxbuild to build with, overriding resolution (Studio Pro's bundled mxbuild on macOS/Windows, the cached CDN download on Linux)")
 	runCmd.Flags().String("db-type", "", "Database type for a local run: postgresql (default) or hsqldb (the runtime's built-in file database — no server, no --db-host/--db-user/--db-password, data under <project>/deployment/data/database/hsqldb/)")
@@ -386,6 +413,8 @@ func init() {
 	runCmd.Flags().String("db-name", "", "Database name (default derived from the project name)")
 	runCmd.Flags().String("db-user", "", "Database user (default mendix)")
 	runCmd.Flags().String("db-password", "", "Database password (default mendix)")
+	runCmd.Flags().String("db-admin-user", "", "PostgreSQL superuser --ensure-db creates the role and database with, when it has a password (e.g. every Windows install). Default postgres when --db-admin-password is given")
+	runCmd.Flags().String("db-admin-password", "", "Password for --db-admin-user, used only by --ensure-db and never passed to the runtime. PGPASSWORD or a .pgpass file for postgres works too, and keeps it off the command line")
 	runCmd.Flags().Bool("screenshot", false, "Capture a Playwright screenshot after boot and each applied change")
 	runCmd.Flags().Bool("page-check", false, "Print a text verdict for each page (title, headings, error banners, row count, console errors) instead of reading a screenshot — far cheaper, and it reports console errors a PNG cannot show")
 	runCmd.Flags().String("screenshot-path", "", "Screenshot output PNG (default <projectDir>/.mxcli/run-local.png)")

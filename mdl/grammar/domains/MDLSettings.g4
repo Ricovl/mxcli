@@ -599,6 +599,13 @@ annotationParamName
     | POSITION    // the note's own place on the canvas, distinct from the
                   // @position of the activity it documents
     | TEXT
+    // @anchor(A: (from: right), (empty): (from: bottom)) on a CASE: one outcome,
+    // keyed by its WHEN value. A value can be a lexer keyword (`Open`) or the
+    // empty value, so both are keys here; without them the parameter fell
+    // through to the positional form and was refused (mendixlabs/mxcli#1587).
+    | LPAREN EMPTY RPAREN
+    | QUOTED_IDENTIFIER
+    | keyword
     ;
 
 annotationValue
@@ -658,9 +665,10 @@ keyword
     // Agent editor
     | AGENT | AGENTS | KNOWLEDGE | BASES | CONSUMED | MCP | TOOL
 
-    // Workflow multi-user task completion — words, so still usable as names
+    // Workflow user task settings — words, so still usable as names
     | DECIDE | CONSENSUS | MAJORITY | MORE_KW | THAN | HALF | MOST | CHOSEN | THRESHOLD
-    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT
+    | PERCENT_KW | VOTES | VETO | FALLBACK | PARTICIPANTS | AWAIT | AUTO | ASSIGN
+    | REPEAT | EVERY | TIMES
 
     // Microflow / Nanoflow
     | MICROFLOW | MICROFLOWS | NANOFLOW | NANOFLOWS
@@ -714,7 +722,7 @@ keyword
     // Layout structure. SCROLLREGION is spelled `region`, an ordinary enough
     // word that leaving it out of this rule would make `region` unusable as an
     // attribute or widget name anywhere in MDL.
-    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR
+    | SCROLLCONTAINER | SCROLLREGION | NAVIGATIONTREE | MENUBAR | SIMPLEMENUBAR | SIDEBARTOGGLE | LAYOUTHEADER
     // Object-list container keywords for pluggable widgets (#538)
     | GROUP | CUSTOMITEM | MARKER | DYNAMICMARKER | SERIES | LINE | SCALECOLOR
     | CUSTOMBUTTON | ALLOWEDFILEFORMAT
@@ -767,17 +775,21 @@ keyword
     // that word — which is what TestKeywordRuleCoverage exists to catch.
     | SYNC | ONLINE | NEVER | PRESERVE
 
-    // Log levels
-    | CRITICAL | DEBUG | ERROR | INFO | SUCCESS | WARNING
+    // Log levels, and the log activity's `with stacktrace`. STACKTRACE has to
+    // stay a name: System.Error's attribute is `$latestError/Stacktrace`.
+    | CRITICAL | DEBUG | ERROR | INFO | STACKTRACE | SUCCESS | WARNING
 
     // OData / REST / API
     | API | SAMPLE | BASE | BODY | CHANNELS | CLIENT | CLIENTS | CONTRACT | OPENAPI
     | DEPRECATED | EXPOSE | EXPOSED | EXTERNAL | HEADERS | JSON
+    // A Java action's `extra code $$ … $$`. CODE has to stay a name: `Code` is
+    // one of the most common attribute names there is.
+    | EXTRA | CODE
     | MAP | MAPPING | MAPPINGS | MESSAGES | METHOD | NAMESPACE_KW
     | NOT_SUPPORTED | ODATA | OAUTH | OPERATION | PAGING
     | PARAMETER | PARAMETERS | PATH | PLATFORM | PUBLISH | PUBLISHED
     | RAW | RECEIVE | REQUEST | RESOURCE | RESPONSE | REST | SEND | SERVICE | SERVICES
-    | SOURCE_KW | TIMEOUT | VERSION | WEB | XML
+    | SOURCE_KW | TIMEOUT | VERSION | WEB | PROGRESSIVE | XML
     | FILE_KW | LINK | DYNAMIC
     | EMAIL
 
@@ -812,7 +824,7 @@ keyword
     | AFTER | BEFORE | DEFINE | FRAGMENT | FRAGMENTS | SLOT
 
     // General-purpose words (only tokens not already listed above)
-    | ACTION | BLOCKING | BOTH | CONTEXT | DATA | FORMAT | ITEM | LIST
+    | ACTION | BLOCKING | BOTH | CELL | CONTEXT | DATA | FORMAT | ITEM | LIST
     | DEFINITION | DEFINITIONS | IGNORE | MESSAGE | MOD | DIV | MULTIPLE | NONE | OBJECT | OBJECTS
     | OVERRIDABLE | ROOT
     | SINGLE | SQL | TEMPLATE | TEXT | TYPE | VALUE

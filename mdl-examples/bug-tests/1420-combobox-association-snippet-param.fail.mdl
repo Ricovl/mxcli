@@ -1,0 +1,27 @@
+-- mendixlabs/mxcli#1420: a combo box in association mode with no object for the
+-- association to start from.
+--
+-- NEGATIVE TEST (.fail.mdl) — this script is EXPECTED to fail `mxcli check`.
+-- `make check-mdl` inverts the exit code for .fail.mdl files.
+--
+-- Before the fix it passed check and exec, and mx check (11.6.6) reported
+-- [CE7007] "Selected value is not valid for entity 'Asset_Customer/Customer'."
+-- Expected now: MDL-WIDGET46 on combobox `x`, naming CE7007 and the spelling
+-- that builds (`Attribute: $Asset.Bug1420F.Asset_Customer`, see
+-- 1420-combobox-association-snippet-param.mdl).
+
+create module Bug1420F;
+
+create persistent entity Bug1420F.Customer ( CustomerName: String(200) );
+create persistent entity Bug1420F.Asset ( Code: String(100) );
+create association Bug1420F.Asset_Customer from Bug1420F.Asset to Bug1420F.Customer;
+
+create or modify snippet Bug1420F.SN_Asset
+( Params: ( $Asset: Bug1420F.Asset ) )
+{
+  combobox x (
+    Association: Bug1420F.Asset_Customer,
+    DataSource: database from Bug1420F.Customer,
+    CaptionAttribute: CustomerName
+  )
+};

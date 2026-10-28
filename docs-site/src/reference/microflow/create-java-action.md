@@ -4,9 +4,10 @@
 
 ```sql
 CREATE [ OR MODIFY ] JAVA ACTION module.Name [ < T [, ...] > ] [ FOLDER 'folder_path' ] ( parameters )
-    RETURNS type
+    RETURNS type [ AS $return_name ]
     [ EXPOSED AS 'caption' IN 'category' ]
     AS $$ java_code $$
+    [ EXTRA CODE $$ helper_code $$ ]
 
 DROP JAVA ACTION module.Name;
 ```
@@ -27,6 +28,38 @@ Java actions support generic entity handling through type parameters. A paramete
 
 A type parameter that no `ENTITY <T>` parameter names -- one bound by the object the caller passes in -- is declared in the header after the action name: `module.Name<T>`. The header also fixes the order of the type parameters when it differs from the order the `ENTITY <T>` parameters would give. An unqualified type that is neither a declared type parameter nor `Microflow`/`Nanoflow` is refused (`MDL-JA01`): it would be written as an entity with no module, which Mendix reports as CE1613.
 
+### Parameter Descriptions and the Return Value Name
+
+A parameter's description is a `/** ... */` doc comment written before it -- the
+same form an entity attribute's documentation takes. `RETURNS type AS $Name`
+names the return value: the default name of the variable a microflow call stores
+the result in, as `RETURNS type AS $Name` does on a microflow. Both are what Studio
+Pro shows when a modeler drags the action into a microflow, and what `DESCRIBE JAVA
+ACTION` prints.
+
+On `CREATE OR MODIFY`, leaving either out keeps what is stored; an empty `/** */`
+clears a description. A new action gets no descriptions and the return value name
+`ReturnValueName`, as in Studio Pro.
+
+### The Java Source File
+
+The statement writes `javasource/<module>/actions/<Name>.java` the way mxbuild
+generates it, byte for byte, so the next build leaves it unchanged. The action's
+documentation -- the `/** ... */` before `CREATE` -- is the class javadoc above
+`public class`; a rewrite without one keeps the stored documentation, in the model
+and in the file. (Before ako/mxcli#1700 the file had no javadoc, so every rewrite
+removed the one a build had written and the next build put it back.)
+
+Studio Pro keeps three parts of the file when it regenerates it, and the statement
+states all three: the code between `BEGIN USER CODE` and `END USER CODE` is the
+`AS $$ ... $$` body; an `import` line in the body goes to the file's import list;
+and `EXTRA CODE $$ ... $$` is the section between `BEGIN EXTRA CODE` and
+`END EXTRA CODE` -- helper methods, constants and nested classes the body calls.
+On `CREATE OR MODIFY` an omitted `EXTRA CODE` keeps the stored section, as an
+omitted `EXPOSED AS` keeps the toolbox entry; `EXTRA CODE $$ $$` clears it.
+`DESCRIBE JAVA ACTION` prints the imports a developer added and the section, so
+executing its output on another project rebuilds the same file (ako/mxcli#1702).
+
 ### Exposed Actions
 
 The optional `EXPOSED AS` clause makes the action visible in the Studio Pro toolbox under the specified category, allowing modelers to use it directly in microflows.
@@ -43,7 +76,7 @@ The optional `EXPOSED AS` clause makes the action visible in the Studio Pro tool
 :   Optional. Places the document in the named module folder, creating missing folders in the path. On `CREATE OR MODIFY` this **moves** an existing document; omitting the clause leaves placement alone rather than returning the document to the module root. See [MOVE](../organization/move.md).
 
 `parameters`
-:   Comma-separated parameter declarations. Each parameter has a name, colon, and type. Supported types:
+:   Comma-separated parameter declarations. Each parameter has an optional `/** description */`, a name, colon, and type. Supported types:
     - Primitives: `String`, `Integer`, `Long`, `Decimal`, `Boolean`, `DateTime`
     - Entity: `Module.EntityName`
     - List: `List of Module.EntityName`
@@ -56,11 +89,17 @@ The optional `EXPOSED AS` clause makes the action visible in the Studio Pro tool
 `RETURNS type`
 :   The return type. Same type options as parameters.
 
+`AS $return_name`
+:   Optional. The return value's name. Omitted, the stored name is kept (`ReturnValueName` on a new action).
+
 `EXPOSED AS 'caption' IN 'category'`
 :   Optional. Makes the action visible in the toolbox with the given caption and category.
 
 `AS $$ java_code $$`
-:   The Java code body, enclosed in `$$` delimiters. **Mandatory** — the body cannot be omitted.
+:   The Java code body, enclosed in `$$` delimiters. **Mandatory** — the body cannot be omitted. An `import` line in it goes to the file's import list.
+
+`EXTRA CODE $$ helper_code $$`
+:   Optional. The file's EXTRA CODE section, beside `executeAction()`. Omitted, the stored section is kept; empty, it is cleared.
 
 `OR MODIFY`
 :   Makes the statement idempotent. If the Java action already exists, updates its parameters, return type, exposed-as settings, and body. Without this clause, creating a duplicate Java action is an error.
@@ -78,6 +117,37 @@ AS $$
     java.text.NumberFormat formatter = java.text.NumberFormat.getCurrencyInstance();
     formatter.setCurrency(java.util.Currency.getInstance(CurrencyCode));
     return formatter.format(Amount);
+$$;
+```
+
+Java action with parameter descriptions and a named return value:
+
+```sql
+/** Converts text to upper case. */
+CREATE JAVA ACTION MyModule.JA_ToUpper (
+    /** The text to convert. */
+    Input: String NOT NULL
+) RETURNS String AS $UpperText
+AS $$
+    return Input.toUpperCase();
+$$;
+```
+
+Java action with a helper in the EXTRA CODE section, and the import it needs:
+
+```sql
+CREATE JAVA ACTION MyModule.JA_Twice (
+    N: Integer NOT NULL
+) RETURNS Integer
+AS $$
+    import java.util.Objects;
+
+    return twice(Objects.requireNonNull(N));
+$$
+EXTRA CODE $$
+private static long twice(long n) {
+	return n * 2L;
+}
 $$;
 ```
 

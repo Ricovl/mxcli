@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// Association storage formats, spelled as the model spells them
+// (domainmodel.StorageFormatColumn / StorageFormatTable). These are the only
+// two values AssocInfo.StorageFormat may hold.
+const (
+	StorageFormatColumn = "Column" // FK column on the owner entity's table
+	StorageFormatTable  = "Table"  // separate junction table
+)
+
 // AssocInfo holds resolved association metadata for an import LINK mapping.
 type AssocInfo struct {
 	// From the LINK clause
@@ -18,7 +26,7 @@ type AssocInfo struct {
 	// Resolved from MPR + system tables
 	AssociationName string // qualified name (e.g., "HR.Employee_Department")
 	ChildEntity     string // qualified name of child entity
-	StorageFormat   string // "Column" or "Table"
+	StorageFormat   string // StorageFormatColumn or StorageFormatTable
 
 	// Database names (from mendixsystem$association or conventions)
 	FKColumnName  string // Column storage: FK column in parent table
@@ -63,10 +71,63 @@ type AssocSystemInfo struct {
 	AssociationName string
 	TableName       string
 	ChildColumnName string
-	StorageFormat   string
+	StorageFormat   string // decoded: StorageFormatColumn or StorageFormatTable
+}
+
+// decodeStorageFormat normalises a mendixsystem$association.storage_format
+// value to StorageFormatColumn or StorageFormatTable.
+//
+// The runtime stores a smallint: 1 for a foreign-key column on the owner's
+// table, 2 for a junction table — measured on Mendix 10.24.24, 11.12.2, 11.13.0 and
+// 11.14.0 (ako/mxcli#1454). The decimal text of those numbers and the model's
+// own names are accepted as well, so a driver that returns the column as text,
+// or a value already in model form, decodes the same way. Anything else, NULL
+// included, is an error: a guess would write the link to the wrong place or —
+// as the string comparison this replaces did — nowhere at all, while the
+// import reported success.
+func decodeStorageFormat(raw any) (string, error) {
+	var n int64
+	switch v := raw.(type) {
+	case nil:
+		return "", fmt.Errorf("storage_format is NULL")
+	case int64:
+		n = v
+	case int32:
+		n = int64(v)
+	case int16:
+		n = int64(v)
+	case int:
+		n = int64(v)
+	case []byte:
+		return decodeStorageFormatText(string(v))
+	case string:
+		return decodeStorageFormatText(v)
+	default:
+		return "", fmt.Errorf("unrecognised storage_format %v (%T)", raw, raw)
+	}
+	switch n {
+	case 1:
+		return StorageFormatColumn, nil
+	case 2:
+		return StorageFormatTable, nil
+	}
+	return "", fmt.Errorf("unrecognised storage_format %d (expected 1 = column, 2 = junction table)", n)
+}
+
+func decodeStorageFormatText(s string) (string, error) {
+	switch t := strings.TrimSpace(s); {
+	case t == "1" || strings.EqualFold(t, StorageFormatColumn):
+		return StorageFormatColumn, nil
+	case t == "2" || strings.EqualFold(t, StorageFormatTable):
+		return StorageFormatTable, nil
+	}
+	return "", fmt.Errorf("unrecognised storage_format %q (expected 1 = column, 2 = junction table)", s)
 }
 
 // LookupAssociationInfo queries mendixsystem$association for the given association name.
+// It returns (nil, nil) when the association has no row (the app has not been
+// started since it was created), and an error when the row's storage format
+// cannot be decoded.
 func LookupAssociationInfo(ctx context.Context, conn *Connection, assocName string) (*AssocSystemInfo, error) {
 	query := `
 		SELECT association_name, table_name, child_column_name, storage_format
@@ -75,14 +136,21 @@ func LookupAssociationInfo(ctx context.Context, conn *Connection, assocName stri
 
 	var info AssocSystemInfo
 	var childCol sql.NullString
+	var rawFormat any
 	err := conn.DB.QueryRowContext(ctx, query, assocName).Scan(
-		&info.AssociationName, &info.TableName, &childCol, &info.StorageFormat)
+		&info.AssociationName, &info.TableName, &childCol, &rawFormat)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // not found — caller will fall back to conventions
 		}
 		return nil, fmt.Errorf("failed to query mendixsystem$association: %w", err)
 	}
+	format, err := decodeStorageFormat(rawFormat)
+	if err != nil {
+		return nil, fmt.Errorf("association %s in mendixsystem$association: %w; "+
+			"cannot tell whether it is stored as a column or a junction table, so nothing would be linked", assocName, err)
+	}
+	info.StorageFormat = format
 	info.ChildColumnName = childCol.String
 	return &info, nil
 }

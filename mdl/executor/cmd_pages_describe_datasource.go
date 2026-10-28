@@ -88,7 +88,11 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 	switch {
 	case dsType == dsTypeMicroflow:
 		if mf := microflowSourceRef(ds); mf != "" {
-			return &rawDataSource{Type: "microflow", Reference: mf, Args: flowSourceArgs(ds, "MicroflowSettings", mf)}
+			raw := &rawDataSource{Type: "microflow", Reference: mf, Args: flowSourceArgs(ds, "MicroflowSettings", mf)}
+			if settings, ok := ds["MicroflowSettings"].(map[string]any); ok {
+				raw.FormValidations = extractString(settings["FormValidations"])
+			}
+			return raw
 		}
 	case dsType == dsTypeNanoflow:
 		if nf := nanoflowSourceRef(ds); nf != "" {
@@ -104,7 +108,7 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		}
 	case dsType == dsTypeAssociation:
 		if path, ctxVar := associationSourcePath(ds); path != "" {
-			return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
+			return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar, Destination: associationSourceDestination(ds)}
 		}
 	case dsType == dsTypeCustomWidgetDatabase:
 		if got := parseCustomWidgetDatabaseSource(ds); got != nil {
@@ -118,22 +122,23 @@ func parseDataSource(ds map[string]any) *rawDataSource {
 		if got := parseEntitySource(ds); got != nil {
 			return got
 		}
-		// A List View's database source reached over an association from a
-		// context object. It is still a database retrieve — XPath, sort bar and
-		// search bar included — so it must not fall through to the association
-		// reading below, whose spelling executes as a Forms$AssociationSource
-		// and drops all three (ako/mxcli#721 L5). Only the List View source is
-		// known to mean this; the pluggable XPath source keeps the #941 reading.
-		if dsType == dsTypeListViewXPath {
+		// A database source reached over an association from a context object.
+		// It is still a database retrieve — XPath and sort bar included, and a
+		// List View's search bar — so it must not fall through to the
+		// association reading below, whose spelling executes as a
+		// Forms$AssociationSource and drops all three: a List View's
+		// (ako/mxcli#721 L5), and a Gallery's or Data grid 2's "Database"
+		// source, stored as a CustomWidgetXPathSource with the same
+		// IndirectEntityRef (mendixlabs/mxcli#1599).
+		if dsType == dsTypeListViewXPath || dsType == dsTypeCustomWidgetXPath {
 			if got := parseEntityPathSource(ds); got != nil {
 				return got
 			}
 		}
-		// An entity-backed source with no entity is really a context source:
-		// Studio Pro stores a pluggable list bound over an association or to a
-		// page parameter as an XPath source whose EntityRef is empty and whose
-		// navigation lives in Steps / SourceVariable / EntityPath. Reading only
-		// EntityRef produced `database from ` with an empty slot (#941).
+		// A context source: an XPath source whose navigation lives in
+		// SourceVariable / EntityPath, or whose hops lack a stored destination
+		// and so cannot be spelled as a database path. Reading only EntityRef
+		// produced `database from ` with an empty slot (#941).
 		if got := parseContextSource(ds); got != nil {
 			return got
 		}
@@ -325,22 +330,40 @@ func entityPathExpr(ds *rawDataSource) string {
 	return strings.Join(parts, "/")
 }
 
+// parameterSourceEntity is the entity a parameter source stores beside the
+// parameter's name (a DirectEntityRef), "" when it stores none.
+func parameterSourceEntity(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || extractString(entityRef["$Type"]) != "DomainModels$DirectEntityRef" {
+		return ""
+	}
+	return extractString(entityRef["Entity"])
+}
+
+// sourceParameterNames returns the page and snippet parameter a data source is
+// bound to. From Mendix 10.0 they are in its SourceVariable (a
+// Forms$PageVariable); before, a data view source stored the names on itself,
+// as Studio Pro 9.24.30 writes them (ako/mxcli#1209).
+func sourceParameterNames(ds map[string]any) (page, snippet string) {
+	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
+		return extractString(sv["PageParameter"]), extractString(sv["SnippetParameter"])
+	}
+	return extractString(ds["PageParameter"]), extractString(ds["SnippetParameter"])
+}
+
 // parseContextSource reads the "data from context" forms: over an association,
 // or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
 	if path, ctxVar := associationSourcePath(ds); path != "" {
-		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar}
+		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar, Destination: associationSourceDestination(ds)}
 	}
-	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
-		if param := extractString(sv["PageParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param}
-		}
-		// Inside a snippet the parameter has its own slot, PageParameter left
-		// empty; reading PageParameter alone described the data view with no
-		// DataSource, and re-executing that dropped the binding.
-		if param := extractString(sv["SnippetParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param}
-		}
+	// Inside a snippet the parameter has its own slot, PageParameter left
+	// empty; reading PageParameter alone described the data view with no
+	// DataSource, and re-executing that dropped the binding.
+	if page, snippet := sourceParameterNames(ds); page != "" {
+		return &rawDataSource{Type: "parameter", Reference: page, Destination: parameterSourceEntity(ds)}
+	} else if snippet != "" {
+		return &rawDataSource{Type: "parameter", Reference: snippet, Destination: parameterSourceEntity(ds)}
 	}
 	if entityPath := extractString(ds["EntityPath"]); entityPath != "" {
 		return &rawDataSource{Type: "parameter", Reference: entityPath}
@@ -491,6 +514,9 @@ func dataSourceExpr(ctx *ExecContext, ds *rawDataSource) string {
 				parts = append(parts, visitor.ParameterNameSpelling(arg.Name)+" = "+arg.Value)
 			}
 			expr += "(" + strings.Join(parts, ", ") + ")"
+		}
+		if ds.FormValidations != "" && ds.FormValidations != "All" {
+			expr += " with (FormValidations: " + ds.FormValidations + ")"
 		}
 		return expr
 	case "parameter":
@@ -680,7 +706,7 @@ func flowSourceArgs(ds map[string]any, settingsKey, flowName string) []rawDataSo
 		}
 		value := strings.TrimSpace(extractString(mapping["Expression"]))
 		if value == "" {
-			value = pageVariableArgValue(mapping["Variable"])
+			value = flowArgVariableValue(mapping["Variable"])
 		}
 		if value == "" {
 			// A pre-#1140 document, or another writer, may have put the bare

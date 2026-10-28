@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,8 +13,6 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // checkNoDroppedWorkflowConstructs refuses a CREATE OR REPLACE/MODIFY WORKFLOW
@@ -55,6 +54,7 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 		cannotExpress = append(cannotExpress, fmt.Sprintf("%d event sub-process(es) with no start event, which it would delete", n))
 	}
 	cannotExpress = append(cannotExpress, studioProOnlyWorkflowState(raw)...)
+	cannotExpress = append(cannotExpress, rawUnstatableWorkflowState(raw)...)
 	if len(cannotExpress) > 0 {
 		return mdlerrors.NewUnsupported(fmt.Sprintf(
 			"workflow %s holds state MDL cannot express, and rewriting it would delete or reset it silently:\n  - %s\n"+
@@ -144,13 +144,26 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 		}
 	}
 
+	// "Auto-assign when targeting results in one user" on either task kind. Every
+	// rebuild wrote it off until `auto assign single user` existed (#1445), and an
+	// omitted clause still means off, so a stored `true` must be restated.
+	if stored, authored := rawAutoAssignTasks(raw), countAuthoredAutoAssign(authoredActs); len(stored) > authored {
+		return mdlerrors.NewUnsupported(fmt.Sprintf(
+			"workflow %s has %d user task(s) that auto-assign when targeting results in one user but this statement "+
+				"declares %d — rewriting it would turn auto-assign off for the difference:\n  - %s\n"+
+				"  Restate them (`auto assign single user`), which `describe workflow %s` now emits, or use ALTER "+
+				"WORKFLOW to change one activity at a time.",
+			qualifiedName, len(stored), authored, strings.Join(stored, "\n  - "), qualifiedName))
+	}
+
 	// Ends inside branches. MDL could not state one until `end workflow`, and
 	// describe dropped them, so a rewrite from an older describe output would
 	// delete every one — and a branch that ended the workflow would silently
 	// fall through into the main flow instead. The main flow's own End is not
-	// counted: the builder always writes it.
+	// counted when it is stored: below Mendix 11.3 it is not, and subtracting
+	// it regardless hid one branch End (ako/mxcli#1754).
 	// An event sub-process's closing End is implicit too, like the main flow's.
-	if storedEnds := countRawWorkflowNodesExact(raw, "Workflows$EndWorkflowActivity") - 1 - rawImplicitSubProcessEnds(raw); storedEnds > 0 {
+	if storedEnds := countRawWorkflowNodesExact(raw, "Workflows$EndWorkflowActivity") - rawMainFlowEnd(raw) - rawImplicitSubProcessEnds(raw); storedEnds > 0 {
 		if authored := countAuthoredEnds(authoredActs); authored < storedEnds {
 			return mdlerrors.NewUnsupported(fmt.Sprintf(
 				"workflow %s has %d stored `end workflow` inside its branches but this statement declares %d — "+
@@ -246,14 +259,7 @@ func countRawWorkflowNodes(v any, marker string) int {
 func countAuthoredBoundaryEvents(activities []ast.WorkflowActivityNode) int {
 	n := 0
 	walkWorkflowActivities(activities, func(act ast.WorkflowActivityNode) {
-		switch a := act.(type) {
-		case *ast.WorkflowUserTaskNode:
-			n += len(a.BoundaryEvents)
-		case *ast.WorkflowCallMicroflowNode:
-			n += len(a.BoundaryEvents)
-		case *ast.WorkflowWaitForNotificationNode:
-			n += len(a.BoundaryEvents)
-		}
+		n += len(workflowActivityBoundaryEvents(act))
 	})
 	return n
 }
@@ -392,7 +398,41 @@ func rawReplaceLosses(d map[string]any, replacement ast.WorkflowActivityNode) []
 	if rawAwaitsAllUsers(d) && (!isMulti || !mut.AwaitAllUsers) {
 		out = append(out, "it waits for all users, which the replacement does not restate (add `await all users`)")
 	}
+	if rawAutoAssigns(d) && (mut == nil || !mut.AutoAssign) {
+		out = append(out, "it auto-assigns when targeting results in one user, which the replacement does not restate (add `auto assign single user`)")
+	}
 	return out
+}
+
+func rawAutoAssigns(d map[string]any) bool {
+	on, _ := d["AutoAssignSingleTargetUser"].(bool)
+	return on
+}
+
+// rawAutoAssignTasks labels every stored user task, single or multi, that
+// auto-assigns when its targeting yields one user.
+func rawAutoAssignTasks(raw map[string]any) []string {
+	var out []string
+	walkRawDocs(raw, func(d map[string]any) {
+		switch t, _ := d["$Type"].(string); t {
+		case "Workflows$SingleUserTaskActivity", "Workflows$MultiUserTaskActivity", "Workflows$UserTask":
+			if rawAutoAssigns(d) {
+				name, _ := d["Name"].(string)
+				out = append(out, fmt.Sprintf("user task '%s' auto-assigns a single targeted user", name))
+			}
+		}
+	})
+	return out
+}
+
+func countAuthoredAutoAssign(activities []ast.WorkflowActivityNode) int {
+	n := 0
+	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
+		if t, ok := a.(*ast.WorkflowUserTaskNode); ok && t.AutoAssign {
+			n++
+		}
+	})
+	return n
 }
 
 // validateAlterReplaceKeepsStudioProState refuses REPLACE ACTIVITY on an activity
@@ -430,6 +470,7 @@ func validateAlterReplaceKeepsStudioProState(ctx *ExecContext, s *ast.AlterWorkf
 			if n, _ := d["Name"].(string); n != "" && n == act.GetName() {
 				repl := replacementFor(o.NewActivities, n)
 				reasons = append(reasons, rawReplaceLosses(d, repl)...)
+				reasons = append(reasons, rawUnstatableActivityState(d)...)
 				if mf := rawOnCreatedMicroflow(d); mf != "" && !restatesOnCreated(repl) {
 					reasons = append(reasons, fmt.Sprintf(
 						"it runs on-created microflow %s, which the replacement does not restate (add `on created microflow %s`)", mf, mf))
@@ -541,7 +582,7 @@ func restatesOnCreated(act ast.WorkflowActivityNode) bool {
 // plainRawUnit returns a copy of a stored unit with every array and document in
 // the plain []any / map[string]any shape the guards in this file walk.
 //
-// The legacy engine decodes a unit's arrays as primitive.A — measured on a
+// The legacy engine decodes a unit's arrays as bson.A — measured on a
 // workflow it wrote: OnWorkflowEvent and Flow.Activities both — and a type switch
 // on []any does not match that named type. So on the legacy engine every guard
 // here saw no list at all, and allowed each rewrite it exists to refuse (stored
@@ -562,9 +603,9 @@ func plainRawValue(v any) any {
 			m[k] = plainRawValue(e)
 		}
 		return m
-	case primitive.M:
+	case bson.M:
 		return plainRawValue(map[string]any(t))
-	case primitive.D:
+	case bson.D:
 		m := make(map[string]any, len(t))
 		for _, e := range t {
 			m[e.Key] = plainRawValue(e.Value)
@@ -576,7 +617,7 @@ func plainRawValue(v any) any {
 			l[i] = plainRawValue(e)
 		}
 		return l
-	case primitive.A:
+	case bson.A:
 		return plainRawValue([]any(t))
 	default:
 		return v
@@ -681,6 +722,22 @@ func rawEventSubProcessesWithoutStart(raw map[string]any) int {
 
 // rawImplicitSubProcessEnds counts stored event sub-processes whose flow closes
 // with an End — the End a statement does not write, because the builder adds it.
+// rawMainFlowEnd is 1 when the main flow closes with a stored End — from
+// Mendix 11.3 it does; below, the start and the end are implicit.
+func rawMainFlowEnd(raw map[string]any) int {
+	flow, _ := raw["Flow"].(map[string]any)
+	acts := rawList(flow["Activities"])
+	if len(acts) == 0 {
+		return 0
+	}
+	if last, ok := acts[len(acts)-1].(map[string]any); ok {
+		if t, _ := last["$Type"].(string); t == "Workflows$EndWorkflowActivity" {
+			return 1
+		}
+	}
+	return 0
+}
+
 func rawImplicitSubProcessEnds(raw map[string]any) int {
 	n := 0
 	for _, acts := range rawSubProcessActivities(raw) {

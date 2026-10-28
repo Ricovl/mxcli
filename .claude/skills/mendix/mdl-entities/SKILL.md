@@ -14,15 +14,15 @@ description: "Complete syntax reference for entities, attributes and association
 | 40-77 | Persistent Entity |
 | 78-94 | Non-Persistent Entity |
 | 95-109 | Attribute Types |
-| 110-127 | Attribute Modifiers |
-| 128-173 | Generalization (Inheritance) |
-| 174-222 | Associations |
-| 223-239 | Enumerations |
-| 240-281 | View Entity (OQL) |
-| 282-305 | Entity with Index |
-| 306-367 | Complete Domain Model Example |
-| 368-385 | Changing an Existing Domain Model |
-| 386-428 | Quick Reference |
+| 110-129 | Attribute Modifiers |
+| 130-175 | Generalization (Inheritance) |
+| 176-224 | Associations |
+| 225-241 | Enumerations |
+| 242-298 | View Entity (OQL) |
+| 299-322 | Entity with Index |
+| 323-384 | Complete Domain Model Example |
+| 385-402 | Changing an Existing Domain Model |
+| 403-445 | Quick Reference |
 
 <!-- /skill-index -->
 # MDL Entity Syntax Reference
@@ -120,6 +120,8 @@ create non-persistent entity Module.CustomerSearchParams (
 **DateTime localization on a rewrite:** `create or modify` / `modify attribute` that
 does not state `localized` / `not localized` keeps what is stored (so restating a
 Studio Pro-authored non-localized date does not localize it); a stated clause wins.
+When that keeps a stored `not localized`, exec prints a `Note:` naming the attribute —
+write `D: DateTime localized` to switch it on.
 `describe` prints `not localized` only when it applies. Using either clause on a
 non-DateTime attribute is a `check` error.
 
@@ -264,12 +266,12 @@ as
 **Derived string columns must be `string(200)`.** A plain pass-through column
 (`c.Name as CustomerName`) inherits its source attribute's length, so declaring
 `string(100)` above is fine. But a **derived** string column — `cast(x as
-string)`, a string-returning `CASE`, or a string expression — is normalized by
-Mendix to the platform default length **`string(200)`**. Declaring any other
-length (`string(30)`, unlimited, …) passes `mxcli check`'s parser but fails the
-MxBuild consistency check with **CE6770 "View Entity is out of sync with the OQL
-Query."** `mxcli check` catches this pre-build as **MDL031** with a suggested
-fix:
+string)`, a string literal, or a string expression such as a concatenation — is
+normalized by Mendix to the platform default length **`string(200)`**.
+Declaring any other length (`string(30)`, unlimited, …) passes `mxcli check`'s
+parser but fails the MxBuild consistency check with **CE6770 "View Entity is out
+of sync with the OQL Query."** `mxcli check` catches this pre-build as
+**MDL031** with a suggested fix:
 
 ```mdl
 mdl 1;
@@ -278,6 +280,21 @@ create view entity Module.TicketLabel (
 ) as
   select cast(t.Status as string) as StatusLabel from Module.Ticket t;
 ```
+
+**A `CASE` column is typed by its branches, by two different rules** (measured,
+mx check 11.12.5, mendixlabs/mxcli#1250):
+
+| CASE | Declare | Why |
+|---|---|---|
+| `then l.Code … else '0000'` (Code `string(8)`) | `string(8)` | a string CASE takes its **first** branch's type, length included |
+| `then l.Code else l.Name` (8, 100) | `string(8)` | the first branch, not the longest |
+| `then '0' + l.Code else l.Code` | `string(200)` | the first branch is derived |
+| `then 1 else 2.5` / `then l.IntV else l.DecV` | `decimal` | a numeric CASE widens over **all** branches, integer < long < decimal |
+| `then l.IntV else l.LngV` | `long` | |
+
+Without `-p`, `mxcli check` cannot see an attribute's length, so it only judges a
+CASE whose deciding branches are literals or expressions; with `-p` it judges the
+rest.
 
 ## Entity with Index
 

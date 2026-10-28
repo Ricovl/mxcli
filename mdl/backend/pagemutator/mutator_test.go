@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
@@ -459,7 +458,7 @@ func TestSetWidgetProperty_WidgetNotFound(t *testing.T) {
 }
 
 func TestSetWidgetProperty_PluggableWidget(t *testing.T) {
-	propTypeID := primitive.Binary{Subtype: 0x04, Data: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}}
+	propTypeID := bson.Binary{Subtype: 0x04, Data: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}}
 	w1 := bson.D{
 		{Key: "$Type", Value: "CustomWidgets$CustomWidget"},
 		{Key: "Name", Value: "cb1"},
@@ -481,7 +480,7 @@ func TestSetWidgetProperty_PluggableWidget(t *testing.T) {
 				bson.D{
 					{Key: "TypePointer", Value: propTypeID},
 					{Key: "Value", Value: bson.D{
-						{Key: "PrimitiveValue", Value: "yes"},
+						{Key: "PrimitiveValue", Value: "true"},
 					}},
 				},
 			}},
@@ -502,8 +501,10 @@ func TestSetWidgetProperty_PluggableWidget(t *testing.T) {
 	props := bsonnav.DGetArrayElements(bsonnav.DGet(obj, "Properties"))
 	propDoc := props[0].(bson.D)
 	valDoc := bsonnav.DGetDoc(propDoc, "Value")
-	if bsonnav.DGetString(valDoc, "PrimitiveValue") != "no" {
-		t.Errorf("Expected PrimitiveValue='no', got %v", bsonnav.DGet(valDoc, "PrimitiveValue"))
+	// "false", not "no": this assertion used to pin the yes/no spelling that
+	// mendixlabs/mxcli#1454 showed the client reads as false either way.
+	if bsonnav.DGetString(valDoc, "PrimitiveValue") != "false" {
+		t.Errorf("Expected PrimitiveValue='false', got %v", bsonnav.DGet(valDoc, "PrimitiveValue"))
 	}
 }
 
@@ -763,7 +764,7 @@ func TestFindBsonWidget_DataViewFooter(t *testing.T) {
 // Page context tree tests
 // ============================================================================
 
-func makeWidgetWithID(name string, typeName string, id primitive.Binary) bson.D {
+func makeWidgetWithID(name string, typeName string, id bson.Binary) bson.D {
 	return bson.D{
 		{Key: "$ID", Value: id},
 		{Key: "$Type", Value: typeName},
@@ -771,10 +772,10 @@ func makeWidgetWithID(name string, typeName string, id primitive.Binary) bson.D 
 	}
 }
 
-func makeBsonID(b byte) primitive.Binary {
+func makeBsonID(b byte) bson.Binary {
 	data := make([]byte, 16)
 	data[0] = b
-	return primitive.Binary{Subtype: 0x04, Data: data}
+	return bson.Binary{Subtype: 0x04, Data: data}
 }
 
 func TestExtractPageParamsFromBSON_EntityParams(t *testing.T) {
@@ -997,13 +998,13 @@ func makePageWithLayout(layoutQN string, params ...string) bson.D {
 	args := bson.A{int32(3)}
 	for _, p := range params {
 		args = append(args, bson.D{
-			{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+			{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 			{Key: "$Type", Value: "Pages$FormCallArgument"},
 			{Key: "Parameter", Value: layoutQN + "." + p},
 		})
 	}
 	return bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Pages$FormCall"},
 		{Key: "FormCall", Value: bson.D{
 			{Key: "Form", Value: layoutQN},
@@ -1097,7 +1098,7 @@ func TestSetLayout_Snippet_Error(t *testing.T) {
 
 func TestSetLayout_NoFormCall_Error(t *testing.T) {
 	page := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: "Pages$Page"},
 	}
 	m := makePageMutator(page)
@@ -1127,10 +1128,10 @@ func TestSetLayout_EmptyForm_Error(t *testing.T) {
 // deriveColumnNameBson / sanitizeColumnName regression tests (issue #116)
 // ============================================================================
 
-func makePropTypeID116(b byte) primitive.Binary {
+func makePropTypeID116(b byte) bson.Binary {
 	data := make([]byte, 16)
 	data[0] = b
-	return primitive.Binary{Subtype: 0x04, Data: data}
+	return bson.Binary{Subtype: 0x04, Data: data}
 }
 
 func TestDeriveColumnNameBson_AttributeBinding(t *testing.T) {
@@ -1408,6 +1409,53 @@ func TestSetWidgetProperty_VisibleIf(t *testing.T) {
 	}
 }
 
+// mendixlabs/mxcli#1460: Studio Pro stores "Visible for module roles" on the
+// same node as the condition, so SET Visible rebuilt the node and dropped the
+// role restriction. The roles are a separate setting and must survive a SET of
+// the condition — including `Visible = true`, which clears only the condition.
+func TestSetWidgetProperty_VisibleKeepsModuleRoles(t *testing.T) {
+	for _, tc := range []struct {
+		prop     string
+		value    any
+		wantExpr string
+	}{
+		{"VisibleIf", "$currentObject/Name != ''", "$currentObject/Name != ''"},
+		{"Visible", false, "false"},
+		{"Visible", true, ""},
+	} {
+		w := bson.D{
+			{Key: "$Type", Value: "Forms$DivContainer"},
+			{Key: "Name", Value: "ctn"},
+			{Key: "ConditionalVisibilitySettings", Value: bson.D{
+				{Key: "$ID", Value: "x"},
+				{Key: "$Type", Value: "Forms$ConditionalVisibilitySettings"},
+				{Key: "Attribute", Value: ""},
+				{Key: "Conditions", Value: bson.A{int32(2)}},
+				{Key: "Expression", Value: "old"},
+				{Key: "IgnoreSecurity", Value: false},
+				{Key: "ModuleRoles", Value: bson.A{int32(1), "M.Admin"}},
+				{Key: "SourceVariable", Value: nil},
+			}},
+		}
+		rawData := makeRawPage(w)
+		m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+		if err := m.SetWidgetProperty("ctn", tc.prop, tc.value); err != nil {
+			t.Fatalf("%s = %v: %v", tc.prop, tc.value, err)
+		}
+		cvs, ok := bsonnav.DGet(findBsonWidget(rawData, "ctn").widget, "ConditionalVisibilitySettings").(bson.D)
+		if !ok {
+			t.Fatalf("%s = %v: settings node removed — the role restriction was dropped", tc.prop, tc.value)
+		}
+		if got := bsonnav.DGetString(cvs, "Expression"); got != tc.wantExpr {
+			t.Errorf("%s = %v: Expression = %q, want %q", tc.prop, tc.value, got, tc.wantExpr)
+		}
+		roles, _ := bsonnav.DGet(cvs, "ModuleRoles").(bson.A)
+		if len(roles) != 2 || roles[1] != "M.Admin" {
+			t.Errorf("%s = %v: ModuleRoles = %v, want [1 M.Admin]", tc.prop, tc.value, roles)
+		}
+	}
+}
+
 func TestSetWidgetProperty_EditableIf_Unsupported(t *testing.T) {
 	// A container has no ConditionalEditabilitySettings slot → reject.
 	w := bson.D{
@@ -1555,9 +1603,9 @@ func TestEnclosingDataSourceFlow(t *testing.T) {
 // findInWidgetChildren searched the first level and matched columns by derived
 // name, but never descended into a column's own content.
 func makeGridWithCustomContentColumn(gridName, childName string) bson.D {
-	columnsTypeID := primitive.Binary{Subtype: 0x04, Data: []byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
-	contentTypeID := primitive.Binary{Subtype: 0x04, Data: []byte{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}}
-	captionTypeID := primitive.Binary{Subtype: 0x04, Data: []byte{3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}}
+	columnsTypeID := bson.Binary{Subtype: 0x04, Data: []byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}}
+	contentTypeID := bson.Binary{Subtype: 0x04, Data: []byte{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}}
+	captionTypeID := bson.Binary{Subtype: 0x04, Data: []byte{3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}}
 
 	return bson.D{
 		{Key: "$Type", Value: "CustomWidgets$CustomWidget"},

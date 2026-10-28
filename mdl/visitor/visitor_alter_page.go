@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/antlr4-go/antlr/v4"
+
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/grammar/parser"
 )
@@ -141,6 +143,12 @@ func (b *Builder) buildAlterPageAssignment(ctx *parser.AlterPageAssignmentContex
 			}
 		}
 		if expr := ctx.Expression(); expr != nil {
+			// `$Param.Attr` binds an attribute property to a page or snippet
+			// parameter (ako/mxcli#1622); the executor, which knows the
+			// property's kind, resolves or refuses it.
+			if text := stripExpressionIdentifierQuotes(ruleSourceText(expr.(antlr.ParserRuleContext))); ast.IsParameterAttributeText(text) {
+				return name, &ast.WidgetExpressionV3{Text: text}
+			}
 			b.addError(widgetExpressionNotAllowed(name, expr))
 			return "", nil
 		}
@@ -267,7 +275,9 @@ func (b *Builder) buildAlterFragment(ctx parser.IAlterFragmentContext) []*ast.Wi
 func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef {
 	tc := ctx.(*parser.AlterTargetContext)
 	var ref ast.WidgetRef
-	if n := tc.NUMBER_LITERAL(); n != nil {
+	// A cell address's numbers are its row and column, read below; every other
+	// form's one number is @n.
+	if n := tc.NUMBER_LITERAL(0); n != nil && tc.CELL() == nil {
 		// @n counts matches from 1, as the ambiguity error lists them.
 		if v, err := strconv.Atoi(n.GetText()); err == nil && v >= 1 {
 			ref.Ordinal = v
@@ -281,6 +291,14 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 		// the item's, so it moves off the target, where it would mean a choice
 		// among widgets.
 		ids := tc.AllIdentifierOrKeyword()
+		// `acc1 item@1.headercontent` names a slot of the item. It is carried
+		// as Column, the way `grid.controlbar` carries a widget's slot, and is
+		// taken off the identifiers first: `item@1.slot` has two of them, the
+		// shape `item(t1)` is otherwise recognised by.
+		if slot := tc.GetItemSlot(); slot != nil {
+			ref.Column = identifierOrKeywordText(slot)
+			ids = ids[:len(ids)-1]
+		}
 		item := &ast.NavItemRef{List: identifierOrKeywordText(ids[0]), Ordinal: ref.Ordinal}
 		if sl := tc.STRING_LITERAL(); sl != nil {
 			item.Text = unquoteStringLit(sl)
@@ -290,6 +308,26 @@ func (b *Builder) buildAlterTarget(ctx parser.IAlterTargetContext) ast.WidgetRef
 		ref.Ordinal = 0
 		ref.Item = item
 		ref.Widget = item.Spell()
+		return ref
+	}
+	if tc.CELL() != nil {
+		// `table1 cell(row, column)`: a legacy table cell, by its position.
+		cell := &ast.TableCellRef{Table: identifierOrKeywordText(tc.IdentifierOrKeyword(0))}
+		for _, n := range []struct {
+			text string
+			dst  *int
+		}{{tc.GetCellRow().GetText(), &cell.Row}, {tc.GetCellColumn().GetText(), &cell.Column}} {
+			v, err := strconv.Atoi(n.text)
+			if err != nil || v < 1 {
+				b.addError(fmt.Errorf("alter target %s: table rows and columns are counted from 1, as describe prints them",
+					tc.GetText()))
+				v = 1
+			}
+			*n.dst = v
+		}
+		ref.Ordinal = 0
+		ref.Cell = cell
+		ref.Widget = cell.Spell()
 		return ref
 	}
 	if tc.COLUMN() != nil {

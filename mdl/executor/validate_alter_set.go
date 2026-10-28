@@ -154,7 +154,7 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 			Target:     op.Target,
 			Properties: map[string]any{name: op.Properties[name]},
 		}
-		if err := applySetPropertyMutator(ctx, probe, one, modName, modID); err != nil {
+		if err := applySetProperties(ctx, probe, one, modName, modID); err != nil {
 			if scriptDeclaresMissing(sc, err, modName) {
 				continue
 			}
@@ -166,7 +166,46 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 			errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s", label, msg)))
 		}
 	}
+	// A column's properties are then judged TOGETHER, with the follow-up that
+	// resets what the widget now hides: `ColumnWidth: autoFill, Size: 220` is
+	// fine one property at a time and refused as a whole, since the width hides
+	// the size, and `ColumnWidth: manual, Size: 220` is the reverse — judged
+	// one at a time, Size alone would be hidden (mendixlabs/mxcli#1519).
+	if len(errs) == 0 && (op.Target.IsColumn() || op.Target.Item != nil) {
+		if probe, err := p.Probe(); err == nil {
+			if err := applySetPropertyMutator(ctx, probe, op, modName, modID); err != nil && !scriptDeclaresMissing(sc, err, modName) {
+				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %v", label, err)))
+			}
+		}
+	}
+	// So is a Gallery's row click: legal or ambiguous depending on the click,
+	// the selection and the trigger together, of which a SET may name one
+	// (MDL-WIDGET36, ako/mxcli#854).
+	if len(errs) == 0 && touchesGalleryClick(op) {
+		errs = append(errs, checkGalleryClickSet(ctx, p, label, op, modName, modID, sc)...)
+	}
 	return errs
+}
+
+// checkGalleryClickSet is checkGalleryClickAfterSet for check: an error under
+// `mdl 1;`, a warning under mdl 0, judged on a copy with the whole SET applied.
+func checkGalleryClickSet(ctx *ExecContext, p pageProbe, label string, op *ast.SetPropertyOp, modName string, modID model.ID, sc *scriptContext) []error {
+	probe, err := p.Probe()
+	if err != nil || applySetProperties(ctx, probe, op, modName, modID) != nil {
+		return nil // a SET that does not apply is reported above, or by exec
+	}
+	msg := storedGalleryClickAmbiguity(probe, label, op.Target.Widget)
+	if msg == "" {
+		return nil
+	}
+	if galleryClickRefused.Applies(ctx.LanguageVersion) {
+		return []error{mdlerrors.NewValidation(fmt.Sprintf("%s — %s [MDL-WIDGET36]", msg, galleryClickSuggestion))}
+	}
+	if sc != nil {
+		sc.warnings = append(sc.warnings, fmt.Sprintf("%s [%s] — %s. %s",
+			msg, galleryClickRefused.Code, galleryClickSuggestion, galleryClickRefused.Warning(ctx.LanguageVersion)))
+	}
+	return nil
 }
 
 // setImageRefErrors resolves the image a SET writes onto a legacy image viewer

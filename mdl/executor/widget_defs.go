@@ -222,10 +222,24 @@ func RefreshStaleWidgetDefinitions(projectPath string) (bool, error) {
 
 // DeriveMDLName derives the uppercase MDL keyword name from a widget ID
 // (e.g. "com.mendix.widget.web.accordion.Accordion" → "ACCORDION").
+//
+// A native mobile widget is prefixed with NATIVE
+// ("com.mendix.widget.native.image.Image" → "NATIVEIMAGE"): Mendix ships most
+// of them under the same last segment as a web widget or a built-in keyword
+// (image, radiobuttons, badge, …), and the bare name let the native package
+// take over the web keyword (mendixlabs/mxcli#1463).
 func DeriveMDLName(widgetID string) string {
 	parts := strings.Split(widgetID, ".")
-	name := parts[len(parts)-1]
-	return strings.ToUpper(name)
+	name := strings.ToUpper(parts[len(parts)-1])
+	for _, seg := range parts[:len(parts)-1] {
+		if strings.EqualFold(seg, "native") {
+			if !strings.HasPrefix(name, "NATIVE") {
+				name = "NATIVE" + name
+			}
+			break
+		}
+	}
+	return name
 }
 
 // GenerateDefJSON creates a skeleton WidgetDefinition from an mpk.WidgetDefinition.
@@ -332,6 +346,31 @@ func GenerateDefJSON(mpkDef *mpk.WidgetDefinition, mdlName string) *WidgetDefini
 				Source:      actionSourceForKey(p.Key),
 				Operation:   "action",
 				Description: p.Description,
+			})
+		case "expression":
+			// A top-level expression property is authored by its own key, like a
+			// named action slot. It had no mapping at all, so it was a
+			// known-but-unmapped key: the Calendar's `showEventDate` drew
+			// MDL-WIDGET06 and its `editable` was unreachable (mendixlabs/mxcli#1578).
+			// An unset one keeps the template's default (applyOperation).
+			aliases := propertyAliases[mpkDef.ID][p.Key]
+			if strings.EqualFold(p.Key, "editable") {
+				if mpkDef.SystemPropertyKeys()["Editability"] {
+					// `editable:` is the widget-level editability here, which the
+					// package declares; the widget's own property of that name
+					// stays unmapped rather than taking the setting's spelling.
+					continue
+				}
+				// No Editability system property, so `editable:` can only mean
+				// this property. EditableIf is the key the visitor gives its
+				// bare-expression form; `Editable` already matches the key.
+				aliases = append(append([]string(nil), aliases...), "EditableIf")
+			}
+			def.PropertyMappings = append(def.PropertyMappings, PropertyMapping{
+				PropertyKey: p.Key,
+				Operation:   "expression",
+				Description: p.Description,
+				MdlAliases:  aliases,
 			})
 		case "boolean", "integer", "decimal", "string", "enumeration":
 			m := PropertyMapping{
@@ -446,43 +485,14 @@ var widgetVisibilityRules = map[string][]types.WidgetVisibilityRule{
 	},
 }
 
-// widgetSlotKeywordOverrides maps (widgetID, propertyKey) pairs to the MDL
-// keyword used in a widget body to fill that property. Most widgets[]-typed
-// properties use the uppercase property key as their MDL keyword; entries
-// here cover the cases where the keyword is a different conventional word.
-//
-// Background: a widget's .mpk declares property keys (e.g. filtersPlaceholder)
-// but not the MDL keyword users type for that slot. Studio Pro authors think
-// of `controlbar { ... }` (DataGrid) and `filter { ... }` (Gallery) rather
-// than `filtersplaceholder { ... }`. The keyword paths (datagrid_builder.go
-// etc.) encode this convention today; this table makes the same mapping
-// visible to the registry-driven engine.
-//
-// Keys are (widgetID, propertyKey). When v0.12.0 collapses the keyword paths
-// into the engine, this table is the single source of truth for the convention.
-var widgetSlotKeywordOverrides = map[string]map[string]string{
-	"com.mendix.widget.web.datagrid.Datagrid": {
-		"filtersPlaceholder": "CONTROLBAR",
-	},
-	"com.mendix.widget.web.gallery.Gallery": {
-		"filtersPlaceholder": "FILTER",
-	},
-}
+// widgetSlotKeywordOverrides is the shared slot-keyword table in mdl/types,
+// where the page mutator reads it too (`<widget>.<keyword>` addresses a slot).
+var widgetSlotKeywordOverrides = types.WidgetSlotKeywordOverrides
 
 // mdlContainerForWidgetSlot returns the MDL keyword for a widgets-typed
-// property. Defaults to the uppercase property key; recognized special cases
-// override that default. Widget-specific entries in widgetSlotKeywordOverrides
-// win over the global `content` → `TEMPLATE` convention.
+// property — see types.WidgetSlotKeyword.
 func mdlContainerForWidgetSlot(widgetID, propertyKey string) string {
-	if widgetSpecific, ok := widgetSlotKeywordOverrides[widgetID]; ok {
-		if kw, ok := widgetSpecific[propertyKey]; ok {
-			return kw
-		}
-	}
-	if propertyKey == "content" {
-		return "TEMPLATE"
-	}
-	return strings.ToUpper(propertyKey)
+	return types.WidgetSlotKeyword(widgetID, propertyKey)
 }
 
 // itemSlotAcceptedChildTypes lists widget MDL keywords that route to a
@@ -541,8 +551,10 @@ var propertyAliases = map[string]map[string][]string{
 // enough. One `Event`/`Action` suffix is stripped before matching (ledger #14).
 // The stripping is deliberately narrow: a Combobox also carries
 // `onChangeFilterInputEvent` and `onChangeDatabaseEvent`, which are separate
-// properties with no MDL surface and must stay unmapped, or one `OnChange:`
-// would write three different actions.
+// properties — the first authored by its own key (#956, ako/mxcli#854), the
+// second the database mode's change slot, which its definition sources from
+// `OnChange:` explicitly — and must not answer to `OnChange:` here, or one
+// `OnChange:` would write three different actions.
 func actionSourceForKey(key string) string {
 	k := strings.ToLower(key)
 	k = strings.TrimSuffix(k, "event")

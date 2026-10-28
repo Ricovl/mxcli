@@ -30,7 +30,7 @@ In addition to the built-in Go rules, mxcli bundles 29 Starlark-based lint rules
 | **QUAL001** | McCabe complexity -- Flags microflows with high cyclomatic complexity |
 | **QUAL002** | Documentation -- Missing documentation across every document type: modules, entities, pages, microflows, workflows, Java/JavaScript actions and their parameters, REST services, mappings, constants ([options](#qual002-options)) |
 | **QUAL003** | Long microflows -- Warns about microflows with too many activities |
-| **QUAL004** | Orphaned elements -- Detects unused entities, microflows, or pages |
+| **QUAL004** | Orphaned elements -- Detects unused entities, microflows, or pages ([options](#qual004-and-custom002-options)) |
 
 ### Design Rules (DESIGN001)
 
@@ -126,6 +126,48 @@ Adding a document type to the sweep is two rows: one in `documentableSources`
 and one in `_DOC_KINDS` (`missing_documentation.star`) giving the option name and
 the suggestion text. `TestQUAL002_SweepsEveryAdvertisedDocumentType` fails if the
 Go side advertises a kind the tests do not cover.
+
+### QUAL004 and CUSTOM002 options {#qual004-and-custom002-options}
+
+Both rules decide by name prefix. QUAL004 (orphaned elements) does not report a
+microflow whose name starts with an **entry-point prefix**, because something
+outside the model calls it; CUSTOM002 (microflow prefix convention) reports a
+microflow whose name starts with none of the **valid prefixes**. Projects name
+things differently, so both lists are options — set them in `lint-config.yaml`
+rather than in the rule files, which `mxcli init` rewrites:
+
+| Rule | Option | Default |
+|------|--------|---------|
+| QUAL004 | `entry_point_prefixes` | `ACT_, SCH_, WS_, REST_, OData_` |
+| CUSTOM002 | `valid_prefixes` | `ACT_, SUB_, DS_, VAL_, SCH_, IVK_, OCH_` |
+
+```yaml
+rules:
+  QUAL004:
+    options:
+      entry_point_prefixes: [ACT_, SCH_, WS_, REST_, OData_, TEST_]
+  CUSTOM002:
+    options:
+      valid_prefixes: "ACT_, SUB_, DS_, VAL_, SCH_, TEST_, GET_"
+```
+
+Write the list as a YAML list or as one comma-separated string; spaces around
+the commas are ignored. A configured list **replaces** the default, so repeat the
+default prefixes you still want. An empty list is a real setting: for QUAL004 it
+means no microflow is exempt by name. A value of any other shape (a number, a
+list holding a number) is not silently ignored — the rule runs with its default
+and the run reports a warning naming the option, listed with the rules that could
+not run and kept out of the score.
+
+QUAL004 counts a microflow or page as used when anything in the catalog's
+reference graph points at it — exactly what `mxcli refs` lists: a call, a page
+or widget, the navigation (a home page or home microflow, a menu item), a
+schedule, a published service, an event handler, a project setting. Every edge
+kind counts, including ones the catalog adds later, so the rule cannot fall
+behind it. A call from an MDL test script (`tests/*.test.mdl`) is not in the
+model, so a helper used only by tests is reported; give such helpers a prefix
+and list it in `entry_point_prefixes`. If `refs` finds nothing for a document
+you know is live, the gap is in the catalog, not the rule.
 
 ### CONV018 options {#conv018-options}
 

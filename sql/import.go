@@ -105,11 +105,22 @@ func ExecuteImport(ctx context.Context, cfg *ImportConfig, progressFn func(batch
 		batchSize = DefaultBatchSize
 	}
 
+	// A LINK stored neither as a column nor in a junction table would be
+	// skipped by both write paths in insertBatchWithAssocs: the rows would land
+	// unlinked and the import would report success (ako/mxcli#1454). Refuse
+	// before the first row is written.
+	for _, a := range cfg.Assocs {
+		if a.StorageFormat != StorageFormatColumn && a.StorageFormat != StorageFormatTable {
+			return nil, fmt.Errorf("LINK %s: unrecognised association storage format %q (expected %q or %q); no rows were imported",
+				a.AssociationName, a.StorageFormat, StorageFormatColumn, StorageFormatTable)
+		}
+	}
+
 	// Count total columns per row for parameter limit check
 	// +2 for id and mxobjectversion, plus column-storage assoc FK columns
 	colStorageAssocs := 0
 	for _, a := range cfg.Assocs {
-		if a.StorageFormat == "Column" {
+		if a.StorageFormat == StorageFormatColumn {
 			colStorageAssocs++
 		}
 	}
@@ -280,7 +291,7 @@ func insertBatchWithAssocs(ctx context.Context, cfg *ImportConfig, batch []impor
 	// Add column-storage association FK columns
 	var colStorageAssocIndices []int // indices into cfg.Assocs for column-storage
 	for i, a := range cfg.Assocs {
-		if a.StorageFormat == "Column" {
+		if a.StorageFormat == StorageFormatColumn {
 			cols = append(cols, fmt.Sprintf("%q", a.FKColumnName))
 			colStorageAssocIndices = append(colStorageAssocIndices, i)
 		}
@@ -362,7 +373,7 @@ func insertBatchWithAssocs(ctx context.Context, cfg *ImportConfig, batch []impor
 
 	// Insert junction table rows for table-storage associations
 	for assocIdx, a := range cfg.Assocs {
-		if a.StorageFormat != "Table" {
+		if a.StorageFormat != StorageFormatTable {
 			continue
 		}
 		if err := insertJunctionRows(ctx, tx, a, generatedRows, assocIdx, result); err != nil {
@@ -432,10 +443,12 @@ func insertJunctionRows(ctx context.Context, tx *sql.Tx, assoc *AssocInfo,
 
 // updateObjectSequence updates the object_sequence counter for the given entity.
 func updateObjectSequence(ctx context.Context, tx *sql.Tx, entityName string, newSeq int64) error {
+	// The aliases are spelled with AS: PostgreSQL treats it as optional, SQLite
+	// requires it, and the import tests run this pipeline against SQLite.
 	query := `
-		UPDATE mendixsystem$entityidentifier ei
+		UPDATE mendixsystem$entityidentifier AS ei
 		SET object_sequence = $1
-		FROM mendixsystem$entity e
+		FROM mendixsystem$entity AS e
 		WHERE ei.id = e.id AND e.entity_name = $2`
 
 	result, err := tx.ExecContext(ctx, query, newSeq, entityName)

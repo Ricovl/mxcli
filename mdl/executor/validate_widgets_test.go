@@ -468,7 +468,8 @@ func TestValidateComboBoxAssociation(t *testing.T) {
 		want   bool // expect MDL-WIDGET16
 	}{
 		{"association, no datasource → flagged", &ast.WidgetV3{Type: "combobox", Name: "cb", Properties: map[string]any{"Association": "M.Order_Customer"}}, true},
-		{"association + datasource → ok", &ast.WidgetV3{Type: "combobox", Name: "cb", Properties: map[string]any{"Association": "M.Order_Customer", "DataSource": dbDS}}, false},
+		{"association + datasource + caption → ok", &ast.WidgetV3{Type: "combobox", Name: "cb", Properties: map[string]any{"Association": "M.Order_Customer", "DataSource": dbDS, "CaptionAttribute": "Name"}}, false},
+		{"association + datasource, no caption → flagged (CE0642, #1466)", &ast.WidgetV3{Type: "combobox", Name: "cb", Properties: map[string]any{"Association": "M.Order_Customer", "DataSource": dbDS}}, true},
 		{"enumeration attribute only → ok", &ast.WidgetV3{Type: "combobox", Name: "cb", Properties: map[string]any{"Attribute": "Status"}}, false},
 		{"not a combobox → ignored", &ast.WidgetV3{Type: "textbox", Name: "tb", Properties: map[string]any{"Association": "M.Order_Customer"}}, false},
 	}

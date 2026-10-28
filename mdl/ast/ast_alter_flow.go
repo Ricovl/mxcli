@@ -9,8 +9,9 @@ package ast
 // AlterFlowStmt represents:
 //
 //	alter microflow|nanoflow Module.Name {
-//	  insert after|before <target> { <statements> }
-//	  replace <target> with { <statements> }
+//	  insert after|before <target> begin <statements> end;
+//	  replace <target> with begin <statements> end;
+//	  replace body of <loop> with begin <statements> end;
 //	  drop <target>;
 //	}
 //
@@ -40,6 +41,10 @@ const (
 	AlterFlowInsertBefore AlterFlowOpKind = "insert before"
 	AlterFlowReplace      AlterFlowOpKind = "replace"
 	AlterFlowDrop         AlterFlowOpKind = "drop"
+	// AlterFlowReplaceBody replaces what is inside a stored loop and keeps
+	// the loop itself — its $ID, position, iterator and list
+	// (ako/mxcli#1693). Target addresses the loop; Body is its new body.
+	AlterFlowReplaceBody AlterFlowOpKind = "replace body of"
 )
 
 // AlterFlowOperation is one operation of an AlterFlowStmt.
@@ -63,4 +68,18 @@ type AlterFlowOperation struct {
 	// `create or modify`, for an `if` that differs from the stored one in its
 	// condition; the branches are diffed by operations of their own.
 	SetCondition bool
+	// KeepHandler, on a replace of an activity with a custom error handler,
+	// says Body's one statement states the stored handler unchanged: the
+	// activity alone is replaced, in place, and the stored handler — its
+	// activities, its error flow and the merge it rejoins at — stays
+	// (mendixlabs/mxcli#1489). Set by `create or modify`, which diffs the
+	// handler's body by operations of its own; an `alter` replace that restates
+	// the stored handler is recognised when it is applied.
+	KeepHandler bool
+	// SetNotes, on a replace of a decision or an end event, says Body is one
+	// statement whose notes are the node's new notes: the stored notes are
+	// taken off and these attached, and the node itself stays — it is changed
+	// in place, never replaced (mendixlabs/mxcli#1517). Set only by
+	// `create or modify`.
+	SetNotes bool
 }

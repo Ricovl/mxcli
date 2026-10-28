@@ -185,16 +185,21 @@ func TestFormatCheckResult_PrintsPathNotImage(t *testing.T) {
 
 // fakeBrowser stands in for the node probe and the login script.
 type fakeBrowser struct {
-	probes  [][]PageTarget
-	storage []string
-	logins  int
-	answer  func(call int, p PageTarget) PageSignals
+	probes   [][]PageTarget
+	storage  []string
+	logins   int
+	signOuts int
+	answer   func(call int, p PageTarget) PageSignals
 }
 
 func (f *fakeBrowser) install(t *testing.T) {
 	t.Helper()
-	oldProbe, oldLogin := probePagesFn, loginFn
-	t.Cleanup(func() { probePagesFn, loginFn = oldProbe, oldLogin })
+	oldProbe, oldLogin, oldSignOut := probePagesFn, loginFn, signOutFn
+	t.Cleanup(func() { probePagesFn, loginFn, signOutFn = oldProbe, oldLogin, oldSignOut })
+	signOutFn = func(SignOutOptions) error {
+		f.signOuts++
+		return nil
+	}
 	probePagesFn = func(o ProbeOptions) ([]PageSignals, error) {
 		call := len(f.probes)
 		f.probes = append(f.probes, o.Pages)

@@ -8,9 +8,10 @@ Mendix applications can have multiple navigation profiles (Responsive, Tablet, P
 
 | Statement | Description |
 |-----------|-------------|
-| [ALTER NAVIGATION](alter-navigation.md) | Create or replace a navigation profile with home pages, login page, and menus |
+| [CREATE NAVIGATION](create-navigation.md) | Create a navigation profile, or write the home pages, login page, menu and sync clauses it states |
+| [ALTER NAVIGATION](alter-navigation.md) | Edit one profile's menu items and page clauses in place: insert, replace, move, drop, set |
 | [LIST NAVIGATION](list-navigation.md) | Display navigation profiles, menus, and home page assignments |
-| [CREATE MENU](menu.md) | Create, describe and drop standalone menu documents (`Menus$MenuDocument`) |
+| [CREATE MENU](menu.md) | Create, alter, describe and drop standalone menu documents (`Menus$MenuDocument`) |
 
 ## Related Statements
 

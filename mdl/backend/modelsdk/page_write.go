@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -306,7 +306,9 @@ func pageToGen(page *pages.Page, pv *types.ProjectVersion) (*genPg.Page, error) 
 	out.SetPopupResizable(page.PopupResizable)
 	out.SetAllowedRolesQualifiedNames(moduleRoleNames(page.AllowedRoles))
 	out.SetTitle(captionToGen(page.Title))
-	out.SetAppearance(newAppearance(page.Class, page.Style, "", nil))
+	// The page's own design properties; nil here wrote an empty list over every
+	// stored page's (ako/mxcli#1678).
+	out.SetAppearance(newAppearance(page.Class, page.Style, "", page.DesignProperties))
 
 	if page.LayoutCall != nil {
 		lc, err := layoutCallToGen(page.LayoutCall)

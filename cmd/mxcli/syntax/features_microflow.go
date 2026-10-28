@@ -61,7 +61,8 @@ func init() {
 			"template '...', like a REST body. Placeholders {1}, {2} ... are filled by\n" +
 			"WITH; each parameter must be a String (CE0117) and every placeholder needs\n" +
 			"one (CE0720). Any other expression is stored as '{1}' with the expression\n" +
-			"as its parameter.\n\n" +
+			"as its parameter, so an expression followed by WITH is refused: it has no\n" +
+			"{n} to fill (MDL-TEMPLATE01).\n\n" +
 			"Headers are plain strings, not expressions: letters, digits and hyphens in\n" +
 			"the name, one line in the value (MDL-EMAIL03). Attachment names a\n" +
 			"System.FileDocument variable, a list of them, or a specialization.\n" +
@@ -139,8 +140,30 @@ func init() {
 			"-- An OBJECT variable cannot be reassigned (CE7247, MDL-SET01): return the\n" +
 			"-- new object from a sub-microflow, or `change $Obj (…)` its members.\n" +
 			"-- A parameter cannot be reassigned either (CE7247, MDL-SET01) unless it is\n" +
-			"-- a list: copy it first, `DECLARE $Value Integer = $N;`.",
-		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';",
+			"-- a list: copy it first, `DECLARE $Value Integer = $N;`.\n" +
+			"-- An enumeration variable: `DECLARE $S enum Module.Enum = empty;` (what\n" +
+			"-- DESCRIBE prints). A bare `Module.Enum` reads as an object type (MDL043).\n" +
+			"\n" +
+			"-- Conditional create: an object variable cannot be DECLAREd (CE0053, MDL043)\n" +
+			"-- and then created in a branch (CE0111, MDL063), and creating the same\n" +
+			"-- name in both branches is CE0111 too — variable names are unique\n" +
+			"-- flow-wide. Either create once with conditional member values, or let a\n" +
+			"-- sub-microflow create and return the object on each branch (see example).",
+		Example: "DECLARE $Count Integer = 0;\nDECLARE $Name String;\nset $Count = $Count + 1;\nset $Name = 'Hello';\nSET $Order/Status = 'Pending';\n\n" +
+			"-- Conditional create, one activity: the condition goes into the values\n" +
+			"$Line = CREATE MyModule.Line (Qty = if $Big then 10 else 1);\n\n" +
+			"-- Conditional create, different shapes: a sub-microflow returns per branch\n" +
+			"CREATE MICROFLOW MyModule.SUB_MakeLine ($Big: Boolean) RETURNS MyModule.Line AS $Line\n" +
+			"BEGIN\n" +
+			"  IF $Big THEN\n" +
+			"    $BigLine = CREATE MyModule.Line (Qty = 10);\n" +
+			"    RETURN $BigLine;\n" +
+			"  ELSE\n" +
+			"    $SmallLine = CREATE MyModule.Line (Qty = 1);\n" +
+			"    RETURN $SmallLine;\n" +
+			"  END IF;\n" +
+			"END;\n" +
+			"-- caller: $Line = CALL MICROFLOW MyModule.SUB_MakeLine(Big = $Big);",
 		SeeAlso: []string{"microflow.object-operations"},
 	})
 
@@ -168,6 +191,13 @@ func init() {
 			"--     HEAD() or COUNT() over it is CE0097 at build time and a LOOP CE0100;\n" +
 			"--     mxcli reports both as MDL-RETRIEVE01 at check time. The reverse,\n" +
 			"--     CHANGE over a list retrieve, is CE1613 and MDL-RETRIEVE03.\n" +
+			"--   * Over an association, the result follows the association: from the\n" +
+			"--     FROM entity of a Reference ($Order above) one object; from its TO\n" +
+			"--     entity ($Customer) a LIST, unless the owner is Both; a ReferenceSet a\n" +
+			"--     list either way. Using such a list as an object ($Orders/Attr,\n" +
+			"--     CHANGE, an object parameter) is CE0117 / CE7247 — check --references\n" +
+			"--     reports it as MDL-RETRIEVE03. For one object, retrieve it instead:\n" +
+			"--     RETRIEVE $O FROM MyModule.Order WHERE [MyModule.Order_Customer = $Customer] FIRST;\n" +
 			"--   * $Obj/System.owner and $Obj/System.changedBy are not associations a\n" +
 			"--     retrieve can follow (CE0136, MDL-RETRIEVE02). Use\n" +
 			"--     RETRIEVE $U FROM System.User WHERE [id = $Obj/System.owner] FIRST;\n" +
@@ -275,7 +305,9 @@ func init() {
 			"-- other form is CE6035 and is refused (MDL091).\n" +
 			"--\n" +
 			"-- A handler that does NOT end in RETURN/RAISE ERROR merges back into the main\n" +
-			"-- flow, so a variable created after the merge is out of scope on the error\n" +
+			"-- flow at the statement after the failing activity — inside an IF, CASE or\n" +
+			"-- loop body too, where a branch's last activity continues after END IF —\n" +
+			"-- so a variable created after the merge is out of scope on the error\n" +
 			"-- path (CE0108). End the handler, or expect that.\n" +
 			"--\n" +
 			"-- An EMPTY handler `BEGIN END ERROR` is not a no-op: it means \"on error, do whatever\n" +
@@ -563,21 +595,25 @@ func init() {
 		Keywords: []string{
 			"log", "logging", "info", "warning", "error", "debug",
 			"trace", "critical", "node", "message template",
+			"stacktrace", "stack trace", "include latest stack trace",
 		},
-		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).",
-		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);",
+		Syntax:  "LOG [LEVEL] [NODE 'Name'] 'message';\nLOG [LEVEL] 'template {1}' WITH ({1} = $value);\nLOG [LEVEL] 'message' [WITH ({1} = $value)] WITH STACKTRACE;\n\n-- Levels: INFO, WARNING, ERROR, DEBUG, TRACE, CRITICAL\n-- Defaults: level INFO, node 'Application'. DESCRIBE leaves both out.\n-- WITH STACKTRACE ticks \"Include latest stack trace\"; absent is unticked, the\n-- default, and DESCRIBE prints it only when ticked. It follows the template\n-- parameters, which also open with WITH.\n-- A line break is written into the literal: under `mdl 1;` a template literal\n-- that spans lines is still the template text (without the header: MDL-V1-TEMPLATE).\n-- An expression message (LOG $Msg;) is stored as '{1}' with it as the parameter,\n-- so an expression followed by WITH (...) has no {n} to fill and is refused\n-- (MDL-TEMPLATE01) — as for SHOW MESSAGE, VALIDATION FEEDBACK and SEND EMAIL.",
+		Example: "LOG INFO NODE 'OrderService' 'Order created successfully';\nLOG WARNING 'Customer not found';\nLOG ERROR 'Failed to process {1}' WITH (\n  {1} = $OrderNumber\n);\nLOG ERROR NODE 'OrderService' 'Failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;",
 	})
 
 	Register(SyntaxFeature{
 		Path:    "microflow.alter",
-		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place",
+		Summary: "Patch a stored microflow or nanoflow: insert, replace or drop activities in place, or replace a loop's body",
 		Keywords: []string{
 			"alter microflow", "alter nanoflow", "insert after", "insert before",
 			"replace", "drop activity", "patch microflow", "splice", "handle",
+			"replace body", "loop body", "replace body of",
+			"existing note", "attach stored note",
 		},
 		Syntax: "ALTER MICROFLOW|NANOFLOW Module.Name {\n" +
 			"  INSERT AFTER|BEFORE <target> BEGIN <statements> END;\n" +
 			"  REPLACE <target> WITH BEGIN <statements> END;\n" +
+			"  REPLACE BODY OF <loop> WITH BEGIN <statements> END;\n" +
 			"  DROP <target>;\n" +
 			"};\n\n" +
 			"-- <target> addresses one activity by content, as `describe microflow ... with handles` prints it:\n" +
@@ -588,19 +624,49 @@ func init() {
 			"-- stored flow before any operation runs; an ambiguous or unknown target is an error.\n" +
 			"-- Only the new activities, the rewired flows and the objects moved to make room change;\n" +
 			"-- every other element keeps its $ID, position and curve.\n" +
+			"-- Inside a loop body, plain activities are inserted, replaced and dropped the same way,\n" +
+			"-- the loop box growing when the body no longer fits (ako/mxcli#1693).\n" +
+			"-- REPLACE BODY OF <loop> keeps the loop itself (its $ID, position, iterator and list)\n" +
+			"-- and rebuilds only what is inside it: the way to put a decision, a nested loop or a\n" +
+			"-- return in a loop body. <loop> is the loop's handle: loop $It in $Items, while $N < 3.\n" +
+			"-- DROP/REPLACE of a decision takes it out whole when it has the shape INSERT produces:\n" +
+			"-- two paths of plain activities, or none, rejoining at one merge (ako/mxcli#1694).\n" +
 			"-- Refused: insert after a decision, insert before an activity several flows enter,\n" +
-			"-- drop/replace of a decision or of an activity with an error handler, anything inside\n" +
-			"-- a loop body, a fragment that returns, and a fragment variable that clashes with one\n" +
-			"-- the flow has or reads one not declared on the path. Over --mcp only insert is supported.\n" +
+			"-- drop/replace of any other decision or of an activity with an error handler, a decision, loop,\n" +
+			"-- return or error handler put in a loop body (use REPLACE BODY OF), a fragment that\n" +
+			"-- returns, and a fragment variable that clashes with one the flow has or reads one not\n" +
+			"-- declared on the path. Over --mcp only insert is supported, and not inside a loop body.\n" +
 			"-- A fragment is imperative flow, written as the body of `create microflow` is: BEGIN … END.\n" +
-			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.",
-		Example: "alter microflow FeedbackModule.VAL_Feedback {\n" +
+			"-- The brace fragment `{ <statements> }` is the deprecated spelling MDL-DEPR074.\n" +
+			"-- A fragment statement joins a note ALREADY in the flow with\n" +
+			"--   @annotation(existing: 'the note''s text')\n" +
+			"-- named by its text exactly as describe prints it. The note keeps its $ID, text and\n" +
+			"-- place; a text that no note reads, or that several notes read, is refused (the\n" +
+			"-- refusal lists them). `existing:` stands alone and never creates a note — a note of\n" +
+			"-- the statement's own is `@annotation 'text'`. The `id:` labels describe prints are\n" +
+			"-- not stored, so a fragment cannot name a stored note by one (ako/mxcli#1695).",
+		Example: "mdl 1;\nalter microflow FeedbackModule.VAL_Feedback {\n" +
 			"  insert after $IsValidEmail begin log info node 'Feedback' 'Email checked'; end;\n" +
 			"  replace set $ValidFeedback = false @3 with begin\n" +
 			"    set $ValidFeedback = false;\n" +
 			"    log warning node 'Feedback' 'Email rejected';\n" +
 			"  end;\n" +
 			"  drop log debug node 'Feedback' *;\n" +
+			"};\n\n" +
+			"alter microflow Shop.ACT_ProcessLines {\n" +
+			"  replace body of loop $Line in $Lines with begin\n" +
+			"    if $Line/Quantity > 0 then\n" +
+			"      change $Line (Processed = true);\n" +
+			"    end if;\n" +
+			"    commit $Line;\n" +
+			"  end;\n" +
+			"};\n\n" +
+			"-- The new statement joins the note the flow already has.\n" +
+			"alter microflow Shop.ACT_ProcessOrder {\n" +
+			"  insert after $Order begin\n" +
+			"    @annotation(existing: 'Validates the order')\n" +
+			"    log info node 'Shop' 'order validated';\n" +
+			"  end;\n" +
 			"};",
 		SeeAlso: []string{"microflow"},
 	})
@@ -610,10 +676,16 @@ func init() {
 		Summary: "Open and close pages from microflows",
 		Keywords: []string{
 			"show page", "open page", "close page", "display page",
-			"navigate", "page action",
+			"navigate", "page action", "number of pages to close", "title override",
 		},
-		Syntax:  "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value);\nCLOSE PAGE [n];",
-		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\nCLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
+		Syntax: "SHOW PAGE Module.Page;\nSHOW PAGE Module.Page (Param = $value) [WITH title = 'Title', NumberOfPagesToClose = n];\nCLOSE PAGE [n];",
+		Example: "SHOW PAGE MyModule.OrderDetail (Order = $NewOrder);\n\n" +
+			"-- Close the current page, then open the overview (Studio Pro: \"Number of\n" +
+			"-- pages to close\"; an Integer expression, unstated closes none). A setting,\n" +
+			"-- not an argument: (NumberOfPagesToClose: 1) is a page parameter (CE1613).\n" +
+			"SHOW PAGE MyModule.OrderOverview WITH NumberOfPagesToClose = 1;\n" +
+			"SHOW PAGE MyModule.OrderDetail (Order = $NewOrder) WITH title = 'Edit order';\n\n" +
+			"CLOSE PAGE;\n\n-- Close this page and the one that opened it (n >= 1, default 1)\nCLOSE PAGE 2;",
 		SeeAlso: []string{"page"},
 	})
 
@@ -623,9 +695,18 @@ func init() {
 		Keywords: []string{
 			"call microflow", "call java action", "invoke", "in queue", "queued call", "background execution",
 			"sub-microflow", "java action", "parameter passing", "blank argument", "nothing",
+			"text template parameter", "stringtemplate", "document parameter", "agent parameter",
 		},
-		Syntax:  "$Result = CALL MICROFLOW Module.Name (Param = value) [IN QUEUE Module.Queue];\n$Result = CALL JAVA ACTION Module.Name (Param = value) [IN QUEUE Module.Queue];",
-		Example: "$IsValid = CALL MICROFLOW MyModule.ValidateOrder (\n  Order = $NewOrder\n);\n\n$Token = CALL JAVA ACTION MyModule.GenerateToken (\n  UserId = $User/Id\n);\n\n-- Run the call on a task queue (background execution). The queue must\n-- exist; a queued CALL JAVA ACTION must return Nothing, or the build fails\n-- with CE7038.\nCALL MICROFLOW MyModule.ACT_Refresh () IN QUEUE MyModule.RefreshQueue;\nCALL JAVA ACTION MyModule.RefreshData (Url = $Url) IN QUEUE MyModule.RefreshQueue;\n\n-- A blank argument: the mapping is kept, its expression left empty, as\n-- Studio Pro stores an argument field left blank. Not the same as `empty`\n-- (a Mendix value); only CALL MICROFLOW and CALL NANOFLOW take it. Mendix\n-- reports it as CE0127 \"Missing argument\": it exists so DESCRIBE round-trips.\nCALL MICROFLOW MyModule.ACT_Log (Message = 'x', TraceId = nothing);",
+		Syntax: "$Result = CALL MICROFLOW Module.Name (Param = value) [IN QUEUE Module.Queue];\n$Result = CALL JAVA ACTION Module.Name (Param = value) [IN QUEUE Module.Queue];\n\n" +
+			"-- A Java action parameter of type StringTemplate(Text|Sql) takes a template, filled\n" +
+			"-- like a log message: Param = 'text {1}' WITH ({1} = expression, ...). A plain string\n" +
+			"-- is the text; any other expression is the template '{1}' with it as the argument,\n" +
+			"-- so an expression followed by WITH (...) is refused (MDL-JA02).\n" +
+			"-- Each argument is typed from its expression (String, Integer, Decimal, Boolean,\n" +
+			"-- DateTime); an enumeration is refused — pass getKey(...) or getCaption(...).\n" +
+			"-- A document parameter (DESCRIBE JAVA ACTION shows Document(<type>), e.g. an\n" +
+			"-- agent-editor Agent) takes the document's name: Param = Module.Document.",
+		Example: "$IsValid = CALL MICROFLOW MyModule.ValidateOrder (\n  Order = $NewOrder\n);\n\n$Token = CALL JAVA ACTION MyModule.GenerateToken (\n  UserId = $User/Id\n);\n\n-- Run the call on a task queue (background execution). The queue must\n-- exist; a queued CALL JAVA ACTION must return Nothing, or the build fails\n-- with CE7038.\nCALL MICROFLOW MyModule.ACT_Refresh () IN QUEUE MyModule.RefreshQueue;\nCALL JAVA ACTION MyModule.RefreshData (Url = $Url) IN QUEUE MyModule.RefreshQueue;\n\n-- A blank argument: the mapping is kept, its expression left empty, as\n-- Studio Pro stores an argument field left blank. Not the same as `empty`\n-- (a Mendix value); only CALL MICROFLOW and CALL NANOFLOW take it. Mendix\n-- reports it as CE0127 \"Missing argument\": it exists so DESCRIBE round-trips.\nCALL MICROFLOW MyModule.ACT_Log (Message = 'x', TraceId = nothing);\n\n-- A text-template parameter, and a document parameter.\nCALL JAVA ACTION BusinessEvents.PublishBusinessEvent_V2 (\n  Subject = 'Order {1} shipped' WITH ({1} = $Order/OrderNumber),\n  BusinessEvent = $Event\n);\n$Response = CALL JAVA ACTION AgentEditorCommons.Agent_CallDocument_WithoutHistory (\n  Agent = MyModule.PaymentReminderAgent, OptionalContextObject = $Invoice\n);",
 		SeeAlso: []string{"java-action", "microflow.create", "queue", "microflow.workflow-actions"},
 	})
 
@@ -776,31 +857,44 @@ func init() {
 			"validation", "feedback", "validation feedback",
 			"error message", "field error", "form validation",
 		},
-		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);",
+		Syntax:  "VALIDATION FEEDBACK $Obj/Attr MESSAGE 'error text';\nVALIDATION FEEDBACK $Obj/Attr MESSAGE '{1} is invalid'\n  WITH ({1} = $Value);\n\n-- The message is a template: an expression (MESSAGE $Text) is stored as '{1}'\n-- with it as the parameter, and one followed by WITH is refused (MDL-TEMPLATE01).",
 		Example: "VALIDATION FEEDBACK $Order/Quantity MESSAGE 'Quantity must be positive';\nVALIDATION FEEDBACK $Customer/Email MESSAGE '{1} is not valid'\n  WITH ({1} = $Customer/Email);",
 		SeeAlso: []string{"microflow.error-handling"},
 	})
 
 	Register(SyntaxFeature{
 		Path:    "microflow.layout",
-		Summary: "Canvas layout annotations — @position, @start, @anchor, @curve, @caption, @color",
+		Summary: "Canvas layout annotations — @position, @start, @anchor, @curve, @caption, @color, @excluded",
 		Keywords: []string{
 			"position", "start", "anchor", "curve", "layout", "canvas",
 			"annotation", "caption", "color", "excluded", "bezier",
+			"disable activity", "disabled activity",
 		},
 		Syntax: "@position(x, y)                       -- the activity's centre point\n" +
 			"@position(x, y)                       -- also on a PARAMETER, in the ( … ) list\n" +
 			"@start(x, y)                          -- the start event, on the FIRST statement\n" +
-			"@anchor(from: right, to: left)        -- which SIDE each end of the outgoing flow attaches to\n" +
+			"@anchor(from: bottom, to: top)        -- from = the side the flow LEAVING this statement\n" +
+			"                                      -- leaves by; to = the side the flow ARRIVING at\n" +
+			"                                      -- this statement enters by (not its far end)\n" +
 			"@curve(from: (40, -90), to: (-40, 90))  -- the flow's bezier control vectors\n" +
 			"@merge(x, y)                          -- the implicit merge that closes a split\n" +
 			"@anchor(from: bottom, to: top, true: (…), false: (…))  -- on an IF: to = its incoming flow,\n" +
 			"                                      -- from = the flow leaving its closing merge\n" +
 			"@anchor(true: (to: top))              -- one branch's edge; either side may be left out\n" +
+			"@anchor(Open: (from: right), (empty): (from: bottom))  -- on a CASE: one outcome's edge,\n" +
+			"                                      -- keyed by its WHEN value; from = its merge's exit\n" +
 			"@caption 'text'\n@color Green\n@annotation 'a note'\n@excluded\n" +
 			"@applyentityaccess | @applyentityaccess(false)  -- DOCUMENT-level, before CREATE MICROFLOW/RULE\n" +
 			"@annotation(id: n1, text: 'a note', position: (x, y), size: (w, h))\n" +
-			"@annotation(id: n1)                   -- attaches THAT note to another activity\n\n" +
+			"@annotation(id: n1)                   -- attaches THAT note to another activity\n" +
+			"@annotation(existing: 'note text')    -- ALTER fragments only: attaches the stored note\n" +
+			"                                      -- with that text (it must be the only one)\n\n" +
+			"An @anchor never reaches the far end of its own outgoing flow: that end is\n" +
+			"the NEXT statement's `to:`. A straight vertical edge from A down to B is\n" +
+			"@anchor(from: bottom) on A and @anchor(to: top) on B; `to: top` on A alone\n" +
+			"turns the edge INTO A, and the edge into B keeps entering on the left. A\n" +
+			"RETURN has no outgoing flow, so its `from:` does nothing — the edge into the\n" +
+			"end event leaves by the previous statement's `from:`. (#990)\n\n" +
 			"Inside ON ERROR ... BEGIN ... END ERROR the annotations mean what they mean\n" +
 			"outside it: @anchor(to:) on the handler's first statement is the side the\n" +
 			"error edge enters, @anchor(from:) and @curve shape the edge leaving a\n" +
@@ -813,12 +907,17 @@ func init() {
 			"DOCUMENT annotations too — a typo, or one on a document kind that does not\n" +
 			"read it (@applyentityaccess on a nanoflow, @excluded on a queue), is\n" +
 			"refused with the list of what that document does accept.\n\n" +
-			"@excluded and @applyentityaccess are DOCUMENT annotations — they go before\n" +
-			"CREATE, not on a statement. @applyentityaccess runs the flow under the\n" +
-			"current user's entity access rules instead of with full access; it is a\n" +
-			"SECURITY setting and only ever narrows, so an ABSENT annotation PRESERVES\n" +
-			"whatever is stored and @applyentityaccess(false) is how a script turns it\n" +
-			"off. A nanoflow has no such property (it runs in the client).\n\n" +
+			"@excluded on a STATEMENT disables that activity (Studio Pro's Disable\n" +
+			"activity): it stays in the flow, configured, and is skipped at runtime.\n" +
+			"Only an activity can be disabled — on a decision, loop, return or raise\n" +
+			"error it is dropped, and check warns (MDL095).\n\n" +
+			"@excluded before CREATE is the DOCUMENT annotation (Exclude from project).\n" +
+			"@applyentityaccess is document-only — it goes before CREATE, never on a\n" +
+			"statement — and runs the flow under the current user's entity access rules\n" +
+			"instead of with full access; it is a SECURITY setting and only ever\n" +
+			"narrows, so an ABSENT annotation PRESERVES whatever is stored and\n" +
+			"@applyentityaccess(false) is how a script turns it off. A nanoflow has no\n" +
+			"such property (it runs in the client).\n\n" +
 			"Mendix stores no waypoints — a flow's shape is two control vectors, each a\n" +
 			"pixel offset from its end of the line. (0, 0) at both ends is straight.\n" +
 			"@position on a split belongs to the SPLIT, so its end-if join has its own\n" +
@@ -841,7 +940,8 @@ func init() {
 			"A PARAMETER is a stored node with its own coordinates, so it takes\n" +
 			"@position too — written inside the parameter list, ahead of the parameter\n" +
 			"it places. It is the only annotation a parameter takes. Omit it and the\n" +
-			"parameters form a row along the top of the canvas at 200;53, 300;53, … ;\n" +
+			"parameters form a row along the top of the canvas from 200;53, spaced 100px\n" +
+			"apart or wider when a name needs it (about 7px a character, #1598);\n" +
 			"the same derived/authored rule as @start then applies, so a parameter on\n" +
 			"that row is re-derived and one anywhere else survives a rewrite and is\n" +
 			"emitted by DESCRIBE.\n\n" +
@@ -852,13 +952,20 @@ func init() {
 			"is scoped to the flow being authored and is not stored in the model —\n" +
 			"DESCRIBE re-derives labels, and emits one only for a note that really is\n" +
 			"shared. Two notes with identical text and no id stay two notes.\n\n" +
+			"An ALTER fragment is built alone, so it cannot see those labels; it names a\n" +
+			"note already stored in the flow by its text: @annotation(existing: '…'). The\n" +
+			"text must be the text of exactly one note of the flow (CRLF and LF line\n" +
+			"breaks match), or the statement is refused, listing the candidates. The note\n" +
+			"keeps its $ID, text and place, so `existing:` takes no id:, text:, position:\n" +
+			"or size:, and a statement that states the whole flow refuses it. DESCRIBE\n" +
+			"never prints it: a whole flow declares its notes. (ako/mxcli#1695)\n\n" +
 			"position:/size: are the note's own geometry, omitted whenever they match\n" +
 			"what a rewrite re-derives (100px above the activity, stacked 60px per extra\n" +
 			"note, 200x50), so an ordinary note keeps the short form. (#1077)",
 		Example: "create microflow MyModule.ACT_Flow (\n  @position(145, 0)\n  $In: String\n)\nreturns String as $Out\nbegin\n" +
-			"  @start(145, 100)\n  @position(200, 100)\n  @anchor(from: bottom, to: top)\n" +
+			"  @start(145, 100)\n  @position(200, 100)\n  @anchor(from: bottom)\n" +
 			"  @curve(from: (40, -90), to: (-40, 90))\n  declare $Tmp String = $In;\n" +
-			"  @position(200, 300)\n  declare $Out String = $Tmp;\n  return $Out;\nend;",
+			"  @position(200, 300)\n  @anchor(to: top)\n  declare $Out String = $Tmp;\n  return $Out;\nend;",
 		SeeAlso: []string{"microflow", "microflow.create"},
 	})
 
@@ -868,9 +975,17 @@ func init() {
 		Keywords: []string{
 			"import from mapping", "export to mapping", "import mapping activity",
 			"range", "all", "first", "limit", "offset", "single object",
+			"mapping parameter", "input object", "commit",
 		},
-		Syntax: "[$Var =] IMPORT FROM MAPPING Module.IMM ($SourceVar) [<range>];\n" +
+		Syntax: "[$Var =] IMPORT FROM MAPPING Module.IMM ($SourceVar) [( <settings> )] [<range>];\n" +
 			"$Var = EXPORT TO MAPPING Module.EMM ($EntityVar);\n\n" +
+			"<settings> — the activity's dialog, any of:\n" +
+			"  Parameter: $Obj              the mapping's input object, for a mapping\n" +
+			"                               declared with `parameter Module.Entity`.\n" +
+			"                               Required there (mxbuild CE0244 without it),\n" +
+			"                               refused on any other mapping (CE0246)\n" +
+			"  Commit: Yes | YesWithoutEvents | No\n" +
+			"                               omitted = YesWithoutEvents\n\n" +
 			"<range> — Studio Pro's Range on the import activity:\n" +
 			"  ALL                          bind the whole result\n" +
 			"  FIRST                        bind ONE object (not a one-element list)\n" +
@@ -886,6 +1001,7 @@ func init() {
 		Example: "$Pets  = import from mapping Shop.IMM_Pets($Json) all;\n" +
 			"$Pet   = import from mapping Shop.IMM_Pets($Json) first;\n" +
 			"$Page  = import from mapping Shop.IMM_Pets($Json) limit 10 offset 5;\n" +
+			"import from mapping Shop.IMM_Embed($Json) (Parameter: $Collection, Commit: Yes);\n" +
 			"$Json2 = export to mapping Shop.EMM_Pet($Pet);",
 		SeeAlso: []string{"import-mapping", "export-mapping", "json-structure"},
 	})

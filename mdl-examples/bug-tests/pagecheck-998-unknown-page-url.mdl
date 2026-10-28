@@ -1,0 +1,29 @@
+-- ako/mxcli#998: `mxcli playwright check / /p/doesnotexist` reported the home
+-- page's verdict for a page that does not exist, and exited 0.
+--
+-- Measured on 11.13.0 and 11.15.0: the runtime answers any /p/<x> with
+-- `301 Location: /#/<x>`, known page or not. The client then replaces the
+-- location with /p/<x> when a page has that URL, and with / when none does —
+-- rendering the home page and an information dialog ("The page you requested
+-- was not found. You are redirected to the home page."), with HTTP 200 all
+-- the way. The check now reports the location the browser ended on (`url=/`)
+-- and fails a /p/ URL that did not stay put.
+--
+-- Against a blank app:
+--
+--   mxcli exec mdl-examples/bug-tests/pagecheck-998-unknown-page-url.mdl -p app.mpr
+--   mxcli run --local --detach -p app.mpr --db-type hsqldb
+--   mxcli playwright check / /p/doesnotexist /p/items /p/ITEMS -p app.mpr
+--
+-- Before the fix: `OK 4 page(s)`, /p/doesnotexist and /p/ITEMS showing the home
+-- page's title and heading. After it: both report `url=/` and fail
+-- ("the browser ended on /, not on /p/doesnotexist"), /p/items passes, exit 1.
+mdl 1;
+
+create or modify page MyFirstModule.Items_Web (
+  Title: 'Items',
+  Layout: MyFirstModule.App_Default,
+  Url: 'items'
+) {
+  container c1 { dynamictext t1 (Content: 'Item overview', RenderMode: H1) }
+};

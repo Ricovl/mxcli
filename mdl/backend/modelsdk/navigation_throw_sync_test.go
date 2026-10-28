@@ -9,13 +9,12 @@ import (
 	// This package uses BOTH driver majors: navigation_write.go is on v1 and
 	// navigation_read.go on v2. The aliases are what keep a test that spans
 	// the write and read paths from silently mixing them.
-	bsonv1 "go.mongodb.org/mongo-driver/bson"
-	bsonv2 "go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func boolPtr(b bool) *bool { return &b }
 
-func throwOf(t *testing.T, doc bsonv1.D) any {
+func throwOf(t *testing.T, doc bson.D) any {
 	t.Helper()
 	for _, e := range doc {
 		if e.Key == "ThrowPartialSyncError" {
@@ -35,7 +34,7 @@ func TestThrowSyncErrorIsLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 	// one if the fixture only ever stored false. Same trap as CompatibilityMode,
 	// and it was found by a control that failed to fail.
 	for _, storedValue := range []bool{true, false} {
-		stored := bsonv1.D{
+		stored := bson.D{
 			{Key: "Name", Value: "TabletOffline"},
 			{Key: "ThrowPartialSyncError", Value: storedValue},
 		}
@@ -46,7 +45,7 @@ func TestThrowSyncErrorIsLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 		}
 	}
 
-	stored := bsonv1.D{
+	stored := bson.D{
 		{Key: "Name", Value: "TabletOffline"},
 		{Key: "ThrowPartialSyncError", Value: false},
 	}
@@ -69,21 +68,21 @@ func TestThrowSyncErrorIsLeftAloneWhenTheStatementIsSilent(t *testing.T) {
 // false would silently turn off error reporting for a document that simply
 // predates the key.
 func TestAbsentThrowPartialSyncErrorReadsAsTrue(t *testing.T) {
-	empty, err := bsonv2.Marshal(bsonv2.D{{Key: "Name", Value: "Responsive"}})
+	empty, err := bson.Marshal(bson.D{{Key: "Name", Value: "Responsive"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !throwPartialSyncError(bsonv2.Raw(empty)) {
+	if !throwPartialSyncError(bson.Raw(empty)) {
 		t.Error("an absent key must read as true")
 	}
 
 	// Control: a present false is honoured, so the default is not masking the
 	// read.
-	set, err := bsonv2.Marshal(bsonv2.D{{Key: "ThrowPartialSyncError", Value: false}})
+	set, err := bson.Marshal(bson.D{{Key: "ThrowPartialSyncError", Value: false}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if throwPartialSyncError(bsonv2.Raw(set)) {
+	if throwPartialSyncError(bson.Raw(set)) {
 		t.Error("a stored false must be read as false")
 	}
 }

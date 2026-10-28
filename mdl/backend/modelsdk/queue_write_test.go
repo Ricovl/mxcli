@@ -3,9 +3,10 @@
 package modelsdkbackend
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
@@ -26,7 +27,7 @@ func TestSerializeQueue_MatchesStudioProShape(t *testing.T) {
 	q.ID = "11111111-1111-1111-1111-111111111111"
 
 	var doc bson.M
-	if err := bson.Unmarshal(serializeQueue(q), &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(serializeQueue(q), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
@@ -69,7 +70,7 @@ func TestSerializeQueue_Defaults(t *testing.T) {
 	q.ID = "22222222-2222-2222-2222-222222222222"
 
 	var doc bson.M
-	if err := bson.Unmarshal(serializeQueue(q), &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(serializeQueue(q), &doc); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	cfg := doc["Config"].(bson.M)

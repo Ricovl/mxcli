@@ -143,6 +143,9 @@ func validateInputSubmitAndGridWidth(w *ast.WidgetV3, locationPrefix string) []l
 	for _, msg := range inputSubmitProblems(w) {
 		out = append(out, violation18(locationPrefix, w, msg))
 	}
+	if msg := keyboardTypeProblem(w); msg != "" { // ako/mxcli#1209
+		out = append(out, violation18(locationPrefix, w, msg))
+	}
 	if msg := layoutGridWidthProblem(w); msg != "" {
 		out = append(out, violation18(locationPrefix, w, msg))
 	}

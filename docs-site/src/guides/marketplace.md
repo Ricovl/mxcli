@@ -104,6 +104,71 @@ Agent Commons 4.2.0 requires Mendix 11.12.2, and the project is 11.12.1
 
 `install` installs exactly the content you name. Its dependencies are neither fetched nor named — read the check errors after each install, which identify what is missing by qualified name. The error count is **not monotonic**, because each new module brings its own unmet dependencies: installing the agent-editor stack into a vanilla 11.12.1 app went 0 → 15 → 0 → 18 → 1 → 22 → 1 → 1. Dependencies include widget content as well as modules (`CE0462 "Could not find widget ..."`).
 
+## Exporting a module (`marketplace package`)
+
+The reverse of `install --file`: write a module of a project out as a `.mpk`, for a company-standard
+module, a CI artifact, or to move a module to another app.
+
+```bash
+mxcli marketplace package MyModule -p app.mpr                 # ./MyModule.mpk
+mxcli marketplace package MyModule -p app.mpr -o ./dist --json
+```
+
+It wraps Mendix's own `mx create-module-package` at the project's Mendix version, so the package is
+the one Studio Pro's *Export module package* makes. The module name is checked against the project
+first (a typo lists the modules instead of failing with `mx` exit code 3), and `mx`'s exit codes 1–4
+are reported with what they mean and what `mx` printed. Whatever `mx` prints on a successful export
+goes to stderr, so `--json` output stays clean.
+
+**The `mx` must be the project's Mendix version.** `mx` is found from an `mx` on PATH first, then a
+Studio Pro install, then the `mxbuild` cache, falling back to any cached one when the project's version
+is missing, so the first match can belong to another Mendix version than the app. mxcli reads the
+version of the `mx` it found (from the `mx.deps.json` beside it, else its version-named folder),
+compares major.minor.patch with the project's, and **refuses** a mismatch — or an `mx` whose version
+cannot be told — naming both versions. The fix is `mxcli setup mxbuild --version <version>` (take an
+older `mx` off PATH, which is used before it). `--mxbuild-path` is the deliberate override: with it
+a mismatch only warns on stderr and the export goes on. A path that does not exist is an error.
+
+| Flag | Purpose |
+|---|---|
+| `-p, --project` | The project holding the module (required). |
+| `-o, --output-dir` | Where `<Module>.mpk` goes (default: the current directory; created if missing). |
+| `--all-libs` | Bundle every `userlib/` JAR. By default only the module's own required libs go in (`mx -l`): 12 KB against 24 MB on an app with Business Events installed. |
+| `--exclude <regex>` | Leave out files whose path inside the package matches. `mx` takes **one** expression, so join alternatives with `\|`; write the folder separator as `.`. |
+| `--exclude-managed-dependencies` | Leave out managed dependencies (`mx -m`). |
+| `--mxbuild-path` | Take `mx` from this Mendix installation (or `mxbuild`) instead of resolving it by the project's version. Overrides the version check: a mismatch warns instead of refusing. |
+| `--json` | Print `{path, sizeBytes, files, foreignEntries}`. |
+
+**Files of other modules.** `-l` filters only `userlib/` JARs. The app's whole `resources/` folder is
+still exported (measured on 11.12.5: another module's `resources/EventLog/` came along; its `javasource/` and
+`themesource/` did not). After the export mxcli opens the package and warns on stderr about every `resources/<X>/…`, `javasource/<x>/…` or
+`themesource/<x>/…` entry where `X` is not the exported module (the last two are a defensive check),
+and prints the pattern that drops them:
+
+```text
+warning: the package holds 1 file(s) that belong to other modules, not to MyModule:
+  resources/EventLog/x.txt
+To leave them out, export again with:
+  --exclude '^resources.EventLog.'
+```
+
+The pattern is quoted for a POSIX shell (a `'` in your own `--exclude` is written `'''`), so it can be
+pasted as it stands; in PowerShell or `cmd` quote it for that shell.
+
+The pattern uses `.` for the separator because a character class or a backslash (`[/\]`) makes `mx`
+print its usage and write nothing. `.` matches any character, so a pattern that would also match a file
+of the module itself is not suggested.
+
+**The project is not changed.** `mx create-module-package` writes into the project it is given:
+measured on a blank 11.12.5 app, one run rewrote `theme-cache/web/theme.compiled.css` and its map,
+added `deployment/sass/main.scss`, and created the module's `themesource/<module>/` folder; the model
+files were untouched. mxcli therefore runs it on a temporary copy, as `docker check` does, and a
+before/after listing of the project (sizes and modification times) was identical. An output directory
+inside the project (`-o ./dist`) is left out of that copy, so earlier packages are not copied along.
+
+The package installs back with `marketplace install --file`; the round trip into a fresh 11.12.5 app
+checks with 0 errors.
+
 ## Why installs do not use `mx module-import`
 
 `mx module-import` rewrites an MPR v2 project as v1. Measured on a blank Mendix 11.12.1 app, a single import turned a 69 KB `.mpr` plus 341 `.mxunit` files into one 14 MB SQLite blob with no `mprcontents/` — and the same was observed independently on 11.13.0, so it is not version-specific:
@@ -177,7 +242,7 @@ Administration updated 4.3.2 → 4.5.0
 
 - **Element identity.** The runtime keys entities and their attributes on the model's `GUID`, so a module whose documents are replaced without carrying the old GUIDs is a *different* module to the database and its tables are dropped on the next deploy. Studio Pro transplants them; so does this.
 - **Access.** A user role's grant of a module role lives in the project's security document, not the module, so removing the module takes the grants with it and putting it back does not return them.
-- **Everything else the package ships.** A module is not only its model: the `.mpk` carries widget binaries under `widgets/`, styling and design-property declarations under `themesource/`, and whatever else it needs. All of it is replaced — only `project.mpr` and `package.xml` are manifest rather than payload. DataWidgets 3.11.3 replaces 49 such files, and skipping them leaves the app running old widget code and reporting `CE6083` for design properties the module itself declares.
+- **Everything else the package ships.** A module is not only its model: the `.mpk` carries widget binaries under `widgets/`, styling and design-property declarations under `themesource/`, and whatever else it needs. All of it is replaced: every file the package's `package.xml` lists under `<files>`, which is exactly what `mx module-import` installs. What it does not list is the package's own metadata — `License.txt`, `manifest.json`, the `READMEOSS` report, `Mendix EULA.docx` — and is left out, named on one line of the output. DataWidgets 3.11.3 replaces 49 such files, and skipping them leaves the app running old widget code and reporting `CE6083` for design properties the module itself declares.
 
 It does not use `mx module-import`, which would rewrite an MPR v2 project as v1 and refuses theme modules. Units are copied with mxcli's own writer, so the project keeps its format.
 
@@ -291,6 +356,24 @@ Note that `--force` still builds the baseline. It is not wasted work — under
 replace, and that list is the whole point of the check. Use `--no-baseline` when
 you genuinely want to skip it.
 
+### Where references are built: the 260-character limit
+
+`mx` refuses to write any file whose path is 260 characters or longer — on every
+platform, not only Windows: the check is in `mx` itself. A reference project holds
+the blank template plus the imported package, and their deepest files are bundled
+`node_modules` trees: 181 characters for the 11.12.1 blank app, about 202 for
+NanoflowCommons 7.x. That leaves under 60 characters for the directory they are
+built in, and the default Windows `%TEMP%` (`C:\Users\<user>\AppData\Local\Temp`)
+used most of it, so `diff` and `update` failed with *"The specified file name or
+path is too long"*.
+
+References are therefore built under the shortest directory the user owns:
+`%USERPROFILE%\.mxcli\t` on Windows, `/tmp` on Linux and macOS, or `TMP` /
+`TMPDIR` when that is shorter still. It is never a folder at a drive root such as
+`C:\mxt`, which every local account may modify; point `TMP` there yourself if you
+accept that. If a package is deep enough to hit the limit anyway, the error names
+the directory, its length, and what is left for the package.
+
 ## Repairing the model (`mxcli fix`)
 
 `mx update-widgets` and `mx rename-design-properties` each fix something only Mendix can fix, and each rewrites an MPR v2 project into the single-file v1 format while doing it. Measured on 11.12.1: `update-widgets` took 369 `.mxunit` files to 0 and a 69,632-byte index to 14,405,632 bytes; `rename-design-properties` took 1,865 files to 0 and a 249,856-byte index to 39,895,040 bytes, having renamed 149 design properties across 41 documents. The conversion is one-way.
@@ -299,6 +382,10 @@ you genuinely want to skip it.
 mxcli fix widgets -p app.mpr             # CE0463
 mxcli fix design-properties -p app.mpr   # CE6087
 ```
+
+`marketplace install` runs both itself after a module install (a widget install runs
+the widget resync only) when `mx` for the project's version is available, and falls
+back to printing these two commands with a warning when it is not.
 
 ```text
 Updated design properties: 42 unit(s) changed.

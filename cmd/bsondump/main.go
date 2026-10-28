@@ -5,9 +5,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func main() {
@@ -21,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 	var doc bson.M
-	if err := bson.Unmarshal(data, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(data, &doc); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

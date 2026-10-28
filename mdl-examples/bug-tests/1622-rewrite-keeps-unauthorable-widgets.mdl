@@ -1,0 +1,50 @@
+-- mendixlabs/mxcli#1622 (ako/mxcli#1554): `describe` writes widgets it cannot
+-- execute, and `exec` then dropped them silently.
+--
+-- Symptom: on a page built in Studio Pro with a classic data grid and a
+-- reference selector,
+--   describe page Shop.Orders > p.mdl ; exec p.mdl ; describe page Shop.Orders
+-- printed the two widgets as
+--   -- Forms$DataGrid (grid1)  -- NOT re-executable: mxcli cannot author this widget, …
+-- and exec answered "Replaced page Shop.Orders" with both widgets gone and no
+-- warning; mx check was clean before and after.
+--
+-- Fix: the rewrite is refused — "page Shop.Orders holds 2 widget(s) MDL cannot
+-- author, and rewriting it from this statement would delete them: grid1
+-- (Forms$DataGrid), referenceSelector1 (Forms$ReferenceSelector)" — and
+-- `mxcli check -p` says so first. The same holds for snippets and layouts.
+--
+-- To verify in Studio Pro: build Shop.Orders with a classic Data grid named
+-- grid1 and a Reference selector named referenceSelector1, then run the
+-- describe output (refused), then this script: the ALTER below edits the page
+-- and keeps both widgets; the CREATE OR MODIFY after the commented-out DROP
+-- would be refused until the DROP is run.
+
+mdl 1;
+
+create module Shop;
+
+create persistent entity Shop.Order (
+  Number: autonumber default 1,
+  Note: string(200)
+);
+
+create page Shop.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  container ctn1 {
+    dynamictext txtHeading (Content: 'Orders')
+  }
+};
+
+-- Editing a page that holds such widgets: ALTER changes only what it names.
+alter page Shop.Orders {
+  set (Content: 'All orders') on txtHeading;
+};
+
+-- Rebuilding it without them: drop them on purpose first.
+-- alter page Shop.Orders { drop grid1, referenceSelector1; };
+
+create or modify page Shop.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  container ctn1 {
+    dynamictext txtHeading (Content: 'All orders')
+  }
+};

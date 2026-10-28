@@ -39,6 +39,10 @@ func (b *Backend) CreateMicroflow(mf *microflows.Microflow) error {
 	var ops []pedOpEntry
 	if b.microflowConstructorTakesSkeleton() {
 		ops = adaptMicroflowSkeleton(content)
+	} else if containsNote(content) {
+		// The full constructor's flows carry no $Type, so a note's line could
+		// only be read as a SequenceFlow — an execution edge out of the note.
+		return fmt.Errorf("microflow %q has a note, which Studio Pro's MCP API takes only from the microflow constructor 11.14 introduced; this Studio Pro has the older one — remove the note or run without --mcp", mf.Name)
 	}
 	if err := b.ensureSchema(microflowDocType); err != nil {
 		return err
@@ -104,7 +108,8 @@ func (b *Backend) microflowConstructorTakesSkeleton() bool {
 //   - action, returnValue, the split condition and the loop source become `set`
 //     operations on the stored document (/objectCollection/objects/N/…, nesting
 //     through a loop's objectCollection);
-//   - each flow gets its $Type, the return type flattens to an enum plus
+//   - each sequence flow gets its $Type (a note's line already has one), the
+//     return type flattens to an enum plus
 //     returnTypeEntity/returnTypeEnumeration, and returnVariableName becomes an
 //     operation.
 func adaptMicroflowSkeleton(content map[string]any) []pedOpEntry {
@@ -140,8 +145,10 @@ func adaptMicroflowSkeleton(content map[string]any) []pedOpEntry {
 		if !ok {
 			continue
 		}
-		fm["$Type"] = "Microflows$SequenceFlow"
-		for _, k := range []string{"originId", "destinationId"} {
+		if _, typed := fm["$Type"]; !typed {
+			fm["$Type"] = "Microflows$SequenceFlow"
+		}
+		for _, k := range []string{"originId", "destinationId", "origin", "destination"} {
 			if ref, ok := fm[k].(string); ok {
 				fm[k] = shiftObjectRef(ref, len(params))
 			}
@@ -256,7 +263,7 @@ func (b *Backend) buildFlowDocContent(kind, name string, params []*microflows.Mi
 			"$Type":               "Microflows$MicroflowParameterObject",
 			"name":                p.Name,
 			"type":                typeName,
-			"relativeMiddlePoint": map[string]int{"x": 200 + i*100, "y": 53},
+			"relativeMiddlePoint": map[string]int{"x": microflows.DerivedParameterPosition(i, params).X, "y": microflows.DerivedParameterPosition(i, params).Y},
 		}
 		if entity != "" {
 			po["entity"] = entity
@@ -303,6 +310,7 @@ func (b *Backend) buildFlowDocContent(kind, name string, params []*microflows.Mi
 				"originId":      fmt.Sprintf("$id(%s)", op),
 				"destinationId": fmt.Sprintf("$id(%s)", dp),
 			}
+			setPEDSides(pf, f)
 			cv, err := mapCaseValue(f.CaseValue)
 			if err != nil {
 				return nil, fmt.Errorf("%s %q: %w", kind, name, err)
@@ -311,6 +319,16 @@ func (b *Backend) buildFlowDocContent(kind, name string, params []*microflows.Mi
 				pf["caseValue"] = cv
 			}
 			flows = append(flows, pf)
+		}
+		// A note's line shares the flows list, after the sequence flows, as the
+		// stored document has it.
+		for _, af := range oc.AnnotationFlows {
+			op, ok1 := idPath[af.OriginID]
+			dp, ok2 := idPath[af.DestinationID]
+			if !ok1 || !ok2 {
+				return nil, fmt.Errorf("%s %q: a note is attached to an object that is not supported yet", kind, name)
+			}
+			flows = append(flows, pedAnnotationFlow(af, fmt.Sprintf("$id(%s)", op), fmt.Sprintf("$id(%s)", dp)))
 		}
 	}
 
@@ -426,6 +444,55 @@ func pedMiddlePoint(pt model.Point) map[string]int {
 	return map[string]int{"x": pt.X, "y": pt.Y}
 }
 
+var pedSides = []string{"Top", "Right", "Bottom", "Left"}
+
+// setPEDSides names a sequence flow's connection sides on its PED constructor.
+// Left out, Studio Pro draws every flow right -> left (measured on
+// 11.15.0-rc.4), whatever the builder or @anchor chose.
+func setPEDSides(v map[string]any, f *microflows.SequenceFlow) {
+	if f.OriginConnectionIndex >= 0 && f.OriginConnectionIndex < 4 {
+		v["originConnectionSide"] = pedSides[f.OriginConnectionIndex]
+	}
+	if f.DestinationConnectionIndex >= 0 && f.DestinationConnectionIndex < 4 {
+		v["destinationConnectionSide"] = pedSides[f.DestinationConnectionIndex]
+	}
+}
+
+// pedAnnotationFlow maps a note's line onto PED's Microflows$AnnotationFlow.
+// Unlike a SequenceFlow it is an element, not a constructor: its ends are
+// origin/destination (not originId/destinationId) and its sides are the
+// required connection indexes themselves.
+func pedAnnotationFlow(af *microflows.AnnotationFlow, origin, destination string) map[string]any {
+	sides := af.SidesOrDefault()
+	return map[string]any{
+		"$Type":                      "Microflows$AnnotationFlow",
+		"origin":                     origin,
+		"destination":                destination,
+		"originConnectionIndex":      sides.Origin,
+		"destinationConnectionIndex": sides.Destination,
+	}
+}
+
+// containsNote reports whether mapped content has a note anywhere on its
+// canvas, loop bodies included.
+func containsNote(content map[string]any) bool {
+	var walk func(objs []any) bool
+	walk = func(objs []any) bool {
+		for _, o := range objs {
+			m, _ := o.(map[string]any)
+			if m["$Type"] == "Microflows$Annotation" {
+				return true
+			}
+			if body, ok := m["objects"].([]any); ok && walk(body) {
+				return true
+			}
+		}
+		return false
+	}
+	objects, _ := content["objects"].([]any)
+	return walk(objects)
+}
+
 // mapObjectTree maps one executor microflow object onto a PED /objects entry,
 // registering its path in idPath and recursing into loop bodies (whose objects
 // nest at <path>/objects/M). Positions come from the executor's layout engine.
@@ -529,6 +596,16 @@ func (b *Backend) mapObjectTree(o microflows.MicroflowObject, path string, idPat
 			}
 		}
 		m["objects"] = body
+		return m, nil
+	case *microflows.Annotation:
+		m := map[string]any{
+			"$Type":               "Microflows$Annotation",
+			"relativeMiddlePoint": pos,
+			"caption":             obj.Caption,
+		}
+		if obj.Size.Width > 0 && obj.Size.Height > 0 {
+			m["size"] = map[string]int{"width": obj.Size.Width, "height": obj.Size.Height}
+		}
 		return m, nil
 	default:
 		return nil, fmt.Errorf("microflow object type %T is not yet supported by the MCP backend", o)
@@ -844,6 +921,11 @@ func mapMicroflowAction(a microflows.MicroflowAction) (map[string]any, error) {
 		}
 		if act.LogNodeName != "" {
 			m["node"] = act.LogNodeName
+		}
+		// The Model SDK's name for "Include latest stack trace"; false is the
+		// default, so it is sent only when ticked (mendixlabs/mxcli#1543).
+		if act.IncludeLastStackTrace {
+			m["includeLatestStackTrace"] = true
 		}
 		return m, nil
 	case *microflows.NotifyWorkflowAction:

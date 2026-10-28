@@ -41,11 +41,15 @@ func isWidgetExpressionProp(name string) bool {
 // text is taken from the value node itself. A bracketed list is the one
 // exception: it is returned as the list the other readers build, so MDL-WIDGET27
 // (empty) and MDL-WIDGET32 (non-empty) still report it.
+//
+// Identifier quotes are stripped from the text, as in every other expression
+// slot: `$currentObject/"Code"` stored verbatim is CE0117 at build time
+// (mendixlabs/mxcli#1584).
 func widgetExpressionValue(valueNode antlr.ParserRuleContext) any {
 	if pv, ok := valueNode.(*parser.PropertyValueV3Context); ok && (pv.LBRACKET() != nil || pv.ObjectEntryListV3() != nil) {
 		return buildPropertyValueV3(pv)
 	}
-	return ruleSourceText(valueNode)
+	return stripExpressionIdentifierQuotes(ruleSourceText(valueNode))
 }
 
 // lastRuleChild is the rule node after `name :` / `name =` — the value.
@@ -72,7 +76,7 @@ func widgetExpressionNotAllowed(name string, expr parser.IExpressionContext) err
 // plain one, so it keeps the text and the schema-aware layers decide
 // (PROPOSAL_first_class_expressions.md §6.2, the schema-driven slice).
 func genericWidgetExpression(expr parser.IExpressionContext) *ast.WidgetExpressionV3 {
-	return &ast.WidgetExpressionV3{Text: ruleSourceText(expr.(antlr.ParserRuleContext))}
+	return &ast.WidgetExpressionV3{Text: stripExpressionIdentifierQuotes(ruleSourceText(expr.(antlr.ParserRuleContext)))}
 }
 
 // keepExpressionSource records the source text of a generic property whose
@@ -89,5 +93,5 @@ func keepExpressionSource(widget *ast.WidgetV3, key string, dsCtx parser.IDataSo
 	if widget.ValueSource == nil {
 		widget.ValueSource = map[string]string{}
 	}
-	widget.ValueSource[key] = ruleSourceText(ds)
+	widget.ValueSource[key] = stripExpressionIdentifierQuotes(ruleSourceText(ds))
 }

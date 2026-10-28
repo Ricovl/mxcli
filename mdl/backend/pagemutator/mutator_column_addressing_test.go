@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -26,10 +25,10 @@ func plainWidgets() []pages.Widget {
 // real (derived) column names on a miss instead of a bare "not found".
 // ---------------------------------------------------------------------------
 
-func idBin(b byte) primitive.Binary {
+func idBin(b byte) bson.Binary {
 	data := make([]byte, 16)
 	data[0] = b
-	return primitive.Binary{Subtype: 0x04, Data: data}
+	return bson.Binary{Subtype: 0x04, Data: data}
 }
 
 // buildGridWithColumns constructs the minimal DataGrid2 BSON that findBsonColumn
@@ -306,5 +305,33 @@ func TestObjectListItemGuard_IgnoresRealWidgets(t *testing.T) {
 	pluggable := &bsonWidgetResult{widget: bson.D{{Key: "$Type", Value: "CustomWidgets$CustomWidget"}, {Key: "Name", Value: "grid1"}}}
 	if err := refuseObjectListItemTarget(pluggable, "grid1"); err != nil {
 		t.Fatalf("guard wrongly refused a pluggable widget: %v", err)
+	}
+}
+
+// REPLACE of a Data grid 2 column frees the names of what the column holds —
+// its filter, its custom content — so the replacement may reuse them. The
+// column reference was read only as a data view footer, so a grid column
+// reported nothing, and a replacement whose filter kept its name (`dropdownfilter
+// ddf`) was refused as a duplicate once the filter went through the engine
+// (mendixlabs/mxcli#1519 item 2, the ALTER path).
+func TestContainedWidgetNames_GridColumnReportsItsWidgets(t *testing.T) {
+	grid := buildGridWithColumns([]map[string]string{{"attr": "M.E.Merchant"}, {"caption": "Amount"}})
+	// Give the Merchant column a filter slot holding a named drop-down filter.
+	objs := grid[1].Value.(bson.D)[0].Value.(bson.A)[1].(bson.D)[1].Value.(bson.D)[0].Value.(bson.A)
+	merchant := objs[1].(bson.D)
+	merchant[0].Value = append(merchant[0].Value.(bson.A), bson.D{
+		{Key: "TypePointer", Value: idBin(0x13)},
+		{Key: "Value", Value: bson.D{{Key: "Widgets", Value: bson.A{int32(2),
+			bson.D{{Key: "$Type", Value: "CustomWidgets$CustomWidget"}, {Key: "Name", Value: "ddf"}}}}}},
+	})
+	m := &Mutator{rawData: bson.D{}, widgetFinder: gridFinder(grid)}
+
+	got := m.ContainedWidgetNames("dg", "Merchant")
+	if len(got) != 1 || got[0] != "ddf" {
+		t.Errorf("ContainedWidgetNames(dg, Merchant) = %v, want [ddf]", got)
+	}
+	// The control: a column holding nothing frees nothing.
+	if got := m.ContainedWidgetNames("dg", "Amount"); len(got) != 0 {
+		t.Errorf("ContainedWidgetNames(dg, Amount) = %v, want none", got)
 	}
 }

@@ -1,0 +1,44 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1466 — one-hop comparand landing on the wrong entity
+-- ============================================================================
+--
+-- NEGATIVE TEST (.fail.mdl): `mxcli check` MUST reject this file
+-- (MDL-XPATH02). An unexpected pass means the comparand type check has
+-- regressed.
+--
+-- One hop off $currentObject is valid (MDL055 refuses two), so what is left to
+-- get wrong is what the hop lands on. District_Region leads to Region,
+-- AreaPicker_City to City; on fresh 11.13.0 and 11.14.0 projects:
+--
+--   [error] [CE0161] "Error(s) in XPath constraint." at Combo box 'cbDistrict'
+--
+-- The same comparand landing on Region, or on a specialization or a
+-- generalization of it, builds clean — see
+-- 1466-datasource-xpath-variable-traversal-ok.mdl.
+-- ============================================================================
+
+create module Bug1466E;
+create persistent entity Bug1466E.Region (Name: String(100));
+create persistent entity Bug1466E.City (Name: String(100));
+create persistent entity Bug1466E.District (Name: String(100));
+create persistent entity Bug1466E.AreaPicker (Label: String(50));
+create association Bug1466E.District_Region from Bug1466E.District to Bug1466E.Region type Reference;
+create association Bug1466E.AreaPicker_City from Bug1466E.AreaPicker to Bug1466E.City type Reference;
+create association Bug1466E.AreaPicker_District from Bug1466E.AreaPicker to Bug1466E.District type Reference;
+
+create page Bug1466E.WrongEntity (
+  Params: ($Picker: Bug1466E.AreaPicker), Title: 'Area', Layout: Atlas_Core.Atlas_Default
+) {
+  layoutgrid lg {
+    row {
+      column (desktopwidth: autofill) {
+        dataview dvPicker (DataSource: $Picker) {
+          combobox cbDistrict (Association: Bug1466E.AreaPicker_District,
+            DataSource: database Bug1466E.District where [Bug1466E.District_Region = $currentObject/Bug1466E.AreaPicker_City],
+            CaptionAttribute: Name)
+        }
+      }
+    }
+  }
+};

@@ -94,9 +94,7 @@ func describeExportMapping(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("get export mapping", err)
 	}
 
-	if em.Documentation != "" {
-		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(em.Documentation, "\n", "\n * "))
-	}
+	writeDocumentDocComment(ctx.Output, em.Documentation)
 	// The same prefix a microflow or page carries: without it an excluded
 	// mapping reads as live, and beside a live twin of the same name the two
 	// are indistinguishable (#1185).
@@ -295,6 +293,19 @@ func execCreateExportMapping(ctx *ExecContext, s *ast.CreateExportMappingStmt) e
 		if err := checkNoWebServiceSource("export", s.Name.String(), existing.WebServiceSource); err != nil {
 			return err
 		}
+		// Nor are an XML-schema mapping's root element and element paths: its
+		// own description replays as Unchanged, and any other rewrite is refused
+		// rather than written without them (mendixlabs/mxcli#1623).
+		unchanged, err := exportMappingXmlSchemaRewrite(ctx, s, existing)
+		if err != nil {
+			return err
+		}
+		if unchanged {
+			if !ctx.Quiet {
+				reportUnchanged(ctx, "export mapping "+s.Name.String())
+			}
+			return nil
+		}
 	}
 
 	module, err := findModule(ctx, s.Name.Module)
@@ -328,11 +339,15 @@ func execCreateExportMapping(ctx *ExecContext, s *ast.CreateExportMappingStmt) e
 		NullValueOption: nullValueOption,
 		// @excluded, which DESCRIBE prints for an excluded mapping (#1185).
 		Excluded: s.Excluded,
+		// The doc comment (mendixlabs/mxcli#1510).
+		Documentation: s.Documentation,
 	}
 	if existing != nil {
 		// Excluded is model state, not script state: an absent @excluded must
 		// not clear a stored exclusion (#914).
 		em.Excluded = s.Excluded || existing.Excluded
+		// A rewrite that carried no doc comment keeps the stored one (#1018).
+		em.Documentation = carriedDocumentation(s.DocumentationSet, s.Documentation, existing.Documentation)
 	}
 	if em.NullValueOption == "" {
 		em.NullValueOption = "LeaveOutElement"

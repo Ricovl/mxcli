@@ -16,6 +16,11 @@ type DomainModelBackend interface {
 	GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, error)
 	GetDomainModelByID(id model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModel(dm *domainmodel.DomainModel) error
+	// ParseDomainModelFromRaw converts a DomainModels$DomainModel document
+	// that is not in storage — diff-local's historical revision of the unit,
+	// read back with `git show` — the way GetDomainModel converts the stored
+	// one. Read-only.
+	ParseDomainModelFromRaw(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error)
 
 	// SetDomainModelAnnotations replaces the canvas notes on a domain model.
 	//

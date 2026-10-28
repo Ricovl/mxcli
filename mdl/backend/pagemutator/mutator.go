@@ -6,14 +6,16 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
+	"github.com/mendixlabs/mxcli/mdl/backend/widgetobj"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -36,6 +38,10 @@ type Deps interface {
 	SerializeClientAction(a pages.ClientAction) bson.D
 	// SerializeCustomWidgetDataSource converts a pluggable-widget data source to raw bson.D.
 	SerializeCustomWidgetDataSource(ds pages.DataSource) bson.D
+	// SerializeClientTemplate builds an empty Forms$ClientTemplate, for a
+	// text-template property that is stored null and has to hold text — the
+	// codec's shape, not one assembled here.
+	SerializeClientTemplate() bson.D
 	// BuildDataGrid2Column builds a DataGrid2 column object (raw bson.D) from a
 	// column spec, given the column object's type ID and per-property type IDs.
 	// Returns an error if the engine does not support DataGrid2 column ALTER (so
@@ -91,7 +97,7 @@ func New(rawData bson.D, unitID model.ID, deps Deps) *Mutator {
 		containerType: containerType,
 		unitID:        unitID,
 		deps:          deps,
-		widgetFinder:  withNavItemAddresses(finder),
+		widgetFinder:  withTableCellAddresses(withNavItemAddresses(finder)),
 	}
 }
 
@@ -119,6 +125,9 @@ func (m *Mutator) SetWidgetProperty(widgetRef string, prop string, value any) er
 	if len(result.colPropKeys) > 0 {
 		if n := m.columnMatchCount(widgetRef); n > 1 {
 			return columnAmbiguityError(widgetRef, n)
+		}
+		if result.item != nil {
+			m.ensureItemTemplate(result, prop)
 		}
 		return setColumnPropertyMut(result.widget, result.colPropKeys, result.colPropKinds, prop, value)
 	}
@@ -149,11 +158,52 @@ func (m *Mutator) SetWidgetDataSource(widgetRef string, ds pages.DataSource) err
 		return err
 	}
 
+	if bsonnav.DGetString(result.widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return m.setPluggableDataSource(result.widget, ds)
+	}
+
 	serialized := serializeDataSourceBson(ds)
 	if serialized == nil {
 		return fmt.Errorf("unsupported DataSource type %T", ds)
 	}
-	bsonnav.DSet(result.widget, "DataSource", serialized)
+	// DSet only replaces an existing key. Ignoring its result is how a widget
+	// with nowhere to keep a source reported "Altered page" unchanged
+	// (mendixlabs/mxcli#1548).
+	if !bsonnav.DSet(result.widget, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s) has no data source to set", widgetRef, widgetTypeName(result.widget))
+	}
+	return nil
+}
+
+// setPluggableDataSource writes ds into a pluggable widget's datasource
+// property. A Gallery or Data grid 2 has no top-level DataSource key — the
+// source is the Value of the property its schema keys "datasource" — so the
+// plain-widget write above found nothing to replace and reported success with
+// the unit byte-identical (mendixlabs/mxcli#1548). The source is serialized by
+// the engine's pluggable serializer, the one CREATE PAGE and INSERT use for
+// the same property, rather than by serializeDataSourceBson: a second copy of
+// that shape is the drift this file keeps paying for.
+func (m *Mutator) setPluggableDataSource(widget bson.D, ds pages.DataSource) error {
+	name := bsonnav.DGetString(widget, "Name")
+	valDoc := pluggableDataSourceValue(widget)
+	if valDoc == nil {
+		return fmt.Errorf("%q (%s) has no data source property to set", name, widgetTypeName(widget))
+	}
+	var serialized bson.D
+	switch ds.(type) {
+	case *pages.MicroflowSource, *pages.NanoflowSource:
+		if m.deps != nil {
+			serialized = m.deps.SerializeCustomWidgetDataSource(ds)
+		}
+	}
+	if serialized == nil {
+		return fmt.Errorf("setting this kind of data source on %q (%s) is not supported by `set` — "+
+			"use `replace <widget> with …` instead, which rebuilds the widget through the CREATE PAGE path",
+			name, widgetTypeName(widget))
+	}
+	if !bsonnav.DSet(valDoc, "DataSource", serialized) {
+		return fmt.Errorf("%q (%s): its data source property has no DataSource slot", name, widgetTypeName(widget))
+	}
 	return nil
 }
 
@@ -208,22 +258,38 @@ func (m *Mutator) SetWidgetAction(widgetRef string, action pages.ClientAction) e
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
 	}
-	// Refuse rather than write an Action onto something that has no such
-	// property: Studio Pro resolves every stored property against the type's
+	// The key is the one the stored widget holds: a container keeps its click
+	// action in OnClickAction, a list view or an image in ClickAction
+	// (ako/mxcli#1503). Refuse rather than write a key the widget does not
+	// have: Studio Pro resolves every stored property against the type's
 	// property list and throws on one it does not know, while mxbuild's
 	// deserializer tolerates it — so a silent write here builds clean and fails
 	// to open.
-	if bsonnav.DGet(result.widget, "Action") == nil {
-		return fmt.Errorf("widget %q (%s) has no Action property — Action can only be set on a widget that "+
-			"performs an on-click action, such as a button or a clickable container",
+	key := clickActionKey(result.widget)
+	if key == "" {
+		return fmt.Errorf("widget %q (%s) has no on-click action — Action can only be set on a widget that "+
+			"has one: a button, a container, a list view or an image",
 			widgetRef, widgetTypeName(result.widget))
 	}
 	serialized := m.deps.SerializeClientAction(action)
 	if serialized == nil {
 		return fmt.Errorf("unsupported action type %T", action)
 	}
-	bsonnav.DSet(result.widget, "Action", serialized)
+	bsonnav.DSet(result.widget, key, serialized)
 	return nil
+}
+
+// clickActionKey returns the key under which a stored widget keeps its
+// on-click action, or "" when it has none.
+func clickActionKey(widget bson.D) string {
+	for _, key := range types.WidgetClickActionKeys {
+		for _, e := range widget {
+			if e.Key == key {
+				return key
+			}
+		}
+	}
+	return ""
 }
 
 // SetWidgetNamedAction writes an action into a pluggable widget's action slot
@@ -324,6 +390,10 @@ func (m *Mutator) SetColumnProperty(gridRef string, columnRef string, prop strin
 	if err != nil {
 		return err
 	}
+	// A template CREATE stored null (the column was not in dynamicText mode)
+	// gets one before its text is written; whether it may be shown is the
+	// reset pass's to decide afterwards.
+	m.ensureItemTemplate(result, prop)
 	return setColumnPropertyMut(result.widget, result.colPropKeys, result.colPropKinds, prop, value)
 }
 
@@ -353,6 +423,11 @@ func (m *Mutator) ClearDesignProperties(widgetRef string) error {
 
 // findStyleableWidget locates a widget by name for design-property operations.
 func (m *Mutator) findStyleableWidget(widgetRef string) (bson.D, error) {
+	// No widget is the page itself: a page's own Appearance carries design
+	// properties too (ako/mxcli#1678).
+	if widgetRef == "" && m.containerType == backend.ContainerPage {
+		return m.rawData, nil
+	}
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return nil, fmt.Errorf("widget %q not found", widgetRef)
@@ -459,6 +534,9 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 		if handled, err := m.insertIntoDataViewFooter(widgetRef, columnRef, position, widgets); handled {
 			return err
 		}
+		if handled, err := m.insertIntoPluggableSlot(widgetRef, columnRef, position, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -469,6 +547,12 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
+	}
+	if result.item != nil {
+		return m.insertIntoObjectListItem(result, widgetRef, position, widgets)
+	}
+	if err := refuseBesideTableCell(result, widgetRef, position); err != nil {
+		return err
 	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
@@ -497,6 +581,13 @@ func (m *Mutator) InsertWidget(widgetRef string, columnRef string, position back
 	if strings.EqualFold(string(position), "into") {
 		newContainer, err := appendChildrenToContainer(result.widget, widgetRef, newBsonWidgets)
 		if err != nil {
+			if hint := objectListItemHint(result, widgetRef); hint != "" {
+				return fmt.Errorf("cannot INSERT INTO %q: %s", widgetRef, hint)
+			}
+			if hint := pluggableSlotHint(result, widgetRef); hint != "" {
+				return fmt.Errorf("cannot INSERT INTO %q: a pluggable widget keeps its child widgets in named slots, "+
+					"not in a list of its own — use %s", widgetRef, hint)
+			}
 			return err
 		}
 		// Write the (possibly reallocated — an empty container gains a new Widgets
@@ -602,6 +693,14 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			continue
 		}
 		if ref.IsColumn() {
+			if handled, err := m.dropPluggableSlot(ref.Widget, ref.Column); handled {
+				if err != nil {
+					return err
+				}
+				continue
+			}
+		}
+		if ref.IsColumn() {
 			r, err := findBsonColumn(m.rawData, ref.Widget, ref.Column, m.widgetFinder)
 			if err != nil {
 				return err
@@ -611,6 +710,11 @@ func (m *Mutator) DropWidget(refs []backend.WidgetRef) error {
 			result = m.widgetFinder(m.rawData, ref.Widget)
 			if result == nil {
 				return m.widgetNotFoundError(ref.Name())
+			}
+			if result.cell != nil {
+				// A cell is emptied, not removed: the table's grid needs it.
+				setCellWidgets(result.widget, nil)
+				continue
 			}
 			if n := m.columnMatchCount(ref.Name()); n > 1 {
 				return columnAmbiguityError(ref.Name(), n)
@@ -632,6 +736,9 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 		if handled, err := m.replaceDataViewFooter(widgetRef, columnRef, widgets); handled {
 			return err
 		}
+		if handled, err := m.replacePluggableSlot(widgetRef, columnRef, widgets); handled {
+			return err
+		}
 		// Resolve first, so a mistyped column still reports "not found" (with the
 		// available names) rather than the refusal below.
 		if _, err := findBsonColumn(m.rawData, widgetRef, columnRef, m.widgetFinder); err != nil {
@@ -642,6 +749,23 @@ func (m *Mutator) ReplaceWidget(widgetRef string, columnRef string, widgets []pa
 	result := m.widgetFinder(m.rawData, widgetRef)
 	if result == nil {
 		return m.widgetNotFoundError(widgetRef)
+	}
+	if result.cell != nil {
+		newBson, err := m.serializeWidgets(widgets)
+		if err != nil {
+			return fmt.Errorf("serialize widgets: %w", err)
+		}
+		setCellWidgets(result.widget, newBson)
+		return nil
+	}
+	if result.item != nil {
+		// Widgets in place of an item would be written into the item list,
+		// which the loader cannot read (the #935 shape). The item's content is
+		// a slot, and replacing that is what was meant.
+		body := strings.ToLower(types.BodyItemSlotKey(result.item.slotKeys))
+		return fmt.Errorf("cannot replace %q with widgets: it is a %s item, not a widget — replace its "+
+			"content with `replace %s.%s with { … }`, or remove the item with `drop %s`",
+			widgetRef, result.item.listKey, widgetRef, body, widgetRef)
 	}
 	if err := refuseObjectListItemTarget(result, widgetRef); err != nil {
 		return err
@@ -1322,6 +1446,12 @@ func widgetOwnDataSourceDoc(wDoc bson.D) bson.D {
 // property the widget's schema keys "datasource", and returns its DataSource
 // document.
 func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
+	return bsonnav.DGetDoc(pluggableDataSourceValue(widgetDoc), "DataSource")
+}
+
+// pluggableDataSourceValue returns the Value document of the CustomWidget
+// property its schema keys "datasource" — the one holding a DataSource key.
+func pluggableDataSourceValue(widgetDoc bson.D) bson.D {
 	obj := bsonnav.DGetDoc(widgetDoc, "Object")
 	if obj == nil {
 		return nil
@@ -1343,8 +1473,8 @@ func pluggableDataSourceDoc(widgetDoc bson.D) bson.D {
 		if valDoc == nil {
 			continue
 		}
-		if dsDoc := bsonnav.DGetDoc(valDoc, "DataSource"); dsDoc != nil {
-			return dsDoc
+		if hasKey(valDoc, "DataSource") {
+			return valDoc
 		}
 	}
 	return nil
@@ -1393,6 +1523,13 @@ type bsonWidgetResult struct {
 	// declares (Expression, TextTemplate, Boolean, …). Without it a setter
 	// cannot tell which field of a WidgetValue to write — see columnValueField.
 	colPropKinds map[string]string
+	// item is set when the result is a pluggable widget's object-list item
+	// addressed as `owner item…` (an Accordion group): its slots are reached
+	// through it, and it is never a widget to insert beside or replace.
+	item *objectListItemInfo
+	// cell is set when the result is a legacy table cell addressed as
+	// `table cell(row, column)`: a position in the table, never a widget.
+	cell *backend.TableCellSelector
 }
 
 // widgetFinder is a function type for locating widgets in a raw BSON tree.
@@ -1521,6 +1658,15 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 		return result
 	}
 
+	// Legacy table: Cells[].Widgets[] (mendixlabs/mxcli#1453). A cell has no
+	// Name, so findInWidgetArray descends straight into its Widgets. Keyed on
+	// the list, not the $Type: Mendix 11 stores a cell as Forms$DbTableCell,
+	// which gen does not model, and Forms$Table is the only page type with a
+	// Cells list.
+	if result := findInWidgetArray(wDoc, "Cells", widgetName); result != nil {
+		return result
+	}
+
 	// NavigationList: Items[] hold no Name, but the widgets inside each one do
 	// (mendixlabs/mxcli#1388); findInWidgetArray descends into Items[].Widgets[].
 	if isNavigationList(wDoc) {
@@ -1532,6 +1678,12 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 	// ControlBar
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		if result := findInWidgetArray(controlBar, "Items", widgetName); result != nil {
+			return result
+		}
+	}
+	// Legacy DataGrid: Columns and the source's search bar (#1459).
+	for _, l := range legacyGridItemLists(wDoc) {
+		if result := findInWidgetArray(l.doc, l.key, widgetName); result != nil {
 			return result
 		}
 	}
@@ -1551,8 +1703,31 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 					}
 				}
 			}
-			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			propKeyMap := buildPropKeyMap(wDoc)
+			// Object-list items other than DataGrid2 columns — an Accordion
+			// group, a Pop-up menu item — keep their widgets one level deeper,
+			// at Value.Objects[].Properties[].Value.Widgets. Without this a grid
+			// inside an Accordion group could not be addressed at all, neither
+			// by its name nor by its columns', while the not-found message (a
+			// generic walk) listed those columns as available (#891). Columns
+			// are left to the loop below, which matches a column's derived name
+			// before descending into its content.
+			for _, prop := range props {
+				propDoc, ok := prop.(bson.D)
+				if !ok {
+					continue
+				}
+				typePointerID := bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(propDoc, "TypePointer"))
+				if propKeyMap[typePointerID] == "columns" {
+					continue
+				}
+				for _, itemVal := range objectListItemValues(bsonnav.DGetDoc(propDoc, "Value")) {
+					if result := findInWidgetArray(itemVal, "Widgets", widgetName); result != nil {
+						return result
+					}
+				}
+			}
+			// DataGrid2: search columns by derived name (stored in Objects, not Widgets)
 			for _, prop := range props {
 				propDoc, ok := prop.(bson.D)
 				if !ok {
@@ -1611,6 +1786,33 @@ func findInWidgetChildren(wDoc bson.D, widgetName string) *bsonWidgetResult {
 	}
 
 	return nil
+}
+
+// objectListItemValues returns the property Values of every item in a pluggable
+// property's object list (Value.Objects[].Properties[].Value) — the documents
+// that hold an item's widget slots. nil-safe: a property with no Value, or one
+// that is not an object list, yields nothing.
+func objectListItemValues(valDoc bson.D) []bson.D {
+	if valDoc == nil {
+		return nil
+	}
+	var out []bson.D
+	for _, item := range bsonnav.DGetArrayElements(bsonnav.DGet(valDoc, "Objects")) {
+		itemDoc, ok := item.(bson.D)
+		if !ok {
+			continue
+		}
+		for _, itemProp := range bsonnav.DGetArrayElements(bsonnav.DGet(itemDoc, "Properties")) {
+			itemPropDoc, ok := itemProp.(bson.D)
+			if !ok {
+				continue
+			}
+			if v := bsonnav.DGetDoc(itemPropDoc, "Value"); v != nil {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -1953,16 +2155,23 @@ func (m *Mutator) widgetNotFoundError(name string) error {
 	if err := m.navItemAddressError(name); err != nil {
 		return err
 	}
+	if err := m.tableCellAddressError(name); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("widget %q not found", name)
+	if hint := objectListItemMissHint(m.rawData); hint != "" {
+		msg += ". " + hint
+	}
 	var cols []string
 	collectColumnNamesBson(m.rawData, &cols)
 	if len(cols) > 0 {
 		return fmt.Errorf(
-			"widget %q not found. DataGrid2 columns are addressed by a derived name "+
+			"%s. DataGrid2 columns are addressed by a derived name "+
 				"(the bound attribute, or the caption), not the name written in MDL — "+
 				"available columns: %s (run DESCRIBE PAGE to confirm)",
-			name, formatColumnNameList(cols))
+			msg, formatColumnNameList(cols))
 	}
-	return fmt.Errorf("widget %q not found%s", name, m.dataViewFooterHint())
+	return fmt.Errorf("%s%s", msg, m.dataViewFooterHint())
 }
 
 // formatColumnNameList renders derived column names for an error message: each
@@ -2175,6 +2384,10 @@ func findNearestDataSourceDoc(rawData bson.D, widgetName string) (bson.D, bool) 
 	if sel, ok := backend.ParseNavItemSelector(widgetName); ok {
 		widgetName = sel.List
 	}
+	// Nor is a legacy table cell: `table1 cell(1,2)` sees what table1 sees.
+	if sel, ok := backend.ParseTableCellSelector(widgetName); ok {
+		widgetName = sel.Table
+	}
 	if formCall := bsonnav.DGetDoc(rawData, "FormCall"); formCall != nil {
 		for _, arg := range bsonnav.DGetArrayElements(bsonnav.DGet(formCall, "Arguments")) {
 			argDoc, ok := arg.(bson.D)
@@ -2243,6 +2456,9 @@ func findNearestDSInChildren(wDoc bson.D, widgetName string, curDS bson.D) (bson
 		}
 	}
 	if ds, found := findNearestDSInWidgets(wDoc, "TabPages", widgetName, curDS); found {
+		return ds, true
+	}
+	if ds, found := findNearestDSInWidgets(wDoc, "Cells", widgetName, curDS); found {
 		return ds, true
 	}
 	if isNavigationList(wDoc) {
@@ -2447,11 +2663,15 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 		}
 	}
 	collectWidgetScope(wDoc, "TabPages", scope)
+	collectWidgetScope(wDoc, "Cells", scope) // legacy table cells (#1453)
 	if isNavigationList(wDoc) {
 		collectWidgetScope(wDoc, "Items", scope)
 	}
 	if controlBar := bsonnav.DGetDoc(wDoc, "ControlBar"); controlBar != nil {
 		collectWidgetScope(controlBar, "Items", scope)
+	}
+	for _, l := range legacyGridItemLists(wDoc) {
+		collectWidgetScope(l.doc, l.key, scope)
 	}
 	if strings.Contains(typeName, "CustomWidget") {
 		if obj := bsonnav.DGetDoc(wDoc, "Object"); obj != nil {
@@ -2463,6 +2683,12 @@ func collectWidgetScopeInChildren(wDoc bson.D, scope map[string]model.ID) {
 				}
 				if valDoc := bsonnav.DGetDoc(propDoc, "Value"); valDoc != nil {
 					collectWidgetScope(valDoc, "Widgets", scope)
+					// Widgets inside object-list items: Accordion groups, Pop-up
+					// menu items, customContent columns — all resolvable by the
+					// finder, so they are in scope too (#891).
+					for _, itemVal := range objectListItemValues(valDoc) {
+						collectWidgetScope(itemVal, "Widgets", scope)
+					}
 				}
 			}
 			// DataGrid2: add column derived names to scope for duplicate-name detection
@@ -2644,63 +2870,14 @@ func setColumnPropertyMut(colDoc bson.D, propKeyMap map[string]string, propKindM
 }
 
 // updateClientTemplateText writes the literal text of a Forms$ClientTemplate's
-// Template in the authoring language (see setTextsTextTranslation). Returns false
+// Template in the authoring language (see bsonnav.SetTextsTextTranslation). Returns false
 // when the template has no Texts$Text to write into.
 func updateClientTemplateText(clientTemplate bson.D, text string) bool {
 	template := bsonnav.DGetDoc(clientTemplate, "Template")
 	if template == nil {
 		return false
 	}
-	return setTextsTextTranslation(template, text)
-}
-
-// setTextsTextTranslation writes text into a Texts$Text as the translation for
-// model.AuthoringLanguage() — the project's default language, the one DESCRIBE
-// shows — updating that entry in place, or appending one when the text has no
-// translation in that language yet. Every other language's translation is kept.
-//
-// This is the one rule for every text ALTER PAGE sets. Before it there were
-// four: a page Title and a column caption overwrote EVERY translation with the
-// same string (English text written into nl_NL); a button caption or content
-// overwrote whichever translation was listed first, whatever its language; and
-// a Caption/Label stored as a Texts$Text looked for a `Translations` key no
-// Mendix document has, then tried to set a stray `Text` field that DSet could
-// not add — reporting success with nothing written. The case that surfaced it:
-// a project switched to de_DE, a tab caption with only en_US → mxbuild CE4899
-// "Empty caption. [German, Germany]", and `set Caption` had to fill de_DE
-// without discarding the en_US text.
-//
-// Returns false when doc carries no Items list (not a Texts$Text).
-func setTextsTextTranslation(doc bson.D, text string) bool {
-	raw := bsonnav.ToBsonA(bsonnav.DGet(doc, "Items"))
-	if raw == nil && !hasKey(doc, "Items") {
-		return false
-	}
-	lang := model.AuthoringLanguage()
-	for _, item := range bsonnav.DGetArrayElements(raw) {
-		itemDoc, ok := item.(bson.D)
-		if !ok || bsonnav.DGetString(itemDoc, "LanguageCode") != lang {
-			continue
-		}
-		if bsonnav.DSet(itemDoc, "Text", text) {
-			return true
-		}
-	}
-	newItem := bson.D{
-		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
-		{Key: "$Type", Value: "Texts$Translation"},
-		{Key: "LanguageCode", Value: lang},
-		{Key: "Text", Value: text},
-	}
-	var newArr bson.A
-	if len(raw) > 0 && isListMarker(raw[0]) {
-		newArr = append(newArr, raw...)
-	} else {
-		// Texts$Text.Items is a marker-3 list in every document Studio Pro writes.
-		newArr = append(append(newArr, int32(3)), raw...)
-	}
-	newArr = append(newArr, newItem)
-	return bsonnav.DSet(doc, "Items", newArr)
+	return bsonnav.SetTextsTextTranslation(template, text)
 }
 
 // hasKey reports whether doc has the key at all, null value included.
@@ -2731,7 +2908,7 @@ func applyPageLevelSetMut(rawData bson.D, prop string, value any) (bson.D, error
 		if titleDoc == nil {
 			return rawData, fmt.Errorf("page has no Title field")
 		}
-		if !setTextsTextTranslation(titleDoc, strVal) {
+		if !bsonnav.SetTextsTextTranslation(titleDoc, strVal) {
 			return rawData, fmt.Errorf("could not update Title text")
 		}
 	case "Url":
@@ -2850,6 +3027,15 @@ func coercePopupDimension(prop string, value any) (int64, error) {
 // marker-3 Conditions, plus IgnoreSecurity/ModuleRoles for visibility). Returns
 // false when the widget has no such slot (e.g. editability on a non-input widget).
 func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression string, withSecurity bool) bool {
+	// "Visible for module roles" lives on the visibility node beside the
+	// condition; rebuilding the node for a new condition must not drop it
+	// (mendixlabs/mxcli#1460). Carried verbatim, list marker included.
+	moduleRoles := any(bson.A{int32(3)})
+	if withSecurity {
+		if stored := storedVisibleRoles(widget); stored != nil {
+			moduleRoles = stored
+		}
+	}
 	doc := bson.D{
 		{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 		{Key: "$Type", Value: typeName},
@@ -2867,19 +3053,40 @@ func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression s
 	if withSecurity {
 		doc = append(doc,
 			bson.E{Key: "IgnoreSecurity", Value: false},
-			bson.E{Key: "ModuleRoles", Value: bson.A{int32(3)}},
+			bson.E{Key: "ModuleRoles", Value: moduleRoles},
 		)
 	}
 	doc = append(doc, bson.E{Key: "SourceVariable", Value: nil})
 	return bsonnav.DSet(widget, field, doc)
 }
 
+// storedVisibleRoles is the widget's stored ConditionalVisibilitySettings.
+// ModuleRoles list when it names at least one role, else nil.
+func storedVisibleRoles(widget bson.D) bson.A {
+	cvs, ok := bsonnav.DGet(widget, "ConditionalVisibilitySettings").(bson.D)
+	if !ok {
+		return nil
+	}
+	roles, ok := bsonnav.DGet(cvs, "ModuleRoles").(bson.A)
+	if !ok {
+		return nil
+	}
+	for _, r := range roles {
+		if _, isName := r.(string); isName {
+			return roles
+		}
+	}
+	return nil
+}
+
 // setWidgetEditableMut writes `set Editable = …`. Two widget families store two
 // different things under the same key, so the stored value's type decides what
 // the statement may say:
 //
-//   - a list view or data view stores a BOOLEAN — `true` / `false`;
-//   - an input widget stores the Always / Never / Conditional enum.
+//   - a list view, or a data view before Mendix 10.7, stores a BOOLEAN —
+//     `true` / `false`;
+//   - an input widget stores the Always / Never / Conditional enum, and so does
+//     a data view from 10.7, under `Editability` (editabilityKey).
 //
 // Anything else is refused. Before mendixlabs/mxcli#1214 only a string was
 // written, so `set Editable = true on lvRows` — the boolean every list view
@@ -2887,7 +3094,8 @@ func setWidgetConditionalSettingMut(widget bson.D, field, typeName, expression s
 // stored, leaving the list's inputs read-only at runtime.
 func setWidgetEditableMut(widget bson.D, value any) error {
 	typ := bsonnav.DGetString(widget, "$Type")
-	switch bsonnav.DGet(widget, "Editable").(type) {
+	key := editabilityKey(widget)
+	switch bsonnav.DGet(widget, key).(type) {
 	case bool:
 		b, ok := editableBool(value)
 		if !ok {
@@ -2907,13 +3115,25 @@ func setWidgetEditableMut(widget bson.D, value any) error {
 			// expression; the bracketed form writes both.
 			return fmt.Errorf("`set Editable = Conditional` needs the condition itself: write `set Editable = [expression]`")
 		}
-		bsonnav.DSet(widget, "Editable", canon)
+		bsonnav.DSet(widget, key, canon)
 		// A plain value replaces a stored condition rather than contradicting it.
 		bsonnav.DSet(widget, "ConditionalEditabilitySettings", nil)
 		return nil
 	default:
 		return fmt.Errorf("a %s has no Editable property", widgetTypeLabel(typ))
 	}
+}
+
+// editabilityKey is the key a widget stores its editability under. A data view
+// moved from a boolean `Editable` to the `Editability` enum in Mendix 10.7 (Model
+// SDK: Forms$DataView `editable` Deleted 10.7.0, `editability` Introduced
+// 10.7.0); every input widget keeps `Editable`. Reading only `Editable` refused
+// `set Editable = Never` on every current data view (ako/mxcli#1676).
+func editabilityKey(widget bson.D) string {
+	if _, ok := bsonnav.DGet(widget, "Editability").(string); ok {
+		return "Editability"
+	}
+	return "Editable"
 }
 
 // editableBool reads a list/data view's boolean Editable from MDL, which hands
@@ -2960,6 +3180,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		return setWidgetLabelMut(widget, value)
 	case "tooltip":
 		return setWidgetTooltipMut(widget, value)
+	case "placeholder", "password", "validation", "validationmessage":
+		// A built-in input widget's own properties, which CREATE writes and
+		// DESCRIBE prints (mendixlabs/mxcli#414). A widget that does not store
+		// the key — a pluggable one above all — keeps its old route.
+		if handled, err := setInputWidgetPropertyMut(widget, propName, value); handled {
+			return err
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	case "buttonstyle":
 		if s, ok := value.(string); ok {
 			bsonnav.DSet(widget, "ButtonStyle", s)
@@ -3000,9 +3228,14 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		// Pro silently dropped it). The `[expr]` bracket form arrives as VisibleIf.
 		expr, hasSetting := pages.StaticVisibleExpression(value)
 		if !hasSetting {
-			// `Visible = true` (default-visible): clear any conditional-visibility node.
-			bsonnav.DSet(widget, "ConditionalVisibilitySettings", nil)
-			return nil
+			// `Visible = true` (default-visible): clear any conditional-visibility
+			// node — unless it carries module roles, a separate setting that
+			// Studio Pro stores on the same node (#1460): then only the
+			// condition is cleared.
+			if storedVisibleRoles(widget) == nil {
+				bsonnav.DSet(widget, "ConditionalVisibilitySettings", nil)
+				return nil
+			}
 		}
 		if !setWidgetConditionalSettingMut(widget, "ConditionalVisibilitySettings",
 			"Forms$ConditionalVisibilitySettings", expr, true) {
@@ -3028,8 +3261,9 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 		// The element only applies under the enum that says so — CREATE writes
 		// both (pages.WidgetEditability); writing the element alone left the
 		// stored enum saying Always or Never beside it.
-		if _, isEnum := bsonnav.DGet(widget, "Editable").(string); isEnum {
-			bsonnav.DSet(widget, "Editable", "Conditional")
+		key := editabilityKey(widget)
+		if _, isEnum := bsonnav.DGet(widget, key).(string); isEnum {
+			bsonnav.DSet(widget, key, "Conditional")
 		}
 		return nil
 	case "name":
@@ -3071,10 +3305,201 @@ func setRawWidgetPropertyMut(widget bson.D, propName string, value any) error {
 			return err
 		}
 		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "rendermode":
+		// RenderMode is a first-class property of a dynamic text (Text, Paragraph,
+		// H1–H6). Other widgets that store a RenderMode (a container's Div/Section/…)
+		// or a pluggable widget with its own "renderMode" key keep the existing path.
+		if isDynamicTextWidget(widget) {
+			return setDynamicTextRenderModeMut(widget, value)
+		}
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$DivContainer" || typ == "Pages$DivContainer" {
+			return setContainerRenderModeMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "nativetextstyle":
+		if isDynamicTextWidget(widget) {
+			return setDynamicTextNativeTextStyleMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "numberoflines", "autocomplete":
+		// A text area's (ako/mxcli#977). Any other widget keeps the pluggable path.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$TextArea" || typ == "Pages$TextArea" {
+			return setTextAreaPropertyMut(widget, propName, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "layoutmode":
+		// A scroll container's Headline / Sidebar (ako/mxcli#1703). Anything
+		// else keeps the pluggable path.
+		if typ := bsonnav.DGetString(widget, "$Type"); typ == "Forms$ScrollContainer" || typ == "Pages$ScrollContainer" {
+			return setScrollContainerLayoutModeMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
+	case "readonlystyle":
+		// Stored on the built-in input widgets and the data view; a pluggable
+		// widget with its own "readOnlyStyle" key keeps that path (ako/mxcli#977).
+		if bsonnav.DGet(widget, "ReadOnlyStyle") != nil {
+			return setReadOnlyStyleMut(widget, value)
+		}
+		return setPluggableWidgetPropertyMut(widget, propName, value)
 	default:
 		// Try as pluggable widget property
 		return setPluggableWidgetPropertyMut(widget, propName, value)
 	}
+}
+
+// setScrollContainerLayoutModeMut writes a stored scroll container's
+// LayoutMode, spelled as the metamodel spells it. It writes only a key the
+// document already carries (CLAUDE.md, overlay writes): one without it is from
+// a Mendix version mxcli has not measured the property on, and inventing the
+// key there could leave a document Studio Pro cannot open.
+func setScrollContainerLayoutModeMut(widget bson.D, value any) error {
+	s, ok := value.(string)
+	mode, valid := pages.CanonicalScrollContainerLayoutMode(s)
+	if !ok || !valid {
+		return fmt.Errorf("scroll container LayoutMode must be %s, got %v",
+			strings.Join(pages.ScrollContainerLayoutModes, " or "), value)
+	}
+	if bsonnav.DGet(widget, "LayoutMode") == nil {
+		return fmt.Errorf("this scroll container stores no LayoutMode, so it cannot be set here; " +
+			"rewrite the layout with `create or modify layout`")
+	}
+	bsonnav.DSet(widget, "LayoutMode", mode)
+	return nil
+}
+
+// dynamicTextRenderModes are the values a Forms$DynamicText's RenderMode takes —
+// the same set CREATE PAGE writes from `dynamictext x (RenderMode: …)`.
+var dynamicTextRenderModes = []pages.TextRenderMode{
+	pages.TextRenderModeText,
+	pages.TextRenderModeParagraph,
+	pages.TextRenderModeH1,
+	pages.TextRenderModeH2,
+	pages.TextRenderModeH3,
+	pages.TextRenderModeH4,
+	pages.TextRenderModeH5,
+	pages.TextRenderModeH6,
+}
+
+// isDynamicTextWidget reports whether a stored widget is a dynamic text. Stored
+// documents carry Forms$DynamicText; Pages$DynamicText is the SDK spelling.
+func isDynamicTextWidget(widget bson.D) bool {
+	switch bsonnav.DGetString(widget, "$Type") {
+	case "Forms$DynamicText", "Pages$DynamicText":
+		return true
+	}
+	return false
+}
+
+// setDynamicTextRenderModeMut writes a dynamic text's RenderMode in place. The
+// value is matched case-insensitively (MDL passes it as typed: `H1`, `h1`) and
+// stored in the canonical spelling; anything outside the enumeration is refused
+// before the document is touched — an unknown enum member is a document Studio
+// Pro cannot open.
+func setDynamicTextRenderModeMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	for _, mode := range dynamicTextRenderModes {
+		if s != "" && strings.EqualFold(s, string(mode)) {
+			if !bsonnav.DSet(widget, "RenderMode", string(mode)) {
+				// Studio Pro writes RenderMode on every dynamic text; a document
+				// without it is not one this setter should guess a position for.
+				return fmt.Errorf("dynamic text %q has no stored RenderMode property to set",
+					bsonnav.DGetString(widget, "Name"))
+			}
+			return nil
+		}
+	}
+	names := make([]string, len(dynamicTextRenderModes))
+	for i, mode := range dynamicTextRenderModes {
+		names[i] = string(mode)
+	}
+	return fmt.Errorf("invalid RenderMode %q for dynamic text %q: expected one of %s",
+		fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+}
+
+// setDynamicTextNativeTextStyleMut writes a dynamic text's NativeTextStyle in
+// place, canonically spelled; an unknown member is refused before the document
+// is touched (ako/mxcli#1677).
+func setDynamicTextNativeTextStyleMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	style, ok := pages.CanonicalNativeTextStyle(s)
+	if !ok {
+		names := make([]string, len(pages.NativeTextStyles))
+		for i, v := range pages.NativeTextStyles {
+			names[i] = string(v)
+		}
+		return fmt.Errorf("invalid NativeTextStyle %q for dynamic text %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+	}
+	if !bsonnav.DSet(widget, "NativeTextStyle", string(style)) {
+		return fmt.Errorf("dynamic text %q has no stored NativeTextStyle property to set",
+			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
+}
+
+// setTextAreaPropertyMut writes a text area's NumberOfLines or Autocomplete in
+// place. NumberOfLines keeps the stored integer width: Studio Pro writes an
+// int64, mxcli's codec an int32, and swapping one for the other is a change of
+// its own.
+func setTextAreaPropertyMut(widget bson.D, propName string, value any) error {
+	if strings.EqualFold(propName, "NumberOfLines") {
+		n, ok := formattingInt(value)
+		if !ok {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		lines, err := strconv.ParseInt(strconv.Itoa(n), 10, 32)
+		if err != nil || lines < 0 {
+			return fmt.Errorf("NumberOfLines is a whole number of 0 or more, not %v", value)
+		}
+		if _, isInt32 := bsonnav.DGet(widget, "NumberOfLines").(int32); isInt32 {
+			bsonnav.DSet(widget, "NumberOfLines", int32(lines))
+		} else {
+			bsonnav.DSet(widget, "NumberOfLines", lines)
+		}
+		return nil
+	}
+	b, ok := editableBool(value)
+	if !ok {
+		return fmt.Errorf("Autocomplete is true or false, not %v", value)
+	}
+	if !bsonnav.DSet(widget, "Autocomplete", b) {
+		return fmt.Errorf("text area %q stores no Autocomplete property to set", bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
+}
+
+// setReadOnlyStyleMut writes a widget's ReadOnlyStyle in place, canonically
+// spelled; an unknown member is refused before the document is touched.
+func setReadOnlyStyleMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	style, ok := pages.CanonicalReadOnlyStyle(s)
+	if !ok {
+		return fmt.Errorf("invalid ReadOnlyStyle %q for widget %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(pages.ReadOnlyStyles, ", "))
+	}
+	bsonnav.DSet(widget, "ReadOnlyStyle", style)
+	return nil
+}
+
+// setContainerRenderModeMut writes a container's RenderMode — the HTML element
+// it renders as — in place, canonically spelled; an unknown member is refused
+// before the document is touched (mendixlabs/mxcli#1582).
+func setContainerRenderModeMut(widget bson.D, value any) error {
+	s, _ := value.(string)
+	mode, ok := pages.CanonicalContainerRenderMode(s)
+	if !ok {
+		names := make([]string, len(pages.ContainerRenderModes))
+		for i, m := range pages.ContainerRenderModes {
+			names[i] = string(m)
+		}
+		return fmt.Errorf("invalid RenderMode %q for container %q: expected one of %s",
+			fmt.Sprint(value), bsonnav.DGetString(widget, "Name"), strings.Join(names, ", "))
+	}
+	if !bsonnav.DSet(widget, "RenderMode", string(mode)) {
+		return fmt.Errorf("container %q has no stored RenderMode property to set",
+			bsonnav.DGetString(widget, "Name"))
+	}
+	return nil
 }
 
 // setLegacyImageRefMut writes a static image's Image or a dynamic image's
@@ -3111,6 +3536,29 @@ func setLegacyImageRefMut(widget bson.D, propName string, value any) (bool, erro
 		return true, fmt.Errorf("this %s stores no %s to set", widgetTypeLabel(typ), key)
 	}
 	return true, nil
+}
+
+// CheckDateFormat refuses a widget a SET left with DateFormat Custom and no
+// pattern — mxbuild CE0493, "Date format is custom but no format string is
+// specified". It is judged on the statement's result, not per property:
+// properties are applied one at a time, so clearing the pattern of a picker
+// already Custom went through, while clearing it and switching to Date in the
+// same statement is valid (ako/mxcli#977).
+func (m *Mutator) CheckDateFormat(widgetRef string) error {
+	result := m.widgetFinder(m.rawData, widgetRef)
+	if result == nil || len(result.colPropKeys) > 0 {
+		return nil
+	}
+	fi := bsonnav.DGetDoc(result.widget, "FormattingInfo")
+	if fi == nil {
+		return nil
+	}
+	if bsonnav.DGetString(fi, "DateFormat") == "Custom" && strings.TrimSpace(bsonnav.DGetString(fi, "CustomDateFormat")) == "" {
+		return fmt.Errorf("the %s would be left with `DateFormat: Custom` and no pattern (mxbuild CE0493): "+
+			"set a CustomDateFormat such as 'dd-MM-yyyy HH:mm', or another DateFormat in the same statement",
+			widgetTypeLabel(bsonnav.DGetString(result.widget, "$Type")))
+	}
+	return nil
 }
 
 // setWidgetFormattingMut sets one field of an input widget's
@@ -3296,12 +3744,26 @@ func setDesignPropertyMut(widget bson.D, key, valueType, option string) error {
 	}
 	elements := bsonnav.DGetArrayElements(bsonnav.DGet(appearance, "DesignProperties"))
 
-	for _, el := range elements {
+	for i, el := range elements {
 		entry, ok := el.(bson.D)
 		if !ok || bsonnav.DGetString(entry, "Key") != key {
 			continue
 		}
-		bsonnav.DSet(entry, "Value", buildDesignPropertyValueDoc(valueType, option))
+		// Rebuilt rather than DSet: an entry stored before Mendix 10.2 has no
+		// Value — Type, StringValue and BooleanValue instead — and DSet does
+		// nothing on a missing key, so the set reported success and changed
+		// nothing (ako/mxcli#1209). The unit write lowers the rebuilt entry to the
+		// project's shape (canon.LowerToProjectShape); the entry keeps its $ID.
+		id := bsonnav.DGet(entry, "$ID")
+		if id == nil {
+			id = bsonutil.NewIDBsonBinary()
+		}
+		elements[i] = bson.D{
+			{Key: "$ID", Value: id},
+			{Key: "$Type", Value: designPropertyEntryType},
+			{Key: "Key", Value: key},
+			{Key: "Value", Value: buildDesignPropertyValueDoc(valueType, option)},
+		}
 		return writeDesignProperties(widget, key, elements)
 	}
 
@@ -3427,6 +3889,63 @@ func setWidgetTooltipMut(widget bson.D, value any) error {
 	return nil
 }
 
+// setInputWidgetPropertyMut sets one of the built-in input properties CREATE
+// writes on a text box (and, for Placeholder, a text area or date picker):
+//
+//   - Placeholder → PlaceholderTemplate, a Forms$ClientTemplate like LabelTemplate
+//   - Password → IsPasswordBox, a boolean
+//   - Validation / ValidationMessage → the Forms$WidgetValidation's Expression
+//     and its Message Texts$Text
+//
+// They all fell through to the pluggable setter, which refused them as "not a
+// property of this built-in widget" (mendixlabs/mxcli#414). It reports
+// handled=false when the widget does not store the key, so a pluggable
+// widget's own `placeholder` or `validation` still reaches its setter and a
+// built-in widget without one keeps that refusal.
+func setInputWidgetPropertyMut(widget bson.D, propName string, value any) (bool, error) {
+	typ := widgetTypeLabel(bsonnav.DGetString(widget, "$Type"))
+	switch strings.ToLower(propName) {
+	case "placeholder":
+		tmpl := bsonnav.DGetDoc(widget, "PlaceholderTemplate")
+		if tmpl == nil {
+			return false, nil
+		}
+		return true, setTranslatableText(tmpl, "Placeholder", value)
+	case "password":
+		if _, ok := bsonnav.DGet(widget, "IsPasswordBox").(bool); !ok {
+			return false, nil
+		}
+		b, ok := editableBool(value)
+		if !ok {
+			return true, fmt.Errorf("Password on a %s is true or false, not %v", typ, value)
+		}
+		bsonnav.DSet(widget, "IsPasswordBox", b)
+		return true, nil
+	case "validation":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		s, ok := value.(string)
+		if !ok {
+			return true, fmt.Errorf("Validation on a %s is an expression string, not %v", typ, value)
+		}
+		bsonnav.DSet(v, "Expression", s)
+		return true, nil
+	case "validationmessage":
+		v := bsonnav.DGetDoc(widget, "Validation")
+		if v == nil || bsonnav.DGetString(v, "$Type") != "Forms$WidgetValidation" {
+			return false, nil
+		}
+		msg := bsonnav.DGetDoc(v, "Message")
+		if msg == nil {
+			return true, fmt.Errorf("the validation of this %s has no Message text to set", typ)
+		}
+		return true, setTranslatableText(msg, "ValidationMessage", value)
+	}
+	return false, nil
+}
+
 func setWidgetContentMut(widget bson.D, value any) error {
 	content := bsonnav.DGetDoc(widget, "Content")
 	if content == nil {
@@ -3439,8 +3958,13 @@ func setWidgetContentMut(widget bson.D, value any) error {
 // Forms$ClientTemplate under LabelTemplate and writes no `Label` key at all;
 // the legacy shape is a Label document whose Caption is a Texts$Text. Looking
 // only for `Label` made `set Label = …` report success and store nothing on
-// every current input widget. A widget with neither (no label shown, or a type
-// that has none) still returns nil, as it always did.
+// every current input widget.
+//
+// The two remaining shapes answered with a bare nil too, which kept
+// mendixlabs/mxcli#292 open: an input whose label is not shown stores
+// `LabelTemplate: null`, so the label is created — the same ClientTemplate
+// create page writes; and a widget with no label slot at all (a button) is
+// refused by name, as Caption is, instead of reporting "Altered page".
 func setWidgetLabelMut(widget bson.D, value any) error {
 	if tmpl := bsonnav.DGetDoc(widget, "LabelTemplate"); tmpl != nil {
 		return setTranslatableText(tmpl, "LabelTemplate", value)
@@ -3450,7 +3974,24 @@ func setWidgetLabelMut(widget bson.D, value any) error {
 			return setTranslatableText(caption, "Label caption", value)
 		}
 	}
-	return nil
+	// A pluggable widget writes `LabelTemplate: null` whether or not its
+	// definition declares a Label system property (an Accordion has none), so a
+	// null there is no evidence a label may be added — refuse rather than guess.
+	if hasKey(widget, "LabelTemplate") && bsonnav.DGetString(widget, "$Type") != "CustomWidgets$CustomWidget" {
+		text, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("Label value must be a string")
+		}
+		if text == "" {
+			return nil // no label shown, and none asked for
+		}
+		bsonnav.DSet(widget, "LabelTemplate", widgetobj.BuildClientTemplateWithTextAndParams(text, nil))
+		return nil
+	}
+	if bsonnav.DGetString(widget, "$Type") == "CustomWidgets$CustomWidget" {
+		return fmt.Errorf("widget has no Label property to set: this pluggable widget shows no label")
+	}
+	return fmt.Errorf("widget has no Label property")
 }
 
 func setWidgetAttributeRefMut(widget bson.D, value any) error {
@@ -3540,6 +4081,10 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		// the runtime all read the template (mendixlabs/mxcli#1201). An empty
 		// kind — a document with no ValueType — stays primitive, as before.
 		kind := propKindMap[typePointerID]
+		if b, ok := value.(backend.AttributeBinding); ok {
+			// Resolved by the executor, which knows the binding scope (#1622).
+			return setAttributeBindingValue(valDoc, propName, kind, b)
+		}
 		field, settable := columnValueField(kind)
 		if !settable {
 			return fmt.Errorf(
@@ -3568,11 +4113,11 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		case string:
 			bsonnav.DSet(valDoc, "PrimitiveValue", v)
 		case bool:
-			if v {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "yes")
-			} else {
-				bsonnav.DSet(valDoc, "PrimitiveValue", "no")
+			spelled, err := pluggableBooleanSpelling(widget, typePointerID, kind, propName, v)
+			if err != nil {
+				return err
 			}
+			bsonnav.DSet(valDoc, "PrimitiveValue", spelled)
 		case int:
 			bsonnav.DSet(valDoc, "PrimitiveValue", fmt.Sprintf("%d", v))
 		case float64:
@@ -3583,6 +4128,58 @@ func setPluggableWidgetPropertyMut(widget bson.D, propName string, value any) er
 		return nil
 	}
 	return fmt.Errorf("pluggable property %q not found", propName)
+}
+
+// pluggableBooleanSpelling is how a bare `true`/`false` is stored in a pluggable
+// property, which the property's declared kind decides — not the MDL literal.
+// It was always "yes"/"no" (mendixlabs/mxcli#1454), the spelling of neither
+// Studio Pro nor the widget template for a Boolean: those store "true"/"false",
+// and the client reads anything but "true" as false, so `set (showFooter: true)`
+// passed mx check and switched the footer off. A production scan of 13k Boolean
+// values found no "yes"/"no" at all; those strings occur only as the keys of an
+// Enumeration that literally declares them, which keeps taking a boolean. Any
+// other enumeration has no key a boolean can mean, so it is refused rather
+// than written with a key the widget does not declare.
+func pluggableBooleanSpelling(widget bson.D, typePointerID, kind, propName string, v bool) (string, error) {
+	if kind != "Enumeration" {
+		return strconv.FormatBool(v), nil
+	}
+	keys := pluggableEnumerationKeys(widget, typePointerID)
+	want := "no"
+	if v {
+		want = "yes"
+	}
+	for _, k := range keys {
+		if k == want {
+			return k, nil
+		}
+	}
+	return "", fmt.Errorf("pluggable property %q is an enumeration (%s), not a Boolean — "+
+		"write one of its keys as a quoted string instead of %v",
+		propName, strings.Join(keys, ", "), v)
+}
+
+// pluggableEnumerationKeys lists the keys the widget's schema declares for the
+// enumeration property typePointerID, in declaration order.
+func pluggableEnumerationKeys(widget bson.D, typePointerID string) []string {
+	objType := bsonnav.DGetDoc(bsonnav.DGetDoc(widget, "Type"), "ObjectType")
+	for _, pt := range bsonnav.DGetArrayElements(bsonnav.DGet(objType, "PropertyTypes")) {
+		ptDoc, ok := pt.(bson.D)
+		if !ok || bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(ptDoc, "$ID")) != typePointerID {
+			continue
+		}
+		var keys []string
+		valueType := bsonnav.DGetDoc(ptDoc, "ValueType")
+		for _, ev := range bsonnav.DGetArrayElements(bsonnav.DGet(valueType, "EnumerationValues")) {
+			if evDoc, ok := ev.(bson.D); ok {
+				if k := bsonnav.DGetString(evDoc, "_Key"); k != "" {
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys
+	}
+	return nil
 }
 
 // noPluggableObjectError explains a SET that reached the pluggable fallback on a
@@ -3622,7 +4219,7 @@ func noPluggableObjectError(widget bson.D, propName string) error {
 // Forms$Label's Caption) or a Forms$ClientTemplate (a button's CaptionTemplate,
 // a text's Content, an input's LabelTemplate). Either way the translation for
 // the authoring language is written and the others are kept — see
-// setTextsTextTranslation. Any other shape is refused: writing nothing and
+// bsonnav.SetTextsTextTranslation. Any other shape is refused: writing nothing and
 // returning nil is how `set Caption` on a tab page reported success unchanged.
 func setTranslatableText(text bson.D, label string, value any) error {
 	strVal, ok := value.(string)
@@ -3631,7 +4228,7 @@ func setTranslatableText(text bson.D, label string, value any) error {
 	}
 	switch typ := bsonnav.DGetString(text, "$Type"); typ {
 	case "Texts$Text":
-		if setTextsTextTranslation(text, strVal) {
+		if bsonnav.SetTextsTextTranslation(text, strVal) {
 			return nil
 		}
 		return fmt.Errorf("%s is a Texts$Text without an Items list", label)

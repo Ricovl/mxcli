@@ -4,6 +4,7 @@
 
 ```sql
 CREATE [ OR MODIFY ] MENU module.name [ FOLDER 'folder_path' ] { menu_item [ menu_item ... ] }
+ALTER MENU module.name { item_operation [ item_operation ... ] }
 DESCRIBE MENU module.name
 DROP MENU module.name
 ```
@@ -11,9 +12,14 @@ DROP MENU module.name
 Where each `menu_item` is one of:
 
 ```sql
-MENU ITEM 'caption' [ ( [ OnClick: action ] [, Icon: module.collection.icon ] ) ]
-MENU 'caption' [ ( Icon: module.collection.icon ) ] { nested_items }
+MENU ITEM 'caption' [ ( [ OnClick: action ] [, Icon: icon ] ) ]
+MENU 'caption' [ ( Icon: icon ) ] { nested_items }
 ```
+
+and each `item_operation` is one of the item operations of
+[ALTER NAVIGATION](alter-navigation.md#item-operations) — `INSERT`, `REPLACE`,
+`MOVE`, `DROP`, `SET ( … ) ON` — with items addressed by caption path
+(`'Group' > 'Item'`).
 
 ## Description
 
@@ -24,7 +30,7 @@ menu widget on a page points at. Atlas_Core ships two of them, `Phone_Menu` and
 A menu document is **not** the menu inside a navigation profile, although the two
 are easy to confuse: both are built from the same menu items, which is why the item
 syntax here is identical to the `{ ... }` menu block of
-[ALTER NAVIGATION](alter-navigation.md). They differ in where they live and how they
+[CREATE NAVIGATION](create-navigation.md). They differ in where they live and how they
 are read:
 
 | | Profile menu | Menu document |
@@ -32,12 +38,27 @@ are read:
 | Lives in | a navigation profile | its own document |
 | Used by | the app's navigation | a menu widget you place on a page |
 | Read with | `LIST NAVIGATION MENU` | `DESCRIBE MENU module.name` |
-| Written with | `CREATE OR REPLACE NAVIGATION` | `CREATE OR MODIFY MENU` |
+| Written with | `CREATE OR MODIFY NAVIGATION` | `CREATE OR MODIFY MENU` |
+| One item at a time | `ALTER NAVIGATION` | `ALTER MENU` |
 
-`OR MODIFY` replaces the item list **wholesale**, exactly as `CREATE OR REPLACE
-NAVIGATION` does: the list you give is the document's complete contents, so an
-omitted item is a removed item. The document's identity, container and export level
-are preserved, so menu widgets pointing at it keep working.
+`OR MODIFY` replaces the item list **wholesale**, exactly as the `{ }` block of
+`CREATE OR MODIFY NAVIGATION` does: the list you give is the document's complete
+contents, so an omitted item is a removed item. The document's identity, container
+and export level are preserved, so menu widgets pointing at it keep working.
+
+`ALTER MENU` edits the stored items instead: it inserts, replaces, moves, drops or
+changes the items it names and keeps every other item exactly as stored. It takes
+the item operations of [ALTER NAVIGATION](alter-navigation.md) — no page clauses,
+since a menu document has none:
+
+```sql
+ALTER MENU MyModule.Main_Menu {
+    INSERT AFTER 'Home' { MENU ITEM 'Orders' ( OnClick: SHOW PAGE MyModule.Order_Overview ) }
+    MOVE 'Run' INTO 'Admin';
+    SET ( Caption: 'Accounts and roles' ) ON 'Admin' > 'Accounts';
+    DROP 'Plain';
+};
+```
 
 `DESCRIBE MENU` emits a re-executable `CREATE OR MODIFY MENU` statement, so
 describe → edit → exec is the normal editing loop, and describe → exec → describe is
@@ -126,19 +147,18 @@ to supply the argument, and Mendix rejects the model with **CE1571** ("No argume
 has been selected for parameter …") reported against `Menu item`. Point the item at a
 parameterless page, or call a microflow that opens the page with its argument.
 
-**Only icon-collection icons round-trip.** `ICON` writes a
-`Forms$IconCollectionIcon`. A glyph icon (which carries a numeric code) or an image
-icon cannot be expressed in MDL, so `DESCRIBE` reports those on their own comment
-line rather than dropping them silently:
+**All three icon kinds round-trip.** `Icon: Module.Collection.name` writes an
+icon-collection icon, `Icon: GLYPH n` a glyph and `Icon: IMAGE Module.Images.name`
+an image icon, and `DESCRIBE` prints each the same way. Only an icon it cannot
+rebuild — a glyph stored without a code, or an icon type mxcli does not know — is
+reported on its own comment line rather than dropped silently:
 
 ```
 -- icon a numeric glyph code (Forms$GlyphIcon) is not reproducible by CREATE MENU;
 -- set it in Studio Pro
 ```
 
-Re-running such output therefore loses that icon — visibly, not silently.
-
 ## See Also
 
-- [ALTER NAVIGATION](alter-navigation.md) — the menu inside a navigation profile
+- [CREATE NAVIGATION](create-navigation.md) and [ALTER NAVIGATION](alter-navigation.md) — the menu inside a navigation profile
 - [LIST NAVIGATION](list-navigation.md) — read profile menus and home pages

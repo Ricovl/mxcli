@@ -220,6 +220,8 @@ func OpenWithOptions(path string, opts OpenOptions) (*Reader, error) {
 		}
 	}
 
+	r.reportDetectedFormat()
+
 	// Verify it's a valid MPR file
 	if err := r.verify(); err != nil {
 		r.Close()
@@ -227,6 +229,18 @@ func OpenWithOptions(path string, opts OpenOptions) (*Reader, error) {
 	}
 
 	return r, nil
+}
+
+// reportDetectedFormat makes ProjectVersion().FormatVersion the storage format
+// this reader decided on — the one it reads units with — so SHOW VERSION,
+// STATUS and the session log cannot disagree with how the project was opened.
+// Call it once the format is final: after OpenWithOptions' Unit.Contents
+// reconciliation, which can still turn a folder-less .mpr into v2.
+// version.DetectFromDB deliberately leaves the field unset (ako/mxcli#1553).
+func (r *Reader) reportDetectedFormat() {
+	if r.projectVersion != nil {
+		r.projectVersion.FormatVersion = int(r.version)
+	}
 }
 
 // ListUnitHashes returns a map from unit UUID string to its ContentsHash for
@@ -281,6 +295,7 @@ func OpenWithDB(db *sql.DB, path, contentsDir string) (*Reader, error) {
 		return nil, fmt.Errorf("detect project version: %w", err)
 	}
 	r.projectVersion = pv
+	r.reportDetectedFormat()
 	if err := r.verify(); err != nil {
 		return nil, err
 	}

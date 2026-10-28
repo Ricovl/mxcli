@@ -163,22 +163,24 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 
 	// Validate and add parameters
 	for i, p := range s.Parameters {
+		p.Type = settleSystemEnumeration(p.Type)
+		s.Parameters[i].Type = p.Type
 		if p.Type.EntityRef != nil && !isBuiltinModuleEntity(p.Type.EntityRef.Module) {
 			entityID := entityResolver(*p.Type.EntityRef)
 			if entityID == "" {
 				// Bare qualified name in microflow context is treated as TypeEntity by the
 				// visitor, but it may actually be an enumeration. Try enum lookup before failing.
-				if found := findEnumeration(ctx, p.Type.EntityRef.Module, p.Type.EntityRef.Name); found != nil {
-					s.Parameters[i].Type = ast.DataType{Kind: ast.TypeEnumeration, EnumRef: p.Type.EntityRef}
+				if retyped, ok := bareEnumerationType(ctx, p.Type); ok {
+					s.Parameters[i].Type = retyped
 					p = s.Parameters[i]
 				} else {
 					return mdlerrors.NewNotFoundMsg("entity", p.Type.EntityRef.Module+"."+p.Type.EntityRef.Name,
-						fmt.Sprintf("entity '%s.%s' not found for parameter '%s'", p.Type.EntityRef.Module, p.Type.EntityRef.Name, p.Name))
+						fmt.Sprintf("entity or enumeration '%s.%s' not found for parameter '%s'", p.Type.EntityRef.Module, p.Type.EntityRef.Name, p.Name))
 				}
 			}
 		}
 		if p.Type.Kind == ast.TypeEnumeration && p.Type.EnumRef != nil {
-			if found := findEnumeration(ctx, p.Type.EnumRef.Module, p.Type.EnumRef.Name); found == nil {
+			if !isKnownEnumeration(ctx, p.Type.EnumRef.Module, p.Type.EnumRef.Name) {
 				return mdlerrors.NewNotFoundMsg("enumeration", p.Type.EnumRef.Module+"."+p.Type.EnumRef.Name,
 					fmt.Sprintf("enumeration '%s.%s' not found for parameter '%s'", p.Type.EnumRef.Module, p.Type.EnumRef.Name, p.Name))
 			}
@@ -197,15 +199,21 @@ func execCreateRule(ctx *ExecContext, s *ast.CreateRuleStmt) error {
 
 	// Validate and set return type
 	if s.ReturnType != nil {
+		s.ReturnType.Type = settleSystemEnumeration(s.ReturnType.Type)
 		if s.ReturnType.Type.EntityRef != nil && !isBuiltinModuleEntity(s.ReturnType.Type.EntityRef.Module) {
 			entityID := entityResolver(*s.ReturnType.Type.EntityRef)
 			if entityID == "" {
-				return mdlerrors.NewNotFoundMsg("entity", s.ReturnType.Type.EntityRef.Module+"."+s.ReturnType.Type.EntityRef.Name,
-					fmt.Sprintf("entity '%s.%s' not found for return type", s.ReturnType.Type.EntityRef.Module, s.ReturnType.Type.EntityRef.Name))
+				// A bare qualified name may be an enumeration, as for parameters above.
+				if retyped, ok := bareEnumerationType(ctx, s.ReturnType.Type); ok && s.ReturnType.Type.Kind == ast.TypeEntity {
+					s.ReturnType.Type = retyped
+				} else {
+					return mdlerrors.NewNotFoundMsg("entity", s.ReturnType.Type.EntityRef.Module+"."+s.ReturnType.Type.EntityRef.Name,
+						fmt.Sprintf("entity or enumeration '%s.%s' not found for return type", s.ReturnType.Type.EntityRef.Module, s.ReturnType.Type.EntityRef.Name))
+				}
 			}
 		}
 		if s.ReturnType.Type.Kind == ast.TypeEnumeration && s.ReturnType.Type.EnumRef != nil {
-			if found := findEnumeration(ctx, s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name); found == nil {
+			if !isKnownEnumeration(ctx, s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name) {
 				return mdlerrors.NewNotFoundMsg("enumeration", s.ReturnType.Type.EnumRef.Module+"."+s.ReturnType.Type.EnumRef.Name,
 					fmt.Sprintf("enumeration '%s.%s' not found for return type", s.ReturnType.Type.EnumRef.Module, s.ReturnType.Type.EnumRef.Name))
 			}

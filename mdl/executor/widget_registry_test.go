@@ -370,8 +370,8 @@ func TestRegistryComboboxModes(t *testing.T) {
 		t.Fatal("combobox not found")
 	}
 
-	if len(def.Modes) != 2 {
-		t.Fatalf("modes count = %d, want 2", len(def.Modes))
+	if len(def.Modes) != 3 {
+		t.Fatalf("modes count = %d, want 3", len(def.Modes))
 	}
 
 	// First mode: association (conditional)
@@ -381,18 +381,29 @@ func TestRegistryComboboxModes(t *testing.T) {
 	if def.Modes[0].Condition != "hasDataSource" {
 		t.Errorf("association mode condition = %q, want hasDataSource", def.Modes[0].Condition)
 	}
-	// 4 options-source mappings + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[0].PropertyMappings) != 5 {
-		t.Errorf("association mode mappings = %d, want 5", len(def.Modes[0].PropertyMappings))
+	// 4 options-source mappings + the onChangeEvent action slot (ledger #14)
+	// + onEnterEvent, onLeaveEvent, onChangeFilterInputEvent (ako/mxcli#854).
+	if len(def.Modes[0].PropertyMappings) != 8 {
+		t.Errorf("association mode mappings = %d, want 8", len(def.Modes[0].PropertyMappings))
 	}
 
-	// Second mode: default (no condition)
-	if def.Modes[1].Name != "default" {
-		t.Errorf("second mode name = %q, want default", def.Modes[1].Name)
+	// Second mode: database, selected by ITS datasource's key — the generic
+	// `DataSource:` clause stays the association mode's (mendixlabs/mxcli#1583).
+	if def.Modes[1].Name != "database" {
+		t.Errorf("second mode name = %q, want database", def.Modes[1].Name)
 	}
-	// attributeEnumeration + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[1].PropertyMappings) != 2 {
-		t.Errorf("default mode mappings = %d, want 2", len(def.Modes[1].PropertyMappings))
+	if def.Modes[1].Condition != "hasDataSource:optionsSourceDatabaseDataSource" {
+		t.Errorf("database mode condition = %q, want hasDataSource:optionsSourceDatabaseDataSource", def.Modes[1].Condition)
+	}
+
+	// Third mode: default (no condition)
+	if def.Modes[2].Name != "default" {
+		t.Errorf("third mode name = %q, want default", def.Modes[2].Name)
+	}
+	// attributeEnumeration + the onChangeEvent action slot (ledger #14)
+	// + the three named action slots (ako/mxcli#854).
+	if len(def.Modes[2].PropertyMappings) != 5 {
+		t.Errorf("default mode mappings = %d, want 5", len(def.Modes[2].PropertyMappings))
 	}
 }
 

@@ -63,6 +63,31 @@ create or modify layout LayoutTest.App_Default (
 };
 
 -- ----------------------------------------------------------------------------
+-- The frame: a scroll container's layoutmode. 'Headline' (the default, as
+-- above) runs the top region across the full width and starts the left one
+-- under it; 'Sidebar' runs the left region the full height and puts the top
+-- bar beside it, as Atlas_SideBar and Atlas_TopBar do (ako/mxcli#1703).
+-- `describe layout` prints it only when it is Sidebar.
+-- ----------------------------------------------------------------------------
+
+create or modify layout LayoutTest.App_Sidebar (
+  layouttype: 'Responsive',
+  class: 'layout-atlas layout-atlas-responsive-sidebar'
+) {
+  scrollcontainer layoutContainer (layoutmode: 'Sidebar') {
+    region top (size: 48, class: 'border-bottom') {
+      dynamictext sidebarBrand (content: 'My Application')
+    }
+    region left (size: 232, sizemode: 'Pixels', class: 'region-sidebar') {
+      navigationtree sidebarNav (profile: 'Responsive')
+    }
+    region center (class: 'region-content') {
+      placeholder Main
+    }
+  }
+};
+
+-- ----------------------------------------------------------------------------
 -- More than one placeholder. A page binds to each by name — the name is API,
 -- so renaming one unbinds every page that used it.
 --

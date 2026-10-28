@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -68,6 +69,11 @@ func LoadWidgetRegistry(projectPath string) *WidgetRegistry {
 		// from the same .mpk DESCRIBE parses. See
 		// widget_known_props_from_mpk.go for why this is not a list of nine.
 		enrichKnownPropertiesFromMPK(registry, projectPath)
+	} else {
+		// No project to read packages from: the embedded template is the
+		// widget's schema, so check without -p accepts what DESCRIBE prints
+		// by key (mendixlabs/mxcli#1586).
+		enrichKnownPropertiesFromTemplates(registry)
 	}
 	return registry
 }
@@ -158,6 +164,11 @@ func validateWidgetPropertiesOf(stmt ast.Statement, registry *WidgetRegistry) []
 		return append(out, validatePageVariableBindings(widgets, documentVariables(stmt), label)...)
 	}
 	switch s := stmt.(type) {
+	case *ast.CreateLayoutStmt:
+		// A layout's widgets were checked by no widget rule at all, so a
+		// property its scroll container does not take passed check and was
+		// refused — or, before ako/mxcli#1698, dropped — only at exec.
+		return validateNativeWidgetPropsTree(s.AllWidgets(), nil, nil, nil, registry, "layout "+s.Name.String())
 	case *ast.AlterPageStmt:
 		var out []linter.Violation
 		for _, op := range s.Operations {
@@ -190,7 +201,7 @@ func validateWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locat
 // validateDocumentWidgetTree is validateWidgetTree for a document whose
 // entity-typed parameters are known (a CREATE PAGE / SNIPPET's `Params:`).
 func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, params []string) []linter.Violation {
-	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, atDocumentRoot().withDocumentParameters(params))
+	out := validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, nil, atDocumentRoot().withDocumentParameters(params))
 	// Only a whole document: an ALTER fragment's parent is out of sight, and
 	// whether a row or column stores a name depends on it (#749).
 	for _, msg := range checkMissingWidgetNames(widgets) {
@@ -209,7 +220,7 @@ func validateDocumentWidgetTree(widgets []*ast.WidgetV3, registry *WidgetRegistr
 // encloses them is unknown, so rules that depend on the enclosing context stand
 // down rather than guess.
 func validateWidgetSubtree(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string) []linter.Violation {
-	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, pageArgContext{})
+	return validateWidgetTreeIn(widgets, registry, locationPrefix, nil, nil, nil, pageArgContext{})
 }
 
 // validateWidgetTreeIn is validateWidgetTree with the *parent* widget's
@@ -220,7 +231,11 @@ func validateWidgetSubtree(widgets []*ast.WidgetV3, registry *WidgetRegistry, lo
 // must be exempt from the MDL-WIDGET07 "unrecognized property, silently dropped"
 // warning. When the parent mapping is known, the child's enumeration
 // sub-properties are validated against their member keys (MDL-WIDGET08). (9a)
-func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, parentObjectLists map[string]*ObjectListMapping, parent *ast.WidgetV3, argCtx pageArgContext) []linter.Violation {
+//
+// parentItem is the object-list mapping of the parent when the parent is an
+// object-list ITEM (an Accordion group): its widget slots (`headercontent`)
+// are containers of that item, not widgets (#1453).
+func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, locationPrefix string, parentObjectLists map[string]*ObjectListMapping, parent *ast.WidgetV3, parentItem *ObjectListMapping, argCtx pageArgContext) []linter.Violation {
 	var out []linter.Violation
 	for _, w := range widgets {
 		if w == nil {
@@ -230,7 +245,7 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		isObjectListItem := mapping != nil || isUniversalObjectListKeyword(w.Type)
 		// Slice 0: is this a widget at all, and does the parent declare this
 		// container? Both were previously left to `exec`.
-		out = append(out, validateWidgetKind(w, registry, lookupWidgetDef(parent, registry), parentObjectLists, locationPrefix)...)
+		out = append(out, validateWidgetKind(w, registry, lookupWidgetDef(parent, registry), parentObjectLists, parentItem, locationPrefix)...)
 		// A keyword whose stored $Type Mendix no longer has. Unlike MDL-WIDGET25
 		// this needs no project: the type is unknown to every Mendix version.
 		out = append(out, validateRetiredWidgetKind(w, locationPrefix)...)
@@ -250,6 +265,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateLegacyExpressionText(w, locationPrefix)...)
 		// A column's Visible has no row object (MDL-WIDGET43, CE0117).
 		out = append(out, validateColumnVisibleScope(w, locationPrefix)...)
+		// …and a layout-grid column's Visible has nowhere to be stored (#1461).
+		out = append(out, validateLayoutGridColumnVisible(w, locationPrefix)...)
 		// #1062: an action slot holding something that is not an action, which
 		// used to check clean, exec clean, build clean and render dead. Runs for
 		// every widget kind and needs no definition, for the same reason as the
@@ -257,6 +274,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateWidgetActionSlot(w, locationPrefix)...)
 		// #842: a Gallery row click the widget itself calls ambiguous.
 		out = append(out, validateGalleryClickAmbiguity(w, locationPrefix)...)
+		// ako/mxcli#854: an enumeration value the installed widget declares no
+		// key for — stored as given, and ignored by the widget.
+		out = append(out, validatePluggableEnumValues(w, lookupWidgetDef(w, registry), locationPrefix)...)
 		// #928: contentparams with no `{N}` placeholder to consume them.
 		if lookupWidgetDef(w, registry) != nil {
 			out = append(out, validatePluggableContentParams(w, locationPrefix)...)
@@ -264,10 +284,23 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validatePluggableTemplateParams(w, locationPrefix)...)
 		}
 		out = append(out, validateWidgetVisibility(w, registry, locationPrefix)...)
+		// #1519: several attributes for a widget with one attribute slot — the
+		// drop-down filter. exec refuses it; so does check.
+		if m, attrs, over := singleAttributeOverflow(lookupWidgetDef(w, registry), w); over {
+			out = append(out, linter.Violation{
+				RuleID:     "MDL-WIDGET47",
+				Severity:   linter.SeverityError,
+				Message:    locationPrefix + ": " + singleAttributeOverflowMessage(w, m, attrs),
+				Suggestion: "A drop-down filter compares one attribute; list several only on a textfilter.",
+			})
+		}
 		// An IMAGE with nothing to show — the default source needs an image
 		// reference MDL cannot author. See validate_widget_image.go.
 		out = append(out, validateImageSource(w, locationPrefix)...)
 		out = append(out, validateStaticWidget(w, locationPrefix)...)
+		// #1511: a snippet call renders no element, so its Class / Style /
+		// DynamicClasses / design properties never reach the page.
+		out = append(out, validateSnippetCallAppearance(w, locationPrefix)...)
 		out = append(out, validateDynamicTextFormatting(w, locationPrefix)...)
 		out = append(out, validateInputFormatting(w, locationPrefix)...)
 		// A text input's SubmitBehaviour and a layout grid's Width (ako/mxcli-ledger FINDINGS #170).
@@ -276,7 +309,10 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// as its text (ako/mxcli#969).
 		out = append(out, validateQuotedTemplateParams(w, locationPrefix)...)
 		out = append(out, validateDatasourceXPathAssociationEmpty(w, locationPrefix)...)
+		out = append(out, validateDatasourceXPathVariableTraversal(w, locationPrefix)...)
 		out = append(out, validateComboBoxAssociation(w, locationPrefix)...)
+		// #1420: an association-mode combo box with no object to start from.
+		out = append(out, validateComboBoxAssociationObject(w, argCtx, locationPrefix)...)
 		// #631: inputs inside a list view that will be written read-only.
 		out = append(out, validateListViewEditableInputs(w, registry, locationPrefix)...)
 		// A show_page argument naming anything but the context object is dropped.
@@ -287,7 +323,8 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateInputBindingContext(w, argCtx, locationPrefix)...)
 		// Unknown-property warning applies only to built-in widgets; pluggable
 		// widgets get the stricter def.json check (MDL-WIDGET01) above, and
-		// object-list items are validated by the object-list engine.
+		// object-list items get its item-level twin below
+		// (validateObjectListItemUnknownProps).
 		def := lookupWidgetDef(w, registry)
 		// #2 from the view-entity-examples findings: a child the parent has
 		// nowhere to put. MDL-WIDGET26 above covers a container KEYWORD in that
@@ -295,12 +332,27 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// ako/mxcli#1744: a slot's switch against its content — a combo box's
+		// custom-content type 'yes' with no content is CE0642.
+		out = append(out, validateSlotSwitches(w, def, locationPrefix)...)
+		// A keyword widget the registry has no definition for (DATAGRID: its
+		// definition is generated from the project's package) is judged by the
+		// property list of the template mxcli embeds for it, not by the
+		// vocabulary of the built-in widgets.
+		var embedded *embeddedWidgetSchema
+		if def == nil && !isObjectListItem {
+			embedded = embeddedSchemaFor(w, parent)
+		}
 		// An expression on a generic key whose schema kind takes none — which
 		// used to be written as an empty value (MDL-WIDGET42).
 		if mapping != nil {
 			out = append(out, validateWidgetExpressionValues(w, nil, mapping, true, locationPrefix)...)
 		} else {
-			out = append(out, validateWidgetExpressionValues(w, def, nil, isObjectListItem, locationPrefix)...)
+			out = append(out, validateWidgetExpressionValuesIn(w, def, nil, isObjectListItem, embedded, locationPrefix)...)
+			// An Expression property's value of the wrong kind (MDL-WIDGET49).
+			out = append(out, validateWidgetExpressionReturnTypes(w, def, embedded, locationPrefix)...)
+			// A selection that is not one, or two of them (MDL-WIDGET50, #1618).
+			out = append(out, validateWidgetSelectionValues(w, def, embedded, locationPrefix)...)
 		}
 		// A generic widget type that resolved to nothing is already reported as
 		// MDL-WIDGET25 (the kind is wrong). Validating its properties on top of
@@ -314,10 +366,18 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// no definition for the project's own widget — the built-in allow-list
 		// would report every property it has.
 		if def == nil && !isObjectListItem && !w.TypeIsGeneric && explicitWidgetID(w) == "" {
-			out = append(out, validateStaticWidgetUnknownProps(w, locationPrefix)...)
+			// A built-in element is judged by the properties ITS builder writes
+			// (ako/mxcli#1698); the cross-widget vocabulary of MDL-WIDGET07 is
+			// kept for the keywords without such a set.
+			if kind := nativeWidgetKindInPosition(w, parent, parentItem, registry, argCtx.known); kind != "" && embedded == nil {
+				out = append(out, validateNativeWidgetProps(kind, w, locationPrefix)...)
+			} else {
+				out = append(out, validateStaticWidgetUnknownPropsIn(w, locationPrefix, embedded, registryProjectPath(registry) != "")...)
+			}
 			// #1465: the vocabulary above is a cross-widget union, so a key a
 			// tab page cannot store (CaptionParams, Class, Style) passes it.
 			out = append(out, validateTabPageProps(w, locationPrefix)...)
+			out = append(out, validateTabPageBadge(w, locationPrefix)...)
 			// #928: `editable:` on a widget Mendix gives no editability — same
 			// "silently dropped on write" family, but the flat property
 			// allow-list cannot see it because it is type-agnostic.
@@ -329,13 +389,16 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 			out = append(out, validatePluggableSystemProps(w, def, registry, locationPrefix)...)
 		}
 		if mapping != nil {
+			// A key the item's schema does not have is never visited by the
+			// item builder, so it is dropped on write (#891 follow-up).
+			out = append(out, validateObjectListItemUnknownProps(w, mapping, locationPrefix)...)
 			out = append(out, validateObjectListItemEnums(w, mapping, locationPrefix)...)
 			// #931: a sub-property the widget's editorConfig hides must hold its
 			// default; a non-default value there is CE0463.
 			out = append(out, validateWidgetItemVisibility(parent, w, mapping, registry, locationPrefix)...)
 		}
 		if len(w.Children) > 0 {
-			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, argContextForChildren(w, argCtx))...)
+			out = append(out, validateWidgetTreeIn(w.Children, registry, locationPrefix, objectListMappingSet(def), w, mapping, argContextForChildren(w, argCtx))...)
 		}
 	}
 	out = append(out, validateConsecutiveDynamicText(widgets, locationPrefix)...)
@@ -366,6 +429,38 @@ func validateDatasourceXPathAssociationEmpty(w *ast.WidgetV3, locationPrefix str
 	return out
 }
 
+// validateDatasourceXPathVariableTraversal flags a widget database datasource
+// whose `where` reaches two or more hops off a variable
+// (`[Name = $currentObject/Mod.Assoc/Name]`) — the page-datasource counterpart
+// of the microflow-retrieve MDL055 check (mendixlabs/mxcli#1466).
+//
+// Measured on fresh 11.13.0 and 11.14.0 projects: the two-hop form is CE0161 in
+// a combobox, list view, data grid 2 and gallery, while one hop
+// (`[Mod.A = $currentObject/Mod.B]`), the context object's own attribute and
+// the inverted form (`[Mod.A/Mod.E/Mod.B = $currentObject]`) all build at 0
+// errors — the same boundary as a retrieve, so the same regex.
+func validateDatasourceXPathVariableTraversal(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	ds := w.GetDataSource()
+	if ds == nil || ds.Where == "" {
+		return nil
+	}
+	var out []linter.Violation
+	for _, t := range xpathVariableTraversals(ds.Where) {
+		out = append(out, linter.Violation{
+			RuleID:   "MDL055",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf(
+				"%s: widget `%s` datasource constraint traverses an association from a variable (`%s`), which Mendix XPath does not support (CE0161 \"Error(s) in XPath constraint\") — a constraint reaches at most one hop off a variable",
+				locationPrefix, w.Name, t.path),
+			Suggestion: fmt.Sprintf(
+				"Invert the constraint so the traversal starts at the listed entity: `[<Mod.Assoc>/<Mod.Entity>/%s = $%s]`, "+
+					"or compare one hop: `[<Mod.Assoc> = $%s/%s]`. Both build clean.",
+				t.firstHop, t.root, t.root, t.firstHop),
+		})
+	}
+	return out
+}
+
 // comboBoxOptionsDataSourceKey is the ComboBox schema property holding the
 // association mode's option list — the named spelling of what the generic
 // `datasource:` clause fills.
@@ -382,17 +477,16 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 	if w == nil || !strings.EqualFold(w.Type, "combobox") {
 		return nil
 	}
+	// A data source is what selects association mode (the def's `hasDataSource`
+	// condition), whichever key names the association — `Association:` or the
+	// `Attribute:` spelling — so the caption is judged before either is read.
+	if comboBoxHasOptionsDataSource(w) {
+		return validateComboBoxCaption(w, locationPrefix)
+	}
+	if comboBoxMode(w) == "database" {
+		return validateComboBoxDatabase(w, locationPrefix)
+	}
 	if w.GetStringProp("Association") == "" {
-		return nil
-	}
-	if w.GetDataSource() != nil {
-		return nil // has an options datasource — association mode is complete enough
-	}
-	// The option list may also be given under the schema key the widget declares
-	// for it. Reading only the generic clause made this rule contradict
-	// MDL-WIDGET05, which had just accepted the same value: one said the
-	// datasource was fine, the other that there was none.
-	if _, named := lookupProperty(w.Properties, comboBoxOptionsDataSourceKey); named {
 		return nil
 	}
 	return []linter.Violation{{
@@ -403,6 +497,158 @@ func validateComboBoxAssociation(w *ast.WidgetV3, locationPrefix string) []linte
 			locationPrefix, w.Name),
 		Suggestion: "Association mode needs the option list and a caption: `combobox " + w.Name + " (Association: Module.Ref, datasource: database Module.TargetEntity, CaptionAttribute: Name)`.",
 	}}
+}
+
+// comboBoxDefinition is the built-in combo box definition. Check asks its mode
+// selection rather than restating it, so the two cannot drift.
+var comboBoxDefinition = sync.OnceValue(func() *WidgetDefinition {
+	reg, err := NewWidgetRegistry()
+	if err != nil {
+		return nil
+	}
+	def, _ := reg.Get("COMBOBOX")
+	return def
+})
+
+// comboBoxMode is the mode exec builds a combo box in — "association",
+// "database" or "default" (enumeration) — by the definition's own conditions:
+// the generic `datasource:` clause or the association key selects association
+// mode, `optionsSourceDatabaseDataSource` the database mode
+// (mendixlabs/mxcli#1583). "" when it cannot be told.
+func comboBoxMode(w *ast.WidgetV3) string {
+	def := comboBoxDefinition()
+	if def == nil || w == nil {
+		return ""
+	}
+	mode, err := (&PluggableWidgetEngine{}).selectMode(def, w)
+	if err != nil || mode == nil {
+		return ""
+	}
+	return mode.Name
+}
+
+// comboBoxHasOptionsDataSource reports whether a ComboBox carries the option
+// list of association mode. The option list may also be given under the schema
+// key the widget declares for it. Reading only the generic clause made
+// MDL-WIDGET16 contradict MDL-WIDGET05, which had just accepted the same value:
+// one said the datasource was fine, the other that there was none.
+func comboBoxHasOptionsDataSource(w *ast.WidgetV3) bool {
+	if w.GetDataSource() != nil {
+		return true
+	}
+	_, named := lookupProperty(w.Properties, comboBoxOptionsDataSourceKey)
+	return named
+}
+
+// validateComboBoxCaption flags an association-mode ComboBox with no caption —
+// MDL-WIDGET16's second half (mendixlabs/mxcli#1466). The issue's own script
+// omitted `CaptionAttribute:` on both of its combo boxes; check and exec passed
+// and mxbuild reported, per combo box:
+//
+//	[error] [CE0642] "Property 'Caption' is required." at Combo box 'cb'
+//
+// Measured on fresh 11.13.0 and 11.14.0 projects, identical on both. The
+// caption the build reads is the one the caption TYPE selects:
+//
+//	no caption (database or microflow source, either association spelling)  CE0642
+//	CaptionAttribute / optionsSourceAssociationCaptionAttribute                ok
+//	CaptionType expression + CaptionExpression                                 ok
+//	CaptionType expression + only CaptionAttribute                             CE0642
+//	CaptionType expression, nothing else                                       CE0642
+//	CaptionExpression with no type, or with type attribute                     CE0642
+//	enumeration mode (`Attribute: Kind`, no data source)                       ok
+//
+// Enumeration mode is not judged: it has no Caption property at all.
+func validateComboBoxCaption(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	byExpression := strings.EqualFold(comboBoxPropText(w, "optionsSourceAssociationCaptionType"), "expression")
+	if byExpression {
+		if comboBoxPropText(w, "optionsSourceAssociationCaptionExpression") != "" {
+			return nil
+		}
+	} else if comboBoxPropText(w, "CaptionAttribute") != "" ||
+		comboBoxPropText(w, "optionsSourceAssociationCaptionAttribute") != "" {
+		return nil
+	}
+	why := "has an options data source (association mode) but no caption"
+	fix := "Name the attribute shown for each option: `CaptionAttribute: <attribute of the listed entity>`, " +
+		"or give an expression caption: `optionsSourceAssociationCaptionType: expression, " +
+		"optionsSourceAssociationCaptionExpression: '$currentObject/<Attr>'`."
+	if !byExpression && comboBoxPropText(w, "optionsSourceAssociationCaptionExpression") != "" {
+		why = "has `optionsSourceAssociationCaptionExpression` but not `optionsSourceAssociationCaptionType: expression`, so the build reads the (absent) caption attribute"
+		fix = "Add `optionsSourceAssociationCaptionType: expression`, or replace the expression with `CaptionAttribute: <Attr>`."
+	}
+	if byExpression {
+		why = "sets `optionsSourceAssociationCaptionType: expression` but no `optionsSourceAssociationCaptionExpression` — the expression type ignores `CaptionAttribute`"
+		fix = "Add `optionsSourceAssociationCaptionExpression: '$currentObject/<Attr>'`, or drop the caption type and use `CaptionAttribute: <Attr>`."
+	}
+	return []linter.Violation{{
+		RuleID:   "MDL-WIDGET16",
+		Severity: linter.SeverityError,
+		Message: fmt.Sprintf(
+			"%s: combobox `%s` %s — mxbuild fails the build with CE0642 (\"Property 'Caption' is required.\")",
+			locationPrefix, w.Name, why),
+		Suggestion: fix,
+	}}
+}
+
+// validateComboBoxDatabase is MDL-WIDGET16 for the database mode
+// (mendixlabs/mxcli#1583): the option caption, and — when the combo box stores
+// the chosen option on an attribute of its own object — the option attribute
+// whose value it stores. Measured on a fresh 11.12.5 project, Combo box 2.5.0,
+// one combo box per row:
+//
+//	no caption                                         CE0642 'Caption'
+//	caption type expression, only CaptionAttribute      CE0642 'Caption'
+//	Attribute: (or databaseAttributeString:), no value  CE0642 'Value'
+//	no target attribute, no value attribute             ok
+//	optionsSourceDatabaseItemSelection: Multi           ok (hides both)
+//	caption expression with the expression type         ok
+func validateComboBoxDatabase(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	var out []linter.Violation
+	required := func(property, why, fix string) {
+		out = append(out, linter.Violation{
+			RuleID:   "MDL-WIDGET16",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf("%s: combobox `%s` takes its options from `optionsSourceDatabaseDataSource` (database mode) %s — "+
+				"mxbuild fails the build with CE0642 (\"Property '%s' is required.\")", locationPrefix, w.Name, why, property),
+			Suggestion: fix,
+		})
+	}
+	if strings.EqualFold(comboBoxPropText(w, "optionsSourceDatabaseCaptionType"), "expression") {
+		if comboBoxPropText(w, "optionsSourceDatabaseCaptionExpression") == "" {
+			required("Caption", "and sets `optionsSourceDatabaseCaptionType: expression` but no `optionsSourceDatabaseCaptionExpression`",
+				"Add `optionsSourceDatabaseCaptionExpression: '$currentObject/<Attr>'`, or drop the caption type and use `CaptionAttribute: <Attr>`.")
+		}
+	} else if comboBoxPropText(w, "CaptionAttribute") == "" && comboBoxPropText(w, "optionsSourceDatabaseCaptionAttribute") == "" {
+		required("Caption", "but has no caption",
+			"Name the attribute shown for each option: `CaptionAttribute: <attribute of the listed entity>`, or give an expression caption: "+
+				"`optionsSourceDatabaseCaptionType: expression, optionsSourceDatabaseCaptionExpression: '$currentObject/<Attr>'`.")
+	}
+	multi := strings.EqualFold(comboBoxPropText(w, "optionsSourceDatabaseItemSelection"), "Multi") ||
+		strings.EqualFold(w.GetSelection(), "Multi")
+	target := w.GetAttribute() != "" || comboBoxPropText(w, "databaseAttributeString") != ""
+	if !multi && target && comboBoxPropText(w, "optionsSourceDatabaseValueAttribute") == "" {
+		required("Value", "and stores the chosen option on an attribute, but does not say which of the option's attributes to store",
+			"Name it: `optionsSourceDatabaseValueAttribute: <attribute of the listed entity>`. "+
+				"Without a target attribute (`Attribute:`) the combo box only selects, and needs no value attribute.")
+	}
+	return out
+}
+
+// comboBoxPropText is a ComboBox property's value as text, "" when it is absent
+// or empty. An expression value that is not a plain string counts as set.
+func comboBoxPropText(w *ast.WidgetV3, key string) string {
+	v, ok := lookupProperty(w.Properties, key)
+	if !ok || v == nil {
+		return ""
+	}
+	if s, isString := v.(string); isString {
+		return strings.TrimSpace(s)
+	}
+	if s := strings.TrimSpace(stringifyAny(v)); s != "" {
+		return s
+	}
+	return "set"
 }
 
 // headingRenderModeRe matches the block-level dynamictext render modes H1–H6.
@@ -524,8 +770,22 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 	explicit = map[string]bool{}
 
 	mappings := append([]PropertyMapping(nil), def.PropertyMappings...)
-	for _, m := range def.Modes {
-		mappings = append(mappings, m.PropertyMappings...)
+	// A mode the widget is NOT built in writes none of its constants, so they
+	// are not the widget's configuration. Reading them anyway let whichever mode
+	// came last decide: a drop-down filter given `attributes:` builds with
+	// attrChoice "linked" and baseType at its default, but the union read the
+	// default mode's "auto" and the association mode's "ref", and reported its
+	// `attr` as hidden twice over (#1519). What the script wrote still counts.
+	inactive := map[int]bool{}
+	active, _ := (&PluggableWidgetEngine{}).selectMode(def, w)
+	for i := range def.Modes {
+		mode := &def.Modes[i]
+		for _, m := range mode.PropertyMappings {
+			if active != nil && mode != active {
+				inactive[len(mappings)] = true
+			}
+			mappings = append(mappings, m)
+		}
 	}
 	// An MDL source keyword shared by SEVERAL properties does not name any one of
 	// them. File Uploader 2.5.0 routes both `associatedFiles` and
@@ -539,7 +799,7 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			sharedSource[m.Source]++
 		}
 	}
-	for _, m := range mappings {
+	for i, m := range mappings {
 		key := strings.ToLower(m.PropertyKey)
 		val, set := "", false
 		viaSharedSource := false
@@ -566,6 +826,8 @@ func widgetValueMap(w *ast.WidgetV3, def *WidgetDefinition) (values map[string]s
 			if !viaSharedSource {
 				explicit[key] = true
 			}
+		} else if inactive[i] {
+			continue // a constant of a mode the widget is not built in
 		} else if m.Default != "" {
 			val = m.Default
 		} else if m.Operation == "primitive" && m.Value != "" {
@@ -725,6 +987,139 @@ func validateObjectListItemEnums(w *ast.WidgetV3, mapping *ObjectListMapping, lo
 	return out
 }
 
+// validateObjectListItemUnknownProps refuses a property an object-list item
+// (an Accordion GROUP, a DataGrid COLUMN, a chart SERIES) has no route for.
+// The item builder walks the item's schema and looks each key up in the MDL
+// property bag, so a key that matches none is never visited and never written:
+// `group g1 (Caption: 'Group one')` passed check, exec reported success, and the
+// group kept the widget's default header text (#891 follow-up). MDL-WIDGET01,
+// the top-level rule's item-level twin.
+//
+// The vocabulary is exactly what buildObjectListItem reads: each schema key and
+// its MDL aliases, the `<name>Params` companion of a text-template property under
+// either spelling, and a chart series' friendly `DataSource:`. Unlike the
+// top-level check this does NOT accept the universal builtin names (Caption,
+// Class, Visible, …): the item builder routes none of them on its own, and
+// accepting them is what let `Caption` through.
+func validateObjectListItemUnknownProps(w *ast.WidgetV3, mapping *ObjectListMapping, locationPrefix string) []linter.Violation {
+	known := map[string]bool{}
+	var names []string
+	add := func(n string) {
+		if n == "" || known[strings.ToLower(n)] {
+			return
+		}
+		known[strings.ToLower(n)] = true
+		names = append(names, n)
+	}
+	for _, ip := range mapping.ItemProperties {
+		spellings := append([]string{ip.PropertyKey}, ip.MdlAliases...)
+		for _, n := range spellings {
+			add(n)
+		}
+		if ip.Operation == "texttemplate" {
+			for _, n := range spellings {
+				add(n + "Params")
+			}
+		}
+	}
+	if isChartSeriesContainer(mapping.MDLContainer) {
+		add("DataSource")
+	}
+
+	var out []linter.Violation
+	for _, key := range sortedPropertyKeys(w) {
+		if known[strings.ToLower(key)] {
+			continue
+		}
+		hint := ""
+		var slots []itemSlotHint
+		for _, s := range mapping.ItemSlots {
+			slots = append(slots, itemSlotHint{Key: s.PropertyKey, Accepts: s.AcceptedChildTypes})
+		}
+		if h := widgetSlotHint(key, strings.ToLower(mapping.MDLContainer), slots); h != "" {
+			hint = h
+		} else if ext := extensionsOf(key, names); len(ext) > 0 {
+			// `attributeValue` on an HTMLElement attribute: the value lives under
+			// attributeValueTemplate / attributeValueExpression, and edit
+			// distance picks attributeName, the one key that is certainly wrong.
+			hint = fmt.Sprintf(" — did you mean `%s`?", strings.Join(ext, "` or `"))
+		} else if s := nearestKey(key, names); s != "" {
+			hint = fmt.Sprintf(" — did you mean `%s`?", s)
+		} else if len(names) > 0 {
+			hint = fmt.Sprintf(" — its properties are %s", strings.Join(itemPropertyNames(mapping), ", "))
+		}
+		out = append(out, linter.Violation{
+			RuleID:   "MDL-WIDGET01",
+			Severity: linter.SeverityError,
+			Message: fmt.Sprintf(
+				"%s: %s has no property `%s`, so the value would be dropped on write%s",
+				locationPrefix, widgetLabel(w.Name, strings.ToLower(mapping.MDLContainer)), key, hint,
+			),
+		})
+	}
+	return out
+}
+
+// itemSlotHint is one widgets slot of a widget or object-list item: its key
+// and the widget types it routes, when known.
+type itemSlotHint struct {
+	Key     string
+	Accepts []string
+}
+
+// widgetSlotHint explains a key that names one of the item's widgets slots —
+// `Filterable: true` on a column, whose filter is the `filter` slot. A slot
+// takes child widgets, written in the item's braces, never a property value;
+// the generic "did you mean" picked an unrelated key there (`FilterType`), and
+// the property list did not mention the slot at all (mendixlabs/mxcli#177).
+func widgetSlotHint(key, kind string, slots []itemSlotHint) string {
+	lower := strings.ToLower(key)
+	for _, s := range slots {
+		if s.Key == "" || !strings.HasPrefix(lower, strings.ToLower(s.Key)) {
+			continue
+		}
+		child := "<widget>"
+		if len(s.Accepts) > 0 {
+			child = s.Accepts[0]
+		}
+		hint := fmt.Sprintf(" — `%s` is a slot for child widgets, not a property: put the widget in the %s's braces, "+
+			"e.g. `%s (…) { %s w1 (…) }`", s.Key, kind, kind, child)
+		if len(s.Accepts) > 1 {
+			hint += fmt.Sprintf(" (it takes %s)", strings.Join(s.Accepts, ", "))
+		}
+		return hint
+	}
+	return ""
+}
+
+// extensionsOf returns the candidates that extend key (case-insensitively),
+// excluding `…Params` companions — the names a truncated key most likely meant.
+func extensionsOf(key string, candidates []string) []string {
+	lower := strings.ToLower(key)
+	var out []string
+	for _, c := range candidates {
+		lc := strings.ToLower(c)
+		if lc != lower && strings.HasPrefix(lc, lower) && !strings.HasSuffix(lc, "params") {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// itemPropertyNames lists an item's schema keys, each with its first MDL alias
+// when it has one — the spelling an author is most likely to want.
+func itemPropertyNames(mapping *ObjectListMapping) []string {
+	out := make([]string, 0, len(mapping.ItemProperties))
+	for _, ip := range mapping.ItemProperties {
+		n := ip.PropertyKey
+		if len(ip.MdlAliases) > 0 {
+			n += " (" + ip.MdlAliases[0] + ")"
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
 // enumValuesContain reports whether val matches any member key case-insensitively.
 func enumValuesContain(members []string, val string) bool {
 	for _, m := range members {
@@ -785,7 +1180,7 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// keys the builders/visitor consume and the conditional-binding metadata
 		"CaptionAttribute", "Collapsible", "DatabaseHost", "DefaultLanguage", "Footer",
 		"FormOrientation", "HeaderMode", "LabelWidth", "Prefix", "ShowContentAs", "Title",
-		"Widget", "WidgetType", "ShowLabel", "VisibleIf", "VisibleWhen", "EditableIf", "DynamicClasses",
+		"Widget", "WidgetType", "ShowLabel", "VisibleIf", "VisibleWhen", "VisibleRoles", "EditableIf", "DynamicClasses",
 		// vocabulary describe page emits (native widgets + datagrid columns)
 		"Alignment", "AlternativeText", "ColumnClass", "ColumnWidth", "DesktopColumns",
 		"DisplayAs", "Draggable", "DynamicCellClass", "HeightUnit", "Hidable", "ImageType",
@@ -796,6 +1191,8 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// box's password flag and its Forms$WidgetValidation. Leaving them out
 		// makes the describe -> create round trip warn about its own output.
 		"Password", "Validation", "ValidationMessage",
+		// a text area's (ako/mxcli#977)
+		"NumberOfLines", "Autocomplete",
 		// button icon-collection reference (issue #602)
 		"Icon",
 		// staticimage's image-collection reference, Module.Collection.Image
@@ -810,6 +1207,13 @@ var staticWidgetKnownProps = func() map[string]bool {
 		// menu source and orientation of navigationtree / menubar /
 		// simplemenubar, and a scroll-container region's size mode.
 		"ShowFooter", "Menu", "Profile", "Orientation", "SizeMode",
+		// a scroll-container region's toggle mode, which a sidebartoggle opens
+		// (mendixlabs/mxcli#1220).
+		"ToggleMode",
+		// a scroll container's Headline / Sidebar frame (ako/mxcli#1703).
+		"LayoutMode",
+		// a dynamic text's style on a native page (ako/mxcli#1677).
+		"NativeTextStyle",
 		// a layout-grid row's and column's alignment, read by
 		// buildLayoutGridRowV3 / buildLayoutGridColumnV3 and emitted by describe.
 		"VerticalAlignment", "HorizontalAlignment", "SpacingBetweenColumns",
@@ -847,7 +1251,7 @@ var staticWidgetKnownPropList = func() []string {
 		"Editable", "Tooltip", "DynamicClasses", "WidthUnit", "HeightUnit",
 		"DesktopColumns", "TabletColumns", "PhoneColumns", "PageSize", "Pagination",
 		"Image", "DefaultImage", "DisplayAs", "OnClickType", "ShowFooter", "Menu",
-		"Profile", "Orientation", "SizeMode")
+		"Profile", "Orientation", "SizeMode", "ToggleMode")
 	return list
 }()
 
@@ -868,9 +1272,19 @@ func isKnownStaticWidgetProp(key string) bool {
 // could false-positive on a valid property. Pluggable widgets are validated
 // separately (MDL-WIDGET01) and must not reach here.
 func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []linter.Violation {
+	return validateStaticWidgetUnknownPropsIn(w, locationPrefix, nil, false)
+}
+
+// validateStaticWidgetUnknownPropsIn is validateStaticWidgetUnknownProps for a
+// widget that may have an embedded schema (embeddedSchemaFor): Data grid 2,
+// whose definition only a project can supply. A key that schema declares is
+// known. A key it does not is reported as one that cannot be verified, not as
+// one that is dropped — the schema is the baseline template, and a newer
+// widget version can declare more.
+func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, schema *embeddedWidgetSchema, projectOpen bool) []linter.Violation {
 	var out []linter.Violation
 	for _, key := range sortedPropertyKeys(w) {
-		if isKnownStaticWidgetProp(key) {
+		if isKnownStaticWidgetProp(key) || schema.declares(key) {
 			continue
 		}
 		// Dynamic-text format keys placed at the widget level are reported by
@@ -892,18 +1306,49 @@ func validateStaticWidgetUnknownProps(w *ast.WidgetV3, locationPrefix string) []
 		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
+		// A text box's KeyboardType, per type for the same reason
+		// (ako/mxcli#1209).
+		if isKeyboardTypeProp(w.Type, key) {
+			continue
+		}
+		// A tab page's Badge / BadgeParams, per type for the same reason
+		// (mendixlabs/mxcli#1644).
+		if isTabPageBadgeProp(w.Type, key) {
+			continue
+		}
+		candidates := staticWidgetKnownPropList
+		if schema != nil {
+			// The widget's own names first: they are what the key was meant to be.
+			candidates = append(append([]string(nil), schema.Names...), staticWidgetKnownPropList...)
+		}
 		hint := ""
-		if suggestion := nearestKey(key, staticWidgetKnownPropList); suggestion != "" {
+		if h := widgetSlotHint(key, strings.ToLower(w.Type), schema.widgetSlots()); h != "" {
+			hint = h
+		} else if suggestion := nearestKey(key, candidates); suggestion != "" {
 			hint = fmt.Sprintf(" — did you mean `%s`?", suggestion)
 		}
-		out = append(out, linter.Violation{
+		message := fmt.Sprintf(
+			"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
+			locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
+		)
+		if schema != nil {
+			// Not "will be dropped": the template is the oldest supported version,
+			// and the installed widget may declare more.
+			message = fmt.Sprintf(
+				"%s: %s property `%s` is not declared by the embedded %s definition (%s), so it cannot be verified without a project — "+
+					"it is silently dropped on write unless the installed widget declares it%s",
+				locationPrefix, widgetLabel(w.Name, w.Type), key, schema.Title, schema.Version, hint,
+			)
+		}
+		v := linter.Violation{
 			RuleID:   "MDL-WIDGET07",
 			Severity: linter.SeverityWarning,
-			Message: fmt.Sprintf(
-				"%s: %s property `%s` is not recognized and will be silently dropped on write%s",
-				locationPrefix, widgetLabel(w.Name, w.Type), key, hint,
-			),
-		})
+			Message:  message,
+		}
+		if schema != nil && !projectOpen {
+			v.Suggestion = "Run check with -p <project.mpr> to look the key up in the installed widget."
+		}
+		out = append(out, v)
 	}
 	return out
 }
@@ -1060,7 +1505,24 @@ func validateConsumableConditional(w *ast.WidgetV3, locationPrefix string) []lin
 		}
 		switch v.(type) {
 		case bool, string:
-			continue // a static form StaticVisibleExpression consumes
+			// A static form StaticVisibleExpression / StaticEditability consumes.
+			// Visible takes any string as its condition; Editable takes an enum
+			// word, a boolean or a condition, and refuses what is none of them
+			// here, because the writer has nowhere to put it.
+			if p.plain == "Editable" {
+				if problem := editableValueProblem(w); problem != "" {
+					out = append(out, linter.Violation{
+						RuleID:   "MDL-WIDGET19",
+						Severity: linter.SeverityError,
+						Message: fmt.Sprintf(
+							"%s: %s: %s — Editable takes Always, Never (or true / false), or a condition "+
+								"expression such as `Editable: $currentObject/Locked = false`, bare or in quotes; "+
+								"anything else cannot be stored and would leave the widget editable",
+							locationPrefix, widgetLabel(w.Name, w.Type), problem),
+					})
+				}
+			}
+			continue
 		}
 		out = append(out, linter.Violation{
 			RuleID:   "MDL-WIDGET19",
@@ -1176,6 +1638,13 @@ func validateWidgetExpressionAssociations(w *ast.WidgetV3, locationPrefix string
 	var out []linter.Violation
 	for _, key := range expressionWidgetProps {
 		expr, ok := lookupWidgetProp(w, key)
+		shown := key
+		if key == "EditableIf" && (!ok || expr == "") {
+			// A quoted `Editable: '<expr>'` is the same condition.
+			if e, quoted := editableCondition(w); quoted {
+				expr, ok, shown = e, true, "Editable"
+			}
+		}
 		if !ok || expr == "" {
 			continue
 		}
@@ -1185,7 +1654,7 @@ func validateWidgetExpressionAssociations(w *ast.WidgetV3, locationPrefix string
 				Severity: linter.SeverityError,
 				Message: fmt.Sprintf(
 					"%s: widget `%s` property `%s` expression traverses association `%s` — Mendix expressions cannot follow associations (CE0117). Bind the value via a data binding (contentparams/attribute) or precompute it onto the bound entity (e.g. a calculated attribute).",
-					locationPrefix, w.Name, key, m[1],
+					locationPrefix, w.Name, shown, m[1],
 				),
 			})
 		}
@@ -1315,9 +1784,10 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		}
 		// `onClick:` and `OnChange:` are builtin names too, but unlike Label or
 		// Class the engine routes them only through a mapping sourced from them.
-		// A widget whose definition has none — a Gallery until #842, a combo
-		// box's click, a data grid filter's change — stored nothing, and a
-		// re-execution that changed only the action reported "Unchanged".
+		// A widget whose definition has none — a Gallery until #842, a data
+		// grid filter's change until ako/mxcli#854, a combo box's click —
+		// stored nothing, and a re-execution that changed only the action
+		// reported "Unchanged".
 		// Gated on the language version (validate_widget_language.go).
 		if src, ok := actionKeywordSource(key); ok && !defRoutesActionSource(def, src) {
 			out = append(out, linter.Violation{
@@ -1378,6 +1848,24 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 			continue
 		}
 
+		// A key the definition maps by its own name that the installed widget
+		// does not declare is written nowhere. Gallery 3.4.0 has no `advanced`,
+		// which the hand-written definition sets to a constant, so
+		// `advanced: true` was dropped with check and exec clean
+		// (mendixlabs/mxcli#1618). Known only from the project's package.
+		if def.declaredKeys != nil && !def.declaredKeys[lower] && mapsOwnKey(def, lower) {
+			out = append(out, linter.Violation{
+				RuleID:   "MDL-WIDGET01",
+				Severity: linter.SeverityError,
+				Message: fmt.Sprintf(
+					"%s: %s has no property `%s` — mxcli's definition maps one, but the installed widget %s does not declare it, so the value would be dropped",
+					locationPrefix, widgetLabel(w.Name, def.MDLName), key, def.WidgetID,
+				),
+				Suggestion: "Remove it: this version of the widget has no such setting.",
+			})
+			continue
+		}
+
 		if allowed[lower] {
 			continue
 		}
@@ -1415,6 +1903,38 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		})
 	}
 	return out
+}
+
+// childSlotKeyword returns the block keyword of the child slot whose property
+// key is lower (any case), declared by def or by one of its modes; "" when
+// none is. A mode's slot counts: written as a value, a combo box's custom
+// content is MDL-WIDGET27 (ako/mxcli#1744), not a known-but-unmapped key.
+func childSlotKeyword(def *WidgetDefinition, lower string) string {
+	slots := append([]ChildSlotMapping(nil), def.ChildSlots...)
+	for _, m := range def.Modes {
+		slots = append(slots, m.ChildSlots...)
+	}
+	for _, cs := range slots {
+		if strings.EqualFold(cs.PropertyKey, lower) {
+			return strings.ToLower(cs.MDLContainer)
+		}
+	}
+	return ""
+}
+
+// mapsOwnKey reports whether a mapping of def (or of one of its modes) writes
+// the property named lower, the key itself lower-cased.
+func mapsOwnKey(def *WidgetDefinition, lower string) bool {
+	mappings := append([]PropertyMapping(nil), def.PropertyMappings...)
+	for _, m := range def.Modes {
+		mappings = append(mappings, m.PropertyMappings...)
+	}
+	for _, m := range mappings {
+		if strings.ToLower(m.PropertyKey) == lower {
+			return true
+		}
+	}
+	return false
 }
 
 // datasourceTypedKeys returns the lowercased propertyKeys whose def.json mapping
@@ -1577,7 +2097,10 @@ func lookupWidgetDef(w *ast.WidgetV3, registry *WidgetRegistry) *WidgetDefinitio
 			return def
 		}
 	}
-	if w.Type == "" {
+	// A keyword the page builder builds itself never reaches the registry
+	// there, so check must not resolve it through the registry either
+	// (mendixlabs/mxcli#1463: `radiobuttons`).
+	if w.Type == "" || isBuilderOwnedWidgetKeyword(w.Type) {
 		return nil
 	}
 	if def, ok := registry.Get(strings.ToUpper(w.Type)); ok {

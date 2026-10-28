@@ -12,10 +12,18 @@ options { tokenVocab = MDLLexer; }
 
 /**
  * Creates a new microflow with parameters, return type, and activity body.
+ *
+ * The parameter list's parentheses are mandatory, even when it is empty. The
+ * bare form (`Mod.F returns …`, `Mod.F $l: List of …`) parses only so the
+ * visitor can refuse it with one error that names them
+ * (refuseRoutineHeaderWithoutParens). Left to ANTLR it inserted the `(`, read
+ * `returns` as a parameter name, swallowed the body into its type and closed
+ * the statement early — three errors, none at the mistake
+ * (mendixlabs/mxcli#1514). The same holds for nanoflows and rules below.
  */
 createMicroflowStatement
     : MICROFLOW ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?
@@ -26,7 +34,7 @@ createMicroflowStatement
  */
 createNanoflowStatement
     : NANOFLOW ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?   // bare: refused
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?
@@ -42,7 +50,7 @@ createNanoflowStatement
  */
 createRuleStatement
     : RULE ifNotExists? qualifiedName
-      LPAREN microflowParameterList? RPAREN
+      (LPAREN microflowParameterList? RPAREN | microflowParameterList)?   // bare: refused
       microflowReturnType?
       microflowOptions?
       BEGIN microflowBody END SEMICOLON? SLASH?
@@ -57,7 +65,14 @@ createJavaActionStatement
       LPAREN javaActionParameterList? RPAREN
       javaActionReturnType?
       javaActionExposedClause?
-      AS DOLLAR_STRING SEMICOLON?
+      AS DOLLAR_STRING javaActionExtraCode? SEMICOLON?
+    ;
+
+/** The .java file's EXTRA CODE section — helper methods, constants and nested
+ *  classes beside executeAction(), which a regeneration keeps. Omitted, the
+ *  stored section is kept; `extra code $$ $$` clears it (ako/mxcli#1702). */
+javaActionExtraCode
+    : EXTRA CODE DOLLAR_STRING
     ;
 
 javaActionParameterList
@@ -73,12 +88,18 @@ javaActionTypeParameters
     : LESS_THAN identifierOrKeyword (COMMA identifierOrKeyword)* GREATER_THAN
     ;
 
+// A parameter's description is a `/** … */` doc comment before it, as on an
+// entity attribute. DESCRIBE printed it as a trailing `--` comment, which the
+// lexer discards, so a script copying that form lost it (mendixlabs/mxcli#1588).
 javaActionParameter
-    : parameterName COLON dataType NOT_NULL?
+    : docComment? parameterName COLON dataType NOT_NULL?
     ;
 
+// `returns T as $Name` names the return value — the default name of the
+// variable a microflow call stores it in — with the spelling a microflow's
+// return variable uses (mendixlabs/mxcli#1588).
 javaActionReturnType
-    : RETURNS dataType
+    : RETURNS dataType (AS VARIABLE)?
     ;
 
 // EXPOSED AS 'Caption' IN 'Category'  — appear in Studio Pro's toolbox
@@ -537,8 +558,16 @@ raiseErrorStatement
     ;
 
 // LOG INFO NODE 'TEST' 'Message'; or LOG INFO 'Message'; or LOG WARNING 'Message' WITH ({1} = $var);
+// LOG ERROR 'Failed' WITH STACKTRACE; ticks "Include latest stack trace".
 logStatement
-    : LOG logLevel? (NODE expression)? expression logTemplateParams? onErrorClause?
+    : LOG logLevel? (NODE expression)? expression logTemplateParams? logStackTrace? onErrorClause?
+    ;
+
+/** Studio Pro's "Include latest stack trace" (IncludeLatestStackTrace). After
+ *  the template parameters, which also open with WITH: `WITH (` is the one and
+ *  `WITH STACKTRACE` the other. */
+logStackTrace
+    : WITH STACKTRACE
     ;
 
 logLevel
@@ -732,8 +761,13 @@ callArgumentList
 // which writes no mapping at all. Only call microflow / call nanoflow take it
 // (the visitor refuses it elsewhere). NOTHING is listed before expression so
 // the keyword wins over reading `nothing` as a name.
+//
+// `Param = 'Order {1} shipped' with ({1} = $Order/Number)` fills a Java
+// action's text-template parameter (StringTemplate(Text|Sql)) — the `with`
+// form of log and show message. Only call java action takes it (the visitor
+// refuses it elsewhere; ako/mxcli#1451).
 callArgument
-    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS (NOTHING | expression)
+    : (VARIABLE /* @alias MDL-DEPR006 */ | parameterName) EQUALS (NOTHING | expression templateParams?)
     | parameterName COLON /* @alias MDL-DEPR007 */ expression
     | expression                                  // positional: refused by the visitor
     ;
@@ -982,12 +1016,27 @@ sendRestRequestBodyClause
     ;
 
 /**
- * Import from mapping: [$Var =] IMPORT FROM MAPPING Module.IMM($SourceVar);
+ * Import from mapping: [$Var =] IMPORT FROM MAPPING Module.IMM($SourceVar)
+ *   [( Parameter: $Obj, Commit: Yes | YesWithoutEvents | No )] [range];
  */
 importFromMappingStatement
     : (VARIABLE EQUALS)? IMPORT FROM MAPPING qualifiedName LPAREN VARIABLE RPAREN
+      importMappingSettings?
       importMappingRange?
       onErrorClause?
+    ;
+
+/**
+ * The activity's dialog settings, one ( Key: value, … ) list after the main
+ * operand (ADR-0013, ako/mxcli#1681): the mapping's input object and the
+ * commit mode. Keys and value shapes are checked by the visitor.
+ */
+importMappingSettings
+    : LPAREN importMappingSetting (COMMA importMappingSetting)* COMMA? RPAREN
+    ;
+
+importMappingSetting
+    : identifierOrKeyword COLON (VARIABLE | identifierOrKeyword)
     ;
 
 /**

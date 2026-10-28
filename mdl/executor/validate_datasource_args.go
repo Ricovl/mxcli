@@ -104,6 +104,7 @@ type flowParam struct {
 	Name   string
 	Entity string // entity qualified name, "" when unknown or not an object
 	Object bool   // takes an object or a list of objects
+	List   bool   // takes a list (Object is then true too)
 }
 
 // flowSignature is a flow's parameters plus the entity it returns — the return
@@ -241,9 +242,9 @@ func validateFlowArgumentsIn(
 			// cannot supply its own parameter.
 			errs = append(errs, dataSourceArgErrors(w.Name, ds, sigs, enclosing, compatible)...)
 		}
-		errs = append(errs, actionArgErrors(w, sigs, enclosing, compatible, controlBarOf)...)
-
 		inner := childContext(enclosing, ds, sigs, paramEntities)
+		errs = append(errs, actionArgErrors(w, sigs, enclosing, inner, compatible, controlBarOf)...)
+
 		// A widget that establishes its own data context ends the control bar's
 		// reach: inside a dataview placed in a control bar, $currentObject is
 		// that dataview's object like anywhere else.
@@ -436,6 +437,10 @@ type namedAction struct {
 // the flow's parameters — CE1571 and the silent-typo argument, the same two
 // faults dataSourceArgErrors reports for a data source.
 //
+// row is the context the widget's own data source puts in scope, which is what
+// its row action is judged in (see isRowAction); every other slot is judged in
+// enclosing, the context around the widget.
+//
 // controlBarOf names the data widget whose control bar this widget sits in, and
 // is "" everywhere else. It only changes the advice: the remedy there is the
 // grid's selection, which is the one thing a control-bar author needs told and
@@ -443,7 +448,7 @@ type namedAction struct {
 func actionArgErrors(
 	w *ast.WidgetV3,
 	sigs map[string]*flowSignature,
-	enclosing dataContext,
+	enclosing, row dataContext,
 	compatible func(contextQN, paramQN string) bool,
 	controlBarOf string,
 ) []string {
@@ -453,7 +458,11 @@ func actionArgErrors(
 		if !known || sig == nil {
 			continue // resolution is validateWidgetReferences' job
 		}
-		missing, unknown, missingEntity := argDiff(na.Action.Args, sig, enclosing, compatible)
+		judgedIn := enclosing
+		if isRowAction(w, na.Property) {
+			judgedIn = row
+		}
+		missing, unknown, missingEntity := argDiff(na.Action.Args, sig, judgedIn, compatible)
 
 		if len(missing) > 0 {
 			msg := fmt.Sprintf(
@@ -465,7 +474,7 @@ func actionArgErrors(
 				na.Property, na.Action.Type, na.Action.Target, missing[0])
 			if hint := controlBarHint(controlBarOf); hint != "" {
 				msg += hint
-			} else if hint := contextHint(enclosing, missingEntity); hint != "" {
+			} else if hint := contextHint(judgedIn, missingEntity); hint != "" {
 				msg += hint
 			}
 			out = append(out, msg)
@@ -479,6 +488,22 @@ func actionArgErrors(
 		}
 	}
 	return out
+}
+
+// isRowAction reports whether a widget's action slot fires per row of the
+// widget's own data source, so that the row — not what surrounds the widget —
+// is what Mendix fills the flow's parameter in from.
+//
+// That is a list widget's own click: `Action:` / `OnClick:` on a list view,
+// data grid or gallery, both spellings landing on "Action". Studio Pro stores it
+// with no parameter mappings (TestApp ConflictedWorkflowDefinitionView
+// dataGrid2_2), and judged in the enclosing context it was reported as CE1571
+// on pages mxbuild 10.24.25 builds clean (ako/mxcli#1560). A slot that does not
+// fire per row — a gallery's onSelectionChange, whose template links no data
+// source — keeps the enclosing context. It is the rule argContextForOwnAction
+// applies to show page (#552).
+func isRowAction(w *ast.WidgetV3, property string) bool {
+	return property == "Action" && w.GetDataSource() != nil
 }
 
 // controlBarHint is the advice for an action in a control bar, which replaces
@@ -612,9 +637,18 @@ func sdkFlowSignature(params []*microflows.MicroflowParameter, ret microflows.Da
 			Name:   p.Name,
 			Entity: entity,
 			Object: entity != "",
+			List:   isSDKListType(p.Type),
 		})
 	}
 	return sig
+}
+
+func isSDKListType(dt microflows.DataType) bool {
+	switch dt.(type) {
+	case *microflows.ListType, microflows.ListType:
+		return true
+	}
+	return false
 }
 
 // sdkDataTypeEntity returns the entity qualified name behind an object or list
@@ -647,6 +681,7 @@ func astFlowSignature(params []ast.MicroflowParam, ret *ast.MicroflowReturnType)
 			Name:   p.Name,
 			Entity: entity,
 			Object: entity != "",
+			List:   p.Type.Kind == ast.TypeListOf,
 		})
 	}
 	return sig

@@ -279,3 +279,64 @@ def check():
 		t.Errorf("project_security() exposes the admin password:\n%s", msg)
 	}
 }
+
+// ako/mxcli#1442: "A user role has a Documentation/Description in Project
+// Security, but ... user_roles() in Starlark has no description (module roles
+// do)." The undocumented role is the control: it reads back as "".
+func TestUserRolesExposeDescription(t *testing.T) {
+	cat, err := catalog.NewFromFile(filepath.Join(t.TempDir(), "cat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cat.Close()
+	reader := &securityReader{ps: &security.ProjectSecurity{UserRoles: []*security.UserRole{
+		{Name: "Planner", Description: "Plans the routes; maps to the dispatcher desk"},
+		{Name: "User"},
+	}}}
+	vs, _ := runSrc(t, linter.NewLintContext(cat, reader), `
+def check():
+    return [violation(message=r.name + "=" + r.description) for r in user_roles()]
+`)
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.Message)
+	}
+	want := []string{"Planner=Plans the routes; maps to the dispatcher desk", "User="}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("user_roles() descriptions:\n%v\nwant:\n%v", got, want)
+	}
+}
+
+// mendixlabs/mxcli#1238: user_roles() exposes the role's "Check security" flag
+// and its user-management grants, so a rule such as "security is checked for
+// every role" can be written. The second role sets none of them and is the
+// control: every flag reads back false and its list empty.
+func TestUserRolesExposeSecurityFlags(t *testing.T) {
+	cat, err := catalog.NewFromFile(filepath.Join(t.TempDir(), "cat.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cat.Close()
+	reader := &securityReader{ps: &security.ProjectSecurity{UserRoles: []*security.UserRole{
+		{Name: "Administrator", CheckSecurity: true, ManageAllRoles: true, ManageUsersWithoutRoles: true,
+			ManageableRoles: []string{"User", "Planner"}},
+		{Name: "User"},
+	}}}
+	vs, _ := runSrc(t, linter.NewLintContext(cat, reader), `
+def check():
+    return [violation(message="%s check=%s all=%s noroles=%s manage=%s" % (
+        r.name, r.check_security, r.manage_all_roles, r.manage_users_without_roles,
+        ",".join(r.manageable_roles))) for r in user_roles()]
+`)
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.Message)
+	}
+	want := []string{
+		"Administrator check=True all=True noroles=True manage=User,Planner",
+		"User check=False all=False noroles=False manage=",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("user_roles() security flags:\n%v\nwant:\n%v", got, want)
+	}
+}

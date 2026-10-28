@@ -7,8 +7,10 @@ package executor
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
 // validateWorkflowParameterMappings checks that each workflow "call microflow"
@@ -29,14 +31,11 @@ func validateWorkflowParameterMappings(ctx *ExecContext, s *ast.CreateWorkflowSt
 	if err != nil {
 		return nil
 	}
-	paramsByMF := make(map[string][]string, len(mfs))
+	paramsByMF := make(map[string][]*microflows.MicroflowParameter, len(mfs))
 	for _, mf := range mfs {
-		names := make([]string, 0, len(mf.Parameters))
-		for _, p := range mf.Parameters {
-			names = append(names, p.Name)
-		}
-		paramsByMF[h.GetQualifiedName(mf.ContainerID, mf.Name)] = names
+		paramsByMF[h.GetQualifiedName(mf.ContainerID, mf.Name)] = mf.Parameters
 	}
+	contextEntity := s.ParameterEntity.String()
 
 	var errs []string
 	walkWorkflowActivities(workflowStatementActivities(s), func(act ast.WorkflowActivityNode) {
@@ -56,15 +55,33 @@ func validateWorkflowParameterMappings(ctx *ExecContext, s *ast.CreateWorkflowSt
 		for _, pm := range cm.ParameterMappings {
 			mapped[pm.Parameter] = true
 		}
-		for _, name := range want {
-			if !mapped[name] {
-				errs = append(errs, fmt.Sprintf(
-					"call microflow '%s': parameter '%s' is not mapped — Mendix requires every parameter of a workflow call-microflow to be mapped (add `with (%s = ...)`)",
-					mfQN, name, name))
+		for _, p := range want {
+			if p == nil || mapped[p.Name] {
+				continue
 			}
+			// Name the value as well as the form: told only "map it", authors
+			// guessed `$Workflow` for a System.Workflow parameter, which is CE0117
+			// (mendixlabs/mxcli#1523). The argument list after the callee is the
+			// current form; `with (…)` is the deprecated MDL-DEPR008 spelling.
+			value, why := "...", ""
+			switch {
+			case isSystemWorkflowType(p.Type):
+				value, why = "$"+workflowInstanceVar, " — a System.Workflow parameter takes the running workflow, $WorkflowInstance"
+			case isObjectOfEntity(p.Type, contextEntity):
+				value = "$" + workflowContextVar
+			}
+			errs = append(errs, fmt.Sprintf(
+				"call microflow '%s': parameter '%s' is not mapped — Mendix requires every parameter of a workflow call-microflow to be mapped (write `call microflow %s(%s = %s)`%s)",
+				mfQN, p.Name, mfQN, p.Name, value, why))
 		}
 	})
 	return errs
+}
+
+// isObjectOfEntity reports whether t is an object of the entity qn.
+func isObjectOfEntity(t microflows.DataType, qn string) bool {
+	o, ok := t.(*microflows.ObjectType)
+	return ok && qn != "" && qn != "." && strings.EqualFold(o.EntityQualifiedName, qn)
 }
 
 // validateWorkflowReferences checks every qualified name a workflow's activities
@@ -185,6 +202,7 @@ func validateWorkflowStatementRefs(ctx *ExecContext, s *ast.CreateWorkflowStmt, 
 	activities := workflowStatementActivities(s)
 	errs = append(errs, bareTimerBoundaryEventErrors(ctx, activities, 0)...)
 	errs = append(errs, validateWorkflowReferences(ctx, activities, sc)...)
+	errs = append(errs, validateWorkflowTargetingXPath(ctx, activities, sc)...)
 	errs = append(errs, validateWorkflowEventHandlers(ctx, s, sc)...)
 	// Then the signatures of the page and targeting microflow each user task
 	// hands work to — names that resolve can still be the wrong shape (CE7410,
@@ -228,14 +246,7 @@ func bareTimerBoundaryEventErrors(ctx *ExecContext, activities []ast.WorkflowAct
 		}
 	}
 	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
-		switch t := a.(type) {
-		case *ast.WorkflowUserTaskNode:
-			count(t.BoundaryEvents)
-		case *ast.WorkflowCallMicroflowNode:
-			count(t.BoundaryEvents)
-		case *ast.WorkflowWaitForNotificationNode:
-			count(t.BoundaryEvents)
-		}
+		count(workflowActivityBoundaryEvents(a))
 	})
 	if n == 0 {
 		return nil
@@ -343,5 +354,6 @@ func validateAlterWorkflowRefs(ctx *ExecContext, s *ast.AlterWorkflowStmt, sc *s
 	errs = append(errs, validateAlterWorkflowEndAncestry(ctx, s)...)
 
 	errs = append(errs, validateWorkflowReferences(ctx, added, sc)...)
+	errs = append(errs, validateAlterWorkflowTargetingXPath(ctx, s, added, sc)...)
 	return append(errs, validateAlterWorkflowTaskSignatures(ctx, s, added, sc)...)
 }

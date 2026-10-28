@@ -78,12 +78,14 @@ func TestValidate_ActionKeywordWithoutASlotIsRefused(t *testing.T) {
 		key        string
 		refused    bool
 	}{
-		{"gallery", "Action", false},     // #842: written now
-		{"image", "Action", false},       // control: always routed
-		{"combobox", "OnChange", false},  // control: routed through both modes
-		{"combobox", "Action", true},     // a combo box has no click slot
-		{"textfilter", "OnChange", true}, // the filters' onChange has no mapping
-		{"dropdownsort", "Action", true}, // no action slot at all
+		{"gallery", "Action", false},       // #842: written now
+		{"image", "Action", false},         // control: always routed
+		{"combobox", "OnChange", false},    // control: routed through both modes
+		{"combobox", "Action", true},       // a combo box has no click slot
+		{"textfilter", "OnChange", false},  // ako/mxcli#854: the filters' onChange is mapped
+		{"textfilter", "Action", true},     // … and a filter still has no click slot
+		{"dropdownsort", "Action", true},   // no action slot at all
+		{"dropdownsort", "OnChange", true}, // nor a change slot
 	}
 	for _, c := range cases {
 		t.Run(c.widgetType+" "+c.key, func(t *testing.T) {

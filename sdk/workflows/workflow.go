@@ -19,6 +19,9 @@ type Workflow struct {
 	Excluded            bool     `json:"excluded"`
 	WorkflowName        string   `json:"workflowName,omitempty"`        // Template string for display name
 	WorkflowDescription string   `json:"workflowDescription,omitempty"` // Template string for description
+	// The expressions filling {1}, {2}, … of the two templates, in order.
+	WorkflowNameParams        []string `json:"workflowNameParams,omitempty"`
+	WorkflowDescriptionParams []string `json:"workflowDescriptionParams,omitempty"`
 
 	// OverviewPage is the qualified name of the workflow's overview page — the
 	// `overview page` clause. It is stored under the BSON key **AdminPage**, as a
@@ -37,7 +40,9 @@ type Workflow struct {
 
 	DueDate string `json:"dueDate,omitempty"` // Due date expression
 
-	// Annotation
+	// Annotation is the workflow's own note. Studio Pro 11.15 shows it nowhere:
+	// the note on the start is the start activity's (StartNote). mxcli wrote
+	// the header `annotation '…'` here before ako/mxcli#1717.
 	Annotation string `json:"annotation,omitempty"` // Annotation description text
 
 	// Context parameter
@@ -118,6 +123,23 @@ func (a *BaseWorkflowActivity) SetName(name string) {
 }
 
 // GetCaption returns the activity's caption.
+// StartNote is the note on the workflow's start, which describe prints as the
+// header's `annotation '…'`: the start activity's, as Studio Pro stores and
+// shows it — the workflow editor draws the start's note from
+// StartWorkflowActivity.Annotation and the workflow's own Annotation nowhere
+// (11.15.0, ako/mxcli#1717) — or else the workflow's own, where mxcli wrote it
+// before.
+func (w *Workflow) StartNote() string {
+	if w.Flow != nil {
+		for _, a := range w.Flow.Activities {
+			if s, ok := a.(*StartWorkflowActivity); ok && s.Annotation != "" {
+				return s.Annotation
+			}
+		}
+	}
+	return w.Annotation
+}
+
 // SetAnnotation sets the note attached to the activity.
 func (a *BaseWorkflowActivity) SetAnnotation(s string) {
 	a.Annotation = s
@@ -152,10 +174,17 @@ type UserTask struct {
 	Outcomes        []*UserTaskOutcome `json:"outcomes,omitempty"`        // Task outcomes
 	TaskName        string             `json:"taskName,omitempty"`        // Template string for task display name
 	TaskDescription string             `json:"taskDescription,omitempty"` // Template string for task description
-	DueDate         string             `json:"dueDate,omitempty"`         // Due date expression
-	UserTaskEntity  string             `json:"userTaskEntity,omitempty"`  // Qualified name of user task entity
-	OnCreated       string             `json:"onCreated,omitempty"`       // Microflow called on task creation
-	BoundaryEvents  []*BoundaryEvent   `json:"boundaryEvents,omitempty"`  // Boundary events (e.g., timers)
+	// The expressions filling {1}, {2}, … of the two templates, in order.
+	TaskNameParams        []string         `json:"taskNameParams,omitempty"`
+	TaskDescriptionParams []string         `json:"taskDescriptionParams,omitempty"`
+	DueDate               string           `json:"dueDate,omitempty"`        // Due date expression
+	UserTaskEntity        string           `json:"userTaskEntity,omitempty"` // Qualified name of user task entity
+	OnCreated             string           `json:"onCreated,omitempty"`      // Microflow called on task creation
+	BoundaryEvents        []*BoundaryEvent `json:"boundaryEvents,omitempty"` // Boundary events (e.g., timers)
+
+	// AutoAssignSingleTargetUser is Studio Pro's "Auto-assign when targeting
+	// results in one user". Off by default, as Studio Pro creates a task.
+	AutoAssignSingleTargetUser bool `json:"autoAssignSingleTargetUser,omitempty"`
 
 	// Multi-user task only.
 	CompletionCriteria *CompletionCriteria `json:"completionCriteria,omitempty"` // nil = consensus on the first outcome
@@ -306,6 +335,8 @@ type EventSubProcessStartActivity struct {
 	Interrupting       bool   `json:"interrupting"`
 	Timer              bool   `json:"timer"`
 	FirstExecutionTime string `json:"firstExecutionTime,omitempty"` // timer starts only
+	// Recurrence repeats a non-interrupting timer start; nil fires it once.
+	Recurrence *Recurrence `json:"recurrence,omitempty"`
 }
 
 // ActivityType returns the type name, e.g. "InterruptingNotificationEventSubProcessStart".
@@ -419,6 +450,101 @@ func EndBoundaryEventPath(flow *Flow, newID func() model.ID) *Flow {
 	return flow
 }
 
+// EndInterruptingBoundaryPaths gives each interrupting boundary-event path that
+// runs to its last activity the End Studio Pro writes there, in place of the
+// end-of-path marker EndBoundaryEventPath appended, wherever an End may stand
+// (ako/mxcli#1712).
+//
+// The marker is Studio Pro's terminator for a NON-interrupting path; for an
+// interrupting one its constructor writes an End outside a parallel split and a
+// jump inside one. mxbuild builds both, and on the 11.13.0 runtime both complete
+// the instance without running what follows the activity — so this changes what
+// Studio Pro shows, not what runs. Measured clean on 11.15.0: an End closing an
+// interrupting path in the main flow, under a decision outcome, on a call
+// microflow and in an event sub-process.
+//
+// endAllowed is false where an End is CE1844: under a parallel split path or a
+// non-interrupting boundary path, at any depth (PROPOSAL_workflow_end_activity,
+// rows 5, 6 and 13). A path there keeps the marker, which builds: Studio Pro
+// would aim a jump, and only the author knows where. A bare `timer` (no kind)
+// keeps it too.
+func EndInterruptingBoundaryPaths(activities []WorkflowActivity, endAllowed bool, newID func() model.ID) {
+	for _, act := range activities {
+		for _, be := range boundaryEventsOf(act) {
+			if be == nil || be.Flow == nil {
+				continue
+			}
+			interrupting := strings.HasPrefix(be.EventType, "Interrupting")
+			if interrupting && endAllowed {
+				be.Flow.Activities = EndInterruptingPath(be.Flow.Activities, newID)
+			}
+			EndInterruptingBoundaryPaths(be.Flow.Activities, endAllowed && !be.IsNonInterrupting(), newID)
+		}
+		switch a := act.(type) {
+		case *UserTask:
+			for _, o := range a.Outcomes {
+				if o != nil && o.Flow != nil {
+					EndInterruptingBoundaryPaths(o.Flow.Activities, endAllowed, newID)
+				}
+			}
+		case *CallMicroflowTask:
+			endInConditionOutcomes(a.Outcomes, endAllowed, newID)
+		case *SystemTask:
+			endInConditionOutcomes(a.Outcomes, endAllowed, newID)
+		case *ExclusiveSplitActivity:
+			endInConditionOutcomes(a.Outcomes, endAllowed, newID)
+		case *ParallelSplitActivity:
+			for _, o := range a.Outcomes {
+				if o != nil && o.Flow != nil {
+					EndInterruptingBoundaryPaths(o.Flow.Activities, false, newID)
+				}
+			}
+		}
+	}
+}
+
+func endInConditionOutcomes(outcomes []ConditionOutcome, endAllowed bool, newID func() model.ID) {
+	for _, o := range outcomes {
+		if o != nil && o.GetFlow() != nil {
+			EndInterruptingBoundaryPaths(o.GetFlow().Activities, endAllowed, newID)
+		}
+	}
+}
+
+// boundaryEventsOf is the boundary events an activity owns.
+func boundaryEventsOf(act WorkflowActivity) []*BoundaryEvent {
+	switch a := act.(type) {
+	case *UserTask:
+		return a.BoundaryEvents
+	case *CallMicroflowTask:
+		return a.BoundaryEvents
+	case *CallWorkflowActivity:
+		return a.BoundaryEvents
+	case *WaitForNotificationActivity:
+		return a.BoundaryEvents
+	}
+	return nil
+}
+
+// EndInterruptingPath ends an interrupting boundary path the way Studio Pro
+// does: an End, replacing the end-of-path marker if one is last, unless the path
+// already ends in a jump or an End.
+func EndInterruptingPath(activities []WorkflowActivity, newID func() model.ID) []WorkflowActivity {
+	if n := len(activities); n > 0 {
+		switch activities[n-1].(type) {
+		case *JumpToActivity, *EndWorkflowActivity:
+			return activities
+		case *EndOfBoundaryEventPathActivity:
+			activities = activities[:n-1]
+		}
+	}
+	end := &EndWorkflowActivity{}
+	end.ID = newID()
+	end.Caption = "End"
+	end.Name = "End"
+	return append(activities, end)
+}
+
 // EndOfBoundaryEventPathActivity marks the end of a boundary event path (auto-generated by Mendix).
 type EndOfBoundaryEventPathActivity struct {
 	BaseWorkflowActivity
@@ -530,6 +656,49 @@ type BoundaryEvent struct {
 	// EventType is "InterruptingTimer", "NonInterruptingTimer", "Timer",
 	// "InterruptingNotification" or "NonInterruptingNotification".
 	EventType string `json:"eventType,omitempty"`
+	// Recurrence repeats a non-interrupting timer; nil fires it once.
+	Recurrence *Recurrence `json:"recurrence,omitempty"`
+}
+
+// Recurrence is a non-interrupting timer's repetition, Workflows$LinearRecurrence
+// (ako/mxcli#1716): after its first firing it fires every Interval IntervalType,
+// MaxExecutions times in all — the first firing included. Studio Pro allows
+// IntervalType Minute, Hour, Day, Week or Month (MW0005), Interval at least 1
+// and MaxExecutions at least 2 (MW0004); mx check enforces none of them.
+type Recurrence struct {
+	IntervalType  string `json:"intervalType"`
+	Interval      int    `json:"interval"`
+	MaxExecutions int    `json:"maxExecutions"`
+}
+
+// recurrenceUnits maps the unit words MDL accepts, singular and plural, to the
+// stored IntervalType: the scheduled-event enumeration the runtime reads it as
+// (com.mendix.model.scheduledevents.ModelIntervalType, 11.15.0). Second and
+// Year are in that enumeration but not allowed for a recurrence.
+var recurrenceUnits = map[string]string{
+	"second": "Second", "minute": "Minute", "hour": "Hour", "day": "Day",
+	"week": "Week", "month": "Month", "year": "Year",
+}
+
+// RecurrenceIntervalType is the stored IntervalType for a unit word — "day",
+// "Days", … — and whether the word names one.
+func RecurrenceIntervalType(word string) (string, bool) {
+	w := strings.ToLower(word)
+	if t, ok := recurrenceUnits[w]; ok {
+		return t, true
+	}
+	t, ok := recurrenceUnits[strings.TrimSuffix(w, "s")]
+	return t, ok
+}
+
+// RecurrenceUnitWord is how MDL writes an IntervalType after a count:
+// "day" for 1, "days" otherwise.
+func RecurrenceUnitWord(intervalType string, count int) string {
+	w := strings.ToLower(intervalType)
+	if count != 1 {
+		w += "s"
+	}
+	return w
 }
 
 // boundaryEventStorageTypes maps EventType to the stored $Type. Every writer

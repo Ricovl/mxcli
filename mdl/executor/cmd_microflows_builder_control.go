@@ -34,8 +34,20 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	hasElseBody := s.HasElse || len(s.ElseBody) > 0
 	elseReturns := hasElseBody && lastStmtIsReturn(s.ElseBody)
 	bothReturn := hasElseBody && thenReturns && elseReturns
-	thenNeedsErrorMerge := thenReturns && bodyHasContinuingCustomErrorHandler(s.ThenBody)
-	elseNeedsErrorMerge := elseReturns && bodyHasContinuingCustomErrorHandler(s.ElseBody)
+
+	// The last statement of a loop body: an IF/ELSE whose branches both carry
+	// on there joins nothing, since both end the iteration, and a loop-body
+	// activity with no outgoing flow is how Mendix ends one. Its merge had no
+	// way out, Studio Pro authors delete it by hand, and every re-run drew it
+	// again (mendixlabs/mxcli#884). Both branches must hold something — a split
+	// needs a flow per case — and an explicit @merge keeps the merge, which is
+	// how DESCRIBE carries a stored one through a rebuild.
+	atTail := fb.atBodyTail
+	fb.atBodyTail = false
+	tailWithoutMerge := atTail && hasElseBody && len(s.ThenBody) > 0 && len(s.ElseBody) > 0 &&
+		!thenReturns && !elseReturns &&
+		!bodyHasContinuingCustomErrorHandler(s.ThenBody) && !bodyHasContinuingCustomErrorHandler(s.ElseBody) &&
+		(s.Annotations == nil || s.Annotations.Merge == nil)
 
 	// Save/restore endsWithReturn around branch processing to avoid
 	// a branch's RETURN affecting the parent flow state prematurely
@@ -119,17 +131,25 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 
 	// Determine if the merge would have 2+ incoming edges (non-redundant).
 	// Skip merge when only one branch flows into it (the other returns).
+	//
+	// One more input is decided only once a branch is built: a handler in a
+	// branch that ends in RETURN, which it could not settle inside the branch
+	// (see settleBranchFlow), continues where the IF does — at this merge, which
+	// ensureMerge then creates for it.
 	needMerge := false
-	if !bothReturn {
+	if !bothReturn && !tailWithoutMerge {
 		if hasElseBody {
-			needMerge = (!thenReturns && !elseReturns) || thenNeedsErrorMerge || elseNeedsErrorMerge
+			needMerge = !thenReturns && !elseReturns
 		} else {
 			needMerge = !thenReturns // THEN continues + FALSE path → 2 inputs
 		}
 	}
 
 	var mergeID model.ID
-	if needMerge {
+	ensureMerge := func() {
+		if mergeID != "" {
+			return
+		}
 		mergeX, mergeY := mergePosition(s.Annotations, mergeX, centerY)
 		merge := &microflows.ExclusiveMerge{
 			BaseMicroflowObject: microflows.BaseMicroflowObject{
@@ -140,6 +160,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		}
 		fb.objects = append(fb.objects, merge)
 		mergeID = merge.ID
+	}
+	if needMerge {
+		ensureMerge()
 	}
 
 	thenStartX := splitX + SplitWidth + HorizontalSpacing/2
@@ -157,9 +180,12 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var prevThenAnchor *ast.FlowAnchors
 		var pendingThenCase string
 		var pendingThenAnchor *ast.FlowAnchors
+		outerHandlers := fb.enterBranch()
 		for i, stmt := range s.ThenBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ThenBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastThenID, splitID, "true", pendingThenCase, prevThenAnchor, trueBranchAnchor) {
 				pendingThenCase, pendingThenAnchor = "", nil
 				continue
@@ -191,9 +217,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 					}
 					applyUserAnchors(flow, originAnchor, destAnchor)
 					fb.flows = append(fb.flows, flow)
-					if fb.emptyErrorHandlerFrom == lastThenID {
-						fb.addPendingErrorHandlerFlowForStatement(lastThenID, actID, stmt, statementsReferenceVar(s.ThenBody[i+1:], fb.errorHandlerSkipVar))
-					}
+					fb.settleBranchFlow(lastThenID, actID, stmt, s.ThenBody[i+1:], thenReturns)
 				}
 				prevThenAnchor = thisAnchor
 				// For nested compound statements, use their exit point
@@ -210,10 +234,10 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 			}
 		}
 
-		// Connect THEN body to merge only if it doesn't end with RETURN and a merge exists.
-		// When needMerge=false, the continuing branch is wired up by the parent via
-		// nextConnectionPoint/nextFlowCase, so we must not emit a dangling flow here.
-		if !thenReturns && needMerge {
+		// connectThenToMerge draws the THEN branch's exit into the merge, and
+		// settles there the handler of its last activity: the statement after
+		// that activity is whatever follows the IF.
+		connectThenToMerge := func() {
 			if lastThenID != "" {
 				var flow *microflows.SequenceFlow
 				originAnchor := prevThenAnchor
@@ -229,6 +253,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				}
 				applyUserAnchors(flow, originAnchor, destAnchor)
 				fb.flows = append(fb.flows, flow)
+				fb.settleBranchFlow(lastThenID, mergeID, nil, nil, false)
 			} else {
 				// Empty THEN body - connect split directly to merge with true case.
 				// Pass trueBranchAnchor as destination too so the @anchor(true: (..., to: Y))
@@ -237,9 +262,27 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				applyUserAnchors(flow, trueBranchAnchor, trueBranchAnchor)
 				fb.flows = append(fb.flows, flow)
 			}
-		} else if thenReturns && needMerge {
-			fb.addPendingErrorHandlerFlowTo(mergeID)
 		}
+
+		// Connect THEN body to merge only if it doesn't end with RETURN and a merge exists.
+		// When needMerge=false, the continuing branch is wired up by the parent via
+		// nextConnectionPoint/nextFlowCase, so we must not emit a dangling flow here.
+		//
+		// When the ELSE branch returns, whether a merge is needed is known only
+		// once ELSE is built (a handler it could not settle needs one), so a
+		// continuing THEN waits, its pending handlers with it.
+		thenWaits := !thenReturns && elseReturns
+		var thenHandlers pendingHandlers
+		if !thenReturns && needMerge {
+			connectThenToMerge()
+		} else if thenReturns && !bothReturn && fb.hasPendingErrorHandlers() {
+			needMerge = true
+			ensureMerge()
+			fb.addPendingErrorHandlerFlowTo(mergeID)
+		} else if thenWaits {
+			thenHandlers = fb.takePendingErrorHandlers()
+		}
+		fb.leaveBranch(outerHandlers)
 
 		// Process ELSE body (below the THEN path)
 		thenH := max(thenBounds.Height, ActivityHeight)
@@ -253,9 +296,12 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var prevElseAnchor *ast.FlowAnchors
 		var pendingElseCase string
 		var pendingElseAnchor *ast.FlowAnchors
+		outerHandlers = fb.enterBranch()
 		for i, stmt := range s.ElseBody {
 			thisAnchor := stmtOwnAnchor(stmt)
+			fb.atBodyTail = tailWithoutMerge && i == len(s.ElseBody)-1
 			actID := fb.addStatement(stmt)
+			fb.atBodyTail = false
 			if fb.takeBranchJoin(lastElseID, splitID, "false", pendingElseCase, prevElseAnchor, falseBranchAnchor) {
 				pendingElseCase, pendingElseAnchor = "", nil
 				continue
@@ -296,9 +342,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 					}
 					applyUserAnchors(flow, originAnchor, destAnchor)
 					fb.flows = append(fb.flows, flow)
-					if fb.emptyErrorHandlerFrom == lastElseID {
-						fb.addPendingErrorHandlerFlowForStatement(lastElseID, actID, stmt, statementsReferenceVar(s.ElseBody[i+1:], fb.errorHandlerSkipVar))
-					}
+					fb.settleBranchFlow(lastElseID, actID, stmt, s.ElseBody[i+1:], elseReturns)
 				}
 				prevElseAnchor = thisAnchor
 				// For nested compound statements, use their exit point
@@ -334,6 +378,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				}
 				applyUserAnchors(flow, originAnchor, destAnchor)
 				fb.flows = append(fb.flows, flow)
+				fb.settleBranchFlow(lastElseID, mergeID, nil, nil, false)
 			} else {
 				// Explicit empty ELSE body: the split still needs a configured
 				// false case when both branches converge at the merge.
@@ -341,8 +386,23 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				applyUserAnchors(flow, falseBranchAnchor, falseBranchAnchor)
 				fb.flows = append(fb.flows, flow)
 			}
-		} else if elseReturns && needMerge {
+		} else if elseReturns && !bothReturn && fb.hasPendingErrorHandlers() {
+			needMerge = true
+			ensureMerge()
 			fb.addPendingErrorHandlerFlowTo(mergeID)
+		}
+		fb.leaveBranch(outerHandlers)
+
+		if thenWaits {
+			// THEN's exit now knows where it goes: into the merge the ELSE
+			// branch's handlers needed, or on to the next statement through the
+			// enclosing path, which then settles what THEN left pending.
+			outerHandlers = fb.enterBranch()
+			fb.adoptPendingErrorHandlers(thenHandlers)
+			if needMerge {
+				connectThenToMerge()
+			}
+			fb.leaveBranch(outerHandlers)
 		}
 		if !needMerge {
 			if thenReturns && !elseReturns {
@@ -401,7 +461,8 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 		var prevThenAnchor *ast.FlowAnchors
 		var pendingThenCase string
 		var pendingThenAnchor *ast.FlowAnchors
-		for _, stmt := range s.ThenBody {
+		outerHandlers := fb.enterBranch()
+		for i, stmt := range s.ThenBody {
 			thisAnchor := stmtOwnAnchor(stmt)
 			actID := fb.addStatement(stmt)
 			if fb.takeBranchJoin(lastThenID, splitID, "true", pendingThenCase, prevThenAnchor, trueBranchAnchor) {
@@ -432,6 +493,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 					}
 					applyUserAnchors(flow, originAnchor, destAnchor)
 					fb.flows = append(fb.flows, flow)
+					fb.settleBranchFlow(lastThenID, actID, stmt, s.ThenBody[i+1:], thenReturns)
 				}
 				prevThenAnchor = thisAnchor
 				// For nested compound statements, use their exit point
@@ -450,7 +512,9 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 
 		// Connect THEN body to merge only if it doesn't end with RETURN and a merge exists.
 		// With no ELSE + thenReturns, needMerge=false and the FALSE path is threaded through
-		// the parent — any flow emitted here would dangle with mergeID="".
+		// the parent — any flow emitted here would dangle with mergeID="". Whatever THEN
+		// could not settle goes to the parent with it, which settles a handler that
+		// skipped THEN's success tail on the FALSE path's continuation.
 		if !thenReturns && needMerge {
 			if lastThenID != "" {
 				flow := newUpwardFlow(lastThenID, mergeID)
@@ -467,6 +531,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				}
 				applyUserAnchors(flow, originAnchor, destAnchor)
 				fb.flows = append(fb.flows, flow)
+				fb.settleBranchFlow(lastThenID, mergeID, nil, nil, false)
 			} else {
 				// Empty THEN body - connect split directly to merge going down and back up.
 				// Pass trueBranchAnchor as destination too so @anchor(true: (..., to: Y))
@@ -476,6 +541,7 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 				fb.flows = append(fb.flows, flow)
 			}
 		}
+		fb.leaveBranch(outerHandlers)
 		if !needMerge {
 			noMergeExitID = splitID
 			noMergeExitCase = "false"
@@ -533,9 +599,10 @@ func (fb *flowBuilder) addIfStatement(s *ast.IfStmt) model.ID {
 	return splitID
 }
 
-// mergeExitFlowAnchor is the origin anchor an if's own `@anchor(from: X)` gives
-// the flow leaving its closing merge, or nil when it sets none.
-func mergeExitFlowAnchor(s *ast.IfStmt) *ast.FlowAnchors {
+// mergeExitFlowAnchor is the origin anchor an if's or a case's own
+// `@anchor(from: X)` gives the flow leaving its closing merge, or nil when it
+// sets none.
+func mergeExitFlowAnchor(s ast.MicroflowStatement) *ast.FlowAnchors {
 	own := stmtOwnAnchor(s)
 	if own == nil || own.From == ast.AnchorSideUnset {
 		return nil
@@ -606,10 +673,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// First, measure the loop body to determine size
 	bodyBounds := fb.measurer.measureStatementsSpan(s.Body)
 
-	// Calculate loop box size with padding
-	// Extra width for iterator icon and its label (100 pixels)
-	iteratorSpace := 100
-	loopWidth := max(bodyBounds.Width+2*LoopPadding+iteratorSpace, MinLoopWidth)
+	// Calculate loop box size with padding, plus the iterator column. The
+	// measurer uses the same constant, so an IF holding this loop measures it at
+	// the width it is built at.
+	loopWidth := max(bodyBounds.Width+2*LoopPadding+LoopIteratorSpace, MinLoopWidth)
 	loopHeight := max(bodyBounds.Height+2*LoopPadding, MinLoopHeight)
 
 	// Inner positioning: activities start after the iterator icon on the left,
@@ -617,10 +684,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// (IF/CASE) centred on innerStartY stays within [0, loopHeight].
 	//
 	// A position is a CENTRE, so the first activity has to start half its own
-	// width past the iterator column; at LoopPadding+iteratorSpace its left edge
+	// width past the iterator column; at LoopPadding+LoopIteratorSpace its left edge
 	// landed 60px inside that column, on top of the iterator's icon and the list
 	// variable's label.
-	innerStartX := LoopPadding + iteratorSpace + ActivityWidth/2
+	innerStartX := LoopPadding + LoopIteratorSpace + ActivityWidth/2
 	innerStartY := loopHeight / 2
 
 	// posX is where the builder would CENTRE the next element. A loop box placed
@@ -674,6 +741,7 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 		// is the same split mxcli already ships for an ordinary loop-body note,
 		// whose flow is hoisted to the parent a few lines below. (#1077)
 		annotationsByLabel: fb.annotationsByLabel,
+		storedNotes:        fb.storedNotes,
 	}
 
 	// Process loop body statements and connect them with flows.
@@ -683,8 +751,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// its false flow entirely and mx check reports CE0079 (ledger #52).
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
@@ -693,6 +763,11 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 				} else {
 					loopBuilder.flows = append(loopBuilder.flows, newHorizontalFlow(lastBodyID, actID))
 				}
+				// A handler in the body falls through to the next body
+				// statement. Whatever is still pending at the end of the body
+				// has nothing after it: like the body's last activity, its
+				// handler ends the iteration with no outgoing flow (ako/mxcli#1459).
+				loopBuilder.settleBranchFlow(lastBodyID, actID, stmt, s.Body[i+1:], false)
 			}
 			pendingCase = ""
 			// Handle nextConnectionPoint for compound statements (nested IF, etc.)
@@ -760,6 +835,10 @@ func (fb *flowBuilder) addLoopStatement(s *ast.LoopStmt) model.ID {
 	// Add the internal flows to the parent's flows (top-level), not inside loop
 	// This is how Mendix stores them - all flows at the microflow level
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	// The body's @curves belong on those flows, and are applied by whichever
+	// builder ends up owning them; left on loopBuilder they were never applied
+	// (mendixlabs/mxcli#1597).
+	fb.adoptCurves(loopBuilder)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently
@@ -912,7 +991,9 @@ func (fb *flowBuilder) addManualWhileTrueStatement(s *ast.WhileStmt) model.ID {
 	var pendingBodyCase string
 	var pendingBodyAnchor *ast.FlowAnchors
 	var prevBodyAnchor *ast.FlowAnchors
-	for _, stmt := range s.Body {
+	bodyEnds := lastStmtIsReturn(s.Body)
+	outerHandlers := fb.enterBranch()
+	for i, stmt := range s.Body {
 		thisAnchor := stmtOwnAnchor(stmt)
 		actID := fb.addStatement(stmt)
 		if actID == "" {
@@ -936,6 +1017,7 @@ func (fb *flowBuilder) addManualWhileTrueStatement(s *ast.WhileStmt) model.ID {
 			}
 			applyUserAnchors(flow, prevBodyAnchor, thisAnchor)
 			fb.flows = append(fb.flows, flow)
+			fb.settleBranchFlow(lastBodyID, actID, stmt, s.Body[i+1:], bodyEnds)
 		}
 		prevBodyAnchor = thisAnchor
 		if fb.nextConnectionPoint != "" {
@@ -950,7 +1032,7 @@ func (fb *flowBuilder) addManualWhileTrueStatement(s *ast.WhileStmt) model.ID {
 		}
 	}
 
-	if lastBodyID != "" && lastBodyID != merge.ID && !lastStmtIsReturn(s.Body) {
+	if lastBodyID != "" && lastBodyID != merge.ID && !bodyEnds {
 		var flow *microflows.SequenceFlow
 		if pendingBodyCase != "" {
 			flow = newHorizontalFlowWithCase(lastBodyID, merge.ID, pendingBodyCase)
@@ -959,7 +1041,11 @@ func (fb *flowBuilder) addManualWhileTrueStatement(s *ast.WhileStmt) model.ID {
 		}
 		applyUserAnchors(flow, pendingBodyAnchor, pendingBodyAnchor)
 		fb.flows = append(fb.flows, flow)
+		// The statement after the body's last one is the body's first, round
+		// the back edge.
+		fb.settleBranchFlow(lastBodyID, merge.ID, nil, nil, false)
 	}
+	fb.leaveBranch(outerHandlers)
 	fb.endsWithReturn = true
 
 	return merge.ID
@@ -1035,6 +1121,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 		// is the same split mxcli already ships for an ordinary loop-body note,
 		// whose flow is hoisted to the parent a few lines below. (#1077)
 		annotationsByLabel: fb.annotationsByLabel,
+		storedNotes:        fb.storedNotes,
 	}
 
 	// Body bookkeeping is addLoopStatement's, verbatim: a WHILE body is a loop
@@ -1045,8 +1132,10 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 	// since ledger #52 and this one did not, so the two disagreed on the same body.
 	var lastBodyID model.ID
 	pendingCase := ""
-	for _, stmt := range s.Body {
+	for i, stmt := range s.Body {
+		loopBuilder.atBodyTail = i == len(s.Body)-1
 		actID := loopBuilder.addStatement(stmt)
+		loopBuilder.atBodyTail = false
 		if actID != "" {
 			loopBuilder.applyPendingAnnotations(actID)
 			if lastBodyID != "" {
@@ -1055,6 +1144,11 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 				} else {
 					loopBuilder.flows = append(loopBuilder.flows, newHorizontalFlow(lastBodyID, actID))
 				}
+				// A handler in the body falls through to the next body
+				// statement. Whatever is still pending at the end of the body
+				// has nothing after it: like the body's last activity, its
+				// handler ends the iteration with no outgoing flow (ako/mxcli#1459).
+				loopBuilder.settleBranchFlow(lastBodyID, actID, stmt, s.Body[i+1:], false)
 			}
 			pendingCase = ""
 			if loopBuilder.nextConnectionPoint != "" {
@@ -1111,6 +1205,7 @@ func (fb *flowBuilder) addWhileStatement(s *ast.WhileStmt) model.ID {
 
 	fb.objects = append(fb.objects, loop)
 	fb.flows = append(fb.flows, loopBuilder.flows...)
+	fb.adoptCurves(loopBuilder) // see addLoopStatement (mendixlabs/mxcli#1597)
 	fb.annotationFlows = append(fb.annotationFlows, loopBuilder.annotationFlows...)
 	// Refusals raised in the body were collected into the sub-builder and
 	// dropped on the floor, so exec reported success on a flow it had silently

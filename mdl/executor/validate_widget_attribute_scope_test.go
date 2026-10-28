@@ -137,3 +137,53 @@ func TestCheck_AttributeScopeIsPartOfThePageReferencePass(t *testing.T) {
 		t.Fatalf("want the page refused for its attribute binding, got %v", err)
 	}
 }
+
+// A name NO entity in the widget's scope has was let through as "a plain typo,
+// which other checks own" — and none did, so exec wrote Entity.Missing and only
+// mx check said so, as CE1613 "The selected attribute … no longer exists"
+// (mendixlabs/mxcli#1591: a Custom chart's eventDataAttribute inside a data view
+// over a page parameter whose entity lacks it). When the bound entity is known
+// and does not declare the name, the write is CE1613 whatever else is in scope.
+func TestCheck_AttributeNoScopeHasIsRefused(t *testing.T) {
+	ctx := scopeCheckCtx(t)
+	s := scopeCheckPage(t, `staticAttribute: EventData`)
+	errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), newScriptContext())
+	if len(errs) != 1 {
+		t.Fatalf("want one binding error, got %q", errs)
+	}
+	for _, want := range []string{"viewer", "staticAttribute", "`EventData`", "Sales.Invoice", "CE1613"} {
+		if !strings.Contains(errs[0], want) {
+			t.Errorf("error should mention %q, got: %s", want, errs[0])
+		}
+	}
+
+	e := scopeEngine(t)
+	_, err := e.Build(multiSourceDef(), twoSourceWidget(map[string]any{"staticAttribute": "EventData"}))
+	if err == nil || !strings.Contains(err.Error(), errs[0]) {
+		t.Errorf("check and exec disagree:\n check: %s\n exec:  %v", errs[0], err)
+	}
+}
+
+// The same refusal when the data view's object is a page parameter, the shape
+// mendixlabs/mxcli#1591 was reported on.
+func TestCheck_AttributeThePageParameterEntityLacksIsRefused(t *testing.T) {
+	ctx := scopeCheckCtx(t)
+	src := `create page Sales.P (title: 'P', layout: Atlas_Core.Atlas_Default, params: ($Ctx: Sales.Customer, $Entry: Sales.Invoice)) {
+  dataview dv (datasource: $Entry) {
+    pluggablewidget 'com.mendix.widget.web.combobox.Combobox' viewer (
+      optionsSourceAssociationDataSource: database from Sales.Order,
+      DatabaseSource: database from Sales.Customer,
+      staticAttribute: EventData
+    )
+  }
+}`
+	prog, perrs := visitor.Build(src)
+	if len(perrs) > 0 {
+		t.Fatalf("parse: %v", perrs)
+	}
+	s := prog.Statements[0].(*ast.CreatePageStmtV3)
+	errs := validatePluggableAttributeScopes(ctx, s.Layout, s.Parameters, allPageWidgets(s), newScriptContext())
+	if len(errs) != 1 || !strings.Contains(errs[0], "Sales.Invoice") {
+		t.Fatalf("want one refusal naming Sales.Invoice, got %q", errs)
+	}
+}

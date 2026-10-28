@@ -4,23 +4,22 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strconv"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // asActionMap normalizes a raw BSON sub-document (a client action) into a
 // map[string]any, accepting either the already-converted map form or the
-// raw primitive.M produced by the mongo driver. Returns nil if v is neither.
+// raw bson.M produced by the mongo driver. Returns nil if v is neither.
 func asActionMap(v any) map[string]any {
 	switch m := v.(type) {
 	case map[string]any:
 		return m
-	case primitive.M:
+	case bson.M:
 		return map[string]any(m)
 	default:
 		return nil
@@ -57,6 +56,14 @@ func extractConditionalSettings(ctx *ExecContext, widget *rawWidget, w map[strin
 					v = "empty"
 				}
 				widget.VisibleValues = append(widget.VisibleValues, v)
+			}
+		}
+		// "Visible for module roles": by-name Module.Role references, stored
+		// beside (not instead of) the condition above. Never read, so describe
+		// → exec removed the restriction (mendixlabs/mxcli#1460).
+		for _, r := range getBsonArrayElements(cvs["ModuleRoles"]) {
+			if name, ok := r.(string); ok && name != "" {
+				widget.VisibleRoles = append(widget.VisibleRoles, name)
 			}
 		}
 	}
@@ -112,6 +119,8 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			Type: typeName,
 			Name: name,
 		}
+		// Which regions run the full width (ako/mxcli#1703).
+		widget.ScrollLayoutMode, _ = w["LayoutMode"].(string)
 		if appearance, ok := w["Appearance"].(map[string]any); ok {
 			if class, ok := appearance["Class"].(string); ok && class != "" {
 				widget.Class = class
@@ -148,6 +157,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			}
 			if sm, ok := region["SizeMode"].(string); ok {
 				child.RegionSizeMode = sm
+			}
+			if tm, ok := region["ToggleMode"].(string); ok {
+				child.RegionToggleMode = tm
 			}
 			child.RegionSize = bsonInt(region["Size"])
 			for _, c := range getBsonArrayElements(region["Widgets"]) {
@@ -210,6 +222,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			// Forms$TabPage carries its own visibility (#1465); it has no
 			// editability, so only the visibility half is read.
 			extractConditionalSettings(ctx, &tabPage, tpMap)
+			readTabPageBadge(ctx, tpMap, &tabPage)
 			for _, tw := range getBsonArrayElements(tpMap["Widgets"]) {
 				if twMap, ok := tw.(map[string]any); ok {
 					tabPage.Children = append(tabPage.Children, parseRawWidget(ctx, twMap, inheritedCtx)...)
@@ -245,6 +258,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if typeName == "Forms$DivContainer" || typeName == "Pages$DivContainer" {
 			if onClick := asActionMap(w["OnClickAction"]); onClick != nil {
 				widget.Action = extractButtonAction(ctx, map[string]any{"Action": onClick})
+			}
+			// The HTML element it renders as (mendixlabs/mxcli#1582).
+			if rm, ok := w["RenderMode"].(string); ok {
+				widget.RenderMode = rm
 			}
 		}
 		// Extract GroupBox-specific properties
@@ -315,6 +332,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if rm, ok := w["RenderMode"].(string); ok {
 			widget.RenderMode = rm
 		}
+		widget.NativeTextStyle = extractString(w["NativeTextStyle"])
 		return []rawWidget{widget}
 
 	case "Forms$ActionButton", "Pages$ActionButton":
@@ -325,6 +343,35 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Action = extractButtonAction(ctx, w)
 		// RenderType "Link" is a linkbutton; the emitter uses this to choose the
 		// `linkbutton` keyword over `actionbutton` for a clean DESCRIBE roundtrip.
+		if rt, ok := w["RenderType"].(string); ok {
+			widget.RenderMode = rt
+		}
+		widget.Icon, widget.IconType, widget.IconCode = extractButtonIcon(w)
+		widget.UnsayableOutputMappings = unsayableOutputMappings(w["Action"])
+		return []rawWidget{widget}
+
+	case "Forms$Header", "Pages$Header":
+		// A phone/tablet layout's header bar: two widget lists, described as
+		// its two sides `region left` / `region right`.
+		for _, side := range []struct{ key, name string }{{"LeftWidgets", "left"}, {"RightWidgets", "right"}} {
+			child := rawWidget{Type: "Forms$HeaderSide", Name: side.name}
+			for _, c := range getBsonArrayElements(w[side.key]) {
+				if cMap, ok := c.(map[string]any); ok {
+					child.Children = append(child.Children, parseRawWidget(ctx, cMap, inheritedCtx)...)
+				}
+			}
+			if len(child.Children) > 0 {
+				widget.Children = append(widget.Children, child)
+			}
+		}
+		return []rawWidget{widget}
+
+	case "Forms$SidebarToggleButton", "Pages$SidebarToggleButton":
+		// An action button's face without the action (mendixlabs/mxcli#1220).
+		widget.Caption = extractButtonCaption(ctx, w)
+		widget.Parameters = extractButtonCaptionParameters(ctx, w)
+		widget.Tooltip = extractTextsText(ctx, w, "Tooltip")
+		widget.ButtonStyle = extractButtonStyle(ctx, w)
 		if rt, ok := w["RenderType"].(string); ok {
 			widget.RenderMode = rt
 		}
@@ -350,6 +397,14 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			widget.EntityContext = inheritedCtx
 		}
 		widget.LabelWidth = extractDataViewLabelWidth(w)
+		// A data view stores `Editability`, where input widgets store `Editable`.
+		// Unread, a read-only data view described as an editable one and
+		// re-executing the description widened it (ako/mxcli#1676).
+		widget.Editable = extractString(w["Editability"])
+		// Below Mendix 10.7 it is the boolean Editable (ako/mxcli#1209).
+		if editable, ok := w["Editable"].(bool); ok && !editable && widget.Editable == "" {
+			widget.Editable = "Never"
+		}
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowFooter, _ = w["ShowFooter"].(bool)
 		widget.Children = withQualifiedAttrs(ctx, widget.DataSource, func() []rawWidget {
@@ -362,10 +417,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
+		widget.KeyboardType, _ = w["KeyboardType"].(string)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
+		// Unread, describe → exec replaced a stored enter-key action with
+		// the empty one (ako/mxcli#1743).
+		widget.OnEnterKeyPress = renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterKeyPressAction"))
 		widget.Formatting = describeInputFormatting(ctx, "textbox", w)
 		return []rawWidget{widget}
 
@@ -376,8 +437,17 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// textarea's placeholder with all its translations (ako/mxcli#705).
 		widget.Placeholder = extractPlaceholderText(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
+		if v, ok := w["NumberOfLines"]; ok {
+			n := int64(extractInt(v))
+			widget.NumberOfLines = &n
+		}
+		if b, ok := w["Autocomplete"].(bool); ok {
+			widget.Autocomplete = &b
+		}
 		return []rawWidget{widget}
 
 	case "Forms$FileManager", "Pages$FileManager":
@@ -392,7 +462,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Caption = extractLabelText(ctx, w)
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		widget.Formatting = describeInputFormatting(ctx, "datepicker", w)
 		return []rawWidget{widget}
 
@@ -401,7 +473,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Caption = extractLabelText(ctx, w)
 		widget.Content = extractInputAttribute(ctx, w)
 		widget.Editable = extractEditable(ctx, w)
+		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$CheckBox", "Pages$CheckBox":
@@ -411,6 +485,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowLabel = extractShowLabel(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		return []rawWidget{widget}
 
 	case "CustomWidgets$CustomWidget":
@@ -425,7 +500,9 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// For ComboBox, extract datasource and association attribute for association mode.
 		// In association mode the Attribute binding is stored as EntityRef (not AttributeRef),
 		// so we must use extractCustomWidgetPropertyAssociation instead of the generic scan.
-		if widget.RenderMode == "combobox" {
+		if widget.RenderMode == "combobox" && comboBoxIsDatabaseMode(ctx, w) {
+			describeComboBoxDatabaseMode(ctx, w, &widget)
+		} else if widget.RenderMode == "combobox" {
 			widget.DataSource = extractComboBoxDataSource(ctx, w)
 			if widget.DataSource != nil {
 				widget.Content = associationRefForContext(extractCustomWidgetPropertyAssociationQN(ctx, w, "attributeAssociation"), inheritedCtx)
@@ -456,6 +533,13 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			// `onClick` round trip below (ledger #67).
 			widget.OnChange = renderClientActionMDL(ctx, customWidgetPropertyActionMap(ctx, w, "onChangeEvent"))
 		}
+		// The combo box's other action slots — onEnterEvent, onLeaveEvent,
+		// onChangeFilterInputEvent — in every mode, by their own keys
+		// (ako/mxcli#854). The change slot of either mode is not among them:
+		// it is the `OnChange:` read above.
+		if widget.RenderMode == "combobox" {
+			widget.NamedActions = namedActionSlotsOf(ctx, w)
+		}
 		// The drop-down filter's association mode is the same shape as the
 		// ComboBox's, on differently-named properties: `baseType` selects it and
 		// the reference is stored as an EntityRef, not an AttributeRef. Without
@@ -483,6 +567,17 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			}
 			widget.DataGridColumns = extractDataGrid2Columns(ctx, w, widget.EntityContext)
 			widget.ControlBar = extractDataGrid2ControlBar(ctx, w)
+			// Every other grid setting that differs from its default, by the
+			// widget's own key, and the widget slots other than the control bar
+			// (the empty-state placeholder). Without them a describe -> exec
+			// cycle reset the personalization, selection, paging and label
+			// settings to the widget's defaults.
+			widget.ExplicitProperties, widget.OmittedProps = extractDataGrid2ByKeyProps(ctx, w, inheritedCtx, widget.EntityContext)
+			for _, slot := range extractChildSlots(ctx, w, widget.EntityContext) {
+				if slot.PropertyKey != "filtersPlaceholder" {
+					widget.ChildSlots = append(widget.ChildSlots, slot)
+				}
+			}
 			// onClick action (ledger #67): read the client action back with full
 			// parameter mappings so a describe round-trip re-emits the onClick.
 			// By SOURCE, not by the literal key — the widget may store it as
@@ -509,6 +604,16 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 				return extractGalleryContent(ctx, w, widget.EntityContext)
 			})
 			widget.FilterWidgets = extractGalleryFilters(ctx, w)
+			// Pagination, page size, state storage and the rest of the gallery's
+			// settings that differ from their defaults, by the widget's own key,
+			// and the slots other than `template` and `filter` (the empty-state
+			// placeholder).
+			widget.ExplicitProperties, widget.OmittedProps = extractGalleryByKeyProps(ctx, w, inheritedCtx, widget.EntityContext)
+			for _, slot := range extractChildSlots(ctx, w, widget.EntityContext) {
+				if slot.PropertyKey != "content" && slot.PropertyKey != "filtersPlaceholder" {
+					widget.ChildSlots = append(widget.ChildSlots, slot)
+				}
+			}
 			// The row click and the other two action slots, read the way the
 			// data grid's are: the click by SOURCE, the rest by the widget's own
 			// key. Without them the write fix for #842 was one-way — describe →
@@ -533,6 +638,51 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {
 			widget.FilterAttributes = extractFilterAttributes(ctx, w)
 			widget.FilterExpression = extractFilterExpression(ctx, w)
+			// The filter's `onChange`, which `OnChange:` writes (ako/mxcli#854).
+			// Unread, a Studio Pro-authored filter action described as nothing:
+			// the rewrite patch kept it only while the statement left the slot
+			// alone, and no statement could say what it held.
+			widget.OnChange = renderClientActionMDL(ctx, customWidgetActionForSource(ctx, w, "OnChange"))
+			// The drop-down filter keeps its ONE custom attribute on `attr`
+			// (attrChoice "linked"), not in an `attributes` list. Read it back
+			// as the `attributes: [A]` it is written with, or a describe→exec
+			// cycle loses it (#1519). Under "auto" the column supplies it.
+			if widget.RenderMode == "dropdownfilter" && len(widget.FilterAttributes) == 0 &&
+				extractCustomWidgetPropertyString(ctx, w, "attrChoice") == "linked" {
+				if attr := extractCustomWidgetPropertyAttributeRef(ctx, w, "attr"); attr != "" {
+					widget.FilterAttributes = []string{attr}
+				}
+			}
+		}
+		// Every other setting of a combo box or a data grid filter, by the
+		// widget's own key. Their readers above know only the keys MDL has a
+		// keyword for, so a stored `customEditabilityExpression` or a filter's
+		// `defaultValue` expression — written by exec's explicit-property pass
+		// — described back as nothing, and a describe → exec cycle reset it
+		// (mendixlabs/mxcli#1586).
+		if skip, ok := sharedBranchByKeySkip[widget.RenderMode]; ok {
+			ownEntity := ""
+			if widget.DataSource != nil {
+				ownEntity = dataSourceEntityContext(ctx, widget.DataSource)
+			}
+			widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, skip, inheritedCtx, ownEntity)
+			if widget.RenderMode == "combobox" {
+				database := comboBoxIsDatabaseMode(ctx, w)
+				if database {
+					ownEntity = ""
+					if len(widget.NamedDataSources) > 0 {
+						ownEntity = dataSourceEntityContext(ctx, widget.NamedDataSources[0].DataSource)
+					}
+					widget.ExplicitProperties, widget.OmittedProps = extractSharedBranchByKeyProps(ctx, w, comboBoxDatabaseByKeySkip, inheritedCtx, ownEntity)
+					widget.ExplicitProperties = append(widget.ExplicitProperties, comboBoxDatabaseSelection(ctx, w)...)
+				}
+				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
+				// The custom content of the mode described, as the block that
+				// writes it, its widgets bound to the option entity
+				// (ako/mxcli#1744); content of any other slot is still named.
+				widget.ChildSlots = comboBoxCustomContent(ctx, w, comboBoxDescribedMode(&widget, database), ownEntity)
+				widget.HiddenContent = withoutDescribedContent(comboBoxHiddenContent(w), widget.ChildSlots)
+			}
 		}
 		// For pluggable Image widget, extract image-specific properties
 		if widget.RenderMode == "image" {
@@ -541,7 +691,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// For generic pluggable widgets (not handled by dedicated extractors above),
 		// extract all non-default properties as explicit key-value pairs.
 		if !isKnownCustomWidgetType(widget.RenderMode) {
-			widget.ExplicitProperties = extractExplicitProperties(ctx, w)
+			widget.ExplicitProperties = extractExplicitProperties(ctx, w, inheritedCtx)
 			widget.ObjectLists = extractObjectLists(ctx, w)
 			widget.ChildSlots = extractChildSlots(ctx, w, widget.EntityContext)
 			widget.OmittedContainers = unreconstructedContainers(w, widget.ObjectLists, widget.ChildSlots)
@@ -709,6 +859,15 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		}
 		return []rawWidget{widget}
 
+	case "Forms$DataGrid":
+		// Unauthorable, but its parts are addressable by their stored names
+		// (mendixlabs/mxcli#1459); outputLegacyGridV3 prints them as comments.
+		if ds, ok := w["DataSource"].(map[string]any); ok {
+			widget.DataSource = parseDataSource(ds)
+		}
+		widget.LegacyGrid = parseLegacyGrid(ctx, w)
+		return []rawWidget{widget}
+
 	case "Forms$Label", "Pages$Label":
 		widget.Content = extractTextCaption(ctx, w)
 		return []rawWidget{widget}
@@ -768,10 +927,41 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		})
 		return []rawWidget{widget}
 
+	case "Forms$Table":
+		widget.TableCells = parseTableCells(w)
+		return []rawWidget{widget}
+
 	default:
 		// For unknown types, just note them
 		return []rawWidget{widget}
 	}
+}
+
+// parseTableCells reads a legacy table's cells in stored order. A cell's
+// TopRowIndex / LeftColumnIndex are 0-based; the address ALTER PAGE takes is
+// 1-based.
+func parseTableCells(w map[string]any) []rawTableCell {
+	var cells []rawTableCell
+	for _, c := range getBsonArrayElements(w["Cells"]) {
+		cell, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		rc := rawTableCell{Row: extractInt(cell["TopRowIndex"]) + 1, Column: extractInt(cell["LeftColumnIndex"]) + 1}
+		for _, cw := range getBsonArrayElements(cell["Widgets"]) {
+			m, ok := cw.(map[string]any)
+			if !ok {
+				continue
+			}
+			label, _ := m["Name"].(string)
+			if label == "" {
+				label, _ = m["$Type"].(string)
+			}
+			rc.Widgets = append(rc.Widgets, label)
+		}
+		cells = append(cells, rc)
+	}
+	return cells
 }
 
 func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...string) []rawWidgetRow {
@@ -795,6 +985,9 @@ func parseLayoutGridRows(ctx *ExecContext, w map[string]any, entityContext ...st
 		// describe → exec reset every one of them (the Atlas "Flex container" /
 		// "Column gap" / "Cards style" a Studio Pro page sets on its grid).
 		extractAppearance(&row.Appearance, rMap)
+		// A row's own visibility (mendixlabs/mxcli#1461); a row has no
+		// editability, and a column no visibility, in the metamodel.
+		extractConditionalSettings(ctx, &row.Appearance, rMap)
 		row.VerticalAlignment, _ = rMap["VerticalAlignment"].(string)
 		row.HorizontalAlignment, _ = rMap["HorizontalAlignment"].(string)
 		if v, ok := rMap["SpacingBetweenColumns"].(bool); ok {
@@ -896,6 +1089,9 @@ func parseNavigationListItems(ctx *ExecContext, w map[string]any) []rawWidget {
 			rw.Style, _ = appearance["Style"].(string)
 			rw.DynamicClasses, _ = appearance["DynamicClasses"].(string)
 		}
+		// The item's own visibility — 13 of the report's 97 role-locked
+		// widgets were items of one navigation list (#1460).
+		extractConditionalSettings(ctx, &rw, itemMap)
 
 		result = append(result, rw)
 	}
@@ -982,8 +1178,14 @@ func extractLabelText(ctx *ExecContext, w map[string]any) string {
 
 // extractPlaceholderText extracts the placeholder hint text from an input widget.
 // PlaceholderTemplate is a Forms$ClientTemplate, same shape as LabelTemplate.
+//
+// Below Mendix 10.11 the widget stores Placeholder, a plain Texts$Text, instead
+// (ako/mxcli#1209); extractTextFromTemplate reads its Items the same way.
 func extractPlaceholderText(ctx *ExecContext, w map[string]any) string {
 	placeholderTemplate, ok := w["PlaceholderTemplate"].(map[string]any)
+	if !ok {
+		placeholderTemplate, ok = w["Placeholder"].(map[string]any)
+	}
 	if !ok {
 		return ""
 	}
@@ -1336,7 +1538,7 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		// Studio Pro nested format: Value sub-map contains the actual type
 		valueMap, ok := itemMap["Value"].(map[string]any)
 		if !ok {
-			return rawDesignProp{}, false
+			return parseFlatDesignProperty(key, itemMap)
 		}
 		switch valueMap["$Type"].(string) {
 		case "Forms$ToggleDesignPropertyValue":
@@ -1366,6 +1568,25 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		// Flat format (backward compat with mxcli-written pages)
 		option, _ := itemMap["Option"].(string)
 		return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
+	}
+	return rawDesignProp{}, false
+}
+
+// parseFlatDesignProperty reads a design property in the shape Mendix stored
+// before 10.2: Type ("Toggle" or "DropDown"), StringValue and BooleanValue on
+// the entry itself, as Studio Pro 9.24.30 writes them (ako/mxcli#1209). The
+// writer lowers to this shape on such a project (canon.LowerToProjectShape).
+// A toggle stored off, or an option with no value, is not set.
+func parseFlatDesignProperty(key string, itemMap map[string]any) (rawDesignProp, bool) {
+	switch itemMap["Type"] {
+	case "Toggle":
+		if on, _ := itemMap["BooleanValue"].(bool); on {
+			return rawDesignProp{Key: key, ValueType: "toggle"}, true
+		}
+	case "DropDown":
+		if option, _ := itemMap["StringValue"].(string); option != "" {
+			return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
+		}
 	}
 	return rawDesignProp{}, false
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/mendixexpr"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // # The declared flow, built, against the stored one (ako/mxcli#859)
@@ -316,7 +316,7 @@ var expressionFields = map[reflect.Type]map[string]bool{
 	reflect.TypeOf(microflows.NanoflowCallParameterMapping{}):            {"Argument": true},
 	reflect.TypeOf(microflows.BasicCodeActionParameterValue{}):           {"Argument": true},
 	reflect.TypeOf(microflows.ExpressionBasedCodeActionParameterValue{}): {"Expression": true},
-	reflect.TypeOf(microflows.TypedTemplate{}):                           {"Arguments": true},
+	reflect.TypeOf(microflows.TypedTemplateArgument{}):                   {"Expression": true},
 	reflect.TypeOf(microflows.ShowMessageAction{}):                       {"TemplateParameters": true},
 	reflect.TypeOf(microflows.ValidationFeedbackAction{}):                {"TemplateParameters": true},
 	reflect.TypeOf(microflows.LogMessageAction{}):                        {"TemplateParameters": true},

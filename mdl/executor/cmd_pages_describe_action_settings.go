@@ -32,6 +32,31 @@ func renderClientActionSettingsMDL(ctx *ExecContext, action map[string]any) stri
 		flow = actionMapForKey(action, "MicroflowSettings")
 	case "Forms$CallNanoflowClientAction", "Pages$CallNanoflowClientAction":
 		flow = action
+	case "Forms$CallWorkflowClientAction", "Pages$CallWorkflowClientAction":
+		// A workflow call has a confirmation and no progress bar, and closes
+		// its page unless told not to.
+		flow = action
+		if closePage, ok := action["ClosePage"].(bool); ok && !closePage {
+			props = append(props, "ClosePage: false")
+		}
+	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
+		for _, key := range []string{"ClosePage", "Commit"} {
+			if v, ok := action[key].(bool); ok && !v {
+				props = append(props, key+": false")
+			}
+		}
+	case "Forms$OpenUserTaskClientAction", "Pages$OpenUserTaskClientAction":
+		// Studio Pro's new action: auto-assign on, only the assignee opens it.
+		if v, ok := action["AssignOnOpen"].(bool); ok && !v {
+			props = append(props, "AssignOnOpen: false")
+		}
+		if v, ok := action["OpenWhenAssigned"].(bool); ok && v {
+			props = append(props, "OpenWhenAssigned: true")
+		}
+	case "Forms$OpenWorkflowClientAction", "Pages$OpenWorkflowClientAction":
+		if page, _ := action["DefaultPage"].(string); page != "" {
+			props = append(props, "DefaultPage: "+page)
+		}
 	}
 	if flow != nil {
 		if pb, _ := flow["ProgressBar"].(string); pb != "" && pb != "None" {
@@ -105,6 +130,20 @@ func formatActionSettingsV3(s *ast.ActionSettingsV3) string {
 	}
 	if s.FormValidations != "" {
 		props = append(props, "FormValidations: "+s.FormValidations)
+	}
+	for _, kv := range []struct {
+		key string
+		val *bool
+	}{
+		{"AssignOnOpen", s.AssignOnOpen}, {"OpenWhenAssigned", s.OpenWhenAssigned},
+		{"ClosePage", s.ClosePage}, {"Commit", s.Commit},
+	} {
+		if kv.val != nil {
+			props = append(props, kv.key+": "+boolText(*kv.val))
+		}
+	}
+	if s.DefaultPage != "" {
+		props = append(props, "DefaultPage: "+s.DefaultPage)
 	}
 	if len(props) == 0 {
 		return ""

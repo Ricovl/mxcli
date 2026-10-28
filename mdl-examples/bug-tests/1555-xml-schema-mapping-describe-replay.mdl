@@ -1,0 +1,65 @@
+mdl 1;
+-- ============================================================================
+-- mendixlabs/mxcli#1623 (ako/mxcli#1555) — a round trip of an import mapping
+-- over an XML schema lost its root element (CE0270) and its microflow key.
+--
+-- `with xml schema M.S` names the schema and nothing else of the XML half. A
+-- Studio Pro mapping over one also stores the schema element it is rooted at
+-- (XsdRootElementName) and each element's schema path (XmlPath). MDL cannot
+-- state either and mxcli does not read the XSD, so `create or modify` rebuilt
+-- the mapping with XsdRootElementName "" and an empty XmlPath on every element
+-- — from the user's own describe output, which changes nothing. Worse, gen read
+-- the root under the SDK name `RootElementName` instead of the storage key, so
+-- mxcli could not even see the root it was deleting.
+--
+-- Now a statement that IS the stored mapping's description reports Unchanged
+-- and writes nothing; any other rewrite of an XML-schema mapping that carries a
+-- root or XML paths is refused, naming them. A mapping with neither — what
+-- mxcli itself writes — is rewritten as before.
+--
+-- Measured on 10.24.25 against a mapping carrying XsdRootElementName "Order"
+-- and five XmlPaths: pre-fix `describe module` → `exec` printed "Modified
+-- import mapping" and left XsdRootElementName "" and every XmlPath ""; fixed,
+-- the module is "already in sync" and the stored mapping is byte-identical.
+-- (MDL cannot create the XML schema itself, so the measurement planted one;
+-- see the finding for why that schema could not be taken to 0 errors.)
+--
+-- The "microflow key becomes `find … or create`" half did not reproduce: an
+-- XML-schema mapping with `find … by M.MF(Key: parent)`, described and
+-- replayed, kept ObjectHandling Custom even on the pre-fix binary.
+--
+-- What runs here is the shape that is still authorable — a JSON-structure
+-- mapping with a microflow key — and must stay a describe fixed point.
+-- ============================================================================
+
+create module XmlRt;
+
+create persistent entity XmlRt.OrderRec (
+  Number: String(50)
+);
+
+create persistent entity XmlRt.CustomerRec (
+  Name: String(100)
+);
+
+create association XmlRt.CustomerRec_OrderRec from XmlRt.CustomerRec to XmlRt.OrderRec;
+
+create microflow XmlRt.MF_GetByKey ($Key: XmlRt.OrderRec)
+returns XmlRt.CustomerRec
+begin
+  return empty;
+end;
+
+create json structure XmlRt.JSON_Order
+  sample '{"number": "1", "customer": {"name": "n"}}';
+
+create import mapping XmlRt.IMM_Order
+  with json structure XmlRt.JSON_Order
+{
+  create XmlRt.OrderRec {
+    Number = number,
+    find XmlRt.CustomerRec_OrderRec/XmlRt.CustomerRec by XmlRt.MF_GetByKey(Key: parent) = customer {
+      Name = name
+    }
+  }
+};

@@ -1,0 +1,71 @@
+mdl 1;
+-- mendixlabs/mxcli#1198 — File Uploader `allowedfileformat` in the default
+-- `configMode: 'simple'` passed check and exec, then failed `mx check` with
+-- CE0463 "The definition of this widget has changed".
+--
+-- The widget's editorConfig hides an item's `mimeType`, `extensions` and
+-- `typeFormatDescription` while that ITEM's configMode is "simple":
+--
+--   values.allowedFileFormats.forEach((p, index) => {
+--     if (p.configMode === "simple")
+--       hideNestedPropertiesIn(properties, values, "allowedFileFormats", index,
+--         ["mimeType", "extensions", "typeFormatDescription"]);
+--     else
+--       hideNestedPropertiesIn(..., ["predefinedType"]);
+--   });
+--
+-- A hidden TextTemplate must be stored as null (#574). mxcli applied that rule
+-- to top-level properties only, so the required `typeFormatDescription` kept
+-- the populated ClientTemplate the item builder gives it, and Studio Pro
+-- rejected the widget. `mx update-widgets` on a copy changed exactly that slot
+-- to null. Fixed by applying nested (object-list) visibility rules per item.
+--
+-- The same fix clears the CE0463 on an Accordion group with
+-- `HeaderRenderMode: 'custom'` (its `headerText` is hidden there) —
+-- doctype-tests/32 `acc2`.
+--
+-- Verify (needs File Uploader installed in widgets/):
+--   mxcli -p app.mpr exec 1198-fileuploader-simple-allowedfileformat.mdl
+--   mxcli docker check -p app.mpr --no-update-widgets     -> 0 CE0463
+--   mxcli -p app.mpr -c "describe page BT1198.P_Simple"    -> round-trips
+
+create module BT1198;
+create module role BT1198.User;
+
+create persistent entity BT1198.UploadCtx ( Label: string(100) );
+create persistent entity BT1198.MyFile extends System.FileDocument ();
+create association BT1198.MyFile_UploadCtx from BT1198.MyFile to BT1198.UploadCtx;
+create nanoflow BT1198.NF_CreateFile ( $Ctx: BT1198.UploadCtx ) begin end;
+
+-- The failing case: configMode left at its default, 'simple'.
+create or modify page BT1198.P_Simple (Title: 'Simple', Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Ctx: BT1198.UploadCtx ))
+{
+  DATAVIEW dv (DataSource: $Ctx) {
+    fileuploader fu (
+      uploadMode: 'files',
+      associatedFiles: association BT1198.MyFile_UploadCtx,
+      createFileAction: nanoflow BT1198.NF_CreateFile(Ctx = $Ctx)
+    ) {
+      allowedfileformat f1 (predefinedType: 'pdfFile')
+    }
+  }
+};
+
+-- The control: advanced mode always worked, and must keep its description.
+create or modify page BT1198.P_Advanced (Title: 'Advanced', Layout: Atlas_Core.Atlas_Default,
+  Params: ( $Ctx: BT1198.UploadCtx ))
+{
+  DATAVIEW dv (DataSource: $Ctx) {
+    fileuploader fu (
+      uploadMode: 'files',
+      associatedFiles: association BT1198.MyFile_UploadCtx,
+      createFileAction: nanoflow BT1198.NF_CreateFile(Ctx = $Ctx)
+    ) {
+      allowedfileformat f1 (configMode: 'advanced', mimeType: 'text/csv', extensions: '.csv', typeFormatDescription: 'CSV files')
+    }
+  }
+};
+
+grant view on page BT1198.P_Simple to BT1198.User;
+grant view on page BT1198.P_Advanced to BT1198.User;

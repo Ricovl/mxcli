@@ -291,6 +291,35 @@ begin
 end;
 
 -- ============================================================================
+-- MARK: Constants
+-- ============================================================================
+
+-- An XPath constraint cannot reference a constant. `[TotalAmount >
+-- @XpathTest.LargeOrderAmount]` parses, and `mxcli check` refuses it
+-- (MDL-XPATH03): mxbuild rejects a constant in a retrieve, a data source, an
+-- access rule and a user task's targeting with CE0161 (ako/mxcli#1685).
+--
+--   retrieve $Large from XpathTest.Order
+--     where [TotalAmount > @XpathTest.LargeOrderAmount];   -- refused
+--
+-- In a flow, assign the constant to a variable and compare with the variable.
+
+create constant XpathTest.LargeOrderAmount
+( Type: decimal, DefaultValue: 1000 );
+
+/**
+ * Constant in a constraint, through a variable
+ */
+create microflow XpathTest.Retrieve_ConstantThroughVariable ()
+returns boolean
+begin
+  declare $Threshold decimal = @XpathTest.LargeOrderAmount;
+  retrieve $Large from XpathTest.Order
+    where [TotalAmount > $Threshold];
+  return true;
+end;
+
+-- ============================================================================
 -- MARK: Nested Predicates
 -- ============================================================================
 

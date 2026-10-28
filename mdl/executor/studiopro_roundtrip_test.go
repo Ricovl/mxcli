@@ -60,9 +60,6 @@ import (
 var studioProKnownLossy = map[string]string{
 	// Losses this suite found beyond the ones ako/mxcli#705 reported. They are
 	// the whole-document verdict only; the #705 slices are checked separately.
-	"page FeedbackModule.ShareFeedback|document": "input widgets: SubmitBehaviour, " +
-		"DisabledDuringExecution on no-action events, TextTooLongMessage, Autocomplete, " +
-		"empty OutputMappings, NumberOfPagesToClose are rebuilt from writer constants",
 	"page Administration.Account_Overview|document": "DataGrid2 object rebuilt from the " +
 		"widget template (property order, column texts, filter captions), layout-grid " +
 		"column weights 12 -> -1, tab-container nulls",

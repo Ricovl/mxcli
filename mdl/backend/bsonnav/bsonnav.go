@@ -8,8 +8,7 @@
 package bsonnav
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 )
@@ -164,7 +163,7 @@ func withMarker(marker int32, elements []any) bson.A {
 // ExtractBinaryIDFromDoc extracts a binary ID string from a bson.D field.
 func ExtractBinaryIDFromDoc(val any) string {
 	switch bin := val.(type) {
-	case primitive.Binary:
+	case bson.Binary:
 		return types.BlobToUUID(bin.Data)
 	case []byte:
 		return types.BlobToUUID(bin)

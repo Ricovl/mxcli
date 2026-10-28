@@ -301,6 +301,7 @@ SYNCHRONIZE: S Y N C H R O N I Z E;
 UNSYNCHRONIZED: U N S Y N C H R O N I Z E D;
 BROWSER: B R O W S E R;
 WEB: W E B;
+PROGRESSIVE: P R O G R E S S I V E;  // `progressive web app` on a navigation profile (Studio Pro's name)
 RAW: R A W;
 JAVA: J A V A;
 JAVASCRIPT: J A V A S C R I P T;
@@ -338,6 +339,8 @@ INFO: I N F O;
 WARNING: W A R N I N G;
 TRACE: T R A C E;
 CRITICAL: C R I T I C A L;
+// `log ... with stacktrace` — the Log message activity's "Include latest stack trace".
+STACKTRACE: S T A C K T R A C E;
 WITH: W I T H;
 EMPTY: E M P T Y;
 OBJECT: O B J E C T;
@@ -361,6 +364,8 @@ SCROLLCONTAINER: S C R O L L C O N T A I N E R;
 SCROLLREGION: R E G I O N;
 MENUBAR: M E N U B A R;
 SIMPLEMENUBAR: S I M P L E M E N U B A R;
+SIDEBARTOGGLE: S I D E B A R T O G G L E;
+LAYOUTHEADER: L A Y O U T H E A D E R;
 NAVIGATIONTREE: N A V I G A T I O N T R E E;
 SNIPPETCALL: S N I P P E T C A L L;
 
@@ -373,6 +378,7 @@ GALLERY: G A L L E R Y;
 CONTAINER: C O N T A I N E R;
 ROW: R O W;
 ITEM: I T E M;
+CELL: C E L L;   // legacy table cell address: `table1 cell(row, column)`
 CONTROLBAR: C O N T R O L B A R;
 SEARCH: S E A R C H;
 SEARCHBAR: S E A R C H B A R;
@@ -713,6 +719,10 @@ EXEC: E X E C;
 TABLES: T A B L E S;
 VIEWS: V I E W S;
 EXPOSED: E X P O S E D;
+// `extra code $$ … $$`: a Java action's EXTRA CODE section (ako/mxcli#1702).
+// Both stay names (keyword rule): `Code` is a common attribute.
+EXTRA: E X T R A;
+CODE: C O D E;
 PLATFORM: P L A T F O R M;
 PARAMETER: P A R A M E T E R;
 PARAMETERS: P A R A M E T E R S;
@@ -914,6 +924,14 @@ VETO: V E T O;
 FALLBACK: F A L L B A C K;
 PARTICIPANTS: P A R T I C I P A N T S;
 AWAIT: A W A I T;
+// `auto assign single user` on a user task (AutoAssignSingleTargetUser).
+AUTO: A U T O;
+ASSIGN: A S S I G N;
+// `repeat every 1 day at most 5 times` on a non-interrupting timer
+// (Workflows$LinearRecurrence, ako/mxcli#1716). Words, so still usable as names.
+REPEAT: R E P E A T;
+EVERY: E V E R Y;
+TIMES: T I M E S;
 
 // Data transformer tokens
 DATA: D A T A;

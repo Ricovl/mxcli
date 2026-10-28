@@ -42,9 +42,14 @@ entityOptions
 
 // COMMENT is deliberately absent — it was parsed and dropped. Use the `/** … */`
 // doc comment before the statement, or ALTER ENTITY … SET COMMENT.
+//
+// EXPORT LEVEL is the microflow clause, and means what it means there: whether
+// the element is usable outside a Protected (add-on) module. An absent clause
+// keeps the stored level (mendixlabs/mxcli#1498).
 entityOption
     : INDEX indexDefinition
     | eventHandlerDefinition
+    | microflowExportLevelClause
     ;
 
 // Entity event handler: ON BEFORE/AFTER CREATE/COMMIT/DELETE/ROLLBACK CALL Mod.Microflow($currentObject) [RAISE ERROR]
@@ -88,6 +93,7 @@ attributeConstraint
     | DEFAULT (literal | expression)
     | REQUIRED (constraintErrorKeyword STRING_LITERAL)?
     | CALCULATED (BY? qualifiedName)?
+    | microflowExportLevelClause            // EXPORT LEVEL API | HIDDEN (#1498)
     ;
 
 // `error message '…'` is the one spelling of a rule's user-facing message
@@ -197,6 +203,7 @@ associationOption
     | STORAGE (COLON /* @alias MDL-DEPR064 */)? (COLUMN | TABLE)
     | DELETE_BEHAVIOR /* @alias MDL-DEPR022 */ deleteBehavior errorMessageClause?
     | onDeleteClause
+    | microflowExportLevelClause            // EXPORT LEVEL API | HIDDEN (#1498)
     // R9: documentation is a `/** … */` doc comment before the statement.
     | COMMENT /* @alias MDL-DEPR100 */ STRING_LITERAL
     ;
@@ -284,13 +291,16 @@ alterEntityAction
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     | SET POSITION LPAREN NUMBER_LITERAL COMMA NUMBER_LITERAL RPAREN
+    | SET microflowExportLevelClause        // SET EXPORT LEVEL API | HIDDEN (#1498)
     | SET LPAREN ALLOW_CREATE_CHANGE_LOCALLY COLON (TRUE | FALSE) RPAREN    // set ( AllowCreateChangeLocally: true )
     | SET ALLOW_CREATE_CHANGE_LOCALLY EQUALS /* @alias MDL-DEPR063 */ (TRUE | FALSE)
     | ADD INDEX ifNotExists? indexDefinition
     | DROP INDEX ifExists? indexDefinition
     | DROP INDEX ifExists? IDENTIFIER
     | ADD EVENT HANDLER ifNotExists? eventHandlerDefinition
-    | DROP EVENT HANDLER ifExists? ON eventMoment eventType
+    // An entity may carry several handlers for one event, so CALL names which
+    // one to drop. Without it the drop must be unambiguous (mendixlabs/mxcli#1540).
+    | DROP EVENT HANDLER ifExists? ON eventMoment eventType (CALL qualifiedName)?
     ;
 
 // Idempotency guards for a re-runnable domain script: ADD ... IF NOT EXISTS
@@ -322,6 +332,7 @@ alterAssociationAction
     | SET onDeleteClause
     | SET OWNER (DEFAULT | BOTH)
     | SET STORAGE (COLUMN | TABLE)
+    | SET microflowExportLevelClause        // SET EXPORT LEVEL API | HIDDEN (#1498)
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     // Line anchors: where the connector attaches to each entity box, as a
@@ -348,6 +359,7 @@ alterEnumerationAction
     | RENAME VALUE enumValueName TO enumValueName
     | MODIFY VALUE enumValueName CAPTION STRING_LITERAL
     | DROP VALUE ifExists? enumValueName
+    | SET microflowExportLevelClause        // SET EXPORT LEVEL API | HIDDEN (#1498)
     | SET DOCUMENTATION STRING_LITERAL
     | SET COMMENT /* @alias MDL-DEPR135 */ STRING_LITERAL   // R9: set documentation
     ;
@@ -425,6 +437,7 @@ enumerationOptions
 // doc comment before the statement.
 enumerationOption
     : FOLDER STRING_LITERAL                 // place the enumeration in a module folder (Bug 12b)
+    | microflowExportLevelClause            // EXPORT LEVEL API | HIDDEN (#1498)
     ;
 
 // =============================================================================

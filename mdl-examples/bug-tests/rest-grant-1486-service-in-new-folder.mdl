@@ -1,0 +1,112 @@
+mdl 1;
+-- ============================================================================
+-- GRANT on a published REST service created in a new folder: "not found"
+-- ako/mxcli#1486 (mirror of mendixlabs/mxcli#1581)
+-- ============================================================================
+--
+-- `grant access on published rest service Rest1486.PingApi to Rest1486.User`
+-- failed with "published rest service not found: Rest1486.PingApi" when the
+-- service had been created with a `folder '…'` clause earlier in the same
+-- script, and exec rolled the whole script back. `check` passed. Without the
+-- folder clause, or with a folder that already existed, or with the grant in a
+-- second exec, the same grant resolved.
+--
+-- Cause: exec caches the container hierarchy (module <- folder <- folder) and
+-- resolves every document's module through it. The CREATE built that cache in
+-- its own existence check, then created the folder, and nothing recorded the
+-- folder in the cache: walking up from the service ended at an unknown folder,
+-- the module name came back "", and the lookup missed. Creating a folder was
+-- the one container-changing write that did not keep the cache in step; it now
+-- records the folder (createFolder, mdl/executor/helpers.go).
+--
+-- Same mechanism, same fix: a scheduled event, task queue, regular expression
+-- or consumed REST service created in a new folder could not be described,
+-- dropped or re-run later in the same script — and a re-run CREATE OR MODIFY
+-- missed its own document and silently created a second one of the same name.
+--
+-- Expected after exec: every statement succeeds; the service is in folder
+-- 'Api/Services' with Rest1486.User allowed; each `create or modify` re-run
+-- reports "Unchanged"; SHOW PUBLISHED REST SERVICES IN Rest1486 lists one
+-- service; mx check reports 0 errors (the service has an allowed role, so no
+-- CE0338). Before the fix: "Error: published rest service not found" and
+-- nothing written.
+-- Go test: mdl/executor/hierarchy_created_folder_test.go.
+-- ============================================================================
+
+create module Rest1486;
+
+create module role Rest1486.User;
+
+create microflow Rest1486.PRS_Ping ($httpRequest: System.HttpRequest)
+returns String as $Result
+begin
+  return 'pong';
+end;
+
+create microflow Rest1486.SE_Run ()
+returns Boolean as $Result
+begin
+  return true;
+end;
+
+-- The reported case: the CREATE makes the folder, the GRANT looks it up.
+create or modify published rest service Rest1486.PingApi folder 'Api/Services' (
+  Path: 'rest/ping/v1',
+  Version: '1.0.0',
+  ServiceName: 'PingApi'
+)
+{
+  resource 'ping' {
+    get '' microflow Rest1486.PRS_Ping;
+  }
+};
+
+grant access on published rest service Rest1486.PingApi to Rest1486.User;
+
+-- Re-running the CREATE OR MODIFY must find the service, not add a second one.
+create or modify published rest service Rest1486.PingApi folder 'Api/Services' (
+  Path: 'rest/ping/v1',
+  Version: '1.0.0',
+  ServiceName: 'PingApi'
+)
+{
+  resource 'ping' {
+    get '' microflow Rest1486.PRS_Ping;
+  }
+};
+
+revoke access on published rest service Rest1486.PingApi from Rest1486.User;
+grant access on published rest service Rest1486.PingApi to Rest1486.User;
+
+-- Siblings: each creates its own new folder, then is looked up by name.
+create or modify scheduled event Rest1486.NightlyRun folder 'Jobs/Nightly' (
+  Microflow: Rest1486.SE_Run,
+  Repeat: Daily,
+  HourOfDay: 4,
+  MinuteOfHour: 0,
+  TimeZone: Server,
+  Enabled: false,
+  StartDateTime: '2026-01-01T04:00:00Z'
+);
+describe scheduled event Rest1486.NightlyRun;
+
+create or modify task queue Rest1486.Work folder 'Jobs/Queues' (Parallelism: 2, ClusterWide: true);
+describe task queue Rest1486.Work;
+
+create or modify regular expression Rest1486.Digits folder 'Validation/Patterns' (
+  Expression: '[0-9]+'
+);
+describe regular expression Rest1486.Digits;
+
+create or modify consumed rest service Rest1486.EchoApi folder 'Api/Clients' (
+  BaseUrl: 'https://example.org',
+  authentication: none
+)
+{
+  operation GetStatus (
+    method: get,
+    path: '/echo',
+    response: none
+  )
+};
+describe consumed rest service Rest1486.EchoApi;

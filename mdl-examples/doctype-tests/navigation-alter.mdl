@@ -1,0 +1,157 @@
+mdl 1;
+-- ============================================================================
+-- ALTER NAVIGATION / ALTER MENU — item-level edits
+-- ============================================================================
+--
+-- `alter navigation <Profile> { … }` edits the stored profile: items it does
+-- not name keep their stored bytes. `alter menu Module.Menu { … }` does the
+-- same for a menu document. One block per operation below; each statement is
+-- written once, and a refusal anywhere writes nothing.
+--
+-- Items are addressed by the caption describe prints, as a path written outer
+-- to inner: 'Admin' > 'Users', with @n among equal captions.
+-- `list navigation menu` prints every item's address.
+--
+-- Measured on copies of a Mendix 11.6.6 and an 11.15.0 app: every block
+-- leaves `mx check` at 0 errors, and a describe -> exec afterwards reports
+-- Unchanged.
+-- ============================================================================
+
+-- MARK: Setup
+
+create module AlterNav;
+
+create page AlterNav.Home (Title: 'Home', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create page AlterNav.Orders (Title: 'Orders', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtOrders (Content: 'Orders')
+};
+
+create page AlterNav.Users (Title: 'Users', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtUsers (Content: 'Users')
+};
+
+create page AlterNav.Login (Title: 'Sign in', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtLogin (Content: 'Sign in')
+};
+
+create page AlterNav.NotFound (Title: 'Not found', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtNotFound (Content: 'Not found')
+};
+
+create or modify navigation Responsive
+  home page AlterNav.Home
+{
+  menu item 'Home' ( OnClick: show page AlterNav.Home, Icon: Atlas_Core.Atlas.home )
+  menu 'Admin' ( Icon: Atlas_Core.Atlas.cog ) {
+    menu item 'Users' ( OnClick: show page AlterNav.Users, Icon: Atlas_Core.Atlas.user )
+    menu item 'Old import' ( OnClick: show page AlterNav.Orders, Icon: Atlas_Core.Atlas.user )
+  }
+  menu 'Reports' ( Icon: Atlas_Core.Atlas.cog ) {
+    menu item 'Users' ( OnClick: show page AlterNav.Users, Icon: Atlas_Core.Atlas.user )
+  }
+  menu item 'Help' ( OnClick: open link 'https://example.com/help', Icon: Atlas_Core.Atlas.home )
+  menu item 'Log out' ( OnClick: sign out, Icon: Atlas_Core.Atlas.home )
+};
+
+list navigation menu Responsive;
+
+-- MARK: Insert
+
+alter navigation Responsive {
+  insert after 'Home' { menu item 'Orders' ( OnClick: show page AlterNav.Orders, Icon: Atlas_Core.Atlas."list-bullets" ) }
+  insert before 'Help' { menu item 'FAQ' ( OnClick: open link 'https://example.com/faq', Icon: Atlas_Core.Atlas.home ) }
+  insert into 'Admin' { menu item 'Audit log' ( OnClick: show page AlterNav.Orders, Icon: Atlas_Core.Atlas.user ) }
+  insert {
+    menu 'More' ( Icon: Atlas_Core.Atlas.cog ) {
+      menu item 'Deep' ( OnClick: show page AlterNav.Home, Icon: Atlas_Core.Atlas.home )
+    }
+  }
+};
+
+-- MARK: Drop
+
+alter navigation Responsive {
+  drop 'Old import', 'FAQ';
+};
+
+-- MARK: Replace
+
+alter navigation Responsive {
+  replace 'Help' with {
+    menu 'Help' ( Icon: Atlas_Core.Atlas.home ) {
+      menu item 'Documentation' ( OnClick: open link 'https://example.com/docs', Icon: Atlas_Core.Atlas.home )
+      menu item 'Contact' ( OnClick: show page AlterNav.Users, Icon: Atlas_Core.Atlas.user )
+    }
+  }
+};
+
+-- MARK: Move
+
+alter navigation Responsive {
+  move 'Log out' before 'Help';
+  move 'Orders' into 'More';
+  move 'Reports' > 'Users' after 'Admin' > 'Users';
+};
+
+-- MARK: Set item properties
+
+-- Two siblings are now captioned Users: the second needs @2, and the error for
+-- a bare 'Users' lists both addresses.
+alter navigation Responsive {
+  set ( Caption: 'User accounts' ) on 'Admin' > 'Users'@1;
+  set ( Caption: 'Sessions' ) on 'Admin' > 'Users';
+  set ( OnClick: show page AlterNav.Orders ) on 'Reports';
+  set ( Icon: none ) on 'Home';
+  set ( Icon: Atlas_Core.Atlas.cog ) on 'Help';
+  set ( OnClick: nothing ) on 'More';
+};
+
+-- MARK: Page clauses
+
+alter navigation Responsive {
+  set home page AlterNav.Users for Administrator;
+  set login page AlterNav.Login;
+  set not found page AlterNav.NotFound;
+};
+
+alter navigation Responsive {
+  drop home page for Administrator;
+  drop login page;
+  drop not found page;
+  set home page AlterNav.Home;
+};
+
+describe navigation Responsive;
+
+-- MARK: Menu documents
+
+create menu AlterNav.SideMenu {
+  menu item 'One' ( OnClick: show page AlterNav.Home, Icon: Atlas_Core.Atlas.home )
+  menu 'Group' ( Icon: Atlas_Core.Atlas.cog ) {
+    menu item 'Two' ( OnClick: show page AlterNav.Users, Icon: Atlas_Core.Atlas.user )
+  }
+  menu item 'Three' ( OnClick: sign out, Icon: Atlas_Core.Atlas.home )
+};
+
+alter menu AlterNav.SideMenu {
+  insert after 'One' { menu item 'Inserted' ( OnClick: open link 'https://example.com', Icon: Atlas_Core.Atlas.home ) }
+  insert into 'Group' { menu item 'Into' ( OnClick: show page AlterNav.Orders, Icon: Atlas_Core.Atlas.user ) }
+  move 'Three' into 'Group';
+  replace 'One' with { menu item 'One again' ( OnClick: show page AlterNav.Home, Icon: Atlas_Core.Atlas.home ) }
+  set ( Caption: 'Second', Icon: glyph 57377 ) on 'Group' > 'Two';
+  drop 'Inserted';
+};
+
+describe menu AlterNav.SideMenu;
+
+-- MARK: Cleanup
+
+-- Restore the profile the blank app ships with, so later scripts start from it.
+create or modify navigation Responsive
+  home page MyFirstModule.Home_Web
+{
+  menu item 'Home' ( OnClick: show page MyFirstModule.Home_Web )
+};

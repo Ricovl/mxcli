@@ -26,9 +26,7 @@ func execCreateConsumedMCPService(ctx *ExecContext, s *ast.CreateConsumedMCPServ
 	// module. Nothing downstream catches an older project: the documents are
 	// custom blobs, so mxbuild does not validate them and the build stays green
 	// while Studio Pro cannot open the result.
-	if err := checkFeature(ctx, "agent_documents", "agent_consumed_mcp_service",
-		"create consumed mcp service",
-		"upgrade your project to Mendix 11.9+ and install the AgentEditorCommons module"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -116,9 +114,7 @@ func execCreateKnowledgeBase(ctx *ExecContext, s *ast.CreateKnowledgeBaseStmt) e
 	// module. Nothing downstream catches an older project: the documents are
 	// custom blobs, so mxbuild does not validate them and the build stays green
 	// while Studio Pro cannot open the result.
-	if err := checkFeature(ctx, "agent_documents", "agent_knowledge_base",
-		"create knowledge base",
-		"upgrade your project to Mendix 11.9+ and install the AgentEditorCommons module"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -223,9 +219,7 @@ func execCreateAgent(ctx *ExecContext, s *ast.CreateAgentStmt) error {
 	// module. Nothing downstream catches an older project: the documents are
 	// custom blobs, so mxbuild does not validate them and the build stays green
 	// while Studio Pro cannot open the result.
-	if err := checkFeature(ctx, "agent_documents", "agent",
-		"create agent",
-		"upgrade your project to Mendix 11.9+ and install the AgentEditorCommons module"); err != nil {
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 

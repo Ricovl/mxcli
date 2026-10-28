@@ -117,6 +117,17 @@ RETURN $Order;
 RETURN $FilteredOrders;
 ```
 
+### Returning an Enumeration
+
+Declare the type in the signature with `returns enum Module.Name`; `returns Enumeration(Module.Name)` is the same. A bare `returns Module.Name` is also accepted when no entity has that name and an enumeration does. If an entity and an enumeration share the name, the entity wins, so write `enum` when a name could be either. Nanoflows and rules take the same spellings, and a rule must return a Boolean or an enumeration.
+
+```sql
+CREATE MICROFLOW Shop.SUB_Pick () RETURNS enum Shop.Variant AS $Variant
+BEGIN
+  RETURN Shop.Variant.Original;
+END;
+```
+
 ### Returning Nothing
 
 If the microflow returns nothing (void), you can omit the `RETURN` or use:
@@ -191,6 +202,32 @@ end;
 
 This is how `DESCRIBE` writes a decision whose merge drops onto the next row.
 
+An annotation never reaches the far end of its own outgoing flow: that end is
+the next statement's `to:`. A straight vertical edge from A down to B is
+`@anchor(from: bottom)` on A **and** `@anchor(to: top)` on B.
+
+A `case` names each outcome's edge by its `when` value, `(empty)` included, and
+its own `from:` is the flow leaving its merge, as on an `if`:
+
+```sql
+create microflow Sales.ACT_RouteOrder ($Order: Sales.Order)
+begin
+  @anchor(Open: (from: right), (empty): (from: bottom, to: top))
+  case $Order/Status
+    when Open then
+      log info node 'Order' 'open';
+    when Closed then
+      log info node 'Order' 'closed';
+    when (empty) then
+      log warning node 'Order' 'no status';
+  end case;
+end;
+```
+
+An outcome not named keeps its default side (with up to three outcomes: the
+first leaves the top corner, the second the right, the third the bottom).
+`DESCRIBE` writes an outcome only where its stored side differs from that.
+
 ### Layout in `DESCRIBE` output
 
 `DESCRIBE MICROFLOW` and `DESCRIBE NANOFLOW` print a layout annotation —
@@ -233,6 +270,42 @@ Attach a visual annotation note to the next activity:
 @annotation 'This step validates the input before saving'
 VALIDATION FEEDBACK $Customer/Email MESSAGE 'Email is required';
 ```
+
+A note is a node of its own, so one note can document several activities. Give it
+an `id:` at its first mention and refer to that id afterwards; without the id, two
+notes with the same text stay two notes:
+
+```sql
+@annotation(id: n1, text: 'Both of these touch the same record')
+COMMIT $Order;
+@annotation(id: n1)
+COMMIT $Invoice;
+```
+
+The id is scoped to the statement being written and is not stored in the model:
+`DESCRIBE` numbers shared notes afresh every time.
+
+### Attaching a Note Already in the Flow
+
+`ALTER MICROFLOW` (and `ALTER NANOFLOW`) inserts or replaces a fragment of a stored
+flow. The fragment cannot see the `id:` labels `DESCRIBE` prints, so it names a note
+that is already in the flow by its **text**, with `existing:`:
+
+```sql
+ALTER MICROFLOW Sales.ACT_ProcessOrder {
+  INSERT AFTER LOG NODE 'Sales' 'validated' BEGIN
+    @annotation(existing: 'Validates the order')
+    LOG INFO NODE 'Sales' 'discount applied';
+  END;
+};
+```
+
+The new activity is joined to the stored note, which keeps its identity, text and
+place on the canvas. The text must match exactly one note of the flow, as `DESCRIBE`
+prints it; when no note matches, or several do, the statement is refused and the
+message lists the flow's notes. `existing:` never creates a note and takes no other
+parameter, and only an `ALTER` fragment accepts it — a `CREATE` states the whole
+flow and declares its notes.
 
 ### Combining Annotations
 

@@ -269,6 +269,10 @@ func TestAnchorAnnotation_SplitBranchWithOneSide(t *testing.T) {
 
 // An @anchor parameter the reader cannot use is recorded, so validation can
 // refuse it rather than leave the edge on its default sides in silence.
+//
+// `sideways: (…)` has the shape of a CASE outcome, so it is recorded as one;
+// validation refuses an outcome key that is not on a CASE, or that names no
+// WHEN value (TestCaseOutcomeAnchorValidation in mdl/executor).
 func TestAnchorAnnotation_RecordsWhatItCannotUse(t *testing.T) {
 	for _, src := range []string{
 		"@anchor(true: (to: middle))",
@@ -277,8 +281,43 @@ func TestAnchorAnnotation_RecordsWhatItCannotUse(t *testing.T) {
 	} {
 		stmt := firstStatement(t, src+"\nif true then\n  log info node 'App' 'yes';\nend if;")
 		ann := stmt.(*ast.IfStmt).Annotations
-		if ann == nil || len(ann.InvalidAnchors) == 0 {
+		if ann == nil || len(ann.InvalidAnchors)+len(ann.CaseAnchors) == 0 {
 			t.Errorf("%s: nothing recorded", src)
+		}
+	}
+}
+
+// A CASE names each outcome's edge by its WHEN value, including the (empty)
+// value and a value that is a lexer keyword (mendixlabs/mxcli#1587). Before,
+// the keyword key and `(empty)` fell through to the positional form and every
+// value key was recorded as invalid.
+func TestAnchorAnnotation_CaseOutcomes(t *testing.T) {
+	stmt := firstStatement(t, `@anchor(A: (from: right), (empty): (to: top), Open: (from: bottom, to: left))
+case $E
+  when A then log info node 'App' 'a';
+  when Open then log info node 'App' 'o';
+  when (empty) then log info node 'App' 'e';
+end case;`)
+	cs, ok := stmt.(*ast.EnumSplitStmt)
+	if !ok {
+		t.Fatalf("expected EnumSplitStmt, got %T", stmt)
+	}
+	ann := cs.Annotations
+	if ann == nil || len(ann.InvalidAnchors) != 0 {
+		t.Fatalf("annotations %+v", ann)
+	}
+	want := []ast.CaseAnchor{
+		{Value: "A", Anchors: &ast.FlowAnchors{From: ast.AnchorSideRight, To: ast.AnchorSideUnset}},
+		{Value: "(empty)", Anchors: &ast.FlowAnchors{From: ast.AnchorSideUnset, To: ast.AnchorSideTop}},
+		{Value: "Open", Anchors: &ast.FlowAnchors{From: ast.AnchorSideBottom, To: ast.AnchorSideLeft}},
+	}
+	if len(ann.CaseAnchors) != len(want) {
+		t.Fatalf("case anchors %+v, want %d", ann.CaseAnchors, len(want))
+	}
+	for i, w := range want {
+		got := ann.CaseAnchors[i]
+		if got.Value != w.Value || *got.Anchors != *w.Anchors {
+			t.Errorf("case anchor %d = %s %+v, want %s %+v", i, got.Value, *got.Anchors, w.Value, *w.Anchors)
 		}
 	}
 }

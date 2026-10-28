@@ -96,6 +96,11 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// so this was reachable straight from `mxcli syntax snippet.create`
 		// (mendixlabs/mxcli#1028).
 		violations = append(violations, validateSnippetParameters(stmt)...)
+		// A page, snippet, Java action or JavaScript action parameter named with
+		// a platform-reserved word (`Context`, `Type`, `Id`, …): CE7247 at build
+		// time, after exec wrote the document and its callers (MDL-PARAM01,
+		// ako/mxcli#1651). The list attributes and enumeration values use.
+		violations = append(violations, validateReservedParameterNames(stmt)...)
 		// A microflow's URL / export level / concurrency clauses, against the
 		// same rules the writer applies (MDL-MF01..MF04).
 		violations = append(violations, validateMicroflowDocumentProperties(stmt)...)
@@ -108,12 +113,23 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 		// at build time (MDL-JA01, mendixlabs/mxcli#1404).
 		if jaStmt, ok := stmt.(*ast.CreateJavaActionStmt); ok {
 			violations = append(violations, validateJavaActionTypeNames(jaStmt)...)
+			// A return type no action can have (MDL-JA03).
+			violations = append(violations, validateJavaActionReturnType(jaStmt)...)
+		}
+		// A text template is a Java action type only (MDL-JSA01).
+		if jsStmt, ok := stmt.(*ast.CreateJavaScriptActionStmt); ok {
+			violations = append(violations, validateJavaScriptActionTypes(jsStmt)...)
 		}
 		// Check microflow body for common issues
 		if mfStmt, ok := stmt.(*ast.CreateMicroflowStmt); ok {
 			violations = append(violations, validateMicroflowWith(mfStmt, voids)...)
 			violations = append(violations,
 				ValidateFlowParameterAnnotations("microflow '"+mfStmt.Name.String()+"'", mfStmt.Parameters)...)
+		}
+		// An alter fragment is a body too: an annotation its builder drops was
+		// refused in create and passed here (mendixlabs/mxcli#1597).
+		if afStmt, ok := stmt.(*ast.AlterFlowStmt); ok {
+			violations = append(violations, ValidateAlterFlow(afStmt)...)
 		}
 		// Parameter annotations for the two flow flavours that do not go through
 		// ValidateMicroflow but share the parameter grammar.
@@ -128,6 +144,9 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 				ValidateFlowParameterAnnotations("rule '"+ruleStmt.Name.String()+"'", ruleStmt.Parameters)...)
 			violations = append(violations,
 				setTargetViolations("rule", ruleStmt.Name.String(), ruleStmt.Parameters, ruleStmt.Body)...)
+			// A rule logs and may send email (MDL-TEMPLATE01, ako/mxcli#1683).
+			violations = append(violations,
+				messageTemplateViolations("rule", ruleStmt.Name.String(), ruleStmt.Body)...)
 		}
 		// Check workflow for constructs MxBuild rejects (missing page,
 		// single-outcome-with-activities, invalid decision outcome names)
@@ -174,10 +193,19 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// Check for intra-script duplicate definitions (CREATE X … CREATE X without DROP)
 	violations = append(violations, CheckScriptDuplicates(prog)...)
 
+	// A member named like one already on its entity's generalization chain
+	// (CE0069, ako/mxcli#1645), among what the script declares and the System
+	// module. With a project, the reference pass judges it against the whole
+	// model instead (validateMemberNameClashes) — running both would report it
+	// twice.
+	if projectPath == "" {
+		violations = append(violations, scriptMemberNameClashes(prog)...)
+	}
+
 	// Validate design properties against the project's theme registry
 	// (themesource design-properties.json) — flags unknown keys and invalid
 	// option values, listing the allowed values. Only runs with --project.
-	violations = append(violations, ValidateDesignProperties(prog, projectPath)...)
+	violations = append(violations, ValidateDesignProperties(prog, projectPath, project)...)
 
 	// The same question for ALTER STYLING, which that pass never looked at — the
 	// one statement whose entire job is writing design properties, and the one
@@ -201,6 +229,22 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// can say which layouts are native.
 	violations = append(violations, ValidatePageLayoutGrid(prog, projectNativeLayouts(project))...)
 
+	// A widget data source constraint whose one-hop comparand is the wrong type
+	// (MDL-XPATH02) or names its association unqualified (MDL-XPATH01) —
+	// CE0161 at build time (mendixlabs/mxcli#1466). The script's declarations
+	// answer first; the project, when there is one, for the rest.
+	violations = append(violations, ValidateDatasourceXPathComparands(prog, project)...)
+
+	// A constant in any XPath constraint (MDL-XPATH03): mxbuild rejects
+	// `[Total > @Mod.C]` with CE0161 whether or not the constant exists, so this
+	// needs no project (ako/mxcli#1685).
+	violations = append(violations, validateXPathConstants(prog)...)
+
+	// An association between a persistable and a non-persistable entity must
+	// start in the non-persistable one and have owner Default — CE0001
+	// (MDL-ASSOC01, ako/mxcli#819). The script's declarations answer first.
+	violations = append(violations, ValidateAssociationPersistence(prog, project)...)
+
 	// Warn (MDL-OFFLINE01) when a page binds an attribute across more than one
 	// association in a project that has an offline navigation profile. Mendix
 	// rejects those with CE6206 on any page an offline profile can reach, and
@@ -213,6 +257,10 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// completing an unassigned one fails only at runtime, with the button
 	// appearing to do nothing.
 	violations = append(violations, ValidateTaskClaims(prog)...)
+
+	// Warn (MDL-WF20) when a user task's page has no button that completes one
+	// of its outcomes: the instance waits at the task and nothing reports it.
+	violations = append(violations, ValidateTaskPageOutcomes(prog)...)
 
 	// Flag control-bar buttons that pass $currentObject — a control bar is
 	// not row-scoped, so the argument is unbound (CE1571) at build time.
@@ -245,6 +293,13 @@ func ValidateProgram(prog *ast.Program, projectPath string) []linter.Violation {
 	// this is worth a check: mxbuild throws out of its own validator with
 	// no error code, so there is nothing to look up.
 	violations = append(violations, ValidateODataServiceShape(prog)...)
+
+	// Flag a published entity with no KEY (CE6585), or with a single KEY
+	// attribute that has no unique validation rule on a persistent entity
+	// (CE6624). Both were written and only failed the build
+	// (mendixlabs/mxcli#1426). The second resolves the entity from the script,
+	// then the project, and says nothing when it cannot.
+	violations = append(violations, ValidateODataKeys(prog, projectPath)...)
 
 	// Flag a page whose widgets point at a page created further down the same
 	// script. `exec` resolves page references in statement order and is not

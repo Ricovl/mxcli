@@ -47,6 +47,77 @@ import (
 type mergeLabels struct {
 	byID    map[model.ID]string
 	crossed map[model.ID]bool
+	// inline names the one-input merges of the main line, which a description
+	// spells as written: `join <label>; merge <label>;`. nil describes them by
+	// walking through, as every caller outside DESCRIBE MICROFLOW still does.
+	inline *inlineMerges
+}
+
+// inlineMerges is the third emission, for a merge with ONE way in. Nothing
+// needs to name such a merge — it joins nothing — but `exec` writes one from
+// ordinary MDL (`join finish; merge finish;`), and a description that walked
+// through it then warned that re-executing it deleted the node
+// (mendixlabs/mxcli#923).
+//
+// Only on the main line (indent 0): a `merge` there follows a `join` with no
+// open path, so the builder draws exactly the one edge. In a branch body it
+// would also receive the branch's fall-through edge, and MDL-FLOW04 bans
+// labels in a loop body, so a one-input merge there is still walked through
+// and still warned about.
+//
+// Labels are handed out in the order the description reaches the merges, so
+// the same flow always describes the same way.
+type inlineMerges struct {
+	eligible map[model.ID]bool
+	byID     map[model.ID]string
+}
+
+// newInlineMerges finds the merges of oc's own collection (not a loop body's)
+// that exactly one normal flow enters and no flow of any kind enters twice.
+func newInlineMerges(oc *microflows.MicroflowObjectCollection) *inlineMerges {
+	out := &inlineMerges{eligible: map[model.ID]bool{}, byID: map[model.ID]string{}}
+	if oc == nil {
+		return out
+	}
+	in, errIn := map[model.ID]int{}, map[model.ID]int{}
+	for _, f := range allFlows(oc) {
+		if f == nil {
+			continue
+		}
+		in[f.DestinationID]++
+		if f.IsErrorHandler {
+			errIn[f.DestinationID]++
+		}
+	}
+	for _, o := range oc.Objects {
+		if _, ok := o.(*microflows.ExclusiveMerge); ok && in[o.GetID()] == 1 && errIn[o.GetID()] == 0 {
+			out.eligible[o.GetID()] = true
+		}
+	}
+	return out
+}
+
+// inlineLabel returns the label a one-input merge on the main line is
+// described under, minting the next one the first time it is asked.
+func (m mergeLabels) inlineLabel(id model.ID) (string, bool) {
+	if m.inline == nil || !m.inline.eligible[id] {
+		return "", false
+	}
+	if l, ok := m.inline.byID[id]; ok {
+		return l, true
+	}
+	l := fmt.Sprintf("junction%d", len(m.inline.byID)+1)
+	m.inline.byID[id] = l
+	return l, true
+}
+
+// isInlined reports whether the description spelled this merge inline.
+func (m mergeLabels) isInlined(id model.ID) bool {
+	if m.inline == nil {
+		return false
+	}
+	_, ok := m.inline.byID[id]
+	return ok
 }
 
 func (m mergeLabels) of(id model.ID) (string, bool) {
@@ -373,13 +444,19 @@ func droppedMergeWarningsIn(ctx *ExecContext, oc *microflows.MicroflowObjectColl
 		if represented[merge.GetID()] || inDegree[merge.GetID()] >= 2 {
 			continue
 		}
-		if _, labelled := labels.of(merge.GetID()); labelled {
+		if _, labelled := labels.of(merge.GetID()); labelled || labels.isInlined(merge.GetID()) {
 			continue
 		}
+		// `create or modify` compares this description with the stored flow's
+		// own, and neither has the merge, so it leaves the node in place; only a
+		// rebuild — `create or replace`, or an mdl 0 fallback — draws the flow
+		// without it. The warning used to say re-executing deleted it, which
+		// stopped being true when modify learned to write nothing (#923).
 		p := merge.GetPosition()
 		out = append(out, fmt.Sprintf(
 			"-- WARNING: the merge at (%d, %d) is not represented in this description - "+
-				"it joins no decision and no error handler, so re-executing this MDL DELETES it. "+
+				"it joins no decision and no error handler. `create or modify` from this MDL leaves it in place, "+
+				"but anything that rebuilds the flow from it (`create or replace`, an mdl 0 fallback) removes it. "+
 				"The microflow behaves the same either way (a merge with one incoming path is a no-op), "+
 				"but the node disappears from the diagram (mxcli #923)",
 			p.X, p.Y))

@@ -23,27 +23,17 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	// Version pre-check: workflows require Mendix 9.12+
-	if err := checkFeature(ctx, "workflows", "basic",
-		"alter workflow",
-		"upgrade your project to Mendix 9.12+ to use workflows"); err != nil {
+	// Version pre-check: workflows require Mendix 9.12+, and the added
+	// activities need their own features (statementVersionGates).
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
 	if vs := completionRuleViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
-	if workflowUsesAgentTask(alterWorkflowAddedActivities(s)) {
-		if err := checkFeature(ctx, "workflows", "ai_agent_task", "call agent microflow",
-			"AI agent tasks need Mendix 11.9 or later — use `call microflow` on older projects"); err != nil {
-			return err
-		}
-	}
-	if workflowUsesNotificationEvents(alterWorkflowAddedActivities(s)) {
-		if err := checkFeature(ctx, "workflows", "notification_events", "notification activities and notification boundary events",
-			"these need Mendix 11.11 or later — use `wait for notification` on older projects"); err != nil {
-			return err
-		}
+	if vs := callWorkflowParameterViolations(alterWorkflowAddedActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
 
 	// Same exec-side guard as CREATE WORKFLOW: ALTER had no reference validation
@@ -51,6 +41,16 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 	// and still be written (issue #943).
 	if err := refuseWorkflowReturn(alterWorkflowAddedActivities(s)); err != nil {
 		return err
+	}
+	// MDL-WF19, as for CREATE (mendixlabs/mxcli#1529).
+	if vs := checkWorkflowExprScope(alterWorkflowExprSites(s), "", workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
+	}
+	if vs := checkWorkflowTemplates(alterWorkflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
+	if vs := checkWorkflowRecurrences(alterWorkflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
 	if refErrors := validateAlterWorkflowRefs(ctx, s, nil); len(refErrors) > 0 {
 		return mdlerrors.NewValidationf("workflow '%s' has reference errors:\n  - %s",
@@ -97,6 +97,10 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return err
 	}
 
+	// Where an inserted interrupting boundary path may end in an End, as
+	// Studio Pro ends it (ako/mxcli#1712).
+	ends := newAlterEndPlacement(ctx, s)
+
 	// Apply operations sequentially
 	for _, op := range s.Operations {
 		switch o := op.(type) {
@@ -121,8 +125,19 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 					return mdlerrors.NewBackend("set "+o.Property, err)
 				}
 			default:
-				if err := mutator.SetProperty(o.Property, o.Value); err != nil {
+				value := o.Value
+				if o.Property == "due_date" {
+					value = normalizeWorkflowContextExpr(value) // MDL-WF19's accepted casings
+				}
+				if err := mutator.SetProperty(o.Property, value); err != nil {
 					return mdlerrors.NewBackend("set "+o.Property, err)
+				}
+				// A text states its whole value: its parameters, or none
+				// (ako/mxcli#1714).
+				if o.Property == "display" || o.Property == "description" {
+					if err := mutator.SetTemplateParameters("", 0, o.Property, alterTemplateExprs(o.Params)); err != nil {
+						return mdlerrors.NewBackend("set "+o.Property, err)
+					}
 				}
 			}
 
@@ -133,9 +148,16 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				value = o.PageName.Module + "." + o.PageName.Name
 			case "targeting_microflow":
 				value = o.Microflow.Module + "." + o.Microflow.Name
+			case "due_date":
+				value = normalizeWorkflowContextExpr(value) // MDL-WF19's accepted casings
 			}
 			if err := mutator.SetActivityProperty(o.ActivityRef, o.AtPosition, o.Property, value); err != nil {
 				return mdlerrors.NewBackend("set activity", err)
+			}
+			if o.Property == "description" || o.Property == "task_name" {
+				if err := mutator.SetTemplateParameters(o.ActivityRef, o.AtPosition, o.Property, alterTemplateExprs(o.Params)); err != nil {
+					return mdlerrors.NewBackend("set activity", err)
+				}
 			}
 
 		case *ast.InsertAfterOp:
@@ -143,6 +165,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertAfterActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert after", err)
 			}
@@ -152,6 +175,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build new activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBeforeActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("insert before", err)
 			}
@@ -166,12 +190,14 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 			if len(acts) == 0 {
 				return mdlerrors.NewValidation("failed to build replacement activity")
 			}
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.ReplaceActivity(o.ActivityRef, o.AtPosition, acts); err != nil {
 				return mdlerrors.NewBackend("replace activity", err)
 			}
 
 		case *ast.InsertOutcomeOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertOutcome(o.ActivityRef, o.AtPosition, o.OutcomeName, acts); err != nil {
 				return mdlerrors.NewBackend("insert outcome", err)
 			}
@@ -194,6 +220,7 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 
 		case *ast.InsertBranchOp:
 			acts := buildAndBindActivities(ctx, o.Activities)
+			ends.endInserted(acts, o.ActivityRef, o.AtPosition)
 			if err := mutator.InsertBranch(o.ActivityRef, o.AtPosition, o.Condition, acts); err != nil {
 				return mdlerrors.NewBackend("insert branch", err)
 			}
@@ -210,8 +237,8 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 				return mdlerrors.NewUnsupported("insert boundary event: a notification boundary event cannot be inserted with ALTER WORKFLOW yet — " +
 					"restate the workflow with CREATE OR MODIFY WORKFLOW, which accepts `boundary event interrupting notification <name> '<caption>' { … }`")
 			}
-			acts := buildAndBindActivities(ctx, o.Activities)
-			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, o.Delay, acts); err != nil {
+			acts := ends.endInsertedBoundaryPath(buildAndBindActivities(ctx, o.Activities), o.EventType, o.ActivityRef, o.AtPosition)
+			if err := mutator.InsertBoundaryEvent(o.ActivityRef, o.AtPosition, o.EventType, normalizeWorkflowContextExpr(o.Delay), o.Caption, recurrenceFromNode(o.Recurrence), acts); err != nil {
 				return mdlerrors.NewBackend("insert boundary event", err)
 			}
 
@@ -349,4 +376,15 @@ func workflowActivityNodeLabels(a ast.WorkflowActivityNode) (name, caption strin
 		caption = f.String()
 	}
 	return name, caption
+}
+
+// alterTemplateExprs is an ALTER's template parameters in placeholder order,
+// in the casings MDL-WF19 accepts. ALTER has no header alias to rewrite: the
+// stored context is $WorkflowContext.
+func alterTemplateExprs(params []ast.WorkflowTemplateParam) []string {
+	exprs := workflowTemplateExprs(params)
+	for i, e := range exprs {
+		exprs[i] = normalizeWorkflowContextExpr(e)
+	}
+	return exprs
 }

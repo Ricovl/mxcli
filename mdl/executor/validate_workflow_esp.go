@@ -26,6 +26,8 @@
 //	notification-started event sub-process    yes     yes     yes     yes     workflows.event_subprocesses (11.8, gen)
 //	notification activity / boundary events   no      yes     yes     yes     workflows.notification_events
 //	timer-started event sub-process           no      no      no      yes     workflows.timer_event_subprocesses
+//
+// The gates on these floors are in statementVersionGates (version_gates.go).
 package executor
 
 import (
@@ -56,51 +58,16 @@ func workflowStatementActivities(stmt *ast.CreateWorkflowStmt) []ast.WorkflowAct
 func workflowUsesNotificationEvents(activities []ast.WorkflowActivityNode) bool {
 	found := false
 	walkWorkflowActivities(activities, func(a ast.WorkflowActivityNode) {
-		var events []ast.WorkflowBoundaryEventNode
-		switch n := a.(type) {
-		case *ast.WorkflowNotificationNode:
+		if _, ok := a.(*ast.WorkflowNotificationNode); ok {
 			found = true
-		case *ast.WorkflowUserTaskNode:
-			events = n.BoundaryEvents
-		case *ast.WorkflowCallMicroflowNode:
-			events = n.BoundaryEvents
-		case *ast.WorkflowWaitForNotificationNode:
-			events = n.BoundaryEvents
 		}
-		for _, e := range events {
+		for _, e := range workflowActivityBoundaryEvents(a) {
 			if e.EventType == "InterruptingNotification" || e.EventType == "NonInterruptingNotification" {
 				found = true
 			}
 		}
 	})
 	return found
-}
-
-// checkEventSubProcessFeatures refuses what the project's Mendix version cannot
-// load (see the table above).
-func checkEventSubProcessFeatures(ctx *ExecContext, stmt *ast.CreateWorkflowStmt) error {
-	if len(stmt.EventSubProcesses) > 0 {
-		if err := checkFeature(ctx, "workflows", "event_subprocesses", "event subprocess",
-			"event sub-processes need Mendix 11.8 or later"); err != nil {
-			return err
-		}
-	}
-	for _, esp := range stmt.EventSubProcesses {
-		if esp.Timer {
-			if err := checkFeature(ctx, "workflows", "timer_event_subprocesses", "event subprocess … on … timer",
-				"a timer-started event sub-process needs Mendix 11.13 or later — start it with a notification on older projects"); err != nil {
-				return err
-			}
-			break
-		}
-	}
-	if workflowUsesNotificationEvents(workflowStatementActivities(stmt)) {
-		if err := checkFeature(ctx, "workflows", "notification_events", "notification activities and notification boundary events",
-			"these need Mendix 11.11 or later — use `wait for notification` on older projects"); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // ValidateWorkflowEventSubProcesses applies MDL-WF14 and MDL-WF15.
@@ -126,6 +93,8 @@ func ValidateWorkflowEventSubProcesses(stmt *ast.CreateWorkflowStmt) []linter.Vi
 			events, label = n.BoundaryEvents, "user task "+workflowUserTaskLabel(n)
 		case *ast.WorkflowCallMicroflowNode:
 			events, label = n.BoundaryEvents, "call microflow "+workflowCallMicroflowLabel(n)
+		case *ast.WorkflowCallWorkflowNode:
+			events, label = n.BoundaryEvents, "call workflow "+n.Workflow.String()
 		case *ast.WorkflowWaitForNotificationNode:
 			name := n.Name
 			if name == "" {

@@ -3,11 +3,12 @@
 package executor
 
 import (
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/mock"
 	mdltypes "github.com/mendixlabs/mxcli/mdl/types"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // importedServiceDoc builds a WebServices$ImportedServiceImpl the way the driver
@@ -138,7 +139,7 @@ func TestResolveWebServiceName_ReadsMapDecodedDocuments(t *testing.T) {
 	raw := importedServiceDoc(t, "OrderSoapClient", serviceInfo("OrdersWS", "GetOrder"))
 
 	var asMap map[string]any
-	if err := bson.Unmarshal(raw, &asMap); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(raw, &asMap); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if _, isMap := asMap["Description"].(map[string]any); !isMap {

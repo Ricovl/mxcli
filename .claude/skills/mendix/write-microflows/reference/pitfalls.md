@@ -60,6 +60,29 @@ set $Name = $Product/Shop.Product_Category/Name;
 
 **Explanation**: XPath navigation requires the full qualified association name in the format `Module.AssociationName`.
 
+A path that **ends** on the association is not a value at all, in either
+direction: `return $Parent/Shop.Order_Customer;` is CE0117 at the end event
+(MDL049, as for a call argument), and `loop $o in $Customer/Shop.Order_Customer`
+has no list to store, CE0099 (MDL094). Retrieve over the association — that is
+the activity both mean:
+
+```mdl
+mdl 1;
+create microflow Shop.CustomerOrders ($Customer: Shop.Customer)
+returns list of Shop.Order as $Orders
+begin
+  retrieve $Orders from $Customer/Shop.Order_Customer;
+  loop $o in $Orders begin
+    log info node 'Shop' $o/OrderNumber;
+  end loop;
+  return $Orders;
+end;
+```
+
+Naming the target entity after a reference followed from its owner,
+`$Order/Shop.Order_Customer/Shop.Customer`, is the one path form that is an
+object value (Studio Pro's own spelling).
+
 ### 3. Missing Attributes
 
 **Error**: Attribute references must exist in entity definition
@@ -277,32 +300,26 @@ the same CE0117, and mxcli refuses the statement rather than writing it.
 
 ### 11. Changing Something Inside a Loop Body
 
-**What is spliced** (both modes, ako/mxcli#1106): an activity in the body replaced by
-one activity **of the same kind**, in place — a new expression in a `set`, a new
-message in a `log`, `commit $Car` → `commit $Car without events`. Re-running a
-`create or modify` whose loop body has the same statements in the same order, each
-as stored or with new values, writes just those activities; the loop and everything
-else keep their `$ID`s and positions. The loop's iterator is in scope.
+**What is spliced** (both modes): **plain activities** inside a loop body — one
+inserted, dropped, moved (dropped and inserted again) or replaced by one or more
+others (ako/mxcli#1693), and one replaced by one of the same kind in place
+(ako/mxcli#1106). The new activities are laid out among the body's nodes; when the
+body no longer fits, the loop box grows on its far side and what is drawn past the
+loop moves along. Only the changed activities get new `$ID`s — the loop, the rest of
+its body and everything outside it keep theirs. The loop's iterator is in scope, and
+a nested loop's body is edited the same way. `create or modify` does this for a body
+whose statements change; `alter` for an activity of the body addressed by its handle.
 
-**Refusal** for anything else inside the body — a statement added, removed,
-reordered or moved, one kind swapped for another, an `if` or `return` changed, a
-custom error handler, a note or connector redrawn: `create or modify` under
-`mdl 1;` — "the Loop at (x, y) changes inside its body; the splice does not edit
-inside a loop"; `alter` aimed at an activity in the loop — "… is inside the body of
-loop $Car in $Cars; alter does not splice inside a loop body but to replace one
-activity by one of the same kind". A body node's coordinates are relative to the
-loop box, so those changes would need the body laid out again. Both refusals spell
-out the statement below.
+**Refusal** for a change of the body's *shape* — a decision, a nested loop, a
+`return`, `break`/`continue`, a `raise error` or an activity with a custom error
+handler added, changed or taken out inside the body, or a body node drawn elsewhere:
+`create or modify` under `mdl 1;` — "the Loop at (x, y) changes inside its body: a
+decision is added to it; inside a loop body the splice inserts, drops and replaces
+plain activities only …"; `alter` aimed at an activity in the loop — "… is inside the
+body of loop $Car in $Cars, and the fragment holds a decision …". Both refusals spell
+out the statement below, addressed to the innermost loop around the change.
 
-✅ **SPLICED** in place:
-```mdl
-mdl 1;
-alter microflow MyModule.ACT_SaveAll {
-  replace commit $Car with begin commit $Car without events; end;
-};
-```
-
-❌ **REFUSED** (either way) — the body changes shape:
+✅ **SPLICED** — a plain activity added to the body:
 ```mdl
 mdl 1;
 alter microflow MyModule.ACT_SaveAll {
@@ -310,24 +327,171 @@ alter microflow MyModule.ACT_SaveAll {
 };
 ```
 
-✅ **CORRECT** — replace the loop:
+❌ **REFUSED** (either way) — a decision changes the body's shape:
 ```mdl
 mdl 1;
 alter microflow MyModule.ACT_SaveAll {
-  replace loop $Car in $Cars with begin
-    loop $Car in $Cars
-    begin
-      commit $Car;
-      log info node 'App' 'saved';
-    end loop;
+  insert after commit $Car begin if $Car/Price > 0 then log info node 'App' 'priced'; end if; end;
+};
+```
+
+✅ **CORRECT** — replace the loop's body:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_SaveAll {
+  replace body of loop $Car in $Cars with begin
+    commit $Car;
+    if $Car/Price > 0 then
+      log info node 'App' 'priced';
+    end if;
   end;
 };
 ```
 
-Everything outside the loop keeps its `$ID`s, positions and flows; the loop and its
-body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
-`replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
-nested in another loop, replace the outer one.
+`replace body of` keeps the loop itself — its `$ID`, position, iterator and list, the
+flows into and out of it and the notes on it — and rebuilds only what is inside it
+(new IDs, laid out by mxcli). The box keeps its size when the new body fits, and grows
+when it does not. A `while` loop is addressed by its handle the same way —
+`replace body of while $N < 3 with begin … end;` — and so is a loop nested in another
+loop. The new body is scope-checked like any fragment: a variable it reads must be the
+iterator, declared in the body, or declared before the loop; one it declares must not
+be declared outside the loop. (`replace loop … with begin loop … end loop; end;` still
+works, and rebuilds the loop as well — its `$ID` and position included.)
+
+Under `mdl 1;` a body that states its nodes' `@position` (a `describe` restated) is
+pinned like the top level (§13): an insert that would have to move one of them, or
+grow the loop past a node the script draws where it is, is refused.
+
+### 12. One Alter Block Is One Change
+
+Every operation of an `alter microflow` block is aimed at the flow **as stored**, but
+the scope checks judge the flow the **whole block** writes:
+
+- a fragment may read a variable an earlier operation of the block declares, when that
+  declaration lands upstream of it (an `insert after`/`replace` of a node before it, or
+  an `insert before` the node it replaces or inserts after) — and may `set` it or name
+  its members, since the fragment is built knowing what the earlier operations declare
+  (ako/mxcli#1399). Declare first, use after: a declaration made by a *later*
+  operation of the block is not known to an earlier one's fragment;
+- an activity whose output is taken away is still "used" only by readers the block
+  leaves in place, and not by a reader that another operation's fragment declares the
+  variable for upstream of it — so a producer can be moved up the flow (insert it
+  where it goes, drop it where it was; `create or modify` does this for a reordered
+  body), and a rename (the producer, every reader and the `return`) goes in **one**
+  block:
+
+```mdl
+mdl 1;
+alter microflow MyModule.GetCode {
+  replace $Code = call microflow MyModule.Lookup() with begin $Code2 = call microflow MyModule.Lookup(); end;
+  replace log node 'App' * with begin log info node 'App' $Code2; end;
+  replace return $Code with begin return $Code2; end;
+};
+```
+
+### 13. Inserting Where the Script States Every Position
+
+`describe` output states `@position` on every statement. Under `mdl 1;`, `create or
+modify` never moves a node the script draws at a stated position: a statement inserted
+**without** `@position` into a gap too small for it is refused, naming the room it needs
+and the node in the way (mendixlabs/mxcli#1598). Moving the rest of the row along would
+leave the stored flow saying something other than the script, so the next run would move
+it back. Either:
+
+- give the new statements an `@position` where there is room for them, or
+- leave the positions of what comes after them unstated (`@position`, `@merge`, a note's
+  `position:`), so the splice can move it along — the second run of that script is then
+  Unchanged.
+
+A headerless (mdl 0) script still moves the row along, as it always did.
+
+### 14. Attaching an Inserted Statement to a Note the Flow Already Has
+
+A fragment of `alter microflow … insert|replace` is built on its own, so it cannot see
+the `id:` labels `describe` prints — and those are re-derived on every describe and
+stored nowhere, so a saved one could name a different note next time. Name the stored
+note by its **text**, exactly as `describe` prints it (ako/mxcli#1695):
+
+❌ **REFUSED** — "refers to a note that has not been declared above it":
+```mdl
+mdl 1;
+-- ❌ WRONG: a describe-time id: label names no stored note
+alter microflow MyModule.ACT_Process {
+  insert after log node 'App' 'start' begin
+    @annotation(id: n1)
+    log info node 'App' 'middle';
+  end;
+};
+```
+
+✅ **CORRECT** — the new activity joins the note; the note keeps its `$ID`, text and place:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_Process {
+  insert after log node 'App' 'start' begin
+    @annotation(existing: 'Validates the order')
+    log info node 'App' 'middle';
+  end;
+};
+```
+
+- The text must be the text of **exactly one** note of the flow. None, or several, is
+  refused by `check` and `exec` alike, and the refusal lists the flow's notes (with where
+  each is drawn and what it is attached to). Two notes with the same text cannot be told
+  apart by text: reword one first.
+- `existing:` stands alone. Beside `text:`, `id:`, `position:` or `size:` it is refused
+  (MDL079) — `@annotation 'text'` is how a statement gets a note of its own.
+- Only an alter fragment takes it: `create`/`create or modify` state the whole flow and
+  declare every note, so `existing:` there is refused (MDL079). `describe` never prints it.
+- Re-running the alter inserts the statement again, as any `insert` does; the note is
+  attached to both.
+
+### 15. Taking Out a Decision Another Script Put In
+
+A decision spliced in by `alter microflow … insert` — `if … then … [else …] end if` whose
+paths hold plain activities (or nothing) and rejoin at one merge — is taken out whole
+(ako/mxcli#1694): re-running the script that created the flow drops it, and so does
+`alter … drop` or `alter … replace` addressed by its handle (its caption, e.g.
+`'$Order/Total > 100'`). The flow into the decision is joined to the node after its
+merge; the decision, the activities on its paths (and notes on them) and the merge go,
+and every other element keeps its `$ID`. A variable a path declares that the rest of
+the flow still reads is refused like any dropped producer.
+
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_Order {
+  drop '$Order/Total > 100';
+};
+```
+
+Any other decision is refused, by `check` and `exec` alike, naming the part of the
+shape that is out of reach — "its true path ends in a return", "its false path holds a
+decision", "… on its true path has an error handler", "3 flows join at its merge", "it
+has 3 paths". Those change where the flow's paths end or meet; rebuild the flow
+deliberately (drop the microflow and create it in the same script) or edit it in Studio
+Pro. Inside a loop body a decision is the loop's to replace (§11).
+
+### 16. A Message Template Is a String, Not an Expression With `with (…)`
+
+The text of a `log` message, a `send email` subject or body, a `show message` and a
+`validation feedback` message is a **template**: a string with `{n}` placeholders that
+`with (…)` fills. An expression is the whole text — stored as the template `'{1}'`
+with the expression as its parameter — so there is nothing left for `with (…)` to
+fill, and Mendix cannot store an expression as a template's text. An expression
+followed by `with (…)` is refused by `check` and `exec` (MDL-TEMPLATE01,
+ako/mxcli#1683); it used to log the characters `$Msg`.
+
+```mdl
+-- ❌ WRONG: $Msg is not a template; this is refused (MDL-TEMPLATE01)
+log info node 'Orders' $Msg with ({1} = $Order/Number);
+
+-- ✅ CORRECT: the template is a string, or the expression stands alone
+log info node 'Orders' 'Order {1} shipped' with ({1} = $Order/Number);
+log info node 'Orders' 'Order ' + $Order/Number + ' shipped';
+```
+
+A template kept in a variable cannot be filled by `with (…)` at run time: write the
+template in the statement, or build the whole text in the expression.
 
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
@@ -613,6 +777,11 @@ It is a **security** setting and it only ever narrows, so the rules mirror
   perfectly happy. Measured across 342 microflows in 4 projects: every microflow
   storing the flag came back without it, and nothing anywhere reported it.
 - **Turning it off is explicit**: `@applyentityaccess(false)`.
+- **A flow without it cannot call a flow with it.** A microflow that does not apply
+  entity access may only call microflows — and decide on rules — that do not apply
+  it either: mxbuild CE0114, `check -p` MDL-SEC22. The reverse (on calling off) is
+  fine. Fix the caller, not the callee: turning it off on a shared sub-flow widens
+  it for everyone.
 - **Not available on a nanoflow.** A nanoflow runs in the client and Mendix stores
   no such property. Writing it there is **MDL059**, not a silent no-op —
   the same rule that catches `@applyentityacces` and any other annotation the
@@ -637,7 +806,28 @@ end;
   parameters (...)` names the parameters passed as query arguments; `drop url`
   removes both.
 - **`export level api | hidden`** decides whether the microflow is part of the
-  module's public surface when the module is exported.
+  module's public surface when the module is exported. It bites in a
+  **Protected (add-on) module** — `describe module` prints
+  `-- export level: Protected …` and `show modules` says `Protected AddOn`:
+  another module or the navigation referencing a Hidden microflow, entity,
+  attribute, association or any page there is **CE1406**, and an `api`
+  microflow whose parameter or return type is a Hidden entity or enumeration of
+  that module is **CE5400**. `check -p --references` reports both
+  (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
+  association — a change / create member, an association retrieve, an XPath
+  step or a `$v/…` path, on a parameter, a retrieved or created object, a loop
+  iterator or a `call microflow` result (ako/mxcli#1701) — and the Hidden
+  entity a database `retrieve`, a
+  `create` or a `create list of` names (ako/mxcli#1699), with the `alter`
+  statement that makes it usable. Inside the Protected module itself every one
+  of these is fine.
+  Page widgets binding a Hidden member are not checked yet. A page there cannot
+  be made usable (mxbuild refuses it even when stored as API) — reach it through
+  an `api` microflow in the module that shows it. Entities, attributes,
+  associations and enumerations take the same clause: `alter entity M.E set
+  export level api`, `Attr: Type export level api`, `create association … export
+  level api`, `alter enumeration M.K set export level api`
+  (`mxcli syntax domain-model.export-level`).
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

@@ -65,7 +65,11 @@ type CreateMicroflowStmt struct {
 	DocumentationSet bool
 	Folder           string // Folder path within module (e.g., "Resources/Images")
 	CreateOrModify   bool
-	Excluded         bool // @excluded — document excluded from project
+	// CreateOrReplace records that CreateOrModify was spelled `create or
+	// replace`, which splices the same way, so a message names the statement
+	// as written (ako/mxcli#1681).
+	CreateOrReplace bool
+	Excluded        bool // @excluded — document excluded from project
 	// ApplyEntityAccess is Studio Pro's "apply entity access" checkbox, set by
 	// `@applyentityaccess` / `@applyentityaccess(false)`.
 	//
@@ -163,6 +167,7 @@ type CreateNanoflowStmt struct {
 	DocumentationSet bool   // see mendixlabs/mxcli#1018: absent preserves, empty clears
 	Folder           string // Folder path within module
 	CreateOrModify   bool
+	CreateOrReplace  bool // spelled `create or replace` (see CreateMicroflowStmt)
 	Excluded         bool // @excluded — document excluded from project
 	// No ApplyEntityAccess: a nanoflow runs in the CLIENT and Mendix stores no
 	// such property on Nanoflows$Nanoflow (modelsdk/gen declares the accessor
@@ -173,6 +178,9 @@ type CreateNanoflowStmt struct {
 	// properties. Accepting it in the grammar and explaining the refusal beats a
 	// parse error that says only "no viable alternative".
 	Expose []ExposeActionClause
+	// ExportLevel is "API" or "Hidden"; nil preserves. Nanoflows$Nanoflow
+	// stores it like a microflow does (mendixlabs/mxcli#1498).
+	ExportLevel *string
 }
 
 func (s *CreateNanoflowStmt) isStatement() {}
@@ -337,12 +345,24 @@ const (
 	AnchorSideLeft   AnchorSide = 3
 )
 
-// FlowAnchors captures the origin/destination anchors for a single
-// SequenceFlow. Each side is independently optional: Unset means the builder
-// should derive the anchor from the visual direction.
+// FlowAnchors captures the sides a statement's flows attach at. Each side is
+// independently optional: Unset means the builder should derive the anchor
+// from the visual direction.
+//
+// The two halves name two DIFFERENT flows when written on a statement: From is
+// the side the flow leaving it leaves by, To the side the flow arriving at it
+// enters by. Nested in a branch form (`true: (from: …, to: …)`) both describe
+// that one branch's edge.
 type FlowAnchors struct {
 	From AnchorSide // OriginConnectionIndex on the outgoing SequenceFlow
-	To   AnchorSide // DestinationConnectionIndex on the outgoing SequenceFlow
+	To   AnchorSide // DestinationConnectionIndex on the INCOMING SequenceFlow
+}
+
+// CaseAnchor is one outcome's entry in a CASE's @anchor: the WHEN value, as
+// written ("(empty)" for the empty value), and the sides of its flow.
+type CaseAnchor struct {
+	Value   string
+	Anchors *FlowAnchors
 }
 
 // HasCaption reports whether the statement states a caption, empty or not.
@@ -369,7 +389,7 @@ type ActivityAnnotations struct {
 	// canvas wired to nothing.
 	FreeNotes []MicroflowAnnotation
 	Excluded  bool         // @excluded
-	Anchor    *FlowAnchors // @anchor(from: X, to: Y) — anchors of the flow leaving this statement
+	Anchor    *FlowAnchors // @anchor(from: X, to: Y) — From for the flow leaving, To for the flow arriving
 
 	// Split-specific anchors for IF statements. When the statement is not an
 	// IF these remain nil. The grammar accepts them on IfStmt only:
@@ -383,6 +403,13 @@ type ActivityAnnotations struct {
 	// populated on LoopStmt/WhileStmt.
 	IteratorAnchor *FlowAnchors
 	BodyTailAnchor *FlowAnchors
+
+	// CaseAnchors are a CASE's per-outcome anchors, keyed by the WHEN value,
+	// in source order:
+	//   @anchor(A: (from: right), (empty): (from: bottom, to: top))
+	// Each names the sides of the one flow that leaves the split for that
+	// value. Only a CASE takes them (mendixlabs/mxcli#1587).
+	CaseAnchors []CaseAnchor
 
 	// Curve is the bezier geometry of the flow LEAVING this statement:
 	// @curve(from: (40, -90), to: (-40, 90)).
@@ -469,6 +496,15 @@ type MicroflowAnnotation struct {
 	// Text is the note's caption. Empty on a pure reference
 	// (`@annotation(id: n1)`), which attaches a note already declared above.
 	Text string
+
+	// Existing is the `existing:` in `@annotation(existing: '…')`: the text of
+	// a note already STORED in the flow, which the statement is attached to
+	// instead of getting a note of its own. Only an `alter microflow|nanoflow`
+	// fragment has a stored flow to look in; the text has to match exactly one
+	// of its notes (ako/mxcli#1695). It stands alone — a stored note keeps its
+	// own text and place, so `text:`, `id:`, `position:` and `size:` are
+	// refused beside it rather than half-applied.
+	Existing string
 
 	// Position and Size are the note's own canvas geometry, which Mendix stores per
 	// annotation and MDL had no way to spell. Nil means "let the writer place
@@ -625,10 +661,15 @@ func (s *IfStmt) isMicroflowStatement() {}
 
 // LoopStmt represents: LOOP $Var IN $List BEGIN body END LOOP
 type LoopStmt struct {
-	LoopVariable string               // Iterator variable name
-	ListVariable string               // List variable name
-	Body         []MicroflowStatement // Loop body
-	Annotations  *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	LoopVariable string // Iterator variable name
+	ListVariable string // List variable name
+	// ListPath is the source of a list written as a path, `$Parent/Mod.Assoc`.
+	// The model's loop iterates over a variable, so no path can be stored;
+	// the validator refuses it (MDL094) rather than the builder writing a loop
+	// over nothing (mendixlabs/mxcli#199).
+	ListPath    string
+	Body        []MicroflowStatement // Loop body
+	Annotations *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 }
 
 func (s *LoopStmt) isMicroflowStatement() {}
@@ -688,14 +729,15 @@ func (p *TemplateParam) IsDataSourceRef() bool {
 	return p.DataSourceName != ""
 }
 
-// LogStmt represents: LOG LEVEL [NODE expr] message [WITH params]
+// LogStmt represents: LOG LEVEL [NODE expr] message [WITH params] [WITH STACKTRACE]
 type LogStmt struct {
-	Level         LogLevel             // Log level (INFO, WARNING, etc.)
-	Node          Expression           // Optional log node expression
-	Message       Expression           // Message expression
-	Template      []TemplateParam      // Optional WITH template params
-	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
-	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
+	Level                   LogLevel             // Log level (INFO, WARNING, etc.)
+	Node                    Expression           // Optional log node expression
+	Message                 Expression           // Message expression
+	Template                []TemplateParam      // Optional WITH template params
+	IncludeLatestStackTrace bool                 // WITH STACKTRACE — Studio Pro's "Include latest stack trace"
+	Annotations             *ActivityAnnotations // Optional @position, @caption, @color, @annotation
+	ErrorHandling           *ErrorHandlingClause // Optional ON ERROR clause
 }
 
 func (s *LogStmt) isMicroflowStatement() {}
@@ -704,6 +746,10 @@ func (s *LogStmt) isMicroflowStatement() {}
 type CallArgument struct {
 	Name  string     // Parameter name
 	Value Expression // Value expression
+	// TemplateParams fills the {n} placeholders of Value when it is the text of
+	// a Java action's text-template parameter: `Subject = 'Order {1}' with
+	// ({1} = $Order/Number)` (ako/mxcli#1451). Only call java action takes it.
+	TemplateParams []TemplateParam
 }
 
 // CallMicroflowStmt represents: [$Result =] CALL MICROFLOW Name (args) [ON ERROR ...]
@@ -1100,6 +1146,9 @@ type ShowPageStmt struct {
 	ModalForm     bool                 // Whether to show as modal
 	Annotations   *ActivityAnnotations // Optional @position, @caption, @color, @annotation
 	ErrorHandling *ErrorHandlingClause // Optional ON ERROR clause
+	// NumberOfPagesToClose is `with NumberOfPagesToClose = <expr>`: how many
+	// pages to close before the page opens; nil closes none (mendixlabs/mxcli#1617).
+	NumberOfPagesToClose Expression
 }
 
 func (s *ShowPageStmt) isMicroflowStatement() {}
@@ -1378,6 +1427,14 @@ type ImportFromMappingStmt struct {
 	First      bool       // FIRST — bind ONE object rather than a list
 	LimitExpr  Expression // LIMIT <expr>  — Custom range
 	OffsetExpr Expression // OFFSET <expr> — Custom range
+
+	// The activity's settings list, `( Parameter: $Obj, Commit: No )` (ADR-0013,
+	// ako/mxcli#1681). Parameter is the variable holding the mapping's input
+	// object (ImportMappingCall.ParameterVariableName, without $); Commit is
+	// Yes, YesWithoutEvents or No. Empty means not authored: no parameter, and
+	// the writer's YesWithoutEvents.
+	Parameter string
+	Commit    string
 }
 
 func (s *ImportFromMappingStmt) isMicroflowStatement() {}

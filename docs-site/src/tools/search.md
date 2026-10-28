@@ -38,6 +38,12 @@ mxcli search -p app.mpr "validation" -q --format names
 
 # Output as JSON array
 mxcli search -p app.mpr "validation" --json
+
+# Exit 1 when anything matches (0 when nothing does)
+mxcli search -p app.mpr "validation" --fail-on-match
+
+# Leave out Marketplace modules
+mxcli search -p app.mpr "validation" --exclude-marketplace
 ```
 
 ## Output Formats
@@ -101,6 +107,27 @@ mxcli search -p app.mpr "error" -q --format names | head -1 | awk '{print $2}' |
   This is the complete set: every document type whose catalog table carries a documentation text. Not covered: the documentation of an enumeration value (Mendix has no such field) and the summary text of a remote service's contract entities (written by the remote service, not by the project).
 
 **MDL source** (only after `refresh catalog full source`): microflow, nanoflow and page bodies, expressions and the other definitions as MDL text. Until it is built, a warning on stderr says only strings were searched.
+
+## Failing on a match
+
+`--fail-on-match` turns `search` into a gate. The results are printed as usual (a JSON array under `--json`), and the exit status carries the answer:
+
+| Exit status | Meaning |
+|-------------|---------|
+| `0` | No hit |
+| `1` | At least one hit |
+| `2` | The search could not run: an unknown project, or a query the index rejects (an unbalanced `"`, say) |
+
+```bash
+# Refuse the change if a placeholder is left anywhere in the project's text
+mxcli search -p app.mpr "TODO" --fail-on-match --json
+```
+
+Without the flag a hit exits `0`, as before.
+
+## Marketplace modules
+
+By default every module is searched, Marketplace modules included, so existing results do not change. `--exclude-marketplace` leaves out hits inside modules downloaded from the Marketplace, which is what an audit of the app's own text usually wants: the vendor's documentation is not yours to edit. A Marketplace module's own documentation and domain model documentation are left out with the rest of it.
 
 ## Comparison with Catalog Queries
 

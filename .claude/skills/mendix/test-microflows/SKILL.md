@@ -12,18 +12,18 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 |---|---|
 | 33-39 | Reference files |
 | 40-50 | When to Use This Skill |
-| 51-179 | Prerequisites |
-| 180-222 | Test File Formats |
-| 223-238 | string Operations |
-| 239-262 | Running Tests |
-| 263-450 | How It Works |
-| 451-477 | Check a test file before you run it |
-| 478-584 | Writing Good Tests |
-| 585-599 | Test File Organization |
-| 600-612 | Interpreting Failures |
-| 613-634 | CI Integration |
-| 635-641 | Related Skills |
-| 642-644 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 51-180 | Prerequisites |
+| 181-223 | Test File Formats |
+| 224-239 | string Operations |
+| 240-263 | Running Tests |
+| 264-457 | How It Works |
+| 458-496 | Check a test file before you run it |
+| 497-618 | Writing Good Tests |
+| 619-633 | Test File Organization |
+| 634-646 | Interpreting Failures |
+| 647-668 | CI Integration |
+| 669-675 | Related Skills |
+| 676-678 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -103,7 +103,8 @@ app looks half-working. Only Java-backed resources are affected, which is why it
 does not look like the test run did it.
 
 mxcli warns when it sees a dev loop serving the same project (`run --local`
-records itself in `.mxcli/run-local.json`, removed on exit). **If something the
+records itself in `.mxcli/run-local.json`, removed when that run ends — see the
+run-local skill for its lifecycle). **If something the
 app serves stops returning data after a test run, restart that app.** That is the
 whole remedy.
 
@@ -315,6 +316,12 @@ chained, `--local` ran with the app's startup logic suppressed, and a suite that
 depended on startup state passed under `--attach` and failed under `--local` for
 reasons unrelated to the code.
 
+`MxTest.RegisterEndpoint` applies entity access, so it can call a startup
+microflow that does or does not (CE0114 only forbids a non-applying microflow
+calling an applying one); yours still runs with its own setting. A build error
+located in `MxTest.RegisterEndpoint` or `MxTest.RegisterTestEndpoint` is reported
+as an mxcli defect, not as an error in your project.
+
 One thing rollback does **not** cover: whatever the startup microflow writes
 happens at boot, outside any test's transaction, so `@cleanup rollback` does not
 undo it. Under `--local` that lands in the scratch `<project>_test` database;
@@ -459,6 +466,18 @@ whose body would not compile is reported here instead of failing the injection
 with nothing but "the project cannot be deployed". An `@expect` or `@verify` that
 cannot be evaluated is reported here too, as `MDL-TEST01`.
 
+A test file **creates nothing itself**, so the microflows its tests call must be
+in the project already. When a setup script creates them, check the two in one
+call, the setup script first — each file is resolved against a scratch copy
+holding what the files before it write, and the project is not changed:
+
+```bash
+mxcli check setup.mdl tests/orders.test.mdl -p app.mpr
+```
+
+Checked alone, the test file reports the microflow as not found, with a hint
+naming this form.
+
 One rule to know about, because its symptom is confusing and its shape is common
 in tests: `retrieve $x … first` — and `retrieve $x … limit 1` in a script without
 the `mdl 1;` header — binds a **single object**, not a one-element list, so
@@ -572,6 +591,21 @@ call microflow Sales.ValidateOrder(Total = -1);
 
 Anything else after the tag is an error, not a message: `@throws not found` is
 refused rather than read as an unquoted one.
+
+A call that already has its own `on error` clause keeps it — the runner adds
+its handler only to calls without one, so the test runs the statement exactly as
+production does:
+
+- `on error rollback` is Mendix's default spelled out and behaves like no clause:
+  FAIL `exception during execution: …`, or PASS under a matching `@throws`.
+- `on error continue` swallows the error; the assertions decide. `@throws` FAILs
+  (`expected an exception but none was thrown`).
+- A custom handler that ends normally skips every statement reading the failed
+  call's result — the assertions — so the test FAILs with `not every assertion
+  was evaluated`. Assert on something the handler sets instead.
+- A custom handler that re-raises lets the error leave the test: ERROR with the
+  message, also under `@throws`. Under Docker / `--legacy-runner` it ends the
+  whole run.
 
 `@throws` and `@expect` cannot be combined. A `@throws` test compiles to a
 different shape — the verdict starts as a failure and only the error handler

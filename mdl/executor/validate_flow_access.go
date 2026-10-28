@@ -8,8 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	"github.com/mendixlabs/mxcli/mdl/linter"
@@ -176,7 +175,8 @@ func scriptTouchesFlowAccess(prog *ast.Program) bool {
 		case *ast.CreateMicroflowStmt, *ast.CreateNanoflowStmt, *ast.DropMicroflowStmt, *ast.DropNanoflowStmt,
 			*ast.RevokeMicroflowAccessStmt, *ast.RevokeNanoflowAccessStmt,
 			*ast.CreatePageStmtV3, *ast.CreateSnippetStmtV3, *ast.AlterPageStmt,
-			*ast.CreateMenuStmt, *ast.AlterNavigationStmt, *ast.DropModuleRoleStmt:
+			*ast.CreateMenuStmt, *ast.CreateNavigationStmt, *ast.DropModuleRoleStmt,
+			*ast.AlterNavigationStmt, *ast.AlterMenuStmt:
 			return true
 		}
 	}
@@ -256,9 +256,9 @@ func (s *flowAccessSim) loadStoredUses(h *ContainerHierarchy) {
 			}
 			name, _ := bsonField(doc, "Name").(string)
 			if typ == "Navigation$NavigationDocument" {
-				profiles, _ := bsonField(doc, "Profiles").(primitive.A)
+				profiles, _ := bsonField(doc, "Profiles").(bson.A)
 				for _, p := range profiles {
-					pd, ok := p.(primitive.D)
+					pd, ok := p.(bson.D)
 					if !ok {
 						continue
 					}
@@ -293,7 +293,7 @@ func flowUseSourceLabel(unitType string) string {
 	return unitType
 }
 
-func bsonField(doc primitive.D, key string) any {
+func bsonField(doc bson.D, key string) any {
 	for _, e := range doc {
 		if e.Key == key {
 			return e.Value
@@ -304,12 +304,12 @@ func bsonField(doc primitive.D, key string) any {
 
 // collectRawFlowRefs collects every qualified name stored under a "Microflow"
 // or "Nanoflow" key anywhere in the document.
-func collectRawFlowRefs(doc primitive.D) []flowRef {
+func collectRawFlowRefs(doc bson.D) []flowRef {
 	var out []flowRef
 	var walk func(v any)
 	walk = func(v any) {
 		switch t := v.(type) {
-		case primitive.D:
+		case bson.D:
 			for _, e := range t {
 				if s, ok := e.Value.(string); ok && strings.Contains(s, ".") {
 					switch e.Key {
@@ -323,7 +323,7 @@ func collectRawFlowRefs(doc primitive.D) []flowRef {
 				}
 				walk(e.Value)
 			}
-		case primitive.A:
+		case bson.A:
 			for _, x := range t {
 				walk(x)
 			}
@@ -603,7 +603,7 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 		s.usesBy["menu "+st.Name.String()] = menuItemFlowRefs(st.Items)
 	case *ast.DropMenuStmt:
 		delete(s.usesBy, "menu "+st.Name.String())
-	case *ast.AlterNavigationStmt:
+	case *ast.CreateNavigationStmt:
 		refs := menuItemFlowRefs(st.MenuItems)
 		for _, hp := range st.HomePages {
 			if !hp.IsPage && hp.Target.Module != "" {
@@ -611,6 +611,25 @@ func (s *flowAccessSim) apply(stmt ast.Statement) {
 			}
 		}
 		s.usesBy["navigation "+st.ProfileName] = refs
+	case *ast.AlterNavigationStmt, *ast.AlterMenuStmt:
+		// An alter adds to what the document uses; the items it does not name
+		// keep their flows.
+		var key string
+		var refs []flowRef
+		switch v := menuAlterView(st).(type) {
+		case *ast.CreateNavigationStmt:
+			key = "navigation " + v.ProfileName
+			refs = menuItemFlowRefs(v.MenuItems)
+			for _, hp := range v.HomePages {
+				if !hp.IsPage && hp.Target.Module != "" {
+					refs = append(refs, flowRef{"microflow", hp.Target.String()})
+				}
+			}
+		case *ast.CreateMenuStmt:
+			key = "menu " + v.Name.String()
+			refs = menuItemFlowRefs(v.Items)
+		}
+		s.usesBy[key] = append(s.usesBy[key], refs...)
 	}
 }
 

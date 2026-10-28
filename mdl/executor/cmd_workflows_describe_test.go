@@ -367,3 +367,61 @@ func TestDescribeWorkflow_NestedEndIsEmitted(t *testing.T) {
 		t.Errorf("a nested End with the default caption must describe as a bare `end workflow;`, got:\n%s", out)
 	}
 }
+
+// ako/mxcli#1715: describe prints a timer boundary event's caption, and the
+// output re-parses with it, so describe -> create or modify keeps it.
+func TestWorkflowDescribe_TimerBoundaryEventCaptionReparses(t *testing.T) {
+	task := &workflows.UserTask{Page: "M.P", Outcomes: []*workflows.UserTaskOutcome{{Value: "Ok"}}}
+	task.Name, task.Caption = "T", "Task"
+	task.BoundaryEvents = []*workflows.BoundaryEvent{
+		{EventType: "InterruptingTimer", TimerDelay: "addDays([%CurrentDateTime%], 3)", Caption: "Escalate"},
+		{EventType: "NonInterruptingTimer", Caption: "It's late"},
+		{EventType: "NonInterruptingTimer", TimerDelay: "addDays([%CurrentDateTime%], 1)"}, // control: no caption
+	}
+	body := strings.Join(formatSingleActivity(task, "  "), "\n")
+	src := "create workflow M.W parameter $C: M.E\nbegin\n" + body + "\nend workflow;"
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("describe output does not parse: %v\n%s", errs, src)
+	}
+	got := prog.Statements[0].(*ast.CreateWorkflowStmt).Activities[0].(*ast.WorkflowUserTaskNode).BoundaryEvents
+	if len(got) != 3 {
+		t.Fatalf("boundary events after re-parse = %d, want 3\n%s", len(got), src)
+	}
+	for i, want := range []string{"Escalate", "It's late", ""} {
+		if got[i].Caption != want {
+			t.Errorf("event %d caption = %q, want %q\n%s", i, got[i].Caption, want, src)
+		}
+	}
+}
+
+// ako/mxcli#1714: describe prints a text's parameters and a task name that is
+// not the caption, and the output re-parses into the same values.
+func TestWorkflowDescribe_TextTemplatesReparse(t *testing.T) {
+	task := &workflows.UserTask{Page: "M.P", Outcomes: []*workflows.UserTaskOutcome{{Value: "Ok"}},
+		TaskName: "Review {1}", TaskNameParams: []string{"$WorkflowContext/Name"},
+		TaskDescription: "It's {1} by {2}", TaskDescriptionParams: []string{"toString($WorkflowContext/Amount)", "$WorkflowInstance/Name"}}
+	task.Name, task.Caption = "T", "Task"
+	same := &workflows.UserTask{Page: "M.P", Outcomes: []*workflows.UserTaskOutcome{{Value: "Ok"}}, TaskName: "Same"}
+	same.Name, same.Caption = "S", "Same" // control: the task name is the caption, so no clause
+	body := strings.Join(append(formatSingleActivity(task, "  "), formatSingleActivity(same, "  ")...), "\n")
+	if strings.Count(body, "task name") != 1 {
+		t.Errorf("want one `task name` clause (not for the task named by its caption):\n%s", body)
+	}
+	src := "create workflow M.W parameter $C: M.E\n  display " + workflowTemplateMDL("For {1}", []string{"$WorkflowContext/Name"}) + "\nbegin\n" + body + "\nend workflow;"
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("describe output does not parse: %v\n%s", errs, src)
+	}
+	wf := prog.Statements[0].(*ast.CreateWorkflowStmt)
+	got := wf.Activities[0].(*ast.WorkflowUserTaskNode)
+	if got.TaskName != "Review {1}" || strings.Join(workflowTemplateExprs(got.TaskNameParams), ",") != "$WorkflowContext/Name" {
+		t.Errorf("task name re-parsed as %q %v\n%s", got.TaskName, got.TaskNameParams, src)
+	}
+	if got.TaskDescription != "It's {1} by {2}" || strings.Join(workflowTemplateExprs(got.TaskDescriptionParams), ",") != "toString($WorkflowContext/Amount),$WorkflowInstance/Name" {
+		t.Errorf("description re-parsed as %q %v\n%s", got.TaskDescription, got.TaskDescriptionParams, src)
+	}
+	if strings.Join(workflowTemplateExprs(wf.DisplayParams), ",") != "$WorkflowContext/Name" {
+		t.Errorf("display re-parsed as %v", wf.DisplayParams)
+	}
+}

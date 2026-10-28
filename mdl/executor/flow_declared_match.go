@@ -76,7 +76,7 @@ var (
 var geometryFields = map[reflect.Type]map[string]bool{
 	annotationsStructType: {
 		"Position": true, "Anchor": true, "TrueBranchAnchor": true, "FalseBranchAnchor": true,
-		"IteratorAnchor": true, "BodyTailAnchor": true, "Curve": true, "Merge": true, "Start": true,
+		"IteratorAnchor": true, "BodyTailAnchor": true, "CaseAnchors": true, "Curve": true, "Merge": true, "Start": true,
 	},
 	noteStructType:  {"Position": true, "Size": true},
 	paramStructType: {"Position": true},
@@ -170,6 +170,16 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 				}
 				continue
 			}
+			if d.Type() == noteStructType && name == "Text" {
+				// A note's line breaks are CRLF as Studio Pro stores them and
+				// describe prints them; an editor that saves the script with
+				// LF changed nothing the canvas shows (mendixlabs/mxcli#1505).
+				// A matched note is left as stored, so its bytes stay CRLF.
+				if lfLineBreaks(df.String()) != lfLineBreaks(s.Field(i).String()) {
+					return false
+				}
+				continue
+			}
 			if d.Type() == retrieveStructType && name == "Where" {
 				if !sameStoredConstraint(df, s.Field(i), retrieveEntity(d), retrieveEntity(s)) {
 					return false
@@ -210,6 +220,11 @@ func matchValue(d, s reflect.Value, mode matchMode) bool {
 	}
 }
 
+// lfLineBreaks returns text with every line break spelled LF.
+func lfLineBreaks(text string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+}
+
 var errorHandlingPtrType = reflect.TypeOf((*ast.ErrorHandlingClause)(nil))
 
 var dataTypeStructType = reflect.TypeOf(ast.DataType{})
@@ -234,6 +249,8 @@ var messageStructTypes = map[reflect.Type]bool{
 	reflect.TypeOf(ast.LogStmt{}):                true,
 	reflect.TypeOf(ast.ShowMessageStmt{}):        true,
 	reflect.TypeOf(ast.ValidationFeedbackStmt{}): true,
+	// A REST call's URL and custom body: restCallAsTemplates (ako/mxcli#1444).
+	reflect.TypeOf(ast.RestCallStmt{}): true,
 }
 
 // messageAsTemplate returns v, a statement with a message, with its message
@@ -271,6 +288,8 @@ func messageAsTemplate(v reflect.Value) reflect.Value {
 			st.Message = placeholder
 		}
 		return reflect.ValueOf(st)
+	case ast.RestCallStmt:
+		return reflect.ValueOf(restCallAsTemplates(st))
 	}
 	return v
 }

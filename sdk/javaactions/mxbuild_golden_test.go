@@ -53,7 +53,11 @@ var mxbuildCases = []mxbuildCase{
 		param("C", &EnumerationType{Enumeration: "MyFirstModule.Color"}),
 	}, &EnumerationType{Enumeration: "MyFirstModule.Color"}},
 	// Its import list was emptied before the build: mxbuild appended the three
-	// it needs, sorted.
+	// it needs, sorted. Q and X were first measured as java.lang.String — but
+	// `create java action` then wrote StringTemplate(…) as a String parameter.
+	// For a real text template mxbuild declares IStringTemplate, fully
+	// qualified: re-measured on 11.13.0, where a build rewrites the String
+	// form back to it (ako/mxcli#1451).
 	{"JA_Tpl", "return null;", []*JavaActionParameter{
 		param("Q", &StringTemplateParameterType{Grammar: "Sql"}),
 		param("X", &StringTemplateParameterType{Grammar: "Text"}),
@@ -104,8 +108,8 @@ func TestGenerateSource_RegeneratesWhatMxbuildWrote(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			golden := readGolden(t, c.name)
-			imports, extra := RetainSections(golden, nil, "")
-			got := GenerateSource("MyFirstModule", c.name, c.userCode, c.params, c.ret, imports, extra)
+			imports, extra := RetainSections(golden, nil, nil)
+			got := GenerateSource("MyFirstModule", c.name, c.userCode, c.params, c.ret, imports, extra, "")
 			if got != golden {
 				t.Errorf("generated source differs from mxbuild's:\n%s", lineDiff(golden, got))
 			}
@@ -124,8 +128,8 @@ func TestGenerateSource_NewFileMatchesMxbuild(t *testing.T) {
 		}
 		t.Run(c.name, func(t *testing.T) {
 			golden := readGolden(t, c.name)
-			imports, extra := RetainSections("", nil, "")
-			got := GenerateSource("MyFirstModule", c.name, stub, c.params, c.ret, imports, extra)
+			imports, extra := RetainSections("", nil, nil)
+			got := GenerateSource("MyFirstModule", c.name, stub, c.params, c.ret, imports, extra, "")
 			// mxcli pads the user code with a blank line on each side.
 			got = strings.Replace(got, "// BEGIN USER CODE\r\n\r\n", "// BEGIN USER CODE\r\n", 1)
 			got = strings.Replace(got, "\r\n\r\n\t\t// END USER CODE", "\r\n\t\t// END USER CODE", 1)

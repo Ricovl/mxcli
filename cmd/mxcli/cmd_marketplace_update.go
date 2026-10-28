@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mendixlabs/mxcli/cmd/mxcli/marketplace"
 	"github.com/mendixlabs/mxcli/internal/auth"
@@ -33,6 +34,11 @@ Local edits are NOT preserved, and by default the update refuses when it finds
 any. Use --save-edits to write them out as re-executable MDL first, and --force
 to proceed. Studio Pro discards them without asking; this at least tells you what
 they were.
+
+Associations that OTHER modules own and that point into this module are removed
+with it, because they reach entities the update deletes. They count as local work
+here too: the update refuses over them, and --save-edits writes each one as
+association-<Module>_<Name>.mdl to replay afterwards.
 
 This does not roll back. Work on a copy or have the project in version control:
 if a step fails partway, the module has already been removed.`,
@@ -82,7 +88,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	work, err := os.MkdirTemp("", "mxupdate")
+	work, err := marketplace.NewWorkDir("mxu")
 	if err != nil {
 		return err
 	}
@@ -117,6 +123,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 	// impossible when that version has been unpublished. A blank 11.13 app ships
 	// NanoflowCommons 6.0.0 and the 6.x line now starts at 6.1.1, so the module
 	// that most needs updating is the one whose baseline cannot be built.
+	var drift *marketplace.Report
 	if noBaseline {
 		fmt.Fprintf(out, "\n--no-baseline: skipping the local-edit check for %s.\n", moduleName)
 		fmt.Fprintln(out, "  Any local edits to this module will be discarded without being named.")
@@ -128,7 +135,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 				"  downloadable. It is not, and --force does not help: there is nothing to compare against.\n"+
 				"  hint: re-run with --no-baseline to update without that check (local edits are lost silently)", berr)
 		}
-		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "base")
+		baseRef, basePkgModule, rerr := referenceFor(ctx, client, base, mendixVersion, work, "b")
 		if rerr != nil {
 			return rerr
 		}
@@ -140,7 +147,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		if perr != nil {
 			return fmt.Errorf("read %s from its published package: %w", basePkgModule, perr)
 		}
-		drift := marketplace.Compare(installed, published)
+		drift = marketplace.Compare(installed, published)
 
 		if saveEdits != "" {
 			written, unsaved, serr := marketplace.SaveEdits(saveEdits, drift)
@@ -160,7 +167,7 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "target")
+	targetRef, _, err := referenceFor(ctx, client, targetVersion, mendixVersion, work, "t")
 	if err != nil {
 		return err
 	}
@@ -176,6 +183,9 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("%w\n\nThe project may be mid-update — %s could be missing. Restore from version control",
 			err, moduleName)
 	}
+	if drift != nil {
+		res.DependentsRemoved = drift.DependentNames()
+	}
 	reportUpdate(out, res)
 	return nil
 }
@@ -186,6 +196,9 @@ func runMarketplaceUpdate(cmd *cobra.Command, args []string) error {
 func gateOnLocalEdits(out io.Writer, drift *marketplace.Report, force bool, saveEdits string) error {
 	result := marketplace.NewDiffResult("", "", "", drift)
 	edited := append(append([]string{}, result.Modified...), result.OnlyInstalled...)
+	// Associations other modules own that reach into this one. Not edits to the
+	// module, but the update deletes them just the same (mendixlabs/mxcli#1502).
+	edited = append(edited, result.Dependents...)
 
 	if len(edited) == 0 {
 		if !result.Verified {
@@ -202,6 +215,11 @@ func gateOnLocalEdits(out io.Writer, drift *marketplace.Report, force bool, save
 
 	if !force {
 		msg := fmt.Sprintf("refusing to update: %d element(s) have been changed locally and the update would discard them:\n", len(edited))
+		if len(result.Dependents) > 0 {
+			msg = fmt.Sprintf("refusing to update: the update would discard %d local element(s) "+
+				"(%d association(s) in other modules reach into %s and are removed with it):\n",
+				len(edited), len(result.Dependents), drift.Module)
+		}
 		for _, e := range edited {
 			msg += "    " + e + "\n"
 		}
@@ -284,6 +302,13 @@ func reportUpdate(out io.Writer, r *marketplace.UpdateResult) {
 			fmt.Fprintf(out, "    %s\n", g)
 		}
 	}
+	if len(r.DependentsRemoved) > 0 {
+		fmt.Fprintf(out, "\n  Removed from other modules (%d) — they reached into %s; replay them from --save-edits:\n",
+			len(r.DependentsRemoved), r.Module)
+		for _, d := range r.DependentsRemoved {
+			fmt.Fprintf(out, "    %s\n", d)
+		}
+	}
 	reportSecurityReconcile(out, r)
 	// A newer module's pages reference widget definitions the project has not
 	// resynced, so `mx check` reports CE0463 until it is told to. Measured on
@@ -323,17 +348,28 @@ func init() {
 // modules in one order and then another used to roll widgets backwards with no
 // sign that anything had happened (an older widget is not a check error). These
 // lines are what makes that visible.
+//
+// The package's own metadata (License.txt, manifest.json, ...) is left out of
+// every install, so it gets one line rather than one per file.
 func reportSkippedFiles(out io.Writer, skipped []marketplace.SkippedFile) {
 	if len(skipped) == 0 {
 		return
 	}
 	var kept, dupes []marketplace.SkippedFile
+	var metadata []string
 	for _, s := range skipped {
-		if s.Kept != "" {
+		switch {
+		case s.Kept != "":
 			kept = append(kept, s)
-		} else {
+		case s.Reason == marketplace.ReasonNotAProjectFile:
+			metadata = append(metadata, s.Path)
+		default:
 			dupes = append(dupes, s)
 		}
+	}
+	if len(metadata) > 0 {
+		fmt.Fprintf(out, "  Left out %d package file(s) package.xml does not list as project files: %s.\n",
+			len(metadata), strings.Join(metadata, ", "))
 	}
 	if len(kept) > 0 {
 		fmt.Fprintf(out, "\n  Kept %d newer widget(s) the package would have rolled back:\n", len(kept))

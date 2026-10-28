@@ -143,8 +143,22 @@ xpathComparisonExpr
 xpathValueExpr
     : xpathFunctionCall
     | MINUS xpathValueExpr
+    | xpathConstantRef
     | xpathPath
     | LPAREN xpathExpr RPAREN
+    ;
+
+/** A constant, `@Module.Constant`, spelled as an expression spells one: a value,
+ * never a path step, so it takes no predicate and no `/`.
+ *
+ * Before this rule `@` was an xpathWord, a one-word name of its own, so
+ * `[Total > @Shop.C_Limit]` failed at `Shop` — and the lenient re-parse that
+ * describe and the long-constraint layout use recovered to an attribute called
+ * "@" and wrote the constraint back without the constant (ako/mxcli#1685).
+ * Parsing it is what lets `mxcli check` say what is actually wrong: mxbuild
+ * rejects a constant in an XPath constraint (CE0161), see validateXPathConstants. */
+xpathConstantRef
+    : AT xpathQualifiedName
     ;
 
 xpathPath
@@ -176,13 +190,17 @@ xpathQualifiedName
  * HYPHENATED_ID (`starts-with`), so a standalone `-` is never part of a name.
  * While it was admissible here, `[Amount > -7]` parsed the sign as a name word
  * and left the digits stranded — reported as "negative literals truncate to -"
- * (issuetracker finding #18). It is a unary operator; see xpathValueExpr. */
+ * (issuetracker finding #18). It is a unary operator; see xpathValueExpr.
+ *
+ * AT is excluded for the same reason: `@` is never part of a name, it opens a
+ * constant (xpathConstantRef). Admitted here, `[Name = @]` compared with an
+ * attribute called "@" (ako/mxcli#1685). */
 xpathWord
     : ~( DOT | SLASH | LBRACKET | RBRACKET | LPAREN | RPAREN | COMMA
        | EQUALS | NOT_EQUALS | LESS_THAN | LESS_THAN_OR_EQUAL
        | GREATER_THAN | GREATER_THAN_OR_EQUAL
        | AND | OR | NOT
-       | SEMICOLON | MINUS
+       | SEMICOLON | MINUS | AT
        | STRING_LITERAL | NUMBER_LITERAL | VARIABLE | MENDIX_TOKEN | DOLLAR_STRING
        )
     ;
@@ -259,6 +277,7 @@ pageHeaderPropertyV3
     | FOLDER COLON /* @alias MDL-DEPR105 */ STRING_LITERAL          // Folder: 'Pages/Admin'
     | CLASS COLON STRING_LITERAL                                     // Class: 'my-page bg-primary'
     | STYLE COLON STRING_LITERAL                                     // Style: 'padding: 10px'
+    | DESIGNPROPERTIES COLON designPropertyListV3                    // DesignProperties: ( 'Spacing top': 'Inner large' ) — the page's own (ako/mxcli#1678)
     | IDENTIFIER COLON propertyValueV3                               // Generic page property: PopupWidth: 800, PopupResizable: true
     ;
 
@@ -330,8 +349,14 @@ useFragmentPayload
     ;
 
 // Fragment argument list: ($p: $Data, $q: microflow Module.Flow)
+//
+// May be empty, meaning no arguments, as microflowArgsV3 may (ako/mxcli#1516).
+// Unlike the flow calls this was not a syntax error: `use fragment Frag()`
+// failed this rule and the page body re-read it as two generic widgets, one of
+// type `use` named `fragment` and one of type `Frag` — and `mxcli check`
+// without a project passed it.
 fragmentArgs
-    : LPAREN fragmentArg (COMMA fragmentArg)* RPAREN
+    : LPAREN (fragmentArg (COMMA fragmentArg)*)? RPAREN
     ;
 
 fragmentArg
@@ -449,6 +474,8 @@ widgetTypeV3
     | NAVIGATIONTREE
     | MENUBAR
     | SIMPLEMENUBAR   // Atlas phone bottom bar: renders a menu document (#573)
+    | SIDEBARTOGGLE   // Atlas's responsive sidebar toggle button (mendixlabs/mxcli#1220)
+    | LAYOUTHEADER    // Forms$Header: a phone/tablet layout's header bar, `region left|right { … }`
     // Object-list container keywords for pluggable widgets (Phase 1 — #538).
     // Each is the singular form of a Type:"object"+IsList:true widget property
     // (e.g. Accordion groups → GROUP). Routed at executor time via the parent
@@ -548,6 +575,12 @@ widgetPropertyV3
     | VISIBLE COLON xpathConstraint /* @alias MDL-DEPR081 */  // Visible: [IsActive = true]
     | VISIBLE COLON qualifiedName IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: Status in (Running, empty) | Mod.Entity.Attr in (…)
     | VISIBLE COLON widgetAttributeRefV3 IN LPAREN visibleValueV3 (COMMA visibleValueV3)* RPAREN  // Visible: $Param.Status in (Running) — read from a page/snippet parameter
+    // Studio Pro's "Visible for module roles" (ConditionalVisibilitySettings.
+    // ModuleRoles, by-name references). Independent of — and combinable with —
+    // the expression or attribute condition: a widget may carry both `Visible:`
+    // lines (mendixlabs/mxcli#1460). Ahead of the expression alternative, which
+    // would otherwise read `roles (…)` as a function call.
+    | VISIBLE COLON ROLES LPAREN visibleRoleListV3 RPAREN  // Visible: roles (Mod.Admin, Mod.User)
     | VISIBLE COLON propertyValueV3                   // Visible: false
     | VISIBLE COLON expression                        // Visible: $currentObject/Status = 'Open'
     | EDITABLE COLON xpathConstraint /* @alias MDL-DEPR081 */ // Editable: [Status != 'Closed']
@@ -662,7 +695,7 @@ dataSourceExprV3
       (WHERE (xpathConstraint (andOrXpath? xpathConstraint)* | expression))?
       (SORT_BY sortColumn (COMMA sortColumn)*)?
       (SEARCH_BY searchAttribute (COMMA searchAttribute)*)?
-    | MICROFLOW qualifiedName microflowArgsV3?        // MICROFLOW Module.Flow
+    | MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3? // MICROFLOW Module.Flow [with (FormValidations: None)]
     | NANOFLOW qualifiedName microflowArgsV3?         // NANOFLOW Module.Flow
     | ASSOCIATION associationPathV3                   // ASSOCIATION Module.Assoc (explicit form)
     | ASSOCIATION VARIABLE SLASH associationPathV3    // ASSOCIATION $currentObject/Module.Assoc (keyword + sugar)
@@ -700,14 +733,20 @@ actionExprV3
     | CREATE_OBJECT /* @alias MDL-DEPR020 */ qualifiedName (THEN actionExprV3 | actionSettingsV3)?
     | SHOW PAGE qualifiedName microflowArgsV3? actionSettingsV3?        // show page Module.Page (Param: val)
     | SHOW_PAGE /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
-    | CALL MICROFLOW qualifiedName microflowArgsV3? actionSettingsV3?   // call microflow Module.Flow
-    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
-    | CALL NANOFLOW qualifiedName microflowArgsV3? actionSettingsV3?    // call nanoflow Module.Flow
-    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionSettingsV3?
+    | CALL MICROFLOW qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?   // call microflow Module.Flow
+    | MICROFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?
+    | CALL NANOFLOW qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?    // call nanoflow Module.Flow
+    | NANOFLOW /* @alias MDL-DEPR020 */ qualifiedName microflowArgsV3? actionReturnsV3? actionSettingsV3?
     | openLinkV3 STRING_LITERAL actionSettingsV3?                       // open link 'https://...'
     | openLinkV3 VARIABLE SLASH attributePathV3 actionSettingsV3?       // open link $currentObject/URL (address read from an attribute)
     | SIGN_OUT actionSettingsV3?                                        // sign out
     | COMPLETE_TASK STRING_LITERAL actionSettingsV3?                    // complete task 'OutcomeName'
+    // The workflow events Studio Pro offers beside "Complete user task", in the
+    // words the microflow actions use (ako/mxcli#832). Without them describe
+    // printed no action for a stored one and a rewrite wrote Forms$NoAction.
+    | OPEN USER TASK actionSettingsV3?                                  // open user task (Show user task page)
+    | OPEN WORKFLOW actionSettingsV3?                                   // open workflow (Show workflow admin page)
+    | CALL WORKFLOW qualifiedName actionSettingsV3?                     // call workflow Module.Workflow
     ;
 
 // The client-action settings Studio Pro shows under an event: "Disabled during
@@ -725,8 +764,24 @@ actionSettingsV3
     : WITH LPAREN actionSettingV3 (COMMA actionSettingV3)* COMMA? RPAREN
     ;
 
+// A flow call's return value mappings (Mendix 11.5, Studio Pro's "Return value
+// mappings"): `returns (Brand = $ActionReturnValue/Brand, $result = $ActionReturnValue,
+// Brand = 'fixed')`. Target = source, like the argument list: the target is an
+// attribute of the data container's object or a page variable, the source the
+// return value, one of its attributes, or an expression (ako/mxcli#977).
+actionReturnsV3
+    : RETURNS LPAREN actionReturnV3 (COMMA actionReturnV3)* COMMA? RPAREN
+    ;
+
+actionReturnV3
+    : (VARIABLE | parameterName) EQUALS expression
+    ;
+
+// The value is a qualifiedName so a setting can name a document (`open
+// workflow with (DefaultPage: Module.Page)`); a single segment is the
+// identifierOrKeyword every other setting takes.
 actionSettingV3
-    : identifierOrKeyword COLON (STRING_LITERAL | NONE | identifierOrKeyword)
+    : identifierOrKeyword COLON (STRING_LITERAL | NONE | qualifiedName)
     ;
 
 // The page actions are the words a microflow uses (R8, ako/mxcli#752):
@@ -746,8 +801,19 @@ openLinkV3
 
 // V3 Microflow arguments: (Param = value, ...) — R4, the argument form of every
 // call site. `Param: value` and `$Param = value` are deprecated spellings.
+//
+// The list may be EMPTY, and `M.F()` means exactly what `M.F` means — no
+// mappings (ako/mxcli#1516). A flow body writes `call microflow M.F()`, so the
+// same call on a button was written that way by analogy and was a syntax error
+// at the `)`, reported as "expecting the start of a statement". This one rule
+// serves every page action (call microflow/nanoflow, show page and their
+// deprecated spellings), both flow data sources, and so every site that takes
+// an action: Action/OnClick/OnChange, a pluggable widget's action property,
+// alter page set, a navigation or menu document item, a fragment argument and
+// a building-block override. describe keeps writing a parameterless call
+// without the brackets.
 microflowArgsV3
-    : LPAREN microflowArgV3 (COMMA microflowArgV3)* RPAREN
+    : LPAREN (microflowArgV3 (COMMA microflowArgV3)*)? RPAREN
     ;
 
 microflowArgV3
@@ -846,6 +912,12 @@ selectionModeV3
     ;
 
 // V3 Generic property value
+// The module roles of `Visible: roles (…)`, a rule of its own so the
+// widgetPropertyV3 context keeps its single qualifiedName accessor.
+visibleRoleListV3
+    : qualifiedName (COMMA qualifiedName)*
+    ;
+
 propertyValueV3
     : STRING_LITERAL
     | QUOTED_IDENTIFIER              // "AttrName" — quoted attribute value for pluggable sub-props (chart series staticXAttribute)

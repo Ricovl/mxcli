@@ -22,6 +22,15 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 		b.exitAlterFlowStatement(ctx)
 		return
 	}
+	// ALTER NAVIGATION / ALTER MENU: item-level menu edits.
+	if ctx.NAVIGATION() != nil {
+		b.exitAlterNavigationStatement(ctx)
+		return
+	}
+	if ctx.MENU_KW() != nil {
+		b.exitAlterMenuStatement(ctx)
+		return
+	}
 
 	// Handle ALTER PAGES … SET LAYOUT (the bulk repoint)
 	if sub := ctx.AlterPagesStylingStatement(); sub != nil {
@@ -48,6 +57,12 @@ func (b *Builder) ExitAlterStatement(ctx *parser.AlterStatementContext) {
 	// Handle ALTER PUBLISHED REST SERVICE
 	if ctx.PUBLISHED() != nil && ctx.REST() != nil && ctx.SERVICE() != nil {
 		b.exitAlterPublishedRestServiceStatement(ctx)
+		return
+	}
+
+	// Handle ALTER CONSUMED REST SERVICE
+	if ctx.ConsumedRestServiceKw() != nil {
+		b.exitAlterRestClientStatement(ctx)
 		return
 	}
 

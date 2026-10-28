@@ -11,14 +11,14 @@ description: "XPath constraint syntax for MDL — retrieve WHERE clauses, page d
 | lines | section |
 |---|---|
 | 28-34 | When to Use This Skill |
-| 35-75 | XPath vs Mendix Expressions |
-| 76-119 | Syntax Reference |
-| 120-278 | How a Constraint Is Laid Out on Disk |
-| 279-329 | Usage Contexts |
-| 330-369 | Enumeration Attributes |
-| 370-411 | Common Patterns |
-| 412-423 | Validation |
-| 424-433 | Troubleshooting |
+| 35-87 | XPath vs Mendix Expressions |
+| 88-131 | Syntax Reference |
+| 132-309 | How a Constraint Is Laid Out on Disk |
+| 310-360 | Usage Contexts |
+| 361-400 | Enumeration Attributes |
+| 401-442 | Common Patterns |
+| 443-454 | Validation |
+| 455-464 | Troubleshooting |
 
 <!-- /skill-index -->
 # XPath Constraints in MDL
@@ -45,6 +45,7 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 | Token quoting | `'[%CurrentUser%]'` (quoted) | `[%CurrentUser%]` (unquoted) |
 | Nested filter | `Assoc/entity[pred]` | Not applicable |
 | Arithmetic on value | **not supported** — pre-compute into a variable | `+`, `-`, `*`, `div`, `mod` |
+| Constant | **not supported** — assign it to a variable | `@Module.Constant` |
 
 > **XPath constraints cannot compute values.** `where [Seq = $Game/MoveSeq + 1]`
 > is a parse error (Mendix XPath has no arithmetic on the value side). Compute the
@@ -71,6 +72,17 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > ```mdl
 > declare $Cutoff datetime = addDays([%CurrentDateTime%], -7);
 > retrieve $L from Mod.T where [DueDate > $Cutoff];
+> ```
+
+> **Constants are not available in XPath either.** `[Total > @Mod.C_Limit]`
+> parses, but mxbuild rejects a constant in a retrieve, a data source, an access
+> rule and a user task's targeting alike (`CE0161`, measured on 11.13.0) — an
+> unknown one too, so it is never a missing-constant error. `mxcli check`
+> refuses it (**MDL-XPATH03**). In a flow, assign it to a variable first:
+> ```mdl
+> -- ❌ WRONG: retrieve $L from Mod.T where [Total > @Mod.C_Limit];
+> declare $Limit integer = @Mod.C_Limit;
+> retrieve $L from Mod.T where [Total > $Limit];
 > ```
 
 ## Syntax Reference
@@ -200,7 +212,21 @@ where [Module.Assoc/Module.Entity/Name = $Variable/Name]
 
 -- Variable on right side
 where [Name = $currentObject/SearchString]
+
+-- An association compared with ONE hop off a variable — the hop must land on
+-- the same entity as the left side (or a generalization/specialization of it)
+where [Module.District_Region = $currentObject/Module.AreaPicker_Region]
 ```
+
+> **What a variable comparand may be (CE0161, measured on 11.13.0 and 11.14.0).**
+> At most one hop off the variable (`$currentObject/Mod.Assoc/Name` is **MDL055**).
+> That one hop compares like with like: an association path with an association
+> landing on the **same entity** — `[Mod.District_Region = $currentObject/Mod.AreaPicker_City]`
+> (Region vs City) is CE0161 and **MDL-XPATH02**, as is comparing an association
+> with an attribute (`[Mod.District_Region = $currentObject/Label]`). The hop is
+> written **qualified**: `$currentObject/AreaPicker_Region` reads as an attribute
+> and is CE0161 / **MDL-XPATH01**. In a widget data source `$currentObject` is the
+> enclosing data container's object; a page parameter (`$Picker/…`) works the same.
 
 ### Nested Predicates
 
@@ -265,6 +291,11 @@ where [System.owner = '[%CurrentUser%]']
 > `check --references` flags this). Same for `changedBy`/`changedDate`/`createdDate`.
 
 Common tokens: `[%CurrentUser%]`, `[%CurrentDateTime%]`, `[%CurrentObject%]`, `[%UserRole_RoleName%]`, `[%DayLength%]`
+
+> **`[%UserRole_RoleName%]` names a project user role, case-sensitively** (`show user
+> roles`). One that does not exist is CE1613 at the retrieve, data source or access
+> rule — and while any CE1613 is in the app, mx check reports no CE0161 at all.
+> `check --references` refuses it.
 
 ### ID Pseudo-Attribute
 

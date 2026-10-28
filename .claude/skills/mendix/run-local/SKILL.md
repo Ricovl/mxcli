@@ -12,27 +12,27 @@ description: "The warm Docker-free dev loop, `mxcli run --local` — model chang
 |---|---|
 | 40-47 | Overview |
 | 48-60 | When to Use This Skill |
-| 61-116 | Usage |
-| 117-129 | How apply is chosen |
-| 130-195 | Prerequisites |
-| 196-213 | The intended loop |
-| 214-238 | Editing themes (SCSS) — rebuild, never clear caches |
-| 239-265 | `--watch` waits for a write to finish before it builds |
-| 266-294 | "My edit didn't show up" — stale process, not stale cache |
-| 295-322 | Flags |
-| 323-376 | Metrics and OpenTelemetry |
-| 377-434 | Pages render in the browser |
-| 435-452 | Pixel-perfect page loop |
-| 453-473 | Debugging a server-side error |
-| 474-494 | "Sign in failed" that is not about the password |
-| 495-527 | The same licence also stops the app after a few hours |
-| 528-607 | External browser preview (`--hub`) |
-| 608-616 | Validation checklist |
-| 617-656 | Constant values come from a configuration |
-| 657-660 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
-| 661-664 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
-| 665-668 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
-| 669-671 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
+| 61-126 | Usage |
+| 127-139 | How apply is chosen |
+| 140-230 | Prerequisites |
+| 231-248 | The intended loop |
+| 249-276 | Editing themes (SCSS) — rebuild, never clear caches |
+| 277-303 | `--watch` waits for a write to finish before it builds |
+| 304-332 | "My edit didn't show up" — stale process, not stale cache |
+| 333-363 | Flags |
+| 364-417 | Metrics and OpenTelemetry |
+| 418-475 | Pages render in the browser |
+| 476-493 | Pixel-perfect page loop |
+| 494-514 | Debugging a server-side error |
+| 515-538 | "Sign in failed" that is not about the password |
+| 539-571 | The same licence also stops the app after a few hours |
+| 572-651 | External browser preview (`--hub`) |
+| 652-660 | Validation checklist |
+| 661-717 | Constant values come from a configuration |
+| 718-721 | Warm local dev loop (`mxcli run --local [--watch] [--screenshot]`) |
+| 722-725 | External browser preview (`mxcli run --hub <url>` + `mxcli tunnel-hub`) |
+| 726-729 | Tunnel-hub GitHub authentication (opt-in, gated on `--github-oauth-client-id`; absent = today's open hub) |
+| 730-732 | Runtime metrics + settings passthrough (`mxcli run --local --metrics` / `--runtime-setting Key=Value`) |
 
 <!-- /skill-index -->
 # Warm Local Dev Loop — `mxcli run --local`
@@ -104,8 +104,10 @@ What each one does, precisely:
   returns the first build made from that source or newer. A change the loop applied
   **before** you called `wait` is reported at once — it never waits for a "next"
   change that already happened. With nothing changed it reports the last build.
-  A failure prints the CE codes / SCSS error lines; on 11.14 the second-build defect
-  is reported as a failure with its explanation, never as a hang. A run started
+  A failure prints the CE codes / SCSS error lines, never a hang. Where mxbuild
+  writes the client itself (11.12.5, 11.14) its serve process only builds
+  completely once, so the loop restarts it per change (one line says so; ~25–30 s
+  instead of ~5 s, still a hot reload). A run started
   without `--watch` never applies a change: `wait` says so and exits 1.
 - **`run stop`** asks the run to shut down (it removes `--test-endpoint`, turns the
   debugger off), waits until it is gone, then sweeps the run's process session, so an
@@ -113,6 +115,14 @@ What each one does, precisely:
   a run that was killed with `-9`. Stopping when nothing runs is a no-op (exit 0).
 - **`run restart`** reuses the arguments recorded in the state file; to change a flag,
   `run stop` and `--detach` again.
+
+- **`.mxcli/run-local.json`** (ports, admin password — how `oql`, `log` and `constant set
+  --apply` reach the app) is written when the app serves and removed only by the run
+  that wrote it, right after `run-state.json` records `phase: stopped` with a `reason`.
+  **Missing while you believed the app was up? Run `mxcli run status` before
+  suspecting credentials** — it names the reason (`stopped: trial licence time limit
+  reached at 18:43:16 (runtime.log); restart with …`) or a live run whose file is gone.
+  Lifecycle and what each answer means: [reference/run-local-json.md](reference/run-local-json.md).
 
 ## How apply is chosen
 
@@ -143,10 +153,27 @@ association catalog only at startup; behavioural changes are hot-reloaded.
     permits only that target — the devcontainer default. Both are non-interactive,
     so a run never blocks on a password prompt; where sudo is unavailable the
     user-owned cluster still carries it.
+    On **Windows** the installer always gives `postgres` a password and there is no
+    sudo: pass `--db-admin-user postgres --db-admin-password <pw>` (or set
+    `PGPASSWORD` for postgres). The admin login is used only to create the role and
+    database, and is refused without `--ensure-db`.
     The user-owned cluster persists across sessions; its server log is
     `~/.mxcli/postgres/server.log`. Stop it with
     `pg_ctl -D "$HOME/.mxcli/postgres/data" stop`. To remove it, stop it first and
     then delete `~/.mxcli/postgres` (this permanently deletes its databases).
+    **A stopped system cluster is never replaced silently.** When a package-made
+    cluster for the same port exists (`/var/lib/postgresql/<ver>/<name>`,
+    `/var/lib/pgsql/data`, `/var/lib/postgres/data`, Homebrew's) and the service
+    manager did not bring it up, `--ensure-db` **stops** with *refusing to create a
+    new, empty PostgreSQL cluster: the cluster in <dir> … is not running* and the
+    command that starts it (`sudo pg_ctlcluster 16 main start`). A new cluster on
+    that port would answer every probe while holding none of the app's data — an
+    empty database looks exactly like a new one (ako/mxcli#866). Start it and rerun;
+    if it is not this app's and cannot be started, `MXCLI_ENSURE_DB_NEW_CLUSTER=1`
+    creates the user-owned cluster anyway. Whenever `initdb` does run, the output
+    says **WARNING: created a NEW, EMPTY PostgreSQL cluster** — if you see that and
+    expected your data, stop: the data is in another server. An existing user-owned
+    cluster is simply restarted (with a note naming any stopped system cluster).
   - Without `--ensure-db`, create it once and the command errors if it's unreachable:
 
     ```bash
@@ -192,6 +219,14 @@ mxbuild from the Mendix CDN is a Linux binary and cannot run natively on darwin
   install directory (usually `C:\Program Files\Mendix`). A "Gradle not found"
   from a local run therefore points at an incomplete or foreign mxbuild bundle —
   check which mxbuild was resolved before looking for a system Gradle.
+  The **one-shot** runs — `Resolving N managed Java dependency…` (`mx
+  sync-java-dependencies`), `mxcli new`'s first build, `docker build` — run Gradle
+  **without a daemon** (`-Dorg.gradle.daemon=false` appended to your
+  `GRADLE_OPTS`, which is otherwise kept). An idle daemon an earlier run left
+  behind made the dependency step hang 10+ minutes in silence (ako/mxcli#1340); it
+  now prints `still resolving…` every 30s and gives up after 10 minutes
+  (`MXCLI_SYNC_JAVA_DEPS_TIMEOUT`) naming that cause. `mxbuild --serve` keeps its
+  daemon: it builds on every change, which is what a daemon is for.
 
 ## The intended loop
 
@@ -219,7 +254,10 @@ the loop rebuilds and hot-applies. Without `--watch`, nothing is watched, so the
 does nothing until you restart `run --local` (or re-run with `--watch`). `mxbuild
 --serve` recompiles the theme on its next build and correctly picks up SCSS content
 changes, so **never** `rm -rf theme-cache/ .mendix-cache/ deployment/` — clearing
-caches is a red herring.
+caches is a red herring. The one stale state is the serve process's own: after a
+Sass error it reports `[CE6093]` with that *first* error on every later build, even
+once fixed. `--watch` restarts `mxbuild --serve` when a theme failure follows
+another (one line says so), so the error you see after that is the current one.
 
 A **theme compile error fails the build step, before the runtime starts** — the
 error text is in the serve `/build` output (printed by `run --local`), not a
@@ -303,7 +341,9 @@ run's process session), and `run status` reports them. Do **not**
 | `--watch` | off | Rebuild + hot-apply on each change |
 | `--web-client-timeout` | `$MXCLI_WEB_CLIENT_TIMEOUT`, else `5m` | Limit for one web client bundle build; on timeout the tail of `deployment/log/web-client-build.log` is printed |
 | `--ensure-db` | off | Provision local Postgres + app database if missing |
+| `--db-admin-user` / `--db-admin-password` | postgres / — | Superuser login for `--ensure-db` when it has a password (Windows); only with `--ensure-db` |
 | `--app-port` / `--admin-port` / `--serve-port` | 8080 / 8090 / 6543 | Ports |
+| `--listen-addr` | `127.0.0.1` | IP the app binds to. `0.0.0.0` (or `::`) makes it reachable from other machines; the network URLs are printed once it runs. If the app builds absolute URLs (SSO redirects, email links), pair it with `--runtime-setting ApplicationRootUrl=http://<host>:<port>/` (or a real host in the configuration): the runtime does not derive one from the bind address — a warning says so. The M2EE admin API always stays on loopback |
 | `--db-host` / `--db-name` / `--db-user` / `--db-password` | 127.0.0.1:5432 / derived / mendix / mendix | Database; bracket IPv6 endpoints (`[::1]:5432`) |
 | `--db-type` | `postgresql` | `hsqldb` runs on the runtime's built-in file database: no database server, no `--ensure-db`, works offline. Data lives in `<project>/deployment/data/database/hsqldb/`. Refused together with `--db-host`/`--db-user`/`--db-password`/`--ensure-db`. Local development only |
 | `--setup` | off | Cache MxBuild+runtime + ensure DB, then exit (SessionStart bring-up) |
@@ -319,6 +359,7 @@ run's process session), and `run status` reports them. Do **not**
 | `--trace-service` | `.mpr` name | `OTEL_SERVICE_NAME` under `--trace` |
 | `--trace-otlp` | off (console) | Export traces to this OTLP collector endpoint (e.g. `http://127.0.0.1:4318`) instead of the console. Implies `--trace`. Needed for flame charts |
 | `--runtime-setting Key=Value` | — | Merge an extra runtime setting into the boot config (Value parsed as JSON when possible). Repeatable. |
+| (scheduled events) | `ALL` | `run --local` boots with `ScheduledEventExecution=ALL` (the runtime's own default is NONE, which silently never fires an event) and prints `Scheduled events: ALL (N defined)` at boot. `--runtime-setting ScheduledEventExecution=NONE` (or `SPECIFIED` plus `MyScheduledEvents`) wins. The test runner keeps NONE |
 
 ## Metrics and OpenTelemetry
 
@@ -484,13 +525,16 @@ Maximum number of sessions exceeded! (You are currently using a trial license)
 
 So: when a login you know is correct starts failing, `grep -c "Maximum number of
 sessions" .mxcli/runtime.log` before touching the credentials or the user's
-password in the model. `--screenshot-user` does this for you — a rejected sign-in
-now reads the log and says so instead of quietly screenshotting the login page.
+password in the model. `--screenshot-user` and `mxcli playwright check` do this
+for you — a rejected sign-in reads the log and says so instead of quietly
+screenshotting or checking the login page.
 
 Sessions are held until they expire; restarting `run --local` clears them all.
 A script that drives the app through a browser should **sign out at the end**,
 otherwise each run leaks a slot and the fifth or sixth run is the one that fails —
 which makes it look like a change you just made broke authentication.
+`mxcli playwright check` keeps one saved session per host and user and reuses it,
+so repeated checks hold one slot; `--sign-out` releases it at the end of a run.
 
 ## The same licence also stops the app after a few hours
 
@@ -643,6 +687,23 @@ encryption key while the model said otherwise.
   constant the project does not declare is refused before the app boots: the
   runtime ignores a value for a constant that does not exist, so a typo would
   otherwise be reported as applied and do nothing.
+
+The same configuration's **JVM options** reach the runtime JVM too, as they do when
+Studio Pro runs the app: `MaxJavaHeapSize` (Java heap ▸ Maximum size, in MB) as
+`-Xmx<n>m`, then the **Extra JVM parameters**, split like a shell would split them
+(a quoted run stays one argument). Set them with
+`alter settings configuration 'Default' (ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888')`.
+
+```text
+Passing 3 JVM option(s) from configuration "Default": -Xmx768m -Dhttps.proxyHost=… -Dhttps.proxyPort=…
+```
+
+- A `-D` value is not printed (the parameters are also where a trust-store password
+  goes); `describe settings` shows them. Nothing set, nothing printed.
+- They go after mxcli's own `-D` flags, so a property the configuration sets wins.
+- An unbalanced quote is refused before the boot, naming the configuration —
+  passed on, it would cut a property in half or stop the JVM starting.
+- `mxcli test --local` boots with the same options.
 
 Setting a constant on an app that is *already running* is a different mechanism
 again: `MicroflowConstants` over the M2EE admin port, which is how Mendix Cloud

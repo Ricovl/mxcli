@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -135,6 +135,28 @@ func init() {
 		NullFields: []string{"Icon", "ConditionalVisibilitySettings", "NativeAccessibilitySettings"},
 	})
 	codec.RegisterListMarker("Forms$ActionButton", 2)
+	// SidebarToggleButton: null Icon/visibility slots; marker 2 as a widget.
+	// Measured on Atlas_Core.Atlas_Default (11.13.0, mendixlabs/mxcli#1220).
+	codec.RegisterTypeDefaults("Forms$SidebarToggleButton", codec.TypeDefaults{
+		NullFields: []string{"Icon", "ConditionalVisibilitySettings"},
+	})
+	codec.RegisterListMarker("Forms$SidebarToggleButton", 2)
+	// A native layout's content: RightHeaderPlaceholder is null when unset
+	// (NativePhone_FullPage) and SidebarWidgets always stored, marker 2 —
+	// 5 of 5 native Atlas_Core layouts (11.13.0).
+	codec.RegisterTypeDefaults("Forms$NativeLayoutContent", codec.TypeDefaults{
+		NullFields:           []string{"RightHeaderPlaceholder"},
+		MandatoryListMarkers: map[string]int32{"SidebarWidgets": 2},
+	})
+	codec.RegisterPropertyListMarker("Forms$NativeLayoutContent", "SidebarWidgets", 2)
+	// Header: both widget lists always stored, marker 2 — 9 of 9 in Atlas_Core
+	// (11.13.0).
+	codec.RegisterTypeDefaults("Forms$Header", codec.TypeDefaults{
+		MandatoryListMarkers: map[string]int32{"LeftWidgets": 2, "RightWidgets": 2},
+	})
+	codec.RegisterPropertyListMarker("Forms$Header", "LeftWidgets", 2)
+	codec.RegisterPropertyListMarker("Forms$Header", "RightWidgets", 2)
+	codec.RegisterListMarker("Forms$Header", 2)
 	// Title: null visibility/accessibility slots; marker 2 as a widget.
 	codec.RegisterTypeDefaults("Forms$Title", codec.TypeDefaults{
 		NullFields: []string{"ConditionalVisibilitySettings", "NativeAccessibilitySettings"},
@@ -214,6 +236,21 @@ func init() {
 		MandatoryLists:       []string{"OutputMappings"},
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
+	})
+	// The workflow events' unset slots (ako/mxcli#832): a workflow call with
+	// no confirmation, and an admin-page action with no default page.
+	codec.RegisterTypeDefaults("Forms$CallWorkflowClientAction", codec.TypeDefaults{
+		NullFields: []string{"ConfirmationInfo"},
+	})
+	codec.RegisterTypeDefaults("Forms$OpenWorkflowClientAction", codec.TypeDefaults{
+		EmptyStringFields: []string{"DefaultPage"},
+	})
+	// One return value mapping: Studio Pro writes all four slots on every row,
+	// null where the row does not use them and Expression "" (ako/TestApp
+	// Pages.OutputMappingButton, 11.15).
+	codec.RegisterTypeDefaults("Forms$OutputMapping", codec.TypeDefaults{
+		NullFields:        []string{"AttributeRef", "SourceAttributeRef", "SourceVariable"},
+		EmptyStringFields: []string{"Expression"},
 	})
 	// A nanoflow DATA SOURCE is flat — no settings child — and carries its
 	// (possibly empty) mapping list directly, marker 2. Measured: 5 of 5 Studio
@@ -420,6 +457,11 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			if tp.ConditionalVisibility != nil {
 				tpg.SetConditionalVisibilitySettings(conditionalVisibilityToGen(tp.ConditionalVisibility))
 			}
+			// Its badge, a client template like a dynamic text's content
+			// (mendixlabs/mxcli#1644); null otherwise, as Studio Pro writes it.
+			if tp.Badge != nil {
+				tpg.SetBadge(clientTemplateToGen(tp.Badge))
+			}
 			for _, c := range tp.Widgets {
 				cg, err := widgetToGen(c)
 				if err != nil {
@@ -444,7 +486,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g := genPg.NewDynamicText()
 		applyWidgetBase(g, &x.BaseWidget)
 		g.SetRenderMode(orDefaultStr(string(x.RenderMode), "Text"))
-		g.SetNativeTextStyle("Text")
+		g.SetNativeTextStyle(orDefaultStr(string(x.NativeTextStyle), string(pages.NativeTextStyleText)))
 		g.SetContent(clientTemplateToGen(x.Content))
 		return g, nil
 
@@ -471,7 +513,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetDataSource(ds)
-		g.SetEditability(editability(x.ReadOnly))
+		g.SetEditability(dataViewEditability(x))
 		// Control is the DataView default, measured 47 of 56 across ako/TestApp's
 		// 67 pages with not one Inherit — so it is NOT the "Inherit" every other
 		// input widget uses. An authored or carried value wins (ako/mxcli#550).
@@ -542,7 +584,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		g.SetInputMask("")
 		g.SetIsPasswordBox(x.IsPassword)
-		g.SetKeyboardType("Default")
+		g.SetKeyboardType(orDefaultStr(x.KeyboardType, "Default")) // ako/mxcli#1209
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
@@ -555,12 +597,24 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Studio Pro's "On enter key press". A NoAction was hard-coded here,
+		// so the action could not be written and describe → exec replaced a
+		// stored one with nothing (ako/mxcli#1743). nil still writes the
+		// NoAction.
+		onEnterKey, err := clientActionToGen(x.OnEnterKeyPressAction)
+		if err != nil {
+			return nil, err
+		}
+		onLeave, err := clientActionToGen(x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
 		g.SetOnChangeAction(onChange)
 		g.SetOnEnterAction(onEnter)
-		g.SetOnEnterKeyPressAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		g.SetOnEnterKeyPressAction(onEnterKey)
+		g.SetOnLeaveAction(onLeave)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		g.SetValidation(widgetValidationToGenWith(x.ValidationExpression, x.ValidationMessage))
@@ -615,8 +669,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeCB)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterCB, leaveCB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterCB)
+		g.SetOnLeaveAction(leaveCB)
 		// Unset keeps Mendix's default; an authored Control/Text is what decides
 		// whether a read-only check box renders as the glyph or as "Yes"/"No"
 		// text (ako/mxcli#490). The value is canonicalised at build time.
@@ -654,20 +712,28 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
 		g.SetMaxLengthCode(maxLengthCodeFor(x.SourceVariable))
-		lines := int32(x.Rows)
-		if lines == 0 {
-			lines = 5
+		// Unset writes Studio Pro's defaults: 5 lines and Autocomplete on, as on
+		// all 58 text areas in PedApp and TestApp. Autocomplete was not written
+		// at all, and a stored 0 lines came back as 5 (ako/mxcli#977).
+		lines := int32(5)
+		if x.NumberOfLines != nil {
+			lines = *x.NumberOfLines
 		}
 		g.SetNumberOfLines(lines)
+		g.SetAutocomplete(x.Autocomplete == nil || *x.Autocomplete)
 		onChangeTA, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeTA)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterTA, leaveTA, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterTA)
+		g.SetOnLeaveAction(leaveTA)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
 		g.SetSubmitOnInputDelay(submitOnInputDelay(x.SubmitOnInputDelay))
 		// Studio Pro stores one on every textarea; without the key a rewrite
@@ -700,10 +766,14 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeDP)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterDP, leaveDP, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterDP)
+		g.SetOnLeaveAction(leaveDP)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -721,24 +791,34 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}
-		g.SetReadOnlyStyle("Inherit")
+		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetRenderHorizontal(x.RenderDirection != pages.RenderDirectionVertical)
 		onChange, err := clientActionToGen(x.OnChangeAction)
 		if err != nil {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChange)
-		g.SetOnEnterAction(noActionGen())
 		// Studio Pro stores all three event slots on every check box, date
 		// picker and radio button group (PedApp and ako/TestApp: 16, 76 and 4
 		// of 4). Without OnLeaveAction a rewrite deleted the slot (#721 L2).
-		g.SetOnLeaveAction(noActionGen())
+		enterRB, leaveRB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterRB)
+		g.SetOnLeaveAction(leaveRB)
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
 	case *pages.ScrollContainer:
 		g := genPg.NewScrollContainer()
 		applyWidgetBase(g, &x.BaseWidget)
+		// Only when stated: unset, the key is left to Studio Pro's default
+		// (Headline, canon's measured property defaults), so a layout that
+		// never said it is written as before (ako/mxcli#1703).
+		if x.LayoutMode != "" {
+			g.SetLayoutMode(x.LayoutMode)
+		}
 		for _, r := range x.Regions {
 			rg, err := scrollRegionToGen(r)
 			if err != nil {
@@ -823,6 +903,47 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		}
 		g.SetMenuSource(src)
 		g.SetOrientation(orDefaultStr(string(x.Orientation), string(pages.MenuOrientationHorizontal)))
+		return g, nil
+
+	case *pages.LayoutHeader:
+		// Forms$Header, a phone/tablet layout's header bar. gen also exposes
+		// the singular LeftWidget / RightWidget, deleted in 7.15 and never set.
+		g := genPg.NewHeader()
+		applyWidgetBase(g, &x.BaseWidget)
+		for _, w := range x.LeftWidgets {
+			wg, err := widgetToGen(w)
+			if err != nil {
+				return nil, err
+			}
+			g.AddLeftWidgets(wg)
+		}
+		for _, w := range x.RightWidgets {
+			wg, err := widgetToGen(w)
+			if err != nil {
+				return nil, err
+			}
+			g.AddRightWidgets(wg)
+		}
+		return g, nil
+
+	case *pages.SidebarToggleButton:
+		// An action button's face without the action (mendixlabs/mxcli#1220).
+		// Studio Pro always stores a CaptionTemplate, empty on Atlas's own.
+		g := genPg.NewSidebarToggleButton()
+		applyWidgetBase(g, &x.BaseWidget)
+		g.SetRenderType(orDefaultStr(string(x.RenderMode), "Button"))
+		g.SetButtonStyle(orDefaultStr(string(x.ButtonStyle), "Default"))
+		if x.CaptionTemplate != nil {
+			g.SetCaption(clientTemplateToGen(x.CaptionTemplate))
+		} else {
+			g.SetCaption(textAsClientTemplate(nil))
+		}
+		g.SetTooltip(captionToGen(x.Tooltip))
+		if x.Icon != nil {
+			if icon := iconToGen(x.Icon); icon != nil {
+				g.SetIcon(icon)
+			}
+		}
 		return g, nil
 
 	case *pages.GroupBox:
@@ -1009,6 +1130,9 @@ func navListItemToGen(item *pages.NavigationListItem) (element.Element, error) {
 	// on 11.14.0 with two named items) — the CE7247 / CE0495 an older note
 	// blamed on its absence is not reproduced.
 	g.SetAppearance(newAppearance(item.Class, item.Style, item.DynamicClasses, nil))
+	if item.ConditionalVisibility != nil {
+		g.SetConditionalVisibilitySettings(conditionalVisibilityToGen(item.ConditionalVisibility))
+	}
 	act, err := clientActionToGen(item.Action)
 	if err != nil {
 		return nil, err
@@ -1049,6 +1173,12 @@ func layoutGridRowToGen(row *pages.LayoutGridRow) (element.Element, error) {
 	g.SetHorizontalAlignment(alignmentOrNone(row.HorizontalAlignment))
 	g.SetSpacingBetweenColumns(!row.NoSpacingBetweenColumns)
 	g.SetVerticalAlignment(alignmentOrNone(row.VerticalAlignment))
+	// The row's own visibility (mendixlabs/mxcli#1461). It was never set, so the
+	// registered null default replaced a Studio Pro row's condition on every
+	// rewrite of its page, the row then always visible.
+	if row.ConditionalVisibility != nil {
+		g.SetConditionalVisibilitySettings(conditionalVisibilityToGen(row.ConditionalVisibility))
+	}
 	for _, col := range row.Columns {
 		cg, err := layoutGridColumnToGen(col)
 		if err != nil {
@@ -1153,6 +1283,11 @@ func conditionalVisibilityToGen(cvs *pages.ConditionalVisibilitySettings) elemen
 	assignID(g)
 	g.SetExpression(cvs.Expression)
 	g.SetIgnoreSecurity(false)
+	// "Visible for module roles" (mendixlabs/mxcli#1460): by-name references,
+	// independent of the expression/attribute condition beside them.
+	if len(cvs.ModuleRoles) > 0 {
+		g.SetModuleRolesQualifiedNames(cvs.ModuleRoles)
+	}
 	// "Visible: based on attribute value": the attribute plus one condition per
 	// value it can hold (ako/mxcli attribute-condition visibility).
 	if cvs.Attribute != "" {
@@ -1526,12 +1661,16 @@ func widgetValidationToGenWith(expression, message string) element.Element {
 	return v
 }
 
-// editability maps a read-only flag to the Forms editability enum.
-func editability(readOnly bool) string {
-	if readOnly {
+// dataViewEditability is the Forms editability enum a data view stores.
+//
+// The builder puts `Editable:` on the BaseWidget, as it does for every widget.
+// Reading only ReadOnly, which nothing sets, wrote Always whatever was authored,
+// so a read-only data view became editable on describe → exec (ako/mxcli#1676).
+func dataViewEditability(x *pages.DataView) string {
+	if x.ReadOnly {
 		return "Never"
 	}
-	return "Always"
+	return pages.WidgetEditability(&x.BaseWidget)
 }
 
 // dataViewSourceToGen builds a DataView's data source. The page-context source
@@ -1588,7 +1727,7 @@ func dataViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1737,7 +1876,7 @@ func listViewSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1773,7 +1912,22 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		assignID(src)
 		src.SetForceFullObjects(false)
 		src.SetXPathConstraint(d.XPathConstraint)
-		if d.EntityName != "" {
+		switch {
+		case len(d.EntitySteps) > 0:
+			// "Database" reached over associations from a context object: the
+			// hops as an IndirectEntityRef inside the XPath source, the start
+			// parameter in its SourceVariable — the shape listViewSourceToGen
+			// writes, and the one Studio Pro stores for a gallery or grid
+			// bound this way (mendixlabs/mxcli#1599).
+			src.SetEntityRef(pageEntityRefToGen(d.EntitySteps))
+			if d.ContextVariable != "" {
+				kind := ""
+				if d.IsSnippetParameter {
+					kind = "snippet"
+				}
+				src.SetSourceVariable(sourceVariableToGen(d.ContextVariable, kind))
+			}
+		case d.EntityName != "":
 			ref := genDm.NewDirectEntityRef()
 			assignID(ref)
 			ref.SetEntityQualifiedName(d.EntityName)
@@ -1805,7 +1959,7 @@ func customWidgetDataSourceToGen(ds pages.DataSource) (element.Element, error) {
 		}
 		assignID(ms)
 		ms.SetForceFullObjects(false)
-		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, nil))
+		ms.SetMicroflowSettings(microflowSettingsToGen(d.Microflow, d.ParameterMappings, &pages.FlowCallSettings{FormValidations: d.FormValidations}, nil))
 		return ms, nil
 
 	// A NANOFLOW data source. Flat, unlike the microflow source above: the
@@ -1911,14 +2065,22 @@ type parameterMappingTarget interface {
 // kind empty means "not a page-variable reference": variable is then written as
 // the expression, preserving what every caller before #1140 relied on —
 // $currentObject among them, whose stored form has not been measured.
+//
+// Kind "widget" is a widget's selection: the PageVariable names the widget and
+// nothing else, as on all 13 such mappings in TestApp's WorkflowCommons
+// (ako/mxcli#1560). It used to fall to the page-parameter slot.
 func bindParameterMappingValue(m parameterMappingTarget, variable, kind, expression string) {
 	if variable != "" && kind != "" {
-		// sourceVariableToGen spells the page-parameter slot as the empty kind.
-		svKind := kind
-		if svKind == "parameter" {
-			svKind = ""
+		name := strings.TrimPrefix(variable, "$")
+		switch kind {
+		case "widget":
+			m.SetVariable(pageVariableToGen(name, "", ""))
+		case "parameter":
+			// sourceVariableToGen spells the page-parameter slot as the empty kind.
+			m.SetVariable(sourceVariableToGen(name, ""))
+		default:
+			m.SetVariable(sourceVariableToGen(name, kind))
 		}
-		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(variable, "$"), svKind))
 		// Studio Pro writes both keys, the unused one empty.
 		m.SetExpression("")
 		return
@@ -1937,9 +2099,10 @@ func bindParameterMappingValue(m parameterMappingTarget, variable, kind, express
 // left a parameterized button/row invoking its microflow with no argument — the
 // widget no-ops at runtime yet mx check passes clean (Bug 1).
 //
-// settings carries what a call-microflow action's `with ( … )` says; nil (the
-// data-source case, which has no MDL spelling for them) writes Mendix's defaults.
-func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings) element.Element {
+// settings carries what a call-microflow action's `with ( … )` says, or for a
+// data source its FormValidations (ako/mxcli#1729); nil writes Mendix's defaults.
+// outputs are its `returns ( … )` mappings (ako/mxcli#977 item 3).
+func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowParameterMapping, settings *pages.FlowCallSettings, outputs []*pages.FlowOutputMapping) element.Element {
 	if settings == nil {
 		settings = &pages.FlowCallSettings{}
 	}
@@ -1963,7 +2126,30 @@ func microflowSettingsToGen(microflowName string, mappings []*pages.MicroflowPar
 		bindParameterMappingValue(gm, pm.Variable, pm.VariableKind, pm.Expression)
 		s.AddParameterMappings(gm)
 	}
+	for _, om := range outputs {
+		s.AddOutputMappings(outputMappingToGen(om))
+	}
 	return s
+}
+
+// outputMappingToGen builds a Forms$OutputMapping, one row of a flow call's
+// return value mappings (ako/mxcli#977 item 3). The slots a row does not use
+// stay null, Expression empty — the shape Studio Pro stores for each of the
+// three kinds of row on ako/TestApp's Pages.OutputMappingButton.
+func outputMappingToGen(om *pages.FlowOutputMapping) element.Element {
+	g := genPg.NewOutputMapping()
+	assignID(g)
+	if r := attributeRefToGen(om.TargetAttribute); r != nil {
+		g.SetAttributeRef(r)
+	}
+	if om.TargetVariable != "" {
+		g.SetSourceVariable(pageVariableToGen("", om.TargetVariable, "local"))
+	}
+	if r := attributeRefToGen(om.SourceAttribute); r != nil {
+		g.SetSourceAttributeRef(r)
+	}
+	g.SetExpression(om.Expression)
+	return g
 }
 
 // formSettingsToGen builds the Forms$FormSettings (PageSettings) shared by the
@@ -2009,7 +2195,14 @@ func pageSettingsWithMappings(pageName string, mappings []*pages.PageClientParam
 		assignID(m)
 		m.SetParameterQualifiedName(pageName + "." + pm.ParameterName)
 		m.SetArgument("")
-		m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		if pm.VariableKind == "widget" {
+			// A control-bar button passing its grid's selection names the grid
+			// in the Widget slot (mendixlabs/mxcli#122). mxbuild 11.12.5: 0
+			// errors; the empty array is CE1571, Argument "$grid" CE0115.
+			m.SetVariable(pageVariableToGen(strings.TrimPrefix(pm.Variable, "$"), "", ""))
+		} else {
+			m.SetVariable(sourceVariableToGen(strings.TrimPrefix(pm.Variable, "$"), pm.VariableKind))
+		}
 		ps.AddParameterMappings(m)
 	}
 	return ps
@@ -2061,6 +2254,23 @@ func staticAddressToGen(address string) element.Element {
 	s.SetIsDynamic(false)
 	s.SetValue(address)
 	return s
+}
+
+// focusEventsToGen builds an input widget's OnEnterAction and OnLeaveAction,
+// Studio Pro's "On enter" / "On leave". Both were hard-coded NoActions on every
+// input but the text box's OnEnterAction, so neither could be written and
+// describe → exec deleted a stored one (ako/mxcli#1743). nil writes the
+// NoAction, as before.
+func focusEventsToGen(onEnter, onLeave pages.ClientAction) (element.Element, element.Element, error) {
+	enter, err := clientActionToGen(onEnter)
+	if err != nil {
+		return nil, nil, err
+	}
+	leave, err := clientActionToGen(onLeave)
+	if err != nil {
+		return nil, nil, err
+	}
+	return enter, leave, nil
 }
 
 // clientActionToGen converts a widget client action. Simple actions are supported;
@@ -2174,6 +2384,55 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetOutcomeValue(x.OutcomeValue)
 		return g, nil
+	case *pages.OpenUserTaskClientAction:
+		// open user task → Forms$OpenUserTaskClientAction, Studio Pro's "Show
+		// user task page". ako/TestApp's six (WorkflowCommons, 11.15) store
+		// exactly AssignOnOpen, DisabledDuringExecution and OpenWhenAssigned;
+		// the two flags are nil below 9.20, which introduced them.
+		g := genPg.NewOpenUserTaskClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.AssignOnOpen != nil {
+			g.SetAssignOnOpen(*x.AssignOnOpen)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		if x.OpenWhenAssigned != nil {
+			g.SetOpenWhenAssigned(*x.OpenWhenAssigned)
+		}
+		return g, nil
+	case *pages.OpenWorkflowClientAction:
+		// open workflow → Forms$OpenWorkflowClientAction ("Show workflow admin
+		// page"). DefaultPage is a by-name page reference, "" when unset (the
+		// type default registered above).
+		g := genPg.NewOpenWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.DefaultPage != "" {
+			g.SetDefaultPageQualifiedName(x.DefaultPage)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		return g, nil
+	case *pages.CallWorkflowClientAction:
+		// call workflow → Forms$CallWorkflowClientAction. Commit is never
+		// written: Mendix 9.12 removed it (a workflow call always commits),
+		// and a key the metamodel no longer declares is one Studio Pro cannot
+		// open. ConfirmationInfo is null when none is asked (type default).
+		g := genPg.NewCallWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		g.SetClosePage(x.ClosePage)
+		if x.Confirmation != nil {
+			g.SetConfirmationInfo(confirmationInfoToGen(x.Confirmation))
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		g.SetWorkflowQualifiedName(x.WorkflowName)
+		return g, nil
 	case *pages.MicroflowClientAction:
 		// call_microflow → Forms$MicroflowAction.
 		g := genPg.NewMicroflowClientAction()
@@ -2182,7 +2441,7 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		}
 		assignID(g)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
-		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings))
+		g.SetMicroflowSettings(microflowSettingsToGen(x.MicroflowName, x.ParameterMappings, &x.FlowCallSettings, x.OutputMappings))
 		return g, nil
 	case *pages.NanoflowClientAction:
 		// call_nanoflow → Forms$CallNanoflowClientAction. Unlike the microflow
@@ -2210,6 +2469,9 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 			m.SetParameterQualifiedName(x.NanoflowName + "." + pm.ParameterName)
 			bindParameterMappingValue(m, pm.Variable, pm.VariableKind, pm.Expression)
 			g.AddParameterMappings(m)
+		}
+		for _, om := range x.OutputMappings {
+			g.AddOutputMappings(outputMappingToGen(om))
 		}
 		return g, nil
 	case *pages.CreateObjectClientAction:
@@ -2284,6 +2546,7 @@ func scrollRegionToGen(r *pages.ScrollContainerRegion) (element.Element, error) 
 	}
 	g.SetSize(int32(size))
 	g.SetSizeMode(orDefaultStr(r.SizeMode, "Auto"))
+	g.SetToggleMode(orDefaultStr(r.ToggleMode, "None"))
 	for _, w := range r.Widgets {
 		wg, err := widgetToGen(w)
 		if err != nil {

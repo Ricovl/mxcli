@@ -288,7 +288,7 @@ func TestFmtUpgrade_HeaderDeclinedWhereExecWouldRefuse(t *testing.T) {
 	mpr := filepath.Join(dir, "PedApp.mpr")
 	const stub = "create or modify microflow MyFirstModule.Grow ($Items: List of System.User)\nreturns String as $Out\nbegin\n  declare $Out String = '';\n  loop $U in $Items\n  begin\n    set $Out = $Out + ',';\n  end loop;\n  return $Out;\nend;\n"
 	const grown = "create or modify microflow MyFirstModule.Grow ($Items: List of System.User)\nreturns String as $Out\nbegin\n  declare $Out String = '';\n" +
-		"  loop $U in $Items\n  begin\n    set $Out = $Out + ',';\n    set $Out = $Out + $U/Name;\n  end loop;\n  return $Out;\nend;\n"
+		"  loop $U in $Items\n  begin\n    set $Out = $Out + ',';\n    if $U/Name != empty then\n      set $Out = $Out + $U/Name;\n    end if;\n  end loop;\n  return $Out;\nend;\n"
 	exe := executor.New(io.Discard)
 	exe.SetBackendFactory(newBackendFactory())
 	prog, errs := visitor.Build(fmt.Sprintf("connect local '%s';\n%s", visitor.QuoteString(mpr), stub))

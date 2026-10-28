@@ -37,7 +37,7 @@ create or modify page MyFirstModule.HtmlDemo (
   layout: 'Atlas_Core.Atlas_Default'
 ) {
   htmlelement frame (tagName: 'div') {
-    attribute a1 (attributeName: 'data-x', attributeValue: 'y')
+    attribute a1 (attributeName: 'data-x', attributeValueType: 'template', attributeValueTemplate: 'y')
     tagcontentcontainer body {
       dynamictext dt (content: 'hi')
     }

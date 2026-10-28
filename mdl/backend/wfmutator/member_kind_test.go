@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -21,7 +20,7 @@ import (
 
 func makeWfOutcome(typeName, value string) bson.D {
 	d := bson.D{
-		{Key: "$ID", Value: primitive.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
+		{Key: "$ID", Value: bson.Binary{Subtype: 0x04, Data: make([]byte, 16)}},
 		{Key: "$Type", Value: typeName},
 	}
 	if value != "" {
@@ -140,10 +139,10 @@ func TestInsertMember_OnWrongKindIsRefused(t *testing.T) {
 		{"insert branch on a user task", func(m *Mutator) error { return m.InsertBranch("userTask1", 0, "true", nil) }, "userTask1"},
 		{"insert branch on a split", func(m *Mutator) error { return m.InsertBranch("split1", 0, "true", nil) }, "split1"},
 		{"insert boundary event on a split", func(m *Mutator) error {
-			return m.InsertBoundaryEvent("split1", 0, "InterruptingTimer", "", nil)
+			return m.InsertBoundaryEvent("split1", 0, "InterruptingTimer", "", "", nil, nil)
 		}, "split1"},
 		{"insert boundary event on a timer", func(m *Mutator) error {
-			return m.InsertBoundaryEvent("timer1", 0, "InterruptingTimer", "", nil)
+			return m.InsertBoundaryEvent("timer1", 0, "InterruptingTimer", "", "", nil, nil)
 		}, "timer1"},
 	}
 	for _, tc := range cases {
@@ -176,7 +175,7 @@ func TestInsertMember_OnRightKindLands(t *testing.T) {
 	if err := m.InsertBranch("decision1", 0, "true", nil); err != nil {
 		t.Errorf("insert branch on a decision: %v", err)
 	}
-	if err := m.InsertBoundaryEvent("userTask1", 0, "InterruptingTimer", "", nil); err != nil {
+	if err := m.InsertBoundaryEvent("userTask1", 0, "InterruptingTimer", "", "", nil, nil); err != nil {
 		t.Errorf("insert boundary event on a user task: %v", err)
 	}
 }

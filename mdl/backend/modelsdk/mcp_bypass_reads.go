@@ -41,16 +41,15 @@ import (
 // unlike in GetDomainModel: it is injected rather than stored, so it has no unit
 // id to look up and any id that reached this function came from a real document.
 func (b *Backend) GetDomainModelByID(id model.ID) (*domainmodel.DomainModel, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
+	u, err := mprread.GetUnitByID[*genDm.DomainModel](b.reader, id)
 	if err != nil {
 		return nil, err
 	}
-	for _, u := range units {
-		if model.ID(u.Element.ID()) == id {
-			dm := domainModelFromGen(u.Element, u.ContainerID)
-			b.populateViewEntityOql([]*domainmodel.DomainModel{dm})
-			return dm, nil
-		}
+	if u != nil {
+		dm := domainModelFromGen(u.Element, u.ContainerID)
+		b.populateViewEntityOql([]*domainmodel.DomainModel{dm})
+		b.resolveInheritedPersistability(b.lazyPersistabilityIndex(u.ContainerID, u.Element), dm)
+		return dm, nil
 	}
 	// Match the legacy contract: a miss is an error, not (nil, nil). Callers
 	// branch on the error; a nil document reads as "exists but is empty".

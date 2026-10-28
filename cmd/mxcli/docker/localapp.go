@@ -20,6 +20,10 @@ type LocalAppOptions struct {
 	AppPort   int
 	AdminPort int
 	ServePort int
+	// ListenAddr is the address the app binds to. Empty means 127.0.0.1
+	// (loopback only); set 0.0.0.0 to reach the app from other machines on the
+	// network. The M2EE admin API is unaffected and always stays on loopback.
+	ListenAddr string
 	// AdminPass is the M2EE admin password (defaults to the local-run password).
 	AdminPass string
 	// MxBuildPath overrides mxbuild resolution (optional), as --mxbuild-path does
@@ -52,6 +56,10 @@ type LocalAppOptions struct {
 	// resolving to the wrong value is not an error. See
 	// docs/11-proposals/PROPOSAL_constant_values.md and mxcli-chat FINDINGS §33.
 	ConstantOverrides map[string]string
+	// JVMArgs are the configuration's JVM options, as LocalRuntimeOptions.JVMArgs
+	// — forwarded for the same reason as ConstantOverrides: a headless boot must
+	// run the configuration `run --local` runs.
+	JVMArgs []string
 	// Stdout/Stderr receive progress messages.
 	Stdout io.Writer
 	Stderr io.Writer
@@ -69,11 +77,13 @@ func (o LocalAppOptions) runtimeOptions(installPath string) LocalRuntimeOptions 
 		JavaMajor:         javaMajor,
 		AppPort:           o.AppPort,
 		AdminPort:         o.AdminPort,
+		ListenAddr:        o.ListenAddr,
 		AdminPass:         o.AdminPass,
 		DB:                o.DB,
 		RuntimeLogPath:    o.RuntimeLogPath,
 		Env:               o.Env,
 		ConstantOverrides: o.ConstantOverrides,
+		JVMArgs:           o.JVMArgs,
 		Stdout:            o.Stdout,
 		Stderr:            o.Stderr,
 	}

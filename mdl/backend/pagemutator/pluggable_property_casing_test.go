@@ -9,8 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
 )
@@ -18,7 +17,7 @@ import (
 // makePluggableWidget builds a CustomWidget carrying one pluggable property
 // whose template key is propKey, with an initial primitive value.
 func makePluggableWidget(name, propKey, initial string) bson.D {
-	typeID := primitive.Binary{Subtype: 0x04, Data: []byte{
+	typeID := bson.Binary{Subtype: 0x04, Data: []byte{
 		0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
 		0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00,
 	}}

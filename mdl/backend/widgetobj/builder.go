@@ -14,8 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/bsonutil"
@@ -53,7 +52,67 @@ type Builder struct {
 	objectTypeID    string
 }
 
-var _ backend.WidgetObjectBuilder = (*Builder)(nil)
+var (
+	_ backend.WidgetObjectBuilder       = (*Builder)(nil)
+	_ backend.WidgetPropertyDeclarer    = (*Builder)(nil)
+	_ backend.WidgetEnumerationDeclarer = (*Builder)(nil)
+)
+
+// DeclaresProperty reports whether the loaded template declares propertyKey —
+// the set every Set* operation silently skips a missing key against.
+func (ob *Builder) DeclaresProperty(propertyKey string) bool {
+	_, ok := ob.propertyTypeIDs[propertyKey]
+	return ok
+}
+
+// EnumerationKeys returns the keys the widget's schema declares for the
+// enumeration property propertyKey, in declaration order — read from the Type
+// this build writes, which the loader has brought in line with the project's
+// installed package. nil when the property is not an enumeration.
+func (ob *Builder) EnumerationKeys(propertyKey string) []string {
+	objType := bsonDocValue(bsonDocValue(ob.embeddedType, "ObjectType"), "PropertyTypes")
+	pts, _ := objType.(bson.A)
+	for _, pt := range pts {
+		ptDoc, ok := pt.(bson.D)
+		if !ok || bsonStringValue(ptDoc, "PropertyKey") != propertyKey {
+			continue
+		}
+		vt, _ := bsonDocValue(ptDoc, "ValueType").(bson.D)
+		if bsonStringValue(vt, "Type") != "Enumeration" {
+			return nil
+		}
+		evs, _ := bsonDocValue(vt, "EnumerationValues").(bson.A)
+		var keys []string
+		for _, ev := range evs {
+			if evDoc, ok := ev.(bson.D); ok {
+				if k := bsonStringValue(evDoc, "_Key"); k != "" {
+					keys = append(keys, k)
+				}
+			}
+		}
+		return keys
+	}
+	return nil
+}
+
+// bsonDocValue is the value of key in d, when d is a document.
+func bsonDocValue(d any, key string) any {
+	doc, ok := d.(bson.D)
+	if !ok {
+		return nil
+	}
+	for _, e := range doc {
+		if e.Key == key {
+			return e.Value
+		}
+	}
+	return nil
+}
+
+func bsonStringValue(d bson.D, key string) string {
+	s, _ := bsonDocValue(d, key).(string)
+	return s
+}
 
 // New constructs a Builder for a loaded template and registers the engine's child
 // serializer for this build.
@@ -865,6 +924,11 @@ func ApplyVisibilityRules(object bson.D, propertyTypeIDs map[string]pages.Proper
 	hidden := make(map[string]bool, len(rules))
 	conditional := make([]string, 0, len(rules))
 	for _, rule := range rules {
+		if rule.Nested() {
+			// Its PropertyKey names a sub-property of a list ITEM, not of the
+			// widget — applied per item below.
+			continue
+		}
 		entry, ok := propertyTypeIDs[rule.PropertyKey]
 		if !ok || entry.ValueType != "TextTemplate" {
 			continue
@@ -900,7 +964,102 @@ func ApplyVisibilityRules(object bson.D, propertyTypeIDs map[string]pages.Proper
 			return val
 		})
 	}
+	return applyItemVisibilityRules(object, propertyTypeIDs, rules, values)
+}
+
+// applyItemVisibilityRules is the #574 nulling one level down: a TextTemplate
+// sub-property of an object-list ITEM that a nested rule hides for that item
+// gets TextTemplate: null (mendixlabs/mxcli#1198).
+//
+// File Uploader hides an `allowedFileFormats` item's `typeFormatDescription`
+// while that item's `configMode` is "simple". The sub-property is required, so
+// the item builder fills it with the shipped translations (#891) — correct
+// while it is visible, CE0463 once it is hidden: `mx update-widgets` on a copy
+// changes exactly that slot to null and nothing else of substance.
+//
+// Each condition is resolved in its own scope (types.ConditionScopeItem → the
+// item's values, otherwise the widget's), the same split MDL-WIDGET10 makes in
+// validateWidgetItemVisibility. Only the hidden→null direction is applied here:
+// an unset item TextTemplate is null by default (4ea402c2) and required ones
+// are already filled, so there is no visible-but-null case to repair.
+func applyItemVisibilityRules(object bson.D, propertyTypeIDs map[string]pages.PropertyTypeIDEntry, rules []types.WidgetVisibilityRule, widgetValues map[string]string) bson.D {
+	byList := map[string][]types.WidgetVisibilityRule{}
+	for _, rule := range rules {
+		if !rule.Nested() {
+			continue
+		}
+		entry, ok := propertyTypeIDs[rule.ListPropertyKey]
+		if !ok || len(entry.NestedPropertyIDs) == 0 {
+			continue
+		}
+		if sub, ok := entry.NestedPropertyIDs[rule.PropertyKey]; !ok || sub.ValueType != "TextTemplate" {
+			continue
+		}
+		byList[rule.ListPropertyKey] = append(byList[rule.ListPropertyKey], rule)
+	}
+	lists := make([]string, 0, len(byList))
+	for k := range byList {
+		lists = append(lists, k)
+	}
+	sort.Strings(lists)
+
+	for _, listKey := range lists {
+		nested := propertyTypeIDs[listKey].NestedPropertyIDs
+		listRules := byList[listKey]
+		object = updateWidgetPropertyValue(object, propertyTypeIDs, listKey, func(val bson.D) bson.D {
+			out := make(bson.D, 0, len(val))
+			for _, elem := range val {
+				objects, ok := elem.Value.(bson.A)
+				if elem.Key != "Objects" || !ok {
+					out = append(out, elem)
+					continue
+				}
+				updated := make(bson.A, len(objects))
+				for i, o := range objects {
+					item, ok := o.(bson.D)
+					if !ok {
+						updated[i] = o // the list marker
+						continue
+					}
+					updated[i] = nullHiddenItemTemplates(item, nested, listRules, widgetValues)
+				}
+				out = append(out, bson.E{Key: "Objects", Value: updated})
+			}
+			return out
+		})
+	}
 	return object
+}
+
+// nullHiddenItemTemplates nulls the TextTemplate of every sub-property of one
+// object-list item that rules hide under that item's own configuration.
+func nullHiddenItemTemplates(item bson.D, nested map[string]pages.PropertyTypeIDEntry, rules []types.WidgetVisibilityRule, widgetValues map[string]string) bson.D {
+	itemValues := primitiveValuesOf(item, nested)
+	hidden := map[string]bool{}
+	for _, rule := range rules {
+		fires, determinable := rule.Fires(func(c types.WidgetVisibilityCondition) (string, bool) {
+			values := widgetValues
+			if c.Scope == types.ConditionScopeItem {
+				values = itemValues
+			}
+			v, ok := values[c.PropertyKey]
+			return v, ok
+		})
+		if determinable && fires {
+			hidden[rule.PropertyKey] = true
+		}
+	}
+	keys := make([]string, 0, len(hidden))
+	for k := range hidden {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		item = updateWidgetPropertyValue(item, nested, key, func(val bson.D) bson.D {
+			return setBSONField(val, "TextTemplate", nil)
+		})
+	}
+	return item
 }
 
 // bsonFieldIsNil reports whether a field is absent or explicitly nil.
@@ -994,7 +1153,7 @@ func propertyTypePointerID(prop bson.D) string {
 			continue
 		}
 		switch v := elem.Value.(type) {
-		case primitive.Binary:
+		case bson.Binary:
 			return strings.ReplaceAll(types.BlobToUUID(v.Data), "-", "")
 		case []byte:
 			return strings.ReplaceAll(types.BlobToUUID(v), "-", "")
@@ -1142,7 +1301,7 @@ func matchesTypePointer(prop bson.D, propertyTypeID string) bool {
 	for _, elem := range prop {
 		if elem.Key == "TypePointer" {
 			switch v := elem.Value.(type) {
-			case primitive.Binary:
+			case bson.Binary:
 				propID := strings.ReplaceAll(types.BlobToUUID(v.Data), "-", "")
 				return propID == normalizedTarget
 			case []byte:
@@ -1756,13 +1915,17 @@ func SerializeColumnClientTemplateParameter(param *pages.ClientTemplateParameter
 		paramID = bsonutil.IDToBsonBinary(string(param.ID))
 	}
 
+	// An attribute reached over associations carries its hops in EntityRef. Left
+	// null, mxbuild reads the attribute against the widget's context entity:
+	// CE1365 "Attribute 'M.Child.Label' is not an attribute of entity 'M.Parent'"
+	// (mendixlabs/mxcli#1494). The executor resolved the steps all along.
 	var attrRefBSON any
 	if param.AttributeRef != "" {
 		attrRefBSON = bson.D{
 			{Key: "$ID", Value: bsonutil.NewIDBsonBinary()},
 			{Key: "$Type", Value: "DomainModels$AttributeRef"},
 			{Key: "Attribute", Value: param.AttributeRef},
-			{Key: "EntityRef", Value: nil},
+			{Key: "EntityRef", Value: attributeEntityRefBSON(param.AttributeRefSteps)},
 		}
 	}
 

@@ -4,6 +4,9 @@ package modelsdkbackend
 
 import (
 	"fmt"
+	"strings"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -212,7 +215,14 @@ const workflowEventSubProcessesMajor, workflowEventSubProcessesMinor = 11, 8
 // the property: a key the project's metamodel does not know makes the document
 // unopenable in Studio Pro, and mxbuild does not catch it (see
 // codec.Encoder.OmitKeys). An unreadable version omits it, like the page guards.
+//
+// Below 11.3 the main flow's start and end are not stored, and below 11.1 no
+// activity stores RelativeMiddlePoint/Size (ako/mxcli#1754; see
+// workflowStoresStartAndEnd and workflowDeclaresActivityGeometry).
 func encodeWorkflow(wf *workflows.Workflow, pv *types.ProjectVersion) ([]byte, error) {
+	if !workflowStoresStartAndEnd(pv) {
+		wf = withImplicitStartAndEnd(wf)
+	}
 	g := workflowToGen(wf)
 	applyCallMicroflowStorageName(g, usesCallMicroflowActivityName(pv))
 	enc := &codec.Encoder{}
@@ -222,7 +232,94 @@ func encodeWorkflow(wf *workflows.Workflow, pv *types.ProjectVersion) ([]byte, e
 		// them on an older project before this is reached).
 		enc.OmitKeys = map[string]map[string]bool{"Workflows$Workflow": {"EventSubProcesses": true}}
 	}
-	return enc.Encode(g)
+	raw, err := enc.Encode(g)
+	if err != nil || workflowDeclaresActivityGeometry(pv) {
+		return raw, err
+	}
+	var d bson.D
+	if err := bson.Unmarshal(raw, &d); err != nil {
+		return nil, err
+	}
+	return bson.Marshal(withoutWorkflowActivityGeometry(d))
+}
+
+// workflowStoresStartAndEnd reports whether the main flow's start and closing
+// end are stored activities. Workflows$StartWorkflowActivity is introduced in
+// 11.1.0 (mendixmodelsdk 4.117.0), and a 10.24 or 11.0 project holding one does
+// not load (TypeCacheUnknownTypeException). 11.1 and 11.2 have the type but keep
+// the main flow's start and end implicit — `mx convert` of a 10.24 workflow adds
+// neither, and with them mx check reports CE6671 and CE6689 — and 11.3 is where
+// the conversion adds both (ako/mxcli#1754). An unread version keeps the current
+// shape.
+func workflowStoresStartAndEnd(pv *types.ProjectVersion) bool {
+	return pv == nil || pv.IsAtLeast(11, 3)
+}
+
+// workflowDeclaresActivityGeometry reports whether workflow activities store
+// RelativeMiddlePoint and Size, which Workflows$WorkflowActivity declares from
+// 11.1.0 (modelsdk/gen/workflows/version.go). The property-set pass cannot strip
+// them below that: they are declared on the supertype, which it does not look
+// up, and "0;0" is a value, which it would refuse rather than drop.
+func workflowDeclaresActivityGeometry(pv *types.ProjectVersion) bool {
+	return pv == nil || pv.IsAtLeast(11, 1)
+}
+
+// withImplicitStartAndEnd returns wf without its main flow's start and closing
+// end, for a version that keeps them implicit. The note on the start becomes the
+// workflow's own Annotation, which is where those versions keep the header's
+// note (`mx convert` to 11.3 moves it onto the start). An End inside a branch
+// stays: EndWorkflowActivity exists from 9.0.2 and is what ends that path. wf is
+// not modified.
+func withImplicitStartAndEnd(wf *workflows.Workflow) *workflows.Workflow {
+	if wf.Flow == nil || len(wf.Flow.Activities) == 0 {
+		return wf
+	}
+	out, flow := *wf, *wf.Flow
+	acts := flow.Activities
+	if start, ok := acts[0].(*workflows.StartWorkflowActivity); ok {
+		if start.Annotation != "" {
+			out.Annotation = start.Annotation
+		}
+		acts = acts[1:]
+	}
+	if n := len(acts); n > 0 {
+		if _, ok := acts[n-1].(*workflows.EndWorkflowActivity); ok {
+			acts = acts[:n-1]
+		}
+	}
+	flow.Activities = acts
+	out.Flow = &flow
+	return &out
+}
+
+// withoutWorkflowActivityGeometry removes RelativeMiddlePoint and Size from
+// every Workflows$ element in d, for a version that does not declare them.
+func withoutWorkflowActivityGeometry(d bson.D) bson.D {
+	workflowType := false
+	for _, e := range d {
+		if e.Key == "$Type" {
+			t, _ := e.Value.(string)
+			workflowType = strings.HasPrefix(t, "Workflows$")
+		}
+	}
+	out := d[:0]
+	for _, e := range d {
+		if workflowType && (e.Key == "RelativeMiddlePoint" || e.Key == "Size") {
+			continue
+		}
+		switch v := e.Value.(type) {
+		case bson.D:
+			e.Value = withoutWorkflowActivityGeometry(v)
+		case bson.A:
+			for i, el := range v {
+				if sub, ok := el.(bson.D); ok {
+					v[i] = withoutWorkflowActivityGeometry(sub)
+				}
+			}
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 // workflowSupportsEventSubProcesses reports whether the project declares
@@ -292,9 +389,9 @@ func workflowToGen(wf *workflows.Workflow) element.Element {
 		title = wf.Name
 	}
 	addStr(g, "Title", title)
-	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription))
+	addPart(g, "WorkflowDescription", workflowStringTemplate(wf.WorkflowDescription, wf.WorkflowDescriptionParams))
 	// WorkflowMetaData: null (via NullFields).
-	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName))
+	addPart(g, "WorkflowName", workflowStringTemplate(wf.WorkflowName, wf.WorkflowNameParams))
 	addBool(g, "WorkflowV2", false)
 	return g
 }
@@ -376,6 +473,9 @@ func activityToGen(act workflows.WorkflowActivity) element.Element {
 			addStr(g, "FirstExecutionTime", a.FirstExecutionTime)
 		}
 		addStr(g, "Name", a.Name)
+		if a.Recurrence != nil && a.Timer && !a.Interrupting {
+			addPart(g, "Recurrence", linearRecurrenceToGen(a.Recurrence))
+		}
 		return g
 	default:
 		return nil
@@ -410,7 +510,7 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 	if a.Annotation != "" {
 		addPart(g, "Annotation", annotationElem(a.Annotation))
 	}
-	addBool(g, "AutoAssignSingleTargetUser", false)
+	addBool(g, "AutoAssignSingleTargetUser", a.AutoAssignSingleTargetUser)
 	if a.IsMulti {
 		addBool(g, "AwaitAllUsers", a.AwaitAllUsers)
 	}
@@ -442,12 +542,12 @@ func userTaskToGen(a *workflows.UserTask) element.Element {
 	addFreshPersistentID(g)
 	addStr(g, "RelativeMiddlePoint", workflowZeroPoint)
 	addStr(g, "Size", workflowZeroPoint)
-	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription))
+	addPart(g, "TaskDescription", workflowStringTemplate(a.TaskDescription, a.TaskDescriptionParams))
 	taskName := a.TaskName
 	if taskName == "" {
 		taskName = a.Caption
 	}
-	addPart(g, "TaskName", workflowStringTemplate(taskName))
+	addPart(g, "TaskName", workflowStringTemplate(taskName, a.TaskNameParams))
 	addPart(g, "TaskPage", pageReferenceElem(a.Page))
 	if a.IsMulti {
 		addPart(g, "TargetUserInput", targetUserInputToGen(a.TargetUserInput))
@@ -731,7 +831,10 @@ func boundaryEventsToGen(events []*workflows.BoundaryEvent) []element.Element {
 			addStr(g, "Name", ev.Name)
 		}
 		addFreshPersistentID(g)
-		// Recurrence: null on NonInterrupting (via NullFields).
+		// Recurrence: null on NonInterrupting (via NullFields) unless it repeats.
+		if ev.Recurrence != nil && typeName == "Workflows$NonInterruptingTimerBoundaryEvent" {
+			addPart(g, "Recurrence", linearRecurrenceToGen(ev.Recurrence))
+		}
 		out = append(out, g)
 	}
 	return out
@@ -791,12 +894,12 @@ func annotationElem(text string) element.Element {
 	return g
 }
 
-// workflowStringTemplate builds a minimal Microflows$StringTemplate (empty
-// Parameters list via MandatoryListMarkers + Text).
-func workflowStringTemplate(text string) element.Element {
-	g := newElem("Microflows$StringTemplate", "")
-	addStr(g, "Text", text)
-	return g
+// workflowStringTemplate builds a workflow text: a Microflows$StringTemplate
+// whose Parameters are Microflows$TemplateParameter children, one Expression
+// each — the shape mx check parses (an invalid expression is CE0117 at the
+// task, 11.15.0) — or an empty list via MandatoryListMarkers (ako/mxcli#1714).
+func workflowStringTemplate(text string, params []string) element.Element {
+	return stringTemplateElem(text, params)
 }
 
 // addActivityBaseFields adds the common Annotation(null)/PersistentId/
@@ -845,4 +948,15 @@ func activityIDOrFresh(id string) string {
 
 func outcomeID(id model.ID) string {
 	return activityIDOrFresh(string(id))
+}
+
+// linearRecurrenceToGen builds a Workflows$LinearRecurrence (ako/mxcli#1716):
+// the shape mx check accepts on 11.15.0, with IntervalType read by the runtime
+// as the scheduled-event enumeration (Minute, Hour, Day, Week, Month).
+func linearRecurrenceToGen(r *workflows.Recurrence) element.Element {
+	g := newElem("Workflows$LinearRecurrence", "")
+	addInt32(g, "Interval", int32(r.Interval))
+	addStr(g, "IntervalType", r.IntervalType)
+	addInt32(g, "MaxExecutions", int32(r.MaxExecutions))
+	return g
 }

@@ -163,6 +163,7 @@ func nanoflowFromGen(nf *genMf.Nanoflow, containerID model.ID) *microflows.Nanof
 		MarkAsUsed:         nf.MarkAsUsed(),
 		ReturnType:         dataTypeFromGen(nf.MicroflowReturnType()),
 		ReturnVariableName: nf.ReturnVariableName(),
+		ExportLevel:        nf.ExportLevel(),
 	}
 	out.ID = model.ID(nf.ID())
 	for _, qn := range nf.AllowedModuleRolesQualifiedNames() {
@@ -364,9 +365,15 @@ func annotationFlowsFromGen(items []element.Element) []*microflows.AnnotationFlo
 		if !ok {
 			continue
 		}
+		// The sides are carried, so a rewrite of a Studio Pro-drawn note keeps
+		// the line where its author put it.
 		f := &microflows.AnnotationFlow{
 			OriginID:      model.ID(g.OriginRefID()),
 			DestinationID: model.ID(g.DestinationRefID()),
+			Sides: &microflows.ConnectionSides{
+				Origin:      int(g.OriginConnectionIndex()),
+				Destination: int(g.DestinationConnectionIndex()),
+			},
 		}
 		f.ID = model.ID(g.ID())
 		flows = append(flows, f)
@@ -469,6 +476,7 @@ func splitFlowObjects(coll element.Element) ([]*microflows.MicroflowParameter, [
 		return nil, nil
 	}
 	var params []*microflows.MicroflowParameter
+	var stored []model.Point
 	var objs []microflows.MicroflowObject
 	for _, el := range mc.ObjectsItems() {
 		if po, ok := el.(*genMf.MicroflowParameter); ok {
@@ -480,7 +488,9 @@ func splitFlowObjects(coll element.Element) ([]*microflows.MicroflowParameter, [
 			// others the moment a parameter is inserted (#993, and #951 before
 			// it). Without this the position was never read at all, so a rewrite
 			// moved every hand-placed parameter back onto the grid.
-			p.Position = microflows.AuthoredParameterPosition(pointFromGen(el), len(params))
+			// The derived row is spaced by every parameter's name, so the
+			// decision waits until all of them are read (below).
+			stored = append(stored, pointFromGen(el))
 			params = append(params, p)
 			continue
 		}
@@ -494,6 +504,9 @@ func splitFlowObjects(coll element.Element) ([]*microflows.MicroflowParameter, [
 			s.SetSize(sizeFromGen(el))
 		}
 		objs = append(objs, o)
+	}
+	for i, p := range params {
+		p.Position = microflows.AuthoredParameterPosition(stored[i], i, params)
 	}
 	return params, objs
 }

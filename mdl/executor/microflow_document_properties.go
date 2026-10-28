@@ -22,17 +22,8 @@ import (
 // which is the rule these clauses exist to let a script opt out of rather than
 // to abolish (mendixlabs/mxcli#1120).
 func applyMicroflowDocumentProperties(ctx *ExecContext, mf *microflows.Microflow, s *ast.CreateMicroflowStmt) error {
-	// Deep links are Mendix 10.6+. Gate on the clause being STATED, not on the
-	// resulting value: a rewrite that carries a stored URL forward on an older
-	// project is preserving what is already there, and refusing that would make
-	// the guard destroy the very thing it protects.
-	if s.URL != nil || s.URLSearchParameters != nil {
-		if err := checkFeature(ctx, "microflows", "deep_link_url",
-			"a microflow URL (deep link)",
-			"upgrade your project to 10.6+, or set the URL in Studio Pro"); err != nil {
-			return err
-		}
-	}
+	// Deep links are Mendix 10.6+: gated with the statement's other version
+	// gates in buildMicroflowFromStmt (statementVersionGates).
 	if s.URL != nil {
 		if err := checkURLNotTaken(ctx, mf, *s.URL); err != nil {
 			return err

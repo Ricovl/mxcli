@@ -43,3 +43,38 @@ func TestValidateProgram_DetachedDocComment(t *testing.T) {
 		t.Errorf("a comment on its create was reported: %v", got)
 	}
 }
+
+// mendixlabs/mxcli#1510: a doc comment above a create that stores none was
+// told to move "directly above" the next create — documenting a different
+// element with text written for this one. A drop or grant stands between a
+// comment and its create; a create IS the element the comment describes, so
+// the next statement is not where it belongs. Control: a drop still gets the
+// move suggestion.
+func TestValidateProgram_DetachedDocCommentOnCreate_Issue1510(t *testing.T) {
+	const src = "/** Sales staff. */\ncreate module role Sales.User;\n" +
+		"/** An order. */\ncreate persistent entity Sales.Order (Name: String(20));\n"
+	prog, errs := visitor.Build(src)
+	if len(errs) > 0 {
+		t.Fatalf("parse: %v", errs)
+	}
+	var got []string
+	for _, v := range ValidateProgram(prog, "") {
+		if v.RuleID == detachedDocCommentRule {
+			got = append(got, v.Message+" | "+v.Suggestion)
+		}
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d MDL089 warnings, want 1: %v", len(got), got)
+	}
+	for _, bad := range []string{"Move the doc comment directly above", "next statement that can take it",
+		"create persistent entity Sales.Order"} {
+		if strings.Contains(got[0], bad) {
+			t.Errorf("the warning sends the comment to a different element (%q): %s", bad, got[0])
+		}
+	}
+	for _, want := range []string{"create module role Sales.User", "`--` comment"} {
+		if !strings.Contains(got[0], want) {
+			t.Errorf("want %q in %q", want, got[0])
+		}
+	}
+}

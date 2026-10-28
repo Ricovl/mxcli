@@ -11,18 +11,18 @@ description: "Verify a running Mendix app in a browser: `mxcli playwright check`
 | lines | section |
 |---|---|
 | 32-42 | When to Use This Skill |
-| 43-84 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
-| 85-135 | Prerequisites |
-| 136-160 | Quick Start |
-| 161-182 | Widget Name Selectors |
-| 183-298 | Verification Patterns |
-| 299-372 | CI/CD: Test Scripts |
-| 373-416 | Session Management |
-| 417-444 | Debugging |
-| 445-477 | Selector Rules |
-| 478-494 | Known Gotchas |
-| 495-528 | Feedback Loop Workflow |
-| 529-536 | Related Skills |
+| 43-104 | Start Here: `mxcli playwright check` (one call, text, no screenshot) |
+| 105-155 | Prerequisites |
+| 156-180 | Quick Start |
+| 181-202 | Widget Name Selectors |
+| 203-318 | Verification Patterns |
+| 319-392 | CI/CD: Test Scripts |
+| 393-436 | Session Management |
+| 437-464 | Debugging |
+| 465-497 | Selector Rules |
+| 498-514 | Known Gotchas |
+| 515-548 | Feedback Loop Workflow |
+| 549-556 | Related Skills |
 
 <!-- /skill-index -->
 # Test App Skill
@@ -61,12 +61,32 @@ FAIL 1 of 2 page(s)
 ```
 
 - **Exit status:** 0 all pages passed; 1 a page failed (error banner/dialog, console
-  error, failed request, HTTP error, sign-in form instead of the page, failed
-  assertion); 2 the check could not run.
+  error, failed request, HTTP error, access denied, sign-in form instead of the page,
+  a `/p/` URL that ended elsewhere, failed assertion, or `STILL LOADING`); 2 the
+  check could not run.
+- **`ACCESS DENIED` is a role problem, not a sign-in one.** A page the signed-in
+  user's roles may not open lands on the sign-in form with `messageCode=403` in the
+  URL and fails as `access denied: signed in as demo_user (user role User), the
+  runtime refused /p/secret (403)`. Compare `show access on page Module.Page` with
+  `describe user role R`; changing credentials or `--fresh-login` will not help.
+- **`url=` is where the browser ended**, printed when that is not where it was
+  sent; title and heading then describe that page. A `/p/` URL no page has lands on
+  the home page with HTTP 200 (`url=/`) and fails — the match is exact, so check the
+  page's URL spelling and case before suspecting the page.
+- **It waits for the data.** A page is measured once no request to the app has been
+  open for half a second and its text holds still — a list view shows no spinner
+  while its data source runs, so the text alone would hold still on an empty list.
+  A page still loading after `--wait` (default 15s) is reported `STILL LOADING`,
+  with a `WAIT` line naming the open request, and fails: do not read its `rows=` as
+  the answer. A page with a list or grid always prints `rows=`, `rows=0` included.
 - **Login is handled:** `--user U --password P`, or `--role R` (the project's demo user
   holding user role R), or nothing but `-p` (a demo user, an administrator first).
-  The session is saved under `.mxcli/playwright-check/` and reused by the next check;
-  after a runtime restart it is renewed automatically. `--fresh-login` forces it.
+  It signs in on the host of the pages checked (a session for `localhost` is not
+  sent to `127.0.0.1`), saves the session per host under `.mxcli/playwright-check/`
+  and reuses it — one session however many checks run; after a runtime restart it
+  is renewed automatically. `--fresh-login` signs the saved session out and signs
+  in again; `--sign-out` ends the run signed out. A refused sign-in names the
+  unlicensed runtime's session cap when `.mxcli/runtime.log` reports it.
 - **Assertions:** `--assert-text 'Customer overview'` (body text contains),
   `--assert-count '.mx-name-dgCustomers [role=row]>=2'` (ops `>= <= == != > <`; a
   bare selector means at least one). Both repeatable, applied to every page.

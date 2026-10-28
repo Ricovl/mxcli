@@ -20,6 +20,11 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	// Version pre-check: page parameters exist from Mendix 9.4, not 11.0. The
 	// registry used to say 11.0 — a figure that came from an illustrative sample
@@ -27,12 +32,8 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 	// which locked every 10.x project out of parameterised pages entirely
 	// (mendixlabs/mxcli#1121). The gate stays because 9.0–9.3 genuinely has no
 	// Pages$PageParameter; only the floor and the hint were wrong.
-	if len(s.Parameters) > 0 {
-		if err := checkFeature(ctx, "pages", "page_parameters",
-			"create page with parameters",
-			"pass data via a non-persistent entity or microflow parameter instead"); err != nil {
-			return err
-		}
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
 	}
 
 	// Find or auto-create module
@@ -97,6 +98,13 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 		pagesToDelete = append(pagesToDelete, p.ID)
 	}
 
+	// A rewrite must not delete widgets MDL cannot author (mendixlabs/mxcli#1622).
+	if len(pagesToDelete) > 0 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "page", s.Name, pagesToDelete[0], allPageWidgets(s)); err != nil {
+			return err
+		}
+	}
+
 	// Build the page BEFORE deleting the old one (atomic: if build fails, old page is preserved)
 	pb := &pageBuilder{
 		ctx:              ctx,
@@ -112,7 +120,8 @@ func execCreatePageV3(ctx *ExecContext, s *ast.CreatePageStmtV3) error {
 		widgetBackend:    ctx.Backend,
 		// The root of a document that this pass walks in full: there is no
 		// enclosing data widget, so there is no context object. #1029.
-		argCtx: atDocumentRoot(),
+		argCtx:           atDocumentRoot(),
+		isDocumentWidget: widgetNameSet(allPageWidgets(s)),
 		// An excluded page may name documents that do not exist; Mendix does
 		// not validate it, and the check reports them as warnings. The page
 		// stays excluded whether the statement says so or the carry does.
@@ -199,6 +208,11 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	// Find or auto-create module
 	module, err := findOrCreateModule(ctx, s.Name.Module)
@@ -268,10 +282,19 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 		widgetBackend:    ctx.Backend,
 		// The root of a document that this pass walks in full: there is no
 		// enclosing data widget, so there is no context object. #1029.
-		argCtx: atDocumentRoot(),
+		argCtx:           atDocumentRoot(),
+		isDocumentWidget: widgetNameSet(s.Widgets),
 		// A snippet has no @excluded of its own; it stays excluded through the
 		// carry, and an excluded one may name documents that do not exist.
 		tolerateDanglingRefs: existingExcluded,
+	}
+
+	// As for pages (mendixlabs/mxcli#1622). describe finds a snippet by name,
+	// so only a name with a single stored document can be described.
+	if matches == 1 && len(snippetsToDelete) == 1 {
+		if err := checkNoUnauthorableWidgetsDropped(ctx, "snippet", s.Name, snippetsToDelete[0], s.Widgets); err != nil {
+			return err
+		}
 	}
 
 	// As for pages (#721 L4). describe finds a snippet by name, so only a name
@@ -280,6 +303,12 @@ func execCreateSnippetV3(ctx *ExecContext, s *ast.CreateSnippetStmtV3) error {
 		pb.storedPluggables = loadPluggablePassthrough(ctx, snippetsToDelete[0], func() error {
 			return describeSnippet(ctx, s.Name)
 		})
+	}
+	// A rewrite keeps the stored snippet's Type (the header carry), so a native
+	// snippet's widgets take the native design-property definitions
+	// (ako/mxcli#1679).
+	if len(snippetsToDelete) > 0 && storedSnippetIsNative(ctx, snippetsToDelete[0]) {
+		pb.themeRegistry = pb.themeRegistry.ForPlatform(true)
 	}
 
 	snippet, err := pb.buildSnippetV3(s)

@@ -53,6 +53,11 @@ type ExecContext struct {
 	// outside a describe body.
 	describeBody *describeBodyState
 
+	// unauthorableSink, when set, receives every widget a describe body could
+	// only print as a comment because MDL cannot author it: what a rewrite of
+	// the document from its description would delete (mendixlabs/mxcli#1622).
+	unauthorableSink *[]unauthorableWidget
+
 	// scriptFlows are the flows earlier statements of a script declare,
 	// keyed by scriptFlowKey, set only while check predicts a script's flow
 	// verdicts (CheckFlowVerdicts): exec builds a flow after those statements
@@ -63,6 +68,12 @@ type ExecContext struct {
 	// forwardFlowCalls mirrors Executor.forwardFlowCalls: whether a call to a
 	// flow the script creates further down is accepted (mendixlabs/mxcli#1405).
 	forwardFlowCalls bool
+
+	// scriptTargets are the pages, microflows and nanoflows the program being
+	// run declares, set under the same all-or-nothing run as scriptFlows
+	// (Executor.enterScriptFlows). A navigation target is stored by name, so one
+	// the script creates further down resolves there, as a flow call does.
+	scriptTargets map[defKey]bool
 
 	// Format controls output formatting (table, json, etc.).
 	Format OutputFormat

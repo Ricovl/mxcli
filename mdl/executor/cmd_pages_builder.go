@@ -102,11 +102,24 @@ type pageBuilder struct {
 	// Forms$PageVariable.LocalVariable in BSON, not as a literal Expression.
 	localVariables map[string]bool
 
+	// isDocumentWidget reports whether a name is a widget of the document being
+	// built. A flow argument `$name` naming one passes that widget's selection,
+	// which Studio Pro binds through the PageVariable's Widget slot
+	// (ako/mxcli#1560). nil where the document's widgets are not known: nothing
+	// is then a widget, and the argument binds as it always did.
+	isDocumentWidget func(name string) bool
+
 	// storedPluggables are the pluggable widgets of the stored document a
 	// `create or replace`/`create or modify` rewrites; nil for a new document.
 	// A widget the statement did not change keeps its stored Type and Object
-	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go).
+	// (ako/mxcli#721 L4, see cmd_pages_pluggable_passthrough.go); one it did
+	// change keeps the properties it did not (ako/mxcli#832,
+	// cmd_pages_pluggable_patch.go).
 	storedPluggables *pluggablePassthrough
+
+	// shadowBuild is set while that patch builds the widget describe prints
+	// for the stored one: its child widgets are stubbed (shadowChild).
+	shadowBuild bool
 }
 
 // initPluggableEngine lazily initializes the pluggable widget engine.
@@ -270,6 +283,20 @@ func (pb *pageBuilder) resolveLayout(layoutName string) (model.ID, error) {
 	return "", mdlerrors.NewNotFound("layout", layoutName)
 }
 
+// layoutIsNative reports whether the layout with this ID is a native one.
+func (pb *pageBuilder) layoutIsNative(id model.ID) bool {
+	layouts, err := pb.getLayouts()
+	if err != nil {
+		return false
+	}
+	for _, l := range layouts {
+		if l.ID == id {
+			return l.Native
+		}
+	}
+	return false
+}
+
 // resolveEntity finds an entity by qualified name.
 func (pb *pageBuilder) resolveEntity(entityRef ast.QualifiedName) (model.ID, error) {
 	// Get domain models which contain entities
@@ -388,22 +415,10 @@ func (pb *pageBuilder) resolveFolder(folderPath string) (model.ID, error) {
 	return currentContainerID, nil
 }
 
-// createFolder creates a new folder in the project.
+// createFolder creates a new folder in the project through the executor's one
+// folder creator, which also keeps the cached hierarchy in step (ako/mxcli#1486).
 func (pb *pageBuilder) createFolder(name string, containerID model.ID) (model.ID, error) {
-	folder := &model.Folder{
-		BaseElement: model.BaseElement{
-			ID:       model.ID(types.GenerateID()),
-			TypeName: "Projects$Folder",
-		},
-		ContainerID: containerID,
-		Name:        name,
-	}
-
-	if err := pb.backend.CreateFolder(folder); err != nil {
-		return "", err
-	}
-
-	return folder.ID, nil
+	return createFolder(pb.ctx, name, containerID)
 }
 
 // execDropPage handles DROP PAGE statement.

@@ -231,18 +231,15 @@ Searches across string literals (captions, labels, messages), the documentation
 of project elements, and MDL source definitions. Requires at least a FULL
 catalog build (done automatically).
 
-What is searched, besides captions, labels and messages, is the documentation of:
-  entities; attributes; associations; enumerations; constants; pages, snippets,
-  layouts, building blocks and page templates; microflows, nanoflows, rules and
-  workflows; Java and JavaScript actions; microflow and Java action parameters;
-  consumed and published REST services and business event services; import and
-  export mappings, JSON structures and data transformers; scheduled events, task
-  queues, regular expressions, image and icon collections and menus; agents, AI
-  models, knowledge bases and consumed MCP services; and a module's domain model
-  documentation. That is every document type whose catalog table carries a
-  documentation text.
-  Not searched: documentation of an enumeration value (Mendix has no such
-  field) and the summary text of a remote service's contract.
+Besides captions, labels and messages, it searches the documentation of every
+element that has documentation (entities, attributes, constants, pages,
+microflows, Java actions, REST services, ... and a module's domain model
+documentation). The full list is the catalog tables with a Description or
+Documentation column:
+  mxcli -p app.mpr -c "list catalog tables"
+  mxcli -p app.mpr -c "describe CATALOG.entities"
+Not searched: the documentation of an enumeration value (Mendix has no such
+field) and the summary text of a remote service's contract.
 A hit names the element (qualified name, type) and the field: the context
 column says "documentation" for a documentation hit.
 
@@ -257,21 +254,43 @@ Output Formats:
             query command takes). "--format json" is still accepted as a
             deprecated spelling of it.
 
+Gating on a word:
+  --fail-on-match   exit 1 when there is at least one hit, 0 when there is none
+                    (results are printed as usual, JSON included). A query the
+                    index cannot run, or any other error, exits 2 so that 1
+                    always means "something matched".
+
+Marketplace modules:
+  --exclude-marketplace
+                    leave out hits inside modules downloaded from the
+                    Marketplace. Off by default: every module is searched.
+
 Examples:
   mxcli search -p app.mpr "validation"
   mxcli search -p app.mpr "Customer" --json | jq '.[].qualifiedName'
   mxcli search -p app.mpr "Customer" --format names
   mxcli search -p app.mpr "error" -q --format names | xargs -I {} mxcli describe -p app.mpr microflow {}
+  mxcli search -p app.mpr "TODO" --fail-on-match
+  mxcli search -p app.mpr "TODO" --exclude-marketplace
 `,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		projectPath, _ := cmd.Flags().GetString("project")
 		format := resolveFormat(cmd, "table")
 		quiet, _ := cmd.Flags().GetBool("quiet")
+		failOnMatch, _ := cmd.Flags().GetBool("fail-on-match")
+		excludeMarketplace, _ := cmd.Flags().GetBool("exclude-marketplace")
+
+		// Under --fail-on-match, exit status 1 means "something matched", so a
+		// search that could not run says so with 2 rather than with 1.
+		errorExit := 1
+		if failOnMatch {
+			errorExit = 2
+		}
 
 		if projectPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --project (-p) is required")
-			os.Exit(1)
+			os.Exit(errorExit)
 		}
 
 		// A JSON-format executor sends "Connected to:" and catalog progress to
@@ -293,14 +312,25 @@ Examples:
 		for _, stmt := range connectProg.Statements {
 			if err := exec.Execute(stmt); err != nil {
 				fmt.Fprintf(os.Stderr, "Error connecting: %v\n", err)
-				os.Exit(1)
+				os.Exit(errorExit)
 			}
 		}
 
 		// Execute search with format option
 		query := strings.ReplaceAll(args[0], "'", "''")
-		if err := exec.Search(query, format); err != nil {
+		hits, err := exec.SearchWith(query, format, executor.SearchOptions{
+			ExcludeMarketplace: excludeMarketplace,
+			// A gate must not read "the index refused the query" as "no match".
+			Strict: failOnMatch,
+		})
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(errorExit)
+		}
+		if failOnMatch && hits > 0 {
+			// os.Exit skips the deferred closes, and the log file would stay open.
+			exec.Close()
+			logger.Close()
 			os.Exit(1)
 		}
 	},

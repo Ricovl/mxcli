@@ -44,6 +44,7 @@ This catches everything Level 1 catches, plus:
 - Page layouts that don't exist in the project
 - Association endpoints pointing to missing entities
 - A plain `create` whose name already exists in the project
+- A statement the project's Mendix version cannot store (`MDL-VERSION01`, e.g. `create view entity` below 10.18) — the same version gates `exec` refuses with
 
 This is the check you should run before executing a script. It's fast (reads the project but doesn't modify it) and catches most mistakes.
 
@@ -89,10 +90,11 @@ which is why it can safely open every script.
 After executing your script, validate the entire project using the Mendix toolchain:
 
 ```bash
+mxcli setup mxbuild -p app.mpr   # once per Mendix version
 mxcli docker check -p app.mpr
 ```
 
-This runs Mendix's own `mx check` tool inside a Docker container. It performs the same validation that Studio Pro does when you open a project, catching issues that mxcli's parser cannot detect:
+This runs Mendix's own `mx check` tool on a temporary copy of the project. It performs the same validation that Studio Pro does when you open a project, catching issues that mxcli's parser cannot detect:
 
 - BSON serialization errors (malformed internal data)
 - Security configuration problems (missing access rules, CE0066 errors)
@@ -100,21 +102,14 @@ This runs Mendix's own `mx check` tool inside a Docker container. It performs th
 - Missing required properties on widgets
 - Broken cross-references between documents
 
-The first time you run this, it will download the MxBuild toolchain for your project's Mendix version. Subsequent runs reuse the cached download.
+`docker check` does not download MxBuild, and does not use Docker: the `docker` in its name groups it with `docker build`. It runs the `mx` of an MxBuild already on the machine, as a local process, and stops with `mx not found` when there is none. `mxcli setup mxbuild -p app.mpr` downloads the project's version once and caches it under `~/.mxcli/mxbuild/`; `mxcli new` and `mxcli docker build` download it too.
 
-### Without Docker
+### With a local Mendix installation
 
-If you have `mx` installed locally (e.g., from a Mendix installation), you can run the check directly:
-
-```bash
-mxcli docker check -p app.mpr
-```
-
-Or use mxcli to auto-download and run it:
+If you have `mx` installed locally (e.g., from a Mendix installation), the check finds it on PATH or in the Studio Pro installation, and `setup mxbuild` is not needed. To choose a specific one:
 
 ```bash
-mxcli setup mxbuild -p app.mpr
-mxcli docker check -p app.mpr
+mxcli docker check -p app.mpr --mxbuild-path /path/to/mendix
 ```
 
 ## The recommended workflow

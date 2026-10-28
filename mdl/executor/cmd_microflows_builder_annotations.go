@@ -86,6 +86,9 @@ func (fb *flowBuilder) mergeStatementAnnotations(stmt ast.MicroflowStatement) {
 	if ann.BodyTailAnchor != nil {
 		fb.pendingAnnotations.BodyTailAnchor = ann.BodyTailAnchor
 	}
+	if len(ann.CaseAnchors) > 0 {
+		fb.pendingAnnotations.CaseAnchors = ann.CaseAnchors
+	}
 }
 
 // applyAnnotations applies pending annotations to the activity identified by activityID.
@@ -141,8 +144,16 @@ func (fb *flowBuilder) applyAnnotations(activityID model.ID, ann *ast.ActivityAn
 
 	// @annotation — attach the notes. All of them: an activity can carry more
 	// than one, and keeping only the last silently deleted the others (#1077).
-	for i, note := range ann.Notes {
+	//
+	// A stored note (`existing:`) takes no place in the stack: it is drawn
+	// where it is, and its line is drawn after the fragment's own, so describe
+	// counts it after them too (ako/mxcli#1695).
+	i := 0
+	for _, note := range ann.Notes {
 		fb.attachAnnotation(note, activityID, i)
+		if note.Existing == "" {
+			i++
+		}
 	}
 }
 
@@ -180,6 +191,21 @@ func mergePosition(ann *ast.ActivityAnnotations, computedX, computedY int) (int,
 		return computedX, computedY
 	}
 	return ann.Merge.X, ann.Merge.Y
+}
+
+// adoptCurves takes over the @curves a sub-builder recorded, for a caller that
+// is taking over its flows. applyFlowCurves runs once, on the builder that owns
+// the flows when the graph is complete, so a curve left behind on a loop body's
+// or an error handler's builder was never applied: check and exec passed and
+// the edge came out straight (mendixlabs/mxcli#991, mendixlabs/mxcli#1597).
+// Every site that appends a sub-builder's flows calls this alongside.
+func (fb *flowBuilder) adoptCurves(sub *flowBuilder) {
+	for id, c := range sub.curveByOrigin {
+		if fb.curveByOrigin == nil {
+			fb.curveByOrigin = map[model.ID]*ast.FlowCurve{}
+		}
+		fb.curveByOrigin[id] = c
+	}
 }
 
 // applyFlowCurves stamps each recorded @curve onto the flows leaving that
@@ -307,6 +333,10 @@ func objectHeight(obj microflows.MicroflowObject) int {
 // index is the note's ordinal among those attached to this activity, used only
 // to place unpositioned notes so they stack instead of overlapping.
 func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID model.ID, index int) {
+	if note.Existing != "" {
+		fb.attachStoredNote(note, activityID)
+		return
+	}
 	if note.Label != "" {
 		if existing, ok := fb.annotationsByLabel[note.Label]; ok {
 			if note.Text != "" && note.Text != existing.Caption {
@@ -320,8 +350,8 @@ func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID
 		}
 		if note.Text == "" {
 			fb.addError("@annotation(id: %s) refers to an annotation that has not been declared — "+
-				"the first mention must carry the text, as @annotation(id: %s, text: '…')",
-				note.Label, note.Label)
+				"the first mention must carry the text, as @annotation(id: %s, text: '…')%s",
+				note.Label, note.Label, fb.storedNoteHint())
 			return
 		}
 	}
@@ -346,10 +376,29 @@ func (fb *flowBuilder) attachAnnotation(note ast.MicroflowAnnotation, activityID
 	fb.linkAnnotation(fb.newAnnotation(note, pos, size).ID, activityID)
 }
 
+// recordStatedNote remembers a note whose position the script states. A
+// spliced fragment keeps such a note where it is instead of moving it with
+// the fragment (MicroflowFragment.Pinned).
+func (fb *flowBuilder) recordStatedNote(note ast.MicroflowAnnotation, id model.ID) {
+	if note.Position == nil {
+		return
+	}
+	if fb.statedNotes == nil {
+		fb.statedNotes = map[model.ID]bool{}
+	}
+	fb.statedNotes[id] = true
+}
+
 // attachFreeAnnotation creates a free-floating Annotation not connected to any
 // activity. A label on one is accepted and reused, so a note can be shared
 // between the canvas and an activity.
 func (fb *flowBuilder) attachFreeAnnotation(note ast.MicroflowAnnotation) {
+	if note.Existing != "" {
+		// A stored note is on the canvas already; the mention can only mean
+		// attaching it, and there is nothing here to attach it to.
+		fb.addError("%s", existingNoteUnattached(note.Existing))
+		return
+	}
 	if note.Label != "" {
 		if _, ok := fb.annotationsByLabel[note.Label]; ok {
 			// Already created; a free mention adds no flow, so there is
@@ -381,6 +430,7 @@ func (fb *flowBuilder) newAnnotation(note ast.MicroflowAnnotation, pos model.Poi
 		Caption: note.Text,
 	}
 	fb.objects = append(fb.objects, annotation)
+	fb.recordStatedNote(note, annotation.ID)
 	if note.Label != "" {
 		if fb.annotationsByLabel == nil {
 			fb.annotationsByLabel = map[string]*microflows.Annotation{}
@@ -388,6 +438,64 @@ func (fb *flowBuilder) newAnnotation(note ast.MicroflowAnnotation, pos model.Poi
 		fb.annotationsByLabel[note.Label] = annotation
 	}
 	return annotation
+}
+
+// orientAnnotationFlows picks, for every note line that has no sides yet, the
+// side of the note that faces its element and the side of the element that
+// faces the note (mendixlabs/mxcli#1598, case 2). It runs once every object has
+// its final position, since a note is placed before rows and containers settle.
+//
+// Studio Pro's own drawings are the rule: of 523 distinct note lines in
+// Studio Pro-authored apps, the element's side is top or bottom whenever the
+// two boxes are vertically clear of each other, and left or right only when
+// they overlap vertically — 98% agreement. Writing 2 -> 0 for every note drew
+// a note below its activity with a line that leaves its own bottom edge.
+func orientAnnotationFlows(objects []microflows.MicroflowObject, flows []*microflows.AnnotationFlow) {
+	boxes := map[model.ID]canvasBox{}
+	collectCanvasBoxes(objects, model.Point{}, boxes)
+	for _, af := range flows {
+		if af.Sides != nil {
+			continue
+		}
+		note, ok1 := boxes[af.OriginID]
+		target, ok2 := boxes[af.DestinationID]
+		if !ok1 || !ok2 {
+			continue
+		}
+		af.Sides = facingSides(note, target)
+	}
+}
+
+// canvasBox is an object's box in absolute canvas coordinates.
+type canvasBox struct{ left, top, right, bottom int }
+
+// collectCanvasBoxes records the absolute box of every object, descending into
+// loop bodies. A loop's children are positioned relative to the loop box's
+// top-left corner, and a note outside a loop may be wired to an activity
+// inside it, so comparing raw positions would mix two planes.
+func collectCanvasBoxes(objects []microflows.MicroflowObject, origin model.Point, out map[model.ID]canvasBox) {
+	for _, o := range objects {
+		if o == nil {
+			continue
+		}
+		p, sz := o.GetPosition(), objectSize(o)
+		x, y := origin.X+p.X, origin.Y+p.Y
+		out[o.GetID()] = canvasBox{x - sz.Width/2, y - sz.Height/2, x + sz.Width/2, y + sz.Height/2}
+		if loop, ok := o.(*microflows.LoopedActivity); ok && loop.ObjectCollection != nil {
+			collectCanvasBoxes(loop.ObjectCollection.Objects,
+				model.Point{X: x - sz.Width/2, Y: y - sz.Height/2}, out)
+		}
+	}
+}
+
+// facingSides returns the sides at which a line from note to target attaches.
+// The formula is microflows.FacingSides, which the splice also uses for a line
+// it draws from a stored note (ako/mxcli#1695): two copies would drift.
+func facingSides(note, target canvasBox) *microflows.ConnectionSides {
+	s := microflows.FacingSides(
+		microflows.CanvasBox{Left: note.left, Top: note.top, Right: note.right, Bottom: note.bottom},
+		microflows.CanvasBox{Left: target.left, Top: target.top, Right: target.right, Bottom: target.bottom})
+	return &s
 }
 
 func (fb *flowBuilder) linkAnnotation(annotationID, activityID model.ID) {

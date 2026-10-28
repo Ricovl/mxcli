@@ -1,0 +1,34 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1744 (mendixlabs/mxcli#1663) — the custom-content type without
+-- the content (negative test: `check` must refuse it)
+-- ============================================================================
+--
+-- `optionsSourceAssociationCustomContentType: 'yes'` (or 'listItem') with no
+-- `optionssourceassociationcustomcontent { … }` block passed check and exec,
+-- and mx check reported CE0642 "Property 'Custom content' is required." at
+-- Widgets container 'Custom content' of combo box 'cbPerson' (measured on
+-- 11.13.0, Combo box 2.5.0). It is now MDL-WIDGET53, and exec refuses it too.
+
+create module Bug1744T;
+create or modify persistent entity Bug1744T.Person ( NameEN: String(200) );
+create or modify non-persistent entity Bug1744T.Choice ( Note: String(20) );
+create or modify association Bug1744T.Choice_Person from Bug1744T.Choice to Bug1744T.Person type Reference owner Default;
+
+create or modify microflow Bug1744T.DS_Choice () returns Bug1744T.Choice as $Choice
+begin
+  $Made = create Bug1744T.Choice ( Note = '' );
+  return $Made;
+end;
+
+create or modify page Bug1744T.ChoosePage ( Title: 'Choose', Layout: Atlas_Core.Atlas_Default ) {
+  dataview dvChoice (DataSource: microflow Bug1744T.DS_Choice) {
+    combobox cbPerson (
+      Label: 'Person',
+      Association: Bug1744T.Choice_Person,
+      DataSource: database Bug1744T.Person,
+      CaptionAttribute: NameEN,
+      optionsSourceAssociationCustomContentType: 'yes'
+    )
+  }
+};

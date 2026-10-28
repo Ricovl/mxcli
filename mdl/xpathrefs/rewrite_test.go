@@ -248,3 +248,62 @@ func TestReplaceIdentifier(t *testing.T) {
 		}
 	}
 }
+
+// TestRewriteUnrelatedConstraintIsByteIdentical is the regression test for
+// ako/mxcli#1506 (mendixlabs/mxcli#1596). Studio Pro stores a line break between
+// predicate groups; the rewrite used to split the constraint into groups and join
+// them back with nothing in between, so a constraint that never named the
+// attribute came back without its line breaks. The caller compares the result
+// with what is stored to decide whether the unit changed, so every such
+// constraint in the project was rewritten and counted as an update.
+func TestRewriteUnrelatedConstraintIsByteIdentical(t *testing.T) {
+	for _, tc := range []struct{ name, in, target string }{
+		{"line break between groups", "[LastName = 'L']\n[Email != 'x']", "Sales.Person"},
+		{"trailing line break", "[a = 1]\n[b = 2]\n", "Sales.Person"},
+		{"leading space, CRLF and tab", "  [LastName = 'L']\r\n\t[Email != 'x'] ", "Sales.Person"},
+		{"same name on another entity", "[FirstName = 'Ada']\n[LastName = 'L']", "Sales.Order"},
+		{"name only inside a string literal", "[LastName = 'FirstName']\n[Email = 'x']", "Sales.Person"},
+		{"longer name with the same prefix", "[FirstNameX = 'Ada']\n[LastName = 'L']", "Sales.Person"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := rw(t, tc.in, tc.target)
+			if !ok {
+				t.Error("a constraint that does not name the attribute was reported")
+			}
+			if got != tc.in {
+				t.Errorf("a constraint the rename does not concern was rewritten:\n got %q\nwant %q", got, tc.in)
+			}
+		})
+	}
+}
+
+// TestRewriteKeepsTheLayoutBetweenGroups pins the other half of ako/mxcli#1506:
+// a constraint that does name the attribute changes in the name and nowhere
+// else. The groups are spliced back where they were, so the line breaks and
+// indentation Studio Pro stored around them survive.
+func TestRewriteKeepsTheLayoutBetweenGroups(t *testing.T) {
+	in := "\n  [FirstName = 'Ada']\r\n\t[LastName = 'L']\n[FirstNameX != 'Bob' and FirstName != 'Bob']\n"
+	want := "\n  [GivenName = 'Ada']\r\n\t[LastName = 'L']\n[FirstNameX != 'Bob' and GivenName != 'Bob']\n"
+	got, ok := rw(t, in, "Sales.Person")
+	if !ok {
+		t.Fatal("the constraint was reported as not understood")
+	}
+	if got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+}
+
+// TestRewriteRefusedGroupKeepsTheRestOfTheLayout pins that a group left alone
+// because it could not be resolved does not take the separators of the groups
+// that were rewritten with it.
+func TestRewriteRefusedGroupKeepsTheRestOfTheLayout(t *testing.T) {
+	in := "[FirstName = 'Ada']\n[Sales.Mystery/FirstName = 'Bob']"
+	want := "[GivenName = 'Ada']\n[Sales.Mystery/FirstName = 'Bob']"
+	got, ok := rw(t, in, "Sales.Person")
+	if ok {
+		t.Error("the unresolvable group was not reported")
+	}
+	if got != want {
+		t.Errorf("got %q\nwant %q", got, want)
+	}
+}

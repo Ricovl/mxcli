@@ -7,6 +7,7 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -90,6 +91,13 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 			log.Printf("warning: layout %s not found", s.Layout)
 		} else {
 			page.LayoutID = layoutID
+			// A native page's widgets take the native design-property
+			// definitions; typed against the web ones, Atlas's native `'Color':
+			// 'Brand primary'` option was stored as a custom colour
+			// (ako/mxcli#1679). The layout decides, as it does in Studio Pro.
+			if pb.layoutIsNative(layoutID) {
+				pb.themeRegistry = pb.themeRegistry.ForPlatform(true)
+			}
 
 			// Create LayoutCall with arguments for placeholders
 			page.LayoutCall = &pages.LayoutCall{
@@ -101,6 +109,17 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 				LayoutName: s.Layout, // Qualified name for "Form" field in BSON
 			}
 		}
+	}
+
+	// The page's own design properties, typed against the theme's "Page" group —
+	// after the layout, which decides the platform (ako/mxcli#1678).
+	if len(s.DesignProperties) > 0 {
+		dps, err := designPropertyValuesV3(&ast.WidgetV3{Name: s.Name.Name,
+			Properties: map[string]any{"DesignProperties": s.DesignProperties}}, pageThemeKey, pb.themeRegistry)
+		if err != nil {
+			return nil, fmt.Errorf("page %s: %w", s.Name.String(), err)
+		}
+		page.DesignProperties = dps
 	}
 
 	// Build parameters
@@ -191,18 +210,26 @@ func (pb *pageBuilder) buildPageV3(s *ast.CreatePageStmtV3) (*pages.Page, error)
 // Shared by pages and by layouts built on another layout (mendixlabs/mxcli#1411):
 // both fill a layout's placeholders through the same Forms$LayoutCall, so the
 // MDL that fills them is the same too.
+//
+// The arguments follow the blocks' order, which is the order describe prints
+// them in — the stored one. Main comes first only when no block names it:
+// putting it first regardless turned a page Studio Pro stored as [Header,
+// Main] into [Main, Header], so describe → exec rewrote it (ako/mxcli#1704).
 func (pb *pageBuilder) buildLayoutCallArguments(layoutQN string, bare []*ast.WidgetV3, blocks []*ast.PagePlaceholderV3) ([]*pages.LayoutCallArgument, error) {
-	order := []string{"Main"}
+	var order []string
 	byName := map[string][]*ast.WidgetV3{"Main": append([]*ast.WidgetV3(nil), bare...)}
 	for _, ph := range blocks {
 		name := ph.Name
 		if name == "" {
 			name = "Main"
 		}
-		if _, seen := byName[name]; !seen {
+		if !slices.Contains(order, name) {
 			order = append(order, name)
 		}
 		byName[name] = append(byName[name], ph.Widgets...)
+	}
+	if !slices.Contains(order, "Main") {
+		order = append([]string{"Main"}, order...)
 	}
 
 	var out []*pages.LayoutCallArgument
@@ -349,6 +376,9 @@ func (pb *pageBuilder) buildSnippetV3(s *ast.CreateSnippetStmtV3) (*pages.Snippe
 // as item slots. The dispatch table is consumed by inspection commands and
 // DESCRIBE-side keyword resolution rather than overriding write-side routing here.
 func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
+	if pb.shadowBuild {
+		return shadowChild(w), nil
+	}
 	// What a SHOW_PAGE argument inside this widget may bind to. The data widgets
 	// below overwrite it with the context they actually create; this only stops
 	// "no context object at all" surviving past a widget whose data source this
@@ -368,13 +398,17 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkSearchByIsOnAListView(w); err != nil {
 		return nil, err
 	}
-	// On a 9.x project a pluggable widget stores this form too, as a
-	// CustomWidgetDatabaseSource (mendixlabs/mxcli#1399); a widget with its
-	// own builder still refuses it there, in buildDataSourceV3.
-	if err := checkDatabaseOverAssociationIsOnAListView(w); err != nil && !pb.customWidgetDatabaseSourceSupported() {
+	// `database from $ctx/Assoc/Entity` needs no check here: a list view and
+	// every widget the pluggable engine writes store it (buildPluggableDataSourceV3,
+	// mendixlabs/mxcli#1399, #1599), and a widget with its own builder refuses
+	// it in buildDataSourceV3.
+	if err := checkWidgetHasName(w); err != nil {
 		return nil, err
 	}
-	if err := checkWidgetHasName(w); err != nil {
+	// A property this widget does not take — `Caption:` on a textbox — was
+	// accepted and dropped (ako/mxcli#1698). Elements a parent builds itself
+	// (a region, a layout grid row) are judged where that parent reads them.
+	if err := refuseNativeWidgetProps(pb.ctx, nativeWidgetKindOf(w, nil), w); err != nil {
 		return nil, err
 	}
 
@@ -450,6 +484,10 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 		widget, err = pb.buildMenuBarV3(w)
 	case "simplemenubar":
 		widget, err = pb.buildSimpleMenuBarV3(w)
+	case "sidebartoggle":
+		widget, err = pb.buildSidebarToggleV3(w)
+	case "layoutheader":
+		widget, err = pb.buildLayoutHeaderV3(w)
 	case "placeholder":
 		widget, err = pb.buildPlaceholderV3(w)
 	case "radiobuttons":
@@ -534,6 +572,9 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := pb.applyVisibleWhen(widget, w); err != nil {
 		return nil, err
 	}
+	if err := applyVisibleRoles(widget, w); err != nil {
+		return nil, err
+	}
 
 	return widget, nil
 }
@@ -553,14 +594,23 @@ func (pb *pageBuilder) buildPluggable(def *WidgetDefinition, w *ast.WidgetV3) (p
 	if err != nil {
 		return nil, err
 	}
-	pb.storedPluggables.passStoredThrough(def, w, widget)
+	if !pb.storedPluggables.passStoredThrough(def, w, widget) {
+		if err := pb.storedPluggables.refuseLostHiddenContent(def, w); err != nil {
+			return nil, err
+		}
+		pb.patchStoredPluggable(def, w, widget)
+		pb.storedPluggables.carryNoActionExecution(def, w, widget)
+	}
 	if err := applyWidgetAppearance(widget, w, pb.themeRegistry); err != nil {
 		return nil, err
 	}
-	if err := applyPluggableSystemSettings(widget, w); err != nil {
+	if err := applyPluggableSystemSettings(widget, w, def); err != nil {
 		return nil, err
 	}
 	if err := pb.applyVisibleWhen(widget, w); err != nil {
+		return nil, err
+	}
+	if err := applyVisibleRoles(widget, w); err != nil {
 		return nil, err
 	}
 	return widget, nil
@@ -583,22 +633,25 @@ func applyConditionalSettings(widget pages.Widget, w *ast.WidgetV3) {
 	}
 
 	if editableIf := w.GetStringProp("EditableIf"); editableIf != "" {
-		bw.ConditionalEditability = &pages.ConditionalEditabilitySettings{
-			BaseElement: model.BaseElement{
-				ID:       model.ID(types.GenerateID()),
-				TypeName: "Forms$ConditionalEditabilitySettings",
-			},
-			Expression: editableIf,
-		}
-	} else if editable, ok := pages.CanonicalEditability(w.GetStringProp("Editable")); ok {
+		bw.ConditionalEditability = newConditionalEditability(editableIf)
+	} else if enum, expr, ok := staticEditability(w); ok {
 		// `Editable: Never` — parsed and validated (MDL-WIDGET20 checks the widget
 		// TYPE) and then dropped, because nothing carried it to the writers, which
 		// hardcoded "Always". Same shape as the `Visible: false` case above.
 		//
+		// A string that is not an enum word is the condition, exactly as for
+		// Visible: `Editable: '$currentObject/Locked = false'` is the quoted
+		// spelling of the bare expression. It used to be skipped here, so the
+		// widget stayed Always.
+		//
 		// EDITABLE IF wins when both are given: the conditional settings element is
 		// what makes the enum "Conditional", so honouring a plain `Editable` too
 		// would write an enum contradicting the element beside it.
-		bw.Editable = editable
+		if expr != "" {
+			bw.ConditionalEditability = newConditionalEditability(expr)
+		} else {
+			bw.Editable = enum
+		}
 	}
 }
 
@@ -851,27 +904,6 @@ func checkSearchByIsOnAListView(w *ast.WidgetV3) error {
 		w.Name, strings.ToLower(w.Type), strings.ToLower(w.Type)))
 }
 
-// checkDatabaseOverAssociationIsOnAListView refuses `database from $ctx/Assoc/…`
-// on a widget other than a list view. Only the List View writer stores a
-// database source reached over an association (a Forms$ListViewXPathSource with
-// an IndirectEntityRef); every other writer would store the entity alone and
-// drop the path — a retrieve of every row instead of the context's
-// (ako/mxcli#721 L5). A data view is refused by MDL-WIDGET09 whatever the form.
-func checkDatabaseOverAssociationIsOnAListView(w *ast.WidgetV3) error {
-	if w == nil || strings.EqualFold(w.Type, "listview") || strings.EqualFold(w.Type, "dataview") {
-		return nil
-	}
-	ds := w.GetDataSource()
-	if ds == nil || ds.Type != "database" || ds.AssociationPath == "" {
-		return nil
-	}
-	return mdlerrors.NewValidation(fmt.Sprintf(
-		"widget %q (%s): `database from $%s/%s` is a LIST VIEW source reached over an association, "+
-			"and %s cannot store one — use the association source `$%s/%s`, or a `listview`.",
-		w.Name, strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath,
-		strings.ToLower(w.Type), ds.ContextVariable, ds.AssociationPath))
-}
-
 // buildDataSourceV3 converts a V3 DataSource AST to a pages.DataSource.
 // Returns the datasource, the entity name for context, and any error.
 func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource, string, error) {
@@ -916,14 +948,15 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 
 	case "database":
 		if ds.AssociationPath != "" {
-			// Only buildListViewDataSourceV3 may build this form. Every other
-			// caller — a widget-engine datasource under its own key, a chart
-			// series, a dynamic image — hands the result to a writer that stores
-			// the entity alone, a retrieve of every row instead of the context's
+			// Only buildListViewDataSourceV3 and buildPluggableDataSourceV3 may
+			// build this form. Every other caller — a chart series, a dynamic
+			// image — hands the result to a writer that stores the entity
+			// alone, a retrieve of every row instead of the context's
 			// (ako/mxcli#721 L5).
 			return nil, "", mdlerrors.NewValidationf(
-				"`database from $%s/%s` is a LIST VIEW source reached over an association; "+
-					"only a `listview` DataSource can store one — use the association source `$%s/%s` here",
+				"`database from $%s/%s` is a database source reached over an association; "+
+					"only a `listview` or a pluggable widget's DataSource (gallery, datagrid, …) can store one "+
+					"— use the association source `$%s/%s` here",
 				ds.ContextVariable, ds.AssociationPath, ds.ContextVariable, ds.AssociationPath)
 		}
 		// Database source: DATABASE Entity
@@ -971,6 +1004,7 @@ func (pb *pageBuilder) buildDataSourceV3(ds *ast.DataSourceV3) (pages.DataSource
 			MicroflowID:       mfID,
 			Microflow:         ds.Reference,
 			ParameterMappings: pb.flowArgsToParameterMappings(ds.Args),
+			FormValidations:   ds.FormValidations,
 		}, entityName, nil
 
 	case "nanoflow":
@@ -1715,8 +1749,16 @@ func (pb *pageBuilder) getNanoflowReturnEntityName(qualifiedName string) string 
 // buildClientActionV3 converts a V3 Action AST to a pages.ClientAction.
 func (pb *pageBuilder) buildClientActionV3(action *ast.ActionV3) (pages.ClientAction, error) {
 	a, err := pb.buildClientActionV3Base(action)
-	if err != nil || a == nil || action.Settings == nil {
+	if err != nil || a == nil {
 		return a, err
+	}
+	if len(action.Returns) > 0 {
+		if err := pb.applyFlowReturns(a, action.Returns); err != nil {
+			return nil, err
+		}
+	}
+	if action.Settings == nil {
+		return a, nil
 	}
 	if err := applyActionSettings(a, action.Settings); err != nil {
 		return nil, err
@@ -2017,6 +2059,57 @@ func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.Clie
 			ClosePage:    true,
 			Commit:       true,
 			OutcomeValue: action.OutcomeValue,
+		}, nil
+
+	case "openUserTask":
+		// Studio Pro's "Show user task page", whose new action stores
+		// auto-assign on and "Who can open: Assigned user" (the Model SDK's
+		// defaults; all six on ako/TestApp's WorkflowCommons pages). Mendix 9.20
+		// introduced both: an older project stores neither.
+		a := &pages.OpenUserTaskClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$OpenUserTaskClientAction",
+			},
+		}
+		if pb.projectAtLeast(9, 20) {
+			assign, whenAssigned := true, false
+			a.AssignOnOpen, a.OpenWhenAssigned = &assign, &whenAssigned
+		}
+		return a, nil
+
+	case "openWorkflow":
+		a := &pages.OpenWorkflowClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$OpenWorkflowClientAction",
+			},
+		}
+		// The page is required: without one mx check reports CE1834. The
+		// visitor refuses the statement; this is for an AST built by hand.
+		s := action.Settings
+		if s == nil || s.DefaultPage == "" {
+			return nil, mdlerrors.NewValidation("open workflow needs a page for a workflow that overrides no admin page: `open workflow with (DefaultPage: Module.Page)` (CE1834)")
+		}
+		if _, err := pb.resolvePageRef(s.DefaultPage); err != nil && !pb.danglingRefOK(err) {
+			return nil, err
+		}
+		a.DefaultPage = unquoteQualifiedName(s.DefaultPage)
+		return a, nil
+
+	case "callWorkflow":
+		// The model stores the workflow by name and nothing else names it, so
+		// an unknown one is refused here rather than written as CE1613.
+		if err := pb.resolveWorkflow(action.Target); err != nil && !pb.danglingRefOK(err) {
+			return nil, err
+		}
+		return &pages.CallWorkflowClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$CallWorkflowClientAction",
+			},
+			WorkflowName: unquoteQualifiedName(action.Target),
+			ClosePage:    true,
 		}, nil
 
 	default:
@@ -3278,6 +3371,18 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 			Name: w.Name,
 		},
 	}
+	// Headline or Sidebar: which regions run the full width (ako/mxcli#1703).
+	// It was neither read nor written, so a describe → exec copy of
+	// Atlas_SideBar came out a Headline layout.
+	if v := w.GetStringProp("LayoutMode"); v != "" {
+		mode, ok := pages.CanonicalScrollContainerLayoutMode(v)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"scrollcontainer %q: unknown LayoutMode %q (want %s)",
+				w.Name, v, strings.Join(pages.ScrollContainerLayoutModes, " or ")))
+		}
+		sc.LayoutMode = mode
+	}
 
 	seen := map[pages.ScrollContainerSlot]bool{}
 	for _, child := range w.Children {
@@ -3301,23 +3406,111 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 		}
 		seen[slot] = true
 
-		region := &pages.ScrollContainerRegion{
-			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID()), TypeName: "Forms$ScrollContainerRegion"},
-			Slot:        slot,
-			Class:       child.GetStringProp("Class"),
-			SizeMode:    child.GetStringProp("SizeMode"),
-			Size:        child.GetIntProp("Size"),
+		region, err := pb.buildScrollContainerRegionV3(w.Name, slot, child)
+		if err != nil {
+			return nil, err
+		}
+		sc.Regions = append(sc.Regions, region)
+	}
+	return sc, nil
+}
+
+// buildScrollContainerRegionV3 builds one region of the scroll container
+// named container. A region is not a widget: buildWidgetV3 never sees it, so
+// what it takes is judged here (ako/mxcli#1698).
+func (pb *pageBuilder) buildScrollContainerRegionV3(container string, slot pages.ScrollContainerSlot, w *ast.WidgetV3) (*pages.ScrollContainerRegion, error) {
+	if err := refuseNativeWidgetProps(pb.ctx, "scrollcontainer region", w); err != nil {
+		return nil, err
+	}
+	toggleMode, ok := canonicalRegionToggleMode(w.GetStringProp("ToggleMode"))
+	if !ok {
+		return nil, mdlerrors.NewValidation(fmt.Sprintf(
+			"scrollcontainer %q: region %q: unknown ToggleMode %q (want %s)",
+			container, slot, w.GetStringProp("ToggleMode"), strings.Join(regionToggleModes, ", ")))
+	}
+	region := &pages.ScrollContainerRegion{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID()), TypeName: "Forms$ScrollContainerRegion"},
+		Slot:        slot,
+		Class:       w.GetStringProp("Class"),
+		SizeMode:    w.GetStringProp("SizeMode"),
+		Size:        w.GetIntProp("Size"),
+		ToggleMode:  toggleMode,
+	}
+	for _, gc := range w.Children {
+		cw, err := pb.buildWidgetV3(gc)
+		if err != nil {
+			return nil, err
+		}
+		region.Widgets = append(region.Widgets, cw)
+	}
+	return region, nil
+}
+
+// buildLayoutHeaderV3 builds a phone or tablet layout's header bar
+// (Forms$Header). Its children are its two sides, spelled like a scroll
+// container's regions: `region left { … }` and `region right { … }`.
+func (pb *pageBuilder) buildLayoutHeaderV3(w *ast.WidgetV3) (pages.Widget, error) {
+	h := &pages.LayoutHeader{
+		BaseWidget: pages.BaseWidget{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$Header",
+			},
+			Name: w.Name,
+		},
+	}
+	seen := map[string]bool{}
+	for _, child := range w.Children {
+		side := strings.ToLower(child.Name)
+		if strings.ToLower(child.Type) != "region" || (side != "left" && side != "right") {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"layoutheader %q: its children are its two sides, `region left { … }` and `region right { … }`", w.Name))
+		}
+		if seen[side] {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf("layoutheader %q: region %q given twice", w.Name, side))
+		}
+		seen[side] = true
+		// A header side stores nothing but its widgets (ako/mxcli#1698).
+		if err := refuseNativeWidgetProps(pb.ctx, "layoutheader region", child); err != nil {
+			return nil, err
 		}
 		for _, gc := range child.Children {
 			cw, err := pb.buildWidgetV3(gc)
 			if err != nil {
 				return nil, err
 			}
-			region.Widgets = append(region.Widgets, cw)
+			if side == "left" {
+				h.LeftWidgets = append(h.LeftWidgets, cw)
+			} else {
+				h.RightWidgets = append(h.RightWidgets, cw)
+			}
 		}
-		sc.Regions = append(sc.Regions, region)
 	}
-	return sc, nil
+	if err := pb.registerWidgetName(w.Name, h.ID); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+// regionToggleModes are the values of Forms$ScrollContainerRegion.ToggleMode:
+// how a sidebar toggle button opens and closes the region.
+var regionToggleModes = []string{
+	"None", "PushContentAside", "SlideOverContent",
+	"ShrinkContentInitiallyOpen", "ShrinkContentInitiallyClosed",
+}
+
+// canonicalRegionToggleMode spells a region's ToggleMode as Mendix stores it,
+// case-insensitively; "" (not said) stays "", which writes None.
+func canonicalRegionToggleMode(mode string) (string, bool) {
+	if mode == "" {
+		return "", true
+	}
+	for _, m := range regionToggleModes {
+		if strings.EqualFold(m, mode) {
+			return m, true
+		}
+	}
+	return "", false
 }
 
 // buildNavigationTreeV3 builds the sidebar menu. The profile is stored inside a

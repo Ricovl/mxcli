@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/sdk/pages"
@@ -17,6 +17,8 @@ type recordingDeps struct{ saves int }
 
 func (d *recordingDeps) SerializeWidget(pages.Widget) bson.D             { return nil }
 func (d *recordingDeps) SerializeClientAction(pages.ClientAction) bson.D { return nil }
+func (d *recordingDeps) SerializeClientTemplate() bson.D                 { return nil }
+
 func (d *recordingDeps) SerializeCustomWidgetDataSource(pages.DataSource) bson.D {
 	return nil
 }

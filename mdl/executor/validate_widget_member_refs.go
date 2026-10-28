@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -40,11 +41,19 @@ import (
 // elsewhere, and an entity this cannot establish leaves the constraint
 // unchecked rather than wrongly checked — the same rule as the member resolver
 // in validate_member_refs.go, and for the same reason.
+//
+// The members are resolved against the project AND the script, with the
+// resolver the microflow retrieve uses. Project-only, a member the script adds
+// to a stored entity — `alter entity … add attribute`, a restating `create or
+// modify`, a new association — was "neither an attribute nor an association",
+// and exec refused a script that builds clean (mendixlabs/mxcli#1271).
 func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 	if prog == nil || !ctx.Connected() {
 		return nil
 	}
-	m := &execXPathModel{ctx: ctx}
+	sc := newScriptContext()
+	sc.collectDefinitions(prog)
+	m, resolve := scriptXPathResolver(ctx, sc)
 	var errs []error
 	for _, stmt := range prog.Statements {
 		forEachWidget(stmt, func(w *ast.WidgetV3, where string) {
@@ -58,7 +67,13 @@ func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 			}
 			// Checked as it is stored: a qualified attribute of the entity is
 			// the attribute, not a step to resolve (ako/mxcli#874).
-			for _, bad := range unresolvableXPathSteps(ctx, m, storedXPathConstraint(ds.Where, entityQN), entityQN) {
+			stored := storedXPathConstraint(ds.Where, entityQN)
+			for _, bad := range unresolvableXPathStepsAndLeadingEntity(ctx, m, stored, entityQN, resolve) {
+				if bad.kind == "entity" {
+					errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf("%s: %s",
+						where, leadingEntityStepMessage(ctx, stored, bad.name, entityQN))))
+					continue
+				}
 				errs = append(errs, mdlerrors.NewValidation(fmt.Sprintf(
 					"%s: the constraint on %s names %q, which is neither an attribute nor an "+
 						"association of it — mxbuild reports this as CE1613 \"The selected %s "+
@@ -73,11 +88,37 @@ func validateXPathMembers(ctx *ExecContext, prog *ast.Program) []error {
 // badStep is one step of a constraint that resolved to nothing.
 type badStep struct {
 	name string
-	kind string // "association" or "attribute" — which mxbuild will call it
+	kind string // "association" or "attribute" — which mxbuild will call it; "entity" for a leading entity step
 }
 
-// unresolvableXPathSteps walks the constraint's predicate groups and returns the
-// steps that name nothing on the entity.
+// leadingEntityStepMessage is the report for a constraint that starts with an
+// entity as a path step (unresolvableXPathStepsAndLeadingEntity). Any entity
+// there is CE0161 — measured on 11.15.0 for the constrained entity, a
+// specialization of it and an unrelated one — but dropping the step is the fix
+// only when it names the constrained entity or a generalization, whose members
+// the constraint already sees; another entity is reached through an association.
+func leadingEntityStepMessage(ctx *ExecContext, constraint, entityStep, evaluatedOn string) string {
+	fix := "name a member of " + evaluatedOn + ", or reach " + entityStep + " through an association (`[Module.Assoc/" + entityStep + "/…]`)"
+	chain, _ := generalizationChain(ctx, evaluatedOn)
+	for _, e := range chain {
+		if e != entityStep {
+			continue
+		}
+		fix = "name the member directly"
+		if m := regexp.MustCompile(regexp.QuoteMeta(entityStep) + `/([A-Za-z_][A-Za-z0-9_.]*)`).FindStringSubmatch(constraint); m != nil {
+			fix = fmt.Sprintf("drop the leading `%s/`: `[%s = …]`", entityStep, m[1])
+		}
+		break
+	}
+	return fmt.Sprintf("the constraint starts with the entity %s as a path step, but a constraint is "+
+		"evaluated on %s and cannot start with an entity — %s. mxbuild rejects a leading entity step (CE0161 \"Error(s) in XPath constraint\")",
+		entityStep, evaluatedOn, fix)
+}
+
+// unresolvableXPathStepsWith walks the constraint's predicate groups and returns
+// the steps that name nothing on the entity. resolveBare is the bare-member
+// lookup — every caller passes scriptXPathResolver's, which also knows the
+// entities the script declares; nil is resolveMemberOnEntity.
 //
 // The parse is deliberately lenient (ANTLR with the error listeners removed), so
 // a group it cannot read is SKIPPED rather than reported: a tree that quietly
@@ -85,15 +126,28 @@ type badStep struct {
 // wrote. That is the same trap xpathrefs documents for the rename path, where
 // the consequence is a corrupted constraint; here it is only a false error, but
 // a false error still blocks a script that builds.
-func unresolvableXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string) []badStep {
-	return unresolvableXPathStepsWith(ctx, m, constraint, entityQN, nil)
-}
-
-// unresolvableXPathStepsWith is unresolvableXPathSteps with the bare-member
-// lookup replaced — the microflow retrieve check passes one that also knows the
-// entities the script declares. nil is resolveMemberOnEntity.
 func unresolvableXPathStepsWith(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string,
 	resolveBare func(entityQN, member string) memberResolution) []badStep {
+	return walkXPathSteps(ctx, m, constraint, entityQN, resolveBare, false)
+}
+
+// unresolvableXPathStepsAndLeadingEntity is unresolvableXPathStepsWith that also
+// reports a path whose FIRST step is an entity, as kind "entity".
+//
+// A constraint is evaluated on its entity, so `[Shop.Order/Status = 'Open']` on
+// Shop.Order is not a cast; the walk read it as one. Measured on mxbuild 11.15.0,
+// it is CE0161 "Error(s) in XPath constraint" in a microflow retrieve, a list
+// view's database source and a user task's targeting (ako/mxcli#1711); after an
+// association (`[Shop.Order_Customer/Shop.Customer/Name = …]`) the same step is
+// the path's specialization step and builds. mx check did not reject one in an
+// access rule on that app, so the access-rule check keeps the plain walk.
+func unresolvableXPathStepsAndLeadingEntity(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string,
+	resolveBare func(entityQN, member string) memberResolution) []badStep {
+	return walkXPathSteps(ctx, m, constraint, entityQN, resolveBare, true)
+}
+
+func walkXPathSteps(ctx *ExecContext, m xpathrefs.Model, constraint, entityQN string,
+	resolveBare func(entityQN, member string) memberResolution, leadingEntity bool) []badStep {
 	groups := visitor.SplitXPathPredicateGroups(constraint)
 	if len(groups) == 0 {
 		groups = []string{constraint}
@@ -104,7 +158,7 @@ func unresolvableXPathStepsWith(ctx *ExecContext, m xpathrefs.Model, constraint,
 		if !ok || expr == nil {
 			continue
 		}
-		v := &xpathMemberVisitor{ctx: ctx, model: m, resolveBare: resolveBare}
+		v := &xpathMemberVisitor{ctx: ctx, model: m, resolveBare: resolveBare, leadingEntity: leadingEntity}
 		v.walk(expr, entityQN)
 		out = append(out, v.bad...)
 	}
@@ -114,11 +168,12 @@ func unresolvableXPathStepsWith(ctx *ExecContext, m xpathrefs.Model, constraint,
 // xpathMemberVisitor walks a parsed constraint carrying the entity each step is
 // evaluated against, the same traversal xpathrefs' walker performs for renames.
 type xpathMemberVisitor struct {
-	ctx         *ExecContext
-	model       xpathrefs.Model
-	resolveBare func(entityQN, member string) memberResolution // nil: resolveMemberOnEntity
-	bad         []badStep
-	seen        map[string]bool
+	ctx           *ExecContext
+	model         xpathrefs.Model
+	resolveBare   func(entityQN, member string) memberResolution // nil: resolveMemberOnEntity
+	leadingEntity bool                                           // report a path that starts with an entity step
+	bad           []badStep
+	seen          map[string]bool
 }
 
 func (v *xpathMemberVisitor) add(s badStep) {
@@ -243,6 +298,9 @@ func (v *xpathMemberVisitor) walkPath(steps []ast.XPathStep, cur string) {
 			} else if t, ok := xpathSystemAssociations[qn]; ok {
 				next = t
 			} else if v.model.IsEntity(qn) {
+				if i == 0 && v.leadingEntity {
+					v.add(badStep{name: qn, kind: "entity"})
+				}
 				next = qn
 			} else {
 				v.noteQualified(qn, cur)

@@ -20,7 +20,9 @@
 // spelling in constraints that are none of the rename's business, and any
 // disagreement between mxcli's parser and its renderer would silently corrupt a
 // working constraint. Here the parse only decides *whether* and *how many*; the
-// edit itself replaces one identifier token and leaves every other byte alone.
+// edit itself replaces one identifier token and leaves every other byte alone —
+// including the whitespace between predicate groups, which is why a rewritten
+// group is spliced back at its offset rather than the groups being re-joined.
 package xpathrefs
 
 import (
@@ -54,24 +56,48 @@ type Model interface {
 // caller reports those; it must never rewrite them. A wrong rewrite corrupts a
 // constraint that was working, which is strictly worse than the honest partial
 // rename this package exists to finish.
+//
+// A constraint with nothing to rewrite comes back as the very string passed in,
+// and one that does have something comes back with only the renamed tokens
+// changed: each rewritten group is spliced in at its own offset and every byte
+// outside it — the line breaks and indentation Studio Pro stores between groups
+// — is copied over. The caller decides whether a unit changed by comparing the
+// result with what is stored, so any other difference is a write: joining the
+// groups back together without their separators rewrote every multi-line
+// constraint in the project on every attribute rename, whether or not it named
+// the attribute (ako/mxcli#1506).
 func rewriteConstraint(constraint, targetEntity, entityQN, oldAttr, newAttr string, m Model) (string, bool) {
-	groups := visitor.SplitXPathPredicateGroups(constraint)
-	if len(groups) == 0 {
+	spans := visitor.XPathPredicateGroupSpans(constraint)
+	if len(spans) == 0 {
 		// Not a bracket-group constraint at all. If it mentions the name we
 		// cannot say anything about it, so report rather than guess.
 		return constraint, !mentionsIdentifier(constraint, oldAttr)
 	}
 
-	out := make([]string, 0, len(groups))
+	var b strings.Builder
+	copied := 0 // constraint[:copied] is already in b
+	changed := false
 	understood := true
-	for _, g := range groups {
-		rewritten, ok := rewriteGroup(g, targetEntity, entityQN, oldAttr, newAttr, m)
+	for _, sp := range spans {
+		group := constraint[sp.Start:sp.End]
+		rewritten, ok := rewriteGroup(group, targetEntity, entityQN, oldAttr, newAttr, m)
 		if !ok {
 			understood = false
 		}
-		out = append(out, rewritten)
+		if rewritten == group {
+			continue
+		}
+		b.WriteString(constraint[copied:sp.Start])
+		b.WriteString(rewritten)
+		copied = sp.End
+		changed = true
 	}
-	return strings.Join(out, ""), understood
+	if !changed {
+		// Hand back the stored string itself, not a rebuild of it.
+		return constraint, understood
+	}
+	b.WriteString(constraint[copied:])
+	return b.String(), understood
 }
 
 // rewriteGroup rewrites one bracket group.

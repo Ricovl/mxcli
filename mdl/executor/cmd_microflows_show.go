@@ -430,6 +430,11 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 		}
 	}
 
+	// Default Hidden is not printed, as for a microflow (mendixlabs/mxcli#1498).
+	if targetNf.ExportLevel == types.ExportLevelAPI {
+		lines = append(lines, "export level api")
+	}
+
 	// Folder
 	if folderPath := h.BuildFolderPath(targetNf.ContainerID); folderPath != "" {
 		lines = append(lines, fmt.Sprintf("folder %s", mdlQuote(ctx, folderPath)))
@@ -562,6 +567,7 @@ func nanoflowAsMicroflow(nf *microflows.Nanoflow) *microflows.Microflow {
 		Parameters:         nf.Parameters,
 		ReturnType:         nf.ReturnType,
 		ReturnVariableName: nf.ReturnVariableName,
+		ExportLevel:        nf.ExportLevel,
 		ObjectCollection:   nf.ObjectCollection,
 		AllowedModuleRoles: nf.AllowedModuleRoles,
 	}
@@ -636,6 +642,11 @@ func renderMicroflowMDL(
 	lines = append(lines, exposeClauseLines(mf)...)
 	if flowType == "microflow" {
 		lines = append(lines, microflowDocumentPropertyLines(mf)...)
+	} else if flowType == "nanoflow" && mf.ExportLevel == types.ExportLevelAPI {
+		// A nanoflow has an export level and nothing else of the three: the
+		// wrapped Microflow's zero AllowConcurrentExecution would otherwise
+		// print a `disallow concurrent execution` no nanoflow can hold.
+		lines = append(lines, "export level api")
 	}
 
 	lines = append(lines, "begin")

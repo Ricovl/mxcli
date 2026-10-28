@@ -175,6 +175,28 @@ func TestValidateMemberReferences_ReportsAMissingAttribute(t *testing.T) {
 	}
 }
 
+// A member reached THROUGH an association (`Assoc.Attr` — the pre-dot segment
+// is an association name, not a module) is not representable in Mendix's
+// ChangeActionItem: mxbuild rejects every encoding of it (CE1613, or an
+// unloadable .mpr). The blanket skip for dotted names trusted exec to refuse
+// the form; it does not — it writes AssociationQualifiedName = "Assoc.Attr"
+// verbatim and the project fails a whole build later. See
+// docs/12-bug-reports/2026-10-16-change-member-through-association.md.
+func TestValidateMemberReferences_RefusesAMemberThroughAnAssociation(t *testing.T) {
+	ctx := memberFixture(t)
+	msgs := validateMemberReferences(ctx,
+		flowProgram(orderParam(), changeStmt("Order", "Order_Customer.Name")), newScriptContext())
+
+	if len(msgs) != 1 {
+		t.Fatalf("got %d messages, want 1: %v", len(msgs), msgs)
+	}
+	for _, want := range []string{"Order_Customer.Name", "retrieve"} {
+		if !strings.Contains(msgs[0], want) {
+			t.Errorf("message should mention %q: %s", want, msgs[0])
+		}
+	}
+}
+
 // CONTROL: everything that legitimately resolves must stay silent. Each of
 // these is a shape a real script uses, and each would be a false error that
 // blocks a script which builds cleanly.
@@ -402,5 +424,24 @@ func TestValidateMemberReferences_UntypedTargetIsUnchecked(t *testing.T) {
 	)
 	if msgs := validateMemberReferences(ctx, prog, newScriptContext()); len(msgs) != 0 {
 		t.Errorf("checked a member against an entity it could not establish: %v", msgs)
+	}
+}
+
+// A module the script creates further up is not in the project's module list
+// yet, but `NewMod.Order_Customer` over it is an association-set, not a member
+// reached through an association. The check consults the script's own modules
+// before the project's; the same member over a qualifier the script does NOT
+// create is the control and is still refused.
+func TestValidateMemberReferences_ScriptCreatedModuleIsAModule(t *testing.T) {
+	ctx := memberFixture(t)
+	prog := flowProgram(orderParam(), changeStmt("Order", "NewMod.Order_Customer"))
+
+	sc := newScriptContext()
+	sc.modules["NewMod"] = true
+	if msgs := validateMemberReferences(ctx, prog, sc); len(msgs) != 0 {
+		t.Errorf("a module the script creates was read as an association: %v", msgs)
+	}
+	if msgs := validateMemberReferences(ctx, prog, newScriptContext()); len(msgs) != 1 {
+		t.Errorf("control: got %d messages without the script's module, want 1: %v", len(msgs), msgs)
 	}
 }

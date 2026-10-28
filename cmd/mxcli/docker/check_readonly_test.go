@@ -273,3 +273,140 @@ func TestCopyProjectForCheck_MissingProject(t *testing.T) {
 		t.Error("want an error for a project file that does not exist")
 	}
 }
+
+// TestWithProjectCopy_WritesStayOnTheCopy: fn gets a copy it may write into, the
+// original is untouched, and the copy is gone once fn returns.
+func TestWithProjectCopy_WritesStayOnTheCopy(t *testing.T) {
+	proj := t.TempDir()
+	mpr := filepath.Join(proj, "App.mpr")
+	if err := os.WriteFile(mpr, []byte("model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var seen string
+	err := WithProjectCopy(mpr, func(work string) error {
+		seen = work
+		if work == mpr {
+			t.Error("fn was handed the original project")
+		}
+		return os.WriteFile(filepath.Join(filepath.Dir(work), "theme-cache.txt"), []byte("mx wrote this"), 0o644)
+	})
+	if err != nil {
+		t.Fatalf("WithProjectCopy: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(proj, "theme-cache.txt")); err == nil {
+		t.Error("a write into the copy reached the original project")
+	}
+	if _, err := os.Stat(seen); err == nil {
+		t.Errorf("the copy %s was not removed", seen)
+	}
+	if err := WithProjectCopy(filepath.Join(proj, "nope.mpr"), func(string) error { return nil }); err == nil {
+		t.Error("want an error for a project file that does not exist")
+	}
+}
+
+// TestWithProjectCopy_SkipsNamedFoldersButNeverTheProject: a folder inside the
+// project that the caller names is left out of the copy; naming the project's own
+// folder (an output directory of ".") skips nothing.
+func TestWithProjectCopy_SkipsNamedFoldersButNeverTheProject(t *testing.T) {
+	proj := t.TempDir()
+	mpr := filepath.Join(proj, "App.mpr")
+	for p, content := range map[string]string{
+		"App.mpr":             "model",
+		"dist/Old.mpk":        "earlier package",
+		"widgets/w.mpk":       "a widget",
+		"userlib/dist/ok.jar": "a deeper folder of the same name",
+	} {
+		full := filepath.Join(proj, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exists := func(work, rel string) bool {
+		_, err := os.Stat(filepath.Join(filepath.Dir(work), filepath.FromSlash(rel)))
+		return err == nil
+	}
+
+	err := WithProjectCopy(mpr, func(work string) error {
+		if exists(work, "dist/Old.mpk") {
+			t.Error("the skipped folder was copied")
+		}
+		if !exists(work, "widgets/w.mpk") || !exists(work, "userlib/dist/ok.jar") || !exists(work, "App.mpr") {
+			t.Error("something outside the skipped folder was not copied")
+		}
+		return nil
+	}, filepath.Join(proj, "dist"), filepath.Join(t.TempDir(), "elsewhere"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = WithProjectCopy(mpr, func(work string) error {
+		if !exists(work, "App.mpr") || !exists(work, "dist/Old.mpk") {
+			t.Error("naming the project folder itself must skip nothing")
+		}
+		return nil
+	}, proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// mendixlabs/mxcli#1629: with an mx of the project's minor but another patch,
+// `mx update-widgets` refuses the project while `mx check` accepts it. Measured
+// with 10.24.18's mx on a project at 10.24.13: update-widgets prints "Project is
+// in different Mendix version - 10.24.13.86719" and exits 4; mx check reports 0
+// errors. The check carried on, as it should — and then closed with a note that
+// widget definitions "were normalised on a temporary copy", a few lines after
+// the warning that they were not.
+func TestCheck_FailedUpdateWidgetsIsNotReportedAsNormalised(t *testing.T) {
+	mprPath := v1Fixture(t)
+	stubTools(t)
+	updateWidgetsCmd = func(_, _ string, w, _ io.Writer) error {
+		fmt.Fprintln(w, "Project is in different Mendix version - 10.24.13.86719")
+		return fmt.Errorf("exit status 4")
+	}
+	t.Setenv("TMPDIR", t.TempDir())
+
+	var out bytes.Buffer
+	if err := Check(CheckOptions{ProjectPath: mprPath, Stdout: &out, Stderr: io.Discard}); err != nil {
+		t.Fatalf("a failed update-widgets must not stop the check: %v\n%s", err, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "The app contains: 0 errors.") {
+		t.Fatalf("mx check did not run after update-widgets failed:\n%s", got)
+	}
+	if strings.Contains(got, "were normalised") {
+		t.Errorf("output says widget definitions were normalised after update-widgets failed:\n%s", got)
+	}
+	if !strings.Contains(got, "not normalised") {
+		t.Errorf("output does not say the check ran without normalisation:\n%s", got)
+	}
+}
+
+// docker check never downloads MxBuild: it resolves an mx that is installed or
+// cached, and stops when there is none. The docs said it downloaded on first use,
+// so on a fresh clone the reader met "mx not found; specify --mxbuild-path
+// pointing to Mendix installation directory" (measured with an empty HOME) and
+// nothing naming the command that does download.
+func TestCheck_MissingMxNamesSetupNotADownload(t *testing.T) {
+	mprPath := v1Fixture(t)
+	seen := stubTools(t)
+	resolveMxForCheck = func(string, string) (string, error) {
+		return "", fmt.Errorf("mx not found; specify --mxbuild-path pointing to Mendix installation directory")
+	}
+
+	err := Check(CheckOptions{ProjectPath: mprPath, Stdout: io.Discard, Stderr: io.Discard})
+	if err == nil {
+		t.Fatal("Check succeeded without an mx")
+	}
+	if len(*seen) != 0 {
+		t.Errorf("mx ran without having been found: %v", *seen)
+	}
+	for _, want := range []string{"does not download", "mxcli setup mxbuild -p " + mprPath} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not say %q:\n%v", want, err)
+		}
+	}
+}

@@ -53,10 +53,12 @@ func (b *Builder) ExitCreateWorkflowStatement(ctx *parser.CreateWorkflowStatemen
 			if tok := hc.GetDisplay(); tok != nil {
 				stmt.DisplayName = unquoteStringLit(tok)
 			}
+			stmt.DisplayParams = buildWorkflowTemplateParams(hc.TemplateParams())
 		case hc.DESCRIPTION() != nil:
 			if tok := hc.GetDescription(); tok != nil {
 				stmt.Description = unquoteStringLit(tok)
 			}
+			stmt.DescriptionParams = buildWorkflowTemplateParams(hc.TemplateParams())
 		case hc.EXPORT() != nil && hc.LEVEL() != nil:
 			// HIDDEN_KW is read alongside IDENTIFIER because `Hidden` was an
 			// ordinary identifier here until the microflow header clauses made it
@@ -696,6 +698,13 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		if str := c.STRING_LITERAL(); str != nil {
 			node.TaskDescription = unquoteStringLit(str)
 		}
+		node.TaskDescriptionParams = buildWorkflowTemplateParams(c.TemplateParams())
+	case c.TASK() != nil:
+		// The word after TASK is checked by ExitWorkflowUserTaskClause.
+		if str := c.STRING_LITERAL(); str != nil {
+			node.TaskName = unquoteStringLit(str)
+		}
+		node.TaskNameParams = buildWorkflowTemplateParams(c.TemplateParams())
 	case c.OUTCOMES() != nil:
 		for _, outcomeCtx := range c.AllWorkflowUserTaskOutcome() {
 			node.Outcomes = append(node.Outcomes, buildWorkflowUserTaskOutcome(outcomeCtx))
@@ -704,6 +713,8 @@ func applyWorkflowUserTaskClause(node *ast.WorkflowUserTaskNode, clause parser.I
 		for _, beCtx := range c.AllWorkflowBoundaryEventClause() {
 			node.BoundaryEvents = append(node.BoundaryEvents, buildBoundaryEventNode(beCtx))
 		}
+	case c.AUTO() != nil:
+		node.AutoAssign = true
 	}
 }
 
@@ -822,6 +833,11 @@ func buildWorkflowCallWorkflow(ctx parser.IWorkflowCallWorkflowStmtContext) *ast
 	node.ParameterMappings = buildWorkflowCallArguments(cwCtx.WorkflowCallArguments())
 	if len(node.ParameterMappings) == 0 {
 		node.ParameterMappings = buildWorkflowParameterMappings(cwCtx.AllWorkflowParameterMapping())
+	}
+
+	// BoundaryEvents (mendixlabs/mxcli#1532)
+	for _, beCtx := range cwCtx.AllWorkflowBoundaryEventClause() {
+		node.BoundaryEvents = append(node.BoundaryEvents, buildBoundaryEventNode(beCtx))
 	}
 
 	return node
@@ -970,6 +986,9 @@ func buildBoundaryEventNode(beCtx parser.IWorkflowBoundaryEventClauseContext) as
 		if d := beCtx2.WorkflowTimerDelay(); d != nil {
 			be.Delay = workflowExpressionText(d.WorkflowExpression())
 		}
+		// A timer's caption is the clause every activity takes (ako/mxcli#1715).
+		be.Caption = workflowCaptionText(beCtx2.WorkflowCaption())
+		be.Recurrence = buildWorkflowRecurrence(beCtx2.WorkflowRecurrence())
 	}
 	if notification {
 		be.Name = workflowActivityNameText(beCtx2.WorkflowActivityName())
@@ -1009,6 +1028,7 @@ func buildWorkflowEventSubProcess(ctx parser.IWorkflowEventSubProcessContext) as
 		if node.Timer {
 			node.FirstExecutionTime = workflowExpressionText(t.WorkflowExpression())
 			node.StartCaption = workflowCaptionText(t.WorkflowCaption())
+			node.Recurrence = buildWorkflowRecurrence(t.WorkflowRecurrence())
 		} else if s := t.STRING_LITERAL(); s != nil {
 			node.StartCaption = unquoteStringLit(s)
 		}

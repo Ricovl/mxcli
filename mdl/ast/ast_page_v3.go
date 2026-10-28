@@ -3,6 +3,7 @@
 package ast
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -35,9 +36,12 @@ type CreatePageStmtV3 struct {
 	Folder      string
 	// Class / Style set the page's Forms$Appearance CSS class and inline style
 	// (issue #714). Empty means "not specified".
-	Class   string
-	Style   string
-	Widgets []*WidgetV3
+	Class string
+	Style string
+	// DesignProperties are the page's own Appearance.DesignProperties
+	// (ako/mxcli#1678), typed against the theme's "Page" group.
+	DesignProperties []DesignPropertyEntryV3
+	Widgets          []*WidgetV3
 	// Placeholders holds widgets assigned to named layout placeholders via
 	// `placeholder <Name> { … }` blocks (issue #532). `Widgets` above is the
 	// bare-body content, which binds to the Main placeholder. A `placeholder
@@ -208,6 +212,18 @@ func (w *WidgetV3) ExpressionSource(key string) (string, bool) {
 	return "", false
 }
 
+// parameterAttributeTextRe is `$Param.Attr` and nothing more: one variable,
+// one attribute name (quoted when it is a keyword). `$Ctx.Name + 'x'` is an
+// expression, and so is `$Ctx/Name`.
+var parameterAttributeTextRe = regexp.MustCompile(`^\$[A-Za-z_][A-Za-z0-9_]*\.(?:[A-Za-z_][A-Za-z0-9_]*|"[A-Za-z_][A-Za-z0-9_]*")$`)
+
+// IsParameterAttributeText reports whether text is the `$Param.Attr` shape: an
+// attribute of a page or snippet parameter, the binding an attribute property
+// takes. It is no Mendix expression, which would read `$Param/Attr`.
+func IsParameterAttributeText(text string) bool {
+	return parameterAttributeTextRe.MatchString(text)
+}
+
 // WidgetExpressionV3 is a generic widget property written as a Mendix
 // expression that no other value form accepts — `dynamicBarColor: if
 // $currentObject/Hot then 'red' else 'blue'`. Only an Expression-typed property
@@ -283,6 +299,11 @@ type DataSourceV3 struct {
 	// (`$Ctx/Mod.Assoc`), which is an in-memory retrieve with no XPath, sort or
 	// search (ako/mxcli#721 L5).
 	AssociationPath string
+	// FormValidations is a microflow source's `with (FormValidations: …)`: All,
+	// Widget or None, "" when not written (All). A data source stores its call
+	// settings in a Forms$MicroflowSettings as an action does, and this is the
+	// one that differs in Studio Pro-authored pages (ako/mxcli#1729).
+	FormValidations string
 }
 
 // FlowArgV3 represents an argument for microflow/nanoflow/page calls.
@@ -310,8 +331,8 @@ type VisibleWhenV3 struct {
 }
 
 type ActionV3 struct {
-	Type       string      // "save", "cancel", "close", "delete", "create", "showPage", "microflow", "nanoflow", "openLink", "signOut", "completeTask"
-	Target     string      // Entity, page, or flow qualified name (for create/showPage/microflow/nanoflow)
+	Type       string      // "save", "cancel", "close", "delete", "create", "showPage", "microflow", "nanoflow", "openLink", "signOut", "completeTask", "openUserTask", "openWorkflow", "callWorkflow"
+	Target     string      // Entity, page, flow or workflow qualified name (for create/showPage/microflow/nanoflow/callWorkflow)
 	Args       []FlowArgV3 // Arguments for showPage/microflow calls
 	ThenAction *ActionV3   // For CREATE_OBJECT ... THEN ...
 	ClosePage  bool        // For SAVE_CHANGES CLOSE_PAGE
@@ -323,6 +344,19 @@ type ActionV3 struct {
 	OutcomeValue  string // For COMPLETE_TASK
 	// Settings is the action's `with ( … )` list, nil when none was written.
 	Settings *ActionSettingsV3
+	// Returns is a flow call's `returns ( … )` list: Studio Pro's "Return value
+	// mappings" (Mendix 11.5), nil when none was written.
+	Returns []FlowReturnV3
+}
+
+// FlowReturnV3 is one `returns ( … )` entry, `Target = Source`. Target is an
+// attribute of the data container's object (`Brand`) or, with Variable set, a
+// page variable (`$result`, stored without the `$`). Source is the expression
+// text: `$ActionReturnValue`, `$ActionReturnValue/Attr`, or any expression.
+type FlowReturnV3 struct {
+	Target   string
+	Variable bool
+	Source   string
 }
 
 // ActionSettingsV3 holds the client-action settings Studio Pro shows under an
@@ -338,6 +372,12 @@ type ActionSettingsV3 struct {
 	CancelCaption           *string
 	Asynchronous            *bool  // call microflow only
 	FormValidations         string // call microflow only: All | Widget | None
+	// The workflow actions' own settings (ako/mxcli#832).
+	AssignOnOpen     *bool  // open user task: Studio Pro's "Auto-assign"
+	OpenWhenAssigned *bool  // open user task: "Who can open" — true is "Users with access"
+	ClosePage        *bool  // complete task, call workflow
+	Commit           *bool  // complete task
+	DefaultPage      string // open workflow: a page qualified name
 }
 
 // ColumnV3 represents a V3 datagrid column.

@@ -98,6 +98,10 @@ type microflowValidator struct {
 	// excluded marks an @excluded document. mxbuild does not check one, so the
 	// #893 rules stand down for it — see skipCEGapRules.
 	excluded bool
+	// fragment marks the body of an `alter microflow|nanoflow` operation: a
+	// piece of a stored flow, whose notes `@annotation(existing: '…')` can
+	// attach to (ako/mxcli#1695). Anything else states a whole flow.
+	fragment bool
 	// voids resolves which Java/JavaScript action calls target a void action;
 	// such a call declares no variable (MDL063, #953). May be nil.
 	voids *voidCodeActions
@@ -122,11 +126,16 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	v.checkRetrieveLimitOneAsList(body)
 	v.checkRetrieveListAsObject(body)
 	v.checkShowMessageType(body)
+	// MDL-TEMPLATE01: a message written as an expression with `with (…)`
+	// (ako/mxcli#1683). Same function exec calls.
+	v.checkMessageTemplates(body)
 	v.checkRetrieveOverSystemAssociation(body)
 	v.checkSetOnObjectVariable(v.params, body)
+	v.checkSystemMemberChange(body)
 	v.checkListOperationSource(body)
 	v.checkMergeJoinLabels(body)
 	v.checkAnnotationLabels(body)
+	v.checkAssociationPathValues(body)
 
 	// Walk the body for per-statement checks (validation feedback, return value checks)
 	v.emptyListVars = make(map[string]bool)
@@ -182,6 +191,10 @@ func (v *microflowValidator) validate(body []ast.MicroflowStatement) {
 	// CONV011 all along, but only after the write and only project-wide. See
 	// validate_commit_in_loop.go.
 	v.checkCommitInLoop(body)
+
+	// mendixlabs/mxcli#1491: a statement after one that ends the path is
+	// written anyway and refused by the build. See validate_microflow_unreachable.go.
+	v.checkUnreachableStatements(body)
 }
 
 // checkDuplicateLoopVariables flags a loop iterator name used by more than one
@@ -350,13 +363,29 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 				case stmt.Type.EnumRef != nil:
 					typeName = stmt.Type.EnumRef.String()
 				}
-				v.addViolation("MDL043", linter.SeverityError,
-					fmt.Sprintf("declare '$%s' creates an object variable of type %s, but Mendix does not allow the "+
-						"Create Variable activity to hold an object (CE0053). "+
-						"Get the object from a microflow parameter, a retrieve, or a create object instead — do not declare an object variable. "+
-						"(If %s is an enumeration, write it as Enumeration(%s).)",
-						stmt.Variable, typeName, typeName, typeName),
-					"Accept the object as a parameter, use retrieve, or use create object — do not declare an object variable")
+				// With a project (or a script that creates it), the bare name may be
+				// known to be an ENUMERATION: then this is no object declare, exec
+				// writes it as the enumeration variable and it builds (measured
+				// 11.15.0, mendixlabs/mxcli#1516). Say so, as a warning naming
+				// describe's spelling, instead of refusing it as an object.
+				if stmt.Type.Kind == ast.TypeEnumeration &&
+					v.voids.declaredTypeKindOf(typeName) == declKindEnumeration {
+					v.addViolation("MDL043", linter.SeverityWarning,
+						fmt.Sprintf("declare '$%s' names the enumeration %s bare, which reads as an object type "+
+							"wherever the project is not at hand — without -p, check refuses it as an object "+
+							"declare (CE0053). Write `declare $%s enum %s = empty`, the spelling describe prints "+
+							"(Enumeration(%s) is accepted too).",
+							stmt.Variable, typeName, stmt.Variable, typeName, typeName),
+						fmt.Sprintf("Write `declare $%s enum %s = empty;`", stmt.Variable, typeName))
+				} else {
+					v.addViolation("MDL043", linter.SeverityError,
+						fmt.Sprintf("declare '$%s' creates an object variable of type %s, but Mendix does not allow the "+
+							"Create Variable activity to hold an object (CE0053). "+
+							"Get the object from a microflow parameter, a retrieve, or a create object instead — do not declare an object variable. "+
+							"(If %s is an enumeration, write it as `enum %s`.)",
+							stmt.Variable, typeName, typeName, typeName),
+						"Accept the object as a parameter, use retrieve, or use create object — do not declare an object variable")
+				}
 			}
 			// Register the declared variable's kind for later assignment checks,
 			// and flag a Decimal initial value assigned to an Integer/Long declare.
@@ -423,6 +452,13 @@ func (v *microflowValidator) walkBody(body []ast.MicroflowStatement) {
 		case *ast.RestCallStmt:
 			// #922: `returns Module.Entity` must name a FileDocument specialization.
 			v.checkRestFileDocumentResult(stmt)
+			// ako/mxcli#1444: an expression URL or body with `with (…)`.
+			// Same function exec calls.
+			v.checkRestCallTemplates(stmt)
+		case *ast.CallJavaActionStmt:
+			// ako/mxcli#1451: an expression argument with `with (…)`. Same
+			// function exec calls.
+			v.checkJavaActionTemplateArgs(stmt)
 		case *ast.CallWebServiceStmt:
 			// MDL-SOAP01: a call stores ONE request body, so arguments and a send
 			// mapping are alternatives. Same function exec calls.
@@ -591,6 +627,16 @@ func (v *microflowValidator) checkExprFunctions(label string, expr ast.Expressio
 			fmt.Sprintf("%s calls '%s()', which is not a Mendix expression function — "+
 				"the build fails CE0117 \"Error(s) in expression\"", label, u.Name),
 			suggestion)
+	}
+	// E006/E005: a built-in called with the wrong number of arguments, or with
+	// an argument of the wrong kind. Both ran only on the `-p --references`
+	// tier, so `formatDecimal($d, 2)` passed a plain check and failed the build
+	// with CE0117 (mendixlabs/mxcli#1515). The kinds a script states — literals,
+	// parameters, declared variables — need no project. The codes are
+	// exprcheck's own, as on the catalog tier; that tier only runs on a script
+	// this one passed, so the two never report the same call.
+	for _, h := range exprcheck.BuiltinCallHints(src, v.varKinds) {
+		v.addViolation(h.Code, linter.SeverityError, label+": "+h.Problem, h.Fix)
 	}
 }
 
@@ -942,19 +988,38 @@ var xpathVarTraversalRe = regexp.MustCompile(`\$(\w+)((?:/[A-Za-z_][\w.]*){2,})`
 // rejection rather than a writer fix: the constraint has to be restructured, and
 // only the author knows which of the two shapes they meant.
 func (v *microflowValidator) checkXPathVariableTraversal(variable, xpath string) {
-	for _, m := range xpathVarTraversalRe.FindAllStringSubmatch(xpath, -1) {
-		root, path := m[1], "$"+m[1]+m[2]
-		segs := strings.Split(strings.TrimPrefix(m[2], "/"), "/")
-		firstHop, leaf := segs[0], segs[len(segs)-1]
+	for _, t := range xpathVariableTraversals(xpath) {
 		v.addViolation("MDL055", linter.SeverityError,
 			fmt.Sprintf("retrieve '$%s' constraint traverses an association from a variable (`%s`), which Mendix XPath "+
 				"does not support (CE0161 \"Error(s) in XPath constraint\") — a constraint reaches at most one hop off a variable",
-				variable, path),
+				variable, t.path),
 			fmt.Sprintf("Retrieve the associated object first, then constrain on its own attribute: "+
 				"`retrieve $Related from $%s/%s;` and use `[%s = $Related/%s]`. Or invert the constraint so the "+
 				"traversal starts at the entity being retrieved: `[%s/<Module.Entity> = $%s]`. Both forms build clean.",
-				root, firstHop, leaf, leaf, firstHop, root))
+				t.root, t.firstHop, t.leaf, t.leaf, t.firstHop, t.root))
 	}
+}
+
+// xpathVariableTraversal is one path of two or more hops off a $variable.
+type xpathVariableTraversal struct {
+	path     string // `$P/Mod.Assoc/Name`, as written
+	root     string // `P`
+	firstHop string // `Mod.Assoc`
+	leaf     string // `Name`
+}
+
+// xpathVariableTraversals returns every path in an XPath constraint that reaches
+// two or more hops off a $variable — the shape MDL055 refuses, in a microflow
+// retrieve and in a widget's database datasource alike.
+func xpathVariableTraversals(xpath string) []xpathVariableTraversal {
+	var out []xpathVariableTraversal
+	for _, m := range xpathVarTraversalRe.FindAllStringSubmatch(xpath, -1) {
+		segs := strings.Split(strings.TrimPrefix(m[2], "/"), "/")
+		out = append(out, xpathVariableTraversal{
+			path: "$" + m[1] + m[2], root: m[1], firstHop: segs[0], leaf: segs[len(segs)-1],
+		})
+	}
+	return out
 }
 
 // checkSynchronizeIsNanoflowOnly rejects SYNCHRONIZE in a microflow.
@@ -1746,6 +1811,51 @@ var knownActivityAnnotations = map[string]bool{
 // invalidAnchorRule refuses an @anchor parameter the visitor could not use.
 const invalidAnchorRule = "MDL092"
 
+// checkCaseAnchors refuses an @anchor outcome key that names no outcome: on a
+// CASE, a key that is none of its WHEN values, or `true:`/`false:`, which only
+// an IF has; anywhere else, any value key. Each parsed and left its edge on the
+// default sides, which is what made `@anchor(from: right)` on a CASE look
+// accepted while it did nothing (mendixlabs/mxcli#1587).
+func (v *microflowValidator) checkCaseAnchors(s ast.MicroflowStatement, ann *ast.ActivityAnnotations) {
+	const hint = "A CASE names each outcome's edge by its WHEN value: " +
+		"`@anchor(A: (from: right), (empty): (from: bottom, to: top))`. An IF's branches are " +
+		"`true: (…)` and `false: (…)`."
+	cs, isCase := s.(*ast.EnumSplitStmt)
+	if !isCase {
+		for _, ca := range ann.CaseAnchors {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names a CASE outcome, but it is not on a CASE, "+
+					"so the edge it names keeps its default sides", ca.Value), hint)
+		}
+		return
+	}
+	for _, key := range []struct {
+		name string
+		set  bool
+	}{{"true", ann.TrueBranchAnchor != nil}, {"false", ann.FalseBranchAnchor != nil}} {
+		if key.set {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names an IF branch; a CASE has none, "+
+					"so the edge it names keeps its default sides", key.name), hint)
+		}
+	}
+	for _, ca := range ann.CaseAnchors {
+		known := false
+		for _, c := range cs.Cases {
+			for _, value := range enumSplitCaseValues(c) {
+				if sameCaseValue(value, ca.Value) {
+					known = true
+				}
+			}
+		}
+		if !known {
+			v.addViolation(invalidAnchorRule, linter.SeverityError,
+				fmt.Sprintf("`@anchor` parameter `%s: (…)` names no WHEN value of this CASE, "+
+					"so it does nothing", ca.Value), hint)
+		}
+	}
+}
+
 // checkUnknownAnnotations rejects an @annotation name the visitor does not
 // implement.
 //
@@ -1775,9 +1885,11 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 				"names keeps its default sides", bad),
 			"A side is top, right, bottom or left. The flow leaving a statement is "+
 				"`@anchor(from: right, to: left)`; an IF's branches are `@anchor(true: (from: …, to: …), "+
-				"false: (…))`, a loop's `@anchor(iterator: (…), tail: (…))` — either side of a pair may be "+
-				"left out (mendixlabs/mxcli#992).")
+				"false: (…))`, a CASE's outcomes `@anchor(Open: (from: right), (empty): (…))`, a loop's "+
+				"`@anchor(iterator: (…), tail: (…))` — either side of a pair may be left out (mendixlabs/mxcli#992).")
 	}
+	v.checkCaseAnchors(s, ann)
+	v.checkExcludedOnNonActivity(s, ann)
 	for _, name := range ann.UnknownNames {
 		v.addViolation("MDL059", linter.SeverityError,
 			fmt.Sprintf("unknown annotation `@%s` — it parses but does nothing, so whatever it was "+
@@ -1794,7 +1906,34 @@ func (v *microflowValidator) checkUnknownAnnotations(s ast.MicroflowStatement) {
 				"`@annotation(id: n1, text: 'text', position: (x, y), size: (w, h))` where every parameter "+
 				"except one of `id:`/`text:` is optional. `id:` names a note so a later "+
 				"`@annotation(id: n1)` attaches THAT note to another activity instead of creating a "+
-				"second one (mendixlabs/mxcli#1077).")
+				"second one (mendixlabs/mxcli#1077). In an `alter` fragment, `@annotation(existing: 'text')` "+
+				"attaches a note already stored in the flow (ako/mxcli#1695).")
+	}
+	v.checkExistingNotes(ann)
+}
+
+// checkExistingNotes refuses an `@annotation(existing: '…')` that cannot
+// attach a stored note: one beside a parameter that describes a note of its
+// own, and one in a statement that states a whole flow, where there is no
+// stored flow to attach from. The builder refuses both at exec with the same
+// words; whether the text names exactly one stored note is the plan's to say,
+// against the project (resolveStoredNotes, ako/mxcli#1695).
+func (v *microflowValidator) checkExistingNotes(ann *ast.ActivityAnnotations) {
+	for _, note := range append(append([]ast.MicroflowAnnotation{}, ann.Notes...), ann.FreeNotes...) {
+		if note.Existing == "" {
+			continue
+		}
+		if msg := existingNoteMisuse(note); msg != "" {
+			v.addViolation("MDL079", linter.SeverityError, msg,
+				"Write `@annotation(existing: 'text')` alone to attach the stored note, or a note of the "+
+					"statement's own without `existing:`.")
+			continue
+		}
+		if !v.fragment {
+			v.addViolation("MDL079", linter.SeverityError, existingNoteOutsideAlter(note.Existing),
+				"Name a stored note by its text in `alter microflow M.F { insert after … begin "+
+					"@annotation(existing: 'text') … end; }`.")
+		}
 	}
 }
 
@@ -1817,15 +1956,23 @@ func (v *microflowValidator) checkAnnotationLabels(body []ast.MicroflowStatement
 			if ann := ast.StatementAnnotations(s); ann != nil {
 				for _, note := range append(append([]ast.MicroflowAnnotation{}, ann.Notes...), ann.FreeNotes...) {
 					switch {
-					case note.Label == "":
+					case note.Label == "" || note.Existing != "":
+						// `existing:` beside `id:` is checkExistingNotes' to refuse.
 					case note.Text != "":
 						declared[note.Label] = true
 					case !declared[note.Label]:
+						hint := fmt.Sprintf("The FIRST mention of a note carries its text: "+
+							"`@annotation(id: %s, text: '…')`. Later mentions attach that same note to "+
+							"another activity with `@annotation(id: %s)`.", note.Label, note.Label)
+						if v.fragment {
+							// The labels describe prints are not stored, so a
+							// fragment cannot see the stored flow's (ako/mxcli#1695).
+							hint += " A note already stored in the flow is attached by its text: " +
+								"`@annotation(existing: '…')`."
+						}
 						v.addViolation("MDL079", linter.SeverityError,
 							fmt.Sprintf("`@annotation(id: %s)` refers to a note that has not been declared above it", note.Label),
-							fmt.Sprintf("The FIRST mention of a note carries its text: "+
-								"`@annotation(id: %s, text: '…')`. Later mentions attach that same note to "+
-								"another activity with `@annotation(id: %s)`.", note.Label, note.Label))
+							hint)
 					}
 				}
 			}
@@ -1835,6 +1982,42 @@ func (v *microflowValidator) checkAnnotationLabels(body []ast.MicroflowStatement
 		}
 	}
 	walk(body)
+}
+
+// excludedNonActivityRule is `@excluded` on a statement that builds no activity.
+const excludedNonActivityRule = "MDL095"
+
+// checkExcludedOnNonActivity raises MDL095 for `@excluded` on a statement that
+// does not build an action activity. On an activity it is Studio Pro's "Disable
+// activity" (ActionActivity.Disabled); the Model SDK declares that property on
+// ActionActivity and nowhere else, so on a decision, a loop or an event the
+// builder has nowhere to put it and drops it — and the logic the author meant
+// to switch off runs (mendixlabs/mxcli#1139).
+func (v *microflowValidator) checkExcludedOnNonActivity(s ast.MicroflowStatement, ann *ast.ActivityAnnotations) {
+	if !ann.Excluded {
+		return
+	}
+	var what string
+	switch s.(type) {
+	case *ast.IfStmt, *ast.EnumSplitStmt, *ast.InheritanceSplitStmt:
+		what = "a decision"
+	case *ast.LoopStmt, *ast.WhileStmt:
+		what = "a loop"
+	case *ast.ReturnStmt:
+		what = "an end event"
+	case *ast.RaiseErrorStmt:
+		what = "an error event"
+	case *ast.BreakStmt, *ast.ContinueStmt:
+		what = "a break or continue event"
+	case *ast.MergeStmt, *ast.JoinStmt:
+		what = "a merge"
+	default:
+		return
+	}
+	v.addViolation(excludedNonActivityRule, linter.SeverityWarning,
+		"@excluded on "+what+" has no effect — only an activity can be disabled (Disabled is "+
+			"a property of the action activity alone), so the annotation is dropped and nothing is disabled.",
+		"Put @excluded on the activities themselves, e.g. each activity inside the branch or loop body")
 }
 
 // checkCaptionOnLoop raises MDL042 for a @caption on a loop or a while loop. Both

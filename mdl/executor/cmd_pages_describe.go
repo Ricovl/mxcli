@@ -4,6 +4,7 @@ package executor
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"strconv"
 	"strings"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // ============================================================================
@@ -127,6 +126,11 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 			}
 			if st, _ := ap["Style"].(string); st != "" {
 				props = append(props, fmt.Sprintf("Style: %s", mdlQuote(ctx, st)))
+			}
+			// The page's own design properties; unprinted, a rewrite dropped
+			// them (ako/mxcli#1678).
+			if dps := extractDesignProperties(ap); len(dps) > 0 {
+				props = append(props, formatDesignPropertiesMDL(ctx, dps))
 			}
 		}
 	}
@@ -370,10 +374,20 @@ func describeLayout(ctx *ExecContext, name ast.QualifiedName) error {
 	// output cannot be fed back in.
 	rawData, _ := ctx.Backend.GetRawUnit(foundLayout.ID)
 	header := layoutHeaderMDL(ctx, layoutTypeStr, foundLayout.Class, layoutOuterName(rawData))
+	if native := nativeLayoutContent(rawData); native != nil {
+		if on, _ := native["ShowBottomBar"].(bool); on {
+			header += ",\n  showbottombar: true"
+		}
+	}
 	fmt.Fprintf(ctx.Output, "create or modify layout %s.%s (\n%s\n) {\n",
 		modName, mdlIdent(foundLayout.Name), header)
 
-	outputLayoutBodyMDL(ctx, rawData)
+	// Through describeWidgetBody like a page's body, so a widget MDL cannot
+	// author is known to the rewrite guard (mendixlabs/mxcli#1622).
+	describeWidgetBody(ctx, func(c *ExecContext) {
+		outputLayoutBodyMDL(c, rawData)
+		outputNativeLayoutPartsMDL(c, rawData)
+	})
 
 	fmt.Fprint(ctx.Output, "};\n\n")
 	return nil
@@ -391,6 +405,52 @@ func layoutHeaderMDL(ctx *ExecContext, layoutType, class, outer string) string {
 		header += fmt.Sprintf(",\n  Layout: %s", outer)
 	}
 	return header
+}
+
+// nativeLayoutContent returns a native layout's Forms$NativeLayoutContent, or
+// nil for a web layout.
+func nativeLayoutContent(rawData map[string]any) map[string]any {
+	content, _ := rawData["Content"].(map[string]any)
+	if t, _ := content["$Type"].(string); t != "Forms$NativeLayoutContent" {
+		return nil
+	}
+	return content
+}
+
+// outputNativeLayoutPartsMDL writes what a native layout keeps beside its
+// content tree: the placeholder on the header's right as `region header`, and
+// the sidebar — Sidebar plus SidebarWidgets — as `region sidebar`. A copy that
+// left them out lost a page's header and side menu with nothing printed.
+func outputNativeLayoutPartsMDL(ctx *ExecContext, rawData map[string]any) {
+	content := nativeLayoutContent(rawData)
+	if content == nil {
+		return
+	}
+	if ph, ok := content["RightHeaderPlaceholder"].(map[string]any); ok {
+		fmt.Fprint(ctx.Output, "  region header {\n")
+		for _, w := range parseRawWidget(ctx, ph) {
+			outputWidgetMDLV3(ctx, w, 2)
+		}
+		fmt.Fprint(ctx.Output, "  }\n")
+	}
+	if on, _ := content["Sidebar"].(bool); !on {
+		return
+	}
+	var widgets []rawWidget
+	for _, w := range getBsonArrayElements(content["SidebarWidgets"]) {
+		if wMap, ok := w.(map[string]any); ok {
+			widgets = append(widgets, parseRawWidget(ctx, wMap)...)
+		}
+	}
+	if len(widgets) == 0 {
+		fmt.Fprint(ctx.Output, "  region sidebar\n")
+		return
+	}
+	fmt.Fprint(ctx.Output, "  region sidebar {\n")
+	for _, w := range widgets {
+		outputWidgetMDLV3(ctx, w, 2)
+	}
+	fmt.Fprint(ctx.Output, "  }\n")
 }
 
 // layoutCallOf returns the call a layout built on another layout stores under
@@ -559,7 +619,7 @@ func getBsonArrayMaps(v any) []map[string]any {
 			}
 		}
 		return result
-	case primitive.A:
+	case bson.A:
 		var result []map[string]any
 		for _, item := range arr {
 			if m, ok := item.(map[string]any); ok {
@@ -605,6 +665,13 @@ type rawDataSource struct {
 	// are rendered, since both re-parse against the source's own entity.
 	SearchAttributes []string
 	ContextVariable  string // association source: context variable name (empty → $currentObject)
+	// Destination is the entity an association source's last hop arrives at, as
+	// stored (EntityRef.Steps[last].DestinationEntity). Reference is the
+	// association there, so this is the entity the source puts in scope. A
+	// parameter source sets it to the parameter's entity (EntityRef.Entity),
+	// Reference being the parameter's name. Empty when the model does not
+	// store it.
+	Destination string
 	// EntitySteps is set on a database source reached over associations from a
 	// context object: a Forms$ListViewXPathSource whose EntityRef is an
 	// IndirectEntityRef. Each hop keeps its stored DestinationEntity, which may
@@ -616,6 +683,9 @@ type rawDataSource struct {
 	// exactly as a call action does (#835) — describing it without them yields
 	// MDL that rebuilds into CE1571 (mxcli-formula1 §57.2).
 	Args []rawDataSourceArg
+	// FormValidations is a microflow source's MicroflowSettings setting, "" when
+	// not stored (ako/mxcli#1729).
+	FormValidations string
 	// Unsupported carries the stored $Type of a datasource that has no MDL
 	// spelling. Set instead of guessing a Type: describe reports it as a
 	// comment, so the binding is visible in the output without producing a
@@ -636,6 +706,26 @@ type rawEntityStep struct {
 type rawDataSourceArg struct {
 	Name  string
 	Value string
+}
+
+// associationSourceDestination returns the entity the last hop of an association
+// source arrives at, as stored — "" when there is no hop or none is stored.
+// associationSourcePath keeps only the association of a single hop, so this
+// reads the same steps for the entity.
+func associationSourceDestination(ds map[string]any) string {
+	entityRef, ok := ds["EntityRef"].(map[string]any)
+	if !ok || entityRef == nil {
+		return ""
+	}
+	steps := getBsonArrayElements(entityRef["Steps"])
+	if len(steps) == 0 {
+		return ""
+	}
+	last, ok := steps[len(steps)-1].(map[string]any)
+	if !ok {
+		return ""
+	}
+	return extractString(last["DestinationEntity"])
 }
 
 // associationSourcePath reconstructs the association navigation of a
@@ -671,15 +761,13 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 		return "", ""
 	}
 	contextVar = "currentObject"
-	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
-		// Inside a snippet the variable is a snippet parameter, in its own slot;
-		// reading PageParameter alone printed `$currentObject/…` and executing
-		// that dropped the binding (ako/mxcli#721 L3).
-		if pp := extractString(sv["PageParameter"]); pp != "" {
-			contextVar = pp
-		} else if sp := extractString(sv["SnippetParameter"]); sp != "" {
-			contextVar = sp
-		}
+	// Inside a snippet the variable is a snippet parameter, in its own slot;
+	// reading PageParameter alone printed `$currentObject/…` and executing that
+	// dropped the binding (ako/mxcli#721 L3).
+	if pp, sp := sourceParameterNames(ds); pp != "" {
+		contextVar = pp
+	} else if sp != "" {
+		contextVar = sp
 	}
 	// More than one hop prints every stored destination: associations alone
 	// leave each hop's entity to be re-derived, which re-executes to a
@@ -713,9 +801,21 @@ type rawDataGridColumn struct {
 	Visible           string      // expression, e.g. "true"
 	DynamicCellClass  string      // expression
 	Tooltip           string      // text
+	// ExtraProps are the column settings MDL has no keyword for (minWidth,
+	// allowEventPropagation, …) that differ from their defaults, printed under
+	// the key the widget declares. OmittedProps names those that could not be.
+	ExtraProps   []rawExplicitProp
+	OmittedProps []string
 }
 
 // rawWidget represents a widget from raw BSON data for MDL output.
+// rawTableCell is one legacy table cell: its 1-based ALTER PAGE address and
+// the names (or types, when unnamed) of the widgets directly inside it.
+type rawTableCell struct {
+	Row, Column int
+	Widgets     []string
+}
+
 type rawWidget struct {
 	Type    string
 	Name    string
@@ -726,8 +826,11 @@ type rawWidget struct {
 	Caption       string
 	Tooltip       string // an action button's Tooltip (mendixlabs/mxcli#1307)
 	RenderMode    string
-	Action        string
-	ButtonStyle   string
+	// NativeTextStyle is a dynamic text's style on a native page (Text,
+	// Heading1–6), the native counterpart of RenderMode (ako/mxcli#1677).
+	NativeTextStyle string
+	Action          string
+	ButtonStyle     string
 	// Icon is the qualified name an icon-collection or image icon points at.
 	// Empty for no icon and for a glyph icon, which carries a numeric Code
 	// instead. IconType keeps the storage $Type so the emitter can tell the
@@ -746,8 +849,11 @@ type rawWidget struct {
 	Children       []rawWidget
 	FilterWidgets  []rawWidget // For Gallery filter widgets
 	ControlBar     []rawWidget // For DataGrid2 CONTROLBAR widgets
-	Rows           []rawWidgetRow
-	DataSource     *rawDataSource
+	// LegacyGrid holds a legacy Forms$DataGrid's named columns, search fields
+	// and control-bar buttons, printed as comments (mendixlabs/mxcli#1459).
+	LegacyGrid *rawLegacyGrid
+	Rows       []rawWidgetRow
+	DataSource *rawDataSource
 	// NamedDataSources holds a pluggable widget's datasources keyed by the
 	// schema property each was stored under, and is set INSTEAD of DataSource
 	// when the widget has more than one configured. Collapsing them to the one
@@ -764,6 +870,16 @@ type rawWidget struct {
 	// IsPassword is Forms$TextBox.IsPasswordBox. Security-relevant: a text box
 	// that round-trips without it renders the value in plaintext (ako/mxcli#550).
 	IsPassword bool
+	// KeyboardType is a text box's Forms$TextBox.KeyboardType (ako/mxcli#1209).
+	KeyboardType string
+	// NumberOfLines and Autocomplete are a text area's; nil when not stored
+	// (ako/mxcli#977).
+	NumberOfLines *int64
+	Autocomplete  *bool
+	// UnsayableOutputMappings counts the output mappings (Mendix 11.5) of a
+	// button's flow call that describe could not print as `returns ( … )`
+	// (ako/mxcli#977).
+	UnsayableOutputMappings int
 	// ValidationExpression / ValidationMessage are the two fields of
 	// Forms$WidgetValidation, the per-widget validation Studio Pro stores on
 	// input widgets.
@@ -776,6 +892,10 @@ type rawWidget struct {
 	SubmitBehaviour    string
 	SubmitOnInputDelay *int
 	LayoutGridWidth    string
+	// TableCells are a legacy Forms$Table's cells, which MDL cannot create
+	// but ALTER PAGE can address as `table1 cell(row, col)`; describe lists
+	// them so the address is discoverable (mendixlabs/mxcli#1453).
+	TableCells []rawTableCell
 	// Formatting is the widget's Forms$FormattingInfo as MDL properties
 	// (DateFormat, CustomDateFormat, DecimalPrecision, GroupDigits), only the
 	// non-default ones (ako/mxcli#968).
@@ -784,6 +904,9 @@ type rawWidget struct {
 	// ones that differ from the Model SDK's defaults (mendixlabs/mxcli#151).
 	FileManagerProps []string
 	OnChange         string // MDL rendering of the OnChangeAction client action
+	OnEnter          string // an input's OnEnterAction ("On enter", focus in), "" for the empty NoAction (ako/mxcli#1743)
+	OnLeave          string // an input's OnLeaveAction ("On leave", focus out), likewise
+	OnEnterKeyPress  string // a text box's OnEnterKeyPressAction, "" for the empty NoAction (ako/mxcli#1743)
 	OnClick          string // MDL rendering of a pluggable widget's onClick action (e.g. DataGrid2)
 	OnClickTrigger   string // Gallery's onClickTrigger when not the default "single" (#842)
 	// Filter widget properties
@@ -811,11 +934,22 @@ type rawWidget struct {
 	// TabControl parsing — preserves the original tab page name/caption so
 	// DESCRIBE output shows which tab each nested widget belongs to).
 	TabCaption string
+	// The tab page's badge (mendixlabs/mxcli#1644): set when one is stored,
+	// with its template text and parameters. See tabpage_badge.go.
+	TabBadgeSet    bool
+	TabBadge       string
+	TabBadgeParams []string
 	// Scroll-container region properties, set only on the synthetic wrappers
 	// the region walk emits (the slot name goes in Name). Same shape as
 	// TabCaption: a nameless container whose identity DESCRIBE has to put back.
 	RegionSize     int
 	RegionSizeMode string
+	// RegionToggleMode is a scroll container region's ToggleMode — how a
+	// sidebar toggle opens it. None (the default) is not printed.
+	RegionToggleMode string
+	// ScrollLayoutMode is a scroll container's LayoutMode, Headline (the
+	// default, not printed) or Sidebar (ako/mxcli#1703).
+	ScrollLayoutMode string
 	// NavigationProfile is a Forms$NavigationTree's profile, which the document
 	// keeps one level down in MenuSource rather than on the tree.
 	NavigationProfile string
@@ -835,7 +969,10 @@ type rawWidget struct {
 	// values that SHOW the widget, as MDL spells them (`empty` for "(empty)").
 	VisibleAttr   string
 	VisibleValues []string
-	EditableIf    string // Expression from ConditionalEditabilitySettings
+	// "Visible for module roles": qualified role names, independent of the
+	// expression/attribute condition (mendixlabs/mxcli#1460).
+	VisibleRoles []string
+	EditableIf   string // Expression from ConditionalEditabilitySettings
 	// Design properties from Appearance
 	DesignProperties []rawDesignProp
 	// Explicit widget properties (for generic PLUGGABLEWIDGET output)
@@ -857,6 +994,17 @@ type rawWidget struct {
 	// describe -> exec round trip cannot silently delete a widget's body.
 	// See unreconstructedContainers.
 	OmittedContainers []string
+
+	// HiddenContent is a combo box's custom content: widgets MDL cannot author
+	// (MDL-WIDGET26), named in a comment so the author can see they are there
+	// (ako/mxcli#1563). See comboBoxHiddenContent.
+	HiddenContent []rawHiddenContent
+
+	// OmittedProps names properties whose stored value differs from the default
+	// and that DESCRIBE has no spelling for (an attribute reached over
+	// associations, …). Emitted as a comment, like OmittedContainers, so a
+	// describe -> exec round trip cannot reset them without saying so.
+	OmittedProps []string
 	// Data container context: entity qualified name provided by this container
 	EntityContext string
 	// Full widget ID (e.g. "com.mendix.widget.custom.switch.Switch")
@@ -946,7 +1094,8 @@ type rawDesignProp struct {
 type rawWidgetRow struct {
 	Columns []rawWidgetColumn
 	// Appearance holds only Class, Style, DynamicClasses and DesignProperties —
-	// a row is not a widget, but its Forms$Appearance is a widget's.
+	// a row is not a widget, but its Forms$Appearance is a widget's — and the
+	// row's visibility (VisibleIf / VisibleAttr / VisibleValues, #1461).
 	Appearance            rawWidget
 	VerticalAlignment     string // "" or "None" is the default
 	HorizontalAlignment   string
@@ -967,8 +1116,8 @@ func toBsonArray(v any) []any {
 	switch arr := v.(type) {
 	case []any:
 		return arr
-	case primitive.A:
-		// primitive.A is already []interface{} under the hood
+	case bson.A:
+		// bson.A is already []interface{} under the hood
 		return []any(arr)
 	default:
 		return nil
@@ -1007,7 +1156,7 @@ func getPageWidgetsFromRaw(ctx *ExecContext, pageID model.ID) []rawWidget {
 		return nil
 	}
 
-	// Handle both []interface{} and primitive.A types
+	// Handle both []interface{} and bson.A types
 	args := getBsonArrayElements(formCall["Arguments"])
 	if args == nil {
 		return nil
@@ -1136,7 +1285,7 @@ func extractBinaryID(v any) string {
 		return val
 	case []byte:
 		return formatGUID(val)
-	case primitive.Binary:
+	case bson.Binary:
 		return formatGUID(val.Data)
 	default:
 		return ""

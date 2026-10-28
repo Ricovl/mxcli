@@ -4,6 +4,7 @@ package codec
 
 import (
 	"fmt"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/modelsdk/mpr"
@@ -86,7 +87,7 @@ func (r *TypeResolver) GetRawUnitByName(reader *mpr.Reader, objectType, qualifie
 
 	for _, u := range units {
 		var raw map[string]any
-		if err := bson.Unmarshal(u.Contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(u.Contents, &raw); err != nil {
 			continue
 		}
 		name, _ := raw["Name"].(string)
@@ -140,7 +141,7 @@ func (r *TypeResolver) ListRawUnits(reader *mpr.Reader, objectType string) ([]*m
 	var result []*mpr.RawUnitInfo
 	for _, u := range units {
 		var raw map[string]any
-		if err := bson.Unmarshal(u.Contents, &raw); err != nil {
+		if err := bsoncompat.UnmarshalDocMap(u.Contents, &raw); err != nil {
 			continue
 		}
 		name, _ := raw["Name"].(string)

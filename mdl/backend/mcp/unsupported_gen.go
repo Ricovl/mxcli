@@ -494,6 +494,11 @@ func (unsupportedBackend) Disconnect() (err0 error) {
 	return
 }
 
+func (unsupportedBackend) EditConsumedRestService(_ model.ID, _ *backend.ConsumedRestServiceEdit) (err0 error) {
+	err0 = errUnsupported("EditConsumedRestService")
+	return
+}
+
 func (unsupportedBackend) ExportJSON() (r0 []uint8, err1 error) {
 	err1 = errUnsupported("ExportJSON")
 	return
@@ -1012,8 +1017,18 @@ func (unsupportedBackend) MoveViewEntitySourceDocument(_ string, _ model.ID, _ s
 	return
 }
 
+func (unsupportedBackend) OpenMenuDocumentForMutation(_ model.ID) (r0 backend.MenuMutator, err1 error) {
+	err1 = errUnsupported("OpenMenuDocumentForMutation")
+	return
+}
+
 func (unsupportedBackend) OpenMicroflowForMutation(_ model.ID) (r0 backend.MicroflowMutator, err1 error) {
 	err1 = errUnsupported("OpenMicroflowForMutation")
+	return
+}
+
+func (unsupportedBackend) OpenNavigationProfileForMutation(_ string) (r0 backend.NavigationProfileMutator, err1 error) {
+	err1 = errUnsupported("OpenNavigationProfileForMutation")
 	return
 }
 
@@ -1032,6 +1047,11 @@ func (unsupportedBackend) PageLayoutName(_ model.ID) (r0 string, err1 error) {
 	return
 }
 
+func (unsupportedBackend) ParseDomainModelFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *domainmodel.DomainModel, err1 error) {
+	err1 = errUnsupported("ParseDomainModelFromRaw")
+	return
+}
+
 func (unsupportedBackend) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (r0 *microflows.Microflow, err1 error) {
 	err1 = errUnsupported("ParseMicroflowBSON")
 	return
@@ -1042,6 +1062,11 @@ func (unsupportedBackend) ParseMicroflowFromRaw(_ map[string]any, _ model.ID, _ 
 }
 
 func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *microflows.Nanoflow) {
+	return
+}
+
+func (unsupportedBackend) ParseProjectSettingsFromRaw(_ map[string]any) (r0 *model.ProjectSettings, err1 error) {
+	err1 = errUnsupported("ParseProjectSettingsFromRaw")
 	return
 }
 
@@ -1118,8 +1143,8 @@ func (unsupportedBackend) RemoveUserRole(_ model.ID, _ string) (err0 error) {
 	return
 }
 
-func (unsupportedBackend) RenameDocumentByName(_ string, _ string, _ string) (err0 error) {
-	err0 = errUnsupported("RenameDocumentByName")
+func (unsupportedBackend) RenameDocument(_ model.ID, _ string, _ string) (err0 error) {
+	err0 = errUnsupported("RenameDocument")
 	return
 }
 
@@ -1163,6 +1188,11 @@ func (unsupportedBackend) SetDomainModelAnnotations(_ model.ID, _ []*domainmodel
 
 func (unsupportedBackend) SetDomainModelDocumentation(_ model.ID, _ string) (err0 error) {
 	err0 = errUnsupported("SetDomainModelDocumentation")
+	return
+}
+
+func (unsupportedBackend) SetProjectAdminPassword(_ model.ID, _ string) (err0 error) {
+	err0 = errUnsupported("SetProjectAdminPassword")
 	return
 }
 
@@ -1440,7 +1470,7 @@ func (unsupportedBackend) WriteJavaScriptSourceFile(_ string, _ string, _ string
 	return
 }
 
-func (unsupportedBackend) WriteJavaSourceFile(_ string, _ string, _ string, _ []*types.JavaActionParameter, _ types.CodeActionReturnType, _ []string, _ string) (err0 error) {
+func (unsupportedBackend) WriteJavaSourceFile(_ string, _ string, _ string, _ []*types.JavaActionParameter, _ types.CodeActionReturnType, _ []string, _ *string, _ string) (err0 error) {
 	err0 = errUnsupported("WriteJavaSourceFile")
 	return
 }

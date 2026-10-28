@@ -6,6 +6,8 @@ A widget is declared with a type keyword, a unique name, properties in parenthes
 WIDGET_TYPE widgetName (Property: value, ...) [{ children }]
 ```
 
+**Each built-in widget takes its own properties.** A property the widget does not take — `Caption:` on a `TEXTBOX` (an input's label is `Label:`), `Label:` on an `ACTIONBUTTON`, `Visible:` on a `SNIPPETCALL` (Mendix stores no visibility for one), a misspelt key — is refused under `mdl 1;` by `check` and by `exec`, with nothing written (MDL-WIDGET52). Without the header it is dropped as before and warned about (MDL-V1-WIDGETPROP). The message lists the properties that widget takes.
+
 **The list below is not the boundary.** The built-in Mendix widgets are documented here because they have fixed, hand-written property sets. Every **pluggable or custom widget** installed in the project is also written by its own name, with a body derived from the widget's definition — see [Any installed widget](#any-installed-widget) below. If a widget is in `widgets/`, MDL can name it.
 
 ## Widget Categories
@@ -76,6 +78,38 @@ CONTAINER cCard (Class: 'card mx-spacing-top-large') {
 
 Similar to `CONTAINER` but used for custom-styled containers.
 
+### TABCONTAINER / TABPAGE
+
+A tab container holds tab pages; each tab page holds widgets.
+
+```sql
+CREATE PAGE MyModule.Task_Tabs (
+  Title: 'Tasks',
+  Layout: Atlas_Core.Atlas_Default,
+  Params: ($Panel: MyModule.Panel)
+) {
+  DATAVIEW dvPanel (DataSource: $Panel) {
+    TABCONTAINER tcMain {
+      TABPAGE tpOpen (Caption: 'Open', Badge: '{1}', BadgeParams: ({1} = OpenCount)) {
+        DYNAMICTEXT txtOpen (Content: 'Open tasks')
+      }
+      TABPAGE tpDone (Caption: 'Done') {
+        DYNAMICTEXT txtDone (Content: 'Done tasks')
+      }
+    }
+  }
+};
+```
+
+| Property (tab page) | Description | Example |
+|---|---|---|
+| `Caption` | Tab caption, plain text (no parameters) | `Caption: 'Open'` |
+| `Badge` | Text shown beside the caption, a text template like a dynamic text's `Content` | `Badge: '{1}'` |
+| `BadgeParams` | The badge template's parameters, resolved against the enclosing data container | `BadgeParams: ({1} = OpenCount)` |
+| `Visible` | Visibility condition | `Visible: $Panel/ShowDone` |
+
+A tab page has no `Class`, `Style` or `CaptionParams`: Mendix stores none for it. A `BadgeParams` without a `Badge`, or a `Badge` that is not a quoted template, is refused (MDL-WIDGET51); `Badge` on any other widget is not stored, and is refused (MDL-WIDGET52).
+
 ## Data Widgets
 
 ### DATAVIEW
@@ -126,6 +160,34 @@ DATAGRID dgOrders (DataSource: DATABASE Sales.Order, PageSize: 20) {
 | `Pagination` | Pagination mode | `Pagination: virtualScrolling` |
 | `PagingPosition` | Position of paging controls | `PagingPosition: both` |
 | `ShowPagingButtons` | When to show paging buttons | `ShowPagingButtons: auto` |
+| `Selection` | Row selection: `None`, `Single` or `Multi` (also on a GALLERY). The widget key `itemSelection:` is the same property; two different values for it are refused (MDL-WIDGET50) | `Selection: Single` |
+
+**Any other Data grid 2 setting** can be set by its widget key — the name the
+widget's own definition gives it (`DESCRIBE WIDGET TYPE datagrid` lists them with
+their types, defaults and allowed values). The grid's personalization, for
+example, is stored in the browser or in an attribute of the surrounding object:
+
+```sql
+-- in the browser's local storage
+DATAGRID dgLocal (DataSource: DATABASE Sales.Order,
+                  configurationStorageType: localStorage,
+                  storeFiltersInPersonalization: true)
+
+-- in an attribute of the data view the grid sits in
+DATAVIEW dvPref (DataSource: $Pref) {
+  DATAGRID dgAttr (DataSource: DATABASE Sales.Order,
+                   configurationStorageType: attribute,
+                   configurationAttribute: Config)
+}
+```
+
+`DESCRIBE PAGE` prints every such setting whose stored value differs from the
+widget's default, under the same key, so describing a page and executing the
+description gives back the page it started from. A setting it cannot spell
+(an attribute reached over an association) is named in a `-- NOT re-executable`
+comment instead of being dropped without a word. Column settings with no keyword
+of their own (`minWidth`, `minWidthLimit`, `allowEventPropagation`, …) are
+written and described the same way, and so are a Gallery's.
 
 **Column properties:**
 
@@ -183,7 +245,12 @@ trailing association with no entity gets the end opposite the context.
 
 It is a different source from `$Task/System.WorkflowUserTask_Assignees` — an
 **association** source, which follows the association in memory and has no
-XPath, sort or search. List views only; on any other widget it is refused.
+XPath, sort or search.
+
+A gallery, a data grid and any other pluggable widget take the same form for
+their "Database" source, with its XPath and sort (`search by` stays a list view
+search bar). Widgets with a source of their own, such as a chart series or a
+dynamic image, refuse it.
 
 #### Specialization templates
 
@@ -257,9 +324,9 @@ All input widgets share common properties:
 
 | Property | Description | Example |
 |----------|-------------|---------|
-| `Label` | Field label text | `Label: 'Customer Name'` |
+| `Label` | Field label text — not `Caption:`, which is a button's (MDL-WIDGET52) | `Label: 'Customer Name'` |
 | `Attribute` | Entity attribute to bind to | `Attribute: Name` |
-| `Editable` | Editability mode | `Editable: ReadOnly` |
+| `Editable` | Editability: `Always`, `Never`, `true`/`false`, or a condition expression (bare or quoted) | `Editable: Never` |
 | `Visible` | Visibility expression | `Visible: '$showField'` |
 
 Each input widget takes only some attribute types. Measured with mxbuild 11.14.0,
@@ -403,8 +470,27 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 | `OPEN LINK 'https://…'` | Open a web address |
 | `SIGN OUT` | Sign the user out |
 | `COMPLETE TASK 'Outcome'` | Complete a workflow user task |
+| `OPEN USER TASK` | Open the user task's page (Studio Pro's "Show user task page") |
+| `OPEN WORKFLOW with (DefaultPage: Module.Page)` | Open the workflow's admin page, or `DefaultPage` when the workflow overrides none ("Show workflow admin page") |
+| `CALL WORKFLOW Module.Workflow` | Start a workflow with the data container's object as its context |
 
 The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` without `CALL` are deprecated aliases (MDL-DEPR020).
+
+The workflow events take their own settings in the `with ( … )` list:
+`complete task` takes `ClosePage` and `Commit` (both default `true`), `call
+workflow` takes `ClosePage` (default `true`) and a `Confirmation`, `open user
+task` takes `AssignOnOpen` (Studio Pro's "Auto-assign", default `true`) and
+`OpenWhenAssigned` (`true` is "Who can open: Users with access", default
+`false`), and `open workflow` requires `DefaultPage` (without it Mendix reports
+CE1834). `open user task` must sit inside a data container of
+`System.WorkflowUserTask` and `open workflow` inside one of `System.Workflow`, or
+mx check reports CE1843. A task inbox opens each task from its row:
+
+```sql
+DATAGRID dgTasks (DataSource: DATABASE FROM System.WorkflowUserTask, onClick: OPEN USER TASK) {
+  COLUMN (Attribute: Name, Caption: 'Task')
+}
+```
 
 **Button styles:**
 
@@ -492,6 +578,20 @@ Embeds a snippet (reusable page fragment) into the page:
 
 ```sql
 SNIPPETCALL scNav (Snippet: MyModule.NavigationMenu)
+```
+
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: MyModule.NavigationMenu)
+}
 ```
 
 ## Navigation Widgets
@@ -641,7 +741,7 @@ These properties are shared across many widget types:
 | `DynamicClasses` | Runtime-computed CSS classes (expression; stacks on `Class`) | `DynamicClasses: if $currentObject/IsActive then 'is-active' else ''` |
 | `DesignProperties` | Atlas design properties | `DesignProperties: ('Spacing top': 'Large', 'Full width': ON)` |
 | `Visible` | Visibility expression | `Visible: '$showSection'` |
-| `Editable` | Editability mode | `Editable: ReadOnly` |
+| `Editable` | Editability: `Always`, `Never`, `true`/`false`, or a condition expression (bare or quoted) | `Editable: Never` |
 
 ## See Also
 

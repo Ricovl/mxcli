@@ -434,7 +434,7 @@ func (ctx *LintContext) PermissionsFor(entityQualifiedName string) iter.Seq[Perm
 // AllPermission represents a permission from the catalog covering all element types.
 type AllPermission struct {
 	ModuleRoleName  string
-	ElementType     string // ENTITY, MICROFLOW, PAGE, ODATA_SERVICE
+	ElementType     string // ENTITY, MICROFLOW, NANOFLOW, PAGE, ODATA_SERVICE
 	ElementName     string // qualified name of the element
 	MemberName      string // populated for MEMBER_READ/MEMBER_WRITE
 	AccessType      string // CREATE, READ, WRITE, DELETE, EXECUTE, VIEW, ACCESS, MEMBER_READ, MEMBER_WRITE
@@ -484,8 +484,19 @@ func (ctx *LintContext) Permissions() iter.Seq[AllPermission] {
 // UserRoleInfo represents a user role from project security.
 type UserRoleInfo struct {
 	Name        string
+	Description string
 	IsAnonymous bool
 	ModuleRoles []string
+	// CheckSecurity is Studio Pro's per-role "Check security" flag. With it on,
+	// the Modeler verifies that the role's access rules actually grant what its
+	// pages and microflows need — the setting a rule of the form "security
+	// should be checked for each project role" asserts.
+	CheckSecurity bool
+	// ManageAllRoles, ManageUsersWithoutRoles and ManageableRoles are the
+	// user-management grants: which other roles this role may hand out.
+	ManageAllRoles          bool
+	ManageUsersWithoutRoles bool
+	ManageableRoles         []string
 }
 
 // UserRoles returns the user roles from project security.
@@ -502,9 +513,14 @@ func (ctx *LintContext) UserRoles() []UserRoleInfo {
 	var roles []UserRoleInfo
 	for _, ur := range ps.UserRoles {
 		roles = append(roles, UserRoleInfo{
-			Name:        ur.Name,
-			IsAnonymous: ur.Name == ps.GuestUserRole,
-			ModuleRoles: ur.ModuleRoles,
+			Name:                    ur.Name,
+			Description:             ur.Description,
+			IsAnonymous:             ur.Name == ps.GuestUserRole,
+			ModuleRoles:             ur.ModuleRoles,
+			CheckSecurity:           ur.CheckSecurity,
+			ManageAllRoles:          ur.ManageAllRoles,
+			ManageUsersWithoutRoles: ur.ManageUsersWithoutRoles,
+			ManageableRoles:         ur.ManageableRoles,
 		})
 	}
 	return roles
@@ -1086,8 +1102,33 @@ func (ctx *LintContext) ScheduledEvents() iter.Seq[ScheduledEvent] {
 			return
 		}
 
+		// An event's container is a folder whenever it is not at the module
+		// root — every Marketplace module keeps its events that way — so walk
+		// up the folder chain to the module (ako/mxcli#1452).
+		folderParent := map[model.ID]model.ID{}
+		if folders, err := ctx.reader.ListFolders(); err == nil {
+			for _, f := range folders {
+				folderParent[f.ID] = f.ContainerID
+			}
+		} else {
+			ctx.recordQueryError("ScheduledEvents (folders)", err)
+		}
+		moduleOf := func(container model.ID) string {
+			for range len(folderParent) + 1 {
+				if name, ok := moduleNames[container]; ok {
+					return name
+				}
+				parent, ok := folderParent[container]
+				if !ok {
+					return ""
+				}
+				container = parent
+			}
+			return ""
+		}
+
 		for _, e := range events {
-			moduleName := moduleNames[e.ContainerID]
+			moduleName := moduleOf(e.ContainerID)
 			if ctx.IsExcluded(moduleName) {
 				continue
 			}

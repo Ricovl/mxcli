@@ -3,9 +3,10 @@
 package modelsdkbackend
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genSet "github.com/mendixlabs/mxcli/modelsdk/gen/settings"
@@ -54,8 +55,14 @@ func (b *Backend) readSettingsRawParts(unitID string) []map[string]any {
 	if err != nil {
 		return nil
 	}
+	return settingsRawParts(raw)
+}
+
+// settingsRawParts returns each element of a Settings$ProjectSettings
+// document's Settings array as a map, skipping the versioned-array marker.
+func settingsRawParts(raw []byte) []map[string]any {
 	var doc bson.M
-	if err := bson.Unmarshal(raw, &doc); err != nil {
+	if err := bsoncompat.UnmarshalDocM(raw, &doc); err != nil {
 		return nil
 	}
 	arr, ok := doc["Settings"].(bson.A)

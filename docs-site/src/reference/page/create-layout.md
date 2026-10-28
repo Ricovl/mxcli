@@ -9,7 +9,7 @@ CREATE [OR REPLACE] LAYOUT module.Name
     class: 'layout-atlas layout-atlas-responsive-topbar'
 )
 {
-    SCROLLCONTAINER name {
+    SCROLLCONTAINER name [( layoutmode: 'Headline' | 'Sidebar' )] {
         REGION top | right | bottom | left | center ( region_properties ) {
             widgets
         }
@@ -59,8 +59,41 @@ mxcli exec mine.mdl -p app.mpr
 
 Read the describe output before running it. A widget MDL cannot express is
 emitted as a comment ending `-- NOT re-executable`, naming exactly what a
-re-run would drop (`Atlas_Core.Atlas_SideBar`, for instance, loses both of its
-`Forms$SidebarToggleButton` widgets).
+re-run would drop.
+
+Atlas's responsive sidebar toggle is the `sidebartoggle` widget, so a copied
+layout keeps its slide-in navigation on phones and tablets:
+
+```sql
+sidebartoggle sidebarToggle3 (
+  Tooltip: 'Toggle Menu', ButtonStyle: Primary,
+  Icon: 'Atlas_Core.Atlas_Filled.navigation-menu', Class: 'toggle-btn'
+)
+```
+
+It takes an action button's `Caption`, `Tooltip`, `ButtonStyle` and `Icon`,
+and `RenderMode: Link` to render as a link; it has no `Action`.
+
+The phone and tablet layouts keep their header bar in a `layoutheader`, whose
+two sides are spelled like a scroll container's regions:
+
+```sql
+layoutheader header1 {
+  region left { sidebartoggle sidebarToggle2 (RenderMode: Link, Icon: 'Atlas_Core.Atlas_Filled.navigation-menu') }
+  region right { placeholder HeaderRight }
+}
+```
+
+A native layout keeps three things beside its content tree: the placeholder on
+the header's right, whether the bottom bar shows, and the sidebar.
+
+```sql
+create layout MyModule.Native_SideMenu (layouttype: 'Default', showbottombar: true) {
+  placeholder Main
+  region header { placeholder Header }
+  region sidebar { placeholder Placeholder1 }
+};
+```
 
 ## Parameters
 
@@ -138,13 +171,20 @@ CREATE OR MODIFY LAYOUT MyModule.Layout_Framed (
 - Only web layouts can be built on another layout.
 - `DESCRIBE LAYOUT` prints this form, with one block per stored argument.
 
+### Scroll container properties
+
+| Property | Values | Notes |
+|----------|--------|-------|
+| `layoutmode` | `Headline`, `Sidebar` | The frame. `Headline` runs the top region across the full width and starts the left one under it; `Sidebar` runs the left region the full height and puts the top bar beside it (Atlas's `Atlas_SideBar` and `Atlas_TopBar`). Unset is `Headline`, and `DESCRIBE LAYOUT` prints it only when it is `Sidebar`. Change it on a stored layout with `ALTER LAYOUT … { SET (layoutmode: 'Sidebar') ON layoutContainer; }` |
+
 ### Region properties
 
 | Property | Values | Notes |
 |----------|--------|-------|
 | `size` | integer | Unset is Studio Pro's `200` |
 | `sizemode` | `Fixed`, `Pixels`, `Auto` | Unset is `Auto` |
-| `class` | CSS class | e.g. `region-topbar`, `region-content` |
+| `togglemode` | `None`, `PushContentAside`, `SlideOverContent`, `ShrinkContentInitiallyOpen`, `ShrinkContentInitiallyClosed` | How a `SIDEBARTOGGLE` opens and closes the region. Unset is `None` |
+| `class` | CSS class | e.g. `region-topbar`, `region-content`. The only appearance property a region stores: `style` on one is refused (MDL-WIDGET52) |
 
 ## The four elements only a layout has
 
@@ -184,16 +224,17 @@ CREATE OR MODIFY LAYOUT MyModule.App_Default
 };
 ```
 
-A sidebar layout, with a navigation tree in the left region:
+A sidebar layout, with a navigation tree in the left region running the full
+height (`layoutmode: 'Sidebar'`; leave it out and the top region spans the page):
 
 ```sql
 CREATE LAYOUT MyModule.App_Sidebar
 (
     layouttype: 'Responsive',
-    class: 'layout-atlas layout-atlas-responsive-default'
+    class: 'layout-atlas layout-atlas-responsive-sidebar'
 )
 {
-    SCROLLCONTAINER layoutContainer {
+    SCROLLCONTAINER layoutContainer (layoutmode: 'Sidebar') {
         REGION left (size: 232, sizemode: 'Pixels', class: 'region-sidebar') {
             NAVIGATIONTREE navMenu (profile: 'Responsive')
         }

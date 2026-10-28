@@ -10,8 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var extractTemplatesCmd = &cobra.Command{
@@ -181,7 +180,7 @@ func convertBsonValue(v any) any {
 			arr[i] = convertBsonValue(item)
 		}
 		return arr
-	case primitive.Binary:
+	case bson.Binary:
 		// Convert binary IDs to hex strings
 		return fmt.Sprintf("%x", val.Data)
 	case []byte:

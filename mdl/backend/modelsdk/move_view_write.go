@@ -13,7 +13,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // MoveEnumeration reparents an enumeration unit to its (already-updated) target
@@ -229,9 +229,9 @@ func (b *Backend) MoveViewEntitySourceDocument(sourceModuleName string, targetMo
 }
 
 // RenameViewEntitySourceDocument renames a view entity's OQL source document,
-// found by $Type as well as name — RenameDocumentByName matches any unit with
-// that name, and a microflow or page may share it. A view entity's document
-// must carry the entity's name (CE6784 otherwise).
+// found by $Type as well as name — a lookup by name alone matches any unit with
+// that name, and a microflow, page or folder may share it (ako/mxcli#1443). A
+// view entity's document must carry the entity's name (CE6784 otherwise).
 func (b *Backend) RenameViewEntitySourceDocument(moduleName, oldName, newName string) error {
 	if b.writer == nil {
 		return fmt.Errorf("RenameViewEntitySourceDocument: not connected for writing")

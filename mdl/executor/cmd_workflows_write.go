@@ -6,6 +6,7 @@ package executor
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -74,19 +75,27 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	if vs := ValidateWorkflowEventTypes(s); len(vs) > 0 {
 		return mdlerrors.NewValidationf("%s\n  → %s", vs[0].Message, vs[0].Suggestion)
 	}
-	if len(s.EventHandlers) > 0 {
-		if err := checkFeature(ctx, "workflows", "event_handlers", "on workflow events",
-			"remove the `on … workflow event` clauses, or upgrade the project"); err != nil {
-			return err
-		}
+	// A mapping key other than WorkflowContext is CE1613 at build time
+	// (mendixlabs/mxcli#1530); refused here for the #833 reason too.
+	if vs := callWorkflowParameterViolations(workflowStatementActivities(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("%s [%s]\n  → %s", vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
 	}
-	if workflowUsesAgentTask(workflowStatementActivities(s)) {
-		if err := checkFeature(ctx, "workflows", "ai_agent_task", "call agent microflow",
-			"AI agent tasks need Mendix 11.9 or later — use `call microflow` on older projects"); err != nil {
-			return err
-		}
+	// MDL-WF19: a variable no workflow expression can see is CE0117 at build
+	// time (mendixlabs/mxcli#1529).
+	if vs := ValidateWorkflowExpressionScope(s); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s\n  → %s", s.Name.String(), vs[0].Message, vs[0].Suggestion)
 	}
-	if err := checkEventSubProcessFeatures(ctx, s); err != nil {
+	// MDL-WF21: a placeholder no parameter fills is CE0720 at build time
+	// (ako/mxcli#1714).
+	if vs := checkWorkflowTemplates(workflowTemplateSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
+	// MDL-WF22: a recurrence Studio Pro refuses and mx check lets through
+	// (ako/mxcli#1716).
+	if vs := checkWorkflowRecurrences(workflowRecurrenceSites(s), workflowLocation(s.Name)); len(vs) > 0 {
+		return mdlerrors.NewValidationf("workflow '%s': %s [%s]\n  → %s", s.Name.String(), vs[0].Message, vs[0].RuleID, vs[0].Suggestion)
+	}
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 
@@ -180,13 +189,18 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// Display metadata
 	wf.WorkflowName = s.DisplayName
 	wf.WorkflowDescription = s.Description
-	wf.Annotation = s.Annotation
+	// Their parameters are expressions over the context, normalized like the
+	// due date's (ako/mxcli#1714).
+	headerNorm := newContextExprNormalizer(s.ParameterVar)
+	wf.WorkflowNameParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DisplayParams))
+	wf.WorkflowDescriptionParams = headerNorm.rewriteAll(workflowTemplateExprs(s.DescriptionParams))
 	if s.ExportLevel != "" {
 		wf.ExportLevel = s.ExportLevel
 	}
 
-	// Due date
-	wf.DueDate = s.DueDate
+	// Due date — an expression over the context, so its declared name and
+	// casing are rewritten like every activity expression's (mendixlabs/mxcli#1529).
+	wf.DueDate = newContextExprNormalizer(s.ParameterVar).rewrite(s.DueDate)
 
 	handlers, err := buildWorkflowEventHandlers(ctx, s.EventHandlers, existingHandlers)
 	if err != nil {
@@ -203,6 +217,10 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	startAct.ID = model.ID(generateWorkflowUUID())
 	startAct.Caption = "Start"
 	startAct.Name = "Start"
+	// The header's `annotation '…'` is the note on the start, which Studio Pro
+	// stores on the start activity and shows from there; the workflow's own
+	// Annotation, where it was written before, it shows nowhere (ako/mxcli#1717).
+	startAct.Annotation = s.Annotation
 
 	// Add implicit end activity
 	endAct := &workflows.EndWorkflowActivity{}
@@ -220,6 +238,9 @@ func execCreateWorkflow(ctx *ExecContext, s *ast.CreateWorkflowStmt) error {
 	// a start event named like a main-flow activity is CE0495 — so they are
 	// deduplicated together with the main flow's.
 	wf.EventSubProcesses = buildEventSubProcesses(s.EventSubProcesses)
+	// An interrupting boundary path ends in an End where Studio Pro writes one,
+	// before names are carried and deduplicated (ako/mxcli#1712).
+	endBoundaryPathsLikeStudioPro(userActivities, wf.EventSubProcesses)
 	named := append([]workflows.WorkflowActivity{}, userActivities...)
 	for _, esp := range wf.EventSubProcesses {
 		autoBindWorkflowParameters(ctx, esp.Flow.Activities, s.ParameterVar)
@@ -335,6 +356,7 @@ func buildBoundaryEvents(nodes []ast.WorkflowBoundaryEventNode) []*workflows.Bou
 			TimerDelay: be.Delay,
 			Name:       be.Name,
 			Caption:    be.Caption,
+			Recurrence: recurrenceFromNode(be.Recurrence),
 		}
 		if event.IsNotification() {
 			// Mendix requires both: the name is what a notify action targets
@@ -503,7 +525,11 @@ func buildUserTask(n *ast.WorkflowUserTaskNode) *workflows.UserTask {
 	task.Caption = n.Caption
 	task.DueDate = n.DueDate
 	task.TaskDescription = n.TaskDescription
+	task.TaskDescriptionParams = workflowTemplateExprs(n.TaskDescriptionParams)
+	task.TaskName = n.TaskName // "" is the caption, which the writer falls back to
+	task.TaskNameParams = workflowTemplateExprs(n.TaskNameParams)
 	task.IsMulti = n.IsMultiUser
+	task.AutoAssignSingleTargetUser = n.AutoAssign
 	if n.IsMultiUser {
 		task.AwaitAllUsers = n.AwaitAllUsers
 		task.TargetUserInput = buildTargetUserInput(n.Participants)
@@ -632,16 +658,26 @@ func buildCallWorkflowActivity(n *ast.WorkflowCallWorkflowNode) *workflows.CallW
 	act.ParameterExpression = "$WorkflowContext"
 
 	// Explicit parameter mappings from MDL WITH clause
-	// BSON requires fully qualified: Module.Workflow.ParamName
+	// BSON requires fully qualified: Module.Workflow.ParamName. The only
+	// parameter a workflow has is stored as WorkflowContext; any other key is
+	// refused before this (MDL-WF18), and a casing variant is written in the
+	// stored spelling, as the context variable is in expressions.
 	wfQN := n.Workflow.Module + "." + n.Workflow.Name
 	for _, pm := range n.ParameterMappings {
+		param := pm.Parameter
+		if strings.EqualFold(strings.TrimPrefix(strings.TrimSpace(param), "$"), workflowContextVar) {
+			param = workflowContextVar
+		}
 		mapping := &workflows.ParameterMapping{
-			Parameter:  wfQN + "." + pm.Parameter,
+			Parameter:  wfQN + "." + param,
 			Expression: pm.Expression,
 		}
 		mapping.BaseElement.ID = model.ID(types.GenerateID())
 		act.ParameterMappings = append(act.ParameterMappings, mapping)
 	}
+
+	// BoundaryEvents (mendixlabs/mxcli#1532)
+	act.BoundaryEvents = buildBoundaryEvents(n.BoundaryEvents)
 
 	return act
 }
@@ -854,6 +890,7 @@ func buildEventSubProcesses(nodes []ast.WorkflowEventSubProcessNode) []*workflow
 			Interrupting:       n.Interrupting,
 			Timer:              n.Timer,
 			FirstExecutionTime: n.FirstExecutionTime,
+			Recurrence:         recurrenceFromNode(n.Recurrence),
 		}
 		start.ID = model.ID(generateWorkflowUUID())
 		start.Name = n.StartName
@@ -1096,11 +1133,18 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 		case *workflows.CallMicroflowTask:
 			autoBindCallMicroflow(ctx, a, norm)
 		case *workflows.CallWorkflowActivity:
+			for _, pm := range a.ParameterMappings {
+				pm.Expression = norm.rewrite(pm.Expression)
+			}
 			autoBindCallWorkflow(ctx, a)
+		case *workflows.EventSubProcessStartActivity:
+			a.FirstExecutionTime = norm.rewrite(a.FirstExecutionTime)
 		case *workflows.UserTask:
 			// Sanitize name
 			a.Name = sanitizeActivityName(a.Name)
 			a.DueDate = norm.rewrite(a.DueDate)
+			a.TaskNameParams = norm.rewriteAll(a.TaskNameParams)
+			a.TaskDescriptionParams = norm.rewriteAll(a.TaskDescriptionParams)
 			if xp, ok := a.UserSource.(*workflows.XPathBasedUserSource); ok {
 				xp.XPath = norm.rewrite(xp.XPath)
 			}
@@ -1109,8 +1153,8 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			a.Name = sanitizeActivityName(a.Name)
 		case *workflows.ExclusiveSplitActivity:
 			a.Name = sanitizeActivityName(a.Name)
-			// A decision's condition is an expression over the workflow context,
-			// and the only in-scope variable is that context. It was left verbatim
+			// A decision's condition is an expression over the workflow context
+			// (and $WorkflowInstance — the two variables in scope). It was left verbatim
 			// while call-microflow parameter mappings were normalized, so the
 			// documented `$workflowContext` (and the user's own declared parameter
 			// name) reached Mendix as undefined variables → CE0117 (issuetracker
@@ -1123,6 +1167,15 @@ func autoBindActivitiesInFlow(ctx *ExecContext, activities []workflows.WorkflowA
 			a.DelayExpression = norm.rewrite(a.DelayExpression)
 		case *workflows.JumpToActivity:
 			a.Name = sanitizeActivityName(a.Name)
+		}
+
+		// A boundary timer, an event sub-process timer start and a call-workflow
+		// argument are expressions in the same scope as a decision, but were
+		// written verbatim, so the header's declared name reached Mendix as an
+		// undefined variable (CE0117) where a decision's was rewritten
+		// (mendixlabs/mxcli#1529).
+		for _, be := range activityBoundaryEvents(act) {
+			be.TimerDelay = norm.rewrite(be.TimerDelay)
 		}
 
 		// Every nested flow, whatever the activity — enumerating them here rather
@@ -1171,17 +1224,36 @@ func autoBindCallMicroflow(ctx *ExecContext, task *workflows.CallMicroflowTask, 
 		task.Outcomes = defaultCallMicroflowOutcomes(targetMF)
 	}
 
-	// Auto-bind parameters (context) if no explicit mappings were given.
+	// Auto-bind parameters if no explicit mappings were given: a System.Workflow
+	// parameter takes the running workflow, $WorkflowInstance; every other one
+	// the context. Binding the context to a System.Workflow parameter passed the
+	// wrong object (mendixlabs/mxcli#1523).
 	if len(task.ParameterMappings) == 0 && targetMF != nil {
 		for _, param := range targetMF.Parameters {
 			mapping := &workflows.ParameterMapping{
 				Parameter:  task.Microflow + "." + param.Name,
-				Expression: "$WorkflowContext",
+				Expression: workflowParameterDefault(param.Type),
 			}
 			mapping.BaseElement.ID = model.ID(types.GenerateID())
 			task.ParameterMappings = append(task.ParameterMappings, mapping)
 		}
 	}
+}
+
+// workflowParameterDefault is the expression a workflow call-microflow binds to
+// a target parameter of type t when the script gives no argument list.
+func workflowParameterDefault(t microflows.DataType) string {
+	if isSystemWorkflowType(t) {
+		return "$" + workflowInstanceVar
+	}
+	return "$" + workflowContextVar
+}
+
+// isSystemWorkflowType reports whether t is an object of System.Workflow — the
+// type of $WorkflowInstance.
+func isSystemWorkflowType(t microflows.DataType) bool {
+	o, ok := t.(*microflows.ObjectType)
+	return ok && strings.EqualFold(o.EntityQualifiedName, "System.Workflow")
 }
 
 // defaultCallMicroflowOutcomes builds the default outcome set for a call-microflow
@@ -1212,14 +1284,20 @@ func defaultCallMicroflowOutcomes(mf *microflows.Microflow) []workflows.Conditio
 // context has to match it exactly or the build fails CE0117.
 const workflowContextVar = "WorkflowContext"
 
-// normalizeWorkflowContextExpr rewrites a case-insensitive `$workflowContext`
-// reference to the exact context parameter name `$WorkflowContext`. In a workflow
-// the only in-scope variable is the context, so this is unambiguous.
+// normalizeWorkflowContextExpr rewrites a case-insensitive reference to either
+// variable a workflow expression can see — `$WorkflowContext` and
+// `$WorkflowInstance` (MDL-WF19, validate_workflow_scope.go) — to its exact
+// spelling. Both are fixed names, so this is unambiguous; a lower-case
+// `$workflowInstance` is CE0117 as written (measured on 11.6.6).
 func normalizeWorkflowContextExpr(expr string) string {
-	return workflowContextRe.ReplaceAllString(expr, "$$"+workflowContextVar)
+	expr = workflowContextRe.ReplaceAllString(expr, "$$"+workflowContextVar)
+	return workflowInstanceRe.ReplaceAllString(expr, "$$"+workflowInstanceVar)
 }
 
-var workflowContextRe = regexp.MustCompile(`(?i)\$workflowcontext`)
+var (
+	workflowContextRe  = regexp.MustCompile(`(?i)\$workflowcontext`)
+	workflowInstanceRe = regexp.MustCompile(`(?i)\$workflowinstance\b`)
+)
 
 // contextExprNormalizer makes every way an author can name the workflow context
 // resolve to the one name it is actually stored under.
@@ -1251,6 +1329,30 @@ func (n contextExprNormalizer) rewrite(expr string) string {
 		expr = n.alias.ReplaceAllString(expr, "$$"+workflowContextVar)
 	}
 	return normalizeWorkflowContextExpr(expr)
+}
+
+// rewriteAll rewrites each expression of a template's parameter list.
+func (n contextExprNormalizer) rewriteAll(exprs []string) []string {
+	for i, e := range exprs {
+		exprs[i] = n.rewrite(e)
+	}
+	return exprs
+}
+
+// workflowTemplateExprs is a text template's parameter expressions in
+// placeholder order. Numbering gaps and repeats are refused at check time
+// (MDL-WF21); here the lowest index simply comes first.
+func workflowTemplateExprs(params []ast.WorkflowTemplateParam) []string {
+	if len(params) == 0 {
+		return nil
+	}
+	sorted := append([]ast.WorkflowTemplateParam(nil), params...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Index < sorted[j].Index })
+	out := make([]string, len(sorted))
+	for i, p := range sorted {
+		out[i] = p.Expression
+	}
+	return out
 }
 
 // autoBindCallWorkflow resolves workflow parameters and generates ParameterMappings.
@@ -1310,4 +1412,14 @@ func hasStandaloneWorkflowAnnotation(acts []ast.WorkflowActivityNode) bool {
 		}
 	})
 	return found
+}
+
+// recurrenceFromNode is a `repeat every …` as stored; nil for none. An unknown
+// unit is refused before this by MDL-WF22.
+func recurrenceFromNode(n *ast.WorkflowRecurrenceNode) *workflows.Recurrence {
+	if n == nil {
+		return nil
+	}
+	unit, _ := workflows.RecurrenceIntervalType(n.Unit)
+	return &workflows.Recurrence{IntervalType: unit, Interval: n.Interval, MaxExecutions: n.MaxExecutions}
 }

@@ -63,6 +63,7 @@ type MockBackend struct {
 	ListDomainModelsFunc                       func() ([]*domainmodel.DomainModel, error)
 	GetDomainModelFunc                         func(moduleID model.ID) (*domainmodel.DomainModel, error)
 	GetDomainModelByIDFunc                     func(id model.ID) (*domainmodel.DomainModel, error)
+	ParseDomainModelFromRawFunc                func(raw map[string]any, unitID, containerID model.ID) (*domainmodel.DomainModel, error)
 	UpdateDomainModelFunc                      func(dm *domainmodel.DomainModel) error
 	SetDomainModelAnnotationsFunc              func(domainModelID model.ID, annotations []*domainmodel.Annotation) error
 	SetDomainModelDocumentationFunc            func(domainModelID model.ID, documentation string) error
@@ -159,6 +160,7 @@ type MockBackend struct {
 	SetProjectDemoUsersEnabledFunc       func(unitID model.ID, enabled bool) error
 	SetProjectStrictModeFunc             func(unitID model.ID, enabled bool) error
 	SetProjectAdminUserNameFunc          func(unitID model.ID, name string) error
+	SetProjectAdminPasswordFunc          func(unitID model.ID, password string) error
 	SetProjectGuestAccessFunc            func(unitID model.ID, enabled bool, guestUserRole string) error
 	AddUserRoleFunc                      func(unitID model.ID, name string, moduleRoles []string, manageAllRoles bool) error
 	AlterUserRoleModuleRolesFunc         func(unitID model.ID, userRoleName string, add bool, moduleRoles []string) error
@@ -184,6 +186,11 @@ type MockBackend struct {
 	ListNavigationDocumentsFunc func() ([]*types.NavigationDocument, error)
 	GetNavigationFunc           func() (*types.NavigationDocument, error)
 	UpdateNavigationProfileFunc func(navDocID model.ID, profileName string, spec types.NavigationProfileSpec) error
+	// OpenNavigationProfileForMutationFunc / OpenMenuDocumentForMutationFunc
+	// back ALTER NAVIGATION / ALTER MENU; MenuMutator in this package is an
+	// in-memory mutator for them.
+	OpenNavigationProfileForMutationFunc func(profileName string) (backend.NavigationProfileMutator, error)
+	OpenMenuDocumentForMutationFunc      func(id model.ID) (backend.MenuMutator, error)
 
 	// ServiceBackend
 	ListConsumedODataServicesFunc   func() ([]*model.ConsumedODataService, error)
@@ -198,6 +205,7 @@ type MockBackend struct {
 	ListPublishedRestServicesFunc   func() ([]*model.PublishedRestService, error)
 	CreateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
 	UpdateConsumedRestServiceFunc   func(svc *model.ConsumedRestService) error
+	EditConsumedRestServiceFunc     func(id model.ID, edit *backend.ConsumedRestServiceEdit) error
 	DeleteConsumedRestServiceFunc   func(id model.ID) error
 	CreatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error
 	UpdatePublishedRestServiceFunc  func(svc *model.PublishedRestService) error
@@ -255,7 +263,7 @@ type MockBackend struct {
 	CreateJavaActionFunc           func(ja *javaactions.JavaAction) error
 	UpdateJavaActionFunc           func(ja *javaactions.JavaAction) error
 	DeleteJavaActionFunc           func(id model.ID) error
-	WriteJavaSourceFileFunc        func(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode string) error
+	WriteJavaSourceFileFunc        func(moduleName, actionName string, javaCode string, params []*javaactions.JavaActionParameter, returnType javaactions.CodeActionReturnType, extraImports []string, extraCode *string, documentation string) error
 	DeleteJavaSourceFileFunc       func(moduleName, actionName string) error
 	RenameJavaSourceFileFunc       func(moduleName, oldName, newName string) error
 	ReadJavaSourceFileFunc         func(moduleName, actionName string) (string, error)
@@ -274,9 +282,10 @@ type MockBackend struct {
 	DeleteWorkflowFunc func(id model.ID) error
 
 	// SettingsBackend
-	GetProjectSettingsFunc    func() (*model.ProjectSettings, error)
-	AddNavigationProfileFunc  func(navDocID model.ID, name string) error
-	UpdateProjectSettingsFunc func(ps *model.ProjectSettings) error
+	GetProjectSettingsFunc          func() (*model.ProjectSettings, error)
+	AddNavigationProfileFunc        func(navDocID model.ID, name string) error
+	UpdateProjectSettingsFunc       func(ps *model.ProjectSettings) error
+	ParseProjectSettingsFromRawFunc func(raw map[string]any) (*model.ProjectSettings, error)
 
 	// ImageBackend
 	ListImageCollectionsFunc func() ([]*types.ImageCollection, error)
@@ -313,7 +322,7 @@ type MockBackend struct {
 	// RenameBackend
 	UpdateQualifiedNameInAllUnitsFunc func(oldName, newName string) (int, error)
 	RenameReferencesFunc              func(oldName, newName string, dryRun bool) ([]types.RenameHit, error)
-	RenameDocumentByNameFunc          func(moduleName, oldName, newName string) error
+	RenameDocumentFunc                func(id model.ID, oldName, newName string) error
 
 	// RawUnitBackend
 	GetRawUnitFunc            func(id model.ID) (map[string]any, error)

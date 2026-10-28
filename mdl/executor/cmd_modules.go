@@ -575,6 +575,7 @@ func listModules(ctx *ExecContext) error {
 		extDb       int
 	}
 	var rows []row
+	protections := moduleProtections(ctx)
 
 	for _, m := range modules {
 		// Determine source (AppStore with version or local)
@@ -585,6 +586,14 @@ func listModules(ctx *ExecContext) error {
 			} else {
 				source = "Marketplace"
 			}
+		}
+		if kind := protections[string(m.ID)]; kind != "" {
+			// mendixlabs/mxcli#1498: its Hidden elements cannot be referenced
+			// from other modules, which nothing else printed showed.
+			if source != "" {
+				source += ", "
+			}
+			source += "Protected " + kind
 		}
 
 		r := row{
@@ -649,6 +658,12 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 		fmt.Fprintf(ctx.Output, "/**\n * %s\n */\n", strings.ReplaceAll(dm.Documentation, "\n", "\n * "))
 	}
 	fmt.Fprintf(ctx.Output, "create or modify module %s;\n", targetModule.Name)
+	// A Protected (add-on / solution) module hides every element not marked
+	// Usable from the rest of the app (CE1406). MDL has no syntax for the
+	// module's export level, so it prints as a comment (mendixlabs/mxcli#1498).
+	if kind := moduleProtection(ctx, string(targetModule.ID)); kind != "" {
+		fmt.Fprintf(ctx.Output, "-- export level: Protected (%s module) — set in Studio Pro; elements not marked Usable cannot be referenced from other modules\n", kind)
+	}
 
 	// Module roles live in the module's own Security$ModuleSecurity unit rather
 	// than in any document, so a sweep that describes every document in a module
@@ -673,27 +688,42 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 	run.emitKinds(moduleDocKindsBeforeDomainModel)
 
 	// Entities in dependency order (base entities before derived entities),
-	// then associations once every entity is defined.
+	// then associations once every entity is defined, then the entities'
+	// access rules — a grant names the associations its entity owns, and exec
+	// refuses one naming an association that does not exist yet
+	// (mendixlabs/mxcli#1409).
 	dm, err := ctx.Backend.GetDomainModel(targetModule.ID)
 	if err != nil {
 		run.fail("domain model "+moduleName, err)
 	} else if dm != nil {
-		for _, entity := range sortEntitiesByGeneralization(dm.Entities, moduleName) {
+		entities := sortEntitiesByGeneralization(dm.Entities, moduleName)
+		described := make([]*domainmodel.Entity, 0, len(entities))
+		for _, entity := range entities {
 			qn := ast.QualifiedName{Module: moduleName, Name: entity.Name}
-			if err := describeEntity(ctx, qn); err != nil {
+			if err := describeEntityWith(ctx, qn, false); err != nil {
 				run.fail("entity "+qn.String(), err)
 				continue
 			}
+			described = append(described, entity)
 			fmt.Fprintln(ctx.Output)
 		}
 		// Cross-module associations are stored in a separate collection but are
 		// owned by this module (the FROM entity lives here); emit them too.
+		//
+		// A view entity's association is not emitted: its `<alias>.ID as <name>`
+		// OQL column declares it, the view entity's description above carries
+		// that column, and no statement can — a plain one is CE6771, refused by
+		// check and exec alike (mendixlabs/mxcli#1627).
 		var assocNames []string
 		for _, a := range dm.Associations {
-			assocNames = append(assocNames, a.Name)
+			if !isViewAssociationSource(a.Source) {
+				assocNames = append(assocNames, a.Name)
+			}
 		}
 		for _, ca := range dm.CrossAssociations {
-			assocNames = append(assocNames, ca.Name)
+			if !isViewAssociationSource(ca.Source) {
+				assocNames = append(assocNames, ca.Name)
+			}
 		}
 		for _, name := range assocNames {
 			qn := ast.QualifiedName{Module: moduleName, Name: name}
@@ -701,6 +731,13 @@ func describeModule(ctx *ExecContext, moduleName string, withAll bool) error {
 				run.fail("association "+qn.String(), err)
 				continue
 			}
+			fmt.Fprintln(ctx.Output)
+		}
+		for _, entity := range described {
+			if len(entity.AccessRules) == 0 {
+				continue
+			}
+			outputEntityAccessGrants(ctx, entity, moduleName, entity.Name)
 			fmt.Fprintln(ctx.Output)
 		}
 	}

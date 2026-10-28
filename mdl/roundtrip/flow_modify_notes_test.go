@@ -256,3 +256,49 @@ func TestSpliceRerun_PedAppNanoflowsUnderTheHeader(t *testing.T) {
 		t.Fatal("PedApp has no nanoflow — the enumeration is broken")
 	}
 }
+
+// mendixlabs/mxcli#1505: a multi-line free annotation holds CRLF, as Studio
+// Pro stores it and describe prints it. The same flow with LF line breaks —
+// what an editor saves — was refused under mdl 1 ("the free annotations
+// change; the splice edits activities only"), on every run. Line breaks are
+// not a change: the run writes nothing, and the note keeps its CRLF bytes.
+func TestSpliceRerun_FreeNoteLineEndings(t *testing.T) {
+	h := newHarness(t)
+	defer h.close()
+	flow := func(eol string) string {
+		return "mdl 1;\ncreate or modify microflow MyFirstModule.Rerun_FreeNoteEol ()\nbegin\n" +
+			"  @annotation 'First line." + eol + "Second line.'\n" +
+			"  @position(200, 200)\n" +
+			"  @annotation 'On the log." + eol + "Two lines.'\n" +
+			"  log info node 'Notes' 'hello';\nend;\n"
+	}
+	if err := h.exec(flow("\r\n")); err != nil {
+		t.Fatalf("create: %v\n%s", err, h.out.String())
+	}
+	got := h.describeUnder("mdl 1;", "microflow MyFirstModule.Rerun_FreeNoteEol")
+	if !strings.Contains(got, "First line.\r\nSecond line.") {
+		t.Fatalf("the free note was not stored with CRLF; the case is gone:\n%q", got)
+	}
+	for _, eol := range []string{"\r\n", "\n"} {
+		before := h.snapshot()
+		if err := h.exec(flow(eol)); err != nil {
+			t.Fatalf("re-run with %q line breaks: %v\n%s", eol, err, h.out.String())
+		}
+		if changed := before.diff(h.snapshot()); len(changed) != 0 {
+			t.Errorf("re-run with %q line breaks wrote %d unit(s)", eol, len(changed))
+		}
+	}
+	// Control: a real change to the free note is a change — written in place
+	// (mendixlabs/mxcli#1517), not taken for a line-ending difference.
+	h.out.Reset()
+	before := h.snapshot()
+	if err := h.exec(strings.Replace(flow("\n"), "Second line.", "Second line, reworded.", 1)); err != nil {
+		t.Fatalf("a reworded free note: %v\n%s", err, h.out.String())
+	}
+	if !strings.Contains(h.out.String(), "(set: free notes)") || len(before.diff(h.snapshot())) == 0 {
+		t.Errorf("a reworded free note was not written:\n%s", h.out.String())
+	}
+	if got := h.describeUnder("mdl 1;", "microflow MyFirstModule.Rerun_FreeNoteEol"); !strings.Contains(got, "Second line, reworded.") {
+		t.Errorf("describe after the reword:\n%q", got)
+	}
+}

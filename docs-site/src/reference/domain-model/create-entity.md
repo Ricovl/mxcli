@@ -256,6 +256,7 @@ INDEX (OrderDate DESC);
 
 - `String` requires an explicit length: `String(200)`. Use `String(unlimited)` for unbounded text.
 - `EXTENDS` must appear **before** the opening parenthesis, not after the closing one.
+- A member name must be unique along the generalization chain: a specialization cannot declare an attribute or own an association named like a member it inherits (from `System.User` and the other System entities too), and a generalization cannot gain one a specialization already has. An entity's attributes and associations share that name space; names differing only in case do not collide. `mxcli check` refuses it (MDL-MEMBER01); Mendix reports it as CE0069 "Duplicate member name".
 - Boolean attributes without an explicit `DEFAULT` automatically default to `FALSE`.
 - `AutoNumber` attributes are only valid on persistent entities.
 - The `@Position` annotation is optional and only affects the visual layout in Mendix Studio Pro.

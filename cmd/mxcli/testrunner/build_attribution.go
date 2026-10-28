@@ -175,7 +175,7 @@ func resultsFromFailedBuild(problems []docker.BuildProblem, suite *TestSuite) []
 
 // buildFailureHint is appended to the error when a build failure could not be
 // attributed to any test, which means it is in the project rather than in the
-// suite.
+// suite — or in one of the documents the run generates besides its tests.
 //
 // The errors themselves are already rendered by BuildFailedError.Error(), so
 // this says what the reader cannot work out from them: that none of them belongs
@@ -183,18 +183,81 @@ func resultsFromFailedBuild(problems []docker.BuildProblem, suite *TestSuite) []
 // that it is a leftover from an earlier run, with the command to remove it. That
 // last case is the one that fails every subsequent run of every test file until
 // someone finds it by hand (mendixlabs/mxcli#1104).
+//
+// An error in the endpoint documents is mxcli's own, and says so. CE0114 in
+// MxTest.RegisterEndpoint used to be reported as "in the project", which sent
+// the reader through their own model for a defect in a microflow they never
+// wrote (ako/mxcli#1654).
 func buildFailureHint(other []docker.BuildProblem) string {
 	if len(other) == 0 {
 		return ""
 	}
+	generated, project := splitRunnerDocuments(other)
 	var b strings.Builder
-	b.WriteString("\n  These errors are in the project, not in this run's tests.")
-	for _, name := range leftoverFlowsIn(other) {
+	for _, name := range generated {
+		b.WriteString(fmt.Sprintf("\n  %s is not part of your project: mxcli generated it for this run, %s."+
+			" An error in it is a defect in mxcli, not in your project or your tests — please report it"+
+			" (`mxcli diag --bundle` collects what is needed).", name, runnerDocuments[name]))
+		if name == endpointStartupFlow {
+			b.WriteString("\n  Until it is fixed, --skip-app-startup runs the tests without the call to your after-startup microflow.")
+		}
+	}
+	if len(project) == 0 {
+		return b.String()
+	}
+	if len(generated) > 0 {
+		b.WriteString("\n  The other errors are in the project, not in this run's tests.")
+	} else {
+		b.WriteString("\n  These errors are in the project, not in this run's tests.")
+	}
+	for _, name := range leftoverFlowsIn(project) {
 		b.WriteString(fmt.Sprintf(
 			"\n  %s is a microflow an earlier `mxcli test` run left behind. Remove it with:"+
 				"\n    mxcli -p <project.mpr> -c \"DROP MICROFLOW %s\"", name, name))
 	}
 	return b.String()
+}
+
+// runnerDocuments are the documents an endpoint run generates besides its test
+// microflows, with what each is for. Their names are fixed, so an error located
+// in one is the run's own whatever else is in the MxTest module.
+var runnerDocuments = map[string]string{
+	endpointStartupFlow:    "to register the test endpoint at startup and then run your after-startup microflow",
+	endpointRegisterAction: "to register the test endpoint",
+}
+
+// runnerDocumentPattern matches the `document` MxBuild reports — the document's
+// kind and its bare name, `Microflow 'RegisterEndpoint'` or
+// `Java action 'RegisterTestEndpoint'`; the module is carried separately.
+var runnerDocumentPattern = regexp.MustCompile(`^[A-Za-z ]+ '([^']*)'$`)
+
+// splitRunnerDocuments separates the problems located in a runner document from
+// the rest, naming each runner document once, in the order MxBuild reported it.
+func splitRunnerDocuments(problems []docker.BuildProblem) (generated []string, rest []docker.BuildProblem) {
+	seen := map[string]bool{}
+	for _, p := range problems {
+		name := ""
+		for _, loc := range p.Locations {
+			if !strings.EqualFold(loc.Module, mxTestModule) {
+				continue
+			}
+			if m := runnerDocumentPattern.FindStringSubmatch(loc.Document); m != nil {
+				if q := mxTestModule + "." + m[1]; runnerDocuments[q] != "" {
+					name = q
+					break
+				}
+			}
+		}
+		if name == "" {
+			rest = append(rest, p)
+			continue
+		}
+		if !seen[name] {
+			seen[name] = true
+			generated = append(generated, name)
+		}
+	}
+	return generated, rest
 }
 
 // leftoverFlowsIn names the generated test microflows among a set of build

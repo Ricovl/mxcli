@@ -5,10 +5,11 @@ package modelsdkbackend
 import (
 	"testing"
 
+	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
+
 	"github.com/mendixlabs/mxcli/modelsdk/codec"
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	"github.com/mendixlabs/mxcli/sdk/pages"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // encodeToMap encodes an element the way storage does and decodes it back to a
@@ -22,7 +23,7 @@ func encodeToMap(t *testing.T, e element.Element) map[string]any {
 		t.Fatalf("encode: %v", err)
 	}
 	var m map[string]any
-	if err := bson.Unmarshal(raw, &m); err != nil {
+	if err := bsoncompat.UnmarshalDocMap(raw, &m); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	return m
@@ -238,5 +239,28 @@ func TestMenuWidgetToGen_MenuSourceKind(t *testing.T) {
 	_, err := widgetToGen(&pages.SimpleMenuBar{BaseWidget: pages.BaseWidget{Name: "b"}, Menu: "M.X", NavigationProfile: "Phone"})
 	if err == nil {
 		t.Error("a menu widget naming both a menu document and a profile was accepted")
+	}
+}
+
+// A scroll container's LayoutMode, under the key Atlas_SideBar stores it
+// (ako/mxcli#1703). Unsaid, the key is not written and Studio Pro's default
+// (Headline) applies — so a layout that never said it encodes as before.
+func TestScrollContainerToGen_LayoutMode(t *testing.T) {
+	for _, tc := range []struct{ mode, want string }{{"Sidebar", "Sidebar"}, {"Headline", "Headline"}, {"", ""}} {
+		g, err := widgetToGen(&pages.ScrollContainer{BaseWidget: pages.BaseWidget{Name: "layoutContainer"}, LayoutMode: tc.mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := encodeToMap(t, g)
+		v, present := m["LayoutMode"]
+		if tc.want == "" {
+			if present {
+				t.Errorf("an unset LayoutMode encodes as %v; leave the key to Studio Pro's default", v)
+			}
+			continue
+		}
+		if got, _ := v.(string); got != tc.want {
+			t.Errorf("LayoutMode %q encodes as %v, want %q", tc.mode, v, tc.want)
+		}
 	}
 }

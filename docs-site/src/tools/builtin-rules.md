@@ -39,8 +39,35 @@ The **lint rules** below run with `mxcli lint`. There is also a separate group o
 | **CONV012** | Exclusive split captions -- Checks that decision branches have meaningful captions |
 | **CONV013** | Error handling on external calls -- Ensures external service calls have error handling |
 | **CONV014** | No continue error handling -- Warns against using CONTINUE error handling without logging |
+| **CONV020** | Created object never persisted -- A microflow creates an object of a persistent entity without commit, and never commits, returns or passes it on, so the object is discarded when the microflow ends ([details](#conv020-details)) |
 | **MDL-FLOW01** | Un-describable branch structure -- Decision branches that re-enter each other's paths, so `DESCRIBE MICROFLOW` cannot render them as nested `IF`s without changing what they mean |
 | **MDL-MAP04** | First over an object-rooted import mapping -- An `import from mapping` or `rest call … returns mapping` activity already in the model stores Studio Pro's *First* (`ForceSingleOccurrence` or `Range.SingleObject`) over a mapping that returns one object. `mx check` reports 0 errors; the activity throws `key not found: Path(QName(None,),None,)` when it runs. `mxcli check` refuses the same statement in a script under the same ID; this finds activities written before that check existed, or with `exec --no-check`. A list-rooted mapping's *First* is legitimate and is not reported |
+
+### CONV020 details {#conv020-details}
+
+`$Item = create Shop.Item (...)` without `commit` makes an object in memory only.
+If the microflow then neither commits it nor hands it to anything that could,
+the object is gone when the microflow ends. Nothing else reports this: `check`,
+`mx check` and the build all pass, and the microflow runs without error. In the
+report that prompted the rule, an after-startup seed microflow logged
+"Seeded 20" and the table stayed empty.
+
+The rule reports a create only when **all** of these hold:
+
+- it is in a **microflow** (not a nanoflow or a rule) and its commit setting is
+  **No**;
+- the entity is **persistent** (a non-persistent entity is meant to be
+  temporary), and is not a System or Marketplace entity;
+- nothing in the microflow, on any path, uses the variable except to read one
+  of its members (`$Item/Name`) or to change it without commit.
+
+Any other mention counts as passing the object on and keeps the rule quiet:
+`commit`, `change … commit`, returning it, an argument to a microflow, Java or
+JavaScript action, workflow, mapping or page, adding it to a list, using it as
+an association value on another object, `delete`, `rollback`, or the bare
+variable anywhere in an expression. The check is flow-insensitive: a commit on
+one branch only, or only in an error handler, counts, so that case is not
+reported. When the rule cannot tell, it stays quiet.
 
 ## Running Built-in Rules
 
@@ -70,8 +97,9 @@ These rules run with `mxcli check` (and the LSP, for real-time diagnostics) rath
 |------|----------------|-------------|
 | **MDL-WIDGET01** | `mxcli check` + LSP | Unknown property key on a pluggable widget. The property is not in the widget's `.def.json`. Catches typos like `optionsSourcType` (missing `e`) before MxBuild does. Suggests the nearest known key. |
 | **MDL-WIDGET02** | `mxcli check --post-migration` | Legacy native widget found on a project that has a pluggable replacement available. Reports each occurrence with the qualified document name, widget instance name, and the recommended pluggable widget. |
-| **MDL-SET01** | `mxcli check` + LSP | Non-integer value for an Integer-typed project setting (`HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism`, `WorkflowEngineParallelism`). These used to be skipped silently while the statement still reported success. |
+| **MDL-SET01** | `mxcli check` + LSP | Non-integer value for an Integer-typed project setting (`HttpPortNumber`, `ServerPortNumber`, `MaxJavaHeapSize`, `BcryptCost`, `DefaultTaskParallelism`, `WorkflowEngineParallelism`). These used to be skipped silently while the statement still reported success. |
 | **MDL-I18N01** | `mxcli check -p` | A script that changes `DefaultLanguageCode` leaves a tab page caption — stored in the project, or created by the script before the change — with no text in the new default. MxBuild reports CE4899 "Empty caption". See [Error Messages](../appendixes/error-messages.md#mdl-i18n01-a-tab-page-caption-without-the-default-language-ce4899). |
 | **MDL-SET02** | `mxcli check` + LSP | Value other than `true` / `false` for a Boolean-typed project setting (`AllowUserMultipleSessions`). Anything else was silently stored as `false`. |
+| **MDL-SET04** | `mxcli check` + LSP | `ALTER SETTINGS` section or key that does not exist (`alter settings nosuchsection (…)`, a misspelled `ExtraJvmParams`), or a verb the section does not define. Reported with the message `exec` refuses it with, and the valid keys; `check` used to pass these and leave `exec` to stop halfway through the script. |
 
 Run `mxcli check --help` for usage. See [Error Messages → MDL-WIDGET01 / MDL-WIDGET02](../appendixes/error-messages.md#mdl-widget01-unknown-pluggable-widget-property) for cause-and-solution detail.

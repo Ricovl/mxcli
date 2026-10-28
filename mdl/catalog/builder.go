@@ -122,6 +122,18 @@ type Builder struct {
 	// cataloguing the handlers and emitted by buildReferences.
 	eventHandlerRefs []eventHandlerRef
 
+	// Integration service → microflow edges (published OData resources,
+	// actions and authentication; published REST authentication; business
+	// event handlers; consumed OData configuration microflows), collected by
+	// the service builders and emitted by buildReferences (ako/mxcli#1639).
+	serviceMicroflowRefs []serviceMicroflowRef
+
+	// Page/snippet → document edges a widget makes beyond its single
+	// widgets_data columns (a data grid 2's datasource AND on-click
+	// microflow), collected by buildPages/buildSnippets and emitted by
+	// buildReferences (mendixlabs/mxcli#1513).
+	widgetExtraRefs []widgetExtraRef
+
 	// Built-in widget definitions supplied by the caller — used to populate
 	// the widget_definitions catalog table alongside project widgets/.
 	builtinWidgetMetas []WidgetDefinitionMeta
@@ -488,6 +500,14 @@ func (b *Builder) Build(progress ProgressFunc) error {
 
 	if err := b.buildSimpleNamedDocs("DataTransformers$DataTransformer", "data_transformers", "Data Transformers"); err != nil {
 		return fmt.Errorf("failed to build data transformers: %w", err)
+	}
+
+	if err := b.buildSimpleNamedDocs("MessageDefinitions$MessageDefinitionCollection", "message_definition_collections", "Message Definition Collections"); err != nil {
+		return fmt.Errorf("failed to build message definition collections: %w", err)
+	}
+
+	if err := b.buildSimpleNamedDocs("MessageDefinitions$MessageDefinition2", "message_definitions", "Message Definitions"); err != nil {
+		return fmt.Errorf("failed to build message definitions: %w", err)
 	}
 
 	if err := b.buildScheduledEvents(); err != nil {

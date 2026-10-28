@@ -12,7 +12,17 @@ import (
 type RenameBackend interface {
 	UpdateQualifiedNameInAllUnits(oldName, newName string) (int, error)
 	RenameReferences(oldName, newName string, dryRun bool) ([]types.RenameHit, error)
-	RenameDocumentByName(moduleName, oldName, newName string) error
+	// RenameDocument rewrites the Name of the document unit id from oldName to
+	// newName, refusing when the unit is not a document or is not named oldName.
+	//
+	// The caller passes the ID of the document it resolved, of the kind it was
+	// asked to rename, rather than a name to look up again. Its predecessor,
+	// RenameDocumentByName, took a module and a bare name and rewrote the first
+	// unit in the module's containers carrying that Name, whatever its $Type —
+	// and a folder is such a unit. A page in a folder of its own name, a common
+	// layout, therefore had its FOLDER renamed while every reference was pointed
+	// at a page that did not exist (ako/mxcli#1443, CE1613).
+	RenameDocument(id model.ID, oldName, newName string) error
 }
 
 // RawUnitBackend provides low-level unit access for operations that
@@ -102,6 +112,11 @@ type AgentEditorBackend interface {
 type SettingsBackend interface {
 	GetProjectSettings() (*model.ProjectSettings, error)
 	UpdateProjectSettings(ps *model.ProjectSettings) error
+	// ParseProjectSettingsFromRaw converts a Settings$ProjectSettings document
+	// that is not in storage — diff-local's historical revision of the unit,
+	// read back with `git show` — the way GetProjectSettings converts the
+	// stored one. Read-only.
+	ParseProjectSettingsFromRaw(raw map[string]any) (*model.ProjectSettings, error)
 }
 
 // ImageBackend provides image collection operations.

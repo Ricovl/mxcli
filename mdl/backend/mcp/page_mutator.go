@@ -35,26 +35,29 @@ func (b *Backend) OpenPageForMutation(unitID model.ID) (backend.PageMutator, err
 
 // resolvePageUnit maps a page unit ID to its module and page name (needed for the
 // pg_* tools, which are name-addressed). Saved pages come from the local reader;
-// pages created over MCP this session come from sessionPages.
+// pages created over MCP this session come from sessionPages. A page's ContainerID
+// is its immediate parent — usually a folder, not the module — so the module is
+// found by walking up the folder chain (mendixlabs/mxcli#1593).
 func (b *Backend) resolvePageUnit(unitID model.ID) (moduleName, pageName string, err error) {
-	for _, p := range b.sessionPages {
-		if p.ID == unitID {
-			mod, e := b.reader.GetModule(p.ContainerID)
-			if e != nil {
-				return "", "", e
-			}
-			return mod.Name, p.Name, nil
+	var p *pages.Page
+	for _, sp := range b.sessionPages {
+		if sp.ID == unitID {
+			p = sp
+			break
 		}
 	}
-	p, e := b.reader.GetPage(unitID)
-	if e != nil {
-		return "", "", fmt.Errorf("resolve page %s for mutation: %w", unitID, e)
+	if p == nil {
+		saved, e := b.reader.GetPage(unitID)
+		if e != nil {
+			return "", "", fmt.Errorf("resolve page %s for mutation: %w", unitID, e)
+		}
+		p = saved
 	}
-	mod, e := b.reader.GetModule(p.ContainerID)
+	mod, e := b.moduleNameForContainer(p.ContainerID)
 	if e != nil {
-		return "", "", e
+		return "", "", fmt.Errorf("resolve module of page %s: %w", p.Name, e)
 	}
-	return mod.Name, p.Name, nil
+	return mod, p.Name, nil
 }
 
 type mcpPageMutator struct {

@@ -96,6 +96,14 @@ RETRIEVE $RecentOrders FROM Sales.Order
 
 With `FIRST` the result is a single entity object (Mendix's "First object" range). Otherwise the result is a list, including with `LIMIT`/`OFFSET`. A bare `LIMIT 1` is a list of one (a script file without the header reads it differently; see [Language Versions and Migration](versions.md)). `describe` prints the object range as `FIRST`.
 
+A WHERE clause cannot reference a constant. `WHERE Total > @Sales.MinimumTotal` parses, and `mxcli check` refuses it (MDL-XPATH03): Mendix rejects a constant in any XPath constraint with CE0161, in a data source and an access rule as much as in a retrieve. Assign the constant to a variable and compare with the variable:
+
+```sql
+DECLARE $Minimum Decimal = @Sales.MinimumTotal;
+RETRIEVE $LargeOrders FROM Sales.Order
+  WHERE Total > $Minimum;
+```
+
 ### RETRIEVE by Association
 
 Retrieves objects by following an association from an existing object:
@@ -108,7 +116,11 @@ RETRIEVE $Lines FROM $Order/Sales.OrderLine_Order;
 RETRIEVE $Customer FROM $Order/Sales.Order_Customer;
 ```
 
-The association path uses the format `$Variable/Module.AssociationName`.
+The association path uses the format `$Variable/Module.AssociationName`. A bare
+name (`$Order/Order_Customer`) is resolved against the variable's entity — through
+its generalizations, from either end of the association — when exactly one
+association of that name fits, and stored qualified; a name that fits none, or
+more than one, is refused by `mxcli check -p --references` and by `exec`.
 
 ### RETRIEVE from Variable List
 
@@ -186,6 +198,19 @@ SHOW PAGE Sales.OrderDetail (
 The older spellings `($Order = $Order)` and `(Order: $Order)` still parse but are
 deprecated (MDL-DEPR006, MDL-DEPR007); `mxcli fmt --upgrade` rewrites them.
 
+The action's own settings go in a `with` list after the arguments:
+
+```sql
+SHOW PAGE Sales.Order_Edit (Order = $Order) WITH title = 'Edit order';
+SHOW PAGE Sales.Order_Overview WITH NumberOfPagesToClose = 1;  -- close the current page first
+```
+
+`title` overrides the page title. `NumberOfPagesToClose` is Studio Pro's "Number of
+pages to close": an Integer expression for how many pages to close before the page
+opens. Leaving it out closes none. It is a setting, not an argument —
+`(NumberOfPagesToClose: 1)` passes a page parameter of that name, which
+`check --references` refuses (Mendix build: CE1613).
+
 ### CLOSE PAGE
 
 Closes the current page, or the given number of pages:
@@ -231,6 +256,17 @@ Optionally specify a log node name:
 LOG INFO NODE 'OrderProcessing' 'Order created: ' + $Order/OrderNumber;
 LOG ERROR NODE 'PaymentGateway' 'Payment failed for order ' + $Order/OrderNumber;
 ```
+
+`WITH STACKTRACE` ticks **Include latest stack trace**, which is what an error
+handler usually wants. It comes after the template parameters, which also open
+with `WITH`:
+
+```sql
+LOG ERROR NODE 'PaymentGateway' 'Payment failed: {1}' WITH ({1} = $latestError/Message) WITH STACKTRACE;
+```
+
+Without it the box is unticked, which is Mendix's default, so `DESCRIBE` prints
+`WITH STACKTRACE` only for a log that has it.
 
 ## Email
 
@@ -321,7 +357,7 @@ The query name follows a three-part naming convention: `Module.ConnectionName.Qu
 | Call microflow | `$Var = CALL MICROFLOW Module.Name (Param = $val);` | Any type |
 | Call nanoflow | `$Var = CALL NANOFLOW Module.Name (Param = $val);` | Any type |
 | Call Java action | `$Var = CALL JAVA ACTION Module.Name (Param = val);` | Any type |
-| Show page | `SHOW PAGE Module.Page (Param = $val);` | -- |
+| Show page | `SHOW PAGE Module.Page (Param = $val) [WITH title = '…', NumberOfPagesToClose = n];` | -- |
 | Close page | `CLOSE PAGE [n];` | -- |
 | Validation | `VALIDATION FEEDBACK $Var/Attr MESSAGE 'msg';` | -- |
 | Log | `LOG INFO\|WARNING\|ERROR [NODE 'name'] 'msg';` | -- |

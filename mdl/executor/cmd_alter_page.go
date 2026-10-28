@@ -23,6 +23,11 @@ func execAlterPage(ctx *ExecContext, s *ast.AlterPageStmt) error {
 	if !ctx.ConnectedForWrite() {
 		return mdlerrors.NewNotConnectedWrite()
 	}
+	// A parameter named with a platform-reserved word is CE7247 (MDL-PARAM01,
+	// ako/mxcli#1651) — refused here too, so --no-check cannot write it.
+	if err := refuseReservedParameterNames(s); err != nil {
+		return err
+	}
 
 	h, err := getHierarchy(ctx)
 	if err != nil {
@@ -347,6 +352,96 @@ func resolveAlterPageUnit(ctx *ExecContext, s *ast.AlterPageStmt, h *ContainerHi
 // ============================================================================
 
 func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.SetPropertyOp, moduleName string, moduleID model.ID) error {
+	if err := applySetProperties(ctx, mutator, op, moduleName, moduleID); err != nil {
+		return err
+	}
+	if err := checkDateFormatAfterSet(mutator, op); err != nil {
+		return err
+	}
+	// A Gallery's row click is judged on the widget as the SET leaves it —
+	// the statement may name only one of the three settings involved.
+	if err := checkGalleryClickAfterSet(ctx, mutator, op); err != nil {
+		return err
+	}
+	if op.Target.IsColumn() || op.Target.Item != nil {
+		names := make([]string, 0, len(op.Properties))
+		for k := range op.Properties {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		if op.Target.Item != nil {
+			return resetHiddenItemProperties(ctx, mutator, op.Target, names)
+		}
+		return resetHiddenColumnProperties(ctx, mutator, op.Target, names)
+	}
+	return nil
+}
+
+// dateFormatChecker is the page mutator capability behind
+// checkDateFormatAfterSet; engines without it are left as they were.
+type dateFormatChecker interface {
+	CheckDateFormat(widgetRef string) error
+}
+
+// checkDateFormatAfterSet refuses a SET that leaves a picker Custom with no
+// pattern (CE0493). Only a statement that sets DateFormat or CustomDateFormat
+// is checked, so an unrelated edit to a widget already in that state still
+// goes through (ako/mxcli#977).
+func checkDateFormatAfterSet(mutator backend.PageMutator, op *ast.SetPropertyOp) error {
+	checker, ok := mutator.(dateFormatChecker)
+	if !ok || op.Target.IsColumn() || op.Target.Item != nil || op.Target.Widget == "" {
+		return nil
+	}
+	for name := range op.Properties {
+		if strings.EqualFold(name, "DateFormat") || strings.EqualFold(name, "CustomDateFormat") {
+			if err := checker.CheckDateFormat(op.Target.Widget); err != nil {
+				return mdlerrors.NewValidation("set on " + op.Target.Name() + ": " + err.Error())
+			}
+			return nil
+		}
+	}
+	return nil
+}
+
+// itemHiddenPropertyResetter is the page mutator capability behind
+// resetHiddenItemProperties; engines without it are left as they were.
+type itemHiddenPropertyResetter interface {
+	ResetHiddenItemProperties(itemRef string, rules []types.WidgetVisibilityRule, setProps []string) ([]string, error)
+}
+
+// resetHiddenItemProperties is resetHiddenColumnProperties for an object-list
+// item (`acc1 item@1`): after the SET, every item property the widget's
+// editorConfig now hides goes back to how CREATE stores a hidden one.
+// `set (headerRenderMode: 'custom')` hid the group's headerText and left its
+// template filled: CE0463 at the Accordion. The rules are the installed
+// package's, found from the item's own widget id.
+func resetHiddenItemProperties(ctx *ExecContext, mutator backend.PageMutator, target ast.WidgetRef, setProps []string) error {
+	resetter, ok := mutator.(itemHiddenPropertyResetter)
+	if !ok {
+		return nil
+	}
+	valuer, ok := mutator.(objectListItemValuer)
+	if !ok {
+		return nil
+	}
+	vals, ok := valuer.ObjectListItemValues(target.Widget)
+	if !ok {
+		return nil
+	}
+	rules := resolveWidgetVisibilityRules(ctx.MprPath, vals.WidgetID)
+	if len(rules) == 0 {
+		return nil
+	}
+	if _, err := resetter.ResetHiddenItemProperties(target.Widget, rules, setProps); err != nil {
+		return mdlerrors.NewBackend("set on "+target.Name(), err)
+	}
+	return nil
+}
+
+// applySetProperties writes each property of a SET, without the column
+// follow-up — what check's per-property dry run exercises, since a column's
+// hidden-property rules can only be judged on the statement as a whole.
+func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.SetPropertyOp, moduleName string, moduleID model.ID) error {
 	// Sort property names for deterministic application order.
 	propNames := make([]string, 0, len(op.Properties))
 	for k := range op.Properties {
@@ -356,7 +451,8 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 
 	for _, propName := range propNames {
 		value := op.Properties[propName]
-		if _, isAction := value.(*ast.ActionV3); isAction && propName != "Action" &&
+		_, isActionValue := value.(*ast.ActionV3)
+		if isActionValue && propName != "Action" &&
 			(op.Target.Widget == "" || op.Target.IsColumn()) {
 			// A named action slot belongs to a pluggable widget. The column and
 			// page-level setters would stringify the action into a scalar.
@@ -377,23 +473,26 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 			if err := mutator.SetWidgetDataSource(op.Target.Widget, ds); err != nil {
 				return mdlerrors.NewBackend("set DataSource on "+op.Target.Name(), err)
 			}
-		} else if propName == "Action" {
+		} else if propName == "Action" || (isActionValue && isClickActionKey(propName)) {
 			// Action is a polymorphic node, not a scalar — it goes through the
 			// same builder CREATE PAGE uses rather than being written as a value.
-			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
+			// `onClick:` is its alias, as in CREATE PAGE; on a pluggable widget
+			// both reach the slot its definition reads `onClick:` from
+			// (ako/mxcli#854).
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID, op.Target.Widget)
 			if err != nil {
 				return err
 			}
-			if err := mutator.SetWidgetAction(op.Target.Widget, action); err != nil {
-				return mdlerrors.NewBackend("set Action on "+op.Target.Name(), err)
+			if err := setClickAction(mutator, op.Target.Widget, propName, action); err != nil {
+				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
-		} else if _, isAction := value.(*ast.ActionV3); isAction {
+		} else if isActionValue {
 			// Any other key carrying an action is a pluggable widget's NAMED
 			// action slot — `set 'createFileAction' = microflow M.F` (#995).
 			// Same builder as `Action`; the mutator checks the key is an
 			// action-typed property of the stored widget. Through
 			// SetWidgetProperty it would be stringified into a PrimitiveValue.
-			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID)
+			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID, op.Target.Widget)
 			if err != nil {
 				return err
 			}
@@ -401,7 +500,7 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else if p := designPropertyForStoredWidget(
-			ctx.GetThemeRegistry(), mutator, op.Target.Widget, propName); p != nil {
+			documentTheme(ctx, mutator), mutator, op.Target.Widget, propName); p != nil {
 			// An Atlas design property of THIS stored widget. It lives in
 			// Appearance.DesignProperties, which SetWidgetProperty does not
 			// reach, so before ako/mxcli#515 this dead-ended and ALTER STYLING
@@ -416,10 +515,37 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		} else {
-			if err := mutator.SetWidgetProperty(op.Target.Widget, propName, value); err != nil {
+			// An attribute property of a pluggable widget is bound here, by the
+			// rule CREATE uses; the mutator only writes it (#1622).
+			resolved, err := resolvePluggableSetValue(ctx, mutator, op.Target.Widget, propName, value, moduleName, moduleID)
+			if err != nil {
+				return err
+			}
+			if err := mutator.SetWidgetProperty(op.Target.Widget, propName, resolved); err != nil {
 				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
 		}
+	}
+	return nil
+}
+
+// resetHiddenColumnProperties puts every column property the Data grid 2 now
+// hides back at its declared default, once the statement's own values are in.
+// `set (ColumnWidth: autoFill)` after a manual width left `size` at 220, which
+// the widget hides unless the width is manual: CE0463 (mendixlabs/mxcli#1519).
+// The rules are the installed package's editorConfig — which property depends
+// on which is the widget's to say, not a list kept here.
+func resetHiddenColumnProperties(ctx *ExecContext, mutator backend.PageMutator, target ast.WidgetRef, setProps []string) error {
+	resetter, ok := mutator.(backend.ColumnHiddenPropertyResetter)
+	if !ok {
+		return nil
+	}
+	rules := resolveWidgetVisibilityRules(ctx.MprPath, pages.WidgetIDDataGrid2)
+	if len(rules) == 0 {
+		return nil
+	}
+	if _, err := resetter.ResetHiddenColumnProperties(target.Widget, columnRefOf(target), rules, setProps); err != nil {
+		return mdlerrors.NewBackend("set on "+target.Name(), err)
 	}
 	return nil
 }
@@ -445,7 +571,7 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 		}
 		return &pages.DatabaseSource{EntityName: ds.Reference}, nil
 	case "microflow":
-		return &pages.MicroflowSource{Microflow: ds.Reference}, nil
+		return &pages.MicroflowSource{Microflow: ds.Reference, FormValidations: ds.FormValidations}, nil
 	case "nanoflow":
 		return &pages.NanoflowSource{Nanoflow: ds.Reference}, nil
 	case "parameter":
@@ -477,7 +603,10 @@ func convertASTDataSource(value interface{}) (pages.DataSource, error) {
 // buildWidgetsFromAST is. Without them a `$Param` argument cannot be told from an
 // expression and is written as one, which Studio Pro does not bind
 // (mendixlabs/mxcli#1317, the #1140 rule).
-func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, moduleName string, moduleID model.ID) (pages.ClientAction, error) {
+//
+// widgetRef is the widget the action is set on: a `returns ( … )` attribute
+// target belongs to the object of the data container around it.
+func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, moduleName string, moduleID model.ID, widgetRef string) (pages.ClientAction, error) {
 	action, ok := value.(*ast.ActionV3)
 	if !ok {
 		return nil, mdlerrors.NewValidation("Action value must be an action expression, " +
@@ -493,10 +622,14 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, nil),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
+	}
+	if len(action.Returns) > 0 {
+		pb.entityContext, _ = alterEntityContext(ctx, mutator, widgetRef, false, moduleName, moduleID)
 	}
 	return pb.buildClientActionV3(action)
 }
@@ -506,6 +639,11 @@ func convertASTAction(ctx *ExecContext, mutator backend.PageMutator, value any, 
 // ============================================================================
 
 func applyInsertWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.InsertWidgetOp, moduleName string, moduleID model.ID) error {
+	if strings.EqualFold(op.Position, "INTO") {
+		if err := refuseHiddenItemSlot(ctx, mutator, op.Target); err != nil {
+			return err
+		}
+	}
 	opWidgets, err := expandAlterFragments(ctx, op.Widgets, moduleName, moduleID)
 	if err != nil {
 		return err
@@ -647,6 +785,11 @@ func applyDropWidgetMutator(mutator backend.PageMutator, op *ast.DropWidgetOp) e
 // ============================================================================
 
 func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp, moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
+	if op.Target.Item != nil && op.Target.Column != "" {
+		if err := refuseHiddenItemSlot(ctx, mutator, op.Target); err != nil {
+			return err
+		}
+	}
 	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
 	if err != nil {
 		return err
@@ -677,7 +820,13 @@ func applyReplaceWidgetMutator(ctx *ExecContext, mutator backend.PageMutator, op
 	// attribute is required when column sorting is enabled" (#1468).
 	if op.Target.IsColumn() && allColumns(op.NewWidgets) {
 		entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, true, moduleName, moduleID)
-		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, op.Target.Widget, columnRefOf(op.Target))
+		// What the replaced column contains — its filter, its custom content —
+		// leaves the name scope with it, so the replacement may reuse the names.
+		exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+		for n := range replaced {
+			exclude = append(exclude, n)
+		}
+		specs, err := buildColumnSpecsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
 		if err != nil {
 			return mdlerrors.NewBackend("build replacement column specs", err)
 		}
@@ -742,22 +891,80 @@ func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutat
 	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
 	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (bool, error) {
 	keeper, ok := mutator.(pluggableKeepingReplacer)
-	if !ok || storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
-		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+	if !ok {
 		return false, nil
 	}
-	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+	baseline, ok := pluggableReplaceBaseline(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude)
+	if !ok {
 		return false, nil
+	}
+	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline)
+}
+
+// pluggableReplaceBaseline builds the stored widget as describe prints it, the
+// baseline the #1247 merge compares the replacement with; ok is false when the
+// merge does not apply — not exactly one pluggable widget for one of the same
+// kind, no description of the stored one, or a baseline that does not build.
+func pluggableReplaceBaseline(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	widgets []pages.Widget, storedWidgets func() map[string]*ast.WidgetV3,
+	moduleName string, moduleID model.ID, entityCtx string, exclude []string) (pages.Widget, bool) {
+	if storedWidgets == nil || op.Target.Column != "" || op.Target.IsColumnAddress() ||
+		len(widgets) != 1 || len(op.NewWidgets) != 1 {
+		return nil, false
+	}
+	if _, isPluggable := widgets[0].(*pages.CustomWidget); !isPluggable {
+		return nil, false
 	}
 	stored := storedWidgets()[op.Target.Widget]
 	if stored == nil || !strings.EqualFold(stored.Type, op.NewWidgets[0].Type) {
-		return false, nil
+		return nil, false
 	}
 	baseline, err := buildWidgetsFromAST(ctx, []*ast.WidgetV3{replaceBaseline(stored, op.NewWidgets[0])}, moduleName, moduleID, entityCtx, mutator, exclude...)
 	if err != nil || len(baseline) != 1 {
-		return false, nil
+		return nil, false
 	}
-	return keeper.ReplacePluggableKeepingUnstated(op.Target.Widget, widgets[0], baseline[0])
+	return baseline[0], true
+}
+
+// pluggableReplaceChecker is the check-time half of pluggableKeepingReplacer:
+// the refusal ReplacePluggableKeepingUnstated would give, without the write.
+type pluggableReplaceChecker interface {
+	CheckPluggableReplace(widgetRef string, replacement, baseline pages.Widget) error
+}
+
+// refuseStaleContentReplace is the check -p half of the refusal a pluggable
+// REPLACE gives for content it would carry onto another entity
+// (backend.StaleWidgetContentError, ako/mxcli#1563): the replacement built
+// as exec builds it, and the stored document asked, without writing. A
+// replacement that does not build here is exec's to report, so nothing is
+// said for it.
+func refuseStaleContentReplace(ctx *ExecContext, mutator backend.PageMutator, op *ast.ReplaceWidgetOp,
+	moduleName string, moduleID model.ID, storedWidgets func() map[string]*ast.WidgetV3) error {
+	checker, ok := mutator.(pluggableReplaceChecker)
+	if !ok || op.Target.Item != nil || isFooterRegionTarget(op.Target) {
+		return nil
+	}
+	newWidgets, err := expandAlterFragments(ctx, op.NewWidgets, moduleName, moduleID)
+	if err != nil {
+		return nil
+	}
+	expanded := *op
+	expanded.NewWidgets = newWidgets
+	op = &expanded
+	entityCtx, _ := alterEntityContext(ctx, mutator, op.Target.Widget, false, moduleName, moduleID)
+	exclude := []string{op.Target.Widget, columnRefOf(op.Target)}
+	for n := range replacedWidgetNames(mutator, op.Target) {
+		exclude = append(exclude, n)
+	}
+	widgets, err := buildWidgetsFromAST(ctx, op.NewWidgets, moduleName, moduleID, entityCtx, mutator, exclude...)
+	if err != nil {
+		return nil
+	}
+	baseline, ok := pluggableReplaceBaseline(ctx, mutator, op, widgets, storedWidgets, moduleName, moduleID, entityCtx, exclude)
+	if !ok {
+		return nil
+	}
+	return checker.CheckPluggableReplace(op.Target.Widget, widgets[0], baseline)
 }
 
 // replaceBaselineSystemProps are the widget-level settings describe prints for
@@ -765,7 +972,7 @@ func replacePluggableKeepingUnstated(ctx *ExecContext, mutator backend.PageMutat
 // replacement differs from the baseline" as "the statement states it", so one
 // the statement leaves out must be left out of the baseline too, or the
 // replacement's default would overwrite the stored value.
-var replaceBaselineSystemProps = []string{"Editable", "EditableIf", "Visible", "VisibleIf", "VisibleWhen"}
+var replaceBaselineSystemProps = []string{"Editable", "EditableIf", "Visible", "VisibleIf", "VisibleWhen", "VisibleRoles"}
 
 // replaceBaseline is the stored widget's description with the visibility and
 // editability properties the statement does not state removed.
@@ -962,9 +1169,10 @@ func buildColumnSpecsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleNa
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, widgets),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 
@@ -1041,6 +1249,7 @@ func resolveDataSourceFlowEntity(ctx *ExecContext, moduleName string, moduleID m
 // used when replacing a widget so the new one may reuse the target's name.
 func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]pages.Widget, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, widgets)
 
 	var result []pages.Widget
 	for _, w := range widgets {
@@ -1060,6 +1269,7 @@ func buildWidgetsFromAST(ctx *ExecContext, widgets []*ast.WidgetV3, moduleName s
 // with the same builder CREATE PAGE uses for a tab container's children.
 func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator) ([]*pages.TabPage, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, nodes)
 	out := make([]*pages.TabPage, 0, len(nodes))
 	for _, node := range nodes {
 		tp, err := pb.buildTabPageV3(node)
@@ -1075,6 +1285,7 @@ func buildTabPagesFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName st
 // navigation list, with the same builder CREATE uses for a list's children.
 func buildNavigationListItemsFromAST(ctx *ExecContext, nodes []*ast.WidgetV3, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) ([]*pages.NavigationListItem, error) {
 	pb := newAlterPageBuilder(ctx, moduleName, moduleID, entityContext, mutator, excludeFromScope...)
+	pb.isDocumentWidget = alterDocumentWidgets(mutator, nodes)
 	out := make([]*pages.NavigationListItem, 0, len(nodes))
 	for _, node := range nodes {
 		item, err := pb.buildNavigationListItemV3(node)
@@ -1135,6 +1346,14 @@ func hasTabPage(widgets []*ast.WidgetV3) bool {
 	return false
 }
 
+// alterDocumentWidgets is isDocumentWidget for an ALTER: a widget the stored
+// page already has, or one the statement adds with it (ako/mxcli#1560).
+func alterDocumentWidgets(mutator backend.PageMutator, added []*ast.WidgetV3) func(name string) bool {
+	names := map[string]bool{}
+	collectWidgetNames(added, names)
+	return func(name string) bool { return names[name] || mutator.FindWidget(name) }
+}
+
 // newAlterPageBuilder returns a page builder scoped to the stored page an ALTER
 // edits: its parameters, its widget names and its local variables.
 func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID, entityContext string, mutator backend.PageMutator, excludeFromScope ...string) *pageBuilder {
@@ -1155,9 +1374,10 @@ func newAlterPageBuilder(ctx *ExecContext, moduleName string, moduleID model.ID,
 		paramEntityNames: paramEntityNames,
 		execCache:        ctx.Cache,
 		fragments:        ctx.Fragments,
-		themeRegistry:    ctx.GetThemeRegistry(),
+		themeRegistry:    documentTheme(ctx, mutator),
 		widgetBackend:    ctx.Backend,
 		localVariables:   storedPageVariables(mutator),
+		isDocumentWidget: alterDocumentWidgets(mutator, nil),
 		isSnippet:        mutator.ContainerType() == backend.ContainerSnippet,
 	}
 }

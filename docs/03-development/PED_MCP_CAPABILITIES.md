@@ -572,6 +572,96 @@ behaviour change, not an error.
 read the `page-gen-common` skill first); page create and ALTER ran clean on both
 servers.
 
+### Microflow canvas: flow sides and notes (measured live 2026-10-21, 11.15.0-rc.4)
+
+- **A flow created without sides is drawn right → left.** The `SequenceFlow`
+  constructor takes `originConnectionSide` / `destinationConnectionSide`
+  (`Top | Right | Bottom | Left`). The create path sent neither, so every `@anchor`,
+  CASE outcome anchor and builder default was lost: a CASE built with
+  `@anchor(from: bottom, Approved: (from: right), (empty): (from: bottom, to: top))`
+  read back `1 -> 3` on all eight flows. **Fixed:** `buildFlowDocContent` maps the
+  connection indexes the way the splice already did (`setPEDSides`).
+- **A note is a `Microflows$Annotation` object** (`x`, `y`, `caption`, `size`) and
+  its line a **`Microflows$AnnotationFlow` element, not a constructor.** Its ends
+  are `origin` / `destination`, not `originId` / `destinationId`, and its sides are
+  the required `originConnectionIndex` / `destinationConnectionIndex` themselves.
+  The constructor keys are refused: `"/origin":"Expected reference (string), got
+  undefined"`. Before the fix, a microflow with a note failed the whole create
+  (`mapObjectTree` had no case for it). The splice had the same wrong keys too,
+  hidden because the note was refused before its line was mapped.
+- Verified: the same script read back from Studio Pro and from the modelsdk engine
+  gives **identical sides on all 10 flows**, both note lines included (an unplaced
+  note `2 -> 0`, a note placed below its activity `0 -> 2`). It also gives the same
+  note positions, sizes and captions, and `ped_check_errors` is clean on two
+  successive calls. A read-back leaves out a connection index of 0, its default.
+- The pre-11.14 (full) constructor's flows carry no `$Type`, so a note's line could
+  only be read as a `SequenceFlow`. The backend refuses notes there rather than
+  risk an execution edge out of a note.
+- ~~Within one `ped_update_document`, an `AnnotationFlow` added *before* a
+  `SequenceFlow` is stored *after* it.~~ This was the general reversal described
+  below, not something about note lines.
+
+### Microflow canvas: what one update can address (measured live 2026-10-21, 11.15.0-rc.4)
+
+**Fixed: ALTER MICROFLOW insert over MCP failed on 11.15.** Every insert failed
+with `undefined is not an object (evaluating 'u.$Type')`, with or without a note.
+Direct `ped_update_document` probes on bare test documents found two rules behind
+it. Both follow from the tool's own description: *"every `index` you provide refers
+to the array as it exists BEFORE this call"*.
+
+- **An update cannot address an element it adds.** A path resolves against the
+  document as it was before the update, so `/flows/N/…` or `/objectCollection/objects/N/…`
+  for a new N does not reach the new element:
+
+  | Same update as the add | Result |
+  |---|---|
+  | set `/flows/N/line/originControlVector` | **fails the whole update** (`u.$Type`): the line is not there yet |
+  | set `/flows/N/line` (whole `BezierCurve`), then a vector | fails the same way |
+  | set `/flows/N/line` (whole `BezierCurve`) alone | accepted, **not applied** |
+  | `line` or `isErrorHandler` in the `SequenceFlow` constructor value | accepted, **ignored** (the constructor has neither) |
+  | set `/flows/N/isErrorHandler` | accepted, **not applied**: the flow reads back as an ordinary one |
+  | set `/objectCollection/objects/N/action` or `…/relativeMiddlePoint` | accepted, **not applied**: "No action defined"; the position is the constructor's `x`/`y` |
+  | `action` in the `ActionActivity` constructor value | accepted, **ignored** (the constructor takes `x`, `y`, `caption` only) |
+  | add the flow in its element shape (`origin`, `line`, `isErrorHandler`) | refused: `NodeUnableToConvertElement, String, System.Guid`, so `$id()` is not resolved on that path |
+
+  **Every one of these sets lands in a later update**: control vectors,
+  `isErrorHandler` and `action` alike, on a flow or activity the previous update
+  created. `$id(/…/N)` references *do* resolve to elements added earlier in the
+  same update.
+- **Several adds to one array without an `index` are stored in reverse**, and
+  `$id()` resolves against that final order. Three objects added in one update came
+  back as 3, 2, 1, and two flows came back as 2, 1. An inserted IF/ELSE was
+  therefore wired to the wrong objects, while a one-activity insert (one object, one
+  flow) hid the problem. Adds given **one shared `index`** (the array's length before
+  the update) are stored in listed order, which is PED's documented rule for adding
+  several elements at one position.
+
+**The fix** (`flowPatchOps` / `SaveUnit`) sends an insert as **two updates**. The
+first adds the new elements, constructor properties only, each at the stored length
+as its `index` and wired with `$id()`, and moves the stored elements to make room.
+The second fills in the new elements: actions, split conditions, loop sources,
+`isErrorHandler` and control vectors (a `0;0` vector is the schema default and is
+not sent).
+
+This gives up some of the one-update atomicity the splice relied on. The first
+update is still all or nothing, but **a failed second update leaves the insert in
+Studio Pro incomplete**. That is the same contract as `CreateMicroflow`, which
+creates and then sets activities. The error says so, and `ped_check_errors` names
+what is missing. There is no write that avoids it on 11.15: nothing in the update
+that adds an activity can give it its action. A retry is refused by the live/local
+index check, so it cannot insert twice.
+
+Verified live: plain, IF/ELSE and note inserts, each compared with the same script
+run with the default engine. All flows matched on ends, sides and control vectors
+(4, 9 and 6 flows), as did every object's position. The fills read back: actions,
+the condition, `true`/`false` cases, and the note's caption and size.
+`ped_check_errors` was clean on two successive calls. The script is
+`mdl-examples/bug-tests/mcp-alter-insert-addresses-new-elements.mdl`.
+
+Still refused upstream: a custom error handler (`on error … begin … end error`)
+over MCP. `isErrorHandler` is settable in a later update, so the splice marks such a
+flow in its second update, but MDL cannot reach that path yet.
+
 ## Capability gaps (established 11.11, status re-checked each release)
 
 These are the *absences* that bound what the backend can do. They are as

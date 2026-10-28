@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -89,7 +90,8 @@ func (tc TestCase) AssertionCount() int {
 type TestSuite struct {
 	Name  string     // Suite name (derived from file name)
 	Tests []TestCase // Test cases
-	// FileErrors holds one entry per test file that could not be parsed.
+	// FileErrors holds one entry per test file that could not be parsed, and per
+	// folder below the root that could not be read (Dir set).
 	//
 	// A malformed file used to abort the whole run, so an unrelated bad file
 	// stopped every other test in the directory from being listed or executed
@@ -103,12 +105,24 @@ type TestSuite struct {
 	// made `mxcli test <dir>` say "0 test(s) in 1 file(s)" for a directory nothing
 	// had been read from (ako/mxcli-maintenance §5).
 	FilesRead int
+	// SkippedDirs lists the folders discovery left out because their name starts
+	// with "_" (sorted, without duplicates, as the path was reached from the
+	// command line). A suite that is kept out of the default run on purpose, such
+	// as a positive control, must not vanish from the output: "Found 0 test(s)"
+	// over a tree whose tests all sit in tests/unit/_control read as a green run
+	// (mendixlabs/mxcli#1363). Hidden folders are not listed; they are .git and
+	// .mxcli noise.
+	SkippedDirs []string
 }
 
-// FileError is a test file that could not be parsed, and why.
+// FileError is a test file that could not be parsed, or a folder that could not
+// be read, and why.
 type FileError struct {
 	Path string
 	Err  error
+	// Dir is true when Path is a folder that could not be read, rather than a
+	// test file that could not be parsed.
+	Dir bool
 }
 
 // ParseTestFile parses a test file (.test.mdl or .test.md) and extracts test cases.
@@ -150,35 +164,135 @@ func ParseTestFile(path string) (*TestSuite, error) {
 	}, nil
 }
 
-// ParseTestDir parses all test files in a directory.
+// ParseTestDir parses all test files under a directory, at any depth, in
+// lexical path order. A suite per module (tests/Sales/*.test.mdl) is the usual
+// layout, so `mxcli test tests` must find what `mxcli test tests/Sales` finds
+// (mendixlabs/mxcli#1363). Hidden folders (.git, .mxcli, ...) and folders
+// starting with "_" are not entered below the root; the latter are reported in
+// SkippedDirs.
+//
+// A folder below the root that cannot be read is reported in FileErrors (Dir
+// set) and the walk carries on, so the tests in the other folders still run. An
+// error on the root itself is returned: there is nothing to run.
 func ParseTestDir(dir string) (*TestSuite, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("reading test directory: %w", err)
-	}
-
 	suite := &TestSuite{
 		Name: filepath.Base(dir),
 	}
 
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	skipped, err := walkTestTree(dir, func(path string, d fs.DirEntry) {
+		if !isTestFile(d.Name()) {
+			return
 		}
-		name := e.Name()
-		if isTestFile(name) {
-			path := filepath.Join(dir, name)
-			suite.FilesRead++
-			sub, err := ParseTestFile(path)
-			if err != nil {
-				suite.FileErrors = append(suite.FileErrors, FileError{Path: path, Err: err})
-				continue
-			}
-			suite.Tests = append(suite.Tests, sub.Tests...)
+		suite.FilesRead++
+		sub, err := ParseTestFile(path)
+		if err != nil {
+			suite.FileErrors = append(suite.FileErrors, FileError{Path: path, Err: err})
+			return
 		}
+		suite.Tests = append(suite.Tests, sub.Tests...)
+	}, func(path string, err error) {
+		suite.FileErrors = append(suite.FileErrors, FileError{Path: path, Err: err, Dir: true})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading test directory: %w", err)
 	}
+	suite.SkippedDirs = skipped
 
 	return suite, nil
+}
+
+// walkTestTree calls fn for every non-directory entry under root, in lexical
+// order. Below root it does not enter hidden (dot-prefixed) folders, and does
+// not enter folders whose name starts with "_" either, which it returns (as
+// reached from root, in walk order). That is the Go toolchain's rule for "./..."
+// and it gives a suite a way to stay out of the default run: a deliberate
+// positive control lives in tests/unit/_control and is run by naming it.
+//
+// The root itself is always walked, whatever it is called: `mxcli test .` has a
+// root named ".", and `mxcli test tests/_control` is how that control is run. A
+// root that is a symlink is followed (as os.ReadDir did); symlinked folders below
+// it are not, which keeps a link cycle from looping.
+//
+// An error reading the root fails the walk: there is nothing to run. An error
+// below it belongs to that entry alone: it goes to onErr (nil to ignore it) and
+// the walk carries on, because one folder that cannot be read (a locked folder, a
+// root-owned one in a mounted volume) must not cost the tests in the others.
+//
+// Every path handed to fn, onErr and the returned list, and the text of the
+// errors, is under root as the caller wrote it, not under the symlink's target.
+func walkTestTree(root string, fn func(path string, d fs.DirEntry), onErr func(path string, err error)) ([]string, error) {
+	return walkTestTreeWith(filepath.WalkDir, root, fn, onErr)
+}
+
+// walkFunc is the shape of filepath.WalkDir, so a test can inject a walk error:
+// chmod 000 cannot make a folder unreadable on Windows, or for root.
+type walkFunc func(root string, fn fs.WalkDirFunc) error
+
+func walkTestTreeWith(walk walkFunc, root string, fn func(path string, d fs.DirEntry), onErr func(path string, err error)) ([]string, error) {
+	walkRoot := root
+	if info, err := os.Lstat(root); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		if resolved, err := filepath.EvalSymlinks(root); err == nil {
+			walkRoot = resolved
+		}
+	}
+	var skipped []string
+	err := walk(walkRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			err = underTyped(root, walkRoot, err)
+			if path == walkRoot {
+				return err
+			}
+			if onErr != nil {
+				onErr(underTypedPath(root, walkRoot, path), err)
+			}
+			// WalkDir does not descend into a folder it could not read.
+			return nil
+		}
+		if d.IsDir() {
+			if path == walkRoot {
+				return nil
+			}
+			if strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			if strings.HasPrefix(d.Name(), "_") {
+				skipped = append(skipped, underTypedPath(root, walkRoot, path))
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if path == walkRoot {
+			return fmt.Errorf("%s is not a directory", root)
+		}
+		fn(underTypedPath(root, walkRoot, path), d)
+		return nil
+	})
+	return skipped, err
+}
+
+// underTypedPath returns path, which the walk reached under walkRoot (root with
+// its symlink resolved), as the same path under root.
+func underTypedPath(root, walkRoot, path string) string {
+	if walkRoot == root {
+		return path
+	}
+	if rel, err := filepath.Rel(walkRoot, path); err == nil {
+		return filepath.Join(root, rel)
+	}
+	return path
+}
+
+// underTyped does the same for the path an I/O error names, so that the message
+// shows the folder the user typed and not where a symlink leads.
+func underTyped(root, walkRoot string, err error) error {
+	if walkRoot == root {
+		return err
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return &fs.PathError{Op: pe.Op, Path: underTypedPath(root, walkRoot, pe.Path), Err: pe.Err}
+	}
+	return err
 }
 
 // isTestFile returns true if the filename matches a test file pattern.
@@ -647,8 +761,11 @@ var (
 	// in a sentence" gave the test an assertion nobody wrote, and "@cleanup none
 	// would apply here" changed the cleanup strategy. The leading `*` and its
 	// indentation are stripped before these run.
-	expectPattern  = regexp.MustCompile(`^@expect\s+(.+)`)
-	verifyPattern  = regexp.MustCompile(`^@verify\s+(.+)`)
+	//
+	// @expect and @verify match on their own as well: their text may start on
+	// the next line, and a bare tag that matched nothing was dropped.
+	expectPattern  = regexp.MustCompile(`^@expect\b(.*)$`)
+	verifyPattern  = regexp.MustCompile(`^@verify\b(.*)$`)
 	testPattern    = regexp.MustCompile(`^@test\s+(.+)`)
 	setupPattern   = regexp.MustCompile(`^@setup\s+(\S+)`)
 	cleanupPattern = regexp.MustCompile(`^@cleanup\s+(\S+)`)
@@ -656,9 +773,30 @@ var (
 	// message is optional — the old pattern required it, so a bare @throws
 	// matched nothing at all and was dropped without a word.
 	throwsPattern = regexp.MustCompile(`^@throws\b(.*)$`)
+	// tagPattern is any javadoc block tag, known or not: it ends the text of the
+	// annotation before it.
+	tagPattern = regexp.MustCompile(`^@[A-Za-z]`)
 )
 
+// openAssertion is an @expect or @verify whose text may still continue on the
+// lines below it.
+type openAssertion struct {
+	tag   string // "@expect" or "@verify"
+	parts []string
+}
+
 // parseAnnotations extracts test annotations from a javadoc comment.
+//
+// The text of @expect and @verify runs on, as a javadoc block tag's does, to
+// the next tag or the end of the comment, and the whole of it is parsed as one
+// assertion (ako/mxcli#1514). Reading only the tag's own line truncated an
+// assertion written over two lines to its first, without a word — and when
+// that first line was complete, the test asserted less than it said: `$r =
+// 'a;b'` instead of `$r = 'a;b' and length($r) = 3`. Text after one of these
+// tags that does not continue the expression is therefore an error, not
+// ignored; a description belongs before the first tag. @test, @setup,
+// @cleanup and @throws keep to their own line, so prose under a test's name
+// is still description.
 func parseAnnotations(doc string) annotations {
 	var a annotations
 	a.Cleanup = "rollback" // default
@@ -666,6 +804,31 @@ func parseAnnotations(doc string) annotations {
 	// Strip /** and */
 	doc = strings.TrimPrefix(doc, "/**")
 	doc = strings.TrimSuffix(doc, "*/")
+
+	var open *openAssertion
+	closeOpen := func() {
+		if open == nil {
+			return
+		}
+		text := strings.Join(open.parts, " ")
+		switch open.tag {
+		case "@expect":
+			exp, err := ParseExpect(text)
+			if err != nil {
+				a.AssertionErrors = append(a.AssertionErrors, continuationHint(err, open))
+			} else {
+				a.Expects = append(a.Expects, exp)
+			}
+		case "@verify":
+			v, err := ParseVerify(text)
+			if err != nil {
+				a.AssertionErrors = append(a.AssertionErrors, continuationHint(err, open))
+			} else {
+				a.Verify = append(a.Verify, v)
+			}
+		}
+		open = nil
+	}
 
 	// Process line by line
 	scanner := bufio.NewScanner(strings.NewReader(doc))
@@ -676,24 +839,22 @@ func parseAnnotations(doc string) annotations {
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
 
+		if !tagPattern.MatchString(line) {
+			if open != nil && line != "" {
+				open.parts = append(open.parts, line)
+			}
+			continue
+		}
+		closeOpen()
+
 		if m := testPattern.FindStringSubmatch(line); m != nil {
 			a.Test = strings.TrimSpace(m[1])
 		}
 		if m := expectPattern.FindStringSubmatch(line); m != nil {
-			exp, err := ParseExpect(m[1])
-			if err != nil {
-				a.AssertionErrors = append(a.AssertionErrors, err.Error())
-			} else {
-				a.Expects = append(a.Expects, exp)
-			}
+			open = &openAssertion{tag: "@expect", parts: nonEmpty(m[1])}
 		}
 		if m := verifyPattern.FindStringSubmatch(line); m != nil {
-			v, err := ParseVerify(m[1])
-			if err != nil {
-				a.AssertionErrors = append(a.AssertionErrors, err.Error())
-			} else {
-				a.Verify = append(a.Verify, v)
-			}
+			open = &openAssertion{tag: "@verify", parts: nonEmpty(m[1])}
 		}
 		if m := setupPattern.FindStringSubmatch(line); m != nil {
 			a.Setups = append(a.Setups, strings.TrimSpace(m[1]))
@@ -706,10 +867,33 @@ func parseAnnotations(doc string) annotations {
 			parseThrows(&a, m[1])
 		}
 	}
+	closeOpen()
 
 	checkVerifyCleanup(&a)
 	checkThrowsExpect(&a)
 	return a
+}
+
+// nonEmpty is the tag line's own text as the first part of an annotation, or
+// nothing when the tag stands alone and its text starts on the next line.
+func nonEmpty(s string) []string {
+	if s = strings.TrimSpace(s); s == "" {
+		return nil
+	}
+	return []string{s}
+}
+
+// continuationHint is the parse error of an annotation written over several
+// lines, saying so. The error quotes the joined text, which reads as though the
+// author wrote it on one line; without the hint, a sentence of description
+// under an @expect looks like a mangled expression.
+func continuationHint(err error, open *openAssertion) string {
+	if len(open.parts) < 2 {
+		return err.Error()
+	}
+	return fmt.Sprintf("%v (this %s spans %d lines: an annotation's text runs on to the next "+
+		"@tag or the end of the comment, and all of it is the assertion; put a "+
+		"description before the first tag)", err, open.tag, len(open.parts))
 }
 
 // parseThrows records an @throws annotation and its optional message.

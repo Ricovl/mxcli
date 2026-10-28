@@ -36,6 +36,7 @@ func execLint(ctx *ExecContext, s *ast.LintStmt) error {
 		rules.NewValidationFeedbackRule(),
 		rules.NewImageSourceRule(),
 		rules.NewLegacyImageWidgetRule(),
+		rules.NewSnippetCallAppearanceRule(),
 		rules.NewMissingTranslationsRule(),
 		rules.NewRequiredCaptionDefaultLanguageRule(),
 		rules.NewGallerySelectionListenerRule(),
@@ -153,6 +154,7 @@ func listLintRules(ctx *ExecContext) error {
 	lint.AddRule(rules.NewValidationFeedbackRule())
 	lint.AddRule(rules.NewImageSourceRule())
 	lint.AddRule(rules.NewLegacyImageWidgetRule())
+	lint.AddRule(rules.NewSnippetCallAppearanceRule())
 	lint.AddRule(rules.NewMissingTranslationsRule())
 	lint.AddRule(rules.NewRequiredCaptionDefaultLanguageRule())
 	lint.AddRule(rules.NewGallerySelectionListenerRule())
