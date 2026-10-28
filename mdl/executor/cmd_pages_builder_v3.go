@@ -2061,6 +2061,57 @@ func (pb *pageBuilder) buildClientActionV3Base(action *ast.ActionV3) (pages.Clie
 			OutcomeValue: action.OutcomeValue,
 		}, nil
 
+	case "openUserTask":
+		// Studio Pro's "Show user task page", whose new action stores
+		// auto-assign on and "Who can open: Assigned user" (the Model SDK's
+		// defaults; all six on ako/TestApp's WorkflowCommons pages). Mendix 9.20
+		// introduced both: an older project stores neither.
+		a := &pages.OpenUserTaskClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$OpenUserTaskClientAction",
+			},
+		}
+		if pb.projectAtLeast(9, 20) {
+			assign, whenAssigned := true, false
+			a.AssignOnOpen, a.OpenWhenAssigned = &assign, &whenAssigned
+		}
+		return a, nil
+
+	case "openWorkflow":
+		a := &pages.OpenWorkflowClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$OpenWorkflowClientAction",
+			},
+		}
+		// The page is required: without one mx check reports CE1834. The
+		// visitor refuses the statement; this is for an AST built by hand.
+		s := action.Settings
+		if s == nil || s.DefaultPage == "" {
+			return nil, mdlerrors.NewValidation("open workflow needs a page for a workflow that overrides no admin page: `open workflow with (DefaultPage: Module.Page)` (CE1834)")
+		}
+		if _, err := pb.resolvePageRef(s.DefaultPage); err != nil && !pb.danglingRefOK(err) {
+			return nil, err
+		}
+		a.DefaultPage = unquoteQualifiedName(s.DefaultPage)
+		return a, nil
+
+	case "callWorkflow":
+		// The model stores the workflow by name and nothing else names it, so
+		// an unknown one is refused here rather than written as CE1613.
+		if err := pb.resolveWorkflow(action.Target); err != nil && !pb.danglingRefOK(err) {
+			return nil, err
+		}
+		return &pages.CallWorkflowClientAction{
+			BaseElement: model.BaseElement{
+				ID:       model.ID(types.GenerateID()),
+				TypeName: "Forms$CallWorkflowClientAction",
+			},
+			WorkflowName: unquoteQualifiedName(action.Target),
+			ClosePage:    true,
+		}, nil
+
 	default:
 		return nil, mdlerrors.NewUnsupported("unsupported action type: " + action.Type)
 	}

@@ -1,0 +1,126 @@
+-- ako/mxcli#832 (the part the pluggable patch left): a button's workflow
+-- event had no MDL spelling, so describe printed no action for it and a
+-- rewrite, which rebuilds a classic widget from the statement, wrote a
+-- Forms$NoAction in its place.
+--
+-- Symptom: on ako/TestApp (Mendix 11.15.0-rc.4),
+--   describe page WorkflowCommons.TaskInbox > p.mdl ; exec p.mdl
+-- reported "Replaced page" with check, exec and mx check clean, and
+--   mxcli bson dump -p TestApp.mpr --type page --object WorkflowCommons.TaskInbox
+-- showed 4 Forms$OpenUserTaskClientAction where there had been 6: the link
+-- button in the last column of the "My open tasks" and "All open tasks" grids,
+-- which opens the task, had become a button that does nothing. TaskDashboard
+-- lost the same two.
+--
+-- Fix: the workflow events Studio Pro offers on a button are spelled in the
+-- words the microflow actions use, with their settings in `with ( … )`:
+--   open user task   -- "Show user task page" (AssignOnOpen, OpenWhenAssigned)
+--   open workflow with (DefaultPage: M.Page)  -- "Show workflow admin page"
+--   call workflow M.WF  -- "Call workflow" (ClosePage, Confirmation)
+-- and `complete task` gains the ClosePage and Commit it rebuilt as true.
+-- describe prints each, and only the settings that differ from a new action.
+--
+-- EXPECTED: `mxcli check` passes; exec, then mx check: 0 errors (11.13.0).
+-- describe page BugWfActions832.TaskInbox prints `open user task` on the link
+-- button and on the grid's row click, and re-running that output reports
+-- "Unchanged page".
+
+mdl 1;
+
+create module BugWfActions832;
+create module role BugWfActions832.User;
+create persistent entity BugWfActions832.Request ( Title: String(200) );
+
+create page BugWfActions832.WF_ReviewRequest
+(
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Review request',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    dynamictext txtTask (Content: '{1}', ContentParams: ({1} = Name))
+    actionbutton btnApprove (Caption: 'Approve', Action: complete task 'Approve', ButtonStyle: Success)
+    -- Keep the page open and leave the commit to a later save.
+    actionbutton btnReject (Caption: 'Reject',
+      Action: complete task 'Reject' with (ClosePage: false, Commit: false), ButtonStyle: Danger)
+  }
+};
+
+create page BugWfActions832.WF_Admin
+(
+  params: ( $Workflow: System.Workflow ),
+  title: 'Request workflow',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  dataview dvWorkflow (DataSource: $Workflow) {
+    dynamictext txtWorkflow (Content: '{1}', ContentParams: ({1} = Name))
+  }
+};
+
+create or modify workflow BugWfActions832.WF_Request
+  parameter $Context: BugWfActions832.Request
+  overview page BugWfActions832.WF_Admin
+begin
+  user task Review 'Review request' page BugWfActions832.WF_ReviewRequest
+    targeting users xpath [System.UserRoles = '[%UserRole_User%]']
+    outcomes 'Approve' { } 'Reject' { };
+end workflow;
+
+-- A task inbox, as WorkflowCommons.TaskInbox has it: the row and a link button
+-- in the last column both open the task's page.
+create page BugWfActions832.TaskInbox (Title: 'Task inbox', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgTasks (DataSource: database from System.WorkflowUserTask, onClick: open user task) {
+    column (Attribute: Name, Caption: 'Task name')
+    column (Attribute: Name, Caption: ' ', ShowContentAs: customContent, Sortable: false) {
+      linkbutton btnOpenTask (Caption: 'Open', Action: open user task)
+    }
+  }
+};
+
+-- Every user who may see the task may open it, without claiming it.
+create page BugWfActions832.TaskPeek (
+  params: ( $WorkflowUserTask: System.WorkflowUserTask ),
+  title: 'Task',
+  layout: Atlas_Core.Atlas_Default
+) {
+  dataview dvTask (DataSource: $WorkflowUserTask) {
+    linkbutton btnPeek (Caption: 'Look',
+      Action: open user task with (AssignOnOpen: false, OpenWhenAssigned: true))
+  }
+};
+
+create page BugWfActions832.WorkflowList (Title: 'Workflows', Layout: Atlas_Core.Atlas_Default) {
+  datagrid dgWorkflows (DataSource: database from System.Workflow) {
+    column (Attribute: Name, Caption: 'Workflow')
+    column (Attribute: Name, Caption: ' ', ShowContentAs: customContent, Sortable: false) {
+      -- The workflow's own admin page when it overrides one, else this page.
+      -- The page is required: without it mx check reports CE1834.
+      linkbutton btnAdmin (Caption: 'Admin page',
+        Action: open workflow with (DefaultPage: BugWfActions832.WF_Admin))
+    }
+  }
+};
+
+create page BugWfActions832.Request_Edit (
+  params: ( $Request: BugWfActions832.Request ),
+  title: 'Request',
+  layout: Atlas_Core.Atlas_Default
+) {
+  dataview dvRequest (DataSource: $Request) {
+    dynamictext txtTitle (Content: '{1}', ContentParams: ({1} = Title))
+    actionbutton btnStart (Caption: 'Start review', ButtonStyle: Primary,
+      Action: call workflow BugWfActions832.WF_Request with (
+        ClosePage: false, Confirmation: 'Start the review?', ProceedCaption: 'Start', CancelCaption: 'Not yet'))
+    actionbutton btnStartAndClose (Caption: 'Start and close',
+      Action: call workflow BugWfActions832.WF_Request)
+  }
+};
+
+grant view on page BugWfActions832.WF_ReviewRequest to BugWfActions832.User;
+grant view on page BugWfActions832.WF_Admin to BugWfActions832.User;
+grant view on page BugWfActions832.TaskInbox to BugWfActions832.User;
+grant view on page BugWfActions832.TaskPeek to BugWfActions832.User;
+grant view on page BugWfActions832.WorkflowList to BugWfActions832.User;
+grant view on page BugWfActions832.Request_Edit to BugWfActions832.User;

@@ -22,8 +22,11 @@ func applyActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
 		v := *s.DisabledDuringExecution
 		exec.DisabledDuringExecution = &v
 	}
-	hasFlowSettings := s.ProgressBar != "" || s.ProgressMessage != nil || s.Confirmation != nil ||
-		s.ProceedCaption != nil || s.CancelCaption != nil
+	if err := applyWorkflowActionSettings(a, s); err != nil {
+		return err
+	}
+	hasProgress := s.ProgressBar != "" || s.ProgressMessage != nil
+	hasConfirmation := s.Confirmation != nil || s.ProceedCaption != nil || s.CancelCaption != nil
 	hasMicroflowSettings := s.Asynchronous != nil || s.FormValidations != ""
 	var flow *pages.FlowCallSettings
 	switch x := a.(type) {
@@ -34,8 +37,20 @@ func applyActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
 		if hasMicroflowSettings {
 			return mdlerrors.NewValidation("Asynchronous and FormValidations are settings of `call microflow` only")
 		}
+	case *pages.CallWorkflowClientAction:
+		// A workflow call asks a confirmation as a flow call does, and has no
+		// progress bar.
+		if hasProgress || hasMicroflowSettings {
+			return mdlerrors.NewValidation("ProgressBar, ProgressMessage, Asynchronous and FormValidations are settings of `call microflow` and `call nanoflow` only")
+		}
+		var c confirmationHolder
+		if err := c.apply(s); err != nil {
+			return err
+		}
+		x.Confirmation = c.Confirmation
+		return nil
 	default:
-		if hasFlowSettings || hasMicroflowSettings {
+		if hasProgress || hasConfirmation || hasMicroflowSettings {
 			return mdlerrors.NewValidation("ProgressBar, ProgressMessage and Confirmation are settings of `call microflow` and `call nanoflow` only")
 		}
 		return nil
@@ -44,6 +59,25 @@ func applyActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
 	if s.ProgressMessage != nil {
 		flow.ProgressMessage = authoringText(*s.ProgressMessage)
 	}
+	c := confirmationHolder{Confirmation: flow.Confirmation}
+	if err := c.apply(s); err != nil {
+		return err
+	}
+	flow.Confirmation = c.Confirmation
+	if s.Asynchronous != nil {
+		flow.Asynchronous = *s.Asynchronous
+	}
+	flow.FormValidations = s.FormValidations
+	return nil
+}
+
+// confirmationHolder applies Confirmation, ProceedCaption and CancelCaption,
+// which a flow call and a workflow call share.
+type confirmationHolder struct {
+	Confirmation *pages.ConfirmationInfo
+}
+
+func (h *confirmationHolder) apply(s *ast.ActionSettingsV3) error {
 	if s.Confirmation != nil {
 		// Studio Pro's captions for a new confirmation: measured on
 		// ako/TestApp, where the one confirmation whose captions were never
@@ -55,7 +89,7 @@ func applyActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
 		if s.CancelCaption != nil {
 			cancel = *s.CancelCaption
 		}
-		flow.Confirmation = &pages.ConfirmationInfo{
+		h.Confirmation = &pages.ConfirmationInfo{
 			Question:       authoringText(*s.Confirmation),
 			ProceedCaption: authoringText(proceed),
 			CancelCaption:  authoringText(cancel),
@@ -63,10 +97,48 @@ func applyActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
 	} else if s.ProceedCaption != nil || s.CancelCaption != nil {
 		return mdlerrors.NewValidation("ProceedCaption and CancelCaption are the buttons of a confirmation; write Confirmation: '<question>' as well")
 	}
-	if s.Asynchronous != nil {
-		flow.Asynchronous = *s.Asynchronous
+	return nil
+}
+
+// applyWorkflowActionSettings copies the workflow events' own settings
+// (ako/mxcli#832): `open user task`'s AssignOnOpen and OpenWhenAssigned, and
+// ClosePage and Commit on `complete task` (ClosePage also on `call workflow`).
+// DefaultPage names a page, so the builder resolves it.
+func applyWorkflowActionSettings(a pages.ClientAction, s *ast.ActionSettingsV3) error {
+	if s.AssignOnOpen != nil || s.OpenWhenAssigned != nil {
+		x, ok := a.(*pages.OpenUserTaskClientAction)
+		if !ok {
+			return mdlerrors.NewValidation("AssignOnOpen and OpenWhenAssigned are settings of `open user task` only")
+		}
+		if s.AssignOnOpen != nil {
+			v := *s.AssignOnOpen
+			x.AssignOnOpen = &v
+		}
+		if s.OpenWhenAssigned != nil {
+			v := *s.OpenWhenAssigned
+			x.OpenWhenAssigned = &v
+		}
 	}
-	flow.FormValidations = s.FormValidations
+	if s.ClosePage != nil {
+		switch x := a.(type) {
+		case *pages.SetTaskOutcomeClientAction:
+			x.ClosePage = *s.ClosePage
+		case *pages.CallWorkflowClientAction:
+			x.ClosePage = *s.ClosePage
+		default:
+			return mdlerrors.NewValidation("ClosePage is a setting of `complete task` and `call workflow` only")
+		}
+	}
+	if s.Commit != nil {
+		x, ok := a.(*pages.SetTaskOutcomeClientAction)
+		if !ok {
+			return mdlerrors.NewValidation("Commit is a setting of `complete task` only")
+		}
+		x.Commit = *s.Commit
+	}
+	if _, ok := a.(*pages.OpenWorkflowClientAction); s.DefaultPage != "" && !ok {
+		return mdlerrors.NewValidation("DefaultPage is a setting of `open workflow` only")
+	}
 	return nil
 }
 

@@ -1269,6 +1269,15 @@ func buildActionV3(ctx parser.IActionExprV3Context) *ast.ActionV3 {
 		if str := actCtx.STRING_LITERAL(); str != nil {
 			action.OutcomeValue = unquoteStringLit(str)
 		}
+	} else if actCtx.OPEN() != nil && actCtx.USER() != nil {
+		action.Type = "openUserTask"
+	} else if actCtx.OPEN() != nil && actCtx.WORKFLOW() != nil {
+		action.Type = "openWorkflow"
+	} else if actCtx.CALL() != nil && actCtx.WORKFLOW() != nil {
+		action.Type = "callWorkflow"
+		if qn := actCtx.QualifiedName(); qn != nil {
+			action.Target = getQualifiedNameText(qn)
+		}
 	}
 	if rc := actCtx.ActionReturnsV3(); rc != nil {
 		action.Returns = buildActionReturnsV3(rc)

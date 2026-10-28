@@ -331,8 +331,8 @@ type VisibleWhenV3 struct {
 }
 
 type ActionV3 struct {
-	Type       string      // "save", "cancel", "close", "delete", "create", "showPage", "microflow", "nanoflow", "openLink", "signOut", "completeTask"
-	Target     string      // Entity, page, or flow qualified name (for create/showPage/microflow/nanoflow)
+	Type       string      // "save", "cancel", "close", "delete", "create", "showPage", "microflow", "nanoflow", "openLink", "signOut", "completeTask", "openUserTask", "openWorkflow", "callWorkflow"
+	Target     string      // Entity, page, flow or workflow qualified name (for create/showPage/microflow/nanoflow/callWorkflow)
 	Args       []FlowArgV3 // Arguments for showPage/microflow calls
 	ThenAction *ActionV3   // For CREATE_OBJECT ... THEN ...
 	ClosePage  bool        // For SAVE_CHANGES CLOSE_PAGE
@@ -372,6 +372,12 @@ type ActionSettingsV3 struct {
 	CancelCaption           *string
 	Asynchronous            *bool  // call microflow only
 	FormValidations         string // call microflow only: All | Widget | None
+	// The workflow actions' own settings (ako/mxcli#832).
+	AssignOnOpen     *bool  // open user task: Studio Pro's "Auto-assign"
+	OpenWhenAssigned *bool  // open user task: "Who can open" — true is "Users with access"
+	ClosePage        *bool  // complete task, call workflow
+	Commit           *bool  // complete task
+	DefaultPage      string // open workflow: a page qualified name
 }
 
 // ColumnV3 represents a V3 datagrid column.

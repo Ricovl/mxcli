@@ -347,6 +347,12 @@ func formatActionV3(a *ast.ActionV3) string {
 		return "sign out"
 	case "completeTask":
 		return "complete task '" + strings.ReplaceAll(a.OutcomeValue, "'", "''") + "'"
+	case "openUserTask":
+		return "open user task"
+	case "openWorkflow":
+		return "open workflow"
+	case "callWorkflow":
+		return "call workflow " + a.Target
 	default:
 		return a.Type
 	}

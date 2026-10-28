@@ -1709,6 +1709,22 @@ func renderClientActionBaseMDL(ctx *ExecContext, action map[string]any) string {
 	case "Forms$SetTaskOutcomeClientAction", "Pages$SetTaskOutcomeClientAction":
 		outcomeValue, _ := action["OutcomeValue"].(string)
 		return "complete task '" + strings.ReplaceAll(outcomeValue, "'", "''") + "'"
+	// The workflow events beside it printed nothing, and a rewrite then wrote
+	// a Forms$NoAction in their place (ako/mxcli#832).
+	case "Forms$OpenUserTaskClientAction", "Pages$OpenUserTaskClientAction":
+		return "open user task"
+	case "Forms$OpenWorkflowClientAction", "Pages$OpenWorkflowClientAction":
+		// The page is required (CE1834), so `open workflow` without one does
+		// not parse; settings print it.
+		if page, _ := action["DefaultPage"].(string); page == "" {
+			return unsetTargetNote("shows a workflow admin page but no default page is selected (CE1834)")
+		}
+		return "open workflow"
+	case "Forms$CallWorkflowClientAction", "Pages$CallWorkflowClientAction":
+		if wf, _ := action["Workflow"].(string); wf != "" {
+			return "call workflow " + wf
+		}
+		return unsetTargetNote("calls a workflow but none is selected")
 	case "Forms$SignOutClientAction", "Pages$SignOutClientAction":
 		return "sign out"
 	case "Forms$OpenLinkClientAction", "Pages$OpenLinkClientAction":

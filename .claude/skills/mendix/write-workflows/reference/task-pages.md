@@ -58,6 +58,35 @@ It builds clean on 11.15.0 (ako/mxcli#1709).
 - To show the context object, give the page a second parameter of the context
   entity alongside `$WorkflowUserTask`.
 
+## Opening a task, a workflow, or starting one from a page
+
+The other workflow events are button actions too, in the words their microflow
+actions use:
+
+```sql
+-- A task inbox: the row, or a link button in a column, opens the task's page.
+datagrid dgTasks (DataSource: database from System.WorkflowUserTask
+    where [System.WorkflowUserTask_Assignees = '[%CurrentUser%]'], onClick: open user task) {
+  column (Attribute: Name, Caption: 'Task')
+  column (Attribute: Name, Caption: ' ', ShowContentAs: customContent, Sortable: false) {
+    linkbutton btnOpen (Caption: 'Open', Action: open user task)
+  }
+}
+-- Admin: the workflow's own admin page if it overrides one, else DefaultPage
+-- (required: CE1834 without it). The page takes a System.Workflow parameter.
+linkbutton btnAdmin (Caption: 'Details', Action: open workflow with (DefaultPage: Approvals.WF_Admin))
+-- Start a workflow on the data container's object.
+actionbutton btnSubmit (Caption: 'Submit', Action: call workflow Approvals.WF_Request with (ClosePage: false))
+```
+
+- `open user task` claims the task as it opens it (Studio Pro's "Auto-assign");
+  `with (AssignOnOpen: false)` does not. `OpenWhenAssigned: true` lets any user
+  with access open a task someone else has claimed.
+- `open user task` belongs in a `System.WorkflowUserTask` data container and
+  `open workflow` in a `System.Workflow` one; anywhere else mx check reports CE1843.
+- `complete task` and `call workflow` close the page unless `ClosePage: false`;
+  `complete task` also commits unless `Commit: false`.
+
 ## Keep the microflows to what the workflow has to do
 
 A workflow cannot change an object itself, so an outcome that must write data, or

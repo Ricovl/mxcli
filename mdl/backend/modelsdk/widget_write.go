@@ -237,6 +237,14 @@ func init() {
 		MandatoryListMarkers: map[string]int32{"ParameterMappings": 2},
 		NullFields:           []string{"ProgressMessage", "ConfirmationInfo"},
 	})
+	// The workflow events' unset slots (ako/mxcli#832): a workflow call with
+	// no confirmation, and an admin-page action with no default page.
+	codec.RegisterTypeDefaults("Forms$CallWorkflowClientAction", codec.TypeDefaults{
+		NullFields: []string{"ConfirmationInfo"},
+	})
+	codec.RegisterTypeDefaults("Forms$OpenWorkflowClientAction", codec.TypeDefaults{
+		EmptyStringFields: []string{"DefaultPage"},
+	})
 	// One return value mapping: Studio Pro writes all four slots on every row,
 	// null where the row does not use them and Expression "" (ako/TestApp
 	// Pages.OutputMappingButton, 11.15).
@@ -2330,6 +2338,55 @@ func clientActionToGen(a pages.ClientAction) (element.Element, error) {
 		g.SetCommit(x.Commit)
 		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
 		g.SetOutcomeValue(x.OutcomeValue)
+		return g, nil
+	case *pages.OpenUserTaskClientAction:
+		// open user task → Forms$OpenUserTaskClientAction, Studio Pro's "Show
+		// user task page". ako/TestApp's six (WorkflowCommons, 11.15) store
+		// exactly AssignOnOpen, DisabledDuringExecution and OpenWhenAssigned;
+		// the two flags are nil below 9.20, which introduced them.
+		g := genPg.NewOpenUserTaskClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.AssignOnOpen != nil {
+			g.SetAssignOnOpen(*x.AssignOnOpen)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		if x.OpenWhenAssigned != nil {
+			g.SetOpenWhenAssigned(*x.OpenWhenAssigned)
+		}
+		return g, nil
+	case *pages.OpenWorkflowClientAction:
+		// open workflow → Forms$OpenWorkflowClientAction ("Show workflow admin
+		// page"). DefaultPage is a by-name page reference, "" when unset (the
+		// type default registered above).
+		g := genPg.NewOpenWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		if x.DefaultPage != "" {
+			g.SetDefaultPageQualifiedName(x.DefaultPage)
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		return g, nil
+	case *pages.CallWorkflowClientAction:
+		// call workflow → Forms$CallWorkflowClientAction. Commit is never
+		// written: Mendix 9.12 removed it (a workflow call always commits),
+		// and a key the metamodel no longer declares is one Studio Pro cannot
+		// open. ConfirmationInfo is null when none is asked (type default).
+		g := genPg.NewCallWorkflowClientAction()
+		if x.ID != "" {
+			g.SetID(element.ID(x.ID))
+		}
+		assignID(g)
+		g.SetClosePage(x.ClosePage)
+		if x.Confirmation != nil {
+			g.SetConfirmationInfo(confirmationInfoToGen(x.Confirmation))
+		}
+		g.SetDisabledDuringExecution(actionDisabledDuringExecution(x.ActionExecution))
+		g.SetWorkflowQualifiedName(x.WorkflowName)
 		return g, nil
 	case *pages.MicroflowClientAction:
 		// call_microflow → Forms$MicroflowAction.

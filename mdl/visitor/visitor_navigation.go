@@ -251,8 +251,9 @@ func (b *Builder) buildNavMenuItemDef(ctx parser.INavMenuItemDefContext) ast.Nav
 
 // menuItemActionKinds are the actions Studio Pro offers on a menu item: show
 // page, call microflow, call nanoflow, open link, create object, sign out, and
-// nothing. Save, cancel, delete, close page and complete task act on a page's
-// object, which a menu item has none of.
+// nothing. Save, cancel, delete, close page and the workflow events (complete
+// task, open user task, open workflow, call workflow) act on a page's object,
+// which a menu item has none of.
 var menuItemActionKinds = map[string]bool{
 	"showPage": true, "microflow": true, "nanoflow": true, "openLink": true,
 	"create": true, "signOut": true, "none": true,
@@ -305,6 +306,12 @@ func menuActionWords(a *ast.ActionV3) string {
 		return "delete"
 	case "completeTask":
 		return "complete a task"
+	case "openUserTask":
+		return "open a user task"
+	case "openWorkflow":
+		return "open a workflow"
+	case "callWorkflow":
+		return "call a workflow"
 	case "param":
 		return "take a fragment action parameter ($" + a.Target + ")"
 	}

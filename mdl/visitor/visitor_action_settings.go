@@ -4,6 +4,7 @@ package visitor
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -21,20 +22,57 @@ import (
 // green.
 
 // actionSettingKeys maps each setting key, lower-cased, to its canonical
-// spelling and the action types that carry it.
+// spelling and the action kinds that carry it (actionSettingsKind's names);
+// nil kinds is every action.
 var actionSettingKeys = map[string]struct {
 	canonical string
-	flowOnly  bool // call microflow / call nanoflow only
-	mfOnly    bool // call microflow only
+	kinds     []string
+	what      string // those actions in words, for the refusal
 }{
 	"disabledduringexecution": {canonical: "DisabledDuringExecution"},
-	"progressbar":             {canonical: "ProgressBar", flowOnly: true},
-	"progressmessage":         {canonical: "ProgressMessage", flowOnly: true},
-	"confirmation":            {canonical: "Confirmation", flowOnly: true},
-	"proceedcaption":          {canonical: "ProceedCaption", flowOnly: true},
-	"cancelcaption":           {canonical: "CancelCaption", flowOnly: true},
-	"asynchronous":            {canonical: "Asynchronous", flowOnly: true, mfOnly: true},
-	"formvalidations":         {canonical: "FormValidations", flowOnly: true, mfOnly: true},
+	"progressbar":             {canonical: "ProgressBar", kinds: flowCalls, what: flowCallsText},
+	"progressmessage":         {canonical: "ProgressMessage", kinds: flowCalls, what: flowCallsText},
+	"confirmation":            {canonical: "Confirmation", kinds: confirmable, what: confirmableText},
+	"proceedcaption":          {canonical: "ProceedCaption", kinds: confirmable, what: confirmableText},
+	"cancelcaption":           {canonical: "CancelCaption", kinds: confirmable, what: confirmableText},
+	"asynchronous":            {canonical: "Asynchronous", kinds: []string{"microflow"}, what: "`call microflow`"},
+	"formvalidations":         {canonical: "FormValidations", kinds: []string{"microflow"}, what: "`call microflow`"},
+	// The workflow events' own settings (ako/mxcli#832). Commit is complete
+	// task's alone: Mendix 9.12 removed it from the workflow call, which has
+	// committed ever since.
+	"assignonopen":     {canonical: "AssignOnOpen", kinds: []string{"openUserTask"}, what: "`open user task`"},
+	"openwhenassigned": {canonical: "OpenWhenAssigned", kinds: []string{"openUserTask"}, what: "`open user task`"},
+	"closepage":        {canonical: "ClosePage", kinds: []string{"completeTask", "callWorkflow"}, what: "`complete task` and `call workflow`"},
+	"commit":           {canonical: "Commit", kinds: []string{"completeTask"}, what: "`complete task`"},
+	"defaultpage":      {canonical: "DefaultPage", kinds: []string{"openWorkflow"}, what: "`open workflow`"},
+}
+
+var (
+	flowCalls       = []string{"microflow", "nanoflow"}
+	flowCallsText   = "`call microflow` and `call nanoflow`"
+	confirmable     = []string{"microflow", "nanoflow", "callWorkflow"}
+	confirmableText = "`call microflow`, `call nanoflow` and `call workflow`"
+)
+
+// actionSettingsKind names the action a `with ( … )` list belongs to, as
+// ActionV3.Type names it; "other" for an action whose only setting is
+// DisabledDuringExecution.
+func actionSettingsKind(act *parser.ActionExprV3Context) string {
+	switch {
+	case act.MICROFLOW() != nil:
+		return "microflow"
+	case act.NANOFLOW() != nil:
+		return "nanoflow"
+	case act.COMPLETE_TASK() != nil:
+		return "completeTask"
+	case act.OPEN() != nil && act.USER() != nil:
+		return "openUserTask"
+	case act.OPEN() != nil && act.WORKFLOW() != nil:
+		return "openWorkflow"
+	case act.CALL() != nil && act.WORKFLOW() != nil:
+		return "callWorkflow"
+	}
+	return "other"
 }
 
 // canonicalProgressBar and canonicalFormValidations spell an enum value the way
@@ -56,9 +94,10 @@ func actionSettingValue(s *parser.ActionSettingV3Context) (string, bool) {
 	if n := s.NONE(); n != nil {
 		return n.GetText(), false
 	}
-	// The key is the first identifierOrKeyword, the value the second.
-	if all := s.AllIdentifierOrKeyword(); len(all) > 1 {
-		return identifierOrKeywordText(all[1]), false
+	// The key is the identifierOrKeyword, the value a qualifiedName: one
+	// segment for every setting but a document reference.
+	if qn := s.QualifiedName(); qn != nil {
+		return getQualifiedNameText(qn), false
 	}
 	return "", false
 }
@@ -74,7 +113,7 @@ func buildActionSettingsV3(ctx parser.IActionSettingsV3Context) *ast.ActionSetti
 	out := &ast.ActionSettingsV3{}
 	for _, raw := range sc.AllActionSettingV3() {
 		s := raw.(*parser.ActionSettingV3Context)
-		key := strings.ToLower(identifierOrKeywordText(s.IdentifierOrKeyword(0)))
+		key := strings.ToLower(identifierOrKeywordText(s.IdentifierOrKeyword()))
 		val, isString := actionSettingValue(s)
 		switch key {
 		case "disabledduringexecution":
@@ -109,6 +148,26 @@ func buildActionSettingsV3(ctx parser.IActionSettingsV3Context) *ast.ActionSetti
 			if isString {
 				out.CancelCaption = &val
 			}
+		case "assignonopen":
+			if b, ok := parseSettingBool(val, isString); ok {
+				out.AssignOnOpen = &b
+			}
+		case "openwhenassigned":
+			if b, ok := parseSettingBool(val, isString); ok {
+				out.OpenWhenAssigned = &b
+			}
+		case "closepage":
+			if b, ok := parseSettingBool(val, isString); ok {
+				out.ClosePage = &b
+			}
+		case "commit":
+			if b, ok := parseSettingBool(val, isString); ok {
+				out.Commit = &b
+			}
+		case "defaultpage":
+			if !isString {
+				out.DefaultPage = val
+			}
 		}
 	}
 	return out
@@ -134,12 +193,7 @@ func parseSettingBool(val string, isString bool) (bool, bool) {
 func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 	kind := "other"
 	if act, ok := ctx.GetParent().(*parser.ActionExprV3Context); ok {
-		switch {
-		case act.MICROFLOW() != nil:
-			kind = "microflow"
-		case act.NANOFLOW() != nil:
-			kind = "nanoflow"
-		}
+		kind = actionSettingsKind(act)
 	}
 	// A microflow data source stores the same Forms$MicroflowSettings, but of
 	// its settings only FormValidations ever differs from the default in a
@@ -150,14 +204,16 @@ func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 		s := raw.(*parser.ActionSettingV3Context)
 		tok := s.GetStart()
 		pos := fmt.Sprintf("line %d:%d", tok.GetLine(), tok.GetColumn())
-		written := identifierOrKeywordText(s.IdentifierOrKeyword(0))
+		written := identifierOrKeywordText(s.IdentifierOrKeyword())
 		key := strings.ToLower(written)
 		spec, known := actionSettingKeys[key]
 		if !known {
 			b.addError(fmt.Errorf("%s: unknown action setting %q; every action takes "+
 				"DisabledDuringExecution, a flow call also ProgressBar, ProgressMessage, "+
-				"Confirmation, ProceedCaption and CancelCaption, and a microflow call also "+
-				"Asynchronous and FormValidations", pos, written))
+				"Confirmation, ProceedCaption and CancelCaption, a microflow call also "+
+				"Asynchronous and FormValidations, `call workflow` Confirmation and ClosePage, "+
+				"`complete task` ClosePage and Commit, `open user task` AssignOnOpen and "+
+				"OpenWhenAssigned, and `open workflow` DefaultPage", pos, written))
 			continue
 		}
 		if seen[key] {
@@ -170,19 +226,27 @@ func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 				"a microflow data source takes FormValidations only", pos, spec.canonical))
 			continue
 		}
-		if spec.mfOnly && kind != "microflow" && !dataSource {
-			b.addError(fmt.Errorf("%s: %s is a setting of `call microflow` only", pos, spec.canonical))
-			continue
-		}
-		if spec.flowOnly && kind == "other" && !dataSource {
-			b.addError(fmt.Errorf("%s: %s is a setting of `call microflow` and `call nanoflow` only",
-				pos, spec.canonical))
+		if spec.kinds != nil && !dataSource && !slices.Contains(spec.kinds, kind) {
+			b.addError(fmt.Errorf("%s: %s is a setting of %s only", pos, spec.canonical, spec.what))
 			continue
 		}
 		val, isString := actionSettingValue(s)
 		valText := s.GetStop().GetText()
+		if qn := s.QualifiedName(); qn != nil {
+			valText = qn.GetText()
+		}
+		if key == "defaultpage" {
+			if isString || !strings.Contains(val, ".") {
+				b.addError(fmt.Errorf("%s: DefaultPage takes a page, Module.Page, not %s", pos, valText))
+			}
+			continue
+		}
+		if !isString && strings.Contains(val, ".") {
+			b.addError(fmt.Errorf("%s: %s takes no qualified name, not %s", pos, spec.canonical, valText))
+			continue
+		}
 		switch key {
-		case "disabledduringexecution", "asynchronous":
+		case "disabledduringexecution", "asynchronous", "assignonopen", "openwhenassigned", "closepage", "commit":
 			if _, ok := parseSettingBool(val, isString); !ok {
 				b.addError(fmt.Errorf("%s: %s takes true or false, not %s", pos, spec.canonical, valText))
 			}
@@ -205,4 +269,26 @@ func (b *Builder) ExitActionSettingsV3(ctx *parser.ActionSettingsV3Context) {
 		b.addError(fmt.Errorf("line %d:%d: ProceedCaption and CancelCaption are the buttons of a "+
 			"confirmation; write Confirmation: '<question>' as well", tok.GetLine(), tok.GetColumn()))
 	}
+}
+
+// requireOpenWorkflowPage refuses `open workflow` without a DefaultPage.
+// "Show workflow admin page" opens the workflow's own admin page when it
+// overrides one and this page otherwise, and Mendix requires it: written
+// without, mx check reports CE1834 "The 'Page' property is required"
+// (measured on 11.13.0, ako/mxcli#832).
+func (b *Builder) requireOpenWorkflowPage(ctx *parser.ActionExprV3Context) {
+	if actionSettingsKind(ctx) != "openWorkflow" {
+		return
+	}
+	if sc, ok := ctx.ActionSettingsV3().(*parser.ActionSettingsV3Context); ok && sc != nil {
+		for _, raw := range sc.AllActionSettingV3() {
+			if strings.EqualFold(identifierOrKeywordText(raw.(*parser.ActionSettingV3Context).IdentifierOrKeyword()), "DefaultPage") {
+				return
+			}
+		}
+	}
+	tok := ctx.GetStart()
+	b.addError(fmt.Errorf("line %d:%d: open workflow needs a page for a workflow that overrides no "+
+		"admin page — write `open workflow with (DefaultPage: Module.Page)`; Mendix refuses the action "+
+		"without one (CE1834 \"The 'Page' property is required\")", tok.GetLine(), tok.GetColumn()))
 }
