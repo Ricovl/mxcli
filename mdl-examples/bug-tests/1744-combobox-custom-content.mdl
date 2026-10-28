@@ -57,6 +57,19 @@ create or modify page Bug1744.ChoosePage ( Title: 'Choose', Layout: Atlas_Core.A
         dynamictext ccCode (Content: '{1} / {2}', ContentParams: ({1} = NameEN, {2} = NameAR))
       }
     }
+    -- Content with the type left out: the type is written 'yes'. Left at its
+    -- default 'no' the content was hidden, which mx check reported as CE0463.
+    -- The type without content is the .fail.mdl beside this file.
+    combobox cbPerson2 (
+      Label: 'Person (no type)',
+      Association: Bug1744.Choice_Person,
+      DataSource: database Bug1744.Person,
+      CaptionAttribute: NameEN
+    ) {
+      optionssourceassociationcustomcontent {
+        dynamictext ccEn2 (Content: '{1}', ContentParams: ({1} = NameEN))
+      }
+    }
   }
 };
 

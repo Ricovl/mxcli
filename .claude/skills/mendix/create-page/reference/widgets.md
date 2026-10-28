@@ -601,8 +601,13 @@ combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource
     dynamictext txtOption (Content: '{1} ({2})', ContentParams: ({1} = Name, {2} = City))
   }
 }
+-- The block with the type left out writes 'yes'; 'listItem' shows the content
+-- in the list only.
 -- WRONG: the other mode's block (MDL-WIDGET30 names the right one); any block
 -- on an enumeration combo box, which has no custom content.
+-- WRONG: the type 'yes' or 'listItem' with no block — MDL-WIDGET53, CE0642
+-- "Property 'Custom content' is required."; a block under type 'no' — hidden,
+-- never shown (CE0463), also MDL-WIDGET53.
 ```
 
 **BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives

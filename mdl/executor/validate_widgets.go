@@ -332,6 +332,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		// so gets past every other rule. Needs the parent's definition, and stays
 		// quiet without one for the same reason MDL-WIDGET26 does.
 		out = append(out, validateUnroutedChildren(w, def, locationPrefix)...)
+		// ako/mxcli#1744: a slot's switch against its content — a combo box's
+		// custom-content type 'yes' with no content is CE0642.
+		out = append(out, validateSlotSwitches(w, def, locationPrefix)...)
 		// A keyword widget the registry has no definition for (DATAGRID: its
 		// definition is generated from the project's package) is judged by the
 		// property list of the template mxcli embeds for it, not by the

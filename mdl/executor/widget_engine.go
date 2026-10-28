@@ -174,6 +174,25 @@ type ChildSlotMapping struct {
 	PropertyKey  string `json:"propertyKey"`
 	MDLContainer string `json:"mdlContainer"`
 	Operation    string `json:"operation"`
+	// Switch is the enumeration that shows the slot, for a slot the widget
+	// renders only while it is on — a combo box's custom content and its
+	// …CustomContentType. See slotSwitchProblem.
+	Switch *SlotSwitch `json:"switch,omitempty"`
+}
+
+// SlotSwitch names the enumeration property that shows a child slot.
+//
+// While the switch is on, the widget requires content in the slot — a combo
+// box with optionsSourceAssociationCustomContentType 'yes' and no content is
+// CE0642 "Property 'Custom content' is required." — and while it is Off the
+// editor hides the slot, so content there is stored and never shown (CE0463).
+// Content written with the switch left out sets it to On (ako/mxcli#1744).
+type SlotSwitch struct {
+	PropertyKey string `json:"propertyKey"`
+	Off         string `json:"off"`
+	On          string `json:"on"`
+	// Caption is the slot's caption, as Mendix names it in CE0642.
+	Caption string `json:"caption,omitempty"`
 }
 
 // ObjectListMapping maps an MDL child block keyword (e.g., GROUP, ITEM, SERIES)
@@ -514,6 +533,11 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	if err := refuseUnroutedChildren(def, w); err != nil {
 		return nil, err
 	}
+	// 4.0b A switched slot whose switch contradicts its content: on with none
+	// (CE0642) or off with some (hidden, CE0463). See widget_slot_switch.go.
+	if msg := slotSwitchProblem(def, w); msg != "" {
+		return nil, mdlerrors.NewValidation(msg)
+	}
 
 	// 4.1 Apply child slots (.def.json) — skip children whose keyword belongs
 	// to an objectLists mapping (handled by applyObjectLists below).
@@ -523,6 +547,11 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 	}
 	if err := e.applyChildSlots(builder, slots, w, propertyTypeIDs, objectListContainers); err != nil {
 		return nil, err
+	}
+	// Content written with its switch left out turns the switch on: the
+	// template stores it off, which hides the content just written (CE0463).
+	for _, sw := range switchedSlotsToTurnOn(def, w) {
+		builder.SetPrimitive(sw.PropertyKey, sw.On)
 	}
 
 	// 4.1b Apply object-list child blocks (.def.json `objectLists`).

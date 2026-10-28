@@ -24,7 +24,8 @@
         {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
       ],
       "childSlots": [
-        {"propertyKey": "optionsSourceAssociationCustomContent", "mdlContainer": "OPTIONSSOURCEASSOCIATIONCUSTOMCONTENT", "operation": "widgets"}
+        {"propertyKey": "optionsSourceAssociationCustomContent", "mdlContainer": "OPTIONSSOURCEASSOCIATIONCUSTOMCONTENT", "operation": "widgets",
+         "switch": {"propertyKey": "optionsSourceAssociationCustomContentType", "off": "no", "on": "yes", "caption": "Custom content"}}
       ]
     },
     {
@@ -43,7 +44,8 @@
         {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
       ],
       "childSlots": [
-        {"propertyKey": "optionsSourceDatabaseCustomContent", "mdlContainer": "OPTIONSSOURCEDATABASECUSTOMCONTENT", "operation": "widgets"}
+        {"propertyKey": "optionsSourceDatabaseCustomContent", "mdlContainer": "OPTIONSSOURCEDATABASECUSTOMCONTENT", "operation": "widgets",
+         "switch": {"propertyKey": "optionsSourceDatabaseCustomContentType", "off": "no", "on": "yes", "caption": "Custom content"}}
       ]
     },
     {

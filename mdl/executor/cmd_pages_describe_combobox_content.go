@@ -57,6 +57,14 @@ func comboBoxCustomContent(ctx *ExecContext, w map[string]any, mode *WidgetMode,
 	var out []rawChildSlot
 	for _, cs := range extractChildSlots(ctx, w, optionEntity) {
 		for _, slot := range mode.ChildSlots {
+			// Content under a switch that is off is hidden, and a block
+			// re-executes as content that is shown — the write turns the
+			// switch on. It stays named in the note instead.
+			if sw := slot.Switch; sw != nil {
+				if v := extractCustomWidgetPropertyString(ctx, w, sw.PropertyKey); v == "" || strings.EqualFold(v, sw.Off) {
+					continue
+				}
+			}
 			if strings.EqualFold(cs.PropertyKey, slot.PropertyKey) {
 				cs.Keyword = strings.ToLower(slot.MDLContainer)
 				out = append(out, cs)
