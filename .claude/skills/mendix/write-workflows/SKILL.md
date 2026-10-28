@@ -12,18 +12,18 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 |---|---|
 | 36-47 | When to Use This Skill |
 | 48-118 | Syntax — CREATE WORKFLOW |
-| 119-302 | Activities |
-| 303-309 | DROP WORKFLOW |
-| 310-377 | ALTER WORKFLOW |
-| 378-398 | DESCRIBE round-trip |
-| 399-419 | Activity names, and why `jump to` depends on them |
-| 420-440 | Rewriting an existing workflow |
-| 441-450 | Task pages |
-| 451-538 | Microflow statements for workflow tasks |
-| 539-559 | System-module enumerations are synthesized, not stored |
-| 560-684 | Platform rules |
-| 685-715 | Observing a running workflow |
-| 716-725 | Validate before presenting |
+| 119-301 | Activities |
+| 302-308 | DROP WORKFLOW |
+| 309-376 | ALTER WORKFLOW |
+| 377-397 | DESCRIBE round-trip |
+| 398-418 | Activity names, and why `jump to` depends on them |
+| 419-439 | Rewriting an existing workflow |
+| 440-449 | Task pages |
+| 450-537 | Microflow statements for workflow tasks |
+| 538-558 | System-module enumerations are synthesized, not stored |
+| 559-683 | Platform rules |
+| 684-714 | Observing a running workflow |
+| 715-724 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -205,10 +205,9 @@ which hides every CE0161 from mx check. Measured: [reference/targeting.md](refer
 
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
 as in a microflow; the note on the workflow's start is the header clause
-`annotation '…'` (stored on the start activity from Mendix 11.3, and as the
-workflow's own note below it, where the start is implicit), and an event
-sub-process takes `@annotation` before `event subprocess`. One note per
-activity; no other `@` annotation is accepted.
+`annotation '…'` (below Mendix 11.3, where the start is implicit, the
+workflow's own note), and an event sub-process takes `@annotation` before
+`event subprocess`. One note per activity; no other `@` annotation is accepted.
 
 ```sql
 mdl 1;
