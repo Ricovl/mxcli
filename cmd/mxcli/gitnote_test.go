@@ -243,14 +243,14 @@ func writeProject(t *testing.T, dir, version string, units map[string]tUnit) {
 	}
 	defer db.Close()
 	for _, q := range []string{
-		`CREATE TABLE _MetaData (_ProductVersion TEXT)`,
+		`CREATE TABLE _MetaData (_ProductVersion TEXT, _BuildVersion TEXT, _SchemaHash TEXT)`,
 		`CREATE TABLE Unit (UnitID BLOB PRIMARY KEY, ContainerID BLOB, ContainmentName TEXT, TreeConflict INTEGER, ContentsHash TEXT, ContentsConflicts TEXT)`,
 	} {
 		if _, err := db.Exec(q); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.Exec(`INSERT INTO _MetaData VALUES (?)`, version); err != nil {
+	if _, err := db.Exec(`INSERT INTO _MetaData VALUES (?, ?, '')`, version, version); err != nil {
 		t.Fatal(err)
 	}
 	for id, u := range units {

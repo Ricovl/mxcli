@@ -108,6 +108,60 @@ mxcli diag -p app.mpr
 
 prints mxcli's diagnostics followed by a *Project* section with both checks.
 
+## One commit, all the steps: `mxcli git commit`
+
+Studio Pro's *Commit* does more than `git commit`: it keeps the ContentsHash
+index in step, stages exactly the files a Mendix repository should ship, and
+attaches the mx_metadata note. `mxcli git commit` is that sequence for commits
+made outside Studio Pro:
+
+```bash
+mxcli git commit -m "Add order history page" -p app.mpr
+mxcli git commit -m "Fix stock filter" -p app.mpr --push
+mxcli git commit -m "WIP" -p app.mpr --dry-run
+```
+
+In order it:
+
+1. repairs ContentsHash mismatches from the files on disk (`MISSING` and
+   `ORPHAN` entries have no automatic repair and refuse the commit);
+2. stages everything, then unstages the files Studio Pro never commits:
+   `project-settings.user.json`, `*.mpr.lock`, `*.mpr.bak`, `.mendix-cache/`,
+   `deployment/`, `theme-cache/`, `.mxcli/`;
+3. runs `git commit` with your message and your git identity;
+4. computes the mx_metadata note from the new commit and attaches it, and
+   prints the `git push origin <branch> refs/notes/mx_metadata` command —
+   `--push` runs it for you, because the branch and the notes ref must travel
+   together.
+
+The commit is refused while Studio Pro has the project open (the `.mpr.lock`
+beside it), and during an unresolved merge — `git add -A` would otherwise
+commit the conflict markers. `--dry-run` verifies and reports (including
+ContentsHash drift, which it does not repair — a dry run writes nothing),
+stages, reports what it would commit, and unstages again without committing.
+
+## Auditing a repository: `mxcli git doctor`
+
+A repository that has known only plain git misses several things Studio Pro
+wrote when it committed, and they are invisible one by one. `mxcli git doctor`
+reports all of them in one read-only pass; `--fix` repairs:
+
+```bash
+mxcli git doctor                       # report only; exits 1 while an issue remains
+mxcli git doctor -p app.mpr --fix      # repair, computing real notes from the model
+mxcli git doctor --fix --version 10.21.0
+```
+
+| Check | `--fix` |
+|-------|---------|
+| local git config: `core.autocrlf=False` (a checkout must not rewrite line endings inside `.mxunit` files), `mendix.commits-since-gc`, `mendix.lineEndingResetDone` | sets them |
+| the remote URL: Studio Pro can only use HTTPS | rewrites SSH (`git@host:org/app.git`, `ssh://…`) to HTTPS; other non-HTTPS URLs are reported unchanged |
+| the remote's `refs/notes/mx_metadata` | reported only — push the notes ref together with the branch |
+| each commit on the checked-out branch and its mx_metadata note: missing notes make Studio Pro show `(unknown)`; a malformed note it cannot read at all | computes real notes from the model (`-p`), falling back to a template note with a `--version` ModelerVersion where the model at a commit cannot be read (MPR v1 history, a revision without the `.mpr`); when no version is known the newest valid note in history supplies it |
+
+Notes Studio Pro wrote are never touched, with or without `--fix`. `--fix`
+does not push.
+
 ## Commit metadata: `mxcli git note`
 
 Studio Pro attaches a git note under `refs/notes/mx_metadata` to every commit
