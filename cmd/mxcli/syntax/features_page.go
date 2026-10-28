@@ -172,6 +172,9 @@ LIST IMPACT OF htmlelement;
 			"-- Same action forms as OnChange:; the stored name OnEnterKeyPressAction: is the same property.\n" +
 			"-- A TEXTBOX's only: no other widget stores it (TEXTAREA neither), so it is refused there.\n" +
 			"TEXTBOX name (Attribute: Query, OnEnterKeyPress: CALL MICROFLOW Module.ACT_Search(Query = $currentObject))\n" +
+			"-- Focus moving into / out of any input widget (Studio Pro's \"On enter\" / \"On leave\";\n" +
+			"-- not the Enter key). Same action forms; OnEnterAction: / OnLeaveAction: are the same properties.\n" +
+			"DATEPICKER name (Attribute: Due, OnLeave: CALL MICROFLOW Module.ACT_Validate(Item = $currentObject))\n" +
 			"-- A layout grid's width: FullWidth (default) | FixedWidth:\n" +
 			"LAYOUTGRID name (Width: FixedWidth) { ROW { COLUMN (DesktopWidth: 12) { ... } } }\n\n" +
 			"-- Conditional visibility / editability: a bare client expression, stored as\n" +

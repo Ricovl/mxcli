@@ -423,6 +423,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		// Unread, describe → exec replaced a stored enter-key action with
 		// the empty one (ako/mxcli#1743).
 		widget.OnEnterKeyPress = renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterKeyPressAction"))
@@ -439,6 +440,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		if v, ok := w["NumberOfLines"]; ok {
 			n := int64(extractInt(v))
 			widget.NumberOfLines = &n
@@ -462,6 +464,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		widget.Formatting = describeInputFormatting(ctx, "datepicker", w)
 		return []rawWidget{widget}
 
@@ -472,6 +475,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		return []rawWidget{widget}
 
 	case "Forms$CheckBox", "Pages$CheckBox":
@@ -481,6 +485,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowLabel = extractShowLabel(ctx, w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
+		widget.OnEnter, widget.OnLeave = extractFocusEventActions(ctx, w)
 		return []rawWidget{widget}
 
 	case "CustomWidgets$CustomWidget":

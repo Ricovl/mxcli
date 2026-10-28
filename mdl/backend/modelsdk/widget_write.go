@@ -605,10 +605,14 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		if err != nil {
 			return nil, err
 		}
+		onLeave, err := clientActionToGen(x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
 		g.SetOnChangeAction(onChange)
 		g.SetOnEnterAction(onEnter)
 		g.SetOnEnterKeyPressAction(onEnterKey)
-		g.SetOnLeaveAction(noActionGen())
+		g.SetOnLeaveAction(onLeave)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
@@ -665,8 +669,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeCB)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterCB, leaveCB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterCB)
+		g.SetOnLeaveAction(leaveCB)
 		// Unset keeps Mendix's default; an authored Control/Text is what decides
 		// whether a read-only check box renders as the glyph or as "Yes"/"No"
 		// text (ako/mxcli#490). The value is canonicalised at build time.
@@ -718,8 +726,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeTA)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterTA, leaveTA, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterTA)
+		g.SetOnLeaveAction(leaveTA)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetSubmitBehaviour(orDefaultStr(x.SubmitBehaviour, pages.DefaultSubmitBehaviour))
@@ -754,8 +766,12 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChangeDP)
-		g.SetOnEnterAction(noActionGen())
-		g.SetOnLeaveAction(noActionGen())
+		enterDP, leaveDP, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterDP)
+		g.SetOnLeaveAction(leaveDP)
 		g.SetPlaceholderTemplate(textAsClientTemplate(x.Placeholder))
 		g.SetReadOnlyStyle(orDefaultStr(x.ReadOnlyStyle, "Inherit")) // ako/mxcli#977
 		g.SetValidation(widgetValidationToGen())
@@ -782,11 +798,15 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 			return nil, err
 		}
 		g.SetOnChangeAction(onChange)
-		g.SetOnEnterAction(noActionGen())
 		// Studio Pro stores all three event slots on every check box, date
 		// picker and radio button group (PedApp and ako/TestApp: 16, 76 and 4
 		// of 4). Without OnLeaveAction a rewrite deleted the slot (#721 L2).
-		g.SetOnLeaveAction(noActionGen())
+		enterRB, leaveRB, err := focusEventsToGen(x.OnEnterAction, x.OnLeaveAction)
+		if err != nil {
+			return nil, err
+		}
+		g.SetOnEnterAction(enterRB)
+		g.SetOnLeaveAction(leaveRB)
 		g.SetValidation(widgetValidationToGen())
 		return g, nil
 
@@ -2234,6 +2254,23 @@ func staticAddressToGen(address string) element.Element {
 	s.SetIsDynamic(false)
 	s.SetValue(address)
 	return s
+}
+
+// focusEventsToGen builds an input widget's OnEnterAction and OnLeaveAction,
+// Studio Pro's "On enter" / "On leave". Both were hard-coded NoActions on every
+// input but the text box's OnEnterAction, so neither could be written and
+// describe → exec deleted a stored one (ako/mxcli#1743). nil writes the
+// NoAction, as before.
+func focusEventsToGen(onEnter, onLeave pages.ClientAction) (element.Element, element.Element, error) {
+	enter, err := clientActionToGen(onEnter)
+	if err != nil {
+		return nil, nil, err
+	}
+	leave, err := clientActionToGen(onLeave)
+	if err != nil {
+		return nil, nil, err
+	}
+	return enter, leave, nil
 }
 
 // clientActionToGen converts a widget client action. Simple actions are supported;

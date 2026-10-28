@@ -168,6 +168,9 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   textbox's `OnEnterKeyPress:` (Studio Pro's "On enter key press" — a search box
   that searches on Enter). Only a textbox has that one; on a textarea or any
   other widget it is refused, because Mendix stores it nowhere else.
+- Every input widget also takes `OnEnter:` and `OnLeave:` — Studio Pro's "On
+  enter" / "On leave", focus moving into and out of the widget (not the Enter
+  key) — with the same forms.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).

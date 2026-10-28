@@ -74,8 +74,9 @@ var (
 	visibilityKeys = []string{"Visible", "VisibleIf", "VisibleWhen", "VisibleRoles"}
 )
 
-// inputReads are what every attribute-bound input's builder reads.
-var inputReads = []string{"Attribute", "Label", "ShowLabel", "OnChange"}
+// inputReads are what every attribute-bound input's builder reads. OnEnter /
+// OnLeave (and their stored names) are applyInputFocusEventsV3's.
+var inputReads = []string{"Attribute", "Label", "ShowLabel", "OnChange", "OnEnter", "OnEnterAction", "OnLeave", "OnLeaveAction"}
 
 func withReads(base []string, more ...string) []string {
 	return append(append([]string(nil), base...), more...)

@@ -25,6 +25,11 @@ import (
 //	textbox tbSearch (Attribute: SearchText,
 //	  OnEnterKeyPress: call microflow M.ACT_Search(Query = $currentObject))
 //
+// "On enter" and "On leave" (focus in, focus out) were in the same state on
+// every input widget — OnEnterAction / OnLeaveAction, written as NoActions and
+// never read — so they are spelled the same way: `OnEnter:` and `OnLeave:`.
+// "On enter" is the focus event, not the Enter key.
+//
 // The MDL name is Studio Pro's label in the shape of `OnChange:`; the stored
 // name (`OnEnterKeyPressAction:`) is accepted as the same property, and both
 // at once is refused — choosing one would drop the other. Each takes the
@@ -51,7 +56,17 @@ type inputEventAction struct {
 	kinds  map[string]bool // the widget keywords whose stored type has the slot
 }
 
+// focusEventKinds are the input widgets that store OnEnterAction and
+// OnLeaveAction: every attribute-bound input mxcli writes.
+var focusEventKinds = map[string]bool{
+	"textbox": true, "textarea": true, "datepicker": true, "dropdown": true, "checkbox": true, "radiobuttons": true,
+}
+
+// inputEventActions are Studio Pro's order: On enter, On leave, On enter key
+// press. "On enter" is focus entering the widget, not the Enter key.
 var inputEventActions = []inputEventAction{
+	{key: "OnEnter", stored: "OnEnterAction", what: "an on-enter action", kinds: focusEventKinds},
+	{key: "OnLeave", stored: "OnLeaveAction", what: "an on-leave action", kinds: focusEventKinds},
 	{key: "OnEnterKeyPress", stored: "OnEnterKeyPressAction", what: "an on-enter-key-press action",
 		kinds: map[string]bool{"textbox": true}},
 }
@@ -112,6 +127,19 @@ func (pb *pageBuilder) buildInputEventAction(w *ast.WidgetV3, key, stored string
 		return nil, mdlerrors.NewValidationf("%s %s: %s", strings.ToLower(w.Type), w.Name, err.Error())
 	}
 	return nil, nil
+}
+
+// applyInputFocusEventsV3 reads an input widget's "On enter" and "On leave"
+// actions into onEnter and onLeave. Every input builder calls it: the slots
+// are on every input, and before ako/mxcli#1743 nothing read them, so
+// describe → exec of a Studio Pro input deleted a stored one.
+func (pb *pageBuilder) applyInputFocusEventsV3(w *ast.WidgetV3, onEnter, onLeave *pages.ClientAction) error {
+	var err error
+	if *onEnter, err = pb.buildInputEventAction(w, "OnEnter", "OnEnterAction"); err != nil {
+		return err
+	}
+	*onLeave, err = pb.buildInputEventAction(w, "OnLeave", "OnLeaveAction")
+	return err
 }
 
 // inputEventHint is nativeWidgetPropHint's answer for a key that names an

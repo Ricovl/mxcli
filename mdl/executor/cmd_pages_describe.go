@@ -911,6 +911,8 @@ type rawWidget struct {
 	// ones that differ from the Model SDK's defaults (mendixlabs/mxcli#151).
 	FileManagerProps []string
 	OnChange         string // MDL rendering of the OnChangeAction client action
+	OnEnter          string // an input's OnEnterAction ("On enter", focus in), "" for the empty NoAction (ako/mxcli#1743)
+	OnLeave          string // an input's OnLeaveAction ("On leave", focus out), likewise
 	OnEnterKeyPress  string // a text box's OnEnterKeyPressAction, "" for the empty NoAction (ako/mxcli#1743)
 	OnClick          string // MDL rendering of a pluggable widget's onClick action (e.g. DataGrid2)
 	OnClickTrigger   string // Gallery's onClickTrigger when not the default "single" (#842)

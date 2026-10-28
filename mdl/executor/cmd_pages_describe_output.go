@@ -693,6 +693,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		if w.OnEnterKeyPress != "" {
 			props = append(props, actionProp("OnEnterKeyPress", w.OnEnterKeyPress))
 		}
@@ -718,6 +719,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = describeSubmitBehaviour(props, w)
 		// Printed when not Studio Pro's default — 5 lines, Autocomplete on — so
 		// a text area authored without them describes as it did (ako/mxcli#977).
@@ -756,6 +758,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -772,6 +775,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -792,6 +796,7 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 		if w.OnChange != "" {
 			props = append(props, actionProp("OnChange", w.OnChange))
 		}
+		props = appendFocusEventProps(props, w)
 		props = appendAppearanceProps(ctx, props, w)
 		formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 
@@ -1569,6 +1574,26 @@ func extractButtonAction(ctx *ExecContext, w map[string]any) string {
 // client-action type, just under a different BSON key.
 func extractOnChangeAction(ctx *ExecContext, w map[string]any) string {
 	return renderClientActionMDL(ctx, actionMapForKey(w, "OnChangeAction"))
+}
+
+// extractFocusEventActions renders an input widget's OnEnterAction and
+// OnLeaveAction ("On enter" / "On leave"). Unread, describe → exec replaced a
+// stored one with the empty action (ako/mxcli#1743).
+func extractFocusEventActions(ctx *ExecContext, w map[string]any) (string, string) {
+	return renderClientActionMDL(ctx, actionMapForKey(w, "OnEnterAction")),
+		renderClientActionMDL(ctx, actionMapForKey(w, "OnLeaveAction"))
+}
+
+// appendFocusEventProps prints an input widget's On enter / On leave actions,
+// each only when it holds one.
+func appendFocusEventProps(props []string, w rawWidget) []string {
+	if w.OnEnter != "" {
+		props = append(props, actionProp("OnEnter", w.OnEnter))
+	}
+	if w.OnLeave != "" {
+		props = append(props, actionProp("OnLeave", w.OnLeave))
+	}
+	return props
 }
 
 // actionMapForKey unwraps a client-action node stored under key into a plain map

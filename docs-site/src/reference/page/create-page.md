@@ -67,11 +67,11 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `OnChange`, `OnEnterKeyPress` (an action run when the user presses Enter in the box; the stored name `OnEnterKeyPressAction` is accepted too), `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
-| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
-| `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
-| `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
-| `DATEPICKER` | Date/time selector | `Label`, `Attribute` |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `OnChange`, `OnEnter`, `OnLeave`, `OnEnterKeyPress` (an action run when the user presses Enter in the box; the stored name `OnEnterKeyPressAction` is accepted too), `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
+| `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave`, `SubmitBehaviour`, `SubmitOnInputDelay` |
+| `CHECKBOX` | Boolean toggle | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
+| `RADIOBUTTONS` | Radio button group | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
+| `DATEPICKER` | Date/time selector | `Label`, `Attribute`, `OnChange`, `OnEnter`, `OnLeave` |
 | `COMBOBOX` | Dropdown selector | `Label`, `Attribute`; association mode adds `DataSource`, `CaptionAttribute`; database mode `optionsSourceDatabaseDataSource`, `CaptionAttribute`, `optionsSourceDatabaseValueAttribute`; custom content as the mode's body block (`optionssourceassociationcustomcontent { … }`, `optionssourcedatabasecustomcontent { … }`) |
 | `FILEMANAGER` | File upload/download, inside a data view on a `System.FileDocument` specialization | `Label`, `Type` (`Upload`, `Download`, `Both` default), `MaxFileSize` (MB, default 5), `AllowedExtensions`, `ShowFileInBrowser` |
 
@@ -150,6 +150,13 @@ TEXTBOX tbSearch (Label: 'Search', Attribute: SearchText,
 
 Only a text box has that action — Mendix stores it on no other widget, a text
 area included — so on any other widget the key is refused with that reason.
+
+Every input widget (text box, text area, date picker, check box, radio
+buttons, drop-down) also has Studio Pro's *On enter* and *On leave* — focus
+moving into and out of the widget, not the Enter key — spelled `OnEnter:` and
+`OnLeave:`, with the same values. The stored names `OnEnterAction:`,
+`OnLeaveAction:` and `OnEnterKeyPressAction:` are accepted as the same
+properties; `DESCRIBE` prints the short ones.
 
 A flow or page that takes no parameters may be called with an empty argument
 list, as a flow body writes it: `Action: CALL MICROFLOW Module.Name()` stores
