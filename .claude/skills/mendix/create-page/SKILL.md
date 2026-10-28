@@ -14,13 +14,13 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 | 44-46 | Overview |
 | 47-218 | Syntax |
 | 219-289 | Basic Examples |
-| 290-311 | Modifying Existing Pages |
-| 312-415 | Conditional Visibility and Editability |
-| 416-580 | Known Limitations |
-| 581-589 | Tips |
-| 590-616 | Related Commands |
-| 617-641 | PLUGGABLEWIDGET Escape Hatch |
-| 642-645 | See Also |
+| 290-314 | Modifying Existing Pages |
+| 315-418 | Conditional Visibility and Editability |
+| 419-583 | Known Limitations |
+| 584-592 | Tips |
+| 593-619 | Related Commands |
+| 620-644 | PLUGGABLEWIDGET Escape Hatch |
+| 645-648 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -306,6 +306,9 @@ Use `create or modify page` on an existing page only if your MDL scripts created
 and nobody has edited it in Studio Pro since. A Studio Pro-authored page is changed
 with `alter page`, even for a large change: re-creating it from `describe` output has
 dropped translations. See [choose-edit-mode](../choose-edit-mode/SKILL.md).
+Re-running `describe` output does not upgrade a pluggable widget either: the rewrite
+keeps each stored widget's schema, as Studio Pro does, so CE0463 after a widget
+package upgrade is cleared by `mxcli fix widgets -p app.mpr`, not by a rewrite.
 
 See the dedicated skill file: [ALTER PAGE/SNIPPET](../alter-page/SKILL.md)
 
