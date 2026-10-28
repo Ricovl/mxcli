@@ -45,8 +45,20 @@ func enumReturnCtx(t *testing.T, twin bool) (*ExecContext, *enumReturnCapture) {
 
 	got := &enumReturnCapture{}
 	mb := &mock.MockBackend{
-		IsConnectedFunc:      func() bool { return true },
-		ListModulesFunc:      func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		IsConnectedFunc: func() bool { return true },
+		ListModulesFunc: func() ([]*model.Module, error) { return []*model.Module{mod}, nil },
+		GetModuleByNameFunc: func(name string) (*model.Module, error) {
+			if name == mod.Name {
+				return mod, nil
+			}
+			return nil, nil
+		},
+		GetDomainModelFunc: func(id model.ID) (*domainmodel.DomainModel, error) {
+			if id == mod.ID {
+				return dm, nil
+			}
+			return nil, nil
+		},
 		ListEnumerationsFunc: func() ([]*model.Enumeration, error) { return []*model.Enumeration{enum}, nil },
 		ListDomainModelsFunc: func() ([]*domainmodel.DomainModel, error) { return []*domainmodel.DomainModel{dm}, nil },
 		ListMicroflowsFunc:   func() ([]*microflows.Microflow, error) { return nil, nil },
