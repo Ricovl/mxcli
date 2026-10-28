@@ -741,6 +741,12 @@ actionExprV3
     | openLinkV3 VARIABLE SLASH attributePathV3 actionSettingsV3?       // open link $currentObject/URL (address read from an attribute)
     | SIGN_OUT actionSettingsV3?                                        // sign out
     | COMPLETE_TASK STRING_LITERAL actionSettingsV3?                    // complete task 'OutcomeName'
+    // The workflow events Studio Pro offers beside "Complete user task", in the
+    // words the microflow actions use (ako/mxcli#832). Without them describe
+    // printed no action for a stored one and a rewrite wrote Forms$NoAction.
+    | OPEN USER TASK actionSettingsV3?                                  // open user task (Show user task page)
+    | OPEN WORKFLOW actionSettingsV3?                                   // open workflow (Show workflow admin page)
+    | CALL WORKFLOW qualifiedName actionSettingsV3?                     // call workflow Module.Workflow
     ;
 
 // The client-action settings Studio Pro shows under an event: "Disabled during
@@ -771,8 +777,11 @@ actionReturnV3
     : (VARIABLE | parameterName) EQUALS expression
     ;
 
+// The value is a qualifiedName so a setting can name a document (`open
+// workflow with (DefaultPage: Module.Page)`); a single segment is the
+// identifierOrKeyword every other setting takes.
 actionSettingV3
-    : identifierOrKeyword COLON (STRING_LITERAL | NONE | identifierOrKeyword)
+    : identifierOrKeyword COLON (STRING_LITERAL | NONE | qualifiedName)
     ;
 
 // The page actions are the words a microflow uses (R8, ako/mxcli#752):

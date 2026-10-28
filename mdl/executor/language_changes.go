@@ -13,6 +13,6 @@ func LanguageChanges() []langver.Change {
 	return []langver.Change{
 		actionSlotRefused, galleryClickRefused, flowRebuildRefused, boundaryDropAmbiguous,
 		remoteTypeChangeRefused, templateAttrBinding, viewAutoNumberRefused, tabPagePropDropped,
-		nativeWidgetPropDropped,
+		nativeWidgetPropDropped, widgetEnumRefused,
 	}
 }

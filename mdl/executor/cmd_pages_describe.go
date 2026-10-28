@@ -768,15 +768,13 @@ func associationSourcePath(ds map[string]any) (path, contextVar string) {
 		return "", ""
 	}
 	contextVar = "currentObject"
-	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
-		// Inside a snippet the variable is a snippet parameter, in its own slot;
-		// reading PageParameter alone printed `$currentObject/…` and executing
-		// that dropped the binding (ako/mxcli#721 L3).
-		if pp := extractString(sv["PageParameter"]); pp != "" {
-			contextVar = pp
-		} else if sp := extractString(sv["SnippetParameter"]); sp != "" {
-			contextVar = sp
-		}
+	// Inside a snippet the variable is a snippet parameter, in its own slot;
+	// reading PageParameter alone printed `$currentObject/…` and executing that
+	// dropped the binding (ako/mxcli#721 L3).
+	if pp, sp := sourceParameterNames(ds); pp != "" {
+		contextVar = pp
+	} else if sp != "" {
+		contextVar = sp
 	}
 	// More than one hop prints every stored destination: associations alone
 	// leave each hop's entity to be re-derived, which re-executes to a
@@ -879,6 +877,8 @@ type rawWidget struct {
 	// IsPassword is Forms$TextBox.IsPasswordBox. Security-relevant: a text box
 	// that round-trips without it renders the value in plaintext (ako/mxcli#550).
 	IsPassword bool
+	// KeyboardType is a text box's Forms$TextBox.KeyboardType (ako/mxcli#1209).
+	KeyboardType string
 	// NumberOfLines and Autocomplete are a text area's; nil when not stored
 	// (ako/mxcli#977).
 	NumberOfLines *int64

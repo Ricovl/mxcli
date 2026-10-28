@@ -358,6 +358,11 @@ func applySetPropertyMutator(ctx *ExecContext, mutator backend.PageMutator, op *
 	if err := checkDateFormatAfterSet(mutator, op); err != nil {
 		return err
 	}
+	// A Gallery's row click is judged on the widget as the SET leaves it —
+	// the statement may name only one of the three settings involved.
+	if err := checkGalleryClickAfterSet(ctx, mutator, op); err != nil {
+		return err
+	}
 	if op.Target.IsColumn() || op.Target.Item != nil {
 		names := make([]string, 0, len(op.Properties))
 		for k := range op.Properties {
@@ -446,7 +451,8 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 
 	for _, propName := range propNames {
 		value := op.Properties[propName]
-		if _, isAction := value.(*ast.ActionV3); isAction && propName != "Action" &&
+		_, isActionValue := value.(*ast.ActionV3)
+		if isActionValue && propName != "Action" &&
 			(op.Target.Widget == "" || op.Target.IsColumn()) {
 			// A named action slot belongs to a pluggable widget. The column and
 			// page-level setters would stringify the action into a scalar.
@@ -467,17 +473,20 @@ func applySetProperties(ctx *ExecContext, mutator backend.PageMutator, op *ast.S
 			if err := mutator.SetWidgetDataSource(op.Target.Widget, ds); err != nil {
 				return mdlerrors.NewBackend("set DataSource on "+op.Target.Name(), err)
 			}
-		} else if propName == "Action" {
+		} else if propName == "Action" || (isActionValue && isClickActionKey(propName)) {
 			// Action is a polymorphic node, not a scalar — it goes through the
 			// same builder CREATE PAGE uses rather than being written as a value.
+			// `onClick:` is its alias, as in CREATE PAGE; on a pluggable widget
+			// both reach the slot its definition reads `onClick:` from
+			// (ako/mxcli#854).
 			action, err := convertASTAction(ctx, mutator, value, moduleName, moduleID, op.Target.Widget)
 			if err != nil {
 				return err
 			}
-			if err := mutator.SetWidgetAction(op.Target.Widget, action); err != nil {
-				return mdlerrors.NewBackend("set Action on "+op.Target.Name(), err)
+			if err := setClickAction(mutator, op.Target.Widget, propName, action); err != nil {
+				return mdlerrors.NewBackend("set "+propName+" on "+op.Target.Name(), err)
 			}
-		} else if _, isAction := value.(*ast.ActionV3); isAction {
+		} else if isActionValue {
 			// Any other key carrying an action is a pluggable widget's NAMED
 			// action slot — `set 'createFileAction' = microflow M.F` (#995).
 			// Same builder as `Action`; the mutator checks the key is an

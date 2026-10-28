@@ -551,8 +551,10 @@ var propertyAliases = map[string]map[string][]string{
 // enough. One `Event`/`Action` suffix is stripped before matching (ledger #14).
 // The stripping is deliberately narrow: a Combobox also carries
 // `onChangeFilterInputEvent` and `onChangeDatabaseEvent`, which are separate
-// properties with no MDL surface and must stay unmapped, or one `OnChange:`
-// would write three different actions.
+// properties — the first authored by its own key (#956, ako/mxcli#854), the
+// second the database mode's change slot, which its definition sources from
+// `OnChange:` explicitly — and must not answer to `OnChange:` here, or one
+// `OnChange:` would write three different actions.
 func actionSourceForKey(key string) string {
 	k := strings.ToLower(key)
 	k = strings.TrimSuffix(k, "event")

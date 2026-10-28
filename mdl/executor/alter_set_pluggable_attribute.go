@@ -35,6 +35,17 @@ func resolvePluggableSetValue(ctx *ExecContext, mutator backend.PageMutator, wid
 	if scoper, ok := mutator.(backend.PluggablePropertyScoper); ok && widgetRef != "" {
 		scope, found = scoper.PluggablePropertyScope(widgetRef, prop)
 	}
+	if found && scope.Kind == "Enumeration" {
+		// An enumeration takes one of its declared keys, written as the key —
+		// as CREATE writes it (ako/mxcli#854, widget_enum_value.go).
+		if s, ok := value.(string); ok {
+			if key, declared := declaredEnumKey(scope.EnumKeys, s); declared {
+				return key, nil
+			}
+			where := fmt.Sprintf("widget `%s`", widgetRef)
+			return gateUndeclaredEnum(ctx, undeclaredEnumMessage(where, scope.Key, s, scope.EnumKeys), s)
+		}
+	}
 	if !found || scope.Kind != "Attribute" {
 		if isExpr {
 			return nil, mdlerrors.NewValidationf(

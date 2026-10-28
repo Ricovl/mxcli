@@ -445,7 +445,7 @@ mx check and the build pass (`mxcli check` warns MDL-WF20). The button is the
 page's own action, no microflow needed — but the user must have claimed the task:
 on 11.13.0 an unclaimed task's button fails, "it is not assigned to you". Do not
 add a microflow per outcome to mirror progress into a status attribute; the
-workflow records it. Template and the measurement: [reference/task-pages.md](reference/task-pages.md).
+workflow records it. Template, measurement, and the inbox/admin/start buttons (`open user task`, `open workflow`, `call workflow`): [reference/task-pages.md](reference/task-pages.md).
 
 ## Microflow statements for workflow tasks
 

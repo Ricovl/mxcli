@@ -19,7 +19,10 @@
         {"propertyKey": "optionsSourceAssociationDataSource", "source": "DataSource", "operation": "datasource"},
         {"propertyKey": "attributeAssociation", "source": "Association", "operation": "association"},
         {"propertyKey": "optionsSourceAssociationCaptionAttribute", "source": "CaptionAttribute", "operation": "attribute"},
-        {"propertyKey": "onChangeEvent", "source": "OnChange", "operation": "action"}
+        {"propertyKey": "onChangeEvent", "source": "OnChange", "operation": "action"},
+        {"propertyKey": "onEnterEvent", "operation": "action"},
+        {"propertyKey": "onLeaveEvent", "operation": "action"},
+        {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
       ]
     },
     {
@@ -27,7 +30,10 @@
       "description": "Enumeration mode",
       "propertyMappings": [
         {"propertyKey": "attributeEnumeration", "source": "Attribute", "operation": "attribute"},
-        {"propertyKey": "onChangeEvent", "source": "OnChange", "operation": "action"}
+        {"propertyKey": "onChangeEvent", "source": "OnChange", "operation": "action"},
+        {"propertyKey": "onEnterEvent", "operation": "action"},
+        {"propertyKey": "onLeaveEvent", "operation": "action"},
+        {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
       ]
     }
   ]

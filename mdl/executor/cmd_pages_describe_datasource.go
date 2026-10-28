@@ -340,22 +340,30 @@ func parameterSourceEntity(ds map[string]any) string {
 	return extractString(entityRef["Entity"])
 }
 
+// sourceParameterNames returns the page and snippet parameter a data source is
+// bound to. From Mendix 10.0 they are in its SourceVariable (a
+// Forms$PageVariable); before, a data view source stored the names on itself,
+// as Studio Pro 9.24.30 writes them (ako/mxcli#1209).
+func sourceParameterNames(ds map[string]any) (page, snippet string) {
+	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
+		return extractString(sv["PageParameter"]), extractString(sv["SnippetParameter"])
+	}
+	return extractString(ds["PageParameter"]), extractString(ds["SnippetParameter"])
+}
+
 // parseContextSource reads the "data from context" forms: over an association,
 // or straight from a page or snippet parameter.
 func parseContextSource(ds map[string]any) *rawDataSource {
 	if path, ctxVar := associationSourcePath(ds); path != "" {
 		return &rawDataSource{Type: "association", Reference: path, ContextVariable: ctxVar, Destination: associationSourceDestination(ds)}
 	}
-	if sv, ok := ds["SourceVariable"].(map[string]any); ok && sv != nil {
-		if param := extractString(sv["PageParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param, Destination: parameterSourceEntity(ds)}
-		}
-		// Inside a snippet the parameter has its own slot, PageParameter left
-		// empty; reading PageParameter alone described the data view with no
-		// DataSource, and re-executing that dropped the binding.
-		if param := extractString(sv["SnippetParameter"]); param != "" {
-			return &rawDataSource{Type: "parameter", Reference: param, Destination: parameterSourceEntity(ds)}
-		}
+	// Inside a snippet the parameter has its own slot, PageParameter left
+	// empty; reading PageParameter alone described the data view with no
+	// DataSource, and re-executing that dropped the binding.
+	if page, snippet := sourceParameterNames(ds); page != "" {
+		return &rawDataSource{Type: "parameter", Reference: page, Destination: parameterSourceEntity(ds)}
+	} else if snippet != "" {
+		return &rawDataSource{Type: "parameter", Reference: snippet, Destination: parameterSourceEntity(ds)}
 	}
 	if entityPath := extractString(ds["EntityPath"]); entityPath != "" {
 		return &rawDataSource{Type: "parameter", Reference: entityPath}

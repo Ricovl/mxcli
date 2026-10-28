@@ -67,7 +67,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 
 | Widget | Description | Key Properties |
 |--------|-------------|----------------|
-| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300) |
+| `TEXTBOX` | Single-line text input | `Label`, `Attribute`, `Password`, `SubmitBehaviour` (`OnEndEditing` default, `WhileEditing`), `SubmitOnInputDelay` (ms, default 300), `KeyboardType` (the keyboard a native app opens: `Default`, `NumberPad`, `DecimalPad`, `EmailAddress`, `PhonePad`, `URL`) |
 | `TEXTAREA` | Multi-line text input | `Label`, `Attribute`, `SubmitBehaviour`, `SubmitOnInputDelay` |
 | `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |

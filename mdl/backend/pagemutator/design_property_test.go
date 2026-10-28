@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/backend/bsonnav"
+	"github.com/mendixlabs/mxcli/mdl/bsonutil"
 )
 
 // makeStyleableWidget builds a widget with a Forms$Appearance sub-document and
@@ -225,5 +226,45 @@ func TestSetDesignProperty_NoAppearance(t *testing.T) {
 	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
 	if err := m.SetDesignProperty("ctn1", "A", "toggle", ""); err == nil {
 		t.Fatal("expected error when widget has no Appearance")
+	}
+}
+
+// ako/mxcli#1209: below Mendix 10.2 an entry stores its value flat — Type,
+// StringValue, BooleanValue — and has no Value to set. Setting it went through
+// DSet, which does nothing on a missing key, so ALTER STYLING reported success
+// and the stored value stayed. The entry is rewritten in the current shape,
+// which the unit write lowers for the project (canon.LowerToProjectShape).
+func TestSetDesignProperty_OverwritesAMendix9Entry(t *testing.T) {
+	w := makeStyleableWidget("ctn1")
+	app := bsonnav.DGetDoc(w, "Appearance")
+	id := bsonutil.NewIDBsonBinary()
+	bsonnav.DSetArray(app, "DesignProperties", []any{
+		bson.D{
+			{Key: "$ID", Value: id},
+			{Key: "$Type", Value: designPropertyEntryType},
+			{Key: "BooleanValue", Value: false},
+			{Key: "Key", Value: "Spacing bottom"},
+			{Key: "StringValue", Value: "Outer small"},
+			{Key: "Type", Value: "DropDown"},
+		},
+	})
+	rawData := makeRawPage(w)
+	m := &Mutator{rawData: rawData, widgetFinder: findBsonWidget}
+
+	if err := m.SetDesignProperty("ctn1", "Spacing bottom", "option", "Outer large"); err != nil {
+		t.Fatalf("SetDesignProperty failed: %v", err)
+	}
+	entry := findEntry(designPropEntries(t, rawData, "ctn1"), "Spacing bottom")
+	val := bsonnav.DGetDoc(entry, "Value")
+	if bsonnav.DGetString(val, "Option") != "Outer large" {
+		t.Fatalf("the 9.x entry was not updated: %v", entry)
+	}
+	for _, flat := range []string{"Type", "StringValue", "BooleanValue"} {
+		if bsonnav.DGet(entry, flat) != nil {
+			t.Errorf("the entry keeps the flat %s next to Value: %v", flat, entry)
+		}
+	}
+	if got, _ := bsonnav.DGet(entry, "$ID").(bson.Binary); string(got.Data) != string(id.Data) {
+		t.Errorf("the entry's $ID changed")
 	}
 }

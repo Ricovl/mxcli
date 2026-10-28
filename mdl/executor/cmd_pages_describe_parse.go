@@ -401,6 +401,10 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		// Unread, a read-only data view described as an editable one and
 		// re-executing the description widened it (ako/mxcli#1676).
 		widget.Editable = extractString(w["Editability"])
+		// Below Mendix 10.7 it is the boolean Editable (ako/mxcli#1209).
+		if editable, ok := w["Editable"].(bool); ok && !editable && widget.Editable == "" {
+			widget.Editable = "Never"
+		}
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w)
 		widget.ShowFooter, _ = w["ShowFooter"].(bool)
 		widget.Children = withQualifiedAttrs(ctx, widget.DataSource, func() []rawWidget {
@@ -415,6 +419,7 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		widget.Editable = extractEditable(ctx, w)
 		widget.ReadOnlyStyle = extractReadOnlyStyle(ctx, w) // ako/mxcli#977
 		widget.IsPassword, _ = w["IsPasswordBox"].(bool)
+		widget.KeyboardType, _ = w["KeyboardType"].(string)
 		widget.ValidationExpression, widget.ValidationMessage = extractWidgetValidation(ctx, w)
 		widget.SubmitBehaviour, widget.SubmitOnInputDelay = extractSubmitBehaviour(w)
 		widget.OnChange = extractOnChangeAction(ctx, w)
@@ -520,6 +525,13 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			// `onClick` round trip below (ledger #67).
 			widget.OnChange = renderClientActionMDL(ctx, customWidgetPropertyActionMap(ctx, w, "onChangeEvent"))
 		}
+		// The combo box's other action slots — onEnterEvent, onLeaveEvent,
+		// onChangeFilterInputEvent — in every mode, by their own keys
+		// (ako/mxcli#854). The change slot of either mode is not among them:
+		// it is the `OnChange:` read above.
+		if widget.RenderMode == "combobox" {
+			widget.NamedActions = namedActionSlotsOf(ctx, w)
+		}
 		// The drop-down filter's association mode is the same shape as the
 		// ComboBox's, on differently-named properties: `baseType` selects it and
 		// the reference is stored as an EntityRef, not an AttributeRef. Without
@@ -618,6 +630,11 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {
 			widget.FilterAttributes = extractFilterAttributes(ctx, w)
 			widget.FilterExpression = extractFilterExpression(ctx, w)
+			// The filter's `onChange`, which `OnChange:` writes (ako/mxcli#854).
+			// Unread, a Studio Pro-authored filter action described as nothing:
+			// the rewrite patch kept it only while the statement left the slot
+			// alone, and no statement could say what it held.
+			widget.OnChange = renderClientActionMDL(ctx, customWidgetActionForSource(ctx, w, "OnChange"))
 			// The drop-down filter keeps its ONE custom attribute on `attr`
 			// (attrChoice "linked"), not in an `attributes` list. Read it back
 			// as the `attributes: [A]` it is written with, or a describe→exec
@@ -1149,8 +1166,14 @@ func extractLabelText(ctx *ExecContext, w map[string]any) string {
 
 // extractPlaceholderText extracts the placeholder hint text from an input widget.
 // PlaceholderTemplate is a Forms$ClientTemplate, same shape as LabelTemplate.
+//
+// Below Mendix 10.11 the widget stores Placeholder, a plain Texts$Text, instead
+// (ako/mxcli#1209); extractTextFromTemplate reads its Items the same way.
 func extractPlaceholderText(ctx *ExecContext, w map[string]any) string {
 	placeholderTemplate, ok := w["PlaceholderTemplate"].(map[string]any)
+	if !ok {
+		placeholderTemplate, ok = w["Placeholder"].(map[string]any)
+	}
 	if !ok {
 		return ""
 	}
@@ -1503,7 +1526,7 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		// Studio Pro nested format: Value sub-map contains the actual type
 		valueMap, ok := itemMap["Value"].(map[string]any)
 		if !ok {
-			return rawDesignProp{}, false
+			return parseFlatDesignProperty(key, itemMap)
 		}
 		switch valueMap["$Type"].(string) {
 		case "Forms$ToggleDesignPropertyValue":
@@ -1533,6 +1556,25 @@ func parseDesignProperty(itemMap map[string]any) (rawDesignProp, bool) {
 		// Flat format (backward compat with mxcli-written pages)
 		option, _ := itemMap["Option"].(string)
 		return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
+	}
+	return rawDesignProp{}, false
+}
+
+// parseFlatDesignProperty reads a design property in the shape Mendix stored
+// before 10.2: Type ("Toggle" or "DropDown"), StringValue and BooleanValue on
+// the entry itself, as Studio Pro 9.24.30 writes them (ako/mxcli#1209). The
+// writer lowers to this shape on such a project (canon.LowerToProjectShape).
+// A toggle stored off, or an option with no value, is not set.
+func parseFlatDesignProperty(key string, itemMap map[string]any) (rawDesignProp, bool) {
+	switch itemMap["Type"] {
+	case "Toggle":
+		if on, _ := itemMap["BooleanValue"].(bool); on {
+			return rawDesignProp{Key: key, ValueType: "toggle"}, true
+		}
+	case "DropDown":
+		if option, _ := itemMap["StringValue"].(string); option != "" {
+			return rawDesignProp{Key: key, ValueType: "option", Option: option}, true
+		}
 	}
 	return rawDesignProp{}, false
 }

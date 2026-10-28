@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-217 | Syntax |
-| 218-288 | Basic Examples |
-| 289-310 | Modifying Existing Pages |
-| 311-414 | Conditional Visibility and Editability |
-| 415-579 | Known Limitations |
-| 580-588 | Tips |
-| 589-615 | Related Commands |
-| 616-640 | PLUGGABLEWIDGET Escape Hatch |
-| 641-644 | See Also |
+| 47-218 | Syntax |
+| 219-289 | Basic Examples |
+| 290-314 | Modifying Existing Pages |
+| 315-418 | Conditional Visibility and Editability |
+| 419-583 | Known Limitations |
+| 584-592 | Tips |
+| 593-619 | Related Commands |
+| 620-644 | PLUGGABLEWIDGET Escape Hatch |
+| 645-648 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -99,6 +99,7 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` |
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
 | Submit while typing | `SubmitBehaviour: WhileEditing` (+ `SubmitOnInputDelay: <ms>`) on textbox / textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — default `OnEndEditing` / `300` |
+| Native keyboard | `KeyboardType: EmailAddress` (`NumberPad`, `DecimalPad`, `PhonePad`, `URL`) on textbox | `textbox tbEmail (attribute: Email, KeyboardType: EmailAddress)` — default `Default` |
 | Layout grid width | `Width: FullWidth \| FixedWidth` on layoutgrid | `layoutgrid lg (Width: FixedWidth) { ... }` — default `FullWidth` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
@@ -305,6 +306,9 @@ Use `create or modify page` on an existing page only if your MDL scripts created
 and nobody has edited it in Studio Pro since. A Studio Pro-authored page is changed
 with `alter page`, even for a large change: re-creating it from `describe` output has
 dropped translations. See [choose-edit-mode](../choose-edit-mode/SKILL.md).
+Re-running `describe` output does not upgrade a pluggable widget either: the rewrite
+keeps each stored widget's schema, as Studio Pro does, so CE0463 after a widget
+package upgrade is cleared by `mxcli fix widgets -p app.mpr`, not by a rewrite.
 
 See the dedicated skill file: [ALTER PAGE/SNIPPET](../alter-page/SKILL.md)
 

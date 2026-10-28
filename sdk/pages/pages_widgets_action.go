@@ -415,6 +415,43 @@ type SetTaskOutcomeClientAction struct {
 
 func (SetTaskOutcomeClientAction) isClientAction() {}
 
+// OpenUserTaskClientAction is Studio Pro's "Show user task page": it opens the
+// page of the user task in the enclosing data container. AssignOnOpen is
+// "Auto-assign"; OpenWhenAssigned is "Who can open", true for "Users with
+// access" and false for "Assigned user". Nil leaves either unwritten, for a
+// project older than Mendix 9.20, which introduced both.
+type OpenUserTaskClientAction struct {
+	model.BaseElement
+	ActionExecution
+	AssignOnOpen     *bool `json:"assignOnOpen,omitempty"`
+	OpenWhenAssigned *bool `json:"openWhenAssigned,omitempty"`
+}
+
+func (OpenUserTaskClientAction) isClientAction() {}
+
+// OpenWorkflowClientAction is Studio Pro's "Show workflow admin page": it opens
+// the admin page of the workflow in the enclosing data container. DefaultPage
+// is a page qualified name, "" for none.
+type OpenWorkflowClientAction struct {
+	model.BaseElement
+	ActionExecution
+	DefaultPage string `json:"defaultPage,omitempty"`
+}
+
+func (OpenWorkflowClientAction) isClientAction() {}
+
+// CallWorkflowClientAction is Studio Pro's "Call workflow": it starts the
+// workflow with the enclosing data container's object as its context.
+type CallWorkflowClientAction struct {
+	model.BaseElement
+	ActionExecution
+	WorkflowName string            `json:"workflowName,omitempty"` // Qualified name e.g. "Module.Workflow"
+	ClosePage    bool              `json:"closePage"`
+	Confirmation *ConfirmationInfo `json:"confirmation,omitempty"`
+}
+
+func (CallWorkflowClientAction) isClientAction() {}
+
 // LinkType represents the type of link.
 type LinkType string
 

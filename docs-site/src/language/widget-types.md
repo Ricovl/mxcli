@@ -470,8 +470,27 @@ ACTIONBUTTON btnDelete (Caption: 'Delete', Action: DELETE, ButtonStyle: Danger)
 | `OPEN LINK 'https://…'` | Open a web address |
 | `SIGN OUT` | Sign the user out |
 | `COMPLETE TASK 'Outcome'` | Complete a workflow user task |
+| `OPEN USER TASK` | Open the user task's page (Studio Pro's "Show user task page") |
+| `OPEN WORKFLOW with (DefaultPage: Module.Page)` | Open the workflow's admin page, or `DefaultPage` when the workflow overrides none ("Show workflow admin page") |
+| `CALL WORKFLOW Module.Workflow` | Start a workflow with the data container's object as its context |
 
 The snake-case spellings (`SAVE_CHANGES`, `SHOW_PAGE`, …) and `MICROFLOW …` without `CALL` are deprecated aliases (MDL-DEPR020).
+
+The workflow events take their own settings in the `with ( … )` list:
+`complete task` takes `ClosePage` and `Commit` (both default `true`), `call
+workflow` takes `ClosePage` (default `true`) and a `Confirmation`, `open user
+task` takes `AssignOnOpen` (Studio Pro's "Auto-assign", default `true`) and
+`OpenWhenAssigned` (`true` is "Who can open: Users with access", default
+`false`), and `open workflow` requires `DefaultPage` (without it Mendix reports
+CE1834). `open user task` must sit inside a data container of
+`System.WorkflowUserTask` and `open workflow` inside one of `System.Workflow`, or
+mx check reports CE1843. A task inbox opens each task from its row:
+
+```sql
+DATAGRID dgTasks (DataSource: DATABASE FROM System.WorkflowUserTask, onClick: OPEN USER TASK) {
+  COLUMN (Attribute: Name, Caption: 'Task')
+}
+```
 
 **Button styles:**
 

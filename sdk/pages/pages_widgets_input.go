@@ -26,6 +26,22 @@ func CanonicalReadOnlyStyle(s string) (string, bool) {
 	return "", false
 }
 
+// KeyboardTypes are the members of a text box's "Keyboard type", the keyboard
+// a native app opens for it (Forms$TextBox.KeyboardType, mendixmodelsdk; Studio
+// Pro's default is Default).
+var KeyboardTypes = []string{"Default", "NumberPad", "DecimalPad", "EmailAddress", "PhonePad", "URL"}
+
+// CanonicalKeyboardType matches s case-insensitively against KeyboardTypes and
+// returns the member as Mendix spells it.
+func CanonicalKeyboardType(s string) (string, bool) {
+	for _, v := range KeyboardTypes {
+		if strings.EqualFold(strings.TrimSpace(s), v) {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 // WidgetVariable is an input widget's SourceVariable: the Forms$PageVariable
 // that names which object the widget's attribute is read from when that is not
 // simply the enclosing data context. Studio Pro stores a widget-scoped one —
@@ -50,6 +66,10 @@ type TextBox struct {
 	Placeholder       *model.Text        `json:"placeholder,omitempty"`
 	MaxLength         int                `json:"maxLength,omitempty"`
 	IsPassword        bool               `json:"isPassword,omitempty"`
+	// KeyboardType is one of KeyboardTypes; empty writes Default. It was
+	// hard-coded, so a rewrite reset a native text box's keyboard
+	// (ako/mxcli#1209).
+	KeyboardType string `json:"keyboardType,omitempty"`
 	// ReadOnlyStyle: Inherit, Control or Text, as on CheckBox. Empty writes
 	// Studio Pro's default, Inherit (ako/mxcli#977).
 	ReadOnlyStyle string `json:"readOnlyStyle,omitempty"`

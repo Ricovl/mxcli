@@ -465,6 +465,16 @@ type WidgetPropertyDeclarer interface {
 	DeclaresProperty(propertyKey string) bool
 }
 
+// WidgetEnumerationDeclarer is implemented by a WidgetObjectBuilder that holds
+// the widget's property schema, and so can name the keys an enumeration
+// property declares — nil for a property that is not an enumeration. The
+// widget compares its keys exactly, so the engine writes an authored value as
+// the declared key it matches (ako/mxcli#854). Optional, like
+// WidgetPropertyDeclarer.
+type WidgetEnumerationDeclarer interface {
+	EnumerationKeys(propertyKey string) []string
+}
+
 // ColumnHiddenPropertyResetter is implemented by a PageMutator that can bring a
 // Data grid 2 column back in line with its widget's visibility rules after a
 // SET: every primitive property a rule now hides goes back to the default the
@@ -496,6 +506,9 @@ type PluggablePropertyScope struct {
 	DataSource string // the linked datasource property key, "" when linked to none
 	Linked     SourceScope
 	Enclosing  SourceScope
+	// EnumKeys are the keys an Enumeration-kind property declares, so the
+	// executor can write a value as the key it names (ako/mxcli#854).
+	EnumKeys []string
 }
 
 // PluggablePropertyScoper is implemented by a PageMutator that can describe a

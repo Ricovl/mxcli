@@ -43,7 +43,7 @@ Keywords are case-insensitive, and lowercase is canonical: `describe` writes the
 
 ## One Spelling per Keyword
 
-Each keyword has one spelling, and a page action uses the words a microflow uses: `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `call microflow M.F`, `call nanoflow M.F`. A validation message is `error message '…'` (after `not null`, `unique`, `required`, in a validation rule and after `on delete restrict`); a delete behaviour is the SQL referential action, `on delete cascade` / `restrict` / `set null`; a reference set's type is `ReferenceSet`; a REST call that returns nothing says `returns nothing`.
+Each keyword has one spelling, and a page action uses the words a microflow uses: `show page`, `save changes`, `cancel changes`, `close page`, `create object`, `delete`, `open link`, `sign out`, `complete task`, `open user task`, `open workflow`, `call microflow M.F`, `call nanoflow M.F`, `call workflow M.WF`. A validation message is `error message '…'` (after `not null`, `unique`, `required`, in a validation rule and after `on delete restrict`); a delete behaviour is the SQL referential action, `on delete cascade` / `restrict` / `set null`; a reference set's type is `ReferenceSet`; a REST call that returns nothing says `returns nothing`.
 
 ## One Verb per Job
 

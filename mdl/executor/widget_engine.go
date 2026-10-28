@@ -127,6 +127,10 @@ type WidgetDefinition struct {
 	// package declares, system ones included; nil when unknown — no project,
 	// or no package for the widget. Validation-only (mendixlabs/mxcli#1618).
 	declaredKeys map[string]bool
+	// enumKeys maps each enumeration property's key (lower-cased) to the keys
+	// the project's INSTALLED package declares for it; nil when unknown.
+	// Validation-only (ako/mxcli#854) — exec reads them from the Type it writes.
+	enumKeys map[string][]string
 }
 
 // PropertyMapping maps an MDL source (attribute, association, literal, etc.)
@@ -309,6 +313,11 @@ type PluggableWidgetEngine struct {
 	// always been; more than one means it names nothing in particular, and the
 	// keys here are what the refusal offers instead. nil outside a build.
 	currentDataSourceKeys []string
+
+	// enumReported records the undeclared enumeration values already reported
+	// under mdl 0, by widget, key and value, so one is warned about once
+	// (widget_enum_value.go).
+	enumReported map[string]bool
 }
 
 // NewPluggableWidgetEngine creates a new engine with the given backend and page builder.
@@ -432,6 +441,13 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		}
 		if err := refuseUndeclaredMappedKey(builder, def, mapping, ctx, w); err != nil {
 			return nil, err
+		}
+		// An enumeration takes one of its declared keys, written as the key
+		// (ako/mxcli#854) — see widget_enum_value.go.
+		if mapping.Operation == "primitive" {
+			if ctx.PrimitiveVal, err = e.enumerationValue(builder, def, w, mapping.PropertyKey, ctx.PrimitiveVal); err != nil {
+				return nil, err
+			}
 		}
 
 		if err := e.applyOperation(builder, mapping.Operation, mapping.PropertyKey, ctx); err != nil {
@@ -738,9 +754,14 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 			}
 			builder.SetSelection(propName, canonical)
 		default:
-			// Known non-attribute types: always use primitive
+			// Known non-attribute types: always use primitive — an enumeration
+			// as the declared key it names (ako/mxcli#854).
 			if entry.ValueType != "" && entry.ValueType != "Attribute" {
-				builder.SetPrimitive(propName, strVal)
+				value, err := e.enumerationValue(builder, def, w, propName, strVal)
+				if err != nil {
+					return nil, err
+				}
+				builder.SetPrimitive(propName, value)
 				continue
 			}
 			// Legacy routing for properties without ValueType info

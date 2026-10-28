@@ -14,6 +14,7 @@ sources:
   - cmd/mxcli/testmain_test.go
   - mdl-examples/doctype-tests/
   - mdl/executor/doctype_version_gating_test.go
+  - modelsdk/canon/versionshape.go
 ---
 
 > **Do not duplicate**: each platform call's correct form lives in the code and
@@ -77,6 +78,18 @@ second hole of the same kind: its lowest 11.x is 11.6.8, past both workflow
 boundaries (11.1 and 11.3). The full workflow script still fails on 11.0 and 11.1
 for reasons unrelated to #1754, and nothing runs there. When a script needs a
 gate, split out what the older versions can hold rather than gating the file.
+
+**What lives on those versions is mostly one fact in an older shape.** The
+workflow's implicit start and end, and a 9.24 page's design properties, data
+view editability, data view parameter and placeholder (#1209), are the same
+facts the current shape holds, stored differently. The property floor sees
+keys, not facts. It refuses the newer key where the type declares it, and misses
+it entirely where an abstract supertype does, because the generated tables carry
+no inheritance. So no older-version test noticed, and every reader and writer
+knew one shape. The remedy that covers every writer is to lower at the one hook
+every unit write passes (`canon.LowerToProjectShape`, before the floor), and to
+read both shapes. A starter app is the cheapest source of the older shape's real
+bytes: `mxcli new --version 9.24.30.51827` authored by Studio Pro.
 
 **mxcli sometimes generates the environment it then fails in.** The non-root
 devcontainer that could not provision PostgreSQL was scaffolded by `mxcli new` —

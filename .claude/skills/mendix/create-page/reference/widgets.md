@@ -582,6 +582,20 @@ combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyMod
 -- association mode (expression caption: optionsSourceDatabaseCaptionType /
 -- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
 -- Multi` selects several and hides both the target and the value attribute.
+
+-- Events, in every mode. `OnChange:` is the change action (the mode's own slot:
+-- onChangeEvent, or onChangeDatabaseEvent in database mode); the other three
+-- are named by their key. onChangeFilterInputEvent fires as the user types.
+combobox cbCountry (label: 'Country', attribute: Country,
+  OnChange: call microflow MyModule.ACT_CountryChanged,
+  onEnterEvent: call nanoflow MyModule.NAV_Focus, onLeaveEvent: call nanoflow MyModule.NAV_Blur,
+  onChangeFilterInputEvent: call microflow MyModule.ACT_Search)
+```
+
+**BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives
+the scanned value; `onDetect:` runs once a code is detected.
+```sql
+barcodescanner bsCode (attribute: Code, onDetect: call microflow MyModule.ACT_Scanned)
 ```
 
 ### DataView with Form Layout
@@ -676,6 +690,14 @@ gallery cards (datasource: database Module.Product, selection: Single, onClickTr
 }
 ```
 `onSelectionChange:` and `onConfigurationChange:` take an action the same way.
+
+**An enumeration setting takes one of the widget's keys** — `onClickTrigger`
+is `single` or `double`, `pagination` is `buttons`, `virtualScrolling` or
+`loadMore`; `describe widget type <keyword>` lists every property's keys. Any
+case is accepted and written as the key (the widget compares keys exactly: a
+stored `Double` matched neither trigger, so the row action never ran). A value
+the widget declares no key for is refused under `mdl 1;` (MDL-WIDGET08), and
+written as given with the MDL-V1-WIDGETENUM warning without the header.
 
 ### Filter Widgets
 

@@ -567,6 +567,11 @@ func (pb *pageBuilder) buildTextBoxV3(w *ast.WidgetV3) (*pages.TextBox, error) {
 	}
 	tb.ReadOnlyStyle = tbStyle
 
+	// KeyboardType; unset writes Default (ako/mxcli#1209).
+	if tb.KeyboardType, err = textBoxKeyboardType(w); err != nil {
+		return nil, err
+	}
+
 	// Handle OnChange (the "On change" client action)
 	if err := pb.applyOnChangeV3(w, &tb.OnChangeAction); err != nil {
 		return nil, err

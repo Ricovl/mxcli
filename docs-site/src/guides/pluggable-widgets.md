@@ -68,10 +68,13 @@ Mendix 11.12, upgrading Data Widgets 3.4 → 3.11.3:
 |---|---|---|---|
 | a real mxcli-built app | 0 errors | 36 CE0463 (7 mxcli-authored, 29 Studio Pro's own) | 0 errors |
 
-mxcli's equivalent, `mxcli widget sync`, is partial today (see
-[below](#reconciling-stored-widgets-after-a-package-upgrade-mxcli-widget-sync));
-for the rest, run the update in Studio Pro. Avoid `mx update-widgets` on an MPR v2
-project — it collapses `mprcontents/` back to the single-file v1 layout.
+Apply that update with `mxcli fix widgets -p app.mpr`: it runs Mendix's own `mx
+update-widgets` and writes the result back in the MPR v2 layout (see
+[Repairing the model](marketplace.md#repairing-the-model-mxcli-fix)). Do not run
+bare `mx update-widgets` on an MPR v2 project — it collapses `mprcontents/` back to
+the single-file v1 layout. Studio Pro's "Update all widgets" does the same job.
+`mxcli widget sync` reconciles schemas in mxcli's own code and is partial today (see
+[below](#reconciling-stored-widgets-after-a-package-upgrade-mxcli-widget-sync)).
 
 **Re-running a page's description does not upgrade its widgets either.** A
 `create or modify` (or `create or replace`) of a stored page, snippet or layout
@@ -81,7 +84,15 @@ changes keeps every property the statement does not change, so editing a column
 caption leaves the other columns, the row click and the grid's data source as
 they were. (A widget whose data context the statement changes is rebuilt from
 mxcli's template instead, since its stored bindings no longer apply.) So a widget
-stays at its stored package version until you sync it.
+stays at its stored package version until you update it with `mxcli fix widgets`.
+
+This changed during the beta. Earlier builds rebuilt every pluggable widget of a
+rewritten page from the installed `.mpk`, so re-running `describe` output also
+upgraded it — and usually cleared its CE0463 — while silently resetting whatever the
+statement could not say (a specialized column binding, a row click). If a script
+relied on that side effect to clear CE0463, run `mxcli fix widgets` instead;
+`mxcli docker check` passing is not enough, because it updates the widgets of a
+temporary copy only (`--no-update-widgets` checks the project as stored).
 
 **Two widgets do not yet author cleanly against Data Widgets 3.10+.** Freshly created
 `gallery` and `dropdownfilter` widgets produce CE0463 on those packages; `datagrid2`,
@@ -187,9 +198,11 @@ Everything above keeps a widget correct **as it is authored**. When you later up
 the widget package, the instances already stored in your pages go stale and Mendix
 reports CE0463 on each one. Studio Pro fixes this with "Update all widgets"; mxbuild
 has `mx update-widgets`, which works but **destroys `mprcontents/`** on an MPR v2
-project, collapsing it to a single-file v1 layout.
+project, collapsing it to a single-file v1 layout. `mxcli fix widgets` runs it and
+restores the v2 layout, and is the complete fix.
 
-`mxcli widget sync` is the equivalent that preserves the v2 layout:
+`mxcli widget sync` is the alternative that does the reconciliation in mxcli's own
+code:
 
 ```bash
 mxcli widget sync -p app.mpr --dry-run     # preview; names every property

@@ -4,6 +4,7 @@
   "templateFile": "barcodescanner.json",
   "defaultEditable": "Always",
   "propertyMappings": [
-    {"propertyKey": "datasource", "source": "Attribute", "operation": "attribute"}
+    {"propertyKey": "datasource", "source": "Attribute", "operation": "attribute"},
+    {"propertyKey": "onDetect", "operation": "action"}
   ]
 }

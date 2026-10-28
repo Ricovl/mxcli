@@ -142,7 +142,14 @@ func normalizePropertySetsFor(pv *version.ProjectVersion, unitID string, content
 		return contents, nil
 	}
 	v := mversion.Version{Major: pv.MajorVersion, Minor: pv.MinorVersion, Patch: pv.PatchVersion}
-	stripped, err := canon.StripUndeclaredProperties(contents, &v)
+	// Properties whose shape changed at a version are written in the project's
+	// shape first, so the floor sees the keys this version declares
+	// (ako/mxcli#1209).
+	lowered, err := canon.LowerToProjectShape(contents, &v)
+	if err != nil {
+		return nil, fmt.Errorf("unit %s: %w", unitID, err)
+	}
+	stripped, err := canon.StripUndeclaredProperties(lowered, &v)
 	if err != nil {
 		return nil, fmt.Errorf("unit %s: %w", unitID, err)
 	}

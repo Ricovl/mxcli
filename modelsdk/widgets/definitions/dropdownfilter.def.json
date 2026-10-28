@@ -5,6 +5,7 @@
   "defaultEditable": "Always",
   "propertyMappings": [
     {"propertyKey": "attrChoice", "value": "linked", "operation": "primitive"},
-    {"propertyKey": "attr", "source": "FirstAttribute", "operation": "attribute"}
+    {"propertyKey": "attr", "source": "FirstAttribute", "operation": "attribute"},
+    {"propertyKey": "onChange", "source": "OnChange", "operation": "action"}
   ]
 }

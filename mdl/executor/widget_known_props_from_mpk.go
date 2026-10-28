@@ -73,10 +73,18 @@ func enrichKnownPropertiesFromMPK(r *WidgetRegistry, projectPath string) {
 		}
 		var keys []string
 		def.declaredKeys = make(map[string]bool, len(props))
+		def.enumKeys = map[string][]string{}
 		for _, p := range props {
 			def.declaredKeys[strings.ToLower(p.Key)] = true
 			if !p.IsSystem {
 				keys = append(keys, p.Key)
+			}
+			if p.Type == "enumeration" && len(p.EnumValues) > 0 {
+				ks := make([]string, 0, len(p.EnumValues))
+				for _, ev := range p.EnumValues {
+					ks = append(ks, ev.Key)
+				}
+				def.enumKeys[strings.ToLower(p.Key)] = ks
 			}
 		}
 		addKnownProperties(def, keys)
