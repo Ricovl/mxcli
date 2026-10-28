@@ -12,6 +12,8 @@ sources:
   - cmd/mxcli/docker/session_linux.go
   - cmd/mxcli/docker/ensuredb.go
   - cmd/mxcli/testmain_test.go
+  - mdl-examples/doctype-tests/
+  - mdl/executor/doctype_version_gating_test.go
 ---
 
 > **Do not duplicate**: each platform call's correct form lives in the code and
@@ -62,6 +64,19 @@ and it got there partly by accident, because the version resolver substitutes an
 cached mxbuild for the test's requested one. "No report in two years" was not
 evidence that the path worked; it was evidence that nobody on those versions used
 it.
+
+**A whole-file `@version` gate is a coverage hole, not a skip.** The doctype
+gate runs each script on every matrix version, but a script gated `11.0+` as a
+whole writes nothing on the 10.24 leg. That gate is usually set because of one
+statement, so it also hides every other construct in the file. It has hidden a
+load failure twice. Consumed REST clients wrote a type Mendix 10 lacks, until
+`06c-…-mendix10` was split out. Every workflow written below 11.3 was broken
+(#1754), until `24b-…-mendix10` was split out. The first run of the 10.0+ script
+also found a third gap on its first try: 10.24's property set. The matrix has a
+second hole of the same kind: its lowest 11.x is 11.6.8, past both workflow
+boundaries (11.1 and 11.3). The full workflow script still fails on 11.0 and 11.1
+for reasons unrelated to #1754, and nothing runs there. When a script needs a
+gate, split out what the older versions can hold rather than gating the file.
 
 **mxcli sometimes generates the environment it then fails in.** The non-root
 devcontainer that could not provision PostgreSQL was scaffolded by `mxcli new` —

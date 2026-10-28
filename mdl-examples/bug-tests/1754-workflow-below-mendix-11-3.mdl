@@ -1,0 +1,55 @@
+mdl 1;
+-- ako/mxcli#1754 — every workflow mxcli wrote below Mendix 11.3.0 was broken
+-- while `mxcli check` and `exec` passed:
+--   10.24, 11.0: the project no longer loads — TypeCacheUnknownTypeException
+--                for Workflows$StartWorkflowActivity (introduced in 11.1.0);
+--   11.1, 11.2:  CE6671 "An end activity can only be placed at the end of a
+--                path." and CE6689 "The 'Workflow end' cannot be reached …":
+--                those versions keep the main flow's start and end implicit.
+-- Below 11.1 every activity also carried RelativeMiddlePoint and Size, which
+-- Workflows$WorkflowActivity declares from 11.1.0.
+--
+-- Repro: `mxcli new App --version 10.24.24` (or 11.0.0, 11.1.0), exec this,
+-- then `mxcli docker check -p App.mpr`. After the fix: the same errors as the
+-- blank app on every version. The header note is the workflow's own
+-- Annotation below 11.3 and the start activity's from 11.3, and `describe
+-- workflow` prints it as `annotation '…'` either way. A branch's
+-- `end workflow` keeps its End on every version.
+
+create module WfProbe;
+create persistent entity WfProbe.Item ( Title: String(100), Total: Integer );
+
+create microflow WfProbe.ACT_Step ($WorkflowContext: WfProbe.Item)
+begin
+  log info node 'WfProbe' 'step';
+end;
+
+create microflow WfProbe.ACT_Other ($WorkflowContext: WfProbe.Item)
+begin
+  log info node 'WfProbe' 'other';
+end;
+
+create workflow WfProbe.WF_Min
+  parameter $WorkflowContext: WfProbe.Item
+  annotation 'Approve orders'
+begin
+  call microflow WfProbe.ACT_Step;
+  decision $WorkflowContext/Total > 1000
+    outcomes
+      true -> { call microflow WfProbe.ACT_Other; }
+      false -> { end workflow; }
+  ;
+  parallel split
+    path 1 { call microflow WfProbe.ACT_Other; }
+    path 2 { }
+  ;
+end workflow;
+
+-- An inserted activity is serialized on its own: it carried RelativeMiddlePoint
+-- and Size below 11.1 too.
+alter workflow WfProbe.WF_Min {
+  insert after ACT_Step { call microflow WfProbe.ACT_Other; }
+};
+
+-- Below 11.3 the header note is the workflow's own: there is no start activity.
+alter workflow WfProbe.WF_Min { set (Annotation: 'Approve large orders'); };

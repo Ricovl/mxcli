@@ -160,9 +160,10 @@ func checkNoDroppedWorkflowConstructs(ctx *ExecContext, workflowID model.ID, qua
 	// describe dropped them, so a rewrite from an older describe output would
 	// delete every one — and a branch that ended the workflow would silently
 	// fall through into the main flow instead. The main flow's own End is not
-	// counted: the builder always writes it.
+	// counted when it is stored: below Mendix 11.3 it is not, and subtracting
+	// it regardless hid one branch End (ako/mxcli#1754).
 	// An event sub-process's closing End is implicit too, like the main flow's.
-	if storedEnds := countRawWorkflowNodesExact(raw, "Workflows$EndWorkflowActivity") - 1 - rawImplicitSubProcessEnds(raw); storedEnds > 0 {
+	if storedEnds := countRawWorkflowNodesExact(raw, "Workflows$EndWorkflowActivity") - rawMainFlowEnd(raw) - rawImplicitSubProcessEnds(raw); storedEnds > 0 {
 		if authored := countAuthoredEnds(authoredActs); authored < storedEnds {
 			return mdlerrors.NewUnsupported(fmt.Sprintf(
 				"workflow %s has %d stored `end workflow` inside its branches but this statement declares %d — "+
@@ -721,6 +722,22 @@ func rawEventSubProcessesWithoutStart(raw map[string]any) int {
 
 // rawImplicitSubProcessEnds counts stored event sub-processes whose flow closes
 // with an End — the End a statement does not write, because the builder adds it.
+// rawMainFlowEnd is 1 when the main flow closes with a stored End — from
+// Mendix 11.3 it does; below, the start and the end are implicit.
+func rawMainFlowEnd(raw map[string]any) int {
+	flow, _ := raw["Flow"].(map[string]any)
+	acts := rawList(flow["Activities"])
+	if len(acts) == 0 {
+		return 0
+	}
+	if last, ok := acts[len(acts)-1].(map[string]any); ok {
+		if t, _ := last["$Type"].(string); t == "Workflows$EndWorkflowActivity" {
+			return 1
+		}
+	}
+	return 0
+}
+
 func rawImplicitSubProcessEnds(raw map[string]any) int {
 	n := 0
 	for _, acts := range rawSubProcessActivities(raw) {

@@ -406,6 +406,14 @@ func TestWorkflowRewrite_CountsAnEventSubProcessOnce(t *testing.T) {
 // end-of-path marker, which must not be mistaken for an End.
 func storedWorkflowWithEnds(t *testing.T, nested int) *ExecContext {
 	t.Helper()
+	return storedWorkflowWithEndsShaped(t, nested, true)
+}
+
+// storedWorkflowWithEndsShaped is storedWorkflowWithEnds with the main flow's
+// start and closing End stored or not: below Mendix 11.3 they are implicit, and
+// the main flow holds neither (ako/mxcli#1754).
+func storedWorkflowWithEndsShaped(t *testing.T, nested int, explicitStartAndEnd bool) *ExecContext {
+	t.Helper()
 	outcomes := make([]any, 0, nested)
 	for i := 0; i < nested; i++ {
 		outcomes = append(outcomes, map[string]any{
@@ -416,17 +424,20 @@ func storedWorkflowWithEnds(t *testing.T, nested int) *ExecContext {
 			},
 		})
 	}
+	activities := []any{
+		map[string]any{"$Type": "Workflows$SingleUserTaskActivity", "Outcomes": outcomes},
+		map[string]any{"$Type": "Workflows$EndOfParallelSplitPathActivity"},
+		map[string]any{"$Type": "Workflows$EndOfBoundaryEventPathActivity"},
+	}
+	if explicitStartAndEnd {
+		activities = append([]any{map[string]any{"$Type": "Workflows$StartWorkflowActivity"}}, activities...)
+		activities = append(activities, map[string]any{"$Type": "Workflows$EndWorkflowActivity"})
+	}
 	raw := map[string]any{
 		"$Type": "Workflows$Workflow",
 		"Flow": map[string]any{
-			"$Type": "Workflows$Flow",
-			"Activities": []any{
-				map[string]any{"$Type": "Workflows$StartWorkflowActivity"},
-				map[string]any{"$Type": "Workflows$SingleUserTaskActivity", "Outcomes": outcomes},
-				map[string]any{"$Type": "Workflows$EndOfParallelSplitPathActivity"},
-				map[string]any{"$Type": "Workflows$EndOfBoundaryEventPathActivity"},
-				map[string]any{"$Type": "Workflows$EndWorkflowActivity"},
-			},
+			"$Type":      "Workflows$Flow",
+			"Activities": activities,
 		},
 	}
 	mb := &mock.MockBackend{
@@ -470,6 +481,24 @@ begin
   user task T 'c' page M.P outcomes 'Reject' { } 'Approve' { };
 end workflow;`)
 	if err := checkNoDroppedWorkflowConstructs(storedWorkflowWithEnds(t, 0), "wf1", "M.W", stmt); err != nil {
+		t.Fatalf("no nested End is stored, so nothing can be dropped, got %v", err)
+	}
+}
+
+// Below Mendix 11.3 the main flow stores no closing End, so "every stored End
+// but one" undercounted the branch Ends by one: a workflow with one branch End
+// counted none, and a rewrite that dropped it went through (ako/mxcli#1754).
+func TestWorkflowRewrite_RefusesDroppingNestedEndWithoutAStoredMainEnd(t *testing.T) {
+	stmt := parseWorkflowStmt(t, `create or replace workflow M.W parameter $C: M.Ctx
+begin
+  user task T 'c' page M.P outcomes 'Reject' { } 'Approve' { };
+end workflow;`)
+	err := checkNoDroppedWorkflowConstructs(storedWorkflowWithEndsShaped(t, 1, false), "wf1", "M.W", stmt)
+	if err == nil || !strings.Contains(err.Error(), "end workflow") {
+		t.Fatalf("a rewrite that drops a stored nested End must be refused below 11.3 too, got %v", err)
+	}
+	// Control: with nothing nested there is nothing to drop.
+	if err := checkNoDroppedWorkflowConstructs(storedWorkflowWithEndsShaped(t, 0, false), "wf1", "M.W", stmt); err != nil {
 		t.Fatalf("no nested End is stored, so nothing can be dropped, got %v", err)
 	}
 }

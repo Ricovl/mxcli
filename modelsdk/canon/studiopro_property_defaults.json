@@ -108,5 +108,7 @@
   {"type":"Security$UserRole","key":"ManageableRoles","since":"10.24.24","seen":"11.15.0","value":{"v":[{"$numberInt":"1"}]}},
   {"type":"Workflows$InterruptingTimerBoundaryEvent","key":"Annotation","since":"11.6.8","seen":"11.15.0","value":{"v":null}},
   {"type":"Workflows$NonInterruptingTimerBoundaryEvent","key":"Annotation","since":"11.6.8","seen":"11.15.0","value":{"v":null}},
-  {"type":"Workflows$NonInterruptingTimerEventSubProcessStartActivity","key":"Recurrence","since":"11.15.0","seen":"11.15.0","value":{"v":null}}
+  {"type":"Workflows$NonInterruptingTimerEventSubProcessStartActivity","key":"Recurrence","since":"11.15.0","seen":"11.15.0","value":{"v":null}},
+  {"type":"Workflows$Workflow","key":"UsertaskOnStateChangeEvent","since":"10.24.24","until":"10.25.0","seen":"10.24.24","value":{"v":null}},
+  {"type":"Workflows$Workflow","key":"WorkflowOnStateChangeEvent","since":"10.24.24","until":"10.25.0","seen":"10.24.24","value":{"v":null}}
 ]
