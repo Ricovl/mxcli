@@ -4,6 +4,8 @@
 
 ```text
 CREATE [ OR MODIFY ] NAVIGATION profile
+    [ APP TITLE 'text' ]
+    [ APP ICON { module.Collection.Image | NONE } ]
     HOME { PAGE module.PageName | MICROFLOW module.Flow | NANOFLOW module.Flow }
     [ HOME { PAGE | MICROFLOW | NANOFLOW } module.Name FOR UserRole ]
     [ LOGIN PAGE module.PageName ]
@@ -75,6 +77,12 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
 :   Optional role-specific home page. Users with this role see a different home page than the default. Multiple role-specific home pages can be specified. Each one replaces the stored home page of its role only, and a role the statement does not mention keeps its home page.
 
     The role is a **user role**, written as a bare name (`FOR Administrator`). User roles are project-level and have no module part. A module-qualified name here — a module role, which often shares the name — produces a project Mendix cannot load: `StorageLoadException: … is not a valid UserRoleIdentifier`, raised before checking runs. `mxcli check --references` refuses it.
+
+`APP TITLE 'text'`
+:   Studio Pro's *Application title*: the prefix of every browser tab, which reads `Mendix - <page title>` in a new project until it is set. The text is written as the title's item in the project's **default language**, as a menu caption is, and the title's other languages are kept; translate it with [`CREATE OR MODIFY TRANSLATIONS`](../../language/translations.md) without `IN <Module>`, since the navigation is a project-level document. Omitting the clause keeps the stored title. DESCRIBE NAVIGATION prints the stored title, Studio Pro's default `'Mendix'` included.
+
+`APP ICON module.Collection.Image` / `APP ICON NONE`
+:   Studio Pro's *Application icon*, an image from an image collection, resolved like any image reference: `mxcli check --references` reports one that does not exist and `exec` refuses it before writing. `NONE` clears it. Omitting the clause keeps the stored icon.
 
 `LOGIN PAGE module.PageName`
 :   Optional custom login page. A profile with no login page uses the default system login page. Omitting the clause keeps the stored login page.
@@ -173,6 +181,8 @@ Full navigation with role-specific homes and menus:
 
 ```sql
 CREATE OR MODIFY NAVIGATION Responsive
+    APP TITLE 'Order Desk'
+    APP ICON MyModule.Images.Logo
     HOME PAGE MyModule.Home_Web
     HOME PAGE MyModule.AdminHome FOR Administrator
     LOGIN PAGE Administration.Login
@@ -189,8 +199,8 @@ CREATE OR MODIFY NAVIGATION Responsive
 
 Native mobile navigation. A native profile's home is a page or a nanoflow
 (`HOME NANOFLOW`); mxcli writes its home pages and `SYNC` block only, and refuses a
-`{ }` menu block (the bottom bar), `LOGIN PAGE`, `NOT FOUND PAGE`, `ON SYNC ERROR` and
-`PROGRESSIVE WEB APP` on one — set those in Studio Pro. DESCRIBE lists the bottom bar as comments:
+`{ }` menu block (the bottom bar), `LOGIN PAGE`, `NOT FOUND PAGE`, `ON SYNC ERROR`,
+`PROGRESSIVE WEB APP`, `APP TITLE` and `APP ICON` on one — set those in Studio Pro. DESCRIBE lists the bottom bar as comments:
 
 ```sql
 CREATE OR MODIFY NAVIGATION NativePhone
