@@ -88,7 +88,7 @@ func keysOf(m map[string]string) []string {
 // for keys the explicit-property pass cannot write. The expression caption's two
 // keys ARE written (measured: exec persists both and mx check is clean), and
 // DESCRIBE now emits them, so a warning would tell the reader their own
-// round-tripped caption is dropped. A widgets-typed slot is still not written.
+// round-tripped caption is dropped.
 func TestWidget06_OnlyForKeysTheExplicitPassCannotWrite(t *testing.T) {
 	reg := LoadWidgetRegistry("")
 	if reg == nil {
@@ -114,7 +114,10 @@ func TestWidget06_OnlyForKeysTheExplicitPassCannotWrite(t *testing.T) {
 			t.Errorf("%s is written by the explicit pass; MDL-WIDGET06 is false for it", k)
 		}
 	}
-	if !strings.Contains(joined, "optionsSourceAssociationCustomContent") {
-		t.Errorf("a widgets-typed slot is not written; MDL-WIDGET06 must still fire for it (got %q)", joined)
+	// The custom content is a slot since ako/mxcli#1744: a value under its key
+	// is MDL-WIDGET27 (TestComboBoxCustomContent1744_SlotKeyAsValueIsNotWritten),
+	// not a recognized-but-unpersisted key.
+	if strings.Contains(joined, "optionsSourceAssociationCustomContent") {
+		t.Errorf("a slot is reported as recognized-but-not-persisted: %q", joined)
 	}
 }

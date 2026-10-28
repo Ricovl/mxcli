@@ -652,6 +652,12 @@ func (e *PluggableWidgetEngine) Build(def *WidgetDefinition, w *ast.WidgetV3) (*
 		if !ok {
 			continue // not a known widget property key
 		}
+		// A widgets property holds widgets, written in its block; a scalar
+		// under its key went into the value's PrimitiveValue, which a widgets
+		// value never stores. MDL-WIDGET06 names the block (ako/mxcli#1744).
+		if entry.ValueType == "Widgets" {
+			continue
+		}
 		// Convert non-string values (bool, int, float) to string for property setting
 		var strVal string
 		switch v := propVal.(type) {

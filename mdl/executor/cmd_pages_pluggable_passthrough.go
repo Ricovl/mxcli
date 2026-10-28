@@ -121,8 +121,34 @@ func loadPluggablePassthrough(ctx *ExecContext, unitID model.ID, describe func()
 	}
 	for name, sp := range pt.byName {
 		sp.declared = declared[name]
+		sp.hidden = undescribedContent(sp.widgetID, sp.hidden, sp.declared)
 	}
 	return pt
+}
+
+// undescribedContent drops from hidden the content describe printed as a block
+// of the widget — a combo box's custom content in the mode it is described in
+// (ako/mxcli#1744). A statement restates that content, so a rebuild writes it
+// rather than deleting it; what is left is content no statement can carry.
+func undescribedContent(widgetID string, hidden []rawHiddenContent, declared *ast.WidgetV3) []rawHiddenContent {
+	if declared == nil || len(hidden) == 0 {
+		return hidden
+	}
+	var out []rawHiddenContent
+	for _, hc := range hidden {
+		kw := mdlContainerForWidgetSlot(widgetID, hc.Property)
+		printed := false
+		for _, c := range declared.Children {
+			if c != nil && strings.EqualFold(c.Type, kw) {
+				printed = true
+				break
+			}
+		}
+		if !printed {
+			out = append(out, hc)
+		}
+	}
+	return out
 }
 
 // describedWidgets describes the stored document in the script's own language
@@ -258,17 +284,22 @@ func cloneBsonD(d bson.D) bson.D {
 	return out
 }
 
-// A rebuild that would delete content MDL cannot author (ako/mxcli#1648).
+// A rebuild that would delete content no statement can carry (ako/mxcli#1648).
 //
-// A combo box's custom content is widgets the combo box holds that describe
-// cannot print as MDL (MDL-WIDGET26) — only name, in a NOT SHOWN note. An
-// unchanged combo box keeps it, passed through above; a CHANGED one is rebuilt
-// from the template, the content is gone, and its type stays 'yes', because
-// describe prints that: "Replaced page", then mx check CE0642 "Property 'Custom
-// content' is required". The statement cannot have asked for the deletion — it
-// has no words for the content — so the rewrite is refused (ADR-0012: carry or
-// refuse, never drop), naming the widgets, as #1622 refuses for widgets MDL
-// cannot author.
+// A combo box's custom content used to be widgets describe could not print as
+// MDL — only name, in a NOT SHOWN note. An unchanged combo box kept it, passed
+// through above; a CHANGED one was rebuilt from the template, the content was
+// gone, and its type stayed 'yes', because describe prints that: "Replaced
+// page", then mx check CE0642 "Property 'Custom content' is required". The
+// statement could not have asked for the deletion — it had no words for the
+// content — so the rewrite is refused (ADR-0012: carry or refuse, never drop),
+// naming the widgets, as #1622 refuses for widgets MDL cannot author.
+//
+// Since ako/mxcli#1744 the content of the mode describe prints the combo box in
+// is a block of the description, so a statement restates it and a rebuild
+// writes it (undescribedContent drops it from the refusal). What is still
+// refused is content describe does not print: another mode's slot, or a mode
+// it cannot restate.
 //
 // Only the combo box: every other pluggable widget's slots are described, so a
 // widget the statement leaves out of one is a deletion the author wrote.
@@ -363,10 +394,10 @@ func hiddenContentRebuildError(widget string, hidden []rawHiddenContent) error {
 			strings.Join(named, ", "), widget, hc.Property)
 	}
 	return mdlerrors.NewUnsupported(fmt.Sprintf(
-		"%s would be rebuilt from this statement, which changes it, and its %s — %s, custom content MDL cannot "+
-			"author — would be deleted (Mendix then reports CE0642 \"Custom content is required\" while the content "+
-			"type stays set). Change %s with `alter page … { set (…) on %s; }`, which keeps the content, or %s",
-		widget, hc.Property, strings.Join(hc.Widgets, ", "), widget, widget, remedy))
+		"%s would be rebuilt from this statement, which changes it, and its %s — %s, custom content outside the "+
+			"mode describe prints %s in, which no statement restates — would be deleted. Change %s with "+
+			"`alter page … { set (…) on %s; }`, which keeps the content, or %s",
+		widget, hc.Property, strings.Join(hc.Widgets, ", "), widget, widget, widget, remedy))
 }
 
 // The raw-document helpers the content reader needs.

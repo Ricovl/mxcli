@@ -590,6 +590,19 @@ combobox cbCountry (label: 'Country', attribute: Country,
   OnChange: call microflow MyModule.ACT_CountryChanged,
   onEnterEvent: call nanoflow MyModule.NAV_Focus, onLeaveEvent: call nanoflow MyModule.NAV_Blur,
   onChangeFilterInputEvent: call microflow MyModule.ACT_Search)
+
+-- Custom content: show more than one attribute per option. The block is the
+-- MODE's slot — `optionssourceassociationcustomcontent` in association mode,
+-- `optionssourcedatabasecustomcontent` in database mode — and its widgets bind
+-- to the OPTION entity (here Customer), not to the object being edited.
+combobox cmbCustomer (label: 'Customer', Association: Order_Customer, datasource: database MyModule.Customer,
+  CaptionAttribute: Name, optionsSourceAssociationCustomContentType: 'yes') {
+  optionssourceassociationcustomcontent {
+    dynamictext txtOption (Content: '{1} ({2})', ContentParams: ({1} = Name, {2} = City))
+  }
+}
+-- WRONG: the other mode's block (MDL-WIDGET30 names the right one); any block
+-- on an enumeration combo box, which has no custom content.
 ```
 
 **BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives

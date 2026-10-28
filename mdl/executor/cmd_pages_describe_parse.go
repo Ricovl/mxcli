@@ -669,7 +669,11 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 					widget.ExplicitProperties = append(widget.ExplicitProperties, comboBoxDatabaseSelection(ctx, w)...)
 				}
 				widget.ExplicitProperties, widget.OmittedProps = withoutUndescribedComboBoxModes(widget.ExplicitProperties, widget.OmittedProps, database)
-				widget.HiddenContent = comboBoxHiddenContent(w)
+				// The custom content of the mode described, as the block that
+				// writes it, its widgets bound to the option entity
+				// (ako/mxcli#1744); content of any other slot is still named.
+				widget.ChildSlots = comboBoxCustomContent(ctx, w, comboBoxDescribedMode(&widget, database), ownEntity)
+				widget.HiddenContent = withoutDescribedContent(comboBoxHiddenContent(w), widget.ChildSlots)
 			}
 		}
 		// For pluggable Image widget, extract image-specific properties

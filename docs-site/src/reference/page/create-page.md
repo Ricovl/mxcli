@@ -72,7 +72,7 @@ The widget tree inside `{ ... }` defines the page content. Widgets are nested hi
 | `CHECKBOX` | Boolean toggle | `Label`, `Attribute` |
 | `RADIOBUTTONS` | Radio button group | `Label`, `Attribute` |
 | `DATEPICKER` | Date/time selector | `Label`, `Attribute` |
-| `COMBOBOX` | Dropdown selector | `Label`, `Attribute`; association mode adds `DataSource`, `CaptionAttribute`; database mode `optionsSourceDatabaseDataSource`, `CaptionAttribute`, `optionsSourceDatabaseValueAttribute` |
+| `COMBOBOX` | Dropdown selector | `Label`, `Attribute`; association mode adds `DataSource`, `CaptionAttribute`; database mode `optionsSourceDatabaseDataSource`, `CaptionAttribute`, `optionsSourceDatabaseValueAttribute`; custom content as the mode's body block (`optionssourceassociationcustomcontent { … }`, `optionssourcedatabasecustomcontent { … }`) |
 | `FILEMANAGER` | File upload/download, inside a data view on a `System.FileDocument` specialization | `Label`, `Type` (`Upload`, `Download`, `Both` default), `MaxFileSize` (MB, default 5), `AllowedExtensions`, `ShowFileInBrowser` |
 
 **Display Widgets**

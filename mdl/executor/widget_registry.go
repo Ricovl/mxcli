@@ -100,9 +100,7 @@ func NewWidgetRegistryWithOps(extraOps map[string]bool) (*WidgetRegistry, error)
 		}
 
 		def.MDLName = strings.ToLower(def.MDLName)
-		for i := range def.ChildSlots {
-			def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
-		}
+		lowerSlotContainers(&def)
 		reg.byMDLName[strings.ToUpper(def.MDLName)] = &def
 		reg.byWidgetID[def.WidgetID] = &def
 		reg.embeddedIDs[strings.ToUpper(def.MDLName)] = def.WidgetID
@@ -200,9 +198,7 @@ func (r *WidgetRegistry) loadDefinitionsFromDir(dir string) error {
 		}
 
 		def.MDLName = strings.ToLower(def.MDLName)
-		for i := range def.ChildSlots {
-			def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
-		}
+		lowerSlotContainers(&def)
 		upperName := strings.ToUpper(def.MDLName)
 		// A definition for a DIFFERENT widget must never take a built-in
 		// keyword: `widget init` used to name the native Image `image` and the
@@ -235,6 +231,22 @@ func (r *WidgetRegistry) loadDefinitionsFromDir(dir string) error {
 		r.byWidgetID[def.WidgetID] = &def
 	}
 	return nil
+}
+
+// lowerSlotContainers lower-cases every child slot's container keyword — the
+// definition's own and each mode's — which is how applyChildSlots looks a
+// child's keyword up. A mode's slots were left as written, so a mode-scoped
+// slot (a combo box's custom content, ako/mxcli#1744) spelled in upper case,
+// as every built-in definition spells its containers, matched no child.
+func lowerSlotContainers(def *WidgetDefinition) {
+	for i := range def.ChildSlots {
+		def.ChildSlots[i].MDLContainer = strings.ToLower(def.ChildSlots[i].MDLContainer)
+	}
+	for m := range def.Modes {
+		for i := range def.Modes[m].ChildSlots {
+			def.Modes[m].ChildSlots[i].MDLContainer = strings.ToLower(def.Modes[m].ChildSlots[i].MDLContainer)
+		}
+	}
 }
 
 // validateDefinitionOperations checks that all operation names in a definition

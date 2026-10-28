@@ -6,7 +6,6 @@
   "knownProperties": [
     "optionsSourceAssociationCaptionType",
     "optionsSourceAssociationCaptionExpression",
-    "optionsSourceAssociationCustomContent",
     "optionsSourceAssociationCustomContentType"
   ],
   "modes": [
@@ -23,6 +22,9 @@
         {"propertyKey": "onEnterEvent", "operation": "action"},
         {"propertyKey": "onLeaveEvent", "operation": "action"},
         {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
+      ],
+      "childSlots": [
+        {"propertyKey": "optionsSourceAssociationCustomContent", "mdlContainer": "OPTIONSSOURCEASSOCIATIONCUSTOMCONTENT", "operation": "widgets"}
       ]
     },
     {
@@ -39,6 +41,9 @@
         {"propertyKey": "onEnterEvent", "operation": "action"},
         {"propertyKey": "onLeaveEvent", "operation": "action"},
         {"propertyKey": "onChangeFilterInputEvent", "operation": "action"}
+      ],
+      "childSlots": [
+        {"propertyKey": "optionsSourceDatabaseCustomContent", "mdlContainer": "OPTIONSSOURCEDATABASECUSTOMCONTENT", "operation": "widgets"}
       ]
     },
     {

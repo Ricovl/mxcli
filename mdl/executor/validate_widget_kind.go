@@ -201,6 +201,13 @@ func declaredContainers(parentDef *WidgetDefinition) string {
 	for _, cs := range parentDef.ChildSlots {
 		names = append(names, strings.ToLower(cs.MDLContainer))
 	}
+	// A mode's slot is a container only in that mode (a combo box's custom
+	// content, ako/mxcli#1744), so it is named with it.
+	for i := range parentDef.Modes {
+		for _, cs := range parentDef.Modes[i].ChildSlots {
+			names = append(names, strings.ToLower(cs.MDLContainer)+" (in "+modeLabel(&parentDef.Modes[i])+")")
+		}
+	}
 	if len(names) == 0 {
 		return ", which declares no containers"
 	}
@@ -259,6 +266,10 @@ func packageInstalledFor(registry *WidgetRegistry, widgetID string) bool {
 // parentDeclaresSlot reports whether the parent declares a CHILD SLOT by this
 // name. Object lists alone are not the whole vocabulary of a widget body, and
 // treating a declared slot as undeclared would report correct MDL.
+//
+// A slot any MODE declares counts: it is a container of the widget, and whether
+// it is the right one for the mode the widget is built in is MDL-WIDGET30's
+// question (unroutedPluggableChildren), which can name the slot that is.
 func parentDeclaresSlot(parentDef *WidgetDefinition, keyword string) bool {
 	if parentDef == nil {
 		return false
@@ -266,6 +277,13 @@ func parentDeclaresSlot(parentDef *WidgetDefinition, keyword string) bool {
 	for _, cs := range parentDef.ChildSlots {
 		if strings.EqualFold(cs.MDLContainer, keyword) {
 			return true
+		}
+	}
+	for _, m := range parentDef.Modes {
+		for _, cs := range m.ChildSlots {
+			if strings.EqualFold(cs.MDLContainer, keyword) {
+				return true
+			}
 		}
 	}
 	return false

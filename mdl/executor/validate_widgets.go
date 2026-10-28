@@ -1902,6 +1902,23 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 	return out
 }
 
+// childSlotKeyword returns the block keyword of the child slot whose property
+// key is lower (any case), declared by def or by one of its modes; "" when
+// none is. A mode's slot counts: written as a value, a combo box's custom
+// content is MDL-WIDGET27 (ako/mxcli#1744), not a known-but-unmapped key.
+func childSlotKeyword(def *WidgetDefinition, lower string) string {
+	slots := append([]ChildSlotMapping(nil), def.ChildSlots...)
+	for _, m := range def.Modes {
+		slots = append(slots, m.ChildSlots...)
+	}
+	for _, cs := range slots {
+		if strings.EqualFold(cs.PropertyKey, lower) {
+			return strings.ToLower(cs.MDLContainer)
+		}
+	}
+	return ""
+}
+
 // mapsOwnKey reports whether a mapping of def (or of one of its modes) writes
 // the property named lower, the key itself lower-cased.
 func mapsOwnKey(def *WidgetDefinition, lower string) bool {

@@ -160,10 +160,11 @@ type rawHiddenContent struct {
 }
 
 // comboBoxHiddenContent reads a combo box's custom content off the stored
-// document: every top-level property holding widgets. A combo box has no
-// child slot MDL can write (MDL-WIDGET26), so each of them is content the
-// description leaves out — unlike a generic pluggable widget, whose slots
-// unreconstructedContainers reports only when DESCRIBE did not reproduce them.
+// document: every top-level property holding widgets. The content of the mode
+// the combo box is described in is printed as a block (comboBoxCustomContent,
+// ako/mxcli#1744); the caller drops that one (withoutDescribedContent), and
+// what is left — another mode's slot, or a mode describe cannot restate — is
+// content the description leaves out.
 func comboBoxHiddenContent(w map[string]any) []rawHiddenContent {
 	obj, ok := w["Object"].(map[string]any)
 	if !ok {
@@ -202,14 +203,14 @@ func comboBoxHiddenContent(w map[string]any) []rawHiddenContent {
 	return out
 }
 
-// writeHiddenContentNote names a combo box's custom content. Executed against
-// this page the content is kept while the combo box is left as stored — the
-// pluggable passthrough — and a statement that changes the combo box is refused
-// rather than delete it (ako/mxcli#1648); run anywhere else, it is left out.
-// `alter page … set` changes the combo box and keeps it.
+// writeHiddenContentNote names a combo box's custom content that is not
+// printed. Executed against this page the content is kept while the combo box
+// is left as stored — the pluggable passthrough — and a statement that changes
+// the combo box is refused rather than delete it (ako/mxcli#1648); run anywhere
+// else, it is left out. `alter page … set` changes the combo box and keeps it.
 func writeHiddenContentNote(out io.Writer, prefix, widget string, hidden []rawHiddenContent) {
 	for _, hc := range hidden {
-		fmt.Fprintf(out, "%s-- NOT SHOWN: %s's %s holds %s, custom content MDL cannot author.\n",
+		fmt.Fprintf(out, "%s-- NOT SHOWN: %s's %s holds %s, custom content outside the mode described here.\n",
 			prefix, widget, hc.Property, strings.Join(hc.Widgets, ", "))
 		fmt.Fprintf(out, "%s-- Executed on this page it is kept while %s is unchanged, and a change to %s is\n",
 			prefix, widget, widget)

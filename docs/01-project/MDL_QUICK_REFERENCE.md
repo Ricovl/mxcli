@@ -1657,7 +1657,7 @@ create page MyModule.Customer_Edit
 **Supported Widgets:**
 - Layout: `layoutgrid`, `row`, `column`, `container`, `customcontainer`
 - Input: `textbox`, `textarea`, `checkbox`, `radiobuttons`, `datepicker`, `combobox`
-  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode
+  - `combobox` modes: enumeration `(attribute: EnumAttr)`; association `(attribute: Assoc, datasource: database Mod.Target, CaptionAttribute: Name)`; database `(optionsSourceDatabaseDataSource: <source>, attribute: TargetAttr, CaptionAttribute: Name, optionsSourceDatabaseValueAttribute: ValueAttr)` — the datasource's key selects database mode, the generic `datasource:` association mode. Custom content (several attributes per option) is a body block of the mode: `{ optionssourceassociationcustomcontent { … } }` in association mode, `{ optionssourcedatabasecustomcontent { … } }` in database mode, its widgets bound to the option entity
 - Display: `dynamictext`, `datagrid`, `gallery`, `listview`, `image`, `staticimage`, `dynamicimage`
 
 ### List View specialization templates
