@@ -44,6 +44,17 @@ none (older mxcli wrote them without): the role's own $ID, the value a role
 mxcli creates gets — without it the build invents a random GUID each time and
 the runtime can only find the role's row by name. A second run writes nothing.
 
+The repair works from its own commit on: a merge whose base is an older
+revision still fails on every document that was incomplete there and that both
+branches changed. Run it once on the main branch, in a commit of its own, and
+branch from there. To get an older branch past such a merge: abort it (git
+merge --abort); list the documents with --dry-run on a checkout of the merge
+base; put the ones your branch changed back to their merge-base version (git
+checkout <base> -- <unit file>, then mxcli fix hashes --repair) and commit;
+merge again in Studio Pro; redo those edits. Never delete and re-create an
+entity, attribute or association to get past it: its GUID is the database's
+identity for it.
+
 A unit holding a value in a key the project's version does not declare is
 reported and left alone — dropping the value would change the model. Like every
 mxcli write, the repair is refused while Studio Pro has the project open.
