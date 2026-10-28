@@ -187,7 +187,7 @@ func TestCopyEveryAtlasLayoutKeepsEveryWidget(t *testing.T) {
 	if len(names) < 20 {
 		t.Fatalf("found only %d Atlas_Core layouts in the fixture: %v", len(names), names)
 	}
-	headers := 0
+	headers, sidebars := 0, 0
 	for _, name := range names {
 		out.Reset()
 		if err := exec.Execute(&ast.DescribeStmt{ObjectType: ast.DescribeLayout, Name: ast.QualifiedName{Module: "Atlas_Core", Name: name}}); err != nil {
@@ -232,6 +232,20 @@ func TestCopyEveryAtlasLayoutKeepsEveryWidget(t *testing.T) {
 				t.Errorf("%s: region %s ToggleMode = %q in the copy, Studio Pro stores %q", name, slot, cm[slot], want)
 			}
 		}
+		// Headline or Sidebar (ako/mxcli#1703): a copy of Atlas_SideBar was a
+		// Headline layout, with every key and every widget still matching.
+		ol, cl := storedScrollLayoutModes(t, exec, "Atlas_Core."+name), storedScrollLayoutModes(t, exec, "MyFirstModule.Copy_"+name)
+		if strings.Join(ol, ",") != strings.Join(cl, ",") {
+			t.Errorf("%s: scroll container LayoutMode %v in the copy, Studio Pro stores %v", name, cl, ol)
+		}
+		for _, m := range ol {
+			if m == "Sidebar" {
+				sidebars++
+			}
+		}
+	}
+	if sidebars == 0 {
+		t.Error("no Atlas_Core layout in the fixture is a Sidebar layout; the LayoutMode half of this test proves nothing")
 	}
 	if headers == 0 {
 		t.Error("no Atlas_Core layout in the fixture holds a Forms$Header; the header half of this test proves nothing")

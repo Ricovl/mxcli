@@ -4,6 +4,7 @@ package docker
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -102,6 +103,12 @@ type RunState struct {
 	Ended      time.Time `json:"ended,omitempty"`
 	// Error is why the run failed or stopped on its own.
 	Error string `json:"error,omitempty"`
+	// Reason is, for an app whose runtime stopped on its own, why — one line,
+	// from the runtime's log when it says ("trial licence time limit reached at
+	// 18:43:16 (runtime.log)"). It is written in the same update that sets
+	// phase stopped and ended, just before the run withdraws run-local.json, so
+	// a reader of either file sees one state (ako/mxcli#1542).
+	Reason string `json:"reason,omitempty"`
 	// Gen is the newest build generation started; Building says whether it is
 	// still in progress, and BuildingSource is the source mtime it is building.
 	Gen            int       `json:"gen"`
@@ -259,13 +266,20 @@ func (r *RunStateRecorder) Ready(url string, boot BuildOutcome) {
 
 // Exit records how the run ended: nil is a requested stop; an error before
 // readiness is a failed boot; an error after it is an app that stopped on its
-// own.
+// own — and when that is because the runtime stopped, why.
 func (r *RunStateRecorder) Exit(err error) {
 	r.update(func(s *RunState) {
 		s.Ended = r.now()
 		s.Building = false
 		if err != nil {
 			s.Error = err.Error()
+		}
+		var stopped *RuntimeStoppedError
+		if errors.As(err, &stopped) {
+			s.Reason = stopped.Reason
+			if s.Reason == "" {
+				s.Reason = "the Mendix runtime stopped on its own (its log does not say why)"
+			}
 		}
 		if s.Phase == PhaseStarting && err != nil {
 			s.Phase = PhaseFailed

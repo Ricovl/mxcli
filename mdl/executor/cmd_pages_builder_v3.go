@@ -405,6 +405,12 @@ func (pb *pageBuilder) buildWidgetV3(w *ast.WidgetV3) (pages.Widget, error) {
 	if err := checkWidgetHasName(w); err != nil {
 		return nil, err
 	}
+	// A property this widget does not take — `Caption:` on a textbox — was
+	// accepted and dropped (ako/mxcli#1698). Elements a parent builds itself
+	// (a region, a layout grid row) are judged where that parent reads them.
+	if err := refuseNativeWidgetProps(pb.ctx, nativeWidgetKindOf(w, nil), w); err != nil {
+		return nil, err
+	}
 
 	switch strings.ToLower(w.Type) {
 	case "dataview":
@@ -3314,6 +3320,18 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 			Name: w.Name,
 		},
 	}
+	// Headline or Sidebar: which regions run the full width (ako/mxcli#1703).
+	// It was neither read nor written, so a describe → exec copy of
+	// Atlas_SideBar came out a Headline layout.
+	if v := w.GetStringProp("LayoutMode"); v != "" {
+		mode, ok := pages.CanonicalScrollContainerLayoutMode(v)
+		if !ok {
+			return nil, mdlerrors.NewValidation(fmt.Sprintf(
+				"scrollcontainer %q: unknown LayoutMode %q (want %s)",
+				w.Name, v, strings.Join(pages.ScrollContainerLayoutModes, " or ")))
+		}
+		sc.LayoutMode = mode
+	}
 
 	seen := map[pages.ScrollContainerSlot]bool{}
 	for _, child := range w.Children {
@@ -3337,30 +3355,44 @@ func (pb *pageBuilder) buildScrollContainerV3(w *ast.WidgetV3) (pages.Widget, er
 		}
 		seen[slot] = true
 
-		toggleMode, ok := canonicalRegionToggleMode(child.GetStringProp("ToggleMode"))
-		if !ok {
-			return nil, mdlerrors.NewValidation(fmt.Sprintf(
-				"scrollcontainer %q: region %q: unknown ToggleMode %q (want %s)",
-				w.Name, slot, child.GetStringProp("ToggleMode"), strings.Join(regionToggleModes, ", ")))
-		}
-		region := &pages.ScrollContainerRegion{
-			BaseElement: model.BaseElement{ID: model.ID(types.GenerateID()), TypeName: "Forms$ScrollContainerRegion"},
-			Slot:        slot,
-			Class:       child.GetStringProp("Class"),
-			SizeMode:    child.GetStringProp("SizeMode"),
-			Size:        child.GetIntProp("Size"),
-			ToggleMode:  toggleMode,
-		}
-		for _, gc := range child.Children {
-			cw, err := pb.buildWidgetV3(gc)
-			if err != nil {
-				return nil, err
-			}
-			region.Widgets = append(region.Widgets, cw)
+		region, err := pb.buildScrollContainerRegionV3(w.Name, slot, child)
+		if err != nil {
+			return nil, err
 		}
 		sc.Regions = append(sc.Regions, region)
 	}
 	return sc, nil
+}
+
+// buildScrollContainerRegionV3 builds one region of the scroll container
+// named container. A region is not a widget: buildWidgetV3 never sees it, so
+// what it takes is judged here (ako/mxcli#1698).
+func (pb *pageBuilder) buildScrollContainerRegionV3(container string, slot pages.ScrollContainerSlot, w *ast.WidgetV3) (*pages.ScrollContainerRegion, error) {
+	if err := refuseNativeWidgetProps(pb.ctx, "scrollcontainer region", w); err != nil {
+		return nil, err
+	}
+	toggleMode, ok := canonicalRegionToggleMode(w.GetStringProp("ToggleMode"))
+	if !ok {
+		return nil, mdlerrors.NewValidation(fmt.Sprintf(
+			"scrollcontainer %q: region %q: unknown ToggleMode %q (want %s)",
+			container, slot, w.GetStringProp("ToggleMode"), strings.Join(regionToggleModes, ", ")))
+	}
+	region := &pages.ScrollContainerRegion{
+		BaseElement: model.BaseElement{ID: model.ID(types.GenerateID()), TypeName: "Forms$ScrollContainerRegion"},
+		Slot:        slot,
+		Class:       w.GetStringProp("Class"),
+		SizeMode:    w.GetStringProp("SizeMode"),
+		Size:        w.GetIntProp("Size"),
+		ToggleMode:  toggleMode,
+	}
+	for _, gc := range w.Children {
+		cw, err := pb.buildWidgetV3(gc)
+		if err != nil {
+			return nil, err
+		}
+		region.Widgets = append(region.Widgets, cw)
+	}
+	return region, nil
 }
 
 // buildLayoutHeaderV3 builds a phone or tablet layout's header bar
@@ -3387,6 +3419,10 @@ func (pb *pageBuilder) buildLayoutHeaderV3(w *ast.WidgetV3) (pages.Widget, error
 			return nil, mdlerrors.NewValidation(fmt.Sprintf("layoutheader %q: region %q given twice", w.Name, side))
 		}
 		seen[side] = true
+		// A header side stores nothing but its widgets (ako/mxcli#1698).
+		if err := refuseNativeWidgetProps(pb.ctx, "layoutheader region", child); err != nil {
+			return nil, err
+		}
 		for _, gc := range child.Children {
 			cw, err := pb.buildWidgetV3(gc)
 			if err != nil {

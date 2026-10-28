@@ -1,7 +1,7 @@
 ---
 title: The Warm Loop Fails Quietly
 category: bug-pattern
-last-synced: 5c24d899
+last-synced: b68b6e26
 covers:
   - cmd/mxcli
 sources:
@@ -13,6 +13,13 @@ sources:
   - cmd/mxcli/docker/webclient_pages.go
   - cmd/mxcli/docker/serve_recovery.go
   - cmd/mxcli/devloop_admin.go
+  - cmd/mxcli/devloop_handshake.go
+  - cmd/mxcli/docker/runtime_stop_reason.go
+  - cmd/mxcli/docker/ensuredb.go
+  - cmd/mxcli/docker/javadeps.go
+  - cmd/mxcli/docker/mxenv.go
+  - cmd/mxcli/docker/pagecheck.go
+  - cmd/mxcli/docker/pagecheck_check.go
 ---
 
 > **Do not duplicate**: the flags and their behaviour live in
@@ -140,6 +147,51 @@ boot path, grep for the other.
 **Half-applied is a state the loop can reach.** A watch that redeploys while an
 `mxcli exec` is mid-script can serve a partial model, and re-running the script
 fixes nothing because the write is idempotent and there is nothing left to write.
+
+**A fallback that succeeds can be the defect.** `--ensure-db` fell back to a new
+user-owned cluster when the system one would not start. Once that fallback worked
+on Debian, it produced a database that passes every later check (role, database,
+boot, health) and is empty. The only point where "new" and "already there" can be
+told apart is the moment before `initdb`. So decide there, and announce every
+`initdb` loudly. Detect an existing cluster by its data directory, not its
+service. For a non-root user the directory is `0700 postgres`, so `EACCES` on
+`PG_VERSION` is evidence that a cluster exists. A probe that only counts a
+successful stat misses the devcontainer user. Any harness that drops privileges
+should print its uid first: a control binary that silently ran as root started
+the real cluster and provisioned into it.
+
+**A file other processes read needs an owner.** `.mxcli/run-local.json` was
+removed by a deferred cleanup in *every* `run --local` process. That included
+`--setup`, which the SessionStart hook runs on every resume and compaction, so a
+live detached run lost its handshake. Callers then got a 403 and blamed the
+password. The 403 was the clue: it needs a runtime that is up. Grep every remover
+of a shared path and ask which processes reach it. Only the process whose pid the
+file names may remove it. Reasons follow the same rule as logs (above). The
+trial-licence stop is an application log line, so it is only in `runtime.log`,
+and only the newest boot's section of that file may be blamed.
+
+**A one-shot that runs Gradle must neither leave a daemon nor wait on one without
+a bound.** This is three findings with one cause (#1396, #1340 and an earlier
+unbounded mxbuild). Append `-Dorg.gradle.daemon=false` to `GRADLE_OPTS`, never
+replace the variable: replacing it drops a proxy setting and becomes mx's
+misleading "Failed to find some hosts". Then run the step under the process-tree
+watchdog with a progress line. The tell in the report was that Mendix's own `mx`
+was fast on the same project: same tool, different state. `mxbuild --serve`
+keeps its daemon on purpose.
+
+**A signed-in check is a (host, session) pair, not an app.** `playwright check`
+signed in on the handshake's `localhost` and then probed the URL as typed. Cookies
+belong to a host, so `127.0.0.1` (which the boot output prints) or a vhost got the
+sign-in form on every run, and each retry added another session. Count sessions
+(`runtime_statistics`) rather than trusting the verdict.
+
+**A settle rule written for one page holds every page to it.** The probe waits
+for no open request because a list view's data source shows nothing else (#845).
+The client keeps a `POST /xas/` open behind the sign-in form, so the same rule
+spent the whole `--wait` there and then advised raising it. Exempt a state that
+is a verdict in itself. And verify *where* the browser ended: an unknown `/p/`
+URL is redirected to the home page with HTTP 200, so the final path is the only
+signal that does not depend on the app's language.
 
 ## See also
 

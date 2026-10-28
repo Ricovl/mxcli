@@ -1042,6 +1042,11 @@ func (unsupportedBackend) PageLayoutName(_ model.ID) (r0 string, err1 error) {
 	return
 }
 
+func (unsupportedBackend) ParseDomainModelFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *domainmodel.DomainModel, err1 error) {
+	err1 = errUnsupported("ParseDomainModelFromRaw")
+	return
+}
+
 func (unsupportedBackend) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (r0 *microflows.Microflow, err1 error) {
 	err1 = errUnsupported("ParseMicroflowBSON")
 	return
@@ -1052,6 +1057,11 @@ func (unsupportedBackend) ParseMicroflowFromRaw(_ map[string]any, _ model.ID, _ 
 }
 
 func (unsupportedBackend) ParseNanoflowFromRaw(_ map[string]any, _ model.ID, _ model.ID) (r0 *microflows.Nanoflow) {
+	return
+}
+
+func (unsupportedBackend) ParseProjectSettingsFromRaw(_ map[string]any) (r0 *model.ProjectSettings, err1 error) {
+	err1 = errUnsupported("ParseProjectSettingsFromRaw")
 	return
 }
 
@@ -1173,6 +1183,11 @@ func (unsupportedBackend) SetDomainModelAnnotations(_ model.ID, _ []*domainmodel
 
 func (unsupportedBackend) SetDomainModelDocumentation(_ model.ID, _ string) (err0 error) {
 	err0 = errUnsupported("SetDomainModelDocumentation")
+	return
+}
+
+func (unsupportedBackend) SetProjectAdminPassword(_ model.ID, _ string) (err0 error) {
+	err0 = errUnsupported("SetProjectAdminPassword")
 	return
 }
 

@@ -938,6 +938,11 @@ func (unimplemented) PageLayoutName(_ model.ID) (string, error) {
 	return r0, errUnimplemented("PageLayoutName")
 }
 
+func (unimplemented) ParseDomainModelFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) (*domainmodel.DomainModel, error) {
+	var r0 *domainmodel.DomainModel
+	return r0, errUnimplemented("ParseDomainModelFromRaw")
+}
+
 func (unimplemented) ParseMicroflowBSON(_ []uint8, _ model.ID, _ model.ID) (*microflows.Microflow, error) {
 	var r0 *microflows.Microflow
 	return r0, errUnimplemented("ParseMicroflowBSON")
@@ -951,6 +956,11 @@ func (unimplemented) ParseMicroflowFromRaw(_ map[string]interface{}, _ model.ID,
 func (unimplemented) ParseNanoflowFromRaw(_ map[string]interface{}, _ model.ID, _ model.ID) *microflows.Nanoflow {
 	var r0 *microflows.Nanoflow
 	return r0
+}
+
+func (unimplemented) ParseProjectSettingsFromRaw(_ map[string]interface{}) (*model.ProjectSettings, error) {
+	var r0 *model.ProjectSettings
+	return r0, errUnimplemented("ParseProjectSettingsFromRaw")
 }
 
 func (unimplemented) Path() string {
@@ -1067,6 +1077,10 @@ func (unimplemented) SetDomainModelAnnotations(_ model.ID, _ []*domainmodel.Anno
 
 func (unimplemented) SetDomainModelDocumentation(_ model.ID, _ string) error {
 	return errUnimplemented("SetDomainModelDocumentation")
+}
+
+func (unimplemented) SetProjectAdminPassword(_ model.ID, _ string) error {
+	return errUnimplemented("SetProjectAdminPassword")
 }
 
 func (unimplemented) SetProjectAdminUserName(_ model.ID, _ string) error {

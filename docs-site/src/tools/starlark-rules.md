@@ -159,11 +159,15 @@ list holding a number) is not silently ignored — the rule runs with its defaul
 and the run reports a warning naming the option, listed with the rules that could
 not run and kept out of the score.
 
-QUAL004 counts a microflow as called only when something **in the model** runs
-it (a call, a schedule, a page or widget, a published service, a project
-setting). A call from an MDL test script (`tests/*.test.mdl`) is not in the
+QUAL004 counts a microflow or page as used when anything in the catalog's
+reference graph points at it — exactly what `mxcli refs` lists: a call, a page
+or widget, the navigation (a home page or home microflow, a menu item), a
+schedule, a published service, an event handler, a project setting. Every edge
+kind counts, including ones the catalog adds later, so the rule cannot fall
+behind it. A call from an MDL test script (`tests/*.test.mdl`) is not in the
 model, so a helper used only by tests is reported; give such helpers a prefix
-and list it in `entry_point_prefixes`.
+and list it in `entry_point_prefixes`. If `refs` finds nothing for a document
+you know is live, the gap is in the catalog, not the rule.
 
 ### CONV018 options {#conv018-options}
 

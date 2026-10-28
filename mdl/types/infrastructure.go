@@ -13,6 +13,10 @@ const (
 )
 
 // ProjectVersion holds the parsed Mendix project version.
+//
+// FormatVersion is the MPR storage format (MPRVersionV1/V2) the reader detected
+// on disk when it opened the project — not read from _MetaData, which cannot say
+// (ako/mxcli#1553). It is zero when no reader filled it in.
 type ProjectVersion struct {
 	ProductVersion string
 	BuildVersion   string

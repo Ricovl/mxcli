@@ -5,6 +5,7 @@ package linter
 
 import (
 	"context"
+	"strings"
 )
 
 // Severity indicates how serious a violation is.
@@ -72,9 +73,27 @@ type Location struct {
 }
 
 // QualifiedName returns the full qualified name of the location.
+//
+// DocumentName is meant to be the document's own name, but most bundled
+// Starlark rules pass the qualified one (`document_name=mf.qualified_name`), and
+// so does missing_translations. Prefixing the module again printed every such
+// finding as `at M.M.NAV_Home` (ako/mxcli#1484). This is the one place a
+// location is turned into a name — text, Markdown, SARIF and `lint -d` all come
+// through here — so both spellings are accepted here rather than in each rule,
+// which would leave a project's stale rule copies and every user-written rule
+// still repeating the module. A dot cannot occur in a Mendix document name, so
+// "<module>." at the front is always the module and never part of the name.
 func (l Location) QualifiedName() string {
 	if l.Module == "" {
 		return l.DocumentName
+	}
+	if strings.HasPrefix(l.DocumentName, l.Module+".") {
+		return l.DocumentName
+	}
+	// A finding about the module itself (CONV018) names the module as its
+	// document; "Sales.Sales" would read as a document called Sales.
+	if strings.EqualFold(l.DocumentType, "module") && l.DocumentName == l.Module {
+		return l.Module
 	}
 	return l.Module + "." + l.DocumentName
 }

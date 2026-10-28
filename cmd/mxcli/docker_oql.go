@@ -47,9 +47,9 @@ Examples:
 
 		// A `mxcli run --local` serving this project records its admin port and
 		// password; use them unless the flags say otherwise (ako/mxcli#982).
+		set := adminFlagsSet{host: host != "", port: port != 0, token: token != ""}
 		admin := devLoopAdminOptions(projectPath,
-			docker.M2EEOptions{Host: host, Port: port, Token: token, ProjectPath: projectPath, Direct: direct},
-			adminFlagsSet{host: host != "", port: port != 0, token: token != ""})
+			docker.M2EEOptions{Host: host, Port: port, Token: token, ProjectPath: projectPath, Direct: direct}, set)
 
 		opts := docker.OQLOptions{
 			Host:        admin.Host,
@@ -63,7 +63,8 @@ Examples:
 
 		result, err := docker.ExecuteOQL(opts, query)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			// A 403 with no run-local.json is a stopped run, not a bad password.
+			fmt.Fprintf(os.Stderr, "Error: %v\n%s", err, devLoopAdminHint(projectPath, set, err))
 			os.Exit(1)
 		}
 

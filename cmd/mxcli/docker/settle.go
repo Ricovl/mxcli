@@ -41,14 +41,7 @@ func SettleGeneratedSources(projectPath, mxPath, version string, w io.Writer) er
 		return fmt.Errorf("no JDK %d available: %w", javaMajor, err)
 	}
 
-	cmd := exec.Command(mxbuildPath,
-		"--target=deploy",
-		fmt.Sprintf("--java-home=%s", javaHome),
-		fmt.Sprintf("--java-exe-path=%s", JavaExePath(javaHome)),
-		projectPath,
-	)
-	cmd.Dir = filepath.Dir(projectPath)
-	PrepareMxCommand(cmd) // FreeType LD_PRELOAD workaround
+	cmd := settleCommand(mxbuildPath, javaHome, projectPath)
 
 	// MxBuild is very chatty and this build is incidental to what the user asked
 	// for, so its output is only worth showing when it fails.
@@ -64,6 +57,21 @@ func SettleGeneratedSources(projectPath, mxPath, version string, w io.Writer) er
 	}
 	fmt.Fprintln(w, "  Generated sources are in their post-build form.")
 	return nil
+}
+
+// settleCommand builds the one-shot deploy build SettleGeneratedSources runs
+// (`mxcli new` step 6) — without a Gradle daemon, which hung this step the same
+// way it hung the dependency sync (ako/mxcli#1340).
+func settleCommand(mxbuildPath, javaHome, projectPath string) *exec.Cmd {
+	cmd := exec.Command(mxbuildPath,
+		"--target=deploy",
+		fmt.Sprintf("--java-home=%s", javaHome),
+		fmt.Sprintf("--java-exe-path=%s", JavaExePath(javaHome)),
+		projectPath,
+	)
+	cmd.Dir = filepath.Dir(projectPath)
+	prepareOneShotMxCommand(cmd) // FreeType LD_PRELOAD workaround + no Gradle daemon
+	return cmd
 }
 
 // ModelErrorsError is a build mxbuild refused because the MODEL has errors —

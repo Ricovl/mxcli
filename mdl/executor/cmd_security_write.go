@@ -1227,6 +1227,14 @@ func execAlterProjectSecurity(ctx *ExecContext, s *ast.AlterProjectSecurityStmt)
 		ctx.reportWrite("admin user name: "+s.AdminUserName, "Admin user name set to %s", s.AdminUserName)
 	}
 
+	if s.AdminPassword != "" {
+		if err := ctx.Backend.SetProjectAdminPassword(ps.ID, s.AdminPassword); err != nil {
+			return mdlerrors.NewBackend("set admin password", err)
+		}
+		// Never echo the value: exec output ends up in logs and transcripts.
+		ctx.reportWrite("admin password", "Admin password set")
+	}
+
 	if s.StrictModeEnabled != nil {
 		if err := ctx.Backend.SetProjectStrictMode(ps.ID, *s.StrictModeEnabled); err != nil {
 			return mdlerrors.NewBackend("set strict mode", err)

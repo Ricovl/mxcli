@@ -99,3 +99,63 @@ func injectLDPreload(env []string, lib string) (result []string, changed bool) {
 	}
 	return out, true
 }
+
+// gradleNoDaemonOpt makes Gradle build in the client process (or a single-use
+// daemon it stops afterwards) instead of starting or reusing a long-lived one.
+const gradleNoDaemonOpt = "-Dorg.gradle.daemon=false"
+
+// prepareOneShotMxCommand is PrepareMxCommand for an mx/mxbuild run that ends
+// when its one job does — `mx sync-java-dependencies`, the settle build of
+// `mxcli new`, a docker build — plus Gradle without a daemon.
+//
+// Each such run used to leave a Gradle daemon behind for hours, and the next
+// run attached to it: with an idle daemon from an earlier run alive, `mx
+// sync-java-dependencies` hung for over ten minutes printing nothing, where
+// the same sync without a daemon took about twelve seconds and left nothing
+// running (ako/mxcli#1340). A one-shot build gains nothing from a daemon, which
+// only pays off for the NEXT build. The warm loop's `mxbuild --serve` is a
+// different case — it builds repeatedly — and keeps its daemon.
+func prepareOneShotMxCommand(cmd *exec.Cmd) {
+	PrepareMxCommand(cmd)
+	env := cmd.Env
+	if env == nil {
+		env = os.Environ()
+	}
+	cmd.Env = withGradleNoDaemon(env)
+}
+
+// withGradleNoDaemon returns env with gradleNoDaemonOpt appended to GRADLE_OPTS
+// (which is created when absent), keeping whatever the user put there — a
+// proxy, a heap size. A GRADLE_OPTS that already sets org.gradle.daemon is the
+// user's explicit choice and is left alone. env is not mutated.
+func withGradleNoDaemon(env []string) []string {
+	out := append([]string(nil), env...)
+	// From the end: exec keeps the last of duplicate keys, so that is the one
+	// the child would see.
+	for i := len(out) - 1; i >= 0; i-- {
+		key, value, ok := strings.Cut(out[i], "=")
+		if !ok || !envKeyIs(key, "GRADLE_OPTS") {
+			continue
+		}
+		if strings.Contains(value, "-Dorg.gradle.daemon=") {
+			return out
+		}
+		if strings.TrimSpace(value) == "" {
+			out[i] = key + "=" + gradleNoDaemonOpt
+		} else {
+			out[i] = key + "=" + value + " " + gradleNoDaemonOpt
+		}
+		return out
+	}
+	return append(out, "GRADLE_OPTS="+gradleNoDaemonOpt)
+}
+
+// envKeyIs compares an environment variable name the way the OS does:
+// case-insensitively on Windows, where appending a second GRADLE_OPTS beside a
+// "Gradle_Opts" would replace the user's value rather than extend it.
+func envKeyIs(key, name string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(key, name)
+	}
+	return key == name
+}

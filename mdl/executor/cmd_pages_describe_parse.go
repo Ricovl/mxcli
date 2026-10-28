@@ -119,6 +119,8 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			Type: typeName,
 			Name: name,
 		}
+		// Which regions run the full width (ako/mxcli#1703).
+		widget.ScrollLayoutMode, _ = w["LayoutMode"].(string)
 		if appearance, ok := w["Appearance"].(map[string]any); ok {
 			if class, ok := appearance["Class"].(string); ok && class != "" {
 				widget.Class = class

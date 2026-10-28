@@ -48,9 +48,10 @@ var widgetLanguageChanges = map[string]struct {
 	change  langver.Change
 	errorID string
 }{
-	actionSlotRefused.Code:   {actionSlotRefused, "MDL-WIDGET37"},
-	galleryClickRefused.Code: {galleryClickRefused, "MDL-WIDGET36"},
-	tabPagePropDropped.Code:  {tabPagePropDropped, "MDL-WIDGET44"},
+	actionSlotRefused.Code:       {actionSlotRefused, "MDL-WIDGET37"},
+	galleryClickRefused.Code:     {galleryClickRefused, "MDL-WIDGET36"},
+	tabPagePropDropped.Code:      {tabPagePropDropped, "MDL-WIDGET44"},
+	nativeWidgetPropDropped.Code: {nativeWidgetPropDropped, "MDL-WIDGET52"},
 }
 
 // GateWidgetViolations applies the script's language version to the widget

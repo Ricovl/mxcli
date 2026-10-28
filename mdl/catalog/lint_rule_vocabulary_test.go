@@ -28,7 +28,7 @@ import (
 // QUAL004 had the sibling bug in the other vocabulary: it counted only the "call"
 // and "schedule" reference kinds, so a microflow reached through a page data
 // source, a widget action or a calculated attribute was reported as
-// "not called from anywhere".
+// "not called from anywhere". It now counts every kind (see below).
 
 func lintRulesDir(t *testing.T) string {
 	t.Helper()
@@ -95,63 +95,13 @@ func starListItems(src, name string) []string {
 	return out
 }
 
-// TestQUAL004EntryKindsAreRealRefKinds keeps the orphan rule's two kind lists
-// spelled the way the reference builder emits them. A typo or an invented kind
-// silently narrows the rule into false positives.
-func TestQUAL004EntryKindsAreRealRefKinds(t *testing.T) {
-	known := map[string]bool{}
-	for _, k := range []string{
-		RefKindCall, RefKindCreate, RefKindRetrieve, RefKindShowPage,
-		RefKindGeneralize, RefKindAssociate, RefKindLayout, RefKindDatasource,
-		RefKindParameter, RefKindAction, RefKindHomePage, RefKindLoginPage,
-		RefKindMenuItem, RefKindChange, RefKindDelete, RefKindCalculate,
-		RefKindReturn, RefKindSchedule, RefKindValidate, RefKindSettings,
-		RefKindWidget, RefKindSync, RefKindPublish, RefKindEvent, RefKindCommit,
-	} {
-		known[k] = true
-	}
-
-	src := readRule(t, "orphaned_elements.star")
-	for _, listName := range []string{"MICROFLOW_ENTRY_KINDS", "PAGE_ENTRY_KINDS"} {
-		items := starListItems(src, listName)
-		if len(items) == 0 {
-			t.Fatalf("%s not found in orphaned_elements.star, or is empty", listName)
-		}
-		for _, kind := range items {
-			if !known[kind] {
-				t.Errorf("%s lists %q, which the reference builder never emits", listName, kind)
-			}
-		}
-	}
-}
-
-// The kinds that mean "this runs" / "this opens" must actually be listed. Losing
-// one is how the rule regresses into reporting live documents as dead.
-func TestQUAL004CountsEveryEntryPointKind(t *testing.T) {
-	src := readRule(t, "orphaned_elements.star")
-
-	for _, want := range []string{
-		RefKindCall, RefKindSchedule, RefKindDatasource, RefKindAction, RefKindCalculate,
-		RefKindSettings, RefKindPublish,
-		// An entity event handler runs on every commit/delete of its entity.
-		// Of every kind in this list it is the one whose absence flags the
-		// hottest code (mendixlabs/mxcli#1127).
-		RefKindEvent,
-	} {
-		if !contains(starListItems(src, "MICROFLOW_ENTRY_KINDS"), want) {
-			t.Errorf("MICROFLOW_ENTRY_KINDS is missing %q — a microflow reached only that way "+
-				"is reported as 'not called from anywhere'", want)
-		}
-	}
-	for _, want := range []string{
-		RefKindShowPage, RefKindHomePage, RefKindLoginPage, RefKindMenuItem,
-	} {
-		if !contains(starListItems(src, "PAGE_ENTRY_KINDS"), want) {
-			t.Errorf("PAGE_ENTRY_KINDS is missing %q — a page reached only that way "+
-				"is reported as orphaned", want)
-		}
-	}
-}
+// QUAL004 no longer keeps a list of the reference kinds that count as a caller:
+// the two lists that were checked here (MICROFLOW_ENTRY_KINDS, PAGE_ENTRY_KINDS)
+// drifted behind the catalog — the microflow one lacked home_page and menu_item,
+// so a microflow started only from the navigation was reported as unused
+// (ako/mxcli#1484). Every edge into a document now counts, and
+// TestQUAL004CountsEveryRefKind in mdl/linter drives each of RefKinds at the
+// rule instead of pinning a copy of the list here.
 
 func contains(hay []string, needle string) bool {
 	for _, h := range hay {

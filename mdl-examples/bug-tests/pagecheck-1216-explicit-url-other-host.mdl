@@ -1,0 +1,30 @@
+-- ako/mxcli#1216: `mxcli playwright check <url> -p app.mpr --role R` failed a
+-- page it had just signed into ("the sign-in form is showing, not the page"),
+-- while the same command without the URL passed.
+--
+-- With -p the base URL comes from the run handshake, http://localhost:<port>,
+-- and the sign-in ran there; a page URL naming another host for the same app
+-- received none of localhost's cookies, so the client started anonymous and
+-- showed the sign-in form. Each failing run also signed in again, one more
+-- session on the unlicensed runtime per run, until its cap refused the sign-in
+-- — and then said nothing, because the check never told the login where the
+-- runtime log is.
+--
+-- No /etc/hosts entry is needed: `run --local` prints http://127.0.0.1:<port>/
+-- while the handshake says localhost, so the boot URL itself reproduces it.
+-- Against a blank 11.13.0 app:
+--
+--   mxcli exec mdl-examples/bug-tests/pagecheck-1216-explicit-url-other-host.mdl -p app.mpr
+--   mxcli run --local --detach -p app.mpr --db-type hsqldb --app-port 8180
+--   mxcli playwright check http://127.0.0.1:8180/ -p app.mpr --role User
+--   mxcli playwright check -p app.mpr --role User          # control: OK before and after
+--
+-- Before the fix the first check printed `login demo_user`, then
+-- `FAIL   the sign-in form is showing, not the page (pass --user/--password or --role)`
+-- and exited 1, and every run added a session (M2EE runtime_statistics,
+-- user_sessions). After it the check signs in on 127.0.0.1:8180, passes, and
+-- later runs reuse that session.
+mdl 1;
+
+alter app security ( SecurityLevel: prototype );
+grant view on page MyFirstModule.Home_Web to MyFirstModule.User;

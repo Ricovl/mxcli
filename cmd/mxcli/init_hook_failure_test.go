@@ -74,3 +74,48 @@ func TestBootstrapScript_ProvisioningSuccessIsQuiet(t *testing.T) {
 		t.Errorf("run was not invoked:\n%s", log)
 	}
 }
+
+// ako/mxcli#866: the refusal to provision an empty cluster over a stopped
+// system one is only useful if the session sees WHICH cluster to start. The
+// banner shows one line; it must be mxcli's own "Error:" line, not the last
+// line that happens to contain "error" — a failing service manager quotes
+// pg_ctlcluster, whose output carries "Error:" lines of its own, after it.
+func TestBootstrapScript_BannerNamesTheRefusalNotTheServiceOutput(t *testing.T) {
+	requireSh(t)
+	e := newBootEnv(t, "")
+	stderrText := `Error: ensuring database: starting local PostgreSQL: refusing to create a new, empty PostgreSQL cluster: the cluster in /var/lib/postgresql/16/main (port 5432) exists but is not running
+  Start it, then rerun:
+    sudo pg_ctlcluster 16 main start   (or: sudo service postgresql start)
+(a service manager ran first but Postgres did not become ready:
+sudo service: Starting PostgreSQL 16 database server: main
+Error: /usr/lib/postgresql/16/bin/pg_ctl /usr/lib/postgresql/16/bin/pg_ctl start -D /var/lib/postgresql/16/main exited with status 1:
+service: mkdir: cannot create directory '/var/run/postgresql': Permission denied)`
+	body := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"--version\" ]; then echo \"mxcli version v0.25.0 (2026-10-01T00:00:00Z)\"; exit 0; fi\n" +
+		"if [ \"$1\" = \"run\" ]; then echo \"Ensuring database...\"; cat >&2 <<'MSG'\n" + stderrText + "\nMSG\nexit 1; fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(filepath.Join(e.project, "mxcli"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command("sh", bootstrapScriptName)
+	cmd.Dir = e.project
+	cmd.Env = append(os.Environ(), "PATH="+e.bin+":/usr/bin:/bin", "BOOT_LOG="+e.log, "MXCLI_TAG=")
+	var stdout, stderr strings.Builder
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	_ = cmd.Run()
+
+	var banner string
+	for _, l := range strings.Split(stderr.String(), "\n") {
+		if strings.HasPrefix(l, "ERROR: the app database was not provisioned") {
+			banner = l
+		}
+	}
+	if banner == "" {
+		t.Fatalf("no banner:\n%s", stderr.String())
+	}
+	if !strings.Contains(banner, "refusing to create a new, empty PostgreSQL cluster") ||
+		!strings.Contains(banner, "/var/lib/postgresql/16/main") {
+		t.Errorf("the banner must name the refusal and the data directory, got:\n%s", banner)
+	}
+}

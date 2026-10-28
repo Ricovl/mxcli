@@ -1,0 +1,52 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1698 (mendixlabs/mxcli#1651): a property the widget does not take
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   `textbox tbName (Attribute: Name, Caption: 'Item name')` passed `mxcli check`
+--   and `exec`, and the text box was written with no label: `describe page`
+--   read it back as `textbox tbName (Attribute: Name)`, `mx check` reported 0
+--   errors, and the page rendered an input with no label. An input widget's
+--   label is `Label:`; `Caption:` is a button's and a data grid column's.
+--   MDL-WIDGET07 judged keys against the UNION of every built-in widget's
+--   vocabulary, so a key valid on some widget passed on all of them.
+--
+-- Fix:
+--   Each built-in page element has the set of properties its builder writes
+--   (widget_native_props.go), derived from and tested against the builders'
+--   source. A key outside it is refused under `mdl 1;` by check and by exec
+--   (MDL-WIDGET52), with a hint naming what was meant; without the header it
+--   is dropped as before and warned about (MDL-V1-WIDGETPROP).
+--
+-- Expected: `mxcli check` fails with MDL-WIDGET52 on tbCaption only:
+--   "textbox `tbCaption`: `Caption` is not a property mxcli writes on a textbox
+--    (Forms$TextBox), so it would be dropped — an input widget's label is
+--    `Label:` (`Caption:` is a button's and a column's)"
+-- The controls (Label on a text box, Caption on a button) are written.
+--
+-- Usage:
+--   mxcli check mdl-examples/bug-tests/widget-props-1698-caption-on-textbox.fail.mdl
+-- ============================================================================
+
+create module ModC;
+create persistent entity ModC.Item (Name: String(50));
+create page ModC.ItemEdit
+(
+  Title: 'Item',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ( $Item: ModC.Item )
+)
+{
+  layoutgrid lg {
+    row {
+      column (DesktopWidth: 12) {
+        dataview dvItem (DataSource: $Item) {
+          textbox tbCaption (Attribute: Name, Caption: 'Item name')
+          textbox tbLabel (Attribute: Name, Label: 'Item name (Label)')
+          actionbutton btnSave (Caption: 'Save', Action: save changes)
+        }
+      }
+    }
+  }
+};

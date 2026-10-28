@@ -79,7 +79,7 @@ Entity: MyModule.Customer
 
 ## How It Works
 
-1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder
+1. **Finds changed files**: Uses `git diff --name-status` to identify modified `.mxunit` files in the `mprcontents/` folder. Git runs in the project's own directory, so `-p` may point into a repository from anywhere. A unit file moved to another name is another unit ID, so it is reported as one unit deleted and one added
 2. **Reads both versions**: Current version from disk, git version using `git show`
 3. **Parses BSON**: Extracts the unit type and content from the binary BSON format
 4. **Generates MDL**: Converts both versions to MDL for human-readable comparison
@@ -89,16 +89,34 @@ Entity: MyModule.Customer
 
 The command generates MDL representations for:
 
-- **Entities**: Shows attributes, constraints, and entity type
-- **Microflows**: Shows parameters and return type
-- **Nanoflows**: Shows parameters and return type
-- **Enumerations**: Shows values and captions
-- **Pages**: Shows title and layout reference
-- **Snippets**: Shows basic structure
-- **Layouts**: Shows basic structure
-- **Modules**: Shows module name
+- **Domain models**: each entity's attributes, constraints and entity type, its access rules as `grant` statements (as `describe entity` prints them), and the associations
+- **Microflows / Nanoflows**: the whole body, as `describe` prints it, `grant execute` included
+- **Pages / Snippets / Layouts**: the header properties and the widget tree, as `describe` prints them
+- **Enumerations**: values and captions
+- **Project settings**: as `describe settings` prints them, with configuration constant values masked
+- **Modules**: module name
 
-Other unit types show a generic representation with the type name.
+Configuration constant values often hold secrets, so they are never printed. A
+changed value still shows, as a masked pair:
+
+```diff
+-alter settings constant 'MyModule.ApiKey' value <masked: old value>
++alter settings constant 'MyModule.ApiKey' value <masked: new value>
+   in configuration 'Default';
+```
+
+### Changes the MDL does not show
+
+A unit can change only in properties its rendering leaves out — navigation,
+project or module security, a page's allowed roles, an entity index, a
+constant's default value. Such a unit is printed as one line, in every format,
+naming the properties that changed (never their values):
+
+```
+Modified: ModuleSecurity MyModule: changed in properties the MDL rendering does not show: ModuleRoles (1 -> 2 items)
+```
+
+Run `describe` on the element before and after to see the change itself.
 
 ## Summary Output
 
@@ -122,6 +140,7 @@ Summary: 2 new, 3 modified, 1 deleted
 - Use `--format side` when comparing large objects with subtle differences
 - Use `--ref HEAD~5` to see what changed in the last 5 commits
 - Use `--ref feature-branch` to compare against a different branch
+- Use `--ref main...feature-branch` (three dots) to review only what a branch changed: the old side is the merge base, so changes made on `main` since do not show
 - After restoring a `.mxunit` with `git checkout`/`git restore`, run
   `mxcli fix hashes -p app.mpr --repair`: git does not update the `.mpr`'s
   ContentsHash index, and `mx check` does not notice the stale entry

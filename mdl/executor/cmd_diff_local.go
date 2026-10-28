@@ -10,11 +10,13 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -51,8 +53,18 @@ func diffLocal(ctx *ExecContext, ref string, opts DiffOptions) error {
 		opts.Width = 120
 	}
 
+	// Every git command runs in the project's directory, with paths relative to
+	// it: running them in the process's working directory failed outright from
+	// outside the repository ("failed to git diff: exit status 1"), and from a
+	// subdirectory of it read the working-tree files at repo-root-relative
+	// paths that did not exist (mendixlabs/mxcli#1602).
+	projectDir, err := filepath.Abs(filepath.Dir(contentsDir))
+	if err != nil {
+		return mdlerrors.NewBackend("resolve project directory", err)
+	}
+
 	// Find changed mxunit files using git
-	changedFiles, err := findChangedMxunitFiles(ctx, contentsDir, ref)
+	changedFiles, err := findChangedMxunitFiles(ctx, projectDir, filepath.Base(contentsDir), ref)
 	if err != nil {
 		return mdlerrors.NewBackend("find changed files", err)
 	}
@@ -62,11 +74,16 @@ func diffLocal(ctx *ExecContext, ref string, opts DiffOptions) error {
 		return nil
 	}
 
+	spec, err := resolveRefSpec(projectDir, ref)
+	if err != nil {
+		return err
+	}
+
 	var results []DiffResult
 	var newCount, modifiedCount, deletedCount int
 
 	for _, change := range changedFiles {
-		result, err := diffMxunitFile(ctx, change, contentsDir, ref)
+		result, err := diffMxunitFile(ctx, change, projectDir, spec)
 		if err != nil {
 			// Log error but continue with other files
 			fmt.Fprintf(ctx.Output, "Warning: %v\n", err)
@@ -84,17 +101,9 @@ func diffLocal(ctx *ExecContext, ref string, opts DiffOptions) error {
 		}
 	}
 
-	// Output results
-	for _, result := range results {
-		switch opts.Format {
-		case DiffFormatUnified:
-			outputUnifiedDiff(ctx, result, opts.UseColor)
-		case DiffFormatSideBySide:
-			outputSideBySideDiff(ctx, result, opts.Width, opts.UseColor)
-		case DiffFormatStructural:
-			outputStructuralDiff(ctx, result, opts.UseColor)
-		}
-	}
+	// Output results. A unit whose rendering is the same at both revisions is
+	// printed as one line saying what changed (Writes), in every format.
+	WriteDiffResults(ctx.Output, results, opts)
 
 	// Output summary
 	fmt.Fprintf(ctx.Output, "\nSummary: %d new, %d modified, %d deleted\n",
@@ -111,13 +120,32 @@ func (e *Executor) DiffLocal(ref string, opts DiffOptions) error {
 // gitChange represents a file change from git
 type gitChange struct {
 	Status   string // "A" (added), "M" (modified), "D" (deleted)
-	FilePath string // relative path from repo root
+	FilePath string // path relative to the project directory
 }
 
-// findChangedMxunitFiles uses git to find changed mxunit files
-func findChangedMxunitFiles(_ *ExecContext, contentsDir, ref string) ([]gitChange, error) {
-	// Run git diff to find changed files in mprcontents
-	cmd := execCommand("git", "diff", "--name-status", ref, "--", contentsDir)
+// gitInProject runs git in the project directory.
+func gitInProject(projectDir string, args ...string) *exec.Cmd {
+	cmd := execCommand("git", args...)
+	cmd.Dir = projectDir
+	return cmd
+}
+
+// gitShowArg names a project-relative path at a revision. "./" makes git read
+// the path relative to the working directory rather than to the repo root, so
+// a project below the root resolves the same as one at it.
+func gitShowArg(rev, path string) string {
+	return rev + ":./" + path
+}
+
+// findChangedMxunitFiles uses git to find changed mxunit files under
+// contentsName (the mprcontents folder) of projectDir.
+func findChangedMxunitFiles(_ *ExecContext, projectDir, contentsName, ref string) ([]gitChange, error) {
+	// --relative: paths relative to projectDir, the directory git runs in.
+	// --no-renames: a unit's file name is its ID, so a file that moved is a
+	// different unit — one deleted, one added. Rename detection reported it as
+	// "R100 old new", read here as a change to the old path, which the new
+	// revision does not have.
+	cmd := gitInProject(projectDir, "diff", "--name-status", "--relative", "--no-renames", ref, "--", contentsName)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, mdlerrors.NewBackend("git diff", err)
@@ -153,27 +181,54 @@ func findChangedMxunitFiles(_ *ExecContext, contentsDir, ref string) ([]gitChang
 	return changes, nil
 }
 
+// refSpec is a --ref resolved to the revisions diff-local reads its two sides
+// at, and the labels it names them by.
+type refSpec struct {
+	twoRevision        bool   // both sides from git; otherwise the working tree against a revision
+	base, target       string // revisions to read; target alone in single-ref mode
+	fromLabel, toLabel string
+}
+
+// resolveRefSpec resolves ref once, before any unit is read. The old side of a
+// three-dot range is the merge base, which is what `git diff a...b` lists the
+// changes against; reading it at a would put the other branch's changes into
+// every hunk.
+func resolveRefSpec(projectDir, ref string) (refSpec, error) {
+	base, target, isRange, mergeBase := parseRefRange(ref)
+	if !isRange {
+		return refSpec{target: target, fromLabel: target, toLabel: "working tree"}, nil
+	}
+	spec := refSpec{twoRevision: true, base: base, target: target, fromLabel: base, toLabel: target}
+	if mergeBase {
+		out, err := gitInProject(projectDir, "merge-base", base, target).Output()
+		if err != nil {
+			return refSpec{}, mdlerrors.NewBackend(fmt.Sprintf("find the merge base of %s and %s", base, target), err)
+		}
+		spec.base = strings.TrimSpace(string(out))
+		spec.fromLabel = fmt.Sprintf("merge base of %s and %s", base, target)
+	}
+	return spec, nil
+}
+
 // diffMxunitFile generates a diff for a single mxunit file.
-// For two-revision diffs (ref contains ".."), both sides are read from git.
+// For two-revision diffs (a range), both sides are read from git.
 // For single-ref diffs, the "current" side is read from the working tree.
-func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string) (*DiffResult, error) {
+func diffMxunitFile(ctx *ExecContext, change gitChange, projectDir string, spec refSpec) (*DiffResult, error) {
 	var currentContent, gitContent []byte
 	var err error
 
-	// Determine if this is a two-revision diff
-	baseRef, targetRef, isTwoRevision := parseRefRange(ref)
-
-	if isTwoRevision {
+	baseRef, targetRef := spec.base, spec.target
+	if spec.twoRevision {
 		// Two-revision mode: both sides from git
 		if change.Status != "D" {
-			cmd := execCommand("git", "show", targetRef+":"+change.FilePath)
+			cmd := gitInProject(projectDir, "show", gitShowArg(targetRef, change.FilePath))
 			currentContent, err = cmd.Output()
 			if err != nil {
 				return nil, mdlerrors.NewBackend(fmt.Sprintf("read %s version of %s", targetRef, change.FilePath), err)
 			}
 		}
 		if change.Status != "A" {
-			cmd := execCommand("git", "show", baseRef+":"+change.FilePath)
+			cmd := gitInProject(projectDir, "show", gitShowArg(baseRef, change.FilePath))
 			gitContent, err = cmd.Output()
 			if err != nil {
 				return nil, mdlerrors.NewBackend(fmt.Sprintf("read %s version of %s", baseRef, change.FilePath), err)
@@ -182,13 +237,13 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 	} else {
 		// Single-ref mode: current from working tree, old from git
 		if change.Status != "D" {
-			currentContent, err = readFile(change.FilePath)
+			currentContent, err = readFile(filepath.Join(projectDir, change.FilePath))
 			if err != nil {
 				return nil, mdlerrors.NewBackend(fmt.Sprintf("read current file %s", change.FilePath), err)
 			}
 		}
 		if change.Status != "A" {
-			cmd := execCommand("git", "show", ref+":"+change.FilePath)
+			cmd := gitInProject(projectDir, "show", gitShowArg(targetRef, change.FilePath))
 			gitContent, err = cmd.Output()
 			if err != nil {
 				return nil, mdlerrors.NewBackend(fmt.Sprintf("read git version of %s", change.FilePath), err)
@@ -214,11 +269,7 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 
 	// Name the sides after what they are: both are git revisions in range
 	// mode, and the working tree against a ref otherwise. Neither is a script.
-	if isTwoRevision {
-		result.FromLabel, result.ToLabel = baseRef, targetRef
-	} else {
-		result.FromLabel, result.ToLabel = ref, "working tree"
-	}
+	result.FromLabel, result.ToLabel = spec.fromLabel, spec.toLabel
 
 	// Extract UUID from file path; it is the unit ID.
 	unitID := extractUUIDFromPath(change.FilePath)
@@ -231,17 +282,31 @@ func diffMxunitFile(ctx *ExecContext, change gitChange, contentsDir, ref string)
 	qualifiedName := unitQualifiedName(ctx, nameSource, unitID)
 	result.ObjectName = splitQualifiedName(qualifiedName)
 
+	// Values the rendering must not print are masked so that a change still
+	// shows: each side needs to know the other's value.
+	var oldMask, newMask constantValueFunc
+	if unitType == projectSettingsType {
+		oldMask, newMask = constantValueMasks(ctx, oldRaw, newRaw)
+	}
+
 	// Generate MDL for both versions based on type
 	if len(currentContent) > 0 {
-		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent, unitQualifiedName(ctx, newRaw, unitID))
+		result.Proposed = bsonToMDL(ctx, unitType, unitID, currentContent, unitQualifiedName(ctx, newRaw, unitID), newMask)
 	}
 	if len(gitContent) > 0 {
-		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID))
+		result.Current = bsonToMDL(ctx, unitType, unitID, gitContent, unitQualifiedName(ctx, oldRaw, unitID), oldMask)
 	}
 
 	// Generate structural changes
 	if !result.IsNew && !result.IsDeleted && result.Current != result.Proposed {
 		result.Changes = compareGeneric(ctx, result.Current, result.Proposed)
+	}
+
+	// git says the unit changed, so identical renderings mean the change is in
+	// what the rendering leaves out. Say so, rather than print nothing under a
+	// summary that counts it (ako/mxcli#1512, ako/mxcli#1562).
+	if !result.IsNew && !result.IsDeleted && result.Current == result.Proposed {
+		result.Writes = unrenderedChangeNote(gitContent, currentContent)
 	}
 
 	return &result, nil
@@ -341,8 +406,30 @@ func unitQualifiedName(ctx *ExecContext, raw map[string]any, unitID string) stri
 	return modName + "." + name
 }
 
-// bsonToMDL converts BSON content to MDL representation based on type
-func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string) string {
+// unrenderedChangeNote names what changed in a unit whose MDL rendering is the
+// same at both revisions: the property paths that differ, never their values.
+// Without it the unit was counted as modified and printed nothing — every
+// format, every unit type the rendering is lossy for (settings, access rules,
+// navigation, security, …).
+func unrenderedChangeNote(before, after []byte) string {
+	const shown = 4
+	paths := ChangedPaths(before, after, shown+1)
+	if len(paths) == 0 {
+		return "rewritten with no property change (element $IDs, pointers or property order only)"
+	}
+	if len(paths) > shown {
+		paths = append(paths[:shown], "…")
+	}
+	return "changed in properties the MDL rendering does not show: " + strings.Join(paths, ", ")
+}
+
+// projectSettingsType is the storage type of the project settings unit.
+const projectSettingsType = "Settings$ProjectSettings"
+
+// bsonToMDL converts BSON content to MDL representation based on type.
+// constantValue renders a configuration constant's value in the settings unit
+// (see constantValueMasks); other unit types ignore it.
+func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualifiedName string, constantValue constantValueFunc) string {
 	var raw map[string]any
 	if err := bsoncompat.UnmarshalDocMap(content, &raw); err != nil {
 		return fmt.Sprintf("-- Error parsing BSON: %v", err)
@@ -352,6 +439,10 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 	}
 
 	switch {
+	// An exact match, first: the dispatch below is by containment, and
+	// "Settings" is in "Projects$ModuleSettings" too.
+	case unitType == projectSettingsType:
+		return projectSettingsBsonToMDL(ctx, raw, constantValue)
 	case strings.Contains(unitType, "DomainModel"):
 		return domainModelBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Entity"):
@@ -371,7 +462,9 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 		return snippetBsonToMDL(ctx, raw, qualifiedName)
 	case strings.Contains(unitType, "Layout"):
 		return layoutBsonToMDL(ctx, raw, qualifiedName)
-	case strings.Contains(unitType, "Module"):
+	// Exact, not Contains: Security$ModuleSecurity and Projects$ModuleSettings
+	// contain "Module" too, and rendered as `create module ;` on both sides.
+	case unitType == "Projects$ModuleImpl" || unitType == "Projects$Module":
 		return moduleBsonToMDL(ctx, raw)
 	default:
 		// Generic representation
@@ -379,12 +472,90 @@ func bsonToMDL(ctx *ExecContext, unitType, unitID string, content []byte, qualif
 	}
 }
 
+// projectSettingsBsonToMDL renders the project settings unit with DESCRIBE
+// SETTINGS' own writer. The unit had no case here, so it fell to the generic
+// two-comment rendering, which is the same at every revision: a changed
+// constant value or runtime setting counted as modified and printed nothing
+// (mendixlabs/mxcli#1602, ako/mxcli#1512). Configuration constant values are
+// masked — they often hold secrets, and diff output lands in reviews and CI
+// logs — so constantValue is never left to print them.
+func projectSettingsBsonToMDL(ctx *ExecContext, raw map[string]any, constantValue constantValueFunc) string {
+	ps, err := ctx.Backend.ParseProjectSettingsFromRaw(raw)
+	if err != nil {
+		return "-- project settings could not be read: " + err.Error()
+	}
+	if constantValue == nil {
+		constantValue = func(_, _, _ string) string { return maskedValue }
+	}
+	return strings.TrimRight(renderToString(ctx, func() {
+		writeProjectSettingsMDL(ctx, ps, constantValue)
+	}), "\n")
+}
+
+// maskedValue stands in for a configuration constant's value. It is not a
+// string literal on purpose: pasted into a script, it fails to parse instead
+// of setting the constant to the text "masked".
+const maskedValue = "<masked>"
+
+// constantValueMasks returns the value renderers for the old and the new
+// revision of the settings unit. A value is printed as <masked> — except where
+// the same constant in the same configuration holds a different value on the
+// other side, where it is "<masked: old value>" / "<masked: new value>", so
+// the change shows as a -/+ pair without either value appearing.
+func constantValueMasks(ctx *ExecContext, oldRaw, newRaw map[string]any) (oldMask, newMask constantValueFunc) {
+	oldVals, newVals := constantValues(ctx, oldRaw), constantValues(ctx, newRaw)
+	mask := func(other map[string]string, label string) constantValueFunc {
+		return func(configuration, constant, value string) string {
+			if o, ok := other[configuration+"\x00"+constant]; ok && o != value {
+				return "<masked: " + label + ">"
+			}
+			return maskedValue
+		}
+	}
+	return mask(newVals, "old value"), mask(oldVals, "new value")
+}
+
+// constantValues maps configuration + "\x00" + constant to the shared value
+// the settings document holds for it; private values have none.
+func constantValues(ctx *ExecContext, raw map[string]any) map[string]string {
+	vals := map[string]string{}
+	if raw == nil {
+		return vals
+	}
+	ps, err := ctx.Backend.ParseProjectSettingsFromRaw(raw)
+	if err != nil || ps.Configuration == nil {
+		return vals
+	}
+	for _, cfg := range ps.Configuration.Configurations {
+		for _, cv := range cfg.ConstantValues {
+			if !cv.IsPrivate {
+				vals[cfg.Name+"\x00"+cv.ConstantId] = cv.Value
+			}
+		}
+	}
+	return vals
+}
+
 // domainModelBsonToMDL converts a domain model BSON to MDL.
-// Includes full entity definitions (attributes) so diffs show schema changes.
+// Includes full entity definitions (attributes) so diffs show schema changes,
+// each followed by its access rules as DESCRIBE ENTITY prints them.
 func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("-- Domain Model: %s", name))
 	lines = append(lines, "")
+
+	// The access rules are rendered by DESCRIBE ENTITY's own grant writer, so
+	// they need the semantic entity, not the raw map the rest of this renderer
+	// reads. Without them a GRANT or REVOKE changed the unit but nothing this
+	// printed, so it diffed to nothing (mendixlabs/mxcli#1630, ako/mxcli#1562).
+	accessByEntity := map[string]*domainmodel.Entity{}
+	if dm, err := ctx.Backend.ParseDomainModelFromRaw(raw, "", ""); err != nil {
+		lines = append(lines, "-- access rules not shown: "+err.Error(), "")
+	} else {
+		for _, e := range dm.Entities {
+			accessByEntity[e.Name] = e
+		}
+	}
 
 	// Render full entity definitions so attribute changes show up in diffs
 	entities := extractBsonArray(raw["Entities"])
@@ -396,6 +567,14 @@ func domainModelBsonToMDL(ctx *ExecContext, raw map[string]any, name string) str
 			}
 			qn := name + "." + entName
 			lines = append(lines, entityBsonToMDL(ctx, entMap, qn))
+			if e := accessByEntity[entName]; e != nil {
+				grants := renderToString(ctx, func() {
+					outputEntityAccessGrants(ctx, e, name, entName)
+				})
+				if grants = strings.TrimRight(grants, "\n"); grants != "" {
+					lines = append(lines, grants)
+				}
+			}
 			lines = append(lines, "")
 		}
 	}
@@ -883,13 +1062,30 @@ func compareGeneric(_ *ExecContext, current, proposed string) []StructuralChange
 // Helper Functions for Git and BSON Parsing
 // ============================================================================
 
-// parseRefRange splits a ref like "base..target" into its parts.
-// Returns (base, target, true) for ranges, or ("", ref, false) for single refs.
-func parseRefRange(ref string) (base, target string, isRange bool) {
-	if idx := strings.Index(ref, ".."); idx >= 0 {
-		return ref[:idx], ref[idx+2:], true
+// parseRefRange splits a ref like "base..target" or "base...target" into its
+// parts; mergeBase reports the three-dot form, whose old side is the merge base
+// of the two. An empty side is HEAD, as it is to git. Returns ("", ref, false,
+// false) for a single ref.
+//
+// "..." is matched before "..": splitting "a...b" on the first ".." read the
+// target as ".b", and every unit failed to load.
+func parseRefRange(ref string) (base, target string, isRange, mergeBase bool) {
+	sep := ".."
+	if strings.Contains(ref, "...") {
+		sep, mergeBase = "...", true
 	}
-	return "", ref, false
+	idx := strings.Index(ref, sep)
+	if idx < 0 {
+		return "", ref, false, false
+	}
+	base, target = ref[:idx], ref[idx+len(sep):]
+	if base == "" {
+		base = "HEAD"
+	}
+	if target == "" {
+		target = "HEAD"
+	}
+	return base, target, true, mergeBase
 }
 
 // execCommand creates an exec.Cmd for running git commands.

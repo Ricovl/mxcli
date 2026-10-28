@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,8 +73,27 @@ func writeDevLoopHandshake(projectPath string, h devLoopHandshake) error {
 	return nil
 }
 
-func removeDevLoopHandshake(projectPath string) {
-	_ = os.Remove(devLoopHandshakePath(projectPath))
+// withdrawDevLoopHandshake removes the handshake the run with pid published,
+// and nothing else.
+//
+// Removal used to be unconditional, and every `mxcli run --local` deferred it —
+// including `--setup`, which never publishes one and which the SessionStart
+// hook runs on every session start, resume and compaction included. So while a
+// detached run was serving the app, the hook deleted ITS handshake: oql, log
+// and constant --apply fell back to default credentials, met HTTP 403 from a
+// runtime that was up, and the caller blamed the password (ako/mxcli#1542).
+// A file that cannot be read is left alone too: it is not provably ours.
+func withdrawDevLoopHandshake(projectPath string, pid int) {
+	path := devLoopHandshakePath(projectPath)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var h devLoopHandshake
+	if json.Unmarshal(body, &h) != nil || h.PID != pid {
+		return
+	}
+	_ = os.Remove(path)
 }
 
 // readDevLoopHandshake returns the handshake for a project, or an error a user
@@ -82,13 +102,18 @@ func removeDevLoopHandshake(projectPath string) {
 // A handshake whose process is gone is refused rather than used: the ports in it
 // may since have been taken by something else, and sending a configuration
 // change to the wrong process is worse than saying no dev loop is running.
+//
+// Both refusals quote `run status`, which knows what became of the run — the
+// licence limit, a crash — where the missing file alone reads like a
+// credentials problem (ako/mxcli#1542).
 func readDevLoopHandshake(projectPath string) (devLoopHandshake, error) {
 	var h devLoopHandshake
 	path := devLoopHandshakePath(projectPath)
 	body, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return h, fmt.Errorf("no 'mxcli run --local' is serving this project\n" +
-			"  start one in another terminal, or drop --apply to only record the value")
+		return h, fmt.Errorf("%w\n"+
+			"  start one in another terminal, or drop --apply to only record the value%s",
+			errNoDevLoopHandshake, runStatusNote(projectPath))
 	}
 	if err != nil {
 		return h, fmt.Errorf("reading %s: %w", path, err)
@@ -97,8 +122,26 @@ func readDevLoopHandshake(projectPath string) (devLoopHandshake, error) {
 		return h, fmt.Errorf("%s is not valid JSON: %w", path, err)
 	}
 	if !procalive.Alive(h.PID) {
-		return h, fmt.Errorf("%s refers to process %d, which is no longer running\n"+
-			"  (the dev loop was stopped without cleaning up; start a new one)", path, h.PID)
+		return h, fmt.Errorf("%s refers to process %d, which is %w\n"+
+			"  (the dev loop was stopped without cleaning up; start a new one)%s",
+			path, h.PID, errStaleDevLoopHandshake, runStatusNote(projectPath))
 	}
 	return h, nil
+}
+
+var (
+	// errNoDevLoopHandshake: no run-local.json — no run is serving, or it has
+	// ended and withdrawn it.
+	errNoDevLoopHandshake = errors.New("no 'mxcli run --local' is serving this project")
+	// errStaleDevLoopHandshake: run-local.json names a process that is gone.
+	errStaleDevLoopHandshake = errors.New("no longer running")
+)
+
+// runStatusNote is "\n  mxcli run status: <line>" for a project with a
+// recorded run, or "".
+func runStatusNote(projectPath string) string {
+	if line := runStatusSummary(projectPath); line != "" {
+		return "\n  mxcli run status: " + line
+	}
+	return ""
 }

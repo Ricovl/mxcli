@@ -1,0 +1,50 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#1703 (mendixlabs/mxcli#1659): a scroll container's LayoutMode
+-- ============================================================================
+--
+-- Symptom (before fix):
+--   `describe layout Atlas_Core.Atlas_SideBar` printed `scrollcontainer
+--   layoutContainer {` with no LayoutMode, and `create layout` could not write
+--   one, so the documented describe → rename → exec copy of Atlas_SideBar
+--   (stored LayoutMode "Sidebar") came out "Headline": a different frame, with
+--   Atlas's sidebar CSS positioned for the other one. `(LayoutMode: 'Sidebar')`
+--   on the scroll container passed check and exec and was dropped. mx check 0
+--   errors either way.
+--
+-- Fix:
+--   Forms$ScrollContainer.LayoutMode is read by the builder (Headline |
+--   Sidebar, the metamodel's PagesLayoutMode, matched case-insensitively and
+--   stored as spelled there), written by the modelsdk writer, settable with
+--   `alter layout … set (LayoutMode: …) on <scrollcontainer>`, and printed by
+--   describe when it is Sidebar (Headline is Studio Pro's default for an unset
+--   one). Before this, the per-widget property check of ako/mxcli#1698 refused
+--   the key (MDL-WIDGET52) rather than dropping it.
+--
+-- Expected: check and exec pass; `mxcli bson dump --type layout --object
+-- BugLayout.App_SideBar` shows LayoutMode: "Sidebar"; describe prints
+-- `scrollcontainer layoutContainer (LayoutMode: 'Sidebar') {`; mx check 0 errors.
+--
+-- Usage:
+--   mxcli exec mdl-examples/bug-tests/layout-1703-scrollcontainer-layoutmode.mdl -p app.mpr
+-- ============================================================================
+
+create module BugLayout;
+
+create or modify layout BugLayout.App_SideBar (
+  layouttype: 'Responsive',
+  class: 'layout-atlas layout-atlas-responsive-sidebar'
+) {
+  scrollcontainer layoutContainer (LayoutMode: 'Sidebar') {
+    region top (Size: 48, Class: 'border-bottom') {
+      dynamictext brand (Content: 'App')
+    }
+    region left (Size: 232, SizeMode: 'Pixels', ToggleMode: 'ShrinkContentInitiallyOpen', Class: 'region-sidebar') {
+      sidebartoggle toggle (Tooltip: 'Toggle Menu', ButtonStyle: Primary)
+      navigationtree nav (Profile: 'Responsive')
+    }
+    region center (Class: 'region-content') {
+      placeholder Main
+    }
+  }
+};

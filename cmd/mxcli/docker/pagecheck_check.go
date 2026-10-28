@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -27,6 +28,7 @@ import (
 var (
 	probePagesFn = ProbePages
 	loginFn      = LoginAndSaveStorage
+	signOutFn    = SignOut
 )
 
 // PageCheckOptions configures RunPageCheck.
@@ -39,11 +41,19 @@ type PageCheckOptions struct {
 	Password string
 	Role     string // log in as the project's demo user holding this user role
 
-	// FreshLogin ignores a saved session and signs in again.
+	// FreshLogin ignores a saved session and signs in again. The session it
+	// replaces is signed out first, so it does not hold a slot until it expires.
 	FreshLogin bool
+	// SignOut ends the run signed out: the session it used is signed out and
+	// not kept for the next check.
+	SignOut bool
 	// StorageDir holds the saved sessions (default <projectDir>/.mxcli/playwright-check,
 	// or ~/.mxcli/playwright-check without a project).
 	StorageDir string
+	// RuntimeLogPath is read when a sign-in is refused, to name the cause the
+	// sign-in page does not (the unlicensed runtime's session cap). Default
+	// <projectDir>/.mxcli/runtime.log, where `run --local` writes it.
+	RuntimeLogPath string
 
 	Spec       CheckSpec
 	Screenshot string // PNG path; per-page suffix when there are several pages
@@ -62,7 +72,21 @@ type PageCheckResult struct {
 // credentials is who to sign in as, and why.
 type credentials struct {
 	user, password string
-	source         string // "", "--role Administrator", "demo user", ...
+	source         string   // "", "--role Administrator", "demo user", ...
+	roles          []string // the demo user's user roles; unknown (nil) for --user
+}
+
+// signedInAs names the user for a verdict: "demo_user (user role User)", or
+// just the name when the roles are not known.
+func (c credentials) signedInAs() string {
+	switch len(c.roles) {
+	case 0:
+		return c.user
+	case 1:
+		return c.user + " (user role " + c.roles[0] + ")"
+	default:
+		return c.user + " (user roles " + strings.Join(c.roles, ", ") + ")"
+	}
 }
 
 // RunPageCheck checks every target and prints one verdict per page. The error
@@ -74,8 +98,14 @@ func RunPageCheck(opts PageCheckOptions) (PageCheckResult, error) {
 	if w == nil {
 		w = os.Stdout
 	}
+	if opts.Stderr == nil {
+		opts.Stderr = os.Stderr
+	}
 	if opts.BaseURL == "" {
 		opts.BaseURL = "http://localhost:8080"
+	}
+	if opts.RuntimeLogPath == "" && opts.ProjectPath != "" {
+		opts.RuntimeLogPath = filepath.Join(filepath.Dir(opts.ProjectPath), ".mxcli", "runtime.log")
 	}
 	targets := opts.Targets
 	if len(targets) == 0 {
@@ -85,13 +115,6 @@ func RunPageCheck(opts PageCheckOptions) (PageCheckResult, error) {
 	creds, err := resolveCheckCredentials(opts)
 	if err != nil {
 		return res, err
-	}
-	storage := ""
-	if creds.user != "" {
-		storage = checkStoragePath(opts, creds.user)
-		if opts.FreshLogin {
-			_ = os.Remove(storage)
-		}
 	}
 
 	if opts.Screenshot != "" {
@@ -112,60 +135,24 @@ func RunPageCheck(opts PageCheckOptions) (PageCheckResult, error) {
 			}
 		}
 	}
-	probe := ProbeOptions{
-		Pages: pages, WaitMs: opts.WaitMs,
-		Texts: opts.Spec.Texts, CountSelectors: opts.Spec.CountSelectors(),
-		MxBuildPath: anyMxBuildPath(),
-	}
-
-	login := func() error {
-		fmt.Fprintf(w, "login %s%s\n", creds.user, sourceSuffix(creds.source))
-		return loginFn(LoginOptions{
-			AppURL: opts.BaseURL, Username: creds.user, Password: creds.password,
-			StoragePath: storage, MxBuildPath: probe.MxBuildPath,
-		})
-	}
-
-	// A saved session is reused as-is: signing in again costs a browser round
-	// trip and, on the unlicensed runtime, one of a handful of session slots.
-	loggedIn := false
-	if storage != "" {
-		if _, err := os.Stat(storage); err != nil {
-			if err := login(); err != nil {
-				return res, err
-			}
-			loggedIn = true
-		}
-		probe.Storage = storage
-	}
-
-	sigs, err := probePagesFn(probe)
-	if err != nil {
-		return res, err
-	}
-
-	// A saved session the runtime no longer knows (it restarted, or the session
-	// timed out) lands every page on the sign-in form. Sign in once and redo
-	// just those pages.
-	if storage != "" && !loggedIn && anyNeedsLogin(sigs) {
-		if err := login(); err != nil {
-			return res, err
-		}
-		var redo []int
-		retry := probe
-		retry.Pages = nil
-		for i, s := range sigs {
-			if s.NeedsLogin() {
-				redo = append(redo, i)
-				retry.Pages = append(retry.Pages, pages[i])
-			}
-		}
-		again, err := probePagesFn(retry)
+	// A session is a set of cookies, and a cookie belongs to the host it was
+	// set on: one signed in on localhost is not sent to 127.0.0.1 or to
+	// frontend.local, though all three reach the same app. Signing in on the
+	// base URL and then loading a page given as a full URL on another host
+	// showed the sign-in form on every run, and signed in again on each
+	// (ako/mxcli#1216). So the pages of each host get a session signed in on
+	// that host.
+	mxbuild := anyMxBuildPath()
+	sigs := make([]PageSignals, len(pages))
+	for _, g := range groupByOrigin(opts.BaseURL, pages) {
+		o := opts
+		o.BaseURL = g.appURL
+		got, err := checkOrigin(o, creds, g.pages(pages), mxbuild, g.appURL != opts.BaseURL, w)
 		if err != nil {
 			return res, err
 		}
-		for j, i := range redo {
-			sigs[i] = again[j]
+		for j, i := range g.idx {
+			sigs[i] = got[j]
 		}
 	}
 
@@ -188,6 +175,163 @@ func RunPageCheck(opts PageCheckOptions) (PageCheckResult, error) {
 	return res, nil
 }
 
+// originGroup is the pages of one origin, as indexes into the request.
+type originGroup struct {
+	appURL string // where to sign in: the base URL, or the pages' own origin
+	idx    []int
+}
+
+func (g originGroup) pages(all []PageTarget) []PageTarget {
+	out := make([]PageTarget, len(g.idx))
+	for j, i := range g.idx {
+		out[j] = all[i]
+	}
+	return out
+}
+
+// groupByOrigin splits the pages by scheme, host and port, in the order each
+// origin first appears. Pages on the base URL's origin sign in on the base URL
+// itself; the others on their own origin.
+func groupByOrigin(baseURL string, pages []PageTarget) []originGroup {
+	baseOrigin := originOf(baseURL)
+	var groups []originGroup
+	at := map[string]int{}
+	for i, p := range pages {
+		o := originOf(p.URL)
+		k, ok := at[o]
+		if !ok {
+			app := o
+			if o == baseOrigin || o == "" {
+				app = baseURL
+			}
+			k = len(groups)
+			at[o] = k
+			groups = append(groups, originGroup{appURL: app})
+		}
+		groups[k].idx = append(groups[k].idx, i)
+	}
+	return groups
+}
+
+// originOf is scheme://host[:port], lower-cased; "" when raw is not an
+// absolute URL.
+func originOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return strings.ToLower(u.Scheme + "://" + u.Host)
+}
+
+// checkOrigin probes pages that share one origin, opts.BaseURL, signing in on
+// that origin when the check has credentials. nameHost adds the host to the
+// login/logout lines, for an origin other than the one the user gave.
+func checkOrigin(opts PageCheckOptions, creds credentials, pages []PageTarget, mxbuild string, nameHost bool, w io.Writer) ([]PageSignals, error) {
+	probe := ProbeOptions{
+		Pages: pages, WaitMs: opts.WaitMs,
+		Texts: opts.Spec.Texts, CountSelectors: opts.Spec.CountSelectors(),
+		MxBuildPath: mxbuild,
+	}
+	if creds.user == "" {
+		return probePagesFn(probe)
+	}
+
+	storage := checkStoragePath(opts, creds.user)
+	where := ""
+	if nameHost {
+		if u, err := url.Parse(opts.BaseURL); err == nil {
+			where = " on " + u.Host
+		}
+	}
+	signOut := func() {
+		// Best effort, and never part of the verdict: a session that could not
+		// be signed out holds its slot only until the runtime expires it.
+		err := signOutFn(SignOutOptions{AppURL: opts.BaseURL, StoragePath: storage, MxBuildPath: mxbuild})
+		if errors.Is(err, ErrNoSession) {
+			return // already gone: nothing held a slot
+		}
+		if err != nil {
+			fmt.Fprintf(opts.Stderr, "sign-out of %s%s did not complete (the session expires on its own): %v\n", creds.user, where, err)
+			return
+		}
+		fmt.Fprintf(w, "logout %s%s\n", creds.user, where)
+	}
+	if opts.FreshLogin {
+		if _, err := os.Stat(storage); err == nil {
+			signOut()
+		}
+		_ = os.Remove(storage)
+	}
+	login := func() error {
+		fmt.Fprintf(w, "login %s%s%s\n", creds.user, where, sourceSuffix(creds.source))
+		return loginFn(LoginOptions{
+			AppURL: opts.BaseURL, Username: creds.user, Password: creds.password,
+			StoragePath: storage, MxBuildPath: mxbuild, RuntimeLogPath: opts.RuntimeLogPath,
+		})
+	}
+
+	// A saved session is reused as-is: signing in again costs a browser round
+	// trip and, on the unlicensed runtime, one of a handful of session slots.
+	// Reused, it stays one session however many checks run.
+	loggedIn := false
+	if _, err := os.Stat(storage); err != nil {
+		if err := login(); err != nil {
+			return nil, err
+		}
+		loggedIn = true
+	}
+	probe.Storage = storage
+
+	sigs, err := probePagesFn(probe)
+	if err != nil {
+		return nil, err
+	}
+
+	// A saved session the runtime no longer knows (it restarted, or the session
+	// timed out) lands every page on the sign-in form. Sign in once and redo
+	// just those pages. A page the user's roles may not open lands there too,
+	// but it is refused with 403, not 401, and does not count: signing in again
+	// would get the same refusal and replace a live session with a new one on
+	// every check, one more session per run.
+	if !loggedIn && anyNeedsLogin(sigs) {
+		if err := login(); err != nil {
+			return nil, err
+		}
+		loggedIn = true
+		var redo []int
+		retry := probe
+		retry.Pages = nil
+		for i, s := range sigs {
+			if s.NeedsLogin() {
+				redo = append(redo, i)
+				retry.Pages = append(retry.Pages, pages[i])
+			}
+		}
+		again, err := probePagesFn(retry)
+		if err != nil {
+			return nil, err
+		}
+		for j, i := range redo {
+			sigs[i] = again[j]
+		}
+	}
+
+	// A session this run signed in that got no page past the sign-in form is
+	// worth nothing to the next check, which would only sign in again beside
+	// it — the per-run leak of #1216. Sign it out instead of keeping it; and
+	// sign out whatever session was used when the run is to end signed out.
+	// A session that was only refused pages (403) is not that: the runtime
+	// knows it, and the next check can use it.
+	if opts.SignOut || (loggedIn && allNeedLogin(sigs)) {
+		signOut()
+		_ = os.Remove(storage)
+	}
+	for i := range sigs {
+		sigs[i].SignedInAs = creds.signedInAs()
+	}
+	return sigs, nil
+}
+
 func anyNeedsLogin(sigs []PageSignals) bool {
 	for _, s := range sigs {
 		if s.NeedsLogin() {
@@ -195,6 +339,15 @@ func anyNeedsLogin(sigs []PageSignals) bool {
 		}
 	}
 	return false
+}
+
+func allNeedLogin(sigs []PageSignals) bool {
+	for _, s := range sigs {
+		if !s.NeedsLogin() {
+			return false
+		}
+	}
+	return len(sigs) > 0
 }
 
 func sourceSuffix(src string) string {
@@ -267,7 +420,7 @@ func pickDemoUser(ps *security.ProjectSecurity, role string) (credentials, error
 		for _, du := range ps.DemoUsers {
 			for _, r := range du.UserRoles {
 				if strings.EqualFold(shortRole(r), role) || strings.EqualFold(r, role) {
-					return credentials{user: du.UserName, password: du.Password, source: "--role " + role}, nil
+					return credentials{user: du.UserName, password: du.Password, source: "--role " + role, roles: du.UserRoles}, nil
 				}
 			}
 			names = append(names, du.UserName)
@@ -285,12 +438,12 @@ func pickDemoUser(ps *security.ProjectSecurity, role string) (credentials, error
 	for _, du := range ps.DemoUsers {
 		for _, r := range du.UserRoles {
 			if admin.MatchString(r) {
-				return credentials{user: du.UserName, password: du.Password, source: "demo user"}, nil
+				return credentials{user: du.UserName, password: du.Password, source: "demo user", roles: du.UserRoles}, nil
 			}
 		}
 	}
 	du := ps.DemoUsers[0]
-	return credentials{user: du.UserName, password: du.Password, source: "demo user"}, nil
+	return credentials{user: du.UserName, password: du.Password, source: "demo user", roles: du.UserRoles}, nil
 }
 
 // shortRole strips a module or project qualifier from a role name.

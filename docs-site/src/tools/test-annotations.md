@@ -153,6 +153,35 @@ a `change`, a `create` — is not caught; move it into a microflow and call that
 The same handler turns an unexpected error in a test without `@throws` into a
 FAIL reading `exception during execution: <message>`.
 
+### A call with its own error handling
+
+A call that already has an `on error` clause keeps it and gets no second
+handler, so a test runs the statement exactly as production code does. What the
+test then reports depends on the clause (measured on Mendix 11.13 with a Java
+action that throws):
+
+| Clause on the call | Without `@throws` | With `@throws` |
+|---|---|---|
+| none | FAIL `exception during execution: <message>` | PASS when the message matches |
+| `on error rollback` | same as none — it is Mendix's default spelled out, so the runner's handler takes its place | same as none |
+| `on error continue` | the error is swallowed; the assertions decide (`$r` is empty) | FAIL `expected an exception but none was thrown` |
+| custom handler that ends normally | FAIL `not every assertion was evaluated` when an assertion reads the call's result; an assertion on what the handler did is evaluated | FAIL `expected an exception but none was thrown` |
+| custom handler that re-raises (`raise error`) | ERROR with the message — the error leaves the test microflow | ERROR with the message |
+
+A custom handler that ends normally rejoins the flow after every statement that
+reads the failed call's output, because that variable does not exist on the
+error path. The assertions read exactly that, so the runner counts the
+assertions it evaluated and fails the test when the count is short, instead of
+reporting a pass for assertions that never ran. To test the handler's path,
+assert on something the handler sets: `declare $Failed Boolean = false;` before
+the call, `set $Failed = true;` inside its handler, and `@expect $Failed = true`.
+That assertion does not read the call's result, so it is evaluated, and passes
+only when the handler ran.
+
+Under the Docker / `--legacy-runner` path an error that leaves the test — the
+re-raising row above — ends the whole runner: that test is reported as an ERROR
+that started and gave no verdict, and every later test as not executed.
+
 ## `@setup`
 
 Names a **microflow** to call before the test's own statements — a fixture in a

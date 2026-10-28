@@ -120,6 +120,31 @@ mxcli diff-local -p app.mpr --ref main..feature-branch
 mxcli diff-local -p app.mpr --ref main...feature-branch
 ```
 
+With three dots the old side is the merge base of the two revisions, labelled
+`(merge base of main and feature-branch)`, so the diff shows only what the
+branch changed. With two dots it is `main`'s tip, so anything `main` changed
+since the branch split also shows up, reversed. An empty side means `HEAD`, as
+it does to git (`--ref main..` is `main..HEAD`).
+
+### What diff-local shows
+
+Each changed `.mxunit` is rendered as MDL at both revisions and the two
+renderings are diffed. Domain models, microflows, nanoflows, pages, snippets,
+layouts, enumerations, modules and the project settings render as MDL — a
+domain model's entity access rules as the `grant` statements `describe entity`
+prints, the settings as `describe settings` prints them, except that configuration
+constant values are masked, since they often hold secrets. A changed value
+still shows, as `value <masked: old value>` against `value <masked: new value>`.
+
+A unit that changed only in properties its rendering leaves out — navigation,
+project or module security, a page's allowed roles, an entity index — is
+printed as one line naming the properties that changed, never their values,
+rather than counted in the summary and left blank:
+
+```
+Modified: ModuleSecurity MyFirstModule: changed in properties the MDL rendering does not show: ModuleRoles (1 -> 2 items)
+```
+
 ### MPR v2 Requirement
 
 `diff-local` only works with MPR v2 format (Mendix >= 10.18), where documents are stored as individual files. MPR v1 projects store everything in a single SQLite database, making file-level git diff impractical.

@@ -64,7 +64,16 @@ stopped, its URL, pid and uptime, the last build generation and how it was
 applied (reload or restart) or why it failed, and whether a change on disk is
 still waiting to be applied.
 
-A state file whose process is gone is reported as stopped, and says so.
+A state file whose process is gone is reported as stopped, and says so. A run
+whose runtime stopped on its own (the trial licence's time limit, a crash) says
+why when its runtime log does:
+
+  stopped: trial licence time limit reached at 18:43:16 (runtime.log); restart with mxcli run restart -p app.mpr
+
+Check this first when .mxcli/run-local.json is missing or the admin API answers
+401/403: that file is removed when the run ends, and a command that cannot find
+it falls back to default credentials. A live run whose run-local.json is gone is
+reported as running, with the missing file named.
 
 Exit codes: 0 running, 3 not running, 4 still starting.`,
 	Example: `  mxcli run status -p app.mpr
@@ -368,9 +377,75 @@ func runStatus(projectPath string, out io.Writer) int {
 		fmt.Fprintf(out, "unknown: %v\n", err)
 		return runExitFailed
 	}
-	line, code := statusLine(st, docker.PidAlive, docker.SourceMTime(projectPath), time.Now(), leftoverCount)
+	line, code := statusLine(st, liveStatusProbes(), docker.SourceMTime(projectPath), time.Now())
 	fmt.Fprintln(out, line)
 	return code
+}
+
+// runStatusSummary is the line `mxcli run status -p projectPath` would print,
+// for an error elsewhere to quote; "" when no run of the project is recorded.
+func runStatusSummary(projectPath string) string {
+	st, err := docker.ReadRunState(projectPath)
+	if err != nil || st == nil {
+		return ""
+	}
+	line, _ := statusLine(st, liveStatusProbes(), docker.SourceMTime(projectPath), time.Now())
+	return line
+}
+
+// statusProbes are what statusLine asks of the system, injected so its rules
+// are testable without processes. A nil probe has nothing to say.
+type statusProbes struct {
+	alive     func(int) bool
+	leftovers func(*docker.RunState) int
+	// logReason reads why the runtime stopped from the run's runtime log.
+	logReason func(*docker.RunState) string
+	// handshake reports whether the run's .mxcli/run-local.json exists.
+	handshake func(*docker.RunState) bool
+}
+
+// liveStatusProbes asks the real system.
+func liveStatusProbes() statusProbes {
+	return statusProbes{
+		alive:     docker.PidAlive,
+		leftovers: leftoverCount,
+		logReason: func(st *docker.RunState) string { return docker.RuntimeLogStopReason(st.RuntimeLog) },
+		handshake: func(st *docker.RunState) bool {
+			if st.Project == "" {
+				return true // cannot tell; do not cry wolf
+			}
+			_, err := os.Stat(devLoopHandshakePath(st.Project))
+			return err == nil
+		},
+	}
+}
+
+// probesWithAlive is liveStatusProbes with liveness already decided by the
+// caller, so one snapshot gives one answer.
+func probesWithAlive(alive bool) statusProbes {
+	p := liveStatusProbes()
+	p.alive = func(int) bool { return alive }
+	return p
+}
+
+func (p statusProbes) reasonFromLog(st *docker.RunState) string {
+	if p.logReason == nil || st.RuntimeLog == "" {
+		return ""
+	}
+	return p.logReason(st)
+}
+
+func (p statusProbes) handshakePublished(st *docker.RunState) bool {
+	return p.handshake == nil || p.handshake(st)
+}
+
+// restartHint is the command that brings a stopped run back with the same
+// arguments.
+func restartHint(st *docker.RunState) string {
+	if st.Project == "" {
+		return "mxcli run restart"
+	}
+	return "mxcli run restart -p " + st.Project
 }
 
 // leftoverCount is how many processes of a dead detached run are still alive.
@@ -383,19 +458,29 @@ func leftoverCount(st *docker.RunState) int {
 
 // statusLine renders the one status line and its exit code. Its inputs are
 // injected so the staleness rules are testable without processes.
-func statusLine(st *docker.RunState, alive func(int) bool, source, now time.Time, leftovers func(*docker.RunState) int) (string, int) {
+//
+// A run that stopped on its own says why when anything recorded it — the run
+// state's reason, else the runtime log — because a caller that only learns
+// "stopped" (or, worse, finds run-local.json gone) goes looking at its
+// credentials instead (ako/mxcli#1542).
+func statusLine(st *docker.RunState, p statusProbes, source, now time.Time) (string, int) {
 	if st == nil {
 		return "stopped: no run recorded for this project", runExitNotRunning
 	}
-	live := alive(st.PID)
+	live := p.alive(st.PID)
 	if !live && (st.Phase == docker.PhaseStarting || st.Phase == docker.PhaseRunning) {
 		line := fmt.Sprintf("stopped: pid %d exited without cleaning up (it was %s", st.PID, st.Phase)
 		if st.URL != "" {
 			line += " at " + st.URL
 		}
 		line += ")"
-		if n := leftovers(st); n > 0 {
-			line += fmt.Sprintf("; %d leftover process(es) still running — mxcli run stop reaps them", n)
+		if reason := p.reasonFromLog(st); reason != "" {
+			line += "; its runtime log says: " + reason
+		}
+		if p.leftovers != nil {
+			if n := p.leftovers(st); n > 0 {
+				line += fmt.Sprintf("; %d leftover process(es) still running — mxcli run stop reaps them", n)
+			}
 		}
 		return line, runExitNotRunning
 	}
@@ -403,6 +488,15 @@ func statusLine(st *docker.RunState, alive func(int) bool, source, now time.Time
 	case docker.PhaseFailed:
 		return fmt.Sprintf("stopped: boot failed — %s (log %s)", firstLineOf(st.Error), displayPath(st.Log)), runExitNotRunning
 	case docker.PhaseStopped:
+		reason := st.Reason
+		if reason == "" && st.Error != "" {
+			// A run recorded by an older mxcli, or one that ended on another
+			// error: the runtime log may still know.
+			reason = p.reasonFromLog(st)
+		}
+		if reason != "" {
+			return "stopped: " + reason + "; restart with " + restartHint(st), runExitNotRunning
+		}
 		if st.Error != "" {
 			return "stopped: " + firstLineOf(st.Error), runExitNotRunning
 		}
@@ -441,7 +535,14 @@ func statusLine(st *docker.RunState, alive func(int) bool, source, now time.Time
 	case source.After(covered):
 		parts = append(parts, "changes on disk NOT applied (no --watch): mxcli run restart applies them")
 	}
-	return fmt.Sprintf("running: %s (%s)", st.URL, strings.Join(parts, ", ")), runExitOK
+	line := fmt.Sprintf("running: %s (%s)", st.URL, strings.Join(parts, ", "))
+	if !p.handshakePublished(st) {
+		// The app is up, but the file other commands find it by is gone — so
+		// they fall back to default credentials and meet a 403 (#1542).
+		line += "; but .mxcli/run-local.json is MISSING, so oql, log and constant --apply cannot " +
+			"reach its admin API — " + restartHint(st) + " publishes it again"
+	}
+	return line, runExitOK
 }
 
 // --- wait --------------------------------------------------------------
@@ -472,7 +573,7 @@ func runWait(projectPath string, timeout time.Duration, since int, out io.Writer
 			printBootFailure(out, "boot failed: "+st.Error, st.Log)
 			return runExitFailed
 		case docker.WaitNotRunning:
-			line, _ := statusLine(st, func(int) bool { return alive }, target, time.Now(), leftoverCount)
+			line, _ := statusLine(st, probesWithAlive(alive), target, time.Now())
 			fmt.Fprintf(out, "not running: %s\n", strings.TrimPrefix(line, "stopped: "))
 			return runExitNotRunning
 		case docker.WaitNotWatching:
@@ -509,7 +610,7 @@ func runWaitReady(projectPath string, timeout time.Duration, out io.Writer) int 
 			printBootFailure(out, st.Error, st.Log)
 			return runExitFailed
 		case docker.WaitNotRunning:
-			line, _ := statusLine(st, func(int) bool { return alive }, time.Time{}, time.Now(), leftoverCount)
+			line, _ := statusLine(st, probesWithAlive(alive), time.Time{}, time.Now())
 			fmt.Fprintf(out, "not running: %s\n", strings.TrimPrefix(line, "stopped: "))
 			return runExitNotRunning
 		}
@@ -554,6 +655,8 @@ func runStop(projectPath string, out io.Writer) int {
 			cur.Phase, cur.Ended, cur.Building = docker.PhaseStopped, time.Now(), false
 			_ = docker.WriteRunState(projectPath, cur)
 		}
+		// And its handshake, which only it could withdraw (ako/mxcli#1542).
+		withdrawDevLoopHandshake(projectPath, st.PID)
 	}
 
 	if left := remaining(st); len(left) > 0 {

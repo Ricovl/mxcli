@@ -30,10 +30,12 @@ var graphRefKinds = []string{
 	// of the analysis graph, so communities, layers, cycles and centrality all
 	// see the API and scheduling surface as unreachable roots.
 	// schedule  a scheduled event runs it
-	// publish   a published REST operation runs it
+	// publish   a published service runs it: a REST operation, an OData
+	//           resource or action, a service's authentication microflow
 	// event     an entity event handler runs it on every commit/delete — the
 	//           entity rather than the platform, but reached the same way, and
-	//           structural rather than UI coupling
+	//           structural rather than UI coupling — or a business event
+	//           service runs it when a subscribed event arrives
 	"schedule",
 	"publish",
 	"event",

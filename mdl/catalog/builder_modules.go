@@ -512,6 +512,11 @@ func (b *Builder) buildODataClients() error {
 
 		qualifiedName := moduleName + "." + svc.Name
 
+		// The runtime calls these on every request the service makes, so the
+		// service is their caller.
+		b.addServiceMicroflowRefs(RefObjectConsumedODataService, svc.ID, qualifiedName, moduleName,
+			RefKindCall, svc.ConfigurationMicroflow, svc.HeadersMicroflow, svc.ErrorHandlingMicroflow)
+
 		validated := 0
 		if svc.Validated {
 			validated = 1
@@ -562,6 +567,13 @@ func (b *Builder) buildODataServices() error {
 
 		qualifiedName := moduleName + "." + svc.Name
 		authTypes := strings.Join(svc.AuthenticationTypes, ", ")
+
+		// Every microflow the service runs is an entry point: a client's
+		// request reaches it, nothing in the model calls it. Without the edge a
+		// resource's read microflow and the service's authentication microflow
+		// read as dead to `refs`, `impact` and QUAL004 (ako/mxcli#1639).
+		b.addServiceMicroflowRefs(RefObjectPublishedODataService, svc.ID, qualifiedName, moduleName,
+			RefKindPublish, publishedODataMicroflows(svc)...)
 
 		_, err := stmt.Exec(
 			string(svc.ID),
@@ -616,6 +628,7 @@ func (b *Builder) buildBusinessEventServices() error {
 				msgCount += len(ch.Messages)
 			}
 		}
+		handlers := make([]string, 0, len(svc.OperationImplementations))
 		for _, op := range svc.OperationImplementations {
 			switch op.Operation {
 			case "publish":
@@ -623,7 +636,13 @@ func (b *Builder) buildBusinessEventServices() error {
 			case "subscribe":
 				subscribeCount++
 			}
+			handlers = append(handlers, op.Microflow)
 		}
+		// An operation's microflow is the handler the platform runs when the
+		// event arrives — an event handler, like an entity's, and reached the
+		// same way: nothing in the model calls it.
+		b.addServiceMicroflowRefs(RefObjectBusinessEventService, svc.ID, qualifiedName, moduleName,
+			RefKindEvent, handlers...)
 
 		serviceName := ""
 		eventNamePrefix := ""
