@@ -106,3 +106,28 @@ alter page MyFirstModule.Bug854Cards {
 };
 
 grant view on page MyFirstModule.Bug854Cards to MyFirstModule.User;
+
+-- ----------------------------------------------------------------------------
+-- An enumeration setting is written as the key the widget declares. Stored as
+-- written, `onClickTrigger: Double` matched neither of the Gallery's triggers
+-- (its runtime compares `"single" === trigger` / `"double" === trigger`), so the
+-- row action never ran on a click — with mx check at 0 errors. It is now stored
+-- as `double`. A value the widget declares no key for (`triple`) is refused
+-- under `mdl 1;` as MDL-WIDGET08, naming the keys.
+-- ----------------------------------------------------------------------------
+
+create page MyFirstModule.Bug854Trigger (
+  title: 'Trigger',
+  layout: Atlas_Core.Atlas_Default
+) {
+  gallery dblCards (
+    datasource: database from MyFirstModule.Bug854Chore,
+    selection: Single,
+    onClickTrigger: Double,
+    onClick: call nanoflow MyFirstModule.Bug854Enter
+  ) {
+    template { dynamictext title3 (content: '{1}', contentparams: ({1} = Title)) }
+  }
+};
+
+grant view on page MyFirstModule.Bug854Trigger to MyFirstModule.User;

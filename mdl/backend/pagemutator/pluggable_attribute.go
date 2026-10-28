@@ -48,6 +48,9 @@ func (m *Mutator) PluggablePropertyScope(widgetRef, propKey string) (backend.Plu
 			Kind:       bsonnav.DGetString(vt, "Type"),
 			DataSource: bsonnav.DGetString(vt, "DataSourceProperty"),
 		}
+		if scope.Kind == "Enumeration" {
+			scope.EnumKeys = pluggableEnumerationKeys(result.widget, bsonnav.ExtractBinaryIDFromDoc(bsonnav.DGet(ptDoc, "$ID")))
+		}
 		if scope.DataSource != "" {
 			scope.Linked = toSourceScope(resolveSourceScope(m.rawData, pluggablePropertyDataSource(result.widget, scope.DataSource)))
 		}

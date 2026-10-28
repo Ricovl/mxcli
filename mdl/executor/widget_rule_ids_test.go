@@ -41,6 +41,10 @@ var widgetRuleIDsRaisedFromSeveralFiles = map[string][]string{
 	// applyWidgetAppearance, or Visible: on a row's column, which has no
 	// visibility slot (mendixlabs/mxcli#1461).
 	"MDL-WIDGET07": {"validate_design_properties.go", "validate_layoutgrid_column_visible.go", "validate_widgets.go"},
+	// One rule about an enumeration value the widget declares no key for: an
+	// object-list item's sub-property, and — gated on the language version,
+	// MDL-V1-WIDGETENUM under mdl 0 — a widget's own property (ako/mxcli#854).
+	"MDL-WIDGET08": {"validate_widget_language.go", "validate_widgets.go"},
 }
 
 // Matched as a QUOTED literal rather than after `RuleID:`, because an id is

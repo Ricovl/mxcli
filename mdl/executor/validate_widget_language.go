@@ -42,6 +42,20 @@ var galleryClickRefused = langver.Change{
 	New: "a refusal (MDL-WIDGET36), with nothing written",
 }
 
+// widgetEnumRefused gates a value an enumeration property of a pluggable widget
+// declares no key for (ako/mxcli#854). The widget reads its keys exactly — a
+// Gallery runs its row click only for `"single" === trigger` or
+// `"double" === trigger` — so `onClickTrigger: triple` stored a value nothing
+// reads, and `mx check` reports 0 errors. A key written in another case is not
+// this: it is stored as the key under both versions.
+var widgetEnumRefused = langver.Change{
+	Code:  "MDL-V1-WIDGETENUM",
+	Since: langver.V1,
+	Old: "A value an enumeration property of a pluggable widget declares no key for (`onClickTrigger: triple`) " +
+		"is written as given, and the widget ignores it",
+	New: "a refusal (MDL-WIDGET08) that names the keys, with nothing written",
+}
+
 // widgetLanguageChanges maps each gated violation code to its change and the
 // rule ID it carries once the change applies.
 var widgetLanguageChanges = map[string]struct {
@@ -52,6 +66,7 @@ var widgetLanguageChanges = map[string]struct {
 	galleryClickRefused.Code:     {galleryClickRefused, "MDL-WIDGET36"},
 	tabPagePropDropped.Code:      {tabPagePropDropped, "MDL-WIDGET44"},
 	nativeWidgetPropDropped.Code: {nativeWidgetPropDropped, "MDL-WIDGET52"},
+	widgetEnumRefused.Code:       {widgetEnumRefused, "MDL-WIDGET08"},
 }
 
 // GateWidgetViolations applies the script's language version to the widget

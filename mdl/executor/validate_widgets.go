@@ -274,6 +274,9 @@ func validateWidgetTreeIn(widgets []*ast.WidgetV3, registry *WidgetRegistry, loc
 		out = append(out, validateWidgetActionSlot(w, locationPrefix)...)
 		// #842: a Gallery row click the widget itself calls ambiguous.
 		out = append(out, validateGalleryClickAmbiguity(w, locationPrefix)...)
+		// ako/mxcli#854: an enumeration value the installed widget declares no
+		// key for — stored as given, and ignored by the widget.
+		out = append(out, validatePluggableEnumValues(w, lookupWidgetDef(w, registry), locationPrefix)...)
 		// #928: contentparams with no `{N}` placeholder to consume them.
 		if lookupWidgetDef(w, registry) != nil {
 			out = append(out, validatePluggableContentParams(w, locationPrefix)...)

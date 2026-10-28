@@ -3,6 +3,7 @@
 package pagemutator
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -107,7 +108,7 @@ func TestPluggablePropertyScope(t *testing.T) {
 	got, ok := m.PluggablePropertyScope("chart1", "eventDataAttribute")
 	want := backend.PluggablePropertyScope{Key: "eventDataAttribute", Kind: "Attribute",
 		Enclosing: backend.SourceScope{Entity: "M.Entry"}}
-	if !ok || got != want {
+	if !ok || !reflect.DeepEqual(got, want) {
 		t.Errorf("eventDataAttribute: got %+v, %v; want %+v", got, ok, want)
 	}
 
@@ -116,7 +117,7 @@ func TestPluggablePropertyScope(t *testing.T) {
 	got, ok = m.PluggablePropertyScope("chart1", "DataAttribute")
 	want = backend.PluggablePropertyScope{Key: "dataAttribute", Kind: "Attribute", DataSource: "datasource",
 		Linked: backend.SourceScope{Entity: "M.Point"}, Enclosing: backend.SourceScope{Entity: "M.Entry"}}
-	if !ok || got != want {
+	if !ok || !reflect.DeepEqual(got, want) {
 		t.Errorf("dataAttribute: got %+v, %v; want %+v", got, ok, want)
 	}
 
