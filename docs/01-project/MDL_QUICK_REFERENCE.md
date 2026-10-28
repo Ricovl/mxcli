@@ -1760,6 +1760,7 @@ This is the generic ALTER — `alter <type> Module.Name { set (Key: value) on <t
 | Replace widget | `replace widgetName with { widgets }` | Replace widget subtree |
 | Pluggable prop | `set ('showLabel': false) on cbStatus` | Quoted name for pluggable widgets |
 | Named action slot | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` | A pluggable widget's action-typed property, by its own key; any `create page` action form. Refused on a key that is not action-typed |
+| Click action | `set (Action: call nanoflow M.ACT_Open) on gallery1` | `Action:` (alias `onClick:`) is a button's or container's click, and a pluggable widget's click slot — a gallery's or data grid's row click. A gallery row click on a single-click selection is **MDL-WIDGET36** under `mdl 1;` (`mx check`: "The item click action is ambiguous"); add `onClickTrigger: 'double'` to the SET, or `replace` the gallery with `Selection: None` (a SET cannot change a selection) |
 | Set column prop | `set (caption: 'New') on dgGrid column(Attr)` | A DataGrid 2 column by its attribute, or `column('Caption')`; `@n` when two columns match. The older `dgGrid.colName` (a derived name) still works |
 | Drop attribute | `drop dgGrid column(Attr)` | Remove a DataGrid column |
 | Insert column | `insert after dgGrid column(Attr) { column (…) }` | Add attribute to DataGrid; a column takes no name |

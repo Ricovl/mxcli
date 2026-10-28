@@ -77,3 +77,32 @@ create page MyFirstModule.Bug854Slots (
 };
 
 grant view on page MyFirstModule.Bug854Slots to MyFirstModule.User;
+
+-- ----------------------------------------------------------------------------
+-- `alter page … set (Action: …) on <gallery>` was refused ("has no on-click
+-- action") while `set ('onClick': …)` wrote the same slot, and no ALTER
+-- spelling applied MDL-WIDGET36. `Action:` / `onClick:` now reach a pluggable
+-- widget's click slot; a row click left on a single-click selection is refused
+-- under `mdl 1;` (MDL-WIDGET36) — `mx check` otherwise fails the page with
+-- "The item click action is ambiguous" — so the second gallery is switched to
+-- a double-click trigger in the same SET.
+-- ----------------------------------------------------------------------------
+
+create page MyFirstModule.Bug854Cards (
+  title: 'Cards',
+  layout: Atlas_Core.Atlas_Default
+) {
+  gallery clickCards (datasource: database from MyFirstModule.Bug854Chore, selection: None) {
+    template { dynamictext title1 (content: '{1}', contentparams: ({1} = Title)) }
+  }
+  gallery selectCards (datasource: database from MyFirstModule.Bug854Chore) {
+    template { dynamictext title2 (content: '{1}', contentparams: ({1} = Title)) }
+  }
+};
+
+alter page MyFirstModule.Bug854Cards {
+  set (Action: call nanoflow MyFirstModule.Bug854Enter) on clickCards;
+  set (onClickTrigger: 'double', Action: call nanoflow MyFirstModule.Bug854Enter) on selectCards
+};
+
+grant view on page MyFirstModule.Bug854Cards to MyFirstModule.User;

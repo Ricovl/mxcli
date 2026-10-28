@@ -178,7 +178,34 @@ func checkSetOp(ctx *ExecContext, p pageProbe, label string, op *ast.SetProperty
 			}
 		}
 	}
+	// So is a Gallery's row click: legal or ambiguous depending on the click,
+	// the selection and the trigger together, of which a SET may name one
+	// (MDL-WIDGET36, ako/mxcli#854).
+	if len(errs) == 0 && touchesGalleryClick(op) {
+		errs = append(errs, checkGalleryClickSet(ctx, p, label, op, modName, modID, sc)...)
+	}
 	return errs
+}
+
+// checkGalleryClickSet is checkGalleryClickAfterSet for check: an error under
+// `mdl 1;`, a warning under mdl 0, judged on a copy with the whole SET applied.
+func checkGalleryClickSet(ctx *ExecContext, p pageProbe, label string, op *ast.SetPropertyOp, modName string, modID model.ID, sc *scriptContext) []error {
+	probe, err := p.Probe()
+	if err != nil || applySetProperties(ctx, probe, op, modName, modID) != nil {
+		return nil // a SET that does not apply is reported above, or by exec
+	}
+	msg := storedGalleryClickAmbiguity(probe, label, op.Target.Widget)
+	if msg == "" {
+		return nil
+	}
+	if galleryClickRefused.Applies(ctx.LanguageVersion) {
+		return []error{mdlerrors.NewValidation(fmt.Sprintf("%s — %s [MDL-WIDGET36]", msg, galleryClickSuggestion))}
+	}
+	if sc != nil {
+		sc.warnings = append(sc.warnings, fmt.Sprintf("%s [%s] — %s. %s",
+			msg, galleryClickRefused.Code, galleryClickSuggestion, galleryClickRefused.Warning(ctx.LanguageVersion)))
+	}
+	return nil
 }
 
 // setImageRefErrors resolves the image a SET writes onto a legacy image viewer
