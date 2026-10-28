@@ -177,3 +177,23 @@ func lookup(d bson.D, key string) (any, bool) {
 	}
 	return nil, false
 }
+
+// Below Mendix 11.3 the main flow's start is implicit (ako/mxcli#1754) and the
+// header's note is the workflow's own Annotation: `set (Annotation: '…')` writes
+// it there instead of refusing for want of a start activity.
+func TestWorkflowMutator_SetProperty_AnnotationWithoutAStartActivity(t *testing.T) {
+	doc := append(makeWorkflowDoc(withNullAnnotation(makeWfActivity("Workflows$CallMicroflowTask", "Step", "Step"))),
+		bson.E{Key: "Annotation", Value: nil})
+	m := newMutator(doc)
+	if err := m.SetProperty("annotation", "Approve orders"); err != nil {
+		t.Fatalf("set (Annotation) on a workflow with an implicit start: %v", err)
+	}
+	assertNote(t, m.rawData, "Approve orders")
+
+	if err := m.SetProperty("annotation", ""); err != nil {
+		t.Fatal(err)
+	}
+	if v, present := lookup(m.rawData, "Annotation"); !present || v != nil {
+		t.Errorf("after removing: Annotation = %v (present %v), want null", v, present)
+	}
+}

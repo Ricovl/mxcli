@@ -121,6 +121,15 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 | User tasks | `USER TASK ... OUTCOMES (...)` | Yes | Yes |
 | Parallel splits | `PARALLEL SPLIT` | Yes | Yes |
 
+Below Mendix 11.3 a workflow's main flow has no stored start or end activity:
+11.1 and 11.2 keep them implicit, and 10.x and 11.0 do not have the start
+activity type at all. mxcli writes the shape the project's version stores, and
+the header's `annotation '…'` is then the workflow's own note rather than the
+start activity's; `describe` prints it the same way on every version. Before
+this, mxcli wrote the 11.3 shape on every version: a 10.24 or 11.0 project no
+longer loaded, and 11.1 and 11.2 failed `mx check` with CE6671 and CE6689
+(ako/mxcli#1754).
+
 ### Navigation
 
 | Feature | MDL Syntax | 9.x | 10.0+ |

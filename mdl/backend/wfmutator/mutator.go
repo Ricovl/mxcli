@@ -109,6 +109,10 @@ func (m *Mutator) SetProperty(prop string, value string) error {
 // stores and shows it. The workflow's own Annotation — shown nowhere, and where
 // mxcli wrote the note before — is cleared, or describe would still print the
 // note the statement replaced or removed.
+//
+// A workflow whose main flow has no start activity is one stored below Mendix
+// 11.3, which keeps the start implicit and the note as the workflow's own
+// Annotation (ako/mxcli#1754); the note is set there.
 func (m *Mutator) setStartNote(text string) error {
 	var start bson.D
 	for _, el := range bsonnav.DGetArrayElements(bsonnav.DGet(bsonnav.DGetDoc(m.rawData, "Flow"), "Activities")) {
@@ -118,6 +122,9 @@ func (m *Mutator) setStartNote(text string) error {
 		}
 	}
 	if start == nil {
+		if setNote(m.rawData, "the workflow", text) == nil {
+			return nil
+		}
 		return fmt.Errorf("the workflow has no start activity to hold its note")
 	}
 	if err := setNote(start, "the workflow's start activity", text); err != nil {
