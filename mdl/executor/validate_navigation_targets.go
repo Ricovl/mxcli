@@ -236,6 +236,24 @@ func unresolvedNavigationTargets(ctx *ExecContext, targets []navTarget, sc *scri
 	return out
 }
 
+// navigationAppIconErrors resolves an APP ICON clause's image, with the resolver
+// every other image reference uses (resolveImageRefs: a page's image widget,
+// ALTER PAGE SET) -- the project's image collections plus, for `check`, those
+// the script creates. The name is stored as written, so an image that does not
+// exist would otherwise be reported only by the next build (ako/mxcli#1756).
+// `app icon none` names nothing.
+func navigationAppIconErrors(ctx *ExecContext, stmt ast.Statement, sc *scriptContext) []string {
+	s, ok := stmt.(*ast.CreateNavigationStmt)
+	if !ok || s.AppIcon == nil || *s.AppIcon == "" {
+		return nil
+	}
+	var out []string
+	for _, e := range resolveImageRefs(ctx, []string{*s.AppIcon}, sc) {
+		out = append(out, "app icon: "+e)
+	}
+	return out
+}
+
 // navigationTargetError is the one error a statement's unresolved targets make.
 func navigationTargetError(label string, unresolved []string) error {
 	return mdlerrors.NewValidationf("%s has reference errors:\n  - %s", label, strings.Join(unresolved, "\n  - "))
@@ -258,6 +276,7 @@ func validateNavigationTargets(ctx *ExecContext, prog *ast.Program, sc *scriptCo
 			continue
 		}
 		unresolved := unresolvedNavigationTargets(ctx, targets, sc)
+		unresolved = append(unresolved, navigationAppIconErrors(ctx, stmt, sc)...)
 		if len(unresolved) == 0 {
 			continue
 		}
@@ -294,7 +313,11 @@ func validateNavigationTargetsForExec(ctx *ExecContext, stmt ast.Statement) erro
 			}
 		}
 	}
-	if unresolved := unresolvedNavigationTargets(ctx, targets, sc); len(unresolved) > 0 {
+	unresolved := unresolvedNavigationTargets(ctx, targets, sc)
+	// The images are in the project by now: a collection the script creates is
+	// written before this statement runs, as a page's image widget assumes.
+	unresolved = append(unresolved, navigationAppIconErrors(ctx, stmt, nil)...)
+	if len(unresolved) > 0 {
 		return navigationTargetError(label, unresolved)
 	}
 	return nil

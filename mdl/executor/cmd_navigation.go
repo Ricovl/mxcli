@@ -136,6 +136,8 @@ func execCreateNavigation(ctx *ExecContext, s *ast.CreateNavigationStmt) error {
 
 	spec.ThrowSyncError = s.ThrowSyncError
 	spec.ProgressiveWebApp = s.ProgressiveWebApp
+	spec.AppTitle = s.AppTitle
+	spec.AppIcon = s.AppIcon
 	spec.HasSync = s.HasSyncBlock
 	for _, se := range s.SyncEntries {
 		spec.OfflineEntities = append(spec.OfflineEntities, types.NavOfflineEntitySpec{
@@ -228,6 +230,12 @@ func checkProfileClauses(ctx *ExecContext, s *ast.CreateNavigationStmt, isNative
 		return refuse("on sync error")
 	case s.ProgressiveWebApp != nil:
 		return refuse("progressive web app")
+	// Navigation$NativeNavigationProfile declares neither AppTitle nor AppIcon,
+	// so these have nothing to be written to (ako/mxcli#1756).
+	case s.AppTitle != nil:
+		return refuse("app title")
+	case s.AppIcon != nil:
+		return refuse("app icon")
 	}
 	for _, hp := range s.HomePages {
 		if !hp.IsPage && !hp.IsNanoflow {
@@ -711,6 +719,22 @@ func outputNavigationProfile(ctx *ExecContext, p *types.NavigationProfile) {
 	}
 
 	fmt.Fprintf(ctx.Output, "create or modify navigation %s\n", p.Name)
+
+	// Studio Pro's "Application title" and "Application icon", first as Studio
+	// Pro shows them (ako/mxcli#1756). Printed whenever something is stored --
+	// Studio Pro's blank-project 'Mendix' and Atlas_Core.Content.Mendix included,
+	// since that is what the browser tab shows and a description copied into
+	// another project should say so. An empty title or no icon is left out: the
+	// omitted clause keeps the stored value, so re-running the description is
+	// still a no-op. A native profile has neither.
+	if !p.IsNative {
+		if p.AppTitle != "" {
+			fmt.Fprintf(ctx.Output, "  app title %s\n", mdlQuote(ctx, p.AppTitle))
+		}
+		if p.AppIcon != "" {
+			fmt.Fprintf(ctx.Output, "  app icon %s\n", quoteQualifiedName(p.AppIcon))
+		}
+	}
 
 	// Home page. A native profile's flow home is a nanoflow; the reader keeps
 	// it in Microflow, and printing it as `home microflow` named the wrong kind

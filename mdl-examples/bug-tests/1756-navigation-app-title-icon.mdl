@@ -1,0 +1,48 @@
+mdl 1;
+
+/**
+ * ako/mxcli#1756 (mendixlabs/mxcli#1664): a navigation profile's application
+ * title and icon had no MDL form. Studio Pro stores them on the profile as
+ *
+ *   AppTitle: { $Type: 'Texts$Text', Items: [3, { LanguageCode: 'en_US', Text: 'Mendix' }] }
+ *   AppIcon:  'Atlas_Core.Content.Mendix'
+ *
+ * and the runtime shows the title in the browser tab as "Mendix - <page title>",
+ * so every generated app kept "Mendix" there. `app title 'EWO'` was a parse
+ * error ("extraneous input 'app'"), `describe navigation` printed neither, and
+ * `create or modify translations … for en_US` refuses the source language.
+ *
+ *   mxcli exec this-file -p app.mpr ; mx check app.mpr
+ *     before: line 1:… extraneous input 'app' — nothing written
+ *     after:  describe prints `app title 'EWO'` and `app icon Bug1756.Brand.Logo`;
+ *             mx check: as many errors as the blank app (0)
+ *
+ * The title is written as the project default language's item of AppTitle; a
+ * second language's item is kept. An omitted clause keeps the stored title and
+ * icon. The image file path is resolved from the current working directory, as
+ * in doctype-tests/19-image-collection-examples.mdl.
+ */
+
+create module Bug1756;
+
+create image collection Bug1756.Brand {
+  image Logo ( File: '../../docs/images/mxcli-cli.png' )
+};
+
+create page Bug1756.Home (
+  Title: 'Home',
+  Layout: Atlas_Core.Atlas_Default
+) {
+  dynamictext txtHome (Content: 'Home')
+};
+
+create or modify navigation Responsive
+  app title 'EWO'
+  app icon Bug1756.Brand.Logo
+  home page Bug1756.Home;
+
+-- States neither clause: the title and icon above must survive it.
+create or modify navigation Responsive
+  home page Bug1756.Home;
+
+describe navigation Responsive;

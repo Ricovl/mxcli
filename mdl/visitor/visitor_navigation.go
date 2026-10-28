@@ -94,8 +94,22 @@ func (b *Builder) processNavigationClause(stmt *ast.CreateNavigationStmt, ctx *p
 			stmt.MenuItems = append(stmt.MenuItems, item)
 		}
 	} else if ctx.PROGRESSIVE() != nil {
-		// PROGRESSIVE WEB APP [( Precaching: b, InstallPrompt: b ) | OFF]
+		// PROGRESSIVE WEB APP [( Precaching: b, InstallPrompt: b ) | OFF].
+		// Checked before APP TITLE / APP ICON, which also carry an APP token.
 		stmt.ProgressiveWebApp = b.buildNavPWASpec(ctx)
+	} else if ctx.APP() != nil && ctx.TITLE() != nil {
+		// APP TITLE '<text>' (ako/mxcli#1756)
+		if sl := ctx.STRING_LITERAL(); sl != nil {
+			title := unquoteStringLit(sl)
+			stmt.AppTitle = &title
+		}
+	} else if ctx.APP() != nil && ctx.ICON() != nil {
+		// APP ICON Module.Collection.Image | NONE; "" clears the icon.
+		icon := ""
+		if names := ctx.AllQualifiedName(); ctx.NONE() == nil && len(names) > 0 {
+			icon = getQualifiedNameText(names[0])
+		}
+		stmt.AppIcon = &icon
 	} else if ctx.ON() != nil && ctx.SYNC() != nil && ctx.ERROR() != nil {
 		// ON SYNC ERROR THROW|CONTINUE. Checked before the bare SYNC block
 		// because both alternatives carry a SYNC token.
