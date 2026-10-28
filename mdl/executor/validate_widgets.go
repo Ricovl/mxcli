@@ -1300,6 +1300,11 @@ func validateStaticWidgetUnknownPropsIn(w *ast.WidgetV3, locationPrefix string, 
 		if isInputSubmitProp(w.Type, key) {
 			continue
 		}
+		// A text box's KeyboardType, per type for the same reason
+		// (ako/mxcli#1209).
+		if isKeyboardTypeProp(w.Type, key) {
+			continue
+		}
 		// A tab page's Badge / BadgeParams, per type for the same reason
 		// (mendixlabs/mxcli#1644).
 		if isTabPageBadgeProp(w.Type, key) {

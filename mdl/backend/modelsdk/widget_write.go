@@ -576,7 +576,7 @@ func widgetToGen(w pages.Widget) (element.Element, error) {
 		g.SetFormattingInfo(formattingInfoToGen(x.FormattingInfo))
 		g.SetInputMask("")
 		g.SetIsPasswordBox(x.IsPassword)
-		g.SetKeyboardType("Default")
+		g.SetKeyboardType(orDefaultStr(x.KeyboardType, "Default")) // ako/mxcli#1209
 		if x.Label != "" {
 			g.SetLabelTemplate(textAsClientTemplate(textFromString(x.Label)))
 		}

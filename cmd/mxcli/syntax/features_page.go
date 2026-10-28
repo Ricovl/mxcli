@@ -165,6 +165,9 @@ LIST IMPACT OF htmlelement;
 			"-- Submit while typing (TEXTBOX, TEXTAREA): OnEndEditing (default) | WhileEditing,\n" +
 			"-- with the delay in milliseconds (default 300):\n" +
 			"TEXTBOX name (Attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)\n" +
+			"-- The keyboard a native app opens (TEXTBOX): Default | NumberPad | DecimalPad |\n" +
+			"-- EmailAddress | PhonePad | URL:\n" +
+			"TEXTBOX name (Attribute: Email, KeyboardType: EmailAddress)\n" +
 			"-- A layout grid's width: FullWidth (default) | FixedWidth:\n" +
 			"LAYOUTGRID name (Width: FixedWidth) { ROW { COLUMN (DesktopWidth: 12) { ... } } }\n\n" +
 			"-- Conditional visibility / editability: a bare client expression, stored as\n" +
