@@ -203,7 +203,7 @@ func TestNormalize_WritesMendix9Shapes(t *testing.T) {
 // other two stay as they are.
 func TestNormalize_VersionShapeBoundaries(t *testing.T) {
 	for _, tt := range []struct {
-		v                                     *version.ProjectVersion
+		v                                      *version.ProjectVersion
 		flatDesignProps, editable, placeholder bool
 	}{
 		{pv(10, 1, 0), true, true, true},
