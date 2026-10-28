@@ -82,7 +82,7 @@ The old spelling — `MENU ( MENU ITEM 'Home' PAGE M.Home; … )` — still pars
 :   Studio Pro's *Application title*: the prefix of every browser tab, which reads `Mendix - <page title>` in a new project until it is set. The text is written as the title's item in the project's **default language**, as a menu caption is, and the title's other languages are kept; translate it with [`CREATE OR MODIFY TRANSLATIONS`](../../language/translations.md) without `IN <Module>`, since the navigation is a project-level document. Omitting the clause keeps the stored title. DESCRIBE NAVIGATION prints the stored title, Studio Pro's default `'Mendix'` included.
 
 `APP ICON module.Collection.Image` / `APP ICON NONE`
-:   Studio Pro's *Application icon*, an image from an image collection, resolved like any image reference: `mxcli check --references` reports one that does not exist and `exec` refuses it before writing. `NONE` clears it. Omitting the clause keeps the stored icon.
+:   Studio Pro's *Application icon*, an image from an image collection, resolved like any image reference: `mxcli check --references` reports one that does not exist and `exec` refuses it before writing. It must be a square PNG at least 512 pixels wide; anything else fails `mx check` with CE6859, so `exec` refuses a stored image that is not one, naming its size. `NONE` clears it. Omitting the clause keeps the stored icon.
 
 `LOGIN PAGE module.PageName`
 :   Optional custom login page. A profile with no login page uses the default system login page. Omitting the clause keeps the stored login page.

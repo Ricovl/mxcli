@@ -14,20 +14,21 @@ mdl 1;
  *
  *   mxcli exec this-file -p app.mpr ; mx check app.mpr
  *     before: line 1:… extraneous input 'app' — nothing written
- *     after:  describe prints `app title 'EWO'` and `app icon Bug1756.Brand.Logo`;
- *             mx check: as many errors as the blank app (0)
+ *     after:  describe prints `app title 'EWO'` and the icon;
+ *             mx check: as many errors as the blank app (0, Mendix 11.13.0)
  *
  * The title is written as the project default language's item of AppTitle; a
  * second language's item is kept. An omitted clause keeps the stored title and
- * icon. The image file path is resolved from the current working directory, as
- * in doctype-tests/19-image-collection-examples.mdl.
+ * icon.
+ *
+ * The icon must be a square PNG at least 512 pixels wide: anything else fails
+ * mx check with CE6859 at the navigation profile (measured on 11.13.0, with the
+ * 3164×1086 docs/images/mxcli-cli.png). exec refuses such a stored image, naming
+ * its size. Studio Pro's own Atlas_Core.Content.Mendix is one, so it is used
+ * here.
  */
 
 create module Bug1756;
-
-create image collection Bug1756.Brand {
-  image Logo ( File: '../../docs/images/mxcli-cli.png' )
-};
 
 create page Bug1756.Home (
   Title: 'Home',
@@ -38,7 +39,7 @@ create page Bug1756.Home (
 
 create or modify navigation Responsive
   app title 'EWO'
-  app icon Bug1756.Brand.Logo
+  app icon Atlas_Core.Content.Mendix
   home page Bug1756.Home;
 
 -- States neither clause: the title and icon above must survive it.

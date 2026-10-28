@@ -48,7 +48,9 @@
 package executor
 
 import (
+	"bytes"
 	"fmt"
+	"image/png"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
@@ -239,9 +241,9 @@ func unresolvedNavigationTargets(ctx *ExecContext, targets []navTarget, sc *scri
 // navigationAppIconErrors resolves an APP ICON clause's image, with the resolver
 // every other image reference uses (resolveImageRefs: a page's image widget,
 // ALTER PAGE SET) -- the project's image collections plus, for `check`, those
-// the script creates. The name is stored as written, so an image that does not
-// exist would otherwise be reported only by the next build (ako/mxcli#1756).
-// `app icon none` names nothing.
+// the script creates. The name is stored as written; an image that does not
+// exist is CE1613 at mx check (measured, 11.13.0), so this fails it early
+// (ako/mxcli#1756). `app icon none` names nothing.
 func navigationAppIconErrors(ctx *ExecContext, stmt ast.Statement, sc *scriptContext) []string {
 	s, ok := stmt.(*ast.CreateNavigationStmt)
 	if !ok || s.AppIcon == nil || *s.AppIcon == "" {
@@ -251,7 +253,64 @@ func navigationAppIconErrors(ctx *ExecContext, stmt ast.Statement, sc *scriptCon
 	for _, e := range resolveImageRefs(ctx, []string{*s.AppIcon}, sc) {
 		out = append(out, "app icon: "+e)
 	}
+	if len(out) == 0 {
+		if e := appIconFitError(ctx, *s.AppIcon); e != "" {
+			out = append(out, "app icon: "+e)
+		}
+	}
 	return out
+}
+
+// appIconFitError reports an app icon Mendix rejects: measured on 11.13.0, one
+// that is not a square PNG at least 512 pixels wide fails mx check with CE6859
+// "The selected image must be a square PNG image that is at least 512 pixels
+// wide." at the navigation profile (ako/mxcli#1756). Only a stored image with
+// bytes is judged; an image a script creates is judged when the statement runs,
+// by which time it is stored, and one without bytes is left to mx check.
+func appIconFitError(ctx *ExecContext, ref string) string {
+	data := storedImageData(ctx, ref)
+	if len(data) == 0 {
+		return ""
+	}
+	cfg, err := png.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return fmt.Sprintf("%s is not a PNG; a navigation profile's app icon must be a square PNG at least 512 pixels wide (CE6859)", ref)
+	}
+	if cfg.Width != cfg.Height || cfg.Width < 512 {
+		return fmt.Sprintf("%s is %d×%d; a navigation profile's app icon must be a square PNG at least 512 pixels wide (CE6859)",
+			ref, cfg.Width, cfg.Height)
+	}
+	return ""
+}
+
+// storedImageData returns the bytes of the project image Module.Collection.Image,
+// matched case-insensitively as Mendix resolves it; nil when it is not stored
+// or has none.
+func storedImageData(ctx *ExecContext, ref string) []byte {
+	i := strings.LastIndex(ref, ".")
+	if i < 0 {
+		return nil
+	}
+	collection, name := strings.ToLower(ref[:i]), ref[i+1:]
+	h, err := getHierarchy(ctx)
+	if err != nil {
+		return nil
+	}
+	ics, err := ctx.Backend.ListImageCollections()
+	if err != nil {
+		return nil
+	}
+	for _, ic := range ics {
+		if strings.ToLower(h.GetQualifiedName(ic.ContainerID, ic.Name)) != collection {
+			continue
+		}
+		for _, img := range ic.Images {
+			if strings.EqualFold(img.Name, name) {
+				return img.Data
+			}
+		}
+	}
+	return nil
 }
 
 // navigationTargetError is the one error a statement's unresolved targets make.

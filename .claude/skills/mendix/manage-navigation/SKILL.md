@@ -13,16 +13,16 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 | 32-41 | When to Use This Skill |
 | 42-60 | Navigation Concepts |
 | 61-78 | Show Commands (Read-Only) |
-| 79-380 | CREATE OR MODIFY NAVIGATION |
-| 381-419 | Change One Item: ALTER NAVIGATION |
-| 420-430 | Round-Trip Workflow |
-| 431-452 | Catalog Queries |
-| 453-492 | Common Patterns |
-| 493-545 | Menu Documents (standalone, reusable) |
-| 546-616 | Offline Profiles |
-| 617-633 | Checklist |
-| 634-637 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
-| 638-640 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
+| 79-382 | CREATE OR MODIFY NAVIGATION |
+| 383-421 | Change One Item: ALTER NAVIGATION |
+| 422-432 | Round-Trip Workflow |
+| 433-454 | Catalog Queries |
+| 455-494 | Common Patterns |
+| 495-547 | Menu Documents (standalone, reusable) |
+| 548-618 | Offline Profiles |
+| 619-635 | Checklist |
+| 636-639 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
+| 640-642 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
 
 <!-- /skill-index -->
 # Navigation Management Skill
@@ -360,7 +360,9 @@ is, and keeps the title's other languages; set those with `create or modify
 translations for <lang> ( … )` **without** `in <Module>` (the navigation is a
 project-level document, so a module-scoped run does not reach it). `app icon` names an image (`Module.Collection.Image`, resolved
 like any image reference: `check --references` and `exec` refuse one that does
-not exist); `app icon none` clears it. Omitted, both keep what is stored.
+not exist). It must be a square PNG at least 512 px wide — anything else is
+CE6859, and `exec` refuses it; Studio Pro's `Atlas_Core.Content.Mendix` is one.
+`app icon none` clears it. Omitted, both keep what is stored.
 
 ### Microflow as Home Page
 
