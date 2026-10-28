@@ -582,6 +582,20 @@ combobox cbCode (label: 'Code', optionsSourceDatabaseDataSource: microflow MyMod
 -- association mode (expression caption: optionsSourceDatabaseCaptionType /
 -- optionsSourceDatabaseCaptionExpression). `optionsSourceDatabaseItemSelection:
 -- Multi` selects several and hides both the target and the value attribute.
+
+-- Events, in every mode. `OnChange:` is the change action (the mode's own slot:
+-- onChangeEvent, or onChangeDatabaseEvent in database mode); the other three
+-- are named by their key. onChangeFilterInputEvent fires as the user types.
+combobox cbCountry (label: 'Country', attribute: Country,
+  OnChange: call microflow MyModule.ACT_CountryChanged,
+  onEnterEvent: call nanoflow MyModule.NAV_Focus, onLeaveEvent: call nanoflow MyModule.NAV_Blur,
+  onChangeFilterInputEvent: call microflow MyModule.ACT_Search)
+```
+
+**BARCODESCANNER** - Barcode scanner (pluggable widget): `Attribute:` receives
+the scanned value; `onDetect:` runs once a code is detected.
+```sql
+barcodescanner bsCode (attribute: Code, onDetect: call microflow MyModule.ACT_Scanned)
 ```
 
 ### DataView with Form Layout

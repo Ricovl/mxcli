@@ -381,9 +381,10 @@ func TestRegistryComboboxModes(t *testing.T) {
 	if def.Modes[0].Condition != "hasDataSource" {
 		t.Errorf("association mode condition = %q, want hasDataSource", def.Modes[0].Condition)
 	}
-	// 4 options-source mappings + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[0].PropertyMappings) != 5 {
-		t.Errorf("association mode mappings = %d, want 5", len(def.Modes[0].PropertyMappings))
+	// 4 options-source mappings + the onChangeEvent action slot (ledger #14)
+	// + onEnterEvent, onLeaveEvent, onChangeFilterInputEvent (ako/mxcli#854).
+	if len(def.Modes[0].PropertyMappings) != 8 {
+		t.Errorf("association mode mappings = %d, want 8", len(def.Modes[0].PropertyMappings))
 	}
 
 	// Second mode: database, selected by ITS datasource's key — the generic
@@ -399,9 +400,10 @@ func TestRegistryComboboxModes(t *testing.T) {
 	if def.Modes[2].Name != "default" {
 		t.Errorf("third mode name = %q, want default", def.Modes[2].Name)
 	}
-	// attributeEnumeration + the onChangeEvent action slot (ledger #14).
-	if len(def.Modes[2].PropertyMappings) != 2 {
-		t.Errorf("default mode mappings = %d, want 2", len(def.Modes[2].PropertyMappings))
+	// attributeEnumeration + the onChangeEvent action slot (ledger #14)
+	// + the three named action slots (ako/mxcli#854).
+	if len(def.Modes[2].PropertyMappings) != 5 {
+		t.Errorf("default mode mappings = %d, want 5", len(def.Modes[2].PropertyMappings))
 	}
 }
 

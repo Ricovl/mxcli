@@ -1778,9 +1778,10 @@ func validatePluggableWidgetProperties(w *ast.WidgetV3, registry *WidgetRegistry
 		}
 		// `onClick:` and `OnChange:` are builtin names too, but unlike Label or
 		// Class the engine routes them only through a mapping sourced from them.
-		// A widget whose definition has none — a Gallery until #842, a combo
-		// box's click, a data grid filter's change — stored nothing, and a
-		// re-execution that changed only the action reported "Unchanged".
+		// A widget whose definition has none — a Gallery until #842, a data
+		// grid filter's change until ako/mxcli#854, a combo box's click —
+		// stored nothing, and a re-execution that changed only the action
+		// reported "Unchanged".
 		// Gated on the language version (validate_widget_language.go).
 		if src, ok := actionKeywordSource(key); ok && !defRoutesActionSource(def, src) {
 			out = append(out, linter.Violation{

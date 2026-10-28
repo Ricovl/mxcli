@@ -915,16 +915,18 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			props = appendAppearanceProps(ctx, props, w)
 			formatWidgetProps(ctx.Output, prefix, header, props, "\n")
 		} else if ((len(w.ExplicitProperties) > 0 && !isKnownCustomWidgetType(widgetType)) || len(w.ObjectLists) > 0 || w.OnClick != "" ||
-			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) || len(w.NamedActions) > 0 ||
+			(w.OnChange != "" && !isKnownCustomWidgetType(widgetType)) ||
+			(len(w.NamedActions) > 0 && !isKnownCustomWidgetType(widgetType)) ||
 			len(w.ChildSlots) > 0 || len(w.OmittedContainers) > 0) && w.WidgetID != "" {
 			// Generic pluggable widget with explicit properties, object-list child
 			// blocks (chart series/lines/scaleColors), and/or an onClick action.
 			// The widget's own MDL name where that round-trips, else the
 			// explicit id form. See pluggableWidgetHeader.
 			//
-			// OnChange counts only for a widget without its own branch below: a
-			// combo box's branch emits OnChange itself, and routed here it lost
-			// its Attribute: and CaptionAttribute: on describe.
+			// OnChange and the named action slots count only for a widget
+			// without its own branch below: a combo box's branch emits them
+			// itself, and routed here it lost its Attribute: and
+			// CaptionAttribute: on describe.
 			//
 			// Child slots and omitted containers count towards "has content"
 			// too: a widget whose only non-default content is a populated slot
@@ -1047,6 +1049,9 @@ func outputWidgetMDLV3(ctx *ExecContext, w rawWidget, indent int) {
 			if w.OnChange != "" {
 				props = append(props, actionProp("OnChange", w.OnChange))
 			}
+			// A combo box's onEnterEvent / onLeaveEvent /
+			// onChangeFilterInputEvent, by key (ako/mxcli#854).
+			props = appendNamedActionProps(props, w)
 			// Show filter attributes for filter widgets
 			if len(w.FilterAttributes) > 0 {
 				props = append(props, fmt.Sprintf("Attributes: [%s]", strings.Join(w.FilterAttributes, ", ")))

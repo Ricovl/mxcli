@@ -5,6 +5,7 @@ package executor
 
 import (
 	"sort"
+	"sync"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
@@ -84,6 +85,7 @@ func namedActionSlotsOf(ctx *ExecContext, w map[string]any) []rawNamedAction {
 		return nil
 	}
 	propTypeKeyMap := buildPropertyTypeKeyMap(w, true)
+	sourced := embeddedSourcedActionKeys()[extractCustomWidgetID(ctx, w)]
 	var out []rawNamedAction
 	for _, prop := range getBsonArrayElements(obj["Properties"]) {
 		propMap, ok := prop.(map[string]any)
@@ -91,7 +93,7 @@ func namedActionSlotsOf(ctx *ExecContext, w map[string]any) []rawNamedAction {
 			continue
 		}
 		key := propTypeKeyMap[extractBinaryID(propMap["TypePointer"])]
-		if key == "" || actionSourceForKey(key) != "" {
+		if key == "" || actionSourceForKey(key) != "" || sourced[key] {
 			continue // no key, or a slot MDL names — carried as OnClick/OnChange
 		}
 		action := customWidgetPropertyActionMap(ctx, w, key)
@@ -107,3 +109,35 @@ func namedActionSlotsOf(ctx *ExecContext, w map[string]any) []rawNamedAction {
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
 }
+
+// embeddedSourcedActionKeys lists, per widget ID, the action slots a built-in
+// definition writes from `onClick:`/`OnChange:` under a key actionSourceForKey
+// does not recognise — a database-mode combo box's `onChangeDatabaseEvent`. Such
+// a slot is described as `OnChange:`; printed under its own key as well, it
+// would be described twice, and that spelling is not one exec reads
+// (ako/mxcli#854).
+var embeddedSourcedActionKeys = sync.OnceValue(func() map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	reg, err := NewWidgetRegistry()
+	if err != nil {
+		return out
+	}
+	for _, def := range reg.All() {
+		add := func(ms []PropertyMapping) {
+			for _, m := range ms {
+				if m.Operation != "action" || m.Source == "" {
+					continue
+				}
+				if out[def.WidgetID] == nil {
+					out[def.WidgetID] = map[string]bool{}
+				}
+				out[def.WidgetID][m.PropertyKey] = true
+			}
+		}
+		add(def.PropertyMappings)
+		for _, mode := range def.Modes {
+			add(mode.PropertyMappings)
+		}
+	}
+	return out
+})

@@ -1,0 +1,79 @@
+mdl 1;
+-- ============================================================================
+-- ako/mxcli#854 — the action slots the built-in widget definitions left out
+-- ============================================================================
+--
+-- Symptom (before fix): an action on a data grid filter (`OnChange:` on a
+-- text, number, date or drop-down filter), on a barcode scanner
+-- (`onDetect:`) or on a combo box's onEnterEvent / onLeaveEvent /
+-- onChangeFilterInputEvent was refused under `mdl 1;` (MDL-WIDGET37 /
+-- MDL-WIDGET06) and dropped with a warning under mdl 0. describe printed no
+-- filter action at all, so a Studio Pro-authored one could not be restated.
+--
+-- Root cause: these widgets' definitions are hand-written and embedded
+-- (sdk/widgets/definitions), and a hand-written definition beats the
+-- generator, which maps every action slot of a generated widget. Theirs had
+-- no mapping for these slots, so nothing read the action.
+--
+-- After fix: every slot is written and described — a filter's under
+-- `OnChange:`, the rest by their own key — and describe → exec reports
+-- "Unchanged".
+--
+-- Verify (Mendix 11.13.0):
+--   mxcli check 854-pluggable-action-slots.mdl -p app.mpr --references
+--   mxcli exec  854-pluggable-action-slots.mdl -p app.mpr
+--   mxcli -p app.mpr -c "describe page MyFirstModule.Bug854Slots"
+--   mxcli docker check -p app.mpr        -- 0 errors
+-- ============================================================================
+
+create enumeration MyFirstModule.Bug854Colour (Red 'Red', Blue 'Blue');
+create persistent entity MyFirstModule.Bug854Chore (
+  Title: string(100),
+  Colour: enumeration(MyFirstModule.Bug854Colour),
+  Points: integer,
+  Due: datetime
+);
+
+create microflow MyFirstModule.Bug854Changed () begin end;
+create microflow MyFirstModule.Bug854Typed () begin end;
+create microflow MyFirstModule.Bug854Detected () begin end;
+create nanoflow MyFirstModule.Bug854Enter () begin end;
+create nanoflow MyFirstModule.Bug854Leave () begin end;
+grant execute on microflow MyFirstModule.Bug854Changed to MyFirstModule.User;
+grant execute on microflow MyFirstModule.Bug854Typed to MyFirstModule.User;
+grant execute on microflow MyFirstModule.Bug854Detected to MyFirstModule.User;
+grant execute on nanoflow MyFirstModule.Bug854Enter to MyFirstModule.User;
+grant execute on nanoflow MyFirstModule.Bug854Leave to MyFirstModule.User;
+
+create page MyFirstModule.Bug854Slots (
+  title: 'Slots',
+  layout: Atlas_Core.Atlas_Default,
+  params: ($Chore: MyFirstModule.Bug854Chore)
+) {
+  dataview dvChore (datasource: $Chore) {
+    combobox cbColour (
+      label: 'Colour',
+      attribute: Colour,
+      onEnterEvent: call nanoflow MyFirstModule.Bug854Enter,
+      onLeaveEvent: call nanoflow MyFirstModule.Bug854Leave,
+      onChangeFilterInputEvent: call microflow MyFirstModule.Bug854Typed
+    )
+    barcodescanner bsTitle (attribute: Title, onDetect: call microflow MyFirstModule.Bug854Detected)
+  }
+  datagrid dgChores (datasource: database from MyFirstModule.Bug854Chore) {
+    column (attribute: Title, caption: 'Title') {
+      textfilter tfTitle (OnChange: call microflow MyFirstModule.Bug854Changed)
+    }
+    column (attribute: Points, caption: 'Points') {
+      numberfilter nfPoints (OnChange: call microflow MyFirstModule.Bug854Changed)
+    }
+    column (attribute: Due, caption: 'Due') {
+      datefilter dfDue (OnChange: call microflow MyFirstModule.Bug854Changed)
+    }
+    column (attribute: Colour, caption: 'Colour') {
+      dropdownfilter ddfColour (OnChange: call microflow MyFirstModule.Bug854Changed)
+    }
+  }
+};
+
+grant view on page MyFirstModule.Bug854Slots to MyFirstModule.User;

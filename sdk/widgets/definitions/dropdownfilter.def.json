@@ -33,6 +33,11 @@
           "propertyKey": "refCaption",
           "source": "CaptionAttribute",
           "operation": "attribute"
+        },
+        {
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
         }
       ]
     },
@@ -50,6 +55,11 @@
           "propertyKey": "attr",
           "source": "Attributes",
           "operation": "attribute"
+        },
+        {
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
         }
       ]
     },
@@ -61,6 +71,11 @@
           "propertyKey": "attrChoice",
           "value": "auto",
           "operation": "primitive"
+        },
+        {
+          "propertyKey": "onChange",
+          "source": "OnChange",
+          "operation": "action"
         }
       ]
     }

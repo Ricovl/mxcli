@@ -525,6 +525,13 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 			// `onClick` round trip below (ledger #67).
 			widget.OnChange = renderClientActionMDL(ctx, customWidgetPropertyActionMap(ctx, w, "onChangeEvent"))
 		}
+		// The combo box's other action slots — onEnterEvent, onLeaveEvent,
+		// onChangeFilterInputEvent — in every mode, by their own keys
+		// (ako/mxcli#854). The change slot of either mode is not among them:
+		// it is the `OnChange:` read above.
+		if widget.RenderMode == "combobox" {
+			widget.NamedActions = namedActionSlotsOf(ctx, w)
+		}
 		// The drop-down filter's association mode is the same shape as the
 		// ComboBox's, on differently-named properties: `baseType` selects it and
 		// the reference is stored as an EntityRef, not an AttributeRef. Without
@@ -623,6 +630,11 @@ func parseRawWidget(ctx *ExecContext, w map[string]any, parentEntityContext ...s
 		if widget.RenderMode == "textfilter" || widget.RenderMode == "numberfilter" || widget.RenderMode == "dropdownfilter" || widget.RenderMode == "datefilter" {
 			widget.FilterAttributes = extractFilterAttributes(ctx, w)
 			widget.FilterExpression = extractFilterExpression(ctx, w)
+			// The filter's `onChange`, which `OnChange:` writes (ako/mxcli#854).
+			// Unread, a Studio Pro-authored filter action described as nothing:
+			// the rewrite patch kept it only while the statement left the slot
+			// alone, and no statement could say what it held.
+			widget.OnChange = renderClientActionMDL(ctx, customWidgetActionForSource(ctx, w, "OnChange"))
 			// The drop-down filter keeps its ONE custom attribute on `attr`
 			// (attrChoice "linked"), not in an `attributes` list. Read it back
 			// as the `attributes: [A]` it is written with, or a describe→exec
