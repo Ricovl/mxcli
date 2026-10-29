@@ -199,6 +199,19 @@ func (b *Backend) DeleteJavaScriptSourceFile(moduleName, actionName string) erro
 	return nil
 }
 
+// MoveJavaScriptSourceFile moves javascriptsource/<from>/actions/<action>.js into
+// <to>'s actions directory when the action changes module, for the reason
+// MoveJavaSourceFile gives: mxbuild looks for the source under the action's
+// module and bundles a stub that throws when it finds none. The source names no
+// module, so it moves as it is.
+func (b *Backend) MoveJavaScriptSourceFile(fromModule, toModule, actionName string) (string, error) {
+	if b.path == "" {
+		return "", fmt.Errorf("MoveJavaScriptSourceFile: no project path")
+	}
+	moved, _, err := b.moveSourceFile(b.jsActionSourceDir(fromModule), b.jsActionSourceDir(toModule), actionName+".js")
+	return moved, err
+}
+
 // RenameJavaScriptSourceFile renames the .js file when a JS action is renamed.
 func (b *Backend) RenameJavaScriptSourceFile(moduleName, oldName, newName string) error {
 	if b.path == "" {
