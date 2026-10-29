@@ -115,6 +115,9 @@ func (b *Backend) WriteJavaSourceFile(moduleName, actionName string, javaCode st
 	if err != nil {
 		return fmt.Errorf("WriteJavaSourceFile: write: %w", err)
 	}
+	if changed {
+		b.noteSourceFile(path, "", false, javaActionBody)
+	}
 	return nil
 }
 
@@ -154,6 +157,7 @@ func (b *Backend) RenameJavaSourceFile(moduleName, oldName, newName string) erro
 	}
 	// The move is a write whether or not the text needed rewriting.
 	b.noteFileWrite(true)
+	b.noteSourceFile(newPath, oldPath, false, javaActionBody)
 	if _, err := javaactions.WriteSourceIfChanged(newPath, javaactions.RenameSource(string(content), oldName, newName)); err != nil {
 		return fmt.Errorf("RenameJavaSourceFile: rewrite class name: %w", err)
 	}
@@ -227,7 +231,10 @@ func (b *Backend) DeleteJavaSourceFile(moduleName, actionName string) error {
 		return fmt.Errorf("DeleteJavaSourceFile: no project path")
 	}
 	filePath := filepath.Join(filepath.Dir(b.path), "javasource", strings.ToLower(moduleName), "actions", actionName+".java")
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+	switch err := os.Remove(filePath); {
+	case err == nil:
+		b.noteSourceFile(filePath, "", true, javaActionBody)
+	case !os.IsNotExist(err):
 		return fmt.Errorf("DeleteJavaSourceFile: %w", err)
 	}
 	return nil

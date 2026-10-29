@@ -184,6 +184,9 @@ func (b *Backend) WriteJavaScriptSourceFile(moduleName, actionName string, jsCod
 	if err != nil {
 		return fmt.Errorf("WriteJavaScriptSourceFile: write: %w", err)
 	}
+	if changed {
+		b.noteSourceFile(path, "", false, javaScriptActionBody)
+	}
 	return nil
 }
 
@@ -193,7 +196,10 @@ func (b *Backend) DeleteJavaScriptSourceFile(moduleName, actionName string) erro
 		return fmt.Errorf("DeleteJavaScriptSourceFile: no project path")
 	}
 	filePath := filepath.Join(b.jsActionSourceDir(moduleName), actionName+".js")
-	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+	switch err := os.Remove(filePath); {
+	case err == nil:
+		b.noteSourceFile(filePath, "", true, javaScriptActionBody)
+	case !os.IsNotExist(err):
 		return fmt.Errorf("DeleteJavaScriptSourceFile: %w", err)
 	}
 	return nil
@@ -218,7 +224,11 @@ func (b *Backend) RenameJavaScriptSourceFile(moduleName, oldName, newName string
 		return fmt.Errorf("RenameJavaScriptSourceFile: no project path")
 	}
 	dir := b.jsActionSourceDir(moduleName)
-	if err := os.Rename(filepath.Join(dir, oldName+".js"), filepath.Join(dir, newName+".js")); err != nil && !os.IsNotExist(err) {
+	oldPath, newPath := filepath.Join(dir, oldName+".js"), filepath.Join(dir, newName+".js")
+	switch err := os.Rename(oldPath, newPath); {
+	case err == nil:
+		b.noteSourceFile(newPath, oldPath, false, javaScriptActionBody)
+	case !os.IsNotExist(err):
 		return fmt.Errorf("RenameJavaScriptSourceFile: %w", err)
 	}
 	return nil
