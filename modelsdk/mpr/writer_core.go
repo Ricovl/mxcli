@@ -5,9 +5,7 @@ package mpr
 import (
 	"bytes"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -271,18 +269,17 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 		})
 
 		// Update hash in DB
-		hash := sha256.Sum256(contents)
-		contentsHash := base64.StdEncoding.EncodeToString(hash[:])
 		_, err := wt.tx.Exec(`
 			UPDATE Unit SET ContentsHash = ? WHERE UnitID = ?
-		`, contentsHash, unitIDBlob)
+		`, contentsHashOf(contents), unitIDBlob)
 		return err
 	}
 
-	// V1: Update in database directly
+	// V1: contents live in the row, and so does their hash. Studio Pro fills
+	// ContentsHash on every v1 unit too (ako/mxcli#1159), so it moves with them.
 	_, err = wt.tx.Exec(`
-		UPDATE Unit SET Contents = ? WHERE UnitID = ?
-	`, contents, unitIDBlob)
+		UPDATE Unit SET Contents = ?, ContentsHash = ? WHERE UnitID = ?
+	`, contents, contentsHashOf(contents), unitIDBlob)
 	return err
 }
 
@@ -593,15 +590,11 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 			return fmt.Errorf("failed to write unit file: %w", err)
 		}
 
-		// Compute content hash (base64-encoded SHA256)
-		hash := sha256.Sum256(contents)
-		contentsHash := base64.StdEncoding.EncodeToString(hash[:])
-
 		// Insert reference to database
 		_, err := w.reader.db.Exec(`
 			INSERT INTO Unit (UnitID, ContainerID, ContainmentName, TreeConflict, ContentsHash, ContentsConflicts)
 			VALUES (?, ?, ?, 0, ?, '')
-		`, unitIDBlob, containerIDBlob, containmentName, contentsHash)
+		`, unitIDBlob, containerIDBlob, containmentName, contentsHashOf(contents))
 		if err != nil {
 			// Clean up the file we just wrote — otherwise it becomes an orphan
 			os.Remove(filePath)
@@ -613,12 +606,13 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 		return nil
 	}
 
-	// MPR v1: Store directly in database
+	// MPR v1: Store directly in database, with the hash Studio Pro stores
+	// beside the contents on every v1 unit (ako/mxcli#1159; this wrote '').
 	// Try new schema first (without Type column - Mendix 11.6.2+)
 	_, err := w.reader.db.Exec(`
 		INSERT INTO Unit (UnitID, ContainerID, ContainmentName, TreeConflict, ContentsHash, ContentsConflicts, Contents)
-		VALUES (?, ?, ?, 0, '', '', ?)
-	`, unitIDBlob, containerIDBlob, containmentName, contents)
+		VALUES (?, ?, ?, 0, ?, '', ?)
+	`, unitIDBlob, containerIDBlob, containmentName, contentsHashOf(contents), contents)
 	if err != nil {
 		// Try old schema with Type column
 		_, err = w.reader.db.Exec(`
@@ -707,11 +701,9 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 		}
 
 		// Update ContentsHash in database
-		hash := sha256.Sum256(contents)
-		contentsHash := base64.StdEncoding.EncodeToString(hash[:])
 		_, err := w.reader.db.Exec(`
 			UPDATE Unit SET ContentsHash = ? WHERE UnitID = ?
-		`, contentsHash, unitIDBlob)
+		`, contentsHashOf(contents), unitIDBlob)
 		if err == nil {
 			w.reader.InvalidateCache()
 			w.updateTransactionID()
@@ -719,10 +711,12 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 		return err
 	}
 
-	// MPR v1: Update in database
+	// MPR v1: Update in database. ContentsHash goes in the same statement:
+	// Studio Pro fills it on every v1 unit and reads it to see what changed,
+	// and mx check never looks at it (ako/mxcli#1159).
 	_, err = w.reader.db.Exec(`
-		UPDATE Unit SET Contents = ? WHERE UnitID = ?
-	`, contents, unitIDBlob)
+		UPDATE Unit SET Contents = ?, ContentsHash = ? WHERE UnitID = ?
+	`, contents, contentsHashOf(contents), unitIDBlob)
 	return err
 }
 
