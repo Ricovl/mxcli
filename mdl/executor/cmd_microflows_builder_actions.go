@@ -2909,10 +2909,14 @@ func (fb *flowBuilder) lookupAssociation(moduleName, assocName string) *assocLoo
 // other end, by associationRetrieveYieldsList — the answer addRetrieveAction
 // and check --references take. Mind the inversion: an association's parent is
 // its FROM end and its child the TO end, so a retrieve from the TO end yields
-// the FROM entity. "" when it cannot be established: the association or the
-// start unknown, the start a list, or the start no end of it — or, over a
-// reference, both ends (a self-reference), where which end it starts from is
-// not known.
+// the FROM entity. A self-reference is followed from its FROM end: the stored
+// retrieve records no direction, and Mendix reads it that way — the object a
+// reference holds, the list a reference set holds (measured on 11.13.0,
+// ako/mxcli#1777: a change on it builds, a count of it is CE0013 "Input
+// variable 'P' must be of type 'List'."). "" when it cannot be established: the
+// association or the start unknown, the start a list, the start no end of it,
+// or a specialization of both ends of an association between two entities,
+// where which end it starts from is not known.
 func (fb *flowBuilder) associationRetrieveType(startType, assocQN string) string {
 	if startType == "" || strings.HasPrefix(startType, "List of ") {
 		return ""
@@ -2930,12 +2934,10 @@ func (fb *flowBuilder) associationRetrieveType(startType, assocQN string) string
 	fromFrom := fb.entityIsSubtypeOf(startType, info.parentEntityQN)
 	switch {
 	case fromTo && fromFrom:
-		// Either end: a reference set to itself is a list of it whichever
-		// end it starts from, and nothing else is known.
-		if refSet && info.parentEntityQN == info.childEntityQN {
-			return "List of " + info.parentEntityQN
+		if info.parentEntityQN != info.childEntityQN {
+			return ""
 		}
-		return ""
+		fromTo = false // a self-reference: from the FROM end
 	case !fromTo && !fromFrom:
 		return ""
 	}
