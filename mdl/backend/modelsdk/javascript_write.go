@@ -214,7 +214,7 @@ func (b *Backend) MoveJavaScriptSourceFile(fromModule, toModule, actionName stri
 	if b.path == "" {
 		return "", fmt.Errorf("MoveJavaScriptSourceFile: no project path")
 	}
-	moved, _, err := b.moveSourceFile(b.jsActionSourceDir(fromModule), b.jsActionSourceDir(toModule), actionName+".js")
+	moved, _, err := b.moveSourceFile(b.jsActionSourceDir(fromModule), b.jsActionSourceDir(toModule), actionName+".js", javaScriptActionBody)
 	return moved, err
 }
 

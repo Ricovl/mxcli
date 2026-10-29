@@ -104,3 +104,20 @@ func TestMoveJavaScriptSourceFileTakesTheCodeAlong(t *testing.T) {
 		t.Errorf("the source is still under the old module (stat err %v)", err)
 	}
 }
+
+// The move is one of the files beside the model a statement touched, so exec
+// names it with the rest (ako/mxcli#1618): as a move, from the old path.
+func TestMoveJavaSourceFileIsReported(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "javasource", "jama", "actions", "JA_Hello.java"), "package jama.actions;\n")
+
+	b := &Backend{path: filepath.Join(root, "App.mpr")}
+	if _, err := b.MoveJavaSourceFile("JamA", "JamB", "JA_Hello"); err != nil {
+		t.Fatal(err)
+	}
+	changes := b.TakeSourceFileChanges()
+	if len(changes) != 1 || changes[0].Path != "javasource/jamb/actions/JA_Hello.java" ||
+		changes[0].From != "javasource/jama/actions/JA_Hello.java" || changes[0].Removed {
+		t.Errorf("reported %+v, want one move jama -> jamb", changes)
+	}
+}

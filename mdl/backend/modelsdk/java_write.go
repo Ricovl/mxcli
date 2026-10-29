@@ -179,7 +179,7 @@ func (b *Backend) MoveJavaSourceFile(fromModule, toModule, actionName string) (s
 	dir := func(module string) string {
 		return filepath.Join(filepath.Dir(b.path), "javasource", strings.ToLower(module), "actions")
 	}
-	moved, content, err := b.moveSourceFile(dir(fromModule), dir(toModule), actionName+".java")
+	moved, content, err := b.moveSourceFile(dir(fromModule), dir(toModule), actionName+".java", javaActionBody)
 	if moved == "" || err != nil {
 		return moved, err
 	}
@@ -190,11 +190,12 @@ func (b *Backend) MoveJavaSourceFile(fromModule, toModule, actionName string) (s
 	return moved, nil
 }
 
-// moveSourceFile moves fromDir/name to toDir/name and returns the new
-// project-relative path and the moved file's content. It refuses an existing
-// destination before touching anything, and moves nothing — returning "" — when
-// there is no source or the two directories are the same.
-func (b *Backend) moveSourceFile(fromDir, toDir, name string) (string, string, error) {
+// moveSourceFile moves fromDir/name to toDir/name, records the move for exec's
+// report as what, and returns the new project-relative path and the moved
+// file's content. It refuses an existing destination before touching anything,
+// and moves nothing — returning "" — when there is no source or the two
+// directories are the same.
+func (b *Backend) moveSourceFile(fromDir, toDir, name, what string) (string, string, error) {
 	if filepath.Clean(fromDir) == filepath.Clean(toDir) {
 		return "", "", nil
 	}
@@ -221,6 +222,7 @@ func (b *Backend) moveSourceFile(fromDir, toDir, name string) (string, string, e
 		return "", "", err
 	}
 	b.noteFileWrite(true)
+	b.noteSourceFile(dst, src, false, what)
 	return rel, string(content), nil
 }
 

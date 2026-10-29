@@ -71,7 +71,8 @@ func execMove(ctx *ExecContext, s *ast.MoveStmt) (moveErr error) {
 	// behind, the build succeeded with a stub that throws where the app calls
 	// the action (measured on 11.13.0). The source moves first, so an occupied
 	// destination refuses the statement before the model changes, and moves
-	// back if the rest of the statement fails.
+	// back if the rest of the statement fails. exec names the move with the
+	// other files beside the model a statement touched.
 	if isCrossModuleMove {
 		moved, err := moveActionSource(ctx, s.DocumentType, s.Name.Module, targetModule.Name, s.Name.Name)
 		if err != nil {
@@ -81,9 +82,7 @@ func execMove(ctx *ExecContext, s *ast.MoveStmt) (moveErr error) {
 			defer func() {
 				if moveErr != nil {
 					_, _ = moveActionSource(ctx, s.DocumentType, targetModule.Name, s.Name.Module, s.Name.Name)
-					return
 				}
-				fmt.Fprintf(ctx.Output, "Moved its source to %s\n", moved)
 			}()
 		}
 	}

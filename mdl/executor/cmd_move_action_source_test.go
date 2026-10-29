@@ -57,7 +57,7 @@ func javaActionMoveBackend(t *testing.T, probe *sourceMoveProbe, moveUnitErr, mo
 func TestMoveJavaActionAcrossModulesMovesItsSource(t *testing.T) {
 	var probe sourceMoveProbe
 	mb, h, _, _ := javaActionMoveBackend(t, &probe, nil, nil)
-	ctx, buf := newMockCtx(t, withBackend(mb), withHierarchy(h))
+	ctx, _ := newMockCtx(t, withBackend(mb), withHierarchy(h))
 	assertNoError(t, execMove(ctx, &ast.MoveStmt{
 		DocumentType: ast.DocumentTypeJavaAction,
 		Name:         ast.QualifiedName{Module: "JamA", Name: "JA_Hello"},
@@ -69,7 +69,6 @@ func TestMoveJavaActionAcrossModulesMovesItsSource(t *testing.T) {
 	if len(probe.calls) != 1 || probe.calls[0] != [3]string{"JamA", "JamB", "JA_Hello"} {
 		t.Fatalf("source moves = %v, want one move JamA -> JamB of JA_Hello", probe.calls)
 	}
-	assertContainsStr(t, buf.String(), "javasource/JamB/actions/JA_Hello.java")
 }
 
 // An occupied destination is refused before the document moves.
