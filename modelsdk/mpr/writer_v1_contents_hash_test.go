@@ -4,7 +4,6 @@ package mpr
 
 import (
 	"bytes"
-	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -145,25 +144,11 @@ func TestV1UpdateUnitUpdatesContentsHash(t *testing.T) {
 	}
 }
 
-// openV1FixtureWriterPooled is openV1FixtureWriter over a connection pool
-// with no limit. WriteTransaction.WriteUnit reconciles against the stored
-// bytes through the reader's pool while its own transaction holds a
-// connection; Open limits the pool to one, so on v1 (where the stored bytes
-// come from the same database, not a file) that read waits forever. That is a
-// separate defect from #1159 and is not what this file tests.
-func openV1FixtureWriterPooled(t *testing.T) *Writer {
-	t.Helper()
-	path := copyV1Fixture(t)
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	return NewWriterWithReader(&Reader{path: path, db: db, version: MPRVersionV1})
-}
-
+// Through the real one-connection pool: the transaction now reads the stored
+// bytes through itself (writer_v1_transaction_test.go), so it no longer needs a
+// pool of its own to avoid waiting on the connection it holds.
 func TestV1WriteTransactionUpdatesContentsHash(t *testing.T) {
-	w := openV1FixtureWriterPooled(t)
+	w := openV1FixtureWriter(t)
 	id, stored := v1UnitOfType(t, w, "Projects$Folder")
 	updated := withFields(t, stored, map[string]any{"Name": "RenamedInTransaction"})
 
