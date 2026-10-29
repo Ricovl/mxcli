@@ -226,7 +226,12 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 	// same storage (codec.Store.SaveUnit / FlushUnits reach it), so leaving it
 	// out would mean the codec engine's own document writes kept churning while
 	// UpdateRawUnit's stopped — a difference no caller could reason about.
-	contents, unchanged, err := wt.writer.reconcileWithStored(unitID, contents)
+	//
+	// The stored bytes are read through the transaction. On v1 they are in the
+	// database, and the pool's one connection is the one wt.tx holds: reading
+	// through the reader waited for it forever.
+	stored := func(id string) ([]byte, error) { return wt.writer.reader.rawUnitBytes(wt.tx, id) }
+	contents, unchanged, err := wt.writer.reconcileAgainst(unitID, contents, stored)
 	if err != nil {
 		return err
 	}
@@ -724,6 +729,12 @@ func (w *Writer) updateUnit(unitID string, contents []byte, opts ...canon.Option
 // reconcileWithStored applies the shared no-op-elision policy (canon.Reconcile,
 // ADR-0008 decision 1) to a write against this project.
 func (w *Writer) reconcileWithStored(unitID string, contents []byte, opts ...canon.Option) (out []byte, unchanged bool, err error) {
+	return w.reconcileAgainst(unitID, contents, w.reader.GetRawUnitBytes, opts...)
+}
+
+// reconcileAgainst is reconcileWithStored reading the stored unit with
+// readStored, so a write inside a transaction can read through it.
+func (w *Writer) reconcileAgainst(unitID string, contents []byte, readStored func(string) ([]byte, error), opts ...canon.Option) (out []byte, unchanged bool, err error) {
 	w.writesOffered++
 	// Normalised before comparing, so a rebuild of a Studio Pro document that
 	// differed from it only by the properties the writer leaves out is elided.
@@ -731,7 +742,7 @@ func (w *Writer) reconcileWithStored(unitID string, contents []byte, opts ...can
 	if err != nil {
 		return nil, false, err
 	}
-	stored, readErr := w.reader.GetRawUnitBytes(unitID)
+	stored, readErr := readStored(unitID)
 	if readErr != nil {
 		w.writesLanded++
 		return contents, false, nil // new unit, or unreadable — write it
