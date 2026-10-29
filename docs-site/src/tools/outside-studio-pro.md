@@ -27,13 +27,20 @@ mxcli fix hashes -p app.mpr --repair   # rewrite mismatched hashes from the file
 
 The repair treats the files as the source of truth and never changes them. It
 updates every hash in one SQLite transaction, and, like every mxcli write, is
-refused while Studio Pro has the project open (the `.mpr.lock` beside it). An
-MPR v1 project keeps unit contents inside the `.mpr`, has no index to drift,
-and the command says so.
+refused while Studio Pro has the project open (the `.mpr.lock` beside it).
+
+An MPR v1 project (below Mendix 10.18) keeps each unit's contents inside the
+`.mpr`, in the same row as its `ContentsHash`, and Studio Pro fills the hash
+there too, with the same formula over the stored contents. No file can drift
+from it, but mxcli before this release replaced a unit's contents and left the
+old hash in place, or stored none for a new unit. On v1 the command compares
+each hash with the contents beside it, reports `MISMATCH` only, and `--repair`
+rewrites the hash from the contents.
 
 `mxcli exec` and `mxcli docker check` run the verify too and print a one-line
 warning when it finds a mismatch or a missing file. It never fails them;
-measured on a 900-unit project, the whole verify takes about 0.2 s.
+measured on a 900-unit project, the whole verify takes about 0.2 s. They skip
+MPR v1, where the verify reads every unit's contents.
 
 ## Property names Studio Pro's merge compares: `mxcli fix property-sets`
 
