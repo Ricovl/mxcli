@@ -126,6 +126,16 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 | Group targeting | `TARGETING GROUPS XPATH ...`, `TARGETING GROUPS MICROFLOW ...` | No | 11.2+ |
 | Parallel splits | `PARALLEL SPLIT` | Yes | Yes |
 
+Every write refuses an element whose type the project's Mendix version does not
+have yet, naming the type, the version that introduced it and the project's
+version ("this Mendix 9.24.30 project cannot store
+Workflows$WaitForNotificationActivity (Mendix 10.0.0+)"). The versions are each
+type's own, from the Mendix Model SDK. Before this, such a type was written, and the project did not load
+(`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
+Where an older version stores the same thing in another shape (the parallel
+split's end marker, user tasks), that shape is written instead, as listed under
+"Properties Stored in an Older Shape".
+
 Below Mendix 11.3 a workflow's main flow has no stored start or end activity:
 11.1 and 11.2 keep them implicit, and 10.x and 11.0 do not have the start
 activity type at all. mxcli writes the shape the project's version stores, and
