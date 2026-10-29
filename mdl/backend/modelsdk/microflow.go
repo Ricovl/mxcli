@@ -39,7 +39,7 @@ func (b *Backend) ListMicroflows() ([]*microflows.Microflow, error) {
 // name, in every module: a lookup by name decodes only those
 // (mendixlabs/mxcli#1272).
 func (b *Backend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, error) {
-	units, err := mprread.ListUnitsWithContainerWhere[*genMf.Microflow](b.reader, mprread.HasName(name))
+	units, err := mprread.ListUnitsNamed[*genMf.Microflow](b.reader, name)
 	if err != nil {
 		return nil, err
 	}

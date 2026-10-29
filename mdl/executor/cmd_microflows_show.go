@@ -33,8 +33,7 @@ func listMicroflows(ctx *ExecContext, moduleName string) error {
 		}
 	}
 
-	// Get all microflows
-	microflows, err := ctx.Backend.ListMicroflows()
+	microflows, err := microflowsInModule(ctx, h, moduleName)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
 	}
