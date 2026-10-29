@@ -112,6 +112,21 @@ func ListUnitsInContainer[T element.Element](r *mmpr.Reader, containerID model.I
 	return decodeUnits[T](refs, typeName, nil)
 }
 
+// UnitByID decodes the unit of type T whose ID is id, reading that unit only.
+// ok is false when there is no such unit or it is not a T.
+func UnitByID[T element.Element](r *mmpr.Reader, id model.ID) (unit Unit[T], ok bool, err error) {
+	typeName := bsonTypeName[T]()
+	ref, found, err := r.UnitByID(string(id))
+	if err != nil || !found || ref.Type != typeName {
+		return Unit[T]{}, false, err
+	}
+	units, err := decodeUnits[T]([]mmpr.UnitRef{ref}, typeName, nil)
+	if err != nil || len(units) == 0 {
+		return Unit[T]{}, false, err
+	}
+	return units[0], true, nil
+}
+
 // UnitHeader is what a name listing needs of a unit, read without decoding it.
 type UnitHeader struct {
 	ID          model.ID

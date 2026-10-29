@@ -6,7 +6,9 @@ package mpr
 import (
 	"bytes"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -77,6 +79,53 @@ func (r *Reader) ListUnitsByType(typePrefix string) ([]UnitRef, error) {
 		result[i] = UnitRef{ID: u.ID, ContainerID: u.ContainerID, Type: u.Type, Contents: u.Contents}
 	}
 	return result, nil
+}
+
+// UnitByID returns the unit whose ID is id, reading that unit's contents only.
+// ok is false when the project has no such unit. A unit's ID is its
+// document's $ID, so a lookup of one document by ID needs no listing: the
+// catalog's source build described each microflow through a listing of them
+// all and opened millions of files on a large project (ako/mxcli#1789).
+func (r *Reader) UnitByID(id string) (unit UnitRef, ok bool, err error) {
+	if r.version != MPRVersionV2 {
+		return r.unitByIDV1(id)
+	}
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return UnitRef{}, false, err
+		}
+	}
+	for _, cu := range r.unitCache {
+		if cu.ID != id {
+			continue
+		}
+		contents, err := r.readMprContents(cu.ID)
+		if err != nil {
+			return UnitRef{}, false, err
+		}
+		return UnitRef{ID: cu.ID, ContainerID: cu.ContainerID, Type: cu.Type, Contents: contents}, true, nil
+	}
+	return UnitRef{}, false, nil
+}
+
+// unitByIDV1 is UnitByID on MPR v1, where the contents are a column.
+func (r *Reader) unitByIDV1(id string) (UnitRef, bool, error) {
+	blob := uuidToBlob(id)
+	if blob == nil {
+		return UnitRef{}, false, nil
+	}
+	var containerID, contents []byte
+	err := r.db.QueryRow("SELECT ContainerID, Contents FROM Unit WHERE UnitID = ?", blob).Scan(&containerID, &contents)
+	if errors.Is(err, sql.ErrNoRows) {
+		return UnitRef{}, false, nil
+	}
+	if err != nil {
+		return UnitRef{}, false, err
+	}
+	if held, ok := r.overlaid(id); ok {
+		contents = held
+	}
+	return UnitRef{ID: id, ContainerID: blobToUUID(containerID), Type: getTypeFromContents(contents), Contents: contents}, true, nil
 }
 
 // ListUnitsByTypeInContainer returns the units of exactly typeName whose
