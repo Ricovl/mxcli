@@ -80,6 +80,19 @@ there still deletes its row and the user assignments that are not demo users. A 
 key its version does not declare is reported and left alone, and, like every
 mxcli write, the command is refused while Studio Pro has the project open.
 
+The values the command adds were measured with Mendix's own tools on specific
+Mendix versions. A key that no measurement covers on your version is not
+filled, but the command still finds it. Studio Pro writes the same property
+names on every element of a type, so the command also lists each name that
+some elements of a type carry and others lack:
+
+```
+  MIXED     Microflows$Nanoflow.ExportLevel: on 14 of 15 element(s); without it: 71e6faf6-… [Microflows$Nanoflow ACT_Login]
+```
+
+It leaves those names as they are and exits 1. Report them with your Mendix
+version so the value can be measured.
+
 ### The repair reaches forward, not back
 
 A merge compares each document both branches changed with its revision in the
