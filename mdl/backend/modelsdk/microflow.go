@@ -65,16 +65,11 @@ func (b *Backend) ListMicroflowHeaders() ([]types.DocumentHeader, error) {
 }
 
 func (b *Backend) GetMicroflow(id model.ID) (*microflows.Microflow, error) {
-	units, err := mprread.ListUnitsWithContainerWhere[*genMf.Microflow](b.reader, mprread.HasID(id))
-	if err != nil {
+	u, ok, err := mprread.UnitByID[*genMf.Microflow](b.reader, id)
+	if err != nil || !ok {
 		return nil, err
 	}
-	for _, u := range units {
-		if model.ID(u.Element.ID()) == id {
-			return microflowFromGen(u.Element, u.ContainerID), nil
-		}
-	}
-	return nil, nil
+	return microflowFromGen(u.Element, u.ContainerID), nil
 }
 
 // IsRule reports whether qualifiedName refers to a rule (Microflows$Rule).
