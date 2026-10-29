@@ -24,6 +24,11 @@ type PropertySetRepair struct {
 	Name     string // the unit's Name, "" when it has none
 	Added    int
 	Stripped int
+
+	// normalized is the unit as the repair leaves it (the stored bytes when
+	// nothing changes), for a PropertySetCensus; nil when it could not be
+	// normalized.
+	normalized []byte
 }
 
 // Changed reports whether the unit's property-name sets differ from what is
@@ -103,6 +108,7 @@ func planPropertySetRepair(r *Reader, unitID string) (rep PropertySetRepair, sto
 	if err != nil {
 		return rep, stored, nil, err
 	}
+	rep.normalized = out
 	if len(out) == len(stored) && string(out) == string(stored) {
 		return rep, stored, out, nil
 	}
