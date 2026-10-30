@@ -52,14 +52,14 @@ func restFixture(t *testing.T, svc *model.PublishedRestService) *Catalog {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 
 	if err := b.buildPublishedRestServices(); err != nil {
 		t.Fatalf("buildPublishedRestServices: %v", err)
 	}
 
-	stmt, err := tx.Prepare(`
+	stmt, err := b.tx.Prepare(`
 		INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)

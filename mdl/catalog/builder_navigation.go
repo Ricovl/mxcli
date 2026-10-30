@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -170,7 +169,7 @@ func countMenuItems(items []*types.NavMenuItem) int {
 }
 
 // insertMenuItems recursively inserts menu items with hierarchical path encoding.
-func insertMenuItems(stmt *sql.Stmt, profileName string, items []*types.NavMenuItem, parentPath string, depth int, projectID, snapshotID string) int {
+func insertMenuItems(stmt *Stmt, profileName string, items []*types.NavMenuItem, parentPath string, depth int, projectID, snapshotID string) int {
 	count := 0
 	for i, item := range items {
 		itemPath := fmt.Sprintf("%d", i)

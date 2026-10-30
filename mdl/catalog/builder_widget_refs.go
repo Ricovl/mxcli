@@ -57,7 +57,7 @@ package catalog
 // four sibling projections in buildReferences. Per-instance rows would say
 // nothing SHOW REFERENCES or SHOW IMPACT could use, and CATALOG.WIDGETS already
 // holds the instances.
-func insertWidgetRefs(tx CatalogTx, projectID, snapshotID string) (int, error) {
+func insertWidgetRefs(tx *builderTx, projectID, snapshotID string) (int, error) {
 	res, err := tx.Exec(
 		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 		 SELECT DISTINCT w.ContainerType, '', w.ContainerQualifiedName,

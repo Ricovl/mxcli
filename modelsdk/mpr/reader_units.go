@@ -200,6 +200,43 @@ func (r *Reader) ListUnitsByTypeInContainer(typeName, containerID string) ([]Uni
 	return result, nil
 }
 
+// ListUnitsByTypeWhere is ListUnitsByType for the units whose ID keep
+// accepts. On v2 the others' contents are never read: a catalog build that
+// rebuilds a few units reads only those (ako/mxcli#1804).
+func (r *Reader) ListUnitsByTypeWhere(typeName string, keep func(id string) bool) ([]UnitRef, error) {
+	units, err := r.listUnitsByTypeWhere(typeName, keep)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]UnitRef, len(units))
+	for i, u := range units {
+		result[i] = UnitRef{ID: u.ID, ContainerID: u.ContainerID, Type: u.Type, Contents: u.Contents}
+	}
+	return result, nil
+}
+
+// listUnitsByTypeWhere is listUnitsByType for the units keep accepts (nil
+// keeps all), filtered before any v2 contents are read.
+func (r *Reader) listUnitsByTypeWhere(typeName string, keep func(id string) bool) ([]rawUnit, error) {
+	if keep == nil {
+		return r.listUnitsByType(typeName)
+	}
+	if r.version == MPRVersionV2 {
+		return r.listUnitsByTypeV2Where(typeName, "", keep)
+	}
+	units, err := r.listUnitsByTypeV1(typeName)
+	if err != nil {
+		return nil, err
+	}
+	kept := units[:0]
+	for _, u := range units {
+		if keep(u.ID) {
+			kept = append(kept, u)
+		}
+	}
+	return kept, nil
+}
+
 // listUnitsByType returns all units of exactly the given storage type. An empty
 // typeName returns every unit.
 //
@@ -243,6 +280,12 @@ func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
 // listUnitsByTypeV2In is listUnitsByTypeV2 restricted to one container ("" for
 // any), filtered before any contents are read.
 func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, error) {
+	return r.listUnitsByTypeV2Where(typeName, containerID, nil)
+}
+
+// listUnitsByTypeV2Where is listUnitsByTypeV2In for the units keep accepts
+// (nil keeps all).
+func (r *Reader) listUnitsByTypeV2Where(typeName, containerID string, keep func(id string) bool) ([]rawUnit, error) {
 	if !r.unitCacheValid {
 		if err := r.buildUnitCache(); err != nil {
 			return nil, err
@@ -253,6 +296,9 @@ func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, e
 	var units []rawUnit
 	for _, cu := range r.unitCache {
 		if containerID != "" && cu.ContainerID != containerID {
+			continue
+		}
+		if keep != nil && !keep(cu.ID) {
 			continue
 		}
 		if typeName == "" || cu.Type == typeName {

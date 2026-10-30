@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/mendixlabs/mxcli/model"
@@ -129,7 +130,7 @@ func TestBuildVarEntityMap_And_VarActionRef(t *testing.T) {
 			Source:         &microflows.DatabaseRetrieveSource{EntityQualifiedName: "M.Product"},
 		}),
 	}
-	varEntity := buildVarEntityMap(params, &microflows.MicroflowObjectCollection{Objects: []microflows.MicroflowObject{acts[0], acts[1]}}, nil)
+	varEntity := buildVarEntityMap(params, &microflows.MicroflowObjectCollection{Objects: []microflows.MicroflowObject{acts[0], acts[1]}}, nil, nil)
 	wantMap := map[string]string{"In": "M.Customer", "New": "M.Order", "List": "M.Product"}
 	for k, v := range wantMap {
 		if varEntity[k] != v {
@@ -261,5 +262,24 @@ func TestMicroflowActionRef(t *testing.T) {
 					tType, tName, rKind, tt.targetType, tt.targetName, tt.refKind)
 			}
 		})
+	}
+}
+
+// An inheritance split names its entities only on its outgoing flows; each
+// is one edge, inside loops too (ako/mxcli#1804).
+func TestCollectInheritanceCases(t *testing.T) {
+	flow := func(entity string) *microflows.SequenceFlow {
+		return &microflows.SequenceFlow{CaseValue: &microflows.InheritanceCase{EntityQualifiedName: entity}}
+	}
+	oc := &microflows.MicroflowObjectCollection{
+		Flows: []*microflows.SequenceFlow{flow("M.Dog"), flow("M.Cat"), flow("M.Dog"), {CaseValue: &microflows.NoCase{}}},
+		Objects: []microflows.MicroflowObject{&microflows.LoopedActivity{
+			ObjectCollection: &microflows.MicroflowObjectCollection{Flows: []*microflows.SequenceFlow{flow("M.Bird")}},
+		}},
+	}
+	got := collectInheritanceCases(oc)
+	want := []string{"M.Dog", "M.Cat", "M.Bird"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("collectInheritanceCases = %v, want %v", got, want)
 	}
 }

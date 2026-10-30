@@ -6,9 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -45,18 +43,6 @@ func sourceBuild(t *testing.T, exec *Executor, force bool) (map[string]string, s
 		rows[key] = fmt.Sprint(r[3])
 	}
 	return rows, out.String()
-}
-
-var reusedRe = regexp.MustCompile(`source: (\d+) reused, (\d+) described`)
-
-// reusedCount is how many rows the build carried over, from its progress line.
-func reusedCount(out string) int {
-	m := reusedRe.FindStringSubmatch(out)
-	if m == nil {
-		return 0
-	}
-	n, _ := strconv.Atoi(m[1])
-	return n
 }
 
 func diffSourceRows(t *testing.T, step string, got, want map[string]string) {
@@ -211,7 +197,9 @@ end;
 				t.Errorf("%s: %s was described again, want its row carried over", s.name, qn)
 			}
 		}
-		n := reusedCount(buildOut)
+		// A row is reused when it was not described again: carried over with
+		// its unit (#1804), or kept by the source plan (#1790).
+		n := len(got) - len(describedNow)
 		if n > 0 {
 			reusedAny = true
 		}

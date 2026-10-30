@@ -23,16 +23,19 @@ func (b *Builder) buildAssociations() error {
 		return err
 	}
 
-	// Build entity ID -> qualified name lookup (reuse already-parsed domain models).
-	moduleNames := make(map[model.ID]string)
-	entityNames := make(map[model.ID]string)
-	for _, dm := range domainModels {
-		modID := b.hierarchy.findModuleID(dm.ContainerID)
-		modName := b.hierarchy.getModuleName(modID)
-		moduleNames[dm.ContainerID] = modName
-		for _, entity := range dm.Entities {
-			entityNames[entity.ID] = modName + "." + entity.Name
+	// Entity ID -> qualified name. In an incremental build the domain
+	// models listed are only the rebuilt ones, so the names come from the
+	// entities buildEntities wrote, which hold every module's.
+	entityNames := map[model.ID]string{}
+	if b.scope == nil {
+		for _, dm := range domainModels {
+			modName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
+			for _, entity := range dm.Entities {
+				entityNames[entity.ID] = modName + "." + entity.Name
+			}
 		}
+	} else if entityNames, err = b.entityNamesByID(); err != nil {
+		return err
 	}
 
 	stmt, err := b.tx.Prepare(`
@@ -51,7 +54,10 @@ func (b *Builder) buildAssociations() error {
 
 	count := 0
 	for _, dm := range domainModels {
-		modName := moduleNames[dm.ContainerID]
+		if !b.own(string(dm.ID)) {
+			continue
+		}
+		modName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
 
 		for _, assoc := range dm.Associations {
 			from := entityNames[assoc.ParentID]
@@ -62,6 +68,8 @@ func (b *Builder) buildAssociations() error {
 			if to == "" {
 				to = string(assoc.ChildID)
 			}
+			b.dependsOn(siteEntityByID, from)
+			b.dependsOn(siteEntityByID, to)
 			// Mendix's pointer names are inverted relative to MDL (CLAUDE.md):
 			// the Child* delete behaviour belongs to the TO end, Parent* to FROM.
 			toDB, toMsg := deleteBehaviorColumns(assoc.ChildDeleteBehavior)
@@ -91,6 +99,7 @@ func (b *Builder) buildAssociations() error {
 			if from == "" {
 				from = string(ca.ParentID)
 			}
+			b.dependsOn(siteEntityByID, from)
 			// Same inversion as above; ChildRef is the TO end by qualified name.
 			toDB, toMsg := deleteBehaviorColumns(ca.ChildDeleteBehavior)
 			fromDB, fromMsg := deleteBehaviorColumns(ca.ParentDeleteBehavior)
@@ -114,7 +123,26 @@ func (b *Builder) buildAssociations() error {
 			count++
 		}
 	}
+	b.disown()
 
 	b.report("Associations", count)
 	return nil
+}
+
+// entityNamesByID maps every catalogued entity's ID to its qualified name.
+func (b *Builder) entityNamesByID() (map[model.ID]string, error) {
+	rows, err := b.tx.Query(`SELECT Id, QualifiedName FROM entities_data`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[model.ID]string{}
+	for rows.Next() {
+		var id, qn string
+		if err := rows.Scan(&id, &qn); err != nil {
+			return nil, err
+		}
+		out[model.ID(id)] = qn
+	}
+	return out, rows.Err()
 }

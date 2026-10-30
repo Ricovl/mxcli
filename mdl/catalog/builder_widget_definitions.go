@@ -12,7 +12,6 @@ package catalog
 
 import (
 	"crypto/sha1"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -227,7 +226,7 @@ func mpkProperties(mpkDef *mpk.WidgetDefinition) []WidgetDefinitionPropMeta {
 // widget_definition_properties rows for its properties, child slots, and
 // object lists.
 func insertWidgetDef(
-	defStmt, propStmt *sql.Stmt,
+	defStmt, propStmt *Stmt,
 	widgetID, mdlName, displayName, kind, version, mpkPath, defPath string,
 	properties []WidgetDefinitionPropMeta,
 	childSlots []WidgetDefinitionSlotMeta,

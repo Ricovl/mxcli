@@ -6,7 +6,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genConst "github.com/mendixlabs/mxcli/modelsdk/gen/constants"
 	genDT "github.com/mendixlabs/mxcli/modelsdk/gen/datatypes"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -16,7 +15,7 @@ import (
 // constantDataTypeToModel and registers them in the codec.
 
 func (b *Backend) ListConstants() ([]*model.Constant, error) {
-	units, err := mprread.ListUnitsWithContainer[*genConst.Constant](b.reader)
+	units, err := listUnits[*genConst.Constant](b)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +27,7 @@ func (b *Backend) ListConstants() ([]*model.Constant, error) {
 }
 
 func (b *Backend) GetConstant(id model.ID) (*model.Constant, error) {
-	units, err := mprread.ListUnitsWithContainer[*genConst.Constant](b.reader)
+	units, err := listUnits[*genConst.Constant](b)
 	if err != nil {
 		return nil, err
 	}

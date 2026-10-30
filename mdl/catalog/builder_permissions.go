@@ -3,8 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
-
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 )
 
@@ -86,15 +84,18 @@ func (b *Builder) buildPermissions() error {
 }
 
 // buildEntityPermissions extracts entity-level and member-level access permissions.
-func (b *Builder) buildEntityPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildEntityPermissions(stmt *Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	dms, err := b.reader.ListDomainModels()
+	dms, err := b.cachedDomainModels()
 	if err != nil {
 		return 0
 	}
 
 	for _, dm := range dms {
+		if !b.own(string(dm.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -146,6 +147,7 @@ func (b *Builder) buildEntityPermissions(stmt *sql.Stmt, projectID, snapshotID s
 			}
 		}
 	}
+	b.disown()
 
 	return count
 }
@@ -180,7 +182,7 @@ func entityAccessFromMemberRights(rule *domainmodel.AccessRule) (hasRead, hasWri
 // emitMemberPermissions emits MEMBER_READ/MEMBER_WRITE rows for entity attributes and associations.
 // When MemberAccesses is non-empty, use explicit per-member rights.
 // When MemberAccesses is empty, expand DefaultMemberAccessRights to all attributes.
-func (b *Builder) emitMemberPermissions(stmt *sql.Stmt, rule *domainmodel.AccessRule, ent *domainmodel.Entity,
+func (b *Builder) emitMemberPermissions(stmt *Stmt, rule *domainmodel.AccessRule, ent *domainmodel.Entity,
 	roleName, entityQN, xpath, defaultRights, moduleName, projectID, snapshotID string) int {
 	count := 0
 
@@ -222,15 +224,18 @@ func (b *Builder) emitMemberPermissions(stmt *sql.Stmt, rule *domainmodel.Access
 }
 
 // buildMicroflowPermissions extracts microflow execution permissions.
-func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildMicroflowPermissions(stmt *Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	mfs, err := b.reader.ListMicroflows()
+	mfs, err := b.cachedMicroflows()
 	if err != nil {
 		return 0
 	}
 
 	for _, mf := range mfs {
+		if !b.own(string(mf.ID)) {
+			continue
+		}
 		if len(mf.AllowedModuleRoles) == 0 {
 			continue
 		}
@@ -246,6 +251,7 @@ func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotI
 			count++
 		}
 	}
+	b.disown()
 
 	return count
 }
@@ -253,7 +259,7 @@ func (b *Builder) buildMicroflowPermissions(stmt *sql.Stmt, projectID, snapshotI
 // buildNanoflowPermissions extracts nanoflow execute permissions. A nanoflow
 // carries AllowedModuleRoles exactly like a microflow, and a rule checking
 // exposed flows misses every one of them without these rows (ako/mxcli#1434).
-func (b *Builder) buildNanoflowPermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildNanoflowPermissions(stmt *Stmt, projectID, snapshotID string) int {
 	count := 0
 
 	nfs, err := b.cachedNanoflows()
@@ -262,6 +268,9 @@ func (b *Builder) buildNanoflowPermissions(stmt *sql.Stmt, projectID, snapshotID
 	}
 
 	for _, nf := range nfs {
+		if !b.own(string(nf.ID)) {
+			continue
+		}
 		if len(nf.AllowedModuleRoles) == 0 {
 			continue
 		}
@@ -277,20 +286,24 @@ func (b *Builder) buildNanoflowPermissions(stmt *sql.Stmt, projectID, snapshotID
 			count++
 		}
 	}
+	b.disown()
 
 	return count
 }
 
 // buildPagePermissions extracts page view permissions.
-func (b *Builder) buildPagePermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildPagePermissions(stmt *Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	pages, err := b.reader.ListPages()
+	pages, err := b.cachedPages()
 	if err != nil {
 		return 0
 	}
 
 	for _, pg := range pages {
+		if !b.own(string(pg.ID)) {
+			continue
+		}
 		if len(pg.AllowedRoles) == 0 {
 			continue
 		}
@@ -306,20 +319,24 @@ func (b *Builder) buildPagePermissions(stmt *sql.Stmt, projectID, snapshotID str
 			count++
 		}
 	}
+	b.disown()
 
 	return count
 }
 
 // buildODataServicePermissions extracts published OData service access permissions.
-func (b *Builder) buildODataServicePermissions(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) buildODataServicePermissions(stmt *Stmt, projectID, snapshotID string) int {
 	count := 0
 
-	services, err := b.reader.ListPublishedODataServices()
+	services, err := b.lister().ListPublishedODataServices()
 	if err != nil {
 		return 0
 	}
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		if len(svc.AllowedModuleRoles) == 0 {
 			continue
 		}
@@ -333,6 +350,7 @@ func (b *Builder) buildODataServicePermissions(stmt *sql.Stmt, projectID, snapsh
 			count++
 		}
 	}
+	b.disown()
 
 	return count
 }

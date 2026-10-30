@@ -63,7 +63,7 @@ func runInsertWidgetRefs(t *testing.T, cat *Catalog) int {
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
 	}
-	n, err := insertWidgetRefs(tx, "p", "s")
+	n, err := insertWidgetRefs(wrapTx(tx), "p", "s")
 	if err != nil {
 		tx.Rollback()
 		t.Fatalf("insertWidgetRefs: %v", err)
