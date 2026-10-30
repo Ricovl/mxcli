@@ -84,8 +84,14 @@ func TestCheckVersionGates_WorkflowMicroflowActions(t *testing.T) {
 					len(vs) == 0 || !strings.Contains(vs[0].Message, strings.SplitN(err.Error(), "\n", 2)[0]) {
 					t.Errorf("%s %s (%T): exec's refusal %v differs from check's %+v", c.want, place.name, stmt, err, vs)
 				}
-				if vs := versionGateViolations(versionCtx(t, c.floor[0], c.floor[1], c.floor[2]), prog); len(vs) != 0 {
-					t.Errorf("%s %s (%T): reported at its floor %v: %+v", c.want, place.name, stmt, c.floor, vs)
+				// At its floor the action is not reported. A loop placement
+				// below 9.0.4 is — for the loop, gated itself since
+				// ako/mxcli#1811 — and nothing else.
+				for _, v := range versionGateViolations(versionCtx(t, c.floor[0], c.floor[1], c.floor[2]), prog) {
+					loop := strings.Contains(place.name, "loop") && c.floor[0] == 9 && c.floor[1] == 0 && c.floor[2] < 4
+					if !loop || !strings.Contains(v.Message, "loop … in $List requires") && !strings.Contains(v.Message, "while requires") {
+						t.Errorf("%s %s (%T): reported at its floor %v: %+v", c.want, place.name, stmt, c.floor, v)
+					}
 				}
 			}
 		}
@@ -150,8 +156,10 @@ func TestExecAlterFlow_RefusesAGatedInsertBeforeReading(t *testing.T) {
 
 // The floor check -p applies to a type gate is the version the write refuses
 // the type below, so the two cannot disagree: each gate's sdk/versions row
-// opens exactly at canon.TypeIntroduced of the types the statement writes (the
-// latest of them). A row typed with another version fails here, not as a
+// opens exactly at canon.TypeIntroduced of the types the statement writes, or
+// at the version canon.PropertyDeclared first declares a property it writes a
+// value to, whichever is latest (ako/mxcli#1811: a 9.0.2 type can sit in a
+// 9.19 property). A row typed with another version fails here, not as a
 // script check passed and exec then refused part-way (ako/mxcli#1787). The
 // #1774 workflow type gates are pinned with them.
 func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
@@ -159,17 +167,9 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pinned := append([]typeGate{
-		{versionGate: waitForNotificationGate, types: []string{"Workflows$WaitForNotificationActivity"}},
-		{versionGate: waitForTimerGate, types: []string{"Workflows$WaitForTimerActivity"}},
-		{versionGate: timerBoundaryEventGate, types: []string{"Workflows$TimerBoundaryEvent"}},
-		{versionGate: interruptingTimerBoundaryEventGate, types: []string{
-			"Workflows$InterruptingTimerBoundaryEvent", "Workflows$NonInterruptingTimerBoundaryEvent"}},
-		{versionGate: workflowDefinitionSelectionGate, types: []string{
-			"Workflows$WorkflowDefinitionNameSelection", "Workflows$WorkflowDefinitionObjectSelection"}},
-	}, workflowActionGates...)
-	if len(workflowActionGates) == 0 {
-		t.Fatal("no workflow action gates")
+	pinned := allTypeGates()
+	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 || len(workflowShapeGates) == 0 || len(documentTypeGates) == 0 {
+		t.Fatal("no workflow action, flow action, workflow shape or document gates")
 	}
 	for _, g := range pinned {
 		if len(g.types) == 0 {
@@ -187,14 +187,43 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 				floor = v
 			}
 		}
+		for _, prop := range g.properties {
+			typ, key, _ := strings.Cut(prop, ".")
+			v, ok := propertyIntroduction(typ, key)
+			if !ok {
+				t.Errorf("%s: %s is declared by no version the data knows", g.statement, prop)
+				continue
+			}
+			if floor.Compare(v) < 0 {
+				floor = v
+			}
+		}
 		at := versions.SemVer{Major: floor.Major, Minor: floor.Minor, Patch: floor.Patch}
 		if !reg.IsAvailable(g.area, g.name, at) {
-			t.Errorf("%s: %s.%s is not available at %s, where the write accepts %v", g.statement, g.area, g.name, at, g.types)
+			t.Errorf("%s: %s.%s is not available at %s, where the write accepts %v %v", g.statement, g.area, g.name, at, g.types, g.properties)
 		}
 		if below := justBelow(at); reg.IsAvailable(g.area, g.name, below) {
-			t.Errorf("%s: %s.%s is available at %s, where the write refuses %v (introduced %s)", g.statement, g.area, g.name, below, g.types, at)
+			t.Errorf("%s: %s.%s is available at %s, where the write refuses %v %v (introduced %s)", g.statement, g.area, g.name, below, g.types, g.properties, at)
 		}
 	}
+}
+
+// propertyIntroduction is the first version canon.PropertyDeclared declares
+// typ.key in: the floor the write refuses a value of it below.
+func propertyIntroduction(typ, key string) (version.Version, bool) {
+	if canon.PropertyDeclared(typ, key, version.Version{Major: 7}) {
+		return version.Version{}, false // no data: declared everywhere
+	}
+	for major := 7; major <= 12; major++ {
+		for minor := 0; minor <= 40; minor++ {
+			for patch := 0; patch <= 60; patch++ {
+				if v := (version.Version{Major: major, Minor: minor, Patch: patch}); canon.PropertyDeclared(typ, key, v) {
+					return v, true
+				}
+			}
+		}
+	}
+	return version.Version{}, false
 }
 
 // justBelow is the last version before v.

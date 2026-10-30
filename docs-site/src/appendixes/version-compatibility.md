@@ -54,7 +54,7 @@ The tables below show exactly which features are available on each Mendix versio
 | Calculated attributes | `CALCULATED BY Module.Microflow` | Yes | Yes | Yes | Yes |
 | Entity generalization | `EXTENDS Module.ParentEntity` | Yes | Yes | Yes | Yes |
 | ALTER ENTITY | `ALTER ENTITY ... ADD/DROP/RENAME` | -- | Yes | Yes | Yes |
-| View entities | `CREATE VIEW ENTITY ... AS SELECT` | -- | -- | Yes | Yes |
+| View entities | `CREATE VIEW ENTITY ... AS SELECT` | -- | -- | 10.21+ | Yes |
 
 ### Microflows
 
@@ -62,11 +62,26 @@ The tables below show exactly which features are available on each Mendix versio
 |---------|-----------|-----|-------|-------|-------|
 | Basic microflows | `CREATE MICROFLOW ... BEGIN ... END` | Yes | Yes | Yes | Yes |
 | Loop in branches | `LOOP inside IF/ELSE` | Yes | Yes | Yes | Yes |
+| Loops over a list, while loops | `LOOP $Item IN $List ...`, `WHILE ...` | 9.0.4+ | Yes | Yes | Yes |
+| Show page with arguments | `SHOW PAGE Module.Page (Param = $Value)` | 9.7+ | Yes | Yes | Yes |
+| Calls in a task queue | `CALL MICROFLOW ... IN QUEUE ...`, `CALL JAVA ACTION ... IN QUEUE ...` | 9.10+ | Yes | Yes | Yes |
+| Find and filter by expression | `FIND $List WHERE ...`, `FILTER $List WHERE ...` | 9.0.3+ | Yes | Yes | Yes |
+| Call external action | `CALL EXTERNAL ACTION Module.Service.Action (...)` | 9.19+ (with arguments: --) | Yes (with arguments: 10.2+) | Yes | Yes |
+| Range of a list | `RANGE $List OFFSET ... LIMIT ...` | 9.24+ | Yes | Yes | Yes |
 | SEND REST REQUEST | `SEND REST REQUEST Module.Service.Op` | -- | 10.1+ | Yes | Yes |
-| Execute database query | `EXECUTE DATABASE QUERY ...` | -- | -- | Yes | Yes |
-| Show page with params | `SHOW PAGE ... WITH PARAMS` | -- | -- | -- | Yes |
+| SEND REST REQUEST arguments, result, body | `... WITH (...)`, `$R = SEND REST REQUEST ...`, `... BODY $Var` | -- | 10.2+, 10.4+, 10.5+ | Yes | Yes |
+| Transform JSON with a data transformer | `$Out = TRANSFORM $Json WITH Module.Transformer` | -- | -- | -- | 11.4+ |
+| Execute database query | `EXECUTE DATABASE QUERY ...` | 9.24+ | Yes | Yes | Yes |
 | REST query parameters | `SEND REST REQUEST with QUERY params` | -- | -- | -- | Yes |
-| DB query runtime connection | `EXECUTE DATABASE QUERY CONNECTION ...` | -- | -- | -- | Yes |
+| DB query runtime connection | `EXECUTE DATABASE QUERY ... CONNECTION (...)` | -- | -- | -- | 11.1+ |
+
+Below its version, each of these is refused by `check -p` and by `exec` before
+anything is written, with MDL-VERSION01, wherever it sits in the flow and in what
+an `alter microflow` or `alter nanoflow` inserts. The versions are the Mendix
+Model SDK's own for the type each writes; before this, `check -p` passed them and
+the write refused them part-way through the script
+([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)). A `FIND` or
+`FILTER` `BY Member = value` writes the older find and filter every version has.
 
 ### Pages
 
@@ -81,6 +96,8 @@ The tables below show exactly which features are available on each Mendix versio
 | Page parameters (entity) | `Params: ( $Item: Module.Entity )` | 9.4+ | Yes | Yes | Yes |
 | Page parameters (primitive) | `Params: ( $Qty: Integer )` | -- | -- | -- | 11.6+ |
 | Page variables | `Variables: ( ... )` | -- | 10.20+ | 10.20+ | Yes |
+| Snippet parameters | `CREATE SNIPPET ... (Params: ( ... ))` | 9.21+ | Yes | Yes | Yes |
+| Workflow actions on a button | `action: open user task`, `open workflow`, `call workflow ...`; `complete task '...'` | 9.0.2+; 9.19+ | Yes | Yes | Yes |
 | Design properties (Atlas v3) | `DesignProperties: (...)` | -- | -- | -- | Yes |
 
 ::: tip Widget Templates
@@ -101,10 +118,16 @@ Pluggable widget templates are currently extracted from Mendix 11.6. When used o
 | Feature | MDL Syntax | 10.0+ | 10.1+ | 10.4+ | 10.6+ | 11.0+ |
 |---------|-----------|-------|-------|-------|-------|-------|
 | OData client | `CREATE CONSUMED ODATA SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| Business events | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| REST client (basic) | `CREATE CONSUMED REST SERVICE ... ( ... ) { OPERATION ... }` | -- | Yes | Yes | Yes | Yes |
+| Business events (9.24+) | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
+| REST client with no operation | `CREATE CONSUMED REST SERVICE ... ( ... ) { }` | -- | Yes | Yes | Yes | Yes |
+| REST client basic authentication | `authentication: basic (...)` | -- | 10.2+ | Yes | Yes | Yes |
+| REST client operations | `... { OPERATION ... }` | -- | -- | Yes | Yes | Yes |
+| REST client from an OpenAPI document | `CREATE CONSUMED REST SERVICE ... ( OpenAPI: ... )` | -- | -- | -- | 10.21+ | Yes |
 | REST client headers | `Headers: ('Name': 'Value')` | -- | -- | Yes | Yes | Yes |
-| Database Connector | `CREATE DATABASE CONNECTION` | -- | -- | -- | Yes | Yes |
+| Database Connector | `CREATE DATABASE CONNECTION` | Yes | Yes | Yes | Yes | Yes |
+| Database Connector queries | `CREATE DATABASE CONNECTION ... { QUERY ... }` | -- | -- | -- | 10.12+ | Yes |
+| Scheduled events | `CREATE SCHEDULED EVENT ... ( Repeat: ... )` | Yes (9.12+) | Yes | Yes | Yes | Yes |
+| Module JAR dependencies, exclusions | `ALTER MODULE ... ADD JAR DEPENDENCY`, `... ADD EXCLUSION` | Yes; 10.12+ | Yes | Yes | Yes | Yes |
 | REST client query params | `QUERY $param: Type` | -- | -- | -- | -- | Yes |
 
 A REST client operation's `body: json from $X` is stored as Mendix 11's JSON
@@ -117,8 +140,13 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 
 | Feature | MDL Syntax | 9.x | 10.0+ |
 |---------|-----------|-----|-------|
-| Basic workflows | `CREATE WORKFLOW` | Yes | Yes |
-| User tasks | `USER TASK ... OUTCOMES (...)` | Yes | Yes |
+| Basic workflows | `CREATE WORKFLOW`, `ALTER WORKFLOW` | 9.0.2+ | Yes |
+| User tasks | `USER TASK ... OUTCOMES (...)` | 9.19+ | Yes |
+| A workflow parameter | `PARAMETER $WorkflowContext: Module.Entity` | 9.18+ | Yes |
+| A jump | `JUMP TO ...` | 9.0.5+ | Yes |
+| Calling a workflow from a workflow | `CALL WORKFLOW ...`; with `(WorkflowContext = ...)` | 9.6+; 9.18+ | Yes |
+| An overview page | `OVERVIEW PAGE ...` | 9.11+ | Yes |
+| Annotations | `ANNOTATION '...'` | 9.15+ | Yes |
 | Multi-user tasks | `MULTI USER TASK ...` | 9.22+ | Yes |
 | Multi-user task rules majority and threshold | `DECIDE BY MAJORITY ...`, `DECIDE BY THRESHOLD ...` | No | Yes |
 | Waiting for all users | `AWAIT ALL USERS` | No | 10.2+ |
@@ -147,7 +175,12 @@ activities, the timer boundary events, a lock or unlock naming a workflow, and
 the workflow actions of a microflow (in `create microflow` and in what `alter
 microflow` inserts) are also refused up front, by `check -p` and by `exec`
 before anything is written, with MDL-VERSION01
-([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). Before this, such a type was written, and the project did not load
+([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). So is a workflow itself on 9.0.0 and 9.0.1, which
+predate Workflows$Workflow (9.0.2): `create workflow`, `create or modify
+workflow` and `alter workflow` ([ako/mxcli#1809](https://github.com/ako/mxcli/issues/1809)), and what a
+workflow states whose version is later still, listed above: on a stamped 9.x
+project the write refuses every workflow with a parameter below 9.18 and every
+user task below 9.19 ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)). Before this, such a type was written, and the project did not load
 (`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
 Where an older version stores the same thing in another shape (the parallel
 split's end marker, user tasks), that shape is written instead, as listed under
@@ -169,6 +202,15 @@ longer loaded, and 11.1 and 11.2 failed `mx check` with CE6671 and CE6689
 | Navigation profiles | `ALTER NAVIGATION ...` | Yes | Yes |
 | Menu items | `MENU ITEM ...` | Yes | Yes |
 | Home pages | `HOME PAGE Module.Page` | Yes | Yes |
+| A progressive web app's settings | `PROGRESSIVE WEB APP ( ... )` | 9.0.3+ | Yes |
+| A native profile's home page | `CREATE OR MODIFY NAVIGATION NativePhone HOME PAGE ...` | 9.4+ | Yes |
+| Menu item icons | `MENU ITEM '...' ( ..., Icon: Module.Collection.icon )` | 9.20+ | Yes |
+| A not-found page | `NOT FOUND PAGE Module.Page` | No | 10.13+ |
+
+Each "+" version above that is not a whole major is the Model SDK's version of a
+type or property mxcli writes for the feature, with no older shape; below it,
+`check -p` and `exec` refuse the statement with MDL-VERSION01 before anything is
+written ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)).
 
 ### OQL (View Entity queries)
 
@@ -194,7 +236,7 @@ The Mendix metamodel evolves across versions. The reflection data shows ~42% typ
 
 ### View Entities (10.x vs 11.x)
 
-View entities exist in both 10.18+ and 11.x, but the BSON structure differs. In Mendix 10.x, the `OqlViewEntitySource` object has an `Oql` field that stores the OQL query inline (in addition to the separate `ViewEntitySourceDocument`). Mendix 11.0 removed the inline `Oql` field. The writer detects the project version and includes the inline field for 10.x projects.
+View entities arrived in Mendix 10.18 with the query stored inline. mxcli stores it in a separate `ViewEntitySourceDocument`, which the entity's source names; both are 10.21 types, so `create view entity` needs 10.21 and is refused by `check -p` below it ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)); before, `check -p` passed it on 10.18 to 10.20 and the write refused it. The BSON structure also differs between 10.x and 11.x. In Mendix 10.x, the `OqlViewEntitySource` object has an `Oql` field that stores the OQL query inline (in addition to the separate `ViewEntitySourceDocument`). Mendix 11.0 removed the inline `Oql` field. The writer detects the project version and includes the inline field for 10.x projects.
 
 ### Page Parameters (9.4+, with an 11.5 tail)
 

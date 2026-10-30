@@ -1,0 +1,65 @@
+-- ako/mxcli#1800: `mxcli playwright check http://frontend.local:8180/` failed a
+-- page that rendered, on two console errors, while the same check against
+-- http://127.0.0.1:8180/ passed:
+--
+--   ERR    WebSocket connection to 'ws://frontend.local:8180/mxdevtools/' failed: Error during WebSocket handshake: Unexpected response code: 502
+--
+-- frontend.local is an /etc/hosts name for 127.0.0.1 and the app's configured
+-- root URL. The runtime answers the dev channel's handshake 101 on that name
+-- (curl with the proxy bypassed). The 502 is the environment's HTTPS proxy:
+-- Chromium sends ws:// to the HTTPS proxy (RFC 6455 4.1.3), no_proxy lists
+-- localhost and 127.0.0.1 but not the app's name, and a proxy elsewhere cannot
+-- reach this machine's loopback ("502 upstream request failed"). The page's
+-- http:// loads went direct, because only https_proxy is set.
+--
+-- No /etc/hosts edit is needed where the machine already has a name for
+-- 127.0.0.1 that no_proxy does not list (a Claude Code container has `vm`).
+-- Against a blank 11.15.0 app, in an environment that sets https_proxy:
+--
+--   mxcli exec mdl-examples/bug-tests/pagecheck-1800-host-name-behind-proxy.mdl -p app.mpr
+--   mxcli run --local --detach -p app.mpr --db-type hsqldb --app-port 18180
+--   mxcli playwright check http://vm:18180/ http://vm:18180/p/brokenprobe -p app.mpr
+--
+-- Before the fix: / FAILs with the two 502 handshake errors; /p/brokenprobe
+-- FAILs with three (one 502, one genuine). After it: / passes with
+-- console-errors=0; /p/brokenprobe still FAILs, on its genuine error only:
+--
+--   ERR    [Client] genuine console error from JSA_LogError (ako/mxcli#1800 control)
+--   FAIL   1 console error(s)
+--
+-- The browser the check starts now adds a host that resolves only to this
+-- machine to no_proxy; nothing is ignored, the channel connects.
+mdl 1;
+
+create or modify configuration 'Default' (
+  ApplicationRootUrl: 'http://vm:18180/'
+);
+
+-- The genuine-error control: a page that renders and logs a real console error.
+create non-persistent entity MyFirstModule.ProbeItem (
+  Label: String(50)
+);
+
+create or modify javascript action MyFirstModule.JSA_LogError () returns Boolean
+as $$
+    console.error('genuine console error from JSA_LogError (ako/mxcli#1800 control)');
+    return Promise.resolve(true);
+$$;
+
+create or modify nanoflow MyFirstModule.DS_ProbeItem ()
+returns MyFirstModule.ProbeItem as $Item
+begin
+  $Logged = call javascript action MyFirstModule.JSA_LogError();
+  $Item = create MyFirstModule.ProbeItem (Label = 'probe item');
+  return $Item;
+end;
+
+create or modify page MyFirstModule.BrokenProbe (
+  Title: 'Broken probe',
+  Layout: Atlas_Core.Atlas_TopBar,
+  Url: 'brokenprobe'
+) {
+  dataview dvProbe (DataSource: nanoflow MyFirstModule.DS_ProbeItem) {
+    dynamictext txtProbe (Content: 'Broken probe page rendered')
+  }
+};

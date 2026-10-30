@@ -32,7 +32,7 @@ Everything mxcli can do, organized by use case.
 |---|---|---|
 | Create entity | `CREATE PERSISTENT ENTITY` | Full support |
 | Create non-persistent entity | `CREATE NON-PERSISTENT ENTITY` | Full support |
-| Create view entity (OQL) | `CREATE VIEW ENTITY ... AS SELECT` | 10.18+ |
+| Create view entity (OQL) | `CREATE VIEW ENTITY ... AS SELECT` | 10.21+ |
 | Modify entity | `ALTER ENTITY ... ADD/MODIFY/DROP ATTRIBUTE` | Full support |
 | Create association | `CREATE ASSOCIATION ... FROM ... TO` | Full support |
 | Create enumeration | `CREATE ENUMERATION` | Full support |

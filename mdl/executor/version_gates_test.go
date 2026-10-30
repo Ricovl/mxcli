@@ -159,7 +159,7 @@ func TestCheckFeatureIsOnlyCalledFromTheGateTable(t *testing.T) {
 
 // The comment gate fires on a COMMENT, not on the characters: a query with
 // none, or with `--` and `/*` inside a string literal, passes on 10.24.25 — the
-// view-entity floor is 10.18, so nothing else gates these.
+// view-entity floor is 10.21, so nothing else gates these.
 func TestCheckVersionGates_ViewQueryWithoutCommentPasses(t *testing.T) {
 	prog := &ast.Program{Statements: []ast.Statement{
 		&ast.CreateModuleStmt{Name: "M"},

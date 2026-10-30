@@ -36,7 +36,7 @@ end;
 `
 
 // The same script plus a statement the project's version cannot store: exec's
-// handler refuses `create view entity` below 10.18.
+// handler refuses `create view entity` below 10.21 (ako/mxcli#1811).
 const issue1434Gated = issue1434Flows + `create view entity R1434.ItemView (Name: String(200)) as select cast('a' as String) as Name;
 `
 
@@ -84,7 +84,7 @@ func TestCheck_RefusesWhatTheProjectVersionCannotStore(t *testing.T) {
 	if code == 0 || strings.Contains(out, "Check passed!") {
 		t.Errorf("check passed a statement the 9.24 project cannot store (exit %d):\n%s", code, out)
 	}
-	for _, want := range []string{"statement 5: create view entity requires Mendix 10.18.0+", "MDL-VERSION01"} {
+	for _, want := range []string{"statement 5: create view entity requires Mendix 10.21.0+", "MDL-VERSION01"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("check output must name %q:\n%s", want, out)
 		}
@@ -134,7 +134,7 @@ func TestExecPreflight_AgreesWithCheckOnVersionGates(t *testing.T) {
 	if refusal == "" || !strings.Contains(refusal, "Nothing was written") {
 		t.Errorf("want the pre-flight to refuse the version-gated script, got %q\n%s", refusal, out)
 	}
-	if !strings.Contains(out, "create view entity requires Mendix 10.18.0+") {
+	if !strings.Contains(out, "create view entity requires Mendix 10.21.0+") {
 		t.Errorf("pre-flight output must name the gate:\n%s", out)
 	}
 

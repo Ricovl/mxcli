@@ -44,7 +44,7 @@ This catches everything Level 1 catches, plus:
 - Page layouts that don't exist in the project
 - Association endpoints pointing to missing entities
 - A plain `create` whose name already exists in the project
-- A statement the project's Mendix version cannot store (`MDL-VERSION01`, e.g. `create view entity` below 10.18) — the same version gates `exec` refuses with
+- A statement the project's Mendix version cannot store (`MDL-VERSION01`, e.g. `create view entity` below 10.21) — the same version gates `exec` refuses with
 
 This is the check you should run before executing a script. It's fast (reads the project but doesn't modify it) and catches most mistakes.
 
