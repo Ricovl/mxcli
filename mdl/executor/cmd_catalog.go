@@ -527,6 +527,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		builder.SetSourceMode(true)
 		preWarmCache(ctx)
 		builder.SetDescribeFunc(func(objectType string, qualifiedName string, id string) (string, error) {
+			if hook := sourceDescribeHook; hook != nil {
+				hook(objectType, qualifiedName)
+			}
 			return captureDescribeParallel(ctx, objectType, qualifiedName, model.ID(id))
 		})
 		// Rows of documents nothing has changed under are carried over from
@@ -768,6 +771,12 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 	// Rebuild the catalog
 	return buildCatalog(ctx, full, source, stmt.Communities, stmt.Resolution)
 }
+
+// sourceDescribeHook, when set, sees every document a source build describes
+// rather than carries over. Tests use it to name what an incremental build
+// described again; it runs on the describe workers, so it must be safe for
+// concurrent use.
+var sourceDescribeHook func(objectType, qualifiedName string)
 
 // sourceFingerprint identifies the running mxcli build, so source rows are
 // only reused by the build that described them: another version may describe
