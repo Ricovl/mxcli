@@ -1,0 +1,56 @@
+mdl 1;
+-- ako/mxcli#1793: a retrieve over a self-reference — a Reference from an entity
+-- to itself — binds the ONE object at its FROM end. The stored retrieve records
+-- no direction, and Mendix follows a self-reference from its FROM end. The full
+-- build used to type it as a list (the start variable is an instance of the TO
+-- entity too, so it read as a reverse traversal) unless an object use followed,
+-- and check --references said nothing, so a list use was accepted, written, and
+-- failed the build. Measured on 11.13.0:
+--
+--   retrieve $P from $Order/MyFirstModule.Bug1793Order_Parent;
+--   $n = count $P;    -- CE0013 "Input variable 'P' must be of type 'List'."
+--   $h = head $P;     -- CE0097 "The selected 'P' variable must be of type List."
+--   loop $x in $P …   -- CE0100 "'P' is of type MyFirstModule.Bug1793Order, but should be of type List."
+--
+-- check -p now refuses those as MDL-RETRIEVE01, naming the CE code, and the full
+-- build types $P as the object whatever the use. A Reference SET from an entity to
+-- itself is a list, and stays one.
+--
+-- This script is the working spelling: the object used as an object (from the
+-- entity and from a specialization of it), the reference set used as a list.
+-- Expected: check -p passes, exec creates everything, mx check reports 0 errors.
+create persistent entity MyFirstModule.Bug1793Order ( Code: String(50), Amount: Integer );
+create persistent entity MyFirstModule.Bug1793SpecialOrder extends MyFirstModule.Bug1793Order ( Extra: String(20) );
+create association MyFirstModule.Bug1793Order_Parent
+  from MyFirstModule.Bug1793Order to MyFirstModule.Bug1793Order;
+create association MyFirstModule.Bug1793Order_Related
+  from MyFirstModule.Bug1793Order to MyFirstModule.Bug1793Order type ReferenceSet;
+
+-- The parent: one object. Change it, read a member of it.
+create or modify microflow MyFirstModule.MF_Bug1793_Parent ($Order: MyFirstModule.Bug1793Order)
+returns Integer as $a
+begin
+  retrieve $Parent from $Order/MyFirstModule.Bug1793Order_Parent;
+  change $Parent ( Code = 'P' );
+  declare $a Integer = $Parent/Amount;
+  return $a;
+end;
+
+-- The same from a specialization of the entity.
+create or modify microflow MyFirstModule.MF_Bug1793_ParentOfSpecial ($Special: MyFirstModule.Bug1793SpecialOrder)
+begin
+  retrieve $Parent from $Special/MyFirstModule.Bug1793Order_Parent;
+  change $Parent ( Code = 'S' );
+end;
+
+-- The related orders: a reference set is a list. Count it, loop it.
+create or modify microflow MyFirstModule.MF_Bug1793_Related ($Order: MyFirstModule.Bug1793Order)
+returns Integer as $n
+begin
+  retrieve $Related from $Order/MyFirstModule.Bug1793Order_Related;
+  loop $Item in $Related begin
+    change $Item ( Amount = 1 );
+  end loop;
+  $n = count $Related;
+  return $n;
+end;
