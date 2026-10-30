@@ -117,7 +117,8 @@ type Builder struct {
 	scope           map[string]bool
 	rows            *rowOwners
 	stats           BuildStats
-	prevOwned       map[string]bool // the previous build's per-unit passes' units
+	prevOwned       map[string]bool              // the previous build's per-unit passes' units
+	deps            map[string]map[string]string // traced reads: unit -> name -> lookup (builder_coverage.go)
 
 	// list is what the per-unit passes list documents from: the reader, or
 	// in an incremental build a view of it holding only the units in scope,
@@ -639,6 +640,9 @@ func (b *Builder) buildAttempt(tx CatalogTx, plan *incrementalPlan, verify func(
 	b.tx = newBuilderTx(tx, b)
 	b.rows = newRowOwners()
 	b.resetCollected()
+	if b.deps != nil {
+		b.deps = map[string]map[string]string{}
+	}
 	b.scope = nil
 	b.list = b.reader
 	if plan != nil {

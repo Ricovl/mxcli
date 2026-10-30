@@ -43,6 +43,7 @@ const (
 	RefKindType       = "type"       // An attribute, parameter or variable is typed as an enumeration
 	RefKindValue      = "value"      // An expression names an enumeration value
 	RefKindMapping    = "mapping"    // An import or export mapping maps an entity
+	RefKindSplit      = "split"      // A decision branches on an object being a specialization
 )
 
 // RefKinds is every value that reaches refs.RefKind. It is the vocabulary a
@@ -59,7 +60,7 @@ var RefKinds = []string{
 	RefKindCalculate, RefKindReturn, RefKindSchedule, RefKindValidate,
 	RefKindWidget, RefKindSettings, RefKindSync, RefKindPublish,
 	RefKindEvent, RefKindMember, RefKindXPath, RefKindType,
-	RefKindValue, RefKindMapping,
+	RefKindValue, RefKindMapping, RefKindSplit,
 }
 
 // Object types recorded in refs.SourceType and refs.TargetType — the catalog's
@@ -191,6 +192,37 @@ func collectRuleCalls(oc *microflows.MicroflowObjectCollection) []string {
 			out = append(out, collectRuleCalls(o.ObjectCollection)...)
 		}
 	}
+	return out
+}
+
+// collectInheritanceCases returns the entity of every branch of an
+// inheritance split (`split type $x when Module.Entity`), once each,
+// recursing into loops. The split is no activity and names the entity only
+// on its outgoing flows, so without this a flow that branches on a
+// specialization had no edge to it: `show references` missed the flow, and
+// the incremental catalog build could not tell it depends on the entity's
+// module (found by the ref coverage trace, ako/mxcli#1804).
+func collectInheritanceCases(oc *microflows.MicroflowObjectCollection) []string {
+	if oc == nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	var walk func(*microflows.MicroflowObjectCollection)
+	walk = func(c *microflows.MicroflowObjectCollection) {
+		for _, f := range c.Flows {
+			if ic, ok := f.CaseValue.(*microflows.InheritanceCase); ok && ic.EntityQualifiedName != "" && !seen[ic.EntityQualifiedName] {
+				seen[ic.EntityQualifiedName] = true
+				out = append(out, ic.EntityQualifiedName)
+			}
+		}
+		for _, obj := range c.Objects {
+			if l, ok := obj.(*microflows.LoopedActivity); ok && l.ObjectCollection != nil {
+				walk(l.ObjectCollection)
+			}
+		}
+	}
+	walk(oc)
 	return out
 }
 
@@ -346,7 +378,7 @@ type assocEnds struct{ From, To string }
 // A variable can be defined after the object that uses it in collection order
 // (Objects is not flow order), so the walk repeats until nothing new is mapped;
 // each pass only adds entries, so it ends within one pass per variable.
-func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.MicroflowObjectCollection, assocs map[string]assocEnds) map[string]string {
+func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.MicroflowObjectCollection, assocs map[string]assocEnds, probe func(string)) map[string]string {
 	norm := func(v string) string { return strings.TrimPrefix(v, "$") }
 	varEntity := map[string]string{}
 	for _, p := range params {
@@ -379,6 +411,9 @@ func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.M
 					case *microflows.DatabaseRetrieveSource:
 						added = set(a.OutputVariable, src.EntityQualifiedName) || added
 					case *microflows.AssociationRetrieveSource:
+						if probe != nil {
+							probe(src.AssociationQualifiedName)
+						}
 						added = set(a.OutputVariable, associationTarget(assocs[src.AssociationQualifiedName], varEntity[norm(src.StartVariable)])) || added
 					}
 				}
@@ -508,9 +543,12 @@ func (b *Builder) buildReferences() error {
 		acts := collectActionActivities(oc)
 		// Intra-flow variable→entity map so change/delete (which operate on a
 		// variable, not a named entity) can resolve their target.
-		varEntity := buildVarEntityMap(params, oc, assocs)
+		varEntity := buildVarEntityMap(params, oc, assocs, b.probe(siteAssocEnds))
 		for _, rule := range collectRuleCalls(oc) {
 			emit(RefObjectRule, rule, RefKindCall)
+		}
+		for _, entity := range collectInheritanceCases(oc) {
+			emit(RefObjectEntity, entity, RefKindSplit)
 		}
 		for _, act := range acts {
 			if tt, tn, rk, ok := microflowActionRef(act.Action); ok {
@@ -1254,6 +1292,7 @@ func (b *Builder) resolveEntityID(entityID model.ID) string {
 	if err != nil {
 		return ""
 	}
+	b.dependsOn(siteEntityByID, qualifiedName)
 	return qualifiedName
 }
 
@@ -1281,6 +1320,7 @@ func (b *Builder) resolveMicroflowID(mfID model.ID) string {
 	if err != nil {
 		return ""
 	}
+	b.dependsOn(siteFlowByID, qualifiedName)
 	return qualifiedName
 }
 

@@ -125,6 +125,7 @@ A refresh rebuilds only the units a save changed and keeps every other row of th
 - [ ] **Listed through the scope**: documents come from `b.lister()` or a `cached*` accessor, not `b.reader.List*`, which decodes the whole project (`TestBuilderListsDocumentsThroughTheScope`, `TestCatalog_IncrementalRefreshDecodesOnlyWhatItRebuilds`).
 - [ ] **Other documents through the tables**: a pass that needs another document's name or shape reads the catalog tables an earlier pass wrote (see `associationEnds`, `entityNamesByID`), not a decoded list, which holds only the rebuilt units.
 - [ ] **Dependencies are refs**: if a document's rows depend on another document, the document has a `refs` edge to it, or the dependency is invisible to the plan. Add a step to `incrementalSteps` where the other document changes and this one does not; it must fail with the dependency removed.
+- [ ] **New lookups are traced**: a new lookup of another document's name calls `b.dependsOn(site, name)`, or goes through the member-ref index, which probes for you. `TestCatalog_RefsCoverEveryCrossDocumentRead` must stay at 100%; `MXCLI_REF_COVERAGE_MPR=<copy of an app> go test ./mdl/executor -run TestCatalog_RefCoverageOfProject -v` measures a real project.
 - [ ] **New document type**: an incremental step for it in `incrementalSteps`. A type no per-document pass owns makes every change to it a full build.
 
 ### Full-stack consistency for MDL features

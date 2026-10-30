@@ -68,6 +68,8 @@ func (b *Builder) buildAssociations() error {
 			if to == "" {
 				to = string(assoc.ChildID)
 			}
+			b.dependsOn(siteEntityByID, from)
+			b.dependsOn(siteEntityByID, to)
 			// Mendix's pointer names are inverted relative to MDL (CLAUDE.md):
 			// the Child* delete behaviour belongs to the TO end, Parent* to FROM.
 			toDB, toMsg := deleteBehaviorColumns(assoc.ChildDeleteBehavior)
@@ -97,6 +99,7 @@ func (b *Builder) buildAssociations() error {
 			if from == "" {
 				from = string(ca.ParentID)
 			}
+			b.dependsOn(siteEntityByID, from)
 			// Same inversion as above; ChildRef is the TO end by qualified name.
 			toDB, toMsg := deleteBehaviorColumns(ca.ChildDeleteBehavior)
 			fromDB, fromMsg := deleteBehaviorColumns(ca.ParentDeleteBehavior)

@@ -183,7 +183,7 @@ func (b *Builder) buildMicroflows() error {
 		// Insert activities only in full mode
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(mf.ID), qualifiedName, moduleName, mf.ObjectCollection,
-				buildVarEntityMap(mf.Parameters, mf.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(mf.Parameters, mf.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -240,7 +240,7 @@ func (b *Builder) buildMicroflows() error {
 		// Insert activities only in full mode
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(nf.ID), qualifiedName, moduleName, nf.ObjectCollection,
-				buildVarEntityMap(nf.Parameters, nf.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(nf.Parameters, nf.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -293,7 +293,7 @@ func (b *Builder) buildMicroflows() error {
 
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(rule.ID), qualifiedName, moduleName, rule.ObjectCollection,
-				buildVarEntityMap(rule.Parameters, rule.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(rule.Parameters, rule.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}

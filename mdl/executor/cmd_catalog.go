@@ -564,6 +564,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Project-level widgets (widgets/*.mpk) are added by the catalog builder
 	// itself by reading the filesystem.
 	builder.SetBuiltinWidgetMetas(builtinWidgetMetas())
+	if hook := catalogBuilderHook; hook != nil {
+		hook(builder)
+	}
 	// Per-table lines are the only sign of life during a build that takes
 	// minutes on a large app (18 on a 140MB one), so quiet mode moves them off
 	// stdout rather than dropping them: `search -q --format names` promises one
@@ -817,6 +820,10 @@ func sourceFingerprint() string {
 // catalogBuildHook, when set, is told how each catalog build went. Tests use
 // it to tell an incremental build from a full one.
 var catalogBuildHook func(catalog.BuildStats)
+
+// catalogBuilderHook, when set, is handed each catalog builder before it
+// builds. Tests use it to trace the reads a build makes (ref coverage).
+var catalogBuilderHook func(*catalog.Builder)
 
 // execRefreshCatalog handles REFRESH CATALOG [FULL] command (legacy signature).
 func execRefreshCatalog(ctx *ExecContext, full bool) error {

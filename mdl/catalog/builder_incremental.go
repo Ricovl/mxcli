@@ -383,22 +383,56 @@ func unitNames(q queryFunc, units map[string]bool) ([]string, error) {
 // followed first: a document naming `M.Sub.Attr` may resolve it on Sub's
 // generalization.
 func dependentUnits(q queryFunc, names []string) (map[string]bool, error) {
-	type ref struct{ source, target, kind string }
+	g, err := loadRefGraph(q)
+	if err != nil {
+		return nil, err
+	}
+	return g.dependents(names), nil
+}
+
+// refGraph is the refs and unit names the plan follows, read once.
+type refGraph struct {
+	refs    []graphRef
+	unitOf  map[string][]string // qualified name -> units whose rows carry it
+	namesOf map[string][]string // unit -> qualified names its rows carry
+}
+
+type graphRef struct{ source, target, kind string }
+
+func loadRefGraph(q queryFunc) (*refGraph, error) {
+	g := &refGraph{unitOf: map[string][]string{}, namesOf: map[string][]string{}}
 	rows, err := q(`SELECT SourceName, TargetName, RefKind FROM refs`)
 	if err != nil {
 		return nil, err
 	}
-	var refs []ref
 	for rows.Next() {
-		var r ref
+		var r graphRef
 		if err := rows.Scan(&r.source, &r.target, &r.kind); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		refs = append(refs, r)
+		g.refs = append(g.refs, r)
 	}
 	rows.Close()
 
+	owners, err := q(`SELECT UnitId, QualifiedName FROM catalog_unit_names`)
+	if err != nil {
+		return nil, err
+	}
+	defer owners.Close()
+	for owners.Next() {
+		var id, qn string
+		if err := owners.Scan(&id, &qn); err != nil {
+			return nil, err
+		}
+		g.unitOf[qn] = append(g.unitOf[qn], id)
+		g.namesOf[id] = append(g.namesOf[id], qn)
+	}
+	return g, owners.Err()
+}
+
+// dependents is dependentUnits on a loaded graph.
+func (g *refGraph) dependents(names []string) map[string]bool {
 	named := map[string]bool{}
 	for _, n := range names {
 		if n != "" {
@@ -407,7 +441,7 @@ func dependentUnits(q queryFunc, names []string) (map[string]bool, error) {
 	}
 	for grew := true; grew; {
 		grew = false
-		for _, r := range refs {
+		for _, r := range g.refs {
 			if r.kind == RefKindGeneralize && named[r.target] && !named[r.source] {
 				named[r.source] = true
 				grew = true
@@ -427,7 +461,7 @@ func dependentUnits(q queryFunc, names []string) (map[string]bool, error) {
 		}
 	}
 	sources := map[string]bool{}
-	for _, r := range refs {
+	for _, r := range g.refs {
 		if isNamed(r.target) {
 			sources[r.source] = true
 		}
@@ -435,23 +469,13 @@ func dependentUnits(q queryFunc, names []string) (map[string]bool, error) {
 	for n := range named {
 		sources[n] = true // a specialization is rebuilt itself
 	}
-
-	owners, err := q(`SELECT UnitId, QualifiedName FROM catalog_unit_names`)
-	if err != nil {
-		return nil, err
-	}
-	defer owners.Close()
 	out := map[string]bool{}
-	for owners.Next() {
-		var id, qn string
-		if err := owners.Scan(&id, &qn); err != nil {
-			return nil, err
-		}
-		if sources[qn] {
+	for qn := range sources {
+		for _, id := range g.unitOf[qn] {
 			out[id] = true
 		}
 	}
-	return out, owners.Err()
+	return out
 }
 
 // clearCatalog empties every table of a catalog loaded from the cache, so a

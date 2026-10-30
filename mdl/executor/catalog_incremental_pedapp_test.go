@@ -152,39 +152,7 @@ func TestCatalog_IncrementalFastBuildEqualsFullBuild(t *testing.T) {
 
 func incrementalSteps(t *testing.T, full bool) {
 	exec, out, dir := openPedAppCopy(t)
-	if err := agreeExec(t, exec, redeclareChain(4, "create")); err != nil {
-		t.Fatalf("setup: %v\n%s", err, out.String())
-	}
-	if err := agreeExec(t, exec, `mdl 1;
-create persistent entity MyFirstModule.ProbeA (Name: String(50));
-create persistent entity MyFirstModule.ProbeB (Name: String(50));
-create persistent entity MyFirstModule.ProbeSub extends MyFirstModule.ProbeA (Extra: String(50));
-create persistent entity MyFirstModule.ProbeD (Name: String(50));
-create association MyFirstModule.ProbeLink from MyFirstModule.ProbeB to MyFirstModule.ProbeA;
-create enumeration MyFirstModule.ProbeColor (Red 'Red', Green 'Green');
-create microflow MyFirstModule.GetProbe () returns MyFirstModule.ProbeA as $A
-begin
-  $A = create MyFirstModule.ProbeA (Name = 'a');
-  return $A;
-end;
-create microflow MyFirstModule.UseSub ($S: MyFirstModule.ProbeSub) returns String as $N
-begin
-  declare $N String = $S/Name;
-  return $N;
-end;
-create microflow FeedbackModule.DropLinked ($A: MyFirstModule.ProbeA)
-begin
-  retrieve $Linked from $A/MyFirstModule.ProbeLink;
-  delete $Linked;
-end;
-create page MyFirstModule.ProbePage (Title: 'P', Layout: Atlas_Core.Atlas_Default) {
-  dataview dataView1 (DataSource: microflow MyFirstModule.GetProbe) {
-    textbox txtName (Attribute: Name)
-  }
-};
-`); err != nil {
-		t.Fatalf("setup probes: %v\n%s", err, out.String())
-	}
+	setupIncrementalProbes(t, exec, out)
 	cachePath := getCachePath(exec.newExecContext(context.Background()))
 	base, _ := catalogRows(t, exec, full, true)
 	if full && (len(base["refs"]) < 50 || len(base["activities_data"]) < 50) {
@@ -305,4 +273,45 @@ end;
 		t.Fatalf("control: no build was incremental, so the comparison proves nothing about carrying rows")
 	}
 	_ = dir
+}
+
+// setupIncrementalProbes adds the documents the incremental steps edit: a
+// call chain, entities with a specialization and an association, a flow
+// that deletes over that association, and a page whose data source is a
+// flow.
+func setupIncrementalProbes(t *testing.T, exec *Executor, out *bytes.Buffer) {
+	t.Helper()
+	if err := agreeExec(t, exec, redeclareChain(4, "create")); err != nil {
+		t.Fatalf("setup: %v\n%s", err, out.String())
+	}
+	if err := agreeExec(t, exec, `mdl 1;
+create persistent entity MyFirstModule.ProbeA (Name: String(50));
+create persistent entity MyFirstModule.ProbeB (Name: String(50));
+create persistent entity MyFirstModule.ProbeSub extends MyFirstModule.ProbeA (Extra: String(50));
+create persistent entity MyFirstModule.ProbeD (Name: String(50));
+create association MyFirstModule.ProbeLink from MyFirstModule.ProbeB to MyFirstModule.ProbeA;
+create enumeration MyFirstModule.ProbeColor (Red 'Red', Green 'Green');
+create microflow MyFirstModule.GetProbe () returns MyFirstModule.ProbeA as $A
+begin
+  $A = create MyFirstModule.ProbeA (Name = 'a');
+  return $A;
+end;
+create microflow MyFirstModule.UseSub ($S: MyFirstModule.ProbeSub) returns String as $N
+begin
+  declare $N String = $S/Name;
+  return $N;
+end;
+create microflow FeedbackModule.DropLinked ($A: MyFirstModule.ProbeA)
+begin
+  retrieve $Linked from $A/MyFirstModule.ProbeLink;
+  delete $Linked;
+end;
+create page MyFirstModule.ProbePage (Title: 'P', Layout: Atlas_Core.Atlas_Default) {
+  dataview dataView1 (DataSource: microflow MyFirstModule.GetProbe) {
+    textbox txtName (Attribute: Name)
+  }
+};
+`); err != nil {
+		t.Fatalf("setup probes: %v\n%s", err, out.String())
+	}
 }

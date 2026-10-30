@@ -74,6 +74,17 @@ type memberRefIndex struct {
 	enumValues     map[string]bool // "Mod.Enum.Value"
 	entities       map[string]bool
 	generalization map[string]string // entity -> the entity it specializes
+
+	// probe, when set, is told every name looked up, found or not: the
+	// document being walked depends on it (builder_coverage.go).
+	probe func(name string)
+}
+
+// read reports a lookup of name to the probe.
+func (idx *memberRefIndex) read(name string) {
+	if idx.probe != nil {
+		idx.probe(name)
+	}
 }
 
 // loadMemberRefIndex reads the name sets from the tables buildEntities,
@@ -125,6 +136,7 @@ func (idx *memberRefIndex) resolveAttribute(entity, name string) (string, bool) 
 	seen := map[string]bool{}
 	for e := entity; e != "" && !seen[e]; e = idx.generalization[e] {
 		seen[e] = true
+		idx.read(e + "." + name)
 		if _, ok := idx.attributes[e+"."+name]; ok {
 			return e + "." + name, true
 		}
@@ -184,6 +196,7 @@ func memberRefsInUnit(contents []byte, sourceType string, idx *memberRefIndex) [
 		// A whole-string match is a structured reference: MemberChange.Attribute,
 		// AttributeRef.Attribute, EntityRefStep.Association, EnumerationType.Enumeration,
 		// ObjectMappingElement.Entity.
+		idx.read(v)
 		switch {
 		case hasKey(idx.attributes, v):
 			set.add(RefObjectAttribute, v, RefKindMember)
@@ -295,6 +308,9 @@ func scanPaths(text, context string, idx *memberRefIndex, emit func(targetType, 
 				lit.WriteByte(text[j])
 				j++
 			}
+			if pendingEnum != "" {
+				idx.read(pendingEnum + "." + lit.String())
+			}
 			if pendingEnum != "" && idx.enumValues[pendingEnum+"."+lit.String()] {
 				emit(RefObjectEnumerationValue, pendingEnum+"."+lit.String())
 			}
@@ -363,6 +379,7 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 	segs := strings.Split(chunk, "/")
 	for n, seg := range segs {
 		pendingEnum, endEntity = "", ""
+		idx.read(seg)
 		switch {
 		case seg == "":
 			cur = ""
@@ -397,6 +414,8 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 // extractMemberRefs walks every document of the types in memberRefSourceTypes
 // and emits its member, enumeration and mapping-entity edges.
 func (b *Builder) extractMemberRefs(stmt *Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+	idx.probe = b.probe(siteMemberRefs)
+	defer func() { idx.probe = nil }()
 	unitTypes := make([]string, 0, len(memberRefSourceTypes))
 	for t := range memberRefSourceTypes {
 		unitTypes = append(unitTypes, t)

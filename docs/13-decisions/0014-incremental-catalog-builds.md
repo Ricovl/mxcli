@@ -51,9 +51,19 @@ full one.
   carries the checklist.
 - **Correctness depends on `refs` as the model of what a document's rows
   depend on.** A dependency `refs` does not record shows up as a stale row,
-  not an error. The equivalence tests compare every table with a forced full
-  build over 19 kinds of edit, chained incrementally. They are the evidence,
-  and they cover only what their steps exercise.
+  not an error. Two kinds of evidence back it:
+  - The equivalence tests compare every table with a forced full build over
+    19 kinds of edit, chained incrementally. They cover only what their steps
+    exercise.
+  - The ref coverage trace (`builder_coverage.go`) records every name the
+    cross-document lookups read per document and checks it the way the plan
+    would. It must be at 100% on the fixture
+    (`TestCatalog_RefsCoverEveryCrossDocumentRead`), and it measures a real
+    project on demand (`TestCatalog_RefCoverageOfProject`): 99.4% on two
+    large ones when it was added. The gaps it found are refs edges that
+    impact analysis lacked too.
+  - It sees only reads through the traced lookups, which is why a pass may
+    read other documents only through the catalog tables.
 - Row order in an unsorted query, and surrogate IDs (`refs.Id`,
   `permissions.Id`), differ between an incremental and a full build. Nothing
   may depend on them.
