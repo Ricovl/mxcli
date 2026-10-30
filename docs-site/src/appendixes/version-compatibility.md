@@ -130,15 +130,23 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 | A timer boundary event of no kind | `BOUNDARY EVENT TIMER ...` | No | 10.14+ (MDL-WF07 refuses it from 11.0) |
 | Interrupting and non-interrupting timer boundary events | `BOUNDARY EVENT [NON] INTERRUPTING TIMER ...` | No | 10.20+ |
 | Locking and unlocking a workflow | `LOCK WORKFLOW ...`, `UNLOCK WORKFLOW ...` | No | Yes |
+| Starting a workflow, setting a task outcome, opening a user task or a workflow (microflow) | `CALL WORKFLOW`, `SET TASK OUTCOME`, `OPEN USER TASK`, `OPEN WORKFLOW` | 9.0.2+ | Yes |
+| Aborting and restarting a workflow (microflow) | `WORKFLOW OPERATION ABORT ...`, `WORKFLOW OPERATION RESTART ...` | 9.2+ | Yes |
+| Pausing and continuing a workflow (microflow) | `WORKFLOW OPERATION PAUSE ...`, `WORKFLOW OPERATION CONTINUE ...` | 9.3+ | Yes |
+| Getting workflow data (microflow) | `GET WORKFLOW DATA ... AS ...` | 9.10+ | Yes |
+| Retrying and unpausing a workflow (microflow) | `WORKFLOW OPERATION RETRY ...`, `WORKFLOW OPERATION UNPAUSE ...` | 9.12+ | Yes |
+| Notifying a workflow (microflow) | `NOTIFY WORKFLOW ... TARGET ...` | No | Yes |
+| Getting an object's workflows, or a workflow's activity records (microflow) | `GET WORKFLOWS FOR ...`, `GET WORKFLOW ACTIVITY RECORDS ...` | No | 10.4+ |
 
 Every write refuses an element whose type the project's Mendix version does not
 have yet, naming the type, the version that introduced it and the project's
 version ("this Mendix 9.24.30 project cannot store
 Workflows$WaitForNotificationActivity (Mendix 10.0.0+)"). The versions are each
 type's own, from the Mendix Model SDK. Below their versions, the wait
-activities, the timer boundary events and a lock or unlock naming a workflow are
-also refused up front, by `check -p` and by `exec` before anything is written,
-with MDL-VERSION01. Before this, such a type was written, and the project did not load
+activities, the timer boundary events, a lock or unlock naming a workflow, and
+the workflow actions of a microflow are also refused up front, by `check -p`
+and by `exec` before anything is written, with MDL-VERSION01
+([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). Before this, such a type was written, and the project did not load
 (`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
 Where an older version stores the same thing in another shape (the parallel
 split's end marker, user tasks), that shape is written instead, as listed under
