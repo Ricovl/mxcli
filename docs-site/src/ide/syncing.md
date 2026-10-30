@@ -101,6 +101,12 @@ file, so a `./mxcli` that is a symlink to the `PATH` binary never has the
 download written through it. If the download fails, the older `./mxcli` is
 kept with a warning rather than leaving the project without a binary.
 
+On Windows (Git Bash, MSYS2 or Cygwin) the script fetches the
+`mxcli-windows-<arch>.exe` asset and installs it, or links the `PATH` binary,
+as `./mxcli.exe`. Git Bash, PowerShell and cmd can all run it as `./mxcli`. A
+non-executable `./mxcli` beside it, such as the Linux build that `mxcli new`
+leaves on Windows, is removed.
+
 ## Re-running mxcli init
 
 `mxcli init` regenerates everything, including the devcontainer and tool
