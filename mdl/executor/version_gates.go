@@ -144,7 +144,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
 		return flowReturnsGates(s)
 	case *ast.CreateMicroflowStmt:
-		gates := microflowBodyGates(s.Body)
+		gates := microflowBodyGates(s.Parameters, s.Body)
 		// Deep links are Mendix 10.6+. Gated on the clause being STATED, not on
 		// the resulting value: a rewrite that carries a stored URL forward on
 		// an older project preserves what is already there.
@@ -154,7 +154,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		}
 		return gates
 	case *ast.CreateNanoflowStmt:
-		return nanoflowBodyGates(s.Body)
+		return nanoflowBodyGates(s.Parameters, s.Body)
 	case *ast.AlterFlowStmt:
 		// What an insert or a replace splices in is gated as the same
 		// statements in a `create` are; a drop writes nothing new. Without
@@ -165,9 +165,9 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			inserted = append(inserted, op.Body...)
 		}
 		if s.Nanoflow {
-			return nanoflowBodyGates(inserted)
+			return nanoflowBodyGates(nil, inserted)
 		}
-		return microflowBodyGates(inserted)
+		return microflowBodyGates(nil, inserted)
 	case *ast.CreateWorkflowStmt:
 		// `create or modify workflow` is this statement too: it writes the
 		// same Workflows$Workflow (ako/mxcli#1809).
@@ -302,8 +302,8 @@ func workflowTypeGates(activities []ast.WorkflowActivityNode, insertedEvents []s
 // microflowBodyGates are the gates of the activities in a microflow body,
 // nested ones included (bodyContains walks branches, loops and error
 // handlers): what `create microflow` declares and what `alter microflow`
-// splices in.
-func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+// splices in. params are the microflow's when the statement declares them.
+func microflowBodyGates(params []ast.MicroflowParam, body []ast.MicroflowStatement) []versionGate {
 	var gates []versionGate
 	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
 	// bodies); an older project stores a different EmailMessage, or no
@@ -320,21 +320,22 @@ func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 			gates = append(gates, g.versionGate)
 		}
 	}
-	return gates
+	return append(gates, flowGates(params, body)...)
 }
 
 // nanoflowBodyGates are the gates of the activities in a nanoflow body, as
 // microflowBodyGates are a microflow's.
-func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+func nanoflowBodyGates(params []ast.MicroflowParam, body []ast.MicroflowStatement) []versionGate {
+	var gates []versionGate
 	// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
 	// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
 	// while the activity and its other two modes go back further. Gate the
 	// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
 	if bodyUsesUnsynchronized(body) {
-		return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
-			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+		gates = append(gates, versionGate{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
+			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"})
 	}
-	return nil
+	return append(gates, flowGates(params, body)...)
 }
 
 // typeGate is a gate whose floor is the introduction of the storage $Types
@@ -345,8 +346,12 @@ func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 type typeGate struct {
 	versionGate
 	// types are the storage $Types the statement writes; the floor is the
-	// latest of their introductions.
+	// latest of their introductions and of properties'.
 	types []string
+	// properties are the "Type.Key" properties the statement writes a value
+	// to whose introduction is later than the types': the write refuses a
+	// value below it (canon.StripUndeclaredProperties), as it refuses a type.
+	properties []string
 	// match reports a statement in a flow body that writes them.
 	match func(ast.MicroflowStatement) bool
 }

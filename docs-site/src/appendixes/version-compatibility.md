@@ -62,11 +62,24 @@ The tables below show exactly which features are available on each Mendix versio
 |---------|-----------|-----|-------|-------|-------|
 | Basic microflows | `CREATE MICROFLOW ... BEGIN ... END` | Yes | Yes | Yes | Yes |
 | Loop in branches | `LOOP inside IF/ELSE` | Yes | Yes | Yes | Yes |
+| Find and filter by expression | `FIND $List WHERE ...`, `FILTER $List WHERE ...` | 9.0.3+ | Yes | Yes | Yes |
+| Call external action | `CALL EXTERNAL ACTION Module.Service.Action (...)` | 9.19+ (with arguments: --) | Yes (with arguments: 10.2+) | Yes | Yes |
+| Range of a list | `RANGE $List OFFSET ... LIMIT ...` | 9.24+ | Yes | Yes | Yes |
 | SEND REST REQUEST | `SEND REST REQUEST Module.Service.Op` | -- | 10.1+ | Yes | Yes |
+| SEND REST REQUEST arguments, result, body | `... WITH (...)`, `$R = SEND REST REQUEST ...`, `... BODY $Var` | -- | 10.2+, 10.4+, 10.5+ | Yes | Yes |
+| Transform JSON with a data transformer | `$Out = TRANSFORM $Json WITH Module.Transformer` | -- | -- | -- | 11.4+ |
 | Execute database query | `EXECUTE DATABASE QUERY ...` | -- | -- | Yes | Yes |
 | Show page with params | `SHOW PAGE ... WITH PARAMS` | -- | -- | -- | Yes |
 | REST query parameters | `SEND REST REQUEST with QUERY params` | -- | -- | -- | Yes |
 | DB query runtime connection | `EXECUTE DATABASE QUERY CONNECTION ...` | -- | -- | -- | Yes |
+
+Below its version, each of these is refused by `check -p` and by `exec` before
+anything is written, with MDL-VERSION01, wherever it sits in the flow and in what
+an `alter microflow` or `alter nanoflow` inserts. The versions are the Mendix
+Model SDK's own for the type each writes; before this, `check -p` passed them and
+the write refused them part-way through the script
+([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)). A `FIND` or
+`FILTER` `BY Member = value` writes the older find and filter every version has.
 
 ### Pages
 

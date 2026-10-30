@@ -76,6 +76,7 @@ features:
     send_rest_request:
       min_version: "10.1.0"
       mdl: "SEND REST REQUEST ..."
+      notes: "Microflows$RestOperationCallAction introduced in 10.1.0 (mendixmodelsdk 4.117.0). mx 9.24.30 loads the action (CE7053 \"No REST operation specified\", not a load failure), but the consumed REST service it calls, Rest$ConsumedRestService, is 10.1 as well, so a 9.24 author cannot set one up. check -p names the statement before the write refuses it (ako/mxcli#1811)."
     send_rest_query_params:
       min_version: "11.0.0"
       notes: "Query parameters in REST requests"
@@ -88,6 +89,34 @@ features:
     loop_in_branch:
       min_version: "10.0.0"
       notes: "LOOP inside IF/ELSE branches"
+    list_find_filter_by_expression:
+      min_version: "9.0.3"
+      mdl: "$Found = FIND $List WHERE expression; $Kept = FILTER $List WHERE expression;"
+      notes: "Microflows$FindByExpression and FilterByExpression introduced in 9.0.3 (mendixmodelsdk 4.117.0); `BY Member = value` writes Microflows$Find/Filter, which every version has. The write refuses each type below it (canon.UndeclaredTypeError); check -p names the statement first (ako/mxcli#1811)."
+    call_external_action:
+      min_version: "9.19.0"
+      mdl: "CALL EXTERNAL ACTION Module.Service.Action ();"
+      notes: "Microflows$CallExternalAction introduced in 9.19.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    list_range:
+      min_version: "9.24.0"
+      mdl: "$Page = RANGE $List OFFSET $Offset LIMIT $Amount;"
+      notes: "Microflows$ListRange introduced in 9.24.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    send_rest_request_parameters:
+      min_version: "10.2.0"
+      mdl: "SEND REST REQUEST Module.Service.Operation WITH (Id = $Order/Id);"
+      notes: "Microflows$RestOperationParameterMapping introduced in 10.2.0 (mendixmodelsdk 4.117.0). Below 11.0 an operation has only path parameters (Rest$QueryParameter is 11.0), so every argument is one (ako/mxcli#1811)."
+    call_external_action_arguments:
+      min_version: "10.2.0"
+      mdl: "CALL EXTERNAL ACTION Module.Service.Action (Name = $Value);"
+      notes: "Microflows$ExternalActionParameterMapping introduced in 10.2.0 (mendixmodelsdk 4.117.0); an action called with no arguments writes none (ako/mxcli#1811)."
+    send_rest_request_output:
+      min_version: "10.4.0"
+      mdl: "$Response = SEND REST REQUEST Module.Service.Operation;"
+      notes: "Microflows$OutputVariable introduced in 10.4.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    send_rest_request_body:
+      min_version: "10.5.0"
+      mdl: "SEND REST REQUEST Module.Service.Operation BODY $Order;"
+      notes: "Microflows$BodyVariable introduced in 10.5.0 (mendixmodelsdk 4.117.0). Written for an operation whose body is an export mapping; the clause is gated as written (ako/mxcli#1811)."
 
   pages:
     basic:
