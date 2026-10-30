@@ -73,7 +73,7 @@ func TestPageTitleIsDefaultLanguage_Issue1262(t *testing.T) {
 				containerParent: map[model.ID]model.ID{},
 				folderNames:     map[model.ID]string{},
 			},
-			tx: tx,
+			tx: wrapTx(tx),
 		}
 		if err := b.buildPages(); err != nil {
 			t.Fatalf("buildPages: %v", err)

@@ -14,7 +14,7 @@ import "go.mongodb.org/mongo-driver/v2/bson"
 // call, and an objects-view union. Used for image collections, JavaScript
 // actions, and data transformers, which had no catalog table before.
 func (b *Builder) buildSimpleNamedDocs(typePrefix, table, reportLabel string) error {
-	units, err := b.reader.ListRawUnitsByType(typePrefix)
+	units, err := b.lister().ListRawUnitsByType(typePrefix)
 	if err != nil {
 		return err
 	}
@@ -33,6 +33,9 @@ func (b *Builder) buildSimpleNamedDocs(typePrefix, table, reportLabel string) er
 
 	count := 0
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc struct {
 			Name          string `bson:"Name"`
 			Documentation string `bson:"Documentation"`
@@ -53,6 +56,7 @@ func (b *Builder) buildSimpleNamedDocs(typePrefix, table, reportLabel string) er
 		}
 		count++
 	}
+	b.disown()
 
 	b.report(reportLabel, count)
 	return nil

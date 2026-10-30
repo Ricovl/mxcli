@@ -71,7 +71,24 @@ mxcli -p app.mpr -c "REFRESH CATALOG FULL FORCE"
 
 The catalog is cached in `.mxcli/catalog.db` next to the MPR file. On subsequent refreshes, mxcli checks whether the project has changed and only rebuilds if necessary (unless `FORCE` is specified).
 
-A catalog with the MDL source index (`REFRESH CATALOG FULL SOURCE`) keeps it on every later rebuild, including the ones `SEARCH` and `SHOW REFERENCES` start when the project has changed. Those rebuilds describe again only the documents that changed, and the documents that reference them. An entity counts as changed when its own definition does, not when another entity of its module does; a change to an association or annotation describes every entity of that module again. Every other row is carried over from the cache, so a rebuild after one edit costs about as much as `REFRESH CATALOG FULL`. Everything is described again when something outside the described documents changes (a folder, a module, the project settings, a Java action), when another mxcli build wrote the cache, and with `FORCE`.
+### Incremental rebuilds
+
+A rebuild after a save does not start from scratch. The cache records which document every row came from, and the next rebuild of the same level (fast, `FULL` or `FULL SOURCE`) starts from the cached catalog and produces again only the rows of:
+
+- the documents that changed, were added or were deleted (a document moved to another existing folder counts as changed);
+- the documents whose references name one of them, before or after the change. A document's rows can depend on what it names: what a delete removes depends on the association it retrieved over. A specialization counts as naming what its generalization holds.
+
+The rows of every other document stay as they are, and only the documents being rebuilt are read and decoded. On a 4,753-document project a refresh after one edit takes under a second, against several seconds for a full build. The progress output then shows one line, `incremental: N units rebuilt, M carried over`, instead of a count per table.
+
+The rebuild is a full one, as before, when:
+
+- something changes that no per-document pass reads: a folder, a module, the project settings, the security settings or the navigation;
+- the cache was written by another mxcli build or at another level;
+- `FORCE` is given.
+
+An incremental rebuild produces exactly the rows a full one would. Only the internal row IDs (the `Id` column of `refs` and `permissions`) and the order of rows in an unsorted query can differ.
+
+With the MDL source index, an entity in a document being rebuilt is described again only when its own definition changed, not when another entity of its module did. A change to an association or annotation describes every entity of that module again, and a change to a document that is never described (a Java action, a constant, an image collection) describes everything.
 
 ### The unit store (MPR v2)
 

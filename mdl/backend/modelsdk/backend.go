@@ -56,6 +56,10 @@ type Backend struct {
 	// sourceFiles lists the files and folders beside the model that writes
 	// changed since the executor last took them (TakeSourceFileChanges).
 	sourceFiles []backend.SourceFileChange
+
+	// unitScope, on a view made by WithUnitScope, is the units its document
+	// lists hold; nil lists every unit.
+	unitScope func(unitID string) bool
 }
 
 // New constructs a modelsdk backend.

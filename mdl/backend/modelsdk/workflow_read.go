@@ -8,7 +8,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
 	genWf "github.com/mendixlabs/mxcli/modelsdk/gen/workflows"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -26,7 +25,7 @@ import (
 // path that reaches this method reads them. Unrecognised activity types decode to
 // a GenericWorkflowActivity carrying their $Type, so no activity is silently dropped.
 func (b *Backend) ListWorkflows() ([]*workflows.Workflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genWf.Workflow](b.reader)
+	units, err := listUnits[*genWf.Workflow](b)
 	if err != nil {
 		return nil, err
 	}

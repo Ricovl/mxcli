@@ -84,7 +84,9 @@ func (b *Builder) buildSource() error {
 		return nil
 	}
 
-	// Phase 1: Collect all items to describe (fast — uses cached lists)
+	// Phase 1: Collect all items to describe (fast — uses cached lists). In
+	// an incremental build the lists hold the units in scope, and every
+	// other document's rows are carried over (builder_incremental.go).
 	var items []sourceItem
 
 	// Entities. An entity is described from its own subtree of its module's
@@ -144,7 +146,7 @@ func (b *Builder) buildSource() error {
 	}
 
 	// Snippets (not cached — only used here)
-	snippetList, _ := b.reader.ListSnippets()
+	snippetList, _ := b.lister().ListSnippets()
 	for _, sn := range snippetList {
 		moduleID := b.hierarchy.findModuleID(sn.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -175,7 +177,7 @@ func (b *Builder) buildSource() error {
 	// #912 asked for. Each already had a catalog table and a Reader method; only
 	// the source text was missing, so `search` could not reach a mapping's
 	// element names or a structure's fields.
-	jsonList, err := b.reader.ListJsonStructures()
+	jsonList, err := b.lister().ListJsonStructures()
 	if err == nil {
 		for _, js := range jsonList {
 			moduleID := b.hierarchy.findModuleID(js.ContainerID)
@@ -184,7 +186,7 @@ func (b *Builder) buildSource() error {
 		}
 	}
 
-	importList, err := b.reader.ListImportMappings()
+	importList, err := b.lister().ListImportMappings()
 	if err == nil {
 		for _, im := range importList {
 			moduleID := b.hierarchy.findModuleID(im.ContainerID)
@@ -193,13 +195,25 @@ func (b *Builder) buildSource() error {
 		}
 	}
 
-	exportList, err := b.reader.ListExportMappings()
+	exportList, err := b.lister().ListExportMappings()
 	if err == nil {
 		for _, em := range exportList {
 			moduleID := b.hierarchy.findModuleID(em.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			items = append(items, sourceItem{SourceExportMapping, moduleName + "." + em.Name, moduleName, string(em.ID)})
 		}
+	}
+
+	// An item outside the scope — one the lists hold that is no unit, such
+	// as a System enumeration — keeps its carried row.
+	if b.scope != nil {
+		kept := items[:0]
+		for _, it := range items {
+			if b.scope[sourceOwner(it, sourceParentOf(entityUnit, it))] {
+				kept = append(kept, it)
+			}
+		}
+		items = kept
 	}
 
 	if len(items) == 0 {
@@ -217,10 +231,17 @@ func (b *Builder) buildSource() error {
 	}
 	hashes := b.sourceBasis()
 	plan := b.planSourceReuse(items, units, parents, hashes)
+	if b.scope != nil && plan.reason == reasonOtherUnitChanged {
+		// Describing everything is the answer, and the carried rows are not
+		// everything: build it all, as before.
+		return &incrementalFallback{"source: " + plan.reason}
+	}
 	toDescribe := make([]sourceItem, 0, len(items))
+	owners := make([]string, 0, len(items)) // the unit each row comes from: an entity's domain model
 	for i, it := range items {
 		if _, ok := plan.reused[i]; !ok {
 			toDescribe = append(toDescribe, it)
+			owners = append(owners, sourceOwner(it, parents[i]))
 		}
 	}
 
@@ -239,7 +260,7 @@ func (b *Builder) buildSource() error {
 			case <-stop:
 				return
 			case <-ticker.C:
-				b.report(fmt.Sprintf("source %d/%d documents", done.Load(), total), int(done.Load()))
+				b.say(fmt.Sprintf("source %d/%d documents", done.Load(), total), int(done.Load()))
 			}
 		}
 	}()
@@ -261,24 +282,27 @@ func (b *Builder) buildSource() error {
 	defer stmt.Close()
 
 	count := 0
-	for _, res := range results {
+	for i, res := range results {
 		if res.text == "" {
 			continue
 		}
+		b.own(owners[i])
 		stmt.Exec(res.item.qn, res.item.objType, res.text, res.item.moduleName, res.item.id)
 		count++
 	}
 	for i, row := range plan.reused {
 		it := items[i]
+		b.own(sourceOwner(it, parents[i]))
 		stmt.Exec(it.qn, it.objType, row.text, it.moduleName, it.id)
 		count++
 	}
+	b.disown()
 	if err := b.persistSourceBasis(items, units, parents, hashes); err != nil {
 		return err
 	}
 
 	if len(plan.reused) > 0 {
-		b.report(sourceReuseSummary(len(plan.reused), len(toDescribe)), len(toDescribe))
+		b.say(sourceReuseSummary(len(plan.reused), len(toDescribe)), len(toDescribe))
 	}
 	b.report("source", count)
 
@@ -293,7 +317,7 @@ func (b *Builder) buildSource() error {
 		}
 		for _, objType := range SourceObjectTypes {
 			if n := byType[objType]; n > 0 {
-				b.report(fmt.Sprintf("source: %d %s document(s) could not be described (e.g. %s)",
+				b.say(fmt.Sprintf("source: %d %s document(s) could not be described (e.g. %s)",
 					n, objType, firstFailureReason(failures, objType)), n)
 			}
 		}

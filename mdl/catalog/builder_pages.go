@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -33,7 +32,7 @@ func (b *Builder) buildPages() error {
 	defer pageStmt.Close()
 
 	// Prepare widget statement only in full mode
-	var widgetStmt *sql.Stmt
+	var widgetStmt *Stmt
 	if b.fullMode {
 		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
@@ -54,6 +53,9 @@ func (b *Builder) buildPages() error {
 	widgetCount := 0
 
 	for _, pg := range pageList {
+		if !b.own(string(pg.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -131,6 +133,7 @@ func (b *Builder) buildPages() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Pages", pageCount)
 	if b.fullMode {
@@ -141,7 +144,7 @@ func (b *Builder) buildPages() error {
 
 func (b *Builder) buildSnippets() error {
 	// Get all snippets
-	snippetList, err := b.reader.ListSnippets()
+	snippetList, err := b.lister().ListSnippets()
 	if err != nil {
 		return err
 	}
@@ -160,7 +163,7 @@ func (b *Builder) buildSnippets() error {
 	// Snippet widgets feed the same widgets_data table as page widgets (full mode
 	// only), with ContainerType=SNIPPET, so the refs projection in buildReferences
 	// emits snippet → entity/microflow/nanoflow edges automatically.
-	var widgetStmt *sql.Stmt
+	var widgetStmt *Stmt
 	if b.fullMode {
 		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
@@ -180,6 +183,9 @@ func (b *Builder) buildSnippets() error {
 	count := 0
 	widgetCount := 0
 	for _, sn := range snippetList {
+		if !b.own(string(sn.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(sn.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -226,6 +232,7 @@ func (b *Builder) buildSnippets() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Snippets", count)
 	if b.fullMode {
@@ -241,7 +248,7 @@ func (b *Builder) buildSnippets() error {
 // the raw unit's top-level Widgets array (same shape as a snippet), so it is
 // only available in full mode.
 func (b *Builder) buildBuildingBlocks() error {
-	blocks, err := b.reader.ListBuildingBlocks()
+	blocks, err := b.lister().ListBuildingBlocks()
 	if err != nil {
 		return err
 	}
@@ -261,6 +268,9 @@ func (b *Builder) buildBuildingBlocks() error {
 
 	count := 0
 	for _, bb := range blocks {
+		if !b.own(string(bb.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(bb.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + bb.Name
@@ -290,6 +300,7 @@ func (b *Builder) buildBuildingBlocks() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Building blocks", count)
 	return nil
@@ -914,7 +925,7 @@ const (
 
 func (b *Builder) buildLayouts() error {
 	// Get all layouts
-	layoutList, err := b.reader.ListLayouts()
+	layoutList, err := b.lister().ListLayouts()
 	if err != nil {
 		return err
 	}
@@ -933,6 +944,9 @@ func (b *Builder) buildLayouts() error {
 
 	count := 0
 	for _, l := range layoutList {
+		if !b.own(string(l.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(l.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -955,6 +969,7 @@ func (b *Builder) buildLayouts() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Layouts", count)
 	return nil
@@ -963,6 +978,7 @@ func (b *Builder) buildLayouts() error {
 // widgetExtraRef is a page/snippet → document edge a widget makes that its
 // single widgets_data column does not carry (see rawWidgetInfo.AllRefs).
 type widgetExtraRef struct {
+	owner                                  string
 	containerType, containerQN, moduleName string
 	targetType, targetName, refKind        string
 }
@@ -977,7 +993,7 @@ func (b *Builder) collectWidgetExtraRefs(containerType, containerQN, moduleName 
 				continue
 			}
 			b.widgetExtraRefs = append(b.widgetExtraRefs, widgetExtraRef{
-				containerType, containerQN, moduleName, targetType, n, refKind,
+				b.currentOwner(), containerType, containerQN, moduleName, targetType, n, refKind,
 			})
 		}
 	}

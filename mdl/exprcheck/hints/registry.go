@@ -195,6 +195,21 @@ var Registry = &registry{byCode: map[string]Entry{
 			},
 		},
 	},
+	"E015": {
+		Code:     "E015",
+		Slug:     "string-func-vs-empty",
+		Severity: SeverityWarning,
+		Trigger:  "The result of a String function (trim, toLowerCase, toUpperCase, substring, replaceAll, toString) is compared with empty.",
+		WhyWrong: "These functions never return empty: for an empty input they return ''. Measured on the Mendix 10.18.5 runtime. So `= empty` is always false and `!= empty` always true, and the decision never takes the branch the author meant.",
+		HowToFix: "Compare with '' instead. trim(empty) is '', so `trim($v) != ''` also covers an empty $v — no separate `$v != empty` is needed.",
+		Examples: []ExampleFix{
+			{
+				Wrong: "IF trim($Value) != empty THEN",
+				Right: "IF trim($Value) != '' THEN",
+				Note:  "a blank or empty $Value took the 'has text' branch",
+			},
+		},
+	},
 	"E013": {
 		Code:     "E013",
 		Slug:     "bare-identifier-value",

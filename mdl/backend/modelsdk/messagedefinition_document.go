@@ -10,7 +10,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMsg "github.com/mendixlabs/mxcli/modelsdk/gen/messagedefinitions"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // MessageDefinition2 documents (ako/mxcli#987).
@@ -27,7 +26,7 @@ const messageDefinitionDocumentType = "MessageDefinitions$MessageDefinition2"
 
 // ListMessageDefinitionDocuments reads every MessageDefinition2 unit.
 func (b *Backend) ListMessageDefinitionDocuments() ([]*model.MessageDefinitionDocument, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMsg.MessageDefinition2](b.reader)
+	units, err := listUnits[*genMsg.MessageDefinition2](b)
 	if err != nil {
 		return nil, err
 	}

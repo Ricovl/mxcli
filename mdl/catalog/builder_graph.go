@@ -85,11 +85,12 @@ func (c *Catalog) AddGraphAnalysis(resolution float64) error {
 	}
 	b := &Builder{
 		catalog:         c,
-		tx:              tx,
 		snapshot:        &Snapshot{ID: snapID},
 		communitiesMode: true,
 		resolution:      resolution,
+		rows:            newRowOwners(),
 	}
+	b.tx = newBuilderTx(tx, b)
 	if err := b.buildGraphAnalysis(); err != nil {
 		_ = tx.Rollback()
 		return err

@@ -113,7 +113,13 @@ func (r *Reader) GetUnitTypes() (map[string]int, error) {
 // ListRawUnitsByType returns all raw units matching the given BSON type prefix.
 // Returns types.RawUnit values keyed off model.ID for cross-package consumers.
 func (r *Reader) ListRawUnitsByType(typePrefix string) ([]*types.RawUnit, error) {
-	units, err := r.listUnitsByType(typePrefix)
+	return r.ListRawUnitsByTypeWhere(typePrefix, nil)
+}
+
+// ListRawUnitsByTypeWhere is ListRawUnitsByType for the units whose ID keep
+// accepts (nil keeps all); on v2 the others' contents are never read.
+func (r *Reader) ListRawUnitsByTypeWhere(typePrefix string, keep func(id string) bool) ([]*types.RawUnit, error) {
+	units, err := r.listUnitsByTypeWhere(typePrefix, keep)
 	if err != nil {
 		return nil, err
 	}

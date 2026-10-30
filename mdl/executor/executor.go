@@ -165,7 +165,7 @@ func getPageNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
 		return ctx.Cache.pageNames
 	}
 	pageNames := make(map[model.ID]string)
-	pgs, err := ctx.Backend.ListPages()
+	pgs, err := pageHeaders(ctx)
 	if err != nil {
 		if ctx.Logger != nil {
 			ctx.Logger.Warn("getPageNames: ListPages failed", "error", err)

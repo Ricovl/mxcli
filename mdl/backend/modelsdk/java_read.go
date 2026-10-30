@@ -13,7 +13,6 @@ import (
 	genCa "github.com/mendixlabs/mxcli/modelsdk/gen/codeactions"
 	genJa "github.com/mendixlabs/mxcli/modelsdk/gen/javaactions"
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
 
@@ -35,7 +34,7 @@ func (b *Backend) ReadJavaActionByName(qualifiedName string) (*javaactions.JavaA
 		return nil, fmt.Errorf("java action not found: %s", qualifiedName)
 	}
 	containers := b.containerSetForModule(string(mod.ID)) // module + nested folders
-	units, err := mprread.ListUnitsWithContainer[*genJa.JavaAction](b.reader)
+	units, err := listUnits[*genJa.JavaAction](b)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +72,7 @@ func systemJavaActionByName(moduleName, actionName string) *javaactions.JavaActi
 // legacy reader appends are not yet modelled in modelsdk/meta, so they're omitted;
 // the catalog simply indexes fewer rows, it does not error.)
 func (b *Backend) ListJavaActionsFull() ([]*javaactions.JavaAction, error) {
-	units, err := mprread.ListUnitsWithContainer[*genJa.JavaAction](b.reader)
+	units, err := listUnits[*genJa.JavaAction](b)
 	if err != nil {
 		return nil, err
 	}

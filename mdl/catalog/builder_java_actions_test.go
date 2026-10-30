@@ -82,7 +82,7 @@ func TestJavaActionTypeParameterNamedAfterPrimitive(t *testing.T) {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 	if err := b.buildJavaActions(); err != nil {
 		t.Fatalf("buildJavaActions: %v", err)

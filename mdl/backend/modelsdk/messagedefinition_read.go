@@ -5,7 +5,6 @@ package modelsdkbackend
 import (
 	"github.com/mendixlabs/mxcli/model"
 	genMsg "github.com/mendixlabs/mxcli/modelsdk/gen/messagedefinitions"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // ListMessageDefinitionCollections reads every
@@ -17,7 +16,7 @@ import (
 // Email_Connector definitions — and none of these types appears in
 // modelsdk/gen/keyaudit_test.go's mismatch ledger.
 func (b *Backend) ListMessageDefinitionCollections() ([]*model.MessageDefinitionCollection, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMsg.MessageDefinitionCollection](b.reader)
+	units, err := listUnits[*genMsg.MessageDefinitionCollection](b)
 	if err != nil {
 		return nil, err
 	}

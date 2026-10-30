@@ -49,6 +49,9 @@ func (b *Builder) buildStrings() error {
 	pageList, err := b.cachedPages()
 	if err == nil {
 		for _, pg := range pageList {
+			if !b.own(string(pg.ID)) {
+				continue
+			}
 			if pg.URL == "" {
 				continue
 			}
@@ -56,12 +59,16 @@ func (b *Builder) buildStrings() error {
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			insert(moduleName+"."+pg.Name, "PAGE", pg.URL, "page_url", "", string(pg.ID), moduleName)
 		}
+		b.disown()
 	}
 
 	// Extract from microflows — using cached list
 	mfList, err := b.cachedMicroflows()
 	if err == nil {
 		for _, mf := range mfList {
+			if !b.own(string(mf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + mf.Name
@@ -76,12 +83,16 @@ func (b *Builder) buildStrings() error {
 			}
 			extractLogNodeNames(mf.ObjectCollection, qn, "MICROFLOW", moduleName, insert)
 		}
+		b.disown()
 	}
 
 	// Extract from workflows — using cached list
 	wfList, err := b.cachedWorkflows()
 	if err == nil {
 		for _, wf := range wfList {
+			if !b.own(string(wf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + wf.Name
@@ -101,12 +112,16 @@ func (b *Builder) buildStrings() error {
 				extractWorkflowFlowStrings(wf.Flow, qn, moduleName, insert)
 			}
 		}
+		b.disown()
 	}
 
 	// Extract from published REST services
-	prsServices, err := b.reader.ListPublishedRestServices()
+	prsServices, err := b.lister().ListPublishedRestServices()
 	if err == nil {
 		for _, svc := range prsServices {
+			if !b.own(string(svc.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + svc.Name
@@ -128,6 +143,7 @@ func (b *Builder) buildStrings() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	b.buildTranslatableStrings(insert)
@@ -227,12 +243,15 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 // The caller's insert closure counts the rows it writes, so nothing is counted
 // here — doing both reported twice the rows the table actually holds.
 func (b *Builder) buildTranslatableStrings(insert func(string, string, string, string, string, string, string)) {
-	units, err := b.reader.ListRawUnitsByType("")
+	units, err := b.lister().ListRawUnitsByType("")
 	if err != nil {
 		return
 	}
 
 	for _, u := range units {
+		if !b.ownRows(string(u.ID)) {
+			continue
+		}
 		if len(u.Contents) == 0 {
 			continue
 		}
@@ -251,6 +270,7 @@ func (b *Builder) buildTranslatableStrings(insert func(string, string, string, s
 			insert(r.QualifiedName, r.ObjectType, r.StringValue, r.StringContext, r.Language, r.ElementID, r.ModuleName)
 		}
 	}
+	b.disown()
 }
 
 // stringRow is one row of the strings index.

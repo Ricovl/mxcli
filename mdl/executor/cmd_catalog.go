@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/model"
@@ -520,6 +521,21 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Build catalog
 	builder := catalog.NewBuilder(cat, ctx.Backend)
 	builder.SetFullMode(full)
+	// Rows of units nothing has changed under are copied from the cached
+	// catalog, which every save makes stale (#1804). FORCE builds everything,
+	// as does a cache another mxcli build or another mode wrote.
+	builder.SetFingerprint(sourceFingerprint())
+	if !ctx.catalogForce {
+		builder.SetPreviousCatalog(getCachePath(ctx))
+	}
+	// The rebuilt units are listed through a view that decodes only them.
+	if s, ok := ctx.Backend.(interface {
+		WithUnitScope(func(string) bool) backend.FullBackend
+	}); ok {
+		builder.SetScopedReader(func(keep func(string) bool) catalog.CatalogReader {
+			return s.WithUnitScope(keep)
+		})
+	}
 	if communities {
 		builder.SetCommunitiesMode(true, resolution)
 	}
@@ -548,6 +564,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Project-level widgets (widgets/*.mpk) are added by the catalog builder
 	// itself by reading the filesystem.
 	builder.SetBuiltinWidgetMetas(builtinWidgetMetas())
+	if hook := catalogBuilderHook; hook != nil {
+		hook(builder)
+	}
 	// Per-table lines are the only sign of life during a build that takes
 	// minutes on a large app (18 on a 140MB one), so quiet mode moves them off
 	// stdout rather than dropping them: `search -q --format names` promises one
@@ -563,6 +582,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	if err != nil {
 		cat.Close()
 		return mdlerrors.NewBackend("build catalog", err)
+	}
+	if hook := catalogBuildHook; hook != nil {
+		hook(builder.Stats())
 	}
 
 	elapsed := time.Since(start)
@@ -794,6 +816,14 @@ func sourceFingerprint() string {
 	}
 	return fmt.Sprintf("%s|%d|%d", exe, fi.Size(), fi.ModTime().UnixNano())
 }
+
+// catalogBuildHook, when set, is told how each catalog build went. Tests use
+// it to tell an incremental build from a full one.
+var catalogBuildHook func(catalog.BuildStats)
+
+// catalogBuilderHook, when set, is handed each catalog builder before it
+// builds. Tests use it to trace the reads a build makes (ref coverage).
+var catalogBuilderHook func(*catalog.Builder)
 
 // execRefreshCatalog handles REFRESH CATALOG [FULL] command (legacy signature).
 func execRefreshCatalog(ctx *ExecContext, full bool) error {
@@ -1101,16 +1131,17 @@ func preWarmCache(ctx *ExecContext) {
 		}
 	}
 
-	// Build microflow name lookup
+	// Build microflow name lookup. Headers, not decoded flows: a refresh that
+	// describes a few documents need not decode every flow first (#1804).
 	ctx.Cache.microflowNames = make(map[model.ID]string)
-	mfs, _ := ctx.Backend.ListMicroflows()
+	mfs, _ := microflowHeaders(ctx)
 	for _, mf := range mfs {
 		ctx.Cache.microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
 	}
 
 	// Build page name lookup
 	ctx.Cache.pageNames = make(map[model.ID]string)
-	pgs, _ := ctx.Backend.ListPages()
+	pgs, _ := pageHeaders(ctx)
 	for _, pg := range pgs {
 		ctx.Cache.pageNames[pg.ID] = h.GetQualifiedName(pg.ContainerID, pg.Name)
 	}

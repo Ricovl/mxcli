@@ -12,7 +12,6 @@ import (
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -47,7 +46,7 @@ func (b *Backend) UpdateOqlQueriesForMovedEntity(oldQualifiedName, newQualifiedN
 	if b.writer == nil {
 		return 0, fmt.Errorf("UpdateOqlQueriesForMovedEntity: not connected for writing")
 	}
-	units, err := mprread.ListUnitsWithContainer[*genDm.ViewEntitySourceDocument](b.reader)
+	units, err := listUnits[*genDm.ViewEntitySourceDocument](b)
 	if err != nil {
 		return 0, fmt.Errorf("UpdateOqlQueriesForMovedEntity: list source docs: %w", err)
 	}
@@ -268,7 +267,7 @@ func (b *Backend) FindAllViewEntitySourceDocumentIDs(moduleName, docName string)
 	if err != nil || mod == nil {
 		return nil, nil
 	}
-	units, err := mprread.ListUnitsWithContainer[*genDm.ViewEntitySourceDocument](b.reader)
+	units, err := listUnits[*genDm.ViewEntitySourceDocument](b)
 	if err != nil {
 		return nil, err
 	}

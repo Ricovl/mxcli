@@ -112,7 +112,7 @@ func TestWidgetWithDatasourceAndClickRefsBothMicroflows(t *testing.T) {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx:       tx,
+		tx:       wrapTx(tx),
 		fullMode: true,
 	}
 	if err := b.buildPages(); err != nil {
