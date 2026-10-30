@@ -236,6 +236,55 @@ func (r *Reader) ListUnitHashes() (map[string]string, error) {
 	return result, nil
 }
 
+// UnitContentHashes returns a hash of every unit's current contents, keyed by
+// unit ID: what changed between two calls is the units whose hash differs. On
+// MPR v2 it is the Unit table's ContentsHash, which every v2 writer keeps in
+// step with the file, so no file is opened; a unit without one is hashed from
+// its file. On v1 it is computed from the blob, because mxcli wrote v1 units
+// without updating their hash before ako/mxcli#1159, and a stale hash would
+// say an edited unit is unchanged. Units held in memory are hashed as held.
+func (r *Reader) UnitContentHashes() (map[string]string, error) {
+	query := `SELECT UnitID, COALESCE(ContentsHash, '') FROM Unit`
+	if r.version != MPRVersionV2 {
+		query = `SELECT UnitID, Contents FROM Unit`
+	}
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query unit hashes: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	var missing []string
+	for rows.Next() {
+		var blob, value []byte
+		if err := rows.Scan(&blob, &value); err != nil {
+			return nil, fmt.Errorf("scan unit hash: %w", err)
+		}
+		id := blobToUUID(blob)
+		switch held, ok := r.overlaid(id); {
+		case ok:
+			result[id] = contentsHash(held)
+		case r.version != MPRVersionV2:
+			result[id] = contentsHash(value)
+		case len(value) == 0:
+			missing = append(missing, id)
+		default:
+			result[id] = string(value)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, id := range missing {
+		contents, err := r.readMprContents(id)
+		if err != nil {
+			continue
+		}
+		result[id] = contentsHash(contents)
+	}
+	return result, nil
+}
+
 // Close closes the reader and releases resources.
 func (r *Reader) Close() error {
 	r.v2TypesMu.Lock()

@@ -1521,6 +1521,23 @@ func (c *Catalog) createTables() error {
 			ModuleName
 		)`,
 
+		// What the source rows were described from: every unit's content
+		// hash at the time, whether it held a described document, and which
+		// document came from which unit. The next source build compares and
+		// re-describes only what changed (builder_source_reuse.go, #1790). A
+		// cache without them reuses nothing, so they need no schema bump.
+		`CREATE TABLE IF NOT EXISTS source_units (
+			UnitId TEXT PRIMARY KEY,
+			Hash TEXT NOT NULL,
+			Described INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS source_elements (
+			ElementId TEXT NOT NULL,
+			UnitId TEXT NOT NULL,
+			QualifiedName TEXT NOT NULL,
+			ObjectType TEXT NOT NULL
+		)`,
+
 		`CREATE VIRTUAL TABLE IF NOT EXISTS source USING fts5(
 			QualifiedName,
 			ObjectType,

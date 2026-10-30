@@ -92,6 +92,13 @@ func (b *Backend) ListFolders() ([]*types.FolderInfo, error) {
 	return out, nil
 }
 
+// UnitContentHashes returns a hash of every unit's current contents, keyed by
+// unit ID, so a caller can tell which units changed since it last looked (the
+// catalog's incremental source index, ako/mxcli#1790).
+func (b *Backend) UnitContentHashes() (map[string]string, error) {
+	return b.reader.UnitContentHashes()
+}
+
 // AddRawUnit inserts a new unit verbatim.
 //
 // Exposed on the backend because the marketplace transplant copies a module's

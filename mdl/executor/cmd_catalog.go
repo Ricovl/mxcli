@@ -529,6 +529,16 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		builder.SetDescribeFunc(func(objectType string, qualifiedName string, id string) (string, error) {
 			return captureDescribeParallel(ctx, objectType, qualifiedName, model.ID(id))
 		})
+		// Rows of documents nothing has changed under are carried over from
+		// the cached index, which every save makes stale (#1790). FORCE
+		// describes everything, as does a cache another mxcli build wrote.
+		fp := sourceFingerprint()
+		builder.SetSourceFingerprint(fp)
+		if !ctx.catalogForce {
+			if prev, _ := catalog.LoadPreviousSource(getCachePath(ctx), fp); prev != nil {
+				builder.SetPreviousSource(prev)
+			}
+		}
 	}
 	// Supply built-in widget definitions (hand-crafted COMBOBOX, GALLERY,
 	// DATAGRID, filter widgets, …) for the widget_definitions catalog table.
@@ -705,6 +715,9 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 		ctx.Catalog = nil
 	}
 
+	ctx.catalogForce = stmt.Force
+	defer func() { ctx.catalogForce = false }()
+
 	// Handle background mode — clone ctx so the goroutine doesn't race
 	// with the main dispatch loop (which may syncBack and mutate fields).
 	if stmt.Background {
@@ -754,6 +767,23 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 
 	// Rebuild the catalog
 	return buildCatalog(ctx, full, source, stmt.Communities, stmt.Resolution)
+}
+
+// sourceFingerprint identifies the running mxcli build, so source rows are
+// only reused by the build that described them: another version may describe
+// the same document differently. The executable's path, size and modification
+// time change with every build, released or local, without needing version
+// stamping. "" (no executable to stat) reuses nothing.
+func sourceFingerprint() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s|%d|%d", exe, fi.Size(), fi.ModTime().UnixNano())
 }
 
 // execRefreshCatalog handles REFRESH CATALOG [FULL] command (legacy signature).
