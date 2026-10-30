@@ -89,7 +89,8 @@ features:
     parallel_split:
       min_version: "9.0.0"
     user_task:
-      min_version: "9.0.0"
+      min_version: "9.19.0"
+      notes: "Workflows$UserTask is 9.0.2, but the outcome value (Workflows$UserTaskOutcome.Value) mxcli writes is 9.19.0, its task page 9.11.0 and its on-created event 9.0.5 (mendixmodelsdk 4.117.0). Measured on stamped 9.x projects: the write refuses a user task below 9.19 (ako/mxcli#1811)."
     multi_user_task:
       min_version: "9.22.0"
       mdl: "MULTI USER TASK Vote 'Vote' PAGE M.TaskPage OUTCOMES 'Yes' { } 'No' { };"
@@ -114,6 +115,30 @@ features:
       min_version: "9.12.0"
       mdl: "WORKFLOW OPERATION RETRY $Wf; WORKFLOW OPERATION UNPAUSE $Wf;"
       notes: "Microflows$RetryOperation and UnpauseOperation introduced in 9.12.0, replacing ResumeOperation (9.3.0 to 9.11; mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    jump_to:
+      min_version: "9.0.5"
+      mdl: "JUMP TO Activity;"
+      notes: "Workflows$JumpToActivity introduced in 9.0.5 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    call_workflow_activity:
+      min_version: "9.6.0"
+      mdl: "CALL WORKFLOW Module.WF;  (an activity of a workflow)"
+      notes: "Workflows$CallWorkflowActivity is 9.0.2, but the ParameterExpression mxcli writes is 9.6.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    overview_page:
+      min_version: "9.11.0"
+      mdl: "OVERVIEW PAGE Module.Page"
+      notes: "Workflow.AdminPage, a Workflows$PageReference, introduced in 9.11.0 (mendixmodelsdk 4.117.0); before, the property was OverviewPage, which mxcli does not write (ako/mxcli#1811)."
+    annotations:
+      min_version: "9.15.0"
+      mdl: "ANNOTATION '…' (on a workflow or an activity)"
+      notes: "Workflows$Annotation and Workflow.Annotation introduced in 9.15.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    workflow_parameter:
+      min_version: "9.18.0"
+      mdl: "PARAMETER $WorkflowContext: Module.Entity"
+      notes: "Workflows$Parameter is 9.6.0, its Entity 9.10.0 and its Name 9.18.0 (mendixmodelsdk 4.117.0); mxcli writes all three. Measured on stamped 9.x projects: below 9.18 the write refuses every workflow with a parameter (ako/mxcli#1811)."
+    call_workflow_parameter_mappings:
+      min_version: "9.18.0"
+      mdl: "CALL WORKFLOW Module.WF (WorkflowContext = $Expr);  (an activity of a workflow)"
+      notes: "Workflows$WorkflowCallParameterMapping and CallWorkflowActivity.ParameterMappings introduced in 9.18.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
 
   navigation:
     profiles:

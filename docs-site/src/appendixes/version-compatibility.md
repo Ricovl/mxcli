@@ -133,7 +133,12 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 | Feature | MDL Syntax | 9.x | 10.0+ |
 |---------|-----------|-----|-------|
 | Basic workflows | `CREATE WORKFLOW`, `ALTER WORKFLOW` | 9.0.2+ | Yes |
-| User tasks | `USER TASK ... OUTCOMES (...)` | Yes | Yes |
+| User tasks | `USER TASK ... OUTCOMES (...)` | 9.19+ | Yes |
+| A workflow parameter | `PARAMETER $WorkflowContext: Module.Entity` | 9.18+ | Yes |
+| A jump | `JUMP TO ...` | 9.0.5+ | Yes |
+| Calling a workflow from a workflow | `CALL WORKFLOW ...`; with `(WorkflowContext = ...)` | 9.6+; 9.18+ | Yes |
+| An overview page | `OVERVIEW PAGE ...` | 9.11+ | Yes |
+| Annotations | `ANNOTATION '...'` | 9.15+ | Yes |
 | Multi-user tasks | `MULTI USER TASK ...` | 9.22+ | Yes |
 | Multi-user task rules majority and threshold | `DECIDE BY MAJORITY ...`, `DECIDE BY THRESHOLD ...` | No | Yes |
 | Waiting for all users | `AWAIT ALL USERS` | No | 10.2+ |
@@ -164,7 +169,10 @@ microflow` inserts) are also refused up front, by `check -p` and by `exec`
 before anything is written, with MDL-VERSION01
 ([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). So is a workflow itself on 9.0.0 and 9.0.1, which
 predate Workflows$Workflow (9.0.2): `create workflow`, `create or modify
-workflow` and `alter workflow` ([ako/mxcli#1809](https://github.com/ako/mxcli/issues/1809)). Before this, such a type was written, and the project did not load
+workflow` and `alter workflow` ([ako/mxcli#1809](https://github.com/ako/mxcli/issues/1809)), and what a
+workflow states whose version is later still, listed above: on a stamped 9.x
+project the write refuses every workflow with a parameter below 9.18 and every
+user task below 9.19 ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)). Before this, such a type was written, and the project did not load
 (`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
 Where an older version stores the same thing in another shape (the parallel
 split's end marker, user tasks), that shape is written instead, as listed under

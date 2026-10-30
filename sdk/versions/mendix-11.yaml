@@ -292,7 +292,8 @@ features:
     parallel_split:
       min_version: "9.0.0"
     user_task:
-      min_version: "9.0.0"
+      min_version: "9.19.0"
+      notes: "Workflows$UserTask is 9.0.2, but the outcome value (Workflows$UserTaskOutcome.Value) mxcli writes is 9.19.0, its task page 9.11.0 and its on-created event 9.0.5 (mendixmodelsdk 4.117.0). Measured on stamped 9.x projects: the write refuses a user task below 9.19 (ako/mxcli#1811)."
     multi_user_task:
       min_version: "9.22.0"
       mdl: "MULTI USER TASK Vote 'Vote' PAGE M.TaskPage OUTCOMES 'Yes' { } 'No' { };"
@@ -393,6 +394,34 @@ features:
       min_version: "11.7.0"
       mdl: "$Notified = NOTIFY WORKFLOW $Workflow TARGET Module.Workflow.espCancelStart;"
       notes: "NotifyWorkflowAction.notifyTarget introduced in 11.7.0 (modelsdk gen), replacing Activity. Not a refusal: before 11.7 mxcli writes the Activity form. A notify with no target is CE0166 on 11.6, 11.10 and 11.13."
+    jump_to:
+      min_version: "9.0.5"
+      mdl: "JUMP TO Activity;"
+      notes: "Workflows$JumpToActivity introduced in 9.0.5 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    call_workflow_activity:
+      min_version: "9.6.0"
+      mdl: "CALL WORKFLOW Module.WF;  (an activity of a workflow)"
+      notes: "Workflows$CallWorkflowActivity is 9.0.2, but the ParameterExpression mxcli writes is 9.6.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    overview_page:
+      min_version: "9.11.0"
+      mdl: "OVERVIEW PAGE Module.Page"
+      notes: "Workflow.AdminPage, a Workflows$PageReference, introduced in 9.11.0 (mendixmodelsdk 4.117.0); before, the property was OverviewPage, which mxcli does not write (ako/mxcli#1811)."
+    annotations:
+      min_version: "9.15.0"
+      mdl: "ANNOTATION '…' (on a workflow or an activity)"
+      notes: "Workflows$Annotation and Workflow.Annotation introduced in 9.15.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    workflow_parameter:
+      min_version: "9.18.0"
+      mdl: "PARAMETER $WorkflowContext: Module.Entity"
+      notes: "Workflows$Parameter is 9.6.0, its Entity 9.10.0 and its Name 9.18.0 (mendixmodelsdk 4.117.0); mxcli writes all three. Measured on stamped 9.x projects: below 9.18 the write refuses every workflow with a parameter (ako/mxcli#1811)."
+    call_workflow_parameter_mappings:
+      min_version: "9.18.0"
+      mdl: "CALL WORKFLOW Module.WF (WorkflowContext = $Expr);  (an activity of a workflow)"
+      notes: "Workflows$WorkflowCallParameterMapping and CallWorkflowActivity.ParameterMappings introduced in 9.18.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    interrupting_notification_event_subprocess:
+      min_version: "11.10.0"
+      mdl: "EVENT SUBPROCESS Name ON INTERRUPTING NOTIFICATION { … };"
+      notes: "Workflows$InterruptingNotificationEventSubProcessStartActivity introduced in 11.10.0 (mendixmodelsdk 4.117.0); the non-interrupting start is 11.8 with event sub-processes themselves (ako/mxcli#1811)."
 
   navigation:
     profiles:

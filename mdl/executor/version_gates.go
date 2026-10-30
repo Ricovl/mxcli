@@ -203,7 +203,8 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			gates = append(gates, notificationEventsGate)
 		}
 		gates = append(gates, workflowTypeGates(activities, nil)...)
-		return append(gates, userTaskGates(activities)...)
+		gates = append(gates, userTaskGates(activities)...)
+		return append(gates, workflowShapeGatesOf(s)...)
 	case *ast.AlterWorkflowStmt:
 		gates := []versionGate{workflowBasicGate("alter workflow")}
 		added := alterWorkflowAddedActivities(s)
@@ -220,7 +221,8 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			}
 		}
 		gates = append(gates, workflowTypeGates(added, inserted)...)
-		return append(gates, userTaskGates(added)...)
+		gates = append(gates, userTaskGates(added)...)
+		return append(gates, workflowShapeGatesOf(s)...)
 	}
 	return nil
 }

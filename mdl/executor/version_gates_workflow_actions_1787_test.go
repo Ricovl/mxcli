@@ -179,8 +179,11 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 			"Workflows$WorkflowDefinitionNameSelection", "Workflows$WorkflowDefinitionObjectSelection"}},
 	}, workflowActionGates...)
 	pinned = append(pinned, flowActionGates...)
-	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 {
-		t.Fatal("no workflow or flow action gates")
+	for _, g := range workflowShapeGates {
+		pinned = append(pinned, g.typeGate)
+	}
+	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 || len(workflowShapeGates) == 0 {
+		t.Fatal("no workflow action, flow action or workflow shape gates")
 	}
 	for _, g := range pinned {
 		if len(g.types) == 0 {
