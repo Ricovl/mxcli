@@ -466,16 +466,22 @@ func ValidateRuleBody(s *ast.CreateRuleStmt) []string {
 }
 
 // forwardReferenceTarget reports the entity a retrieve over association yields
-// when that is one object: a Reference followed from its FROM entity, the same
-// reading the builder makes. A self-association, a reverse traversal, a
-// ReferenceSet or an association check cannot resolve stays a list, so the
-// rules keyed on it never see an object that is not one.
+// when that is one object: a Reference followed from its FROM entity, by the
+// rule the builder takes (associationRetrieveEnd). A self-reference is
+// followed from its FROM end, so it is that object too: it used to stay a
+// list here, and `set` on it passed as a Change list Replace over what Mendix
+// types as an object (ako/mxcli#1793). A reverse traversal, a ReferenceSet or
+// an association check cannot resolve stays a list, so the rules keyed on it
+// never see an object that is not one.
 func (fb *flowBuilder) forwardReferenceTarget(s *ast.RetrieveStmt) (string, bool) {
 	shape, ok := fb.checkAssocShapes[strings.ToLower(s.Source.Module+"."+s.Source.Name)]
-	if !ok || shape.refSet || strings.EqualFold(shape.from, shape.to) {
+	if !ok || shape.refSet {
 		return "", false
 	}
-	if !strings.EqualFold(fb.varTypes[s.StartVariable], shape.from) {
+	start := fb.varTypes[s.StartVariable]
+	end := associationRetrieveEnd(strings.EqualFold(start, shape.from), strings.EqualFold(start, shape.to),
+		strings.EqualFold(shape.from, shape.to))
+	if end != assocEndFrom {
 		return "", false
 	}
 	return shape.to, true

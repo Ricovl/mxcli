@@ -45,8 +45,9 @@ const (
 // associationRetrieveEnd decides which end `retrieve $X from $Start/Assoc`
 // starts from, given whether $Start holds (a specialization of) the
 // association's FROM entity and its TO entity. It is the one answer the full
-// build (addRetrieveAction) and a spliced fragment (associationRetrieveType)
-// take, each asking "is it a" of its own view of the project.
+// build (addRetrieveAction), a spliced fragment (associationRetrieveType) and
+// check --references (associationRetrieveShape) take, each asking "is it a" of
+// its own view of the project.
 //
 // A self-reference has the start at both ends, and the stored
 // AssociationRetrieveSource records no direction (only the start variable and
@@ -76,12 +77,12 @@ func associationRetrieveEnd(isFrom, isTo, selfReference bool) assocRetrieveEnd {
 }
 
 // validateAssociationRetrieveListUse is MDL-RETRIEVE03 for a retrieve over an
-// association. The no-project rule judges only database retrieves, because
-// whether `retrieve $L from $h/M.A` binds a list or an object depends on the
-// association's type, owner and which end $h is — the project knows, the AST
-// does not. Without it, using the list as an object passed check --references,
-// exec wrote it, and the build failed (mendixlabs/mxcli#1516, measured on
-// 11.6.6 and 11.15.0):
+// association, and MDL-RETRIEVE01 the other way round. The no-project rules
+// judge only database retrieves, because whether `retrieve $L from $h/M.A`
+// binds a list or an object depends on the association's type, owner and
+// which end $h is — the project knows, the AST does not. Without it, using the
+// list as an object passed check --references, exec wrote it, and the build
+// failed (mendixlabs/mxcli#1516, measured on 11.6.6 and 11.15.0):
 //
 //	$L/Qty in any expression        CE0117 "Error(s) in expression."
 //	change $L (…)                   CE7247 "Variable 'L' is of type List of …, but should be of type Object."
@@ -90,10 +91,28 @@ func associationRetrieveEnd(isFrom, isTo, selfReference bool) assocRetrieveEnd {
 // The bare list retrieve and list uses of it (count, loop, a list parameter)
 // build clean on both versions, so they are not reported.
 //
+// The reverse — the one object a Reference followed from its FROM end binds,
+// used as a list — passed the same way (ako/mxcli#1793, measured on 11.13.0).
+// A self-reference is always followed from its FROM end, and the full build
+// used to type it as a list, so that was where it showed:
+//
+//	$n = count $P;  (any aggregate)        CE0013 "Input variable 'P' must be of type 'List'."
+//	$h = head $P;   (any list operation)   CE0097 "The selected 'P' variable must be of type List."
+//	loop $x in $P                          CE0100 "'P' is of type M.Order, but should be of type List."
+//	call M.Sub(list = $P)                  CE0117 (the parameter takes a list)
+//
+// `add`, `remove`, `clear` and `set` over the object are Change list
+// activities and a `range` is a Microflows$ListRange; mx check types none of
+// their variables (each measured clean), so they are not reported here — `set`
+// on an object is MDL-SET01's.
+//
 // Anything not established is silence: an association neither the project nor
-// the script defines, an owner mxcli does not write, a self-association, a start
-// variable whose entity this walk did not track, or one that is no end of the
-// association by its generalization chain as far as it could be read.
+// the script defines, an owner mxcli does not write, a start variable whose
+// entity this walk did not track, one that is no end of the association by its
+// generalization chain as far as it could be read, or a specialization of both
+// ends of an association between two entities (associationRetrieveEnd). The
+// object a one-to-one gives from its TO end is not judged as a list either: the
+// full build rewrites a list use of it into a database retrieve.
 func validateAssociationRetrieveListUse(ctx *ExecContext, prog *ast.Program, sc *scriptContext) []error {
 	if prog == nil || !ctx.Connected() {
 		return nil
@@ -129,16 +148,24 @@ func validateAssociationRetrieveListUse(ctx *ExecContext, prog *ast.Program, sc 
 		if shapes == nil {
 			shapes = checkAssociationShapes(ctx, sc)
 		}
-		msgs := associationListObjectUses(ctx, shapes, signature, params, body)
-		if len(msgs) == 0 {
-			continue
+		uses := associationListObjectUses(ctx, sc, shapes, signature, params, body)
+		for _, group := range []struct {
+			msgs []string
+			what string
+		}{
+			{uses.listAsObject, "that yields a list is used as one object"},
+			{uses.objectAsList, "that yields one object is used as a list"},
+		} {
+			if len(group.msgs) == 0 {
+				continue
+			}
+			if kind, name, excluded := excludedFlow(stmt); excluded {
+				sc.warnExcluded(kind, name, group.msgs)
+				continue
+			}
+			errs = append(errs, mdlerrors.NewValidationf("statement %d: a retrieve over an association "+
+				"%s:\n  - %s", i+1, group.what, strings.Join(group.msgs, "\n  - ")))
 		}
-		if kind, name, excluded := excludedFlow(stmt); excluded {
-			sc.warnExcluded(kind, name, msgs)
-			continue
-		}
-		errs = append(errs, mdlerrors.NewValidationf("statement %d: a retrieve over an association "+
-			"that yields a list is used as one object:\n  - %s", i+1, strings.Join(msgs, "\n  - ")))
 	}
 	return errs
 }
@@ -153,16 +180,25 @@ func hasAssociationRetrieve(body []ast.MicroflowStatement) bool {
 	return found
 }
 
-// assocListBinding is what one association retrieve bound to a list.
+// assocListBinding is what one association retrieve bound: a list of elem, or
+// one elem.
 type assocListBinding struct {
 	assoc, start, startEntity, elem string
+	selfReference                   bool
+}
+
+// assocRetrieveUses are the misuses of association retrieves in one flow body.
+type assocRetrieveUses struct {
+	listAsObject []string // MDL-RETRIEVE03: a list taken as one object
+	objectAsList []string // MDL-RETRIEVE01: one object taken as a list
 }
 
 // associationListObjectUses walks one flow body in statement order, tracking the
 // entity each object variable holds (so a retrieve's start end can be decided)
-// and which variables an association retrieve bound to a list.
-func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
-	signature func(string) *flowSignature, params []ast.MicroflowParam, body []ast.MicroflowStatement) []string {
+// and which variables an association retrieve bound to a list, or to the one
+// object a Reference followed from its FROM end holds.
+func associationListObjectUses(ctx *ExecContext, sc *scriptContext, shapes map[string]assocShape,
+	signature func(string) *flowSignature, params []ast.MicroflowParam, body []ast.MicroflowStatement) assocRetrieveUses {
 
 	objects := map[string]string{} // object variable -> entity QN
 	lists := map[string]string{}   // list variable -> element entity QN
@@ -175,9 +211,10 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 			}
 		}
 	}
-	bound := map[string]assocListBinding{}
+	bound := map[string]assocListBinding{}  // bound to a list
+	single := map[string]assocListBinding{} // bound to the object at a Reference's TO end
 
-	var out []string
+	var out assocRetrieveUses
 	walkListObjectUses(body, func(name string) bool { _, ok := bound[name]; return ok },
 		func(s ast.MicroflowStatement, name string, use listObjectUse) {
 			b := bound[name]
@@ -191,11 +228,18 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 				how, rejection = fmt.Sprintf("a member path `$%s/…` has nothing to navigate", name),
 					"CE0117 \"Error(s) in expression.\""
 			}
-			out = append(out, fmt.Sprintf("%s, so %s — mxbuild rejects it with %s [MDL-RETRIEVE03]. %s",
+			out.listAsObject = append(out.listAsObject, fmt.Sprintf("%s, so %s — mxbuild rejects it with %s [MDL-RETRIEVE03]. %s",
 				what, how, rejection, assocListSuggestion(name, b)))
 		},
 		func(s ast.MicroflowStatement) {
-			// Object arguments: a list passed to a parameter that takes one object.
+			// One object taken by a list activity.
+			if name, op, rejection := listActivityInput(s); name != "" {
+				if b, ok := single[name]; ok {
+					out.objectAsList = append(out.objectAsList, assocObjectAsList(name, b, op, rejection))
+				}
+			}
+			// Arguments: a list passed to a parameter that takes one object,
+			// and one object passed to a parameter that takes a list.
 			var callee string
 			var args []ast.CallArgument
 			switch c := s.(type) {
@@ -212,8 +256,9 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 				if !ok {
 					continue
 				}
-				b, ok := bound[v.Name]
-				if !ok {
+				listB, isList := bound[v.Name]
+				oneB, isOne := single[v.Name]
+				if !isList && !isOne {
 					continue
 				}
 				sig := signature(callee)
@@ -221,12 +266,21 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 					return
 				}
 				for _, p := range sig.Params {
-					if p.Name == a.Name && p.Object && !p.List {
-						out = append(out, fmt.Sprintf("$%s = retrieve over %s from $%s (a %s) is a list of %s, "+
+					if p.Name != a.Name || !p.Object {
+						continue
+					}
+					switch {
+					case isList && !p.List:
+						b := listB
+						out.listAsObject = append(out.listAsObject, fmt.Sprintf("$%s = retrieve over %s from $%s (a %s) is a list of %s, "+
 							"so it cannot be passed to parameter %s of %s, which takes one %s — mxbuild rejects it "+
 							"with CE0117 \"Error(s) in expression.\" [MDL-RETRIEVE03]. %s",
 							v.Name, b.assoc, b.start, b.startEntity, b.elem, p.Name, callee, p.Entity,
 							assocListSuggestion(v.Name, b)))
+					case isOne && p.List:
+						out.objectAsList = append(out.objectAsList, assocObjectAsList(v.Name, oneB,
+							fmt.Sprintf("parameter %s of %s, which takes a list of %s,", p.Name, callee, p.Entity),
+							"CE0117 \"Error(s) in expression.\""))
 					}
 				}
 			}
@@ -235,6 +289,7 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 			// Rebinding, after the statement's uses were judged.
 			for _, p := range statementProducedVars(s) {
 				delete(bound, p.name)
+				delete(single, p.name)
 				delete(objects, p.name)
 				delete(lists, p.name)
 			}
@@ -272,22 +327,74 @@ func associationListObjectUses(ctx *ExecContext, shapes map[string]assocShape,
 				if !ok {
 					return
 				}
-				other, isList, known := associationRetrieveShape(ctx, shapes, st.Source, startEntity)
+				shape, known := associationRetrieveShape(ctx, sc, shapes, st.Source, startEntity)
 				if !known {
 					return
 				}
-				if isList {
-					lists[st.Variable] = other
-					bound[st.Variable] = assocListBinding{
-						assoc: shapes[strings.ToLower(qualifyAssoc(ctx, shapes, st.Source, startEntity))].qn,
-						start: start, startEntity: startEntity, elem: other,
-					}
-				} else {
-					objects[st.Variable] = other
+				b := assocListBinding{assoc: shape.qn, start: start, startEntity: startEntity, elem: shape.other,
+					selfReference: shape.selfReference}
+				switch {
+				case shape.isList:
+					lists[st.Variable] = shape.other
+					bound[st.Variable] = b
+				case !shape.fromTo:
+					objects[st.Variable] = shape.other
+					single[st.Variable] = b
+				default:
+					// One object of a one-to-one from its TO end: the full build
+					// turns a list use of it into a database retrieve.
+					objects[st.Variable] = shape.other
 				}
 			}
 		})
 	return out
+}
+
+// listActivityInput is the variable a list activity takes as its list — an
+// aggregate's, a list operation's first operand, a loop's — with what takes it
+// and the CE code mxbuild reports when it holds one object. "" for any other
+// statement. Measured on 11.13.0 over a self-reference's object
+// (ako/mxcli#1793): every aggregate (count, sum, average, minimum, maximum,
+// all, any, reduce) CE0013; every list operation but range (head, tail, find,
+// filter, sort, union, intersect, subtract, contains, equals) CE0097; a loop
+// CE0100. A range is Microflows$ListRange and mx check reports nothing on it,
+// so it is not judged; nor is a list operation's second operand, which union,
+// intersect, subtract and contains take as an object.
+func listActivityInput(s ast.MicroflowStatement) (name, op, rejection string) {
+	switch st := s.(type) {
+	case *ast.AggregateListStmt:
+		if st.InputVariable != "" {
+			return st.InputVariable, "`" + strings.ToLower(st.Operation.String()) + "`",
+				fmt.Sprintf("CE0013 \"Input variable '%s' must be of type 'List'.\"", st.InputVariable)
+		}
+	case *ast.ListOperationStmt:
+		if st.InputVariable != "" && st.Operation != ast.ListOpRange {
+			return st.InputVariable, "`" + strings.ToLower(st.Operation.String()) + "`",
+				fmt.Sprintf("CE0097 \"The selected '%s' variable must be of type List.\"", st.InputVariable)
+		}
+	case *ast.LoopStmt:
+		if st.ListVariable != "" {
+			return st.ListVariable, "a loop", ""
+		}
+	}
+	return "", "", ""
+}
+
+// assocObjectAsList is the MDL-RETRIEVE01 message for one object an association
+// retrieve bound, taken by what as a list. An empty rejection is a loop's, which
+// names the entity.
+func assocObjectAsList(name string, b assocListBinding, what, rejection string) string {
+	if rejection == "" {
+		rejection = fmt.Sprintf("CE0100 \"'%s' is of type %s, but should be of type List.\"", name, b.elem)
+	}
+	why := "a Reference followed from its FROM end"
+	if b.selfReference {
+		why += ", which is how Mendix follows a self-reference"
+	}
+	return fmt.Sprintf("$%s = retrieve over %s from $%s (a %s) is one %s — %s — so %s cannot take it: "+
+		"mxbuild rejects it with %s [MDL-RETRIEVE01]. Use $%s as the one object it is (`$%s/…`, `change $%s (…)`); "+
+		"a list of %s needs a Reference set, or a retrieve from the database: `retrieve $%s from %s where […];`.",
+		name, b.assoc, b.start, b.startEntity, b.elem, why, what, rejection, name, name, name, b.elem, name, b.elem)
 }
 
 // qualifyAssoc is the association a retrieve names. A bare name resolves the
@@ -309,34 +416,60 @@ func qualifyAssoc(ctx *ExecContext, shapes map[string]assocShape, assoc ast.Qual
 	return qn
 }
 
-// associationRetrieveShape decides what a retrieve over assoc from an object of
-// startEntity binds: the entity at the other end, and whether it is a list.
-// known is false whenever that was not established.
-func associationRetrieveShape(ctx *ExecContext, shapes map[string]assocShape,
-	assoc ast.QualifiedName, startEntity string) (other string, isList, known bool) {
+// assocRetrieveShape is what a retrieve over an association binds.
+type assocRetrieveShape struct {
+	qn            string // the association, qualified as the project spells it
+	other         string // the entity at the end the retrieve does not start from
+	fromTo        bool   // it starts from the association's TO end
+	isList        bool   // it binds a list, not one object
+	selfReference bool
+}
 
-	shape, ok := shapes[strings.ToLower(qualifyAssoc(ctx, shapes, assoc, startEntity))]
-	if !ok || shape.owner == "" || strings.EqualFold(shape.from, shape.to) {
-		return "", false, false
+// associationRetrieveShape decides what a retrieve over assoc from an object of
+// startEntity binds, by associationRetrieveEnd and associationRetrieveYieldsList
+// — the rules the full build takes. known is false whenever that was not
+// established.
+func associationRetrieveShape(ctx *ExecContext, sc *scriptContext, shapes map[string]assocShape,
+	assoc ast.QualifiedName, startEntity string) (shape assocRetrieveShape, known bool) {
+
+	s, ok := shapes[strings.ToLower(qualifyAssoc(ctx, shapes, assoc, startEntity))]
+	if !ok || s.owner == "" {
+		return assocRetrieveShape{}, false
 	}
-	// The start may be a specialization of an end; walk as far as the
-	// generalization chain can be read, and stay silent if no link is an end.
-	chain, _ := generalizationChain(ctx, startEntity)
+	// The start may be a specialization of an end; read as much of the
+	// generalization chain as can be read, through the script's entities first
+	// (a specialization the same script creates is not in the project yet).
+	chain, _ := scriptGeneralizationChain(ctx, sc, startEntity)
 	if len(chain) == 0 {
 		chain = []string{startEntity}
 	}
-	for _, qn := range chain {
-		switch {
-		case strings.EqualFold(qn, shape.from):
-			return shape.to, associationRetrieveYieldsList(shape.refSet, shape.owner == "Both", false), true
-		case strings.EqualFold(qn, shape.to):
-			return shape.from, associationRetrieveYieldsList(shape.refSet, shape.owner == "Both", true), true
+	isA := func(qn string) bool {
+		for _, link := range chain {
+			if strings.EqualFold(link, qn) {
+				return true
+			}
 		}
+		return false
 	}
-	return "", false, false
+	self := strings.EqualFold(s.from, s.to)
+	ownerBoth := s.owner == "Both"
+	switch associationRetrieveEnd(isA(s.from), isA(s.to), self) {
+	case assocEndFrom:
+		return assocRetrieveShape{qn: s.qn, other: s.to, selfReference: self,
+			isList: associationRetrieveYieldsList(s.refSet, ownerBoth, false)}, true
+	case assocEndTo:
+		return assocRetrieveShape{qn: s.qn, other: s.from, fromTo: true, selfReference: self,
+			isList: associationRetrieveYieldsList(s.refSet, ownerBoth, true)}, true
+	}
+	return assocRetrieveShape{}, false
 }
 
 func assocListSuggestion(name string, b assocListBinding) string {
+	if b.selfReference {
+		// Which way a database constraint over a self-reference runs is its own
+		// question; keep to the list the retrieve already has.
+		return fmt.Sprintf("Keep the list and work on its items (`loop $item in $%s`, or `$item = head($%s);`).", name, name)
+	}
 	return fmt.Sprintf("Keep the list and work on its items (`loop $item in $%s`, or `$item = head($%s);`), "+
 		"or retrieve one %s from the database: `retrieve $%s from %s where [%s = $%s] first;`.",
 		name, name, b.elem, name, b.elem, b.assoc, b.start)

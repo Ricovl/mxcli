@@ -37,11 +37,23 @@ begin
   end if;
 end;
 
--- 2. A self-association retrieve is typed as a LIST by Mendix, so `set` on it
---    is a Change list Replace (ako/mxcli#949) and stays accepted.
+-- 2. A self-association REFERENCE SET retrieve is a list, so `set` on it is a
+--    Change list Replace (ako/mxcli#949) and stays accepted.
+--
+--    This item used to show the same over F1323.Node_Parent, a Reference, as
+--    "typed as a LIST by Mendix". It is not: Mendix follows a self-reference
+--    from its FROM end, so a Reference retrieve is the one object (measured on
+--    11.13.0, ako/mxcli#1793: a loop over one is CE0100 "'P' is of type
+--    M.Order, but should be of type List."). The Change list Replace mxcli
+--    wrote passed mx check only because mx check does not type a Change list's
+--    variable (an `add` to the object is clean too). `set` over it is now
+--    refused like `set` over any object variable (CE7247). This form, over the
+--    reference set, was measured on 11.13.0 with mx check reporting 0 errors.
+create association F1323.Node_Siblings from F1323.Node to F1323.Node type ReferenceSet;
+
 create microflow F1323.ReplaceList ($Start: F1323.Node, $Other: F1323.Node)
 begin
-  retrieve $Cursor from $Start/F1323.Node_Parent;
-  retrieve $Next from $Other/F1323.Node_Parent;
+  retrieve $Cursor from $Start/F1323.Node_Siblings;
+  retrieve $Next from $Other/F1323.Node_Siblings;
   set $Cursor = $Next;
 end;

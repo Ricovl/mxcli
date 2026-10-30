@@ -198,6 +198,11 @@ func init() {
 			"--     CHANGE, an object parameter) is CE0117 / CE7247 — check --references\n" +
 			"--     reports it as MDL-RETRIEVE03. For one object, retrieve it instead:\n" +
 			"--     RETRIEVE $O FROM MyModule.Order WHERE [MyModule.Order_Customer = $Customer] FIRST;\n" +
+			"--     A self-reference (MyModule.Order_Parent from Order to Order) is followed\n" +
+			"--     from its FROM end: a Reference gives the one object, a ReferenceSet the\n" +
+			"--     list. Using the one object as a list (an aggregate, a list operation, a\n" +
+			"--     LOOP, a list parameter) is CE0013 / CE0097 / CE0100 / CE0117 —\n" +
+			"--     check --references reports it as MDL-RETRIEVE01.\n" +
 			"--   * $Obj/System.owner and $Obj/System.changedBy are not associations a\n" +
 			"--     retrieve can follow (CE0136, MDL-RETRIEVE02). Use\n" +
 			"--     RETRIEVE $U FROM System.User WHERE [id = $Obj/System.owner] FIRST;\n" +
