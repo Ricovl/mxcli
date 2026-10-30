@@ -290,6 +290,8 @@ func (r *Reader) buildUnitCache() error {
 
 	r.unitCache = nil
 	hashes := make(map[string]struct{})
+	store := r.unitStore()
+	rowHashes := make(map[string]string)
 	opened := 0
 	for rows.Next() {
 		var unitID, containerID []byte
@@ -300,6 +302,10 @@ func (r *Reader) buildUnitCache() error {
 		}
 
 		unitUUID := blobToUUID(unitID)
+		rowHashes[unitUUID] = hash
+		if store != nil {
+			store.noteRowHash(unitUUID, hash)
+		}
 		var entry unitIndexEntry
 		if held, ok := r.overlaid(unitUUID); ok {
 			// Bytes held in memory are what the unit is now; its stored hash
@@ -332,6 +338,9 @@ func (r *Reader) buildUnitCache() error {
 		return fmt.Errorf("failed to scan units: %w", err)
 	}
 
+	if store != nil {
+		store.setRowHashes(rowHashes)
+	}
 	first := r.v2Hashes == nil
 	r.v2Hashes = hashes
 	if first || opened >= unitTypeIndexPersistAfter {
@@ -390,12 +399,18 @@ func (r *Reader) CacheUnitReads() (release func()) {
 	return func() {
 		once.Do(func() {
 			r.contentMu.Lock()
-			defer r.contentMu.Unlock()
-			if r.cacheScopes <= 0 {
-				return
+			last := false
+			if r.cacheScopes > 0 {
+				if r.cacheScopes--; r.cacheScopes == 0 {
+					r.contentCache = nil
+					last = true
+				}
 			}
-			if r.cacheScopes--; r.cacheScopes == 0 {
-				r.contentCache = nil
+			r.contentMu.Unlock()
+			// A pass over the project has just read what it needed: keep it
+			// for the next process (reader_unit_store.go).
+			if store := r.unitStore(); last && store != nil {
+				store.flush()
 			}
 		})
 	}
@@ -404,6 +419,29 @@ func (r *Reader) CacheUnitReads() (release func()) {
 // UnitFileReads is how many unit files this reader has read from
 // mprcontents/. For tests.
 func (r *Reader) UnitFileReads() int64 { return r.fileReads.Load() }
+
+// UnitStoreHits is how many unit reads this reader served from the persisted
+// store instead of a file. For tests.
+func (r *Reader) UnitStoreHits() int64 {
+	if store := r.unitStore(); store != nil {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		return store.hits
+	}
+	return 0
+}
+
+// unitStore is the reader's persisted unit store, or nil when there is none:
+// MPR v1 holds its units in the .mpr, and a reader without a project path
+// has nowhere to keep one.
+func (r *Reader) unitStore() *unitStore {
+	r.storeOnce.Do(func() {
+		if r.version == MPRVersionV2 && r.contentsDir != "" {
+			r.store = newUnitStore(r.path)
+		}
+	})
+	return r.store
+}
 
 // readMprContents reads content from the mprcontents folder for v2 format.
 // The path is: mprcontents/XX/YY/UUID.mxunit where XX and YY are first two chars of UUID.
@@ -439,18 +477,43 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 		unitUUID[2:4],
 		unitUUID+".mxunit",
 	)
+	// An unchanged unit is read from the persisted store rather than its
+	// own file, which on Windows is what a virus scanner inspects (#1804).
+	store := r.unitStore()
+	var fi os.FileInfo
+	if store != nil {
+		stored, info, ok := store.lookup(unitUUID, path)
+		if ok {
+			if caching {
+				r.contentMu.Lock()
+				if r.contentCache != nil {
+					r.contentCache[unitUUID] = bytes.Clone(stored)
+				}
+				r.contentMu.Unlock()
+			}
+			return stored, nil
+		}
+		fi = info
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 	r.fileReads.Add(1)
 
+	// One copy serves both the in-memory cache and the store: neither hands
+	// out the bytes it holds, only copies of them.
+	held := bytes.Clone(data)
 	if caching {
 		r.contentMu.Lock()
 		if r.contentCache != nil {
-			r.contentCache[unitUUID] = bytes.Clone(data)
+			r.contentCache[unitUUID] = held
 		}
 		r.contentMu.Unlock()
+	}
+	if store != nil {
+		store.record(unitUUID, fi, held)
 	}
 	return data, nil
 }

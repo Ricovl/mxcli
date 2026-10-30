@@ -67,6 +67,11 @@ type Reader struct {
 	// cache saves. Read by tests (mendixlabs/mxcli#1272).
 	fileReads atomic.Int64
 
+	// store is MPR v2's persisted copy of the units (reader_unit_store.go),
+	// made on first use; nil for v1 and for a reader with no project path.
+	storeOnce sync.Once
+	store     *unitStore
+
 	// overlay holds unit bytes injected by BufferedUnitStore so that reads
 	// within the same import file see buffered (uncommitted) writes.
 	// nil means no overlay is active — zero cost on the normal path.
@@ -290,6 +295,9 @@ func (r *Reader) Close() error {
 	r.v2TypesMu.Lock()
 	r.persistUnitTypeIndex()
 	r.v2TypesMu.Unlock()
+	if store := r.unitStore(); store != nil {
+		store.close()
+	}
 	if r.db != nil && r.ownsDB {
 		return r.db.Close()
 	}
