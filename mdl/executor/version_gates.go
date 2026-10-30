@@ -144,14 +144,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
 		return flowReturnsGates(s)
 	case *ast.CreateMicroflowStmt:
-		var gates []versionGate
-		// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
-		// bodies); an older project stores a different EmailMessage, or no
-		// such activity.
-		if bodyContains(s.Body, func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.SendEmailStmt); return ok }) {
-			gates = append(gates, versionGate{"microflows", "send_email", "send email",
-				"use the Email Connector module, or upgrade the project to 11.13+"})
-		}
+		gates := microflowBodyGates(s.Body)
 		// Deep links are Mendix 10.6+. Gated on the clause being STATED, not on
 		// the resulting value: a rewrite that carries a stored URL forward on
 		// an older project preserves what is already there.
@@ -159,19 +152,22 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			gates = append(gates, versionGate{"microflows", "deep_link_url", "a microflow URL (deep link)",
 				"upgrade your project to 10.6+, or set the URL in Studio Pro"})
 		}
-		if bodyContains(s.Body, selectsWorkflowDefinition) {
-			gates = append(gates, workflowDefinitionSelectionGate)
-		}
 		return gates
 	case *ast.CreateNanoflowStmt:
-		// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
-		// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
-		// while the activity and its other two modes go back further. Gate the
-		// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
-		if bodyUsesUnsynchronized(s.Body) {
-			return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
-				"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+		return nanoflowBodyGates(s.Body)
+	case *ast.AlterFlowStmt:
+		// What an insert or a replace splices in is gated as the same
+		// statements in a `create` are; a drop writes nothing new. Without
+		// this, check -p passed an alter that the write then refused
+		// (ako/mxcli#1787).
+		var inserted []ast.MicroflowStatement
+		for _, op := range s.Operations {
+			inserted = append(inserted, op.Body...)
 		}
+		if s.Nanoflow {
+			return nanoflowBodyGates(inserted)
+		}
+		return microflowBodyGates(inserted)
 	case *ast.CreateWorkflowStmt:
 		var gates []versionGate
 		if len(s.EventHandlers) > 0 {
@@ -292,6 +288,139 @@ func workflowTypeGates(activities []ast.WorkflowActivityNode, insertedEvents []s
 		gates = append(gates, interruptingTimerBoundaryEventGate)
 	}
 	return gates
+}
+
+// microflowBodyGates are the gates of the activities in a microflow body,
+// nested ones included (bodyContains walks branches, loops and error
+// handlers): what `create microflow` declares and what `alter microflow`
+// splices in.
+func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+	var gates []versionGate
+	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
+	// bodies); an older project stores a different EmailMessage, or no
+	// such activity.
+	if bodyContains(body, func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.SendEmailStmt); return ok }) {
+		gates = append(gates, versionGate{"microflows", "send_email", "send email",
+			"use the Email Connector module, or upgrade the project to 11.13+"})
+	}
+	if bodyContains(body, selectsWorkflowDefinition) {
+		gates = append(gates, workflowDefinitionSelectionGate)
+	}
+	for _, g := range workflowActionGates {
+		if bodyContains(body, g.match) {
+			gates = append(gates, g.versionGate)
+		}
+	}
+	return gates
+}
+
+// nanoflowBodyGates are the gates of the activities in a nanoflow body, as
+// microflowBodyGates are a microflow's.
+func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+	// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
+	// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
+	// while the activity and its other two modes go back further. Gate the
+	// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
+	if bodyUsesUnsynchronized(body) {
+		return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
+			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+	}
+	return nil
+}
+
+// typeGate is a gate whose floor is the introduction of the storage $Types
+// its statement writes: the version below which the write refuses them
+// (canon.UndeclaredTypeError). Its sdk/versions row holds that version, and
+// TestTypeGates_FloorIsTheTypeIntroduction pins the row to the types, so
+// check -p and the write cannot disagree about a version.
+type typeGate struct {
+	versionGate
+	// types are the storage $Types the statement writes; the floor is the
+	// latest of their introductions.
+	types []string
+	// match reports a statement in a flow body that writes them.
+	match func(ast.MicroflowStatement) bool
+}
+
+// workflowActionGates are the gates of the workflow microflow actions Mendix
+// added after 9.0 (ako/mxcli#1787), each at its types' introduction in
+// mendixmodelsdk 4.117.0. Newest first, so a microflow holding several of
+// these is refused naming the one whose version covers the rest. A lock or
+// unlock is not here: every one check and exec accept names its workflow,
+// and the selection that names it is 10.0, past the action's own 9.21
+// (workflowDefinitionSelectionGate).
+var workflowActionGates = []typeGate{
+	{
+		versionGate: versionGate{"workflows", "get_workflow_activity_records", "get workflow activity records",
+			"this version has no Microflows$GetWorkflowActivityRecordsAction: upgrade the project"},
+		types: []string{"Microflows$GetWorkflowActivityRecordsAction"},
+		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.GetWorkflowActivityRecordsStmt); return ok },
+	},
+	{
+		versionGate: versionGate{"workflows", "get_workflows", "get workflows",
+			"this version has no Microflows$GetWorkflowsAction: upgrade the project"},
+		types: []string{"Microflows$GetWorkflowsAction"},
+		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.GetWorkflowsStmt); return ok },
+	},
+	{
+		versionGate: versionGate{"workflows", "notify_workflow", "notify workflow",
+			"this version has no Microflows$NotifyWorkflowAction, nor the wait for notification it resumes: upgrade the project"},
+		types: []string{"Microflows$NotifyWorkflowAction"},
+		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.NotifyWorkflowStmt); return ok },
+	},
+	workflowOperationGate("retry", "Microflows$RetryOperation", "workflow_operation_retry_unpause", resumeOperationHint),
+	workflowOperationGate("unpause", "Microflows$UnpauseOperation", "workflow_operation_retry_unpause", resumeOperationHint),
+	{
+		versionGate: versionGate{"workflows", "get_workflow_data", "get workflow data",
+			"this version has no Microflows$GetWorkflowDataAction: upgrade the project"},
+		types: []string{"Microflows$GetWorkflowDataAction"},
+		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.GetWorkflowDataStmt); return ok },
+	},
+	workflowOperationGate("pause", "Microflows$PauseOperation", "workflow_operation_pause_continue",
+		"this version has no Microflows$PauseOperation: upgrade the project"),
+	workflowOperationGate("continue", "Microflows$ContinueOperation", "workflow_operation_pause_continue",
+		"this version has no Microflows$ContinueOperation: upgrade the project"),
+	workflowOperationGate("abort", "Microflows$AbortOperation", "workflow_operations",
+		"this version has no workflow operation action (Microflows$WorkflowOperationAction): upgrade the project"),
+	workflowOperationGate("restart", "Microflows$RestartOperation", "workflow_operations",
+		"this version has no workflow operation action (Microflows$WorkflowOperationAction): upgrade the project"),
+	workflowMicroflowActionGate("call workflow", "Microflows$WorkflowCallAction",
+		func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.CallWorkflowStmt); return ok }),
+	workflowMicroflowActionGate("set task outcome", "Microflows$SetTaskOutcomeAction",
+		func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.SetTaskOutcomeStmt); return ok }),
+	workflowMicroflowActionGate("open user task", "Microflows$OpenUserTaskAction",
+		func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.OpenUserTaskStmt); return ok }),
+	workflowMicroflowActionGate("open workflow", "Microflows$OpenWorkflowAction",
+		func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.OpenWorkflowStmt); return ok }),
+}
+
+// resumeOperationHint is the hint of retry and unpause, which replaced one
+// Resume operation (introduced 9.3.0, deleted 9.12.0 in mendixmodelsdk 4.117.0).
+const resumeOperationHint = "before this version, retry and unpause are one Resume operation (Microflows$ResumeOperation, " +
+	"Mendix 9.3 to 9.11), which mxcli does not write: set it in Studio Pro, or upgrade the project"
+
+// workflowOperationGate is the gate of `workflow operation <kind>`, which
+// writes a Microflows$WorkflowOperationAction holding operation.
+func workflowOperationGate(kind, operation, row, hint string) typeGate {
+	return typeGate{
+		versionGate: versionGate{"workflows", row, "workflow operation " + kind, hint},
+		types:       []string{"Microflows$WorkflowOperationAction", operation},
+		match: func(st ast.MicroflowStatement) bool {
+			s, ok := st.(*ast.WorkflowOperationStmt)
+			return ok && s.OperationType == kind
+		},
+	}
+}
+
+// workflowMicroflowActionGate is the gate of a microflow action Mendix added
+// with workflows themselves.
+func workflowMicroflowActionGate(statement, typ string, match func(ast.MicroflowStatement) bool) typeGate {
+	return typeGate{
+		versionGate: versionGate{"workflows", "workflow_microflow_actions", statement,
+			"this version has no " + typ + ": the microflow actions arrived with workflows, so upgrade the project"},
+		types: []string{typ},
+		match: match,
+	}
 }
 
 // selectsWorkflowDefinition reports a lock or unlock that names its workflow
