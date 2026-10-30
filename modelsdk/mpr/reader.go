@@ -47,7 +47,7 @@ type Reader struct {
 	// Unit table held at the last rebuild — what a persisted index keeps.
 	// v2TypesMu guards these and the unit cache rebuild.
 	v2TypesMu     sync.Mutex
-	v2Types       map[string]string
+	v2Types       map[string]unitIndexEntry
 	v2TypesLoaded bool
 	v2TypesDirty  bool
 	v2Hashes      map[string]struct{}
@@ -91,6 +91,10 @@ type cachedUnit struct {
 	ContainerID     string
 	ContainmentName string
 	Type            string
+	// Name and Excluded are the unit's top-level properties, known without
+	// opening its file once the index has seen its bytes (reader_units_v2.go).
+	Name     string
+	Excluded bool
 }
 
 // OpenOptions configures how the MPR file is opened.
