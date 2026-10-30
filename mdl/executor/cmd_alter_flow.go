@@ -36,6 +36,11 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	if err := validateAlterFlowRules(s); err != nil {
 		return err
 	}
+	// An action the project's version does not have, in what the statement
+	// splices in: statementVersionGates (ako/mxcli#1787).
+	if err := checkVersionGates(ctx, s); err != nil {
+		return err
+	}
 	a, err := loadAlterFlow(ctx, s)
 	if err != nil {
 		return err

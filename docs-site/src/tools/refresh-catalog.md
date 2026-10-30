@@ -71,7 +71,7 @@ mxcli -p app.mpr -c "REFRESH CATALOG FULL FORCE"
 
 The catalog is cached in `.mxcli/catalog.db` next to the MPR file. On subsequent refreshes, mxcli checks whether the project has changed and only rebuilds if necessary (unless `FORCE` is specified).
 
-A catalog with the MDL source index (`REFRESH CATALOG FULL SOURCE`) keeps it on every later rebuild, including the ones `SEARCH` and `SHOW REFERENCES` start when the project has changed. Those rebuilds describe again only the documents that changed, and the documents that reference them. Every other row is carried over from the cache, so a rebuild after one edit costs about as much as `REFRESH CATALOG FULL`. Everything is described again when something outside the described documents changes (a folder, a module, the project settings, a Java action), when another mxcli build wrote the cache, and with `FORCE`.
+A catalog with the MDL source index (`REFRESH CATALOG FULL SOURCE`) keeps it on every later rebuild, including the ones `SEARCH` and `SHOW REFERENCES` start when the project has changed. Those rebuilds describe again only the documents that changed, and the documents that reference them. An entity counts as changed when its own definition does, not when another entity of its module does; a change to an association or annotation describes every entity of that module again. Every other row is carried over from the cache, so a rebuild after one edit costs about as much as `REFRESH CATALOG FULL`. Everything is described again when something outside the described documents changes (a folder, a module, the project settings, a Java action), when another mxcli build wrote the cache, and with `FORCE`.
 
 ### The unit store (MPR v2)
 

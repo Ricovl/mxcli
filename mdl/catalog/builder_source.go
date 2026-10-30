@@ -87,8 +87,8 @@ func (b *Builder) buildSource() error {
 	// Phase 1: Collect all items to describe (fast — uses cached lists)
 	var items []sourceItem
 
-	// Entities. An entity is described from its module's domain model, the
-	// unit whose hash says whether it changed.
+	// Entities. An entity is described from its own subtree of its module's
+	// domain model (entityBasis), which is the unit that holds it.
 	entityUnit := map[string]string{}
 	dms, err := b.cachedDomainModels()
 	if err == nil {
@@ -210,11 +210,13 @@ func (b *Builder) buildSource() error {
 	// Carry over the rows whose basis has not changed (#1790); describe the
 	// rest. Without unit hashes nothing is reused and nothing is recorded.
 	units := make([]string, len(items))
+	parents := make([]string, len(items))
 	for i, it := range items {
-		units[i] = sourceUnitOf(entityUnit, it)
+		units[i] = it.id
+		parents[i] = sourceParentOf(entityUnit, it)
 	}
 	hashes := b.sourceBasis()
-	plan := b.planSourceReuse(items, units, hashes)
+	plan := b.planSourceReuse(items, units, parents, hashes)
 	toDescribe := make([]sourceItem, 0, len(items))
 	for i, it := range items {
 		if _, ok := plan.reused[i]; !ok {
@@ -271,7 +273,7 @@ func (b *Builder) buildSource() error {
 		stmt.Exec(it.qn, it.objType, row.text, it.moduleName, it.id)
 		count++
 	}
-	if err := b.persistSourceBasis(items, units, hashes); err != nil {
+	if err := b.persistSourceBasis(items, units, parents, hashes); err != nil {
 		return err
 	}
 
