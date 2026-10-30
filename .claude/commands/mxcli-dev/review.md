@@ -119,6 +119,14 @@ All executor code must go through the backend abstraction layer. **`sdk/mpr` no 
 - [ ] **Map iteration is deterministic** — any map iterated for serialization output must sort keys first (`sort.Strings(keys)` pattern); non-deterministic output causes flaky diffs and BSON instability
 - [ ] **Pluggable widgets via WidgetEngine** — new pluggable widget support uses `.def.json` + `WidgetRegistry`; no hardcoded BSON widget builders in the executor
 
+### Catalog builder passes
+A refresh rebuilds only the units a save changed and keeps every other row of the cached catalog (ako/mxcli#1804). A pass that breaks the rules below is still correct, just slower on every refresh, which no correctness test notices. See [ADR-0014](docs/13-decisions/0014-incremental-catalog-builds.md).
+- [ ] **Rows have an owner**: each per-document loop starts with `if !b.own(unitID) { continue }` (an entity's unit is its domain model) and ends with `b.disown()`. A table with rows from no document belongs in `projectWideTables` with a reason (`TestCatalog_RowsBelongToADocument`).
+- [ ] **Listed through the scope**: documents come from `b.lister()` or a `cached*` accessor, not `b.reader.List*`, which decodes the whole project (`TestBuilderListsDocumentsThroughTheScope`, `TestCatalog_IncrementalRefreshDecodesOnlyWhatItRebuilds`).
+- [ ] **Other documents through the tables**: a pass that needs another document's name or shape reads the catalog tables an earlier pass wrote (see `associationEnds`, `entityNamesByID`), not a decoded list, which holds only the rebuilt units.
+- [ ] **Dependencies are refs**: if a document's rows depend on another document, the document has a `refs` edge to it, or the dependency is invisible to the plan. Add a step to `incrementalSteps` where the other document changes and this one does not; it must fail with the dependency removed.
+- [ ] **New document type**: an incremental step for it in `incrementalSteps`. A type no per-document pass owns makes every change to it a full build.
+
 ### Full-stack consistency for MDL features
 New MDL commands or language features must be wired through the full pipeline:
 - [ ] **Grammar** — rule added to `MDLParser.g4` (and `MDLLexer.g4` if new tokens)

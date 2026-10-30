@@ -396,7 +396,7 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 
 // extractMemberRefs walks every document of the types in memberRefSourceTypes
 // and emits its member, enumeration and mapping-entity edges.
-func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractMemberRefs(stmt *Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
 	unitTypes := make([]string, 0, len(memberRefSourceTypes))
 	for t := range memberRefSourceTypes {
 		unitTypes = append(unitTypes, t)
@@ -406,11 +406,14 @@ func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, project
 	count := 0
 	for _, unitType := range unitTypes {
 		sourceType := memberRefSourceTypes[unitType]
-		units, err := b.reader.ListRawUnitsByType(unitType)
+		units, err := b.lister().ListRawUnitsByType(unitType)
 		if err != nil {
 			continue
 		}
 		for _, u := range units {
+			if !b.ownRows(string(u.ID)) {
+				continue
+			}
 			// ListRawUnitsByType matches a PREFIX: Forms$Page also returns
 			// Forms$PageTemplate units, which are not pages.
 			if u.Type != unitType || len(u.Contents) == 0 {
@@ -432,6 +435,7 @@ func (b *Builder) extractMemberRefs(stmt *sql.Stmt, idx *memberRefIndex, project
 				}
 			}
 		}
+		b.disown()
 	}
 	return count
 }
@@ -468,7 +472,7 @@ var xpathSourceTypes = map[string]string{
 // enumeration values each recorded XPath constraint names, resolved against the
 // constraint's target entity. buildXPathExpressions runs before buildReferences
 // so the table is populated.
-func (b *Builder) extractXPathRefs(stmt *sql.Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractXPathRefs(stmt *Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
 	rows, err := b.tx.Query(`SELECT DocumentType, DocumentId, DocumentQualifiedName, COALESCE(TargetEntity, ''),
 		XPathExpression, COALESCE(ModuleName, '') FROM xpath_expressions_data ORDER BY Id`)
 	if err != nil {

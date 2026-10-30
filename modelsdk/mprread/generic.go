@@ -76,6 +76,17 @@ func ListUnitsWithContainerWhere[T element.Element](r *mmpr.Reader, keep func(bs
 	return decodeUnits[T](refs, typeName, keep)
 }
 
+// ListUnitsWithContainerIn is ListUnitsWithContainer for the units whose ID
+// keepID accepts, and reads no other unit's contents on v2 (ako/mxcli#1804).
+func ListUnitsWithContainerIn[T element.Element](r *mmpr.Reader, keepID func(id string) bool) ([]Unit[T], error) {
+	typeName := bsonTypeName[T]()
+	refs, err := r.ListUnitsByTypeWhere(typeName, keepID)
+	if err != nil {
+		return nil, err
+	}
+	return decodeUnits[T](refs, typeName, nil)
+}
+
 // decodeUnits decodes the refs of typeName that keep accepts (nil keeps all).
 func decodeUnits[T element.Element](refs []mmpr.UnitRef, typeName string, keep func(bson.Raw) bool) ([]Unit[T], error) {
 	dec := codec.NewDecoder(codec.DefaultRegistry)
@@ -87,6 +98,7 @@ func decodeUnits[T element.Element](refs []mmpr.UnitRef, typeName string, keep f
 		if keep != nil && !keep(bson.Raw(ref.Contents)) {
 			continue
 		}
+		unitsDecoded.Add(1)
 		elem, err := dec.Decode(bson.Raw(ref.Contents))
 		if err != nil {
 			return nil, fmt.Errorf("decode unit %s: %w", ref.ID, err)

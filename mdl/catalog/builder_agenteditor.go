@@ -3,8 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
-
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -24,18 +22,18 @@ var agentEditorTable = map[string]string{
 // which the catalog does not need), so this reads through the raw-unit surface
 // and decodes only the wrapper fields — no CatalogReader/backend change.
 func (b *Builder) buildAgentEditorDocs() error {
-	units, err := b.reader.ListRawUnitsByType("CustomBlobDocuments$CustomBlobDocument")
+	units, err := b.lister().ListRawUnitsByType("CustomBlobDocuments$CustomBlobDocument")
 	if err != nil {
 		return err
 	}
 
-	stmts := map[string]*sql.Stmt{}
+	stmts := map[string]*Stmt{}
 	defer func() {
 		for _, s := range stmts {
 			s.Close()
 		}
 	}()
-	stmtFor := func(table string) (*sql.Stmt, error) {
+	stmtFor := func(table string) (*Stmt, error) {
 		if s, ok := stmts[table]; ok {
 			return s, nil
 		}
@@ -53,6 +51,9 @@ func (b *Builder) buildAgentEditorDocs() error {
 
 	count := 0
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc struct {
 			Name               string `bson:"Name"`
 			Documentation      string `bson:"Documentation"`
@@ -82,6 +83,7 @@ func (b *Builder) buildAgentEditorDocs() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Agent-editor documents", count)
 	return nil

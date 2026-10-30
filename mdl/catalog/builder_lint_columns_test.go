@@ -90,7 +90,7 @@ func lintColumnsBuilder(t *testing.T) (*Builder, *Catalog) {
 			},
 			{ContainerID: empty},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 	return b, cat
 }

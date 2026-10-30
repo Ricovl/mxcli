@@ -1526,6 +1526,28 @@ func (c *Catalog) createTables() error {
 		// document came from which unit. The next source build compares and
 		// re-describes only what changed (builder_source_reuse.go, #1790). A
 		// cache without them reuses nothing, so they need no schema bump.
+		// Which unit each row came from, as rowid ranges per table; every
+		// unit's basis (content hash and container) and whether a per-unit
+		// pass reads it; and the qualified names each unit's rows carry. The
+		// next build rebuilds only the changed units and the documents that
+		// name them, and copies the rest (builder_incremental.go, #1804). A
+		// cache without them carries nothing, so they need no schema bump.
+		`CREATE TABLE IF NOT EXISTS catalog_row_owners (
+			TableName TEXT NOT NULL,
+			UnitId TEXT NOT NULL,
+			FirstRow INTEGER NOT NULL,
+			LastRow INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS catalog_units (
+			UnitId TEXT PRIMARY KEY,
+			Basis TEXT NOT NULL,
+			Owned INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS catalog_unit_names (
+			UnitId TEXT NOT NULL,
+			QualifiedName TEXT NOT NULL
+		)`,
+
 		`CREATE TABLE IF NOT EXISTS source_units (
 			UnitId TEXT PRIMARY KEY,
 			Hash TEXT NOT NULL,

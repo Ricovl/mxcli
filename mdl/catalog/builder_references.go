@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"strings"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
@@ -413,20 +412,45 @@ func associationTarget(ends assocEnds, start string) string {
 }
 
 // associationEnds maps every association's qualified name to its endpoint
-// entities, for resolving an association retrieve's output variable.
+// entities, for resolving an association retrieve's output variable. An
+// incremental build reads the associations buildAssociations wrote, which
+// hold every module's while the domain models listed are only the rebuilt
+// ones. There, an end that did not resolve to an entity is stored as its ID, which
+// has no dot, and is "" here; a cross-module association's TO end is stored
+// as the qualified name the model holds.
 func (b *Builder) associationEnds() map[string]assocEnds {
 	out := map[string]assocEnds{}
-	dms, err := b.cachedDomainModels()
+	if b.scope == nil {
+		dms, err := b.cachedDomainModels()
+		if err != nil {
+			return out
+		}
+		for _, dm := range dms {
+			moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
+			for _, a := range dm.Associations {
+				out[moduleName+"."+a.Name] = assocEnds{From: b.resolveEntityID(a.ParentID), To: b.resolveEntityID(a.ChildID)}
+			}
+			for _, ca := range dm.CrossAssociations {
+				out[moduleName+"."+ca.Name] = assocEnds{From: b.resolveEntityID(ca.ParentID), To: ca.ChildRef}
+			}
+		}
+		return out
+	}
+	rows, err := b.tx.Query(`SELECT QualifiedName, FromEntity, ToEntity FROM associations_data`)
 	if err != nil {
 		return out
 	}
-	for _, dm := range dms {
-		moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
-		for _, a := range dm.Associations {
-			out[moduleName+"."+a.Name] = assocEnds{From: b.resolveEntityID(a.ParentID), To: b.resolveEntityID(a.ChildID)}
+	defer rows.Close()
+	end := func(name string) string {
+		if !strings.Contains(name, ".") {
+			return ""
 		}
-		for _, ca := range dm.CrossAssociations {
-			out[moduleName+"."+ca.Name] = assocEnds{From: b.resolveEntityID(ca.ParentID), To: ca.ChildRef}
+		return name
+	}
+	for rows.Next() {
+		var qn, from, to string
+		if rows.Scan(&qn, &from, &to) == nil {
+			out[qn] = assocEnds{From: end(from), To: end(to)}
 		}
 	}
 	return out
@@ -507,16 +531,24 @@ func (b *Builder) buildReferences() error {
 		return err
 	}
 	for _, mf := range mfs {
+		if !b.own(string(mf.ID)) {
+			continue
+		}
 		emitActionRefs(RefObjectMicroflow, string(mf.ID), mf.ContainerID, mf.Name, mf.Parameters, mf.ReturnType, mf.ObjectCollection)
 	}
+	b.disown()
 
 	// Extract nanoflow references — nanoflows also call microflows/nanoflows,
 	// show pages, retrieve, etc.
 	nfs, err := b.cachedNanoflows()
 	if err == nil {
 		for _, nf := range nfs {
+			if !b.own(string(nf.ID)) {
+				continue
+			}
 			emitActionRefs(RefObjectNanoflow, string(nf.ID), nf.ContainerID, nf.Name, nf.Parameters, nf.ReturnType, nf.ObjectCollection)
 		}
+		b.disown()
 	}
 
 	// Extract rule references. A rule's body calls microflows, retrieves and
@@ -527,14 +559,21 @@ func (b *Builder) buildReferences() error {
 	rules, err := b.cachedRules()
 	if err == nil {
 		for _, rule := range rules {
+			if !b.own(string(rule.ID)) {
+				continue
+			}
 			emitActionRefs(RefObjectRule, string(rule.ID), rule.ContainerID, rule.Name, rule.Parameters, rule.ReturnType, rule.ObjectCollection)
 		}
+		b.disown()
 	}
 
 	// Extract entity references (generalization) — using cached list
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
+			if !b.own(string(dm.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -595,12 +634,16 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	// Extract page references (layout, datasources, parameters) — using cached list
 	pageList, err := b.cachedPages()
 	if err == nil {
 		for _, pg := range pageList {
+			if !b.own(string(pg.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + pg.Name
@@ -632,6 +675,7 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 
 		// Widget references: page → entity (datasource) and page → microflow /
 		// nanoflow (action). Projected from the widgets table, which buildPages
@@ -667,6 +711,7 @@ func (b *Builder) buildReferences() error {
 		// keeps the projection's one-edge-per-page shape when another widget's
 		// column already made the edge.
 		for _, r := range b.widgetExtraRefs {
+			b.as(r.owner)
 			res, xerr := b.tx.Exec(
 				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 				 SELECT ?, '', ?, ?, '', ?, ?, ?, ?, ?
@@ -679,6 +724,7 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 
 		// Page/snippet -> widget definition. buildWidgetDefinitions runs before
 		// this pass, so the join target is populated.
@@ -776,6 +822,9 @@ func (b *Builder) buildReferences() error {
 	wfs, wfErr := b.cachedWorkflows()
 	if wfErr == nil {
 		for _, wf := range wfs {
+			if !b.own(string(wf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + wf.Name
@@ -790,6 +839,7 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	// Scheduled events run a microflow. Without this edge the microflow looks
@@ -852,9 +902,11 @@ func (b *Builder) buildReferences() error {
 // same transaction.
 // extractRegexRuleRefs emits one `validate` edge per attribute validation rule
 // that uses a regular expression, from the entity to the regex document.
-func (b *Builder) extractRegexRuleRefs(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) extractRegexRuleRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.regexRuleRefs {
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectEntity, "", r.entityQualifiedName,
 			RefObjectRegularExpression, "", r.regexQualifiedName,
@@ -866,9 +918,11 @@ func (b *Builder) extractRegexRuleRefs(stmt *sql.Stmt, projectID, snapshotID str
 	return count
 }
 
-func (b *Builder) extractScheduledEventRefs(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) extractScheduledEventRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.scheduledEventRefs {
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectScheduledEvent, "", r.qualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -891,9 +945,11 @@ func (b *Builder) extractScheduledEventRefs(stmt *sql.Stmt, projectID, snapshotI
 //
 // The edges are collected by buildPublishedRestServices, which runs earlier in
 // the same transaction.
-func (b *Builder) extractPublishedRestRefs(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) extractPublishedRestRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.publishedRestRefs {
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectPublishedRestOperation, r.sourceID, r.qualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -917,9 +973,11 @@ func (b *Builder) extractPublishedRestRefs(stmt *sql.Stmt, projectID, snapshotID
 //
 // The edges are collected by buildEntityEventHandlers, which runs earlier in
 // the same transaction.
-func (b *Builder) extractEventHandlerRefs(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) extractEventHandlerRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.eventHandlerRefs {
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectEntity, "", r.entityQualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -932,7 +990,7 @@ func (b *Builder) extractEventHandlerRefs(stmt *sql.Stmt, projectID, snapshotID 
 }
 
 // extractMenuItemRefs extracts page and microflow references from menu items recursively.
-func (b *Builder) extractMenuItemRefs(stmt *sql.Stmt, items []*types.NavMenuItem, sourceName, projectID, snapshotID string) int {
+func (b *Builder) extractMenuItemRefs(stmt *Stmt, items []*types.NavMenuItem, sourceName, projectID, snapshotID string) int {
 	refCount := 0
 	for _, item := range items {
 		if item.Page != "" {
@@ -959,7 +1017,7 @@ func (b *Builder) extractMenuItemRefs(stmt *sql.Stmt, items []*types.NavMenuItem
 }
 
 // extractWidgetRefs extracts entity and microflow references from a widget and its children.
-func (b *Builder) extractWidgetRefs(stmt *sql.Stmt, w pages.Widget, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractWidgetRefs(stmt *Stmt, w pages.Widget, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if w == nil {
 		return 0
 	}
@@ -1033,7 +1091,7 @@ func (b *Builder) extractWidgetRefs(stmt *sql.Stmt, w pages.Widget, sourceType, 
 }
 
 // extractWidgetObjectRefs extracts refs from a pluggable widget's WidgetObject.
-func (b *Builder) extractWidgetObjectRefs(stmt *sql.Stmt, obj *pages.WidgetObject, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractWidgetObjectRefs(stmt *Stmt, obj *pages.WidgetObject, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if obj == nil {
 		return 0
 	}
@@ -1098,7 +1156,7 @@ func (b *Builder) extractWidgetObjectRefs(stmt *sql.Stmt, obj *pages.WidgetObjec
 }
 
 // extractDataSourceRefs extracts entity and microflow references from a datasource.
-func (b *Builder) extractDataSourceRefs(stmt *sql.Stmt, ds pages.DataSource, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractDataSourceRefs(stmt *Stmt, ds pages.DataSource, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if ds == nil {
 		return 0
 	}
@@ -1248,7 +1306,7 @@ var projectSettingsMicroflowRefs = []struct {
 // The source is the SETTING, not the project, so `show references to <microflow>`
 // names which setting depends on it — which is the thing you need before dropping
 // it, and what `describe settings` would otherwise be the only way to learn.
-func (b *Builder) extractProjectSettingsRefs(stmt *sql.Stmt, projectID, snapshotID string) int {
+func (b *Builder) extractProjectSettingsRefs(stmt *Stmt, projectID, snapshotID string) int {
 	ps, err := b.reader.GetProjectSettings()
 	if err != nil || ps == nil || ps.Model == nil {
 		return 0 // a project may have no settings document; not an error

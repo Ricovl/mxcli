@@ -22,11 +22,11 @@ import (
 // enabled — are the whole reason to query them.
 
 // scheduledEventRef is one event → microflow edge, held until buildReferences.
-type scheduledEventRef struct{ qualifiedName, moduleName, microflow string }
+type scheduledEventRef struct{ owner, qualifiedName, moduleName, microflow string }
 
 // buildScheduledEvents catalogs ScheduledEvents$ScheduledEvent units.
 func (b *Builder) buildScheduledEvents() error {
-	units, err := b.reader.ListRawUnitsByType(sched.TypeName)
+	units, err := b.lister().ListRawUnitsByType(sched.TypeName)
 	if err != nil {
 		return err
 	}
@@ -47,6 +47,9 @@ func (b *Builder) buildScheduledEvents() error {
 
 	count := 0
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc bson.M
 		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
@@ -74,6 +77,7 @@ func (b *Builder) buildScheduledEvents() error {
 		}
 		if ev.MicroflowID != "" {
 			b.scheduledEventRefs = append(b.scheduledEventRefs, scheduledEventRef{
+				owner:         b.currentOwner(),
 				qualifiedName: moduleName + "." + ev.Name,
 				moduleName:    moduleName,
 				microflow:     string(ev.MicroflowID),
@@ -81,6 +85,7 @@ func (b *Builder) buildScheduledEvents() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Scheduled Events", count)
 	return nil
@@ -88,7 +93,7 @@ func (b *Builder) buildScheduledEvents() error {
 
 // buildQueues catalogs Queues$Queue units.
 func (b *Builder) buildQueues() error {
-	units, err := b.reader.ListRawUnitsByType("Queues$Queue")
+	units, err := b.lister().ListRawUnitsByType("Queues$Queue")
 	if err != nil {
 		return err
 	}
@@ -108,6 +113,9 @@ func (b *Builder) buildQueues() error {
 
 	count := 0
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc bson.M
 		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
@@ -137,6 +145,7 @@ func (b *Builder) buildQueues() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Task Queues", count)
 	return nil

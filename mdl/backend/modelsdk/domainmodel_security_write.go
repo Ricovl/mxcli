@@ -12,7 +12,6 @@ import (
 	"github.com/mendixlabs/mxcli/model"
 	genDm "github.com/mendixlabs/mxcli/modelsdk/gen/domainmodels"
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // AddEntityAccessRule adds (or upserts by matching module-role set) an entity
@@ -803,7 +802,7 @@ type projectAssociations struct {
 // names its TO entity by qualified name, so the incoming half is a scan of every
 // other domain model — the only place the fact is stored.
 func (b *Backend) scanProjectAssociations(moduleName string) (*projectAssociations, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
+	units, err := listUnits[*genDm.DomainModel](b)
 	if err != nil {
 		return nil, fmt.Errorf("list domain models: %w", err)
 	}

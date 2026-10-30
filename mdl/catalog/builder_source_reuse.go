@@ -187,42 +187,35 @@ func (b *Builder) sourceBasis() map[string]string {
 // still re-describes every entity of the module: planSourceReuse treats the
 // domain model as each entity's parent.
 //
-// An entity whose subtree cannot be found keeps the whole domain model's
-// hash, so it is described again whenever anything in its module changes.
+// The entities are found in the stored bytes, not a decoded list, so an
+// incremental build that rebuilds one module does not decode every domain
+// model. A domain model whose contents do not parse keeps its whole-unit
+// basis, and its entities have none of their own: each is then described
+// again whenever the domain model changes, through its parent.
 func (b *Builder) entityBasis(hashes map[string]string) {
-	dms, err := b.cachedDomainModels()
-	if err != nil || len(dms) == 0 {
-		return
-	}
+	b.entityDM = map[string]string{}
 	units, err := b.reader.ListRawUnitsByType("DomainModels$DomainModel")
 	if err != nil {
 		return
 	}
-	raw := map[string][]byte{}
 	for _, u := range units {
-		raw[string(u.ID)] = u.Contents
-	}
-	for _, dm := range dms {
-		dmID := string(dm.ID)
-		unitHash, ok := hashes[dmID]
+		dmID := string(u.ID)
+		if _, ok := hashes[dmID]; !ok {
+			continue
+		}
+		residual, entities, ok := splitDomainModel(u.Contents)
 		if !ok {
 			continue
 		}
-		residual, entities, ok := splitDomainModel(raw[dmID])
-		for _, ent := range dm.Entities {
-			h, found := entities[ent.Name]
-			if !ok || !found {
-				h = unitHash
-			}
-			hashes[string(ent.ID)] = h + "|" + dmID
+		for id, h := range entities {
+			hashes[id] = h + "|" + dmID
+			b.entityDM[id] = dmID
 		}
-		if ok {
-			hashes[dmID] = residual + "|" + string(dm.ContainerID)
-		}
+		hashes[dmID] = residual + "|" + string(u.ContainerID)
 	}
 }
 
-// splitDomainModel hashes a domain model's entities by name, and everything
+// splitDomainModel hashes a domain model's entities by ID, and everything
 // else in it as one residual. ok is false when the contents do not parse.
 func splitDomainModel(contents []byte) (residual string, entities map[string]string, ok bool) {
 	elems, err := bson.Raw(contents).Elements()
@@ -249,13 +242,20 @@ func splitDomainModel(contents []byte) (residual string, entities map[string]str
 			if !isDoc {
 				continue // the array's leading version marker
 			}
-			name, _ := doc.Lookup("Name").StringValueOK()
+			_, id, isBin := doc.Lookup("$ID").BinaryOK()
+			if !isBin {
+				return "", nil, false
+			}
 			sum := sha256.Sum256(doc)
-			entities[name] = hex.EncodeToString(sum[:])
+			entities[formatGUID(id)] = hex.EncodeToString(sum[:])
 		}
 	}
 	return hex.EncodeToString(rest.Sum(nil)), entities, true
 }
+
+// reasonOtherUnitChanged is why a source build describes every document: a
+// unit changed that no describe covers.
+const reasonOtherUnitChanged = "a unit other than a described document changed"
 
 // sourceReusePlan says, per item, whether its previous row can be carried
 // over; reused[i] is that row's text.
@@ -301,7 +301,7 @@ func (b *Builder) planSourceReuse(items []sourceItem, units, parents []string, h
 	}
 	for id := range changed {
 		if !itemUnit[id] && !prev.described[id] {
-			return sourceReusePlan{reason: "a unit other than a described document changed"}
+			return sourceReusePlan{reason: reasonOtherUnitChanged}
 		}
 	}
 
@@ -390,7 +390,16 @@ func (b *Builder) persistSourceBasis(items []sourceItem, units, parents []string
 		return err
 	}
 	defer ustmt.Close()
+	// Each row belongs to the unit that holds it — an entity's to its domain
+	// model — and an incremental build writes only the rebuilt units' rows.
 	for id, h := range hashes {
+		owner := id
+		if dm := b.entityDM[id]; dm != "" {
+			owner = dm
+		}
+		if !b.ownRows(owner) {
+			continue
+		}
 		d := 0
 		if described[id] {
 			d = 1
@@ -399,16 +408,19 @@ func (b *Builder) persistSourceBasis(items []sourceItem, units, parents []string
 			return err
 		}
 	}
+	b.disown()
 	estmt, err := b.tx.Prepare(`INSERT INTO source_elements (ElementId, UnitId, QualifiedName, ObjectType) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
 	defer estmt.Close()
 	for i, it := range items {
+		b.own(sourceOwner(it, parents[i]))
 		if _, err := estmt.Exec(it.id, units[i], it.qn, it.objType); err != nil {
 			return err
 		}
 	}
+	b.disown()
 	_, err = b.tx.Exec(`INSERT OR REPLACE INTO catalog_meta (Key, Value) VALUES (?, ?)`, MetaSourceFingerprint, b.sourceFingerprint)
 	return err
 }
@@ -416,6 +428,15 @@ func (b *Builder) persistSourceBasis(items []sourceItem, units, parents []string
 // sourceReuseSummary is the progress line for a build that reused rows.
 func sourceReuseSummary(reused, described int) string {
 	return fmt.Sprintf("source: %d reused, %d described", reused, described)
+}
+
+// sourceOwner is the unit an item's rows come from: the unit that holds it
+// (an entity's domain model) when that is another one, else the item.
+func sourceOwner(it sourceItem, parent string) string {
+	if parent != "" {
+		return parent
+	}
+	return it.id
 }
 
 // sourceParentOf is the unit that holds an item when that is not the item

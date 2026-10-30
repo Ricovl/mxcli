@@ -235,7 +235,7 @@ func memberRefsFixture(t *testing.T) *Catalog {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx:       tx,
+		tx:       wrapTx(tx),
 		fullMode: true,
 	}
 

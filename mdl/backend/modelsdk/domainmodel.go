@@ -29,7 +29,7 @@ import (
 
 // ListDomainModels reads every domain model through the codec engine.
 func (b *Backend) ListDomainModels() ([]*domainmodel.DomainModel, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDm.DomainModel](b.reader)
+	units, err := listUnits[*genDm.DomainModel](b)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (b *Backend) populateViewEntityOql(dms []*domainmodel.DomainModel) {
 	if !need {
 		return
 	}
-	units, err := mprread.ListUnitsWithContainer[*genDm.ViewEntitySourceDocument](b.reader)
+	units, err := listUnits[*genDm.ViewEntitySourceDocument](b)
 	if err != nil {
 		return
 	}

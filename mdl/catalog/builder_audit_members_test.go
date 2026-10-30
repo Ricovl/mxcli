@@ -55,7 +55,7 @@ func TestEntitiesCarryTheAuditMembers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.tx = tx
+	b.tx = wrapTx(tx)
 	if err := b.buildEntities(); err != nil {
 		t.Fatalf("buildEntities: %v", err)
 	}

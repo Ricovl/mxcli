@@ -3,7 +3,6 @@
 package catalog
 
 import (
-	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -71,7 +70,7 @@ func (b *Builder) buildMicroflows() error {
 	defer paramStmt.Close()
 
 	// Prepare activity statement only in full mode
-	var actStmt *sql.Stmt
+	var actStmt *Stmt
 	if b.fullMode {
 		actStmt, err = b.tx.Prepare(`
 			INSERT INTO activities_data (Id, Name, Caption, ActivityType, Sequence, MicroflowId, MicroflowQualifiedName,
@@ -137,6 +136,9 @@ func (b *Builder) buildMicroflows() error {
 
 	// Process microflows
 	for _, mf := range mfs {
+		if !b.own(string(mf.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -188,9 +190,13 @@ func (b *Builder) buildMicroflows() error {
 			actCount += n
 		}
 	}
+	b.disown()
 
 	// Process nanoflows
 	for _, nf := range nfs {
+		if !b.own(string(nf.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(nf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -241,6 +247,7 @@ func (b *Builder) buildMicroflows() error {
 			actCount += n
 		}
 	}
+	b.disown()
 
 	// Process rules. Their bodies are walked for activities in full mode like
 	// any other flow; the reference edges out of those bodies are emitted by
@@ -248,6 +255,9 @@ func (b *Builder) buildMicroflows() error {
 	// object but whose body is not walked reports every document it calls as
 	// dead, which is worse than not knowing about rules at all.
 	for _, rule := range rules {
+		if !b.own(string(rule.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(rule.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + rule.Name
@@ -290,6 +300,7 @@ func (b *Builder) buildMicroflows() error {
 			actCount += n
 		}
 	}
+	b.disown()
 
 	b.report("Microflows", mfCount)
 	b.report("Nanoflows", nfCount)
@@ -528,7 +539,7 @@ func calculateRuleComplexity(rule *microflows.Rule) int {
 //
 // varEntity is the flow's variable→entity map (buildVarEntityMap), which a
 // delete's EntityRef is resolved through.
-func insertFlowActivities(stmt *sql.Stmt, flowID, qualifiedName, moduleName string,
+func insertFlowActivities(stmt *Stmt, flowID, qualifiedName, moduleName string,
 	oc *microflows.MicroflowObjectCollection, varEntity map[string]string, projectID, snapshotID string) (int, error) {
 	if stmt == nil || oc == nil {
 		return 0, nil

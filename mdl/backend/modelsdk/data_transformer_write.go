@@ -11,7 +11,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genDt "github.com/mendixlabs/mxcli/modelsdk/gen/datatransformers"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"github.com/mendixlabs/mxcli/modelsdk/property"
 )
 
@@ -19,7 +18,7 @@ import (
 // plus source type and transform steps). Used by SHOW DATA TRANSFORMERS, the
 // CREATE OR MODIFY existence check, and DROP.
 func (b *Backend) ListDataTransformers() ([]*model.DataTransformer, error) {
-	units, err := mprread.ListUnitsWithContainer[*genDt.DataTransformer](b.reader)
+	units, err := listUnits[*genDt.DataTransformer](b)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ package catalog
 import "strings"
 
 func (b *Builder) buildConstants() error {
-	constants, err := b.reader.ListConstants()
+	constants, err := b.lister().ListConstants()
 	if err != nil {
 		return err
 	}
@@ -24,6 +24,9 @@ func (b *Builder) buildConstants() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, c := range constants {
+		if !b.own(string(c.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(c.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + c.Name
@@ -55,6 +58,7 @@ func (b *Builder) buildConstants() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("Constants", len(constants))
 	return nil

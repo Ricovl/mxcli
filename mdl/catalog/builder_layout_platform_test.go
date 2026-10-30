@@ -49,7 +49,7 @@ func TestLayoutPlatformColumn_Issue953(t *testing.T) {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 	if err := b.buildLayouts(); err != nil {
 		t.Fatalf("buildLayouts: %v", err)

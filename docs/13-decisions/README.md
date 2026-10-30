@@ -107,6 +107,7 @@ This preserves the audit trail.
 | [0011](0011-mdl-language-versioning.md) | MDL evolves through deprecation aliases and a language header; meaning changes only across versions | Accepted |
 | [0012](0012-mdl-first-and-data-first-editing.md) | MDL-first and data-first editing share one syntax and one patch engine | Accepted |
 | [0013](0013-activity-settings-property-list.md) | Microflow activity settings: words for the statement, one property list for the dialog (refines R2/R3 of 0010 for activities) | Proposed |
+| [0014](0014-incremental-catalog-builds.md) | Catalog rows belong to a unit, and a refresh rebuilds only the changed units | Accepted |
 
 ## Candidates to back-fill
 

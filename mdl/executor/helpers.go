@@ -629,6 +629,25 @@ func microflowHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
 	return out, nil
 }
 
+// pageHeaders lists every page's ID, container and name: without decoding a
+// page on the modelsdk backend.
+func pageHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
+	if l, ok := ctx.Backend.(interface {
+		ListPageHeaders() ([]types.DocumentHeader, error)
+	}); ok {
+		return l.ListPageHeaders()
+	}
+	all, err := ctx.Backend.ListPages()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(all))
+	for i, pg := range all {
+		out[i] = types.DocumentHeader{ID: pg.ID, ContainerID: pg.ContainerID, Name: pg.Name, Excluded: pg.Excluded}
+	}
+	return out, nil
+}
+
 // buildMicroflowReturnTypes maps each stored microflow's qualified name to the
 // name of its return type ("Boolean", "String", …), or "" for a microflow that
 // returns nothing.

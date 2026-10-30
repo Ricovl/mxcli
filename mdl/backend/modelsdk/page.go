@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -23,8 +24,22 @@ import (
 // by ListPageTemplates — this used to include them, to match legacy's
 // prefix-matched `Forms$Page` query, which made `show modules` report 46 pages
 // for a module with none.
+// ListPageHeaders lists every page's ID, container, name and Excluded flag
+// without decoding any page.
+func (b *Backend) ListPageHeaders() ([]types.DocumentHeader, error) {
+	hs, err := mprread.ListUnitHeaders[*genPg.Page](b.reader)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(hs))
+	for i, h := range hs {
+		out[i] = types.DocumentHeader(h)
+	}
+	return out, nil
+}
+
 func (b *Backend) ListPages() ([]*pages.Page, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.Page](b.reader)
+	units, err := listUnits[*genPg.Page](b)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +56,7 @@ func (b *Backend) ListPages() ([]*pages.Page, error) {
 // rather than FormCall, nothing consumes it yet, and a half-converted tree would
 // compare equal to a different one.
 func (b *Backend) ListPageTemplates() ([]*pages.PageTemplate, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.PageTemplate](b.reader)
+	units, err := listUnits[*genPg.PageTemplate](b)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +79,7 @@ func pageTemplateFromGen(pt *genPg.PageTemplate, containerID model.ID) *pages.Pa
 }
 
 func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.Page](b.reader)
+	units, err := listUnits[*genPg.Page](b)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +94,7 @@ func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
 // ListSnippets reads snippet units (count + identity is what SHOW MODULES needs;
 // the widget tree is not converted).
 func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.Snippet](b.reader)
+	units, err := listUnits[*genPg.Snippet](b)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +139,7 @@ func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
 // lists them (name + scalar metadata) so SHOW / DESCRIBE BUILDING BLOCK work on
 // this engine too; the widget tree is read separately via GetRawUnit (shared).
 func (b *Backend) ListBuildingBlocks() ([]*pages.BuildingBlock, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.BuildingBlock](b.reader)
+	units, err := listUnits[*genPg.BuildingBlock](b)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +244,7 @@ func textElementToModel(el element.Element) *model.Text {
 // builder's resolveLayout matches a layout by name + module to bind a page's
 // FormCall, so the header is all it needs.
 func (b *Backend) ListLayouts() ([]*pages.Layout, error) {
-	units, err := mprread.ListUnitsWithContainer[*genPg.Layout](b.reader)
+	units, err := listUnits[*genPg.Layout](b)
 	if err != nil {
 		return nil, err
 	}
