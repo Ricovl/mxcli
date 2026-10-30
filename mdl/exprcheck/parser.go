@@ -12,6 +12,7 @@
 package exprcheck
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -63,6 +64,7 @@ func (p *parserImpl) Parse(src string, ctx Context) (RobustExpr, []Hint) {
 	hs = append(hs, checkValueLiterals(expr, ctx)...)
 	hs = append(hs, checkSlotKind(expr, ctx)...)
 	hs = append(hs, checkBareIdentifierValue(expr, ctx)...)
+	hs = append(hs, checkStringFuncsComparedWithEmpty(expr, nil, ctx)...)
 	return expr, hs
 }
 
@@ -243,7 +245,6 @@ func parseCmp(s *Stream, ctx Context) (RobustExpr, []Hint) {
 	hints = append(hints, h...)
 	if op == "=" || op == "!=" {
 		hints = append(hints, checkEnumComparedToString(left, right, ctx, opTok)...)
-		hints = append(hints, checkStringFuncComparedWithEmpty(left, right, op, ctx, opTok)...)
 	}
 	return &BinExpr{Op: op, L: left, R: right}, hints
 }
@@ -263,32 +264,130 @@ var neverEmptyStringFuncs = map[string]bool{
 	"toString":    true,
 }
 
-// checkStringFuncComparedWithEmpty emits E015 for `trim($v) != empty`: the
+// checkStringFuncsComparedWithEmpty emits E015 for `trim($v) != empty`: the
 // result can never be `empty`, so the comparison is constant — `!=` always
 // true, `=` always false. The model is valid and builds, which is why it is a
 // warning; the logic is what is wrong, and the blank-check the author meant is
 // trim($v) compared with the empty string literal, which also covers `empty`
 // since trim(empty) is the empty string.
-func checkStringFuncComparedWithEmpty(left, right RobustExpr, op string, ctx Context, opTok Token) []Hint {
-	call := neverEmptyCallAgainstEmpty(left, right)
-	if call == nil {
-		call = neverEmptyCallAgainstEmpty(right, left)
+//
+// It runs over the finished tree rather than in parseCmp because it needs the
+// comparison's siblings: trim($v) != empty, and-ed with the same call compared
+// with the empty string — the empty-and-blank idiom — has a dead first half, but the second decides it and the
+// condition does what it says. Reporting that is noise on Studio Pro-authored
+// projects, so a comparison is skipped when its own and/or chain also
+// compares the same call with the empty string. chain holds those siblings.
+func checkStringFuncsComparedWithEmpty(expr RobustExpr, chain []RobustExpr, ctx Context) []Hint {
+	switch n := expr.(type) {
+	case *BinExpr:
+		if n.Op == "AND" || n.Op == "OR" {
+			operands := flattenChain(n, n.Op, nil)
+			var hs []Hint
+			for _, o := range operands {
+				hs = append(hs, checkStringFuncsComparedWithEmpty(o, operands, ctx)...)
+			}
+			return hs
+		}
+		if n.Op == "=" || n.Op == "!=" {
+			if h := stringFuncVsEmptyHint(n, chain, ctx); h != nil {
+				return []Hint{*h}
+			}
+		}
+		return append(checkStringFuncsComparedWithEmpty(n.L, nil, ctx),
+			checkStringFuncsComparedWithEmpty(n.R, nil, ctx)...)
+	case *ParenExpr:
+		return checkStringFuncsComparedWithEmpty(n.Inner, chain, ctx)
+	case *UnaryExpr:
+		return checkStringFuncsComparedWithEmpty(n.Operand, nil, ctx)
+	case *IfThenElseExpr:
+		hs := checkStringFuncsComparedWithEmpty(n.Cond, nil, ctx)
+		hs = append(hs, checkStringFuncsComparedWithEmpty(n.Then, nil, ctx)...)
+		return append(hs, checkStringFuncsComparedWithEmpty(n.Else, nil, ctx)...)
+	case *CallExpr:
+		var hs []Hint
+		for _, a := range n.Args {
+			hs = append(hs, checkStringFuncsComparedWithEmpty(a, nil, ctx)...)
+		}
+		return hs
 	}
+	return nil
+}
+
+// flattenChain returns the operands of a run of the same and/or operator,
+// looking through parentheses: `a and (b and c)` is one chain of three.
+func flattenChain(e RobustExpr, op string, out []RobustExpr) []RobustExpr {
+	if b, ok := unwrapParens(e).(*BinExpr); ok && b.Op == op {
+		return flattenChain(b.R, op, flattenChain(b.L, op, out))
+	}
+	return append(out, e)
+}
+
+func stringFuncVsEmptyHint(cmp *BinExpr, chain []RobustExpr, ctx Context) *Hint {
+	call := neverEmptyCallAgainstEmpty(cmp.L, cmp.R)
 	if call == nil {
+		call = neverEmptyCallAgainstEmpty(cmp.R, cmp.L)
+	}
+	if call == nil || chainComparesWithBlank(chain, call) {
 		return nil
 	}
 	always := "true"
-	if op == "=" {
+	if cmp.Op == "=" {
 		always = "false"
 	}
-	return []Hint{{
+	return &Hint{
 		Code: "E015", Slug: "string-func-vs-empty", Severity: hints.SeverityWarning,
-		Where:    hintsLocation(ctx, opTok.Pos),
-		YouWrote: call.Name + "(...) " + op + " empty",
+		Where:    hintsLocation(ctx, call.Pos()),
+		YouWrote: call.Name + "(...) " + cmp.Op + " empty",
 		Problem: call.Name + "() never returns empty — for an empty input it returns '' — " +
 			"so this comparison is always " + always + ".",
-		Fix: "Compare with '' instead: " + call.Name + "(...) " + op + " ''",
-	}}
+		Fix: "Compare with '' instead: " + call.Name + "(...) " + cmp.Op + " ''",
+	}
+}
+
+// chainComparesWithBlank reports whether some operand of chain compares a call
+// structurally equal to call with the empty string literal.
+func chainComparesWithBlank(chain []RobustExpr, call *CallExpr) bool {
+	key := exprKey(call)
+	for _, o := range chain {
+		b, ok := unwrapParens(o).(*BinExpr)
+		if !ok || (b.Op != "=" && b.Op != "!=") {
+			continue
+		}
+		for _, pair := range [][2]RobustExpr{{b.L, b.R}, {b.R, b.L}} {
+			lit, ok := unwrapParens(pair[1]).(*StringLit)
+			if ok && lit.Value == "" && exprKey(unwrapParens(pair[0])) == key {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// exprKey renders the operand shapes a guard repeats — calls over variables,
+// attribute paths and literals — position-free, so two spellings of the same
+// call compare equal. Anything else keys as unique, which only ever means
+// "not the same call" and so errs toward reporting.
+func exprKey(e RobustExpr) string {
+	switch n := e.(type) {
+	case *CallExpr:
+		args := make([]string, len(n.Args))
+		for i, a := range n.Args {
+			args[i] = exprKey(unwrapParens(a))
+		}
+		return n.Name + "(" + strings.Join(args, ",") + ")"
+	case *VariableExpr:
+		return "$" + n.Name
+	case *AttributePathExpr:
+		if n.Predicates != nil {
+			return fmt.Sprintf("%p", n)
+		}
+		return "$" + n.Variable + "/" + strings.Join(n.Path, "/")
+	case *StringLit:
+		return "'" + n.Value + "'"
+	case *NumberLit:
+		return n.Value
+	}
+	return fmt.Sprintf("%p", e)
 }
 
 // neverEmptyCallAgainstEmpty returns side as a never-empty String call when

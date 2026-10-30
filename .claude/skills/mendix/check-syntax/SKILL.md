@@ -11,15 +11,15 @@ description: "Validate MDL with `mxcli check` before presenting or executing it,
 | lines | section |
 |---|---|
 | 29-35 | When to Use This Skill |
-| 36-293 | `exec` refuses what `check` rejects |
-| 294-429 | Pre-Flight Validation Checklist |
-| 430-465 | Two rules that only real validation used to catch |
-| 466-512 | Validation Workflow |
-| 513-534 | Script Execution Behavior |
-| 535-595 | Script Organization |
-| 596-648 | Troubleshooting Parse Errors |
-| 649-706 | Studio Pro MCP — Verification Only |
-| 707-712 | Related Skills |
+| 36-295 | `exec` refuses what `check` rejects |
+| 296-431 | Pre-Flight Validation Checklist |
+| 432-467 | Two rules that only real validation used to catch |
+| 468-514 | Validation Workflow |
+| 515-536 | Script Execution Behavior |
+| 537-597 | Script Organization |
+| 598-650 | Troubleshooting Parse Errors |
+| 651-708 | Studio Pro MCP — Verification Only |
+| 709-714 | Related Skills |
 
 <!-- /skill-index -->
 # MDL Syntax Validation Skill
@@ -278,6 +278,8 @@ A **warning** rather than a refusal, because the model is valid and builds:
   `toUpperCase`, `substring`, `replaceAll`, `toString`) returns `''` for an
   empty input, never `empty`, so the comparison is constant. Write
   `trim($v) != ''`, which also covers an empty `$v`.
+  Not reported when the same `and`/`or` chain also compares that call with
+  `''` (`trim($v) != empty and trim($v) != ''`): redundant, but correct.
 
 **One thing to know about hint ordering**: the reference check runs before
 expression checking and **exits on its first error**, so an unrelated mistake

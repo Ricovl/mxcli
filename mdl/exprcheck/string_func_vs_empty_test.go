@@ -44,6 +44,18 @@ func TestStringFuncComparedWithEmpty(t *testing.T) {
 		{"trim($Value) != ''", false},
 		{"$Value != empty", false},
 		{"$Value != empty and trim($Value) != ''", false},
+		// The redundant guard idiom does what it means: the `''` comparison
+		// decides it, so the dead `empty` half is not reported. It is in the
+		// Studio Pro-authored integration fixture (FeedbackModule.VAL_Feedback),
+		// which is how the first version of E015 was caught flagging it.
+		{"trim($Value) != empty and trim($Value) != ''", false},
+		{"trim($Value) = empty or trim($Value) = ''", false},
+		{"$Flag and trim($Value) != empty and trim($Value) != ''", false},
+		// ...but only when the `''` comparison is on the SAME call.
+		{"trim($Value) != empty and trim($Other) != ''", true},
+		{"trim($Value) != empty and toLowerCase($Value) != ''", true},
+		// A guard in a different chain does not cover it.
+		{"(trim($Value) != empty or $Flag) and trim($Value) != ''", true},
 		// An unmeasured function is left alone.
 		{"getKey($Value) = empty", false},
 		// Ordering against empty is not this defect.
