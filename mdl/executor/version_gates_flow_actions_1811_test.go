@@ -21,6 +21,11 @@ type flowGateCase struct {
 	nanoflow bool
 }
 
+// orInALoop names the statement a placement inside a loop may be reported for
+// instead of the activity, when the loop's floor is the activity's own: a while
+// in a loop, both 9.0.4.
+var orInALoop = map[string]string{"while": "loop … in $List"}
+
 // flowGatePlaces are where an activity sits in a body: every one of them is
 // found (bodyContains walks branches, loops and error handlers).
 func flowGatePlaces(st ast.MicroflowStatement) []struct {
@@ -73,8 +78,9 @@ func checkFlowGateCases(t *testing.T, cases []flowGateCase) {
 			for _, stmt := range flowGateStatements(place.body, c.nanoflow) {
 				prog := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"}, stmt}}
 				vs := versionGateViolations(versionCtx(t, c.below[0], c.below[1], c.below[2]), prog)
-				if len(vs) != 1 || vs[0].RuleID != "MDL-VERSION01" || !strings.Contains(vs[0].Message, c.want+" requires") ||
-					!strings.Contains(vs[0].Message, wantVersion) || vs[0].Suggestion == "" {
+				named := len(vs) == 1 && (strings.Contains(vs[0].Message, c.want+" requires") ||
+					orInALoop[c.want] != "" && place.name == "in a loop" && strings.Contains(vs[0].Message, orInALoop[c.want]+" requires"))
+				if !named || vs[0].RuleID != "MDL-VERSION01" || !strings.Contains(vs[0].Message, wantVersion) || vs[0].Suggestion == "" {
 					t.Errorf("%s %s (%T) below its floor %v: want one MDL-VERSION01 naming %q and %q with a hint, got %+v",
 						c.want, place.name, stmt, c.below, c.want, wantVersion, vs)
 				}
@@ -183,5 +189,45 @@ func TestExecAlterFlow_RefusesAGatedFlowActionBeforeReading(t *testing.T) {
 	err := execAlterFlow(versionCtx(t, 9, 24, 30), stmt)
 	if err == nil || !strings.Contains(err.Error(), "send rest request requires Mendix 10.1.0+ (project is") {
 		t.Fatalf("alter microflow inserting send rest request on 9.24.30: %v", err)
+	}
+}
+
+// ako/mxcli#1811 sweep: the other flow activities a converter writes in a
+// type no gate named, found by listing every $Type the converters construct
+// against the type data. Each floor is the write's, measured on stamped
+// projects:
+//
+//	loop … in $List, while                  9.0.4   (Microflows$IterableList / WhileLoopCondition)
+//	show page … ( arguments )               9.7.0   (Forms$PageParameterMapping)
+//	call microflow | java action … in queue 9.10.0  (Queues$QueueSettings)
+//	execute database query                  9.24.0  (DatabaseConnector$ExecuteDatabaseQueryAction)
+//	  … connection ( … )                    11.1.0  (DatabaseConnector$ConnectionParameterMapping)
+func TestCheckVersionGates_FlowSweep1811(t *testing.T) {
+	queue := &ast.QualifiedName{Module: "M", Name: "Queue"}
+	arg := []ast.CallArgument{{Name: "Url", Value: &ast.LiteralExpr{Value: "jdbc:x", Kind: ast.LiteralString}}}
+	checkFlowGateCases(t, []flowGateCase{
+		{&ast.LoopStmt{LoopVariable: "It", ListVariable: "List"}, [3]int{9, 0, 3}, [3]int{9, 0, 4}, "loop … in $List", true},
+		{&ast.WhileStmt{Condition: &ast.LiteralExpr{Value: false, Kind: ast.LiteralBoolean}}, [3]int{9, 0, 3}, [3]int{9, 0, 4}, "while", true},
+		{&ast.ShowPageStmt{PageName: ast.QualifiedName{Module: "M", Name: "P"}, Arguments: []ast.ShowPageArg{{ParamName: "Order", Value: &ast.VariableExpr{Name: "Order"}}}},
+			[3]int{9, 6, 0}, [3]int{9, 7, 0}, "show page … ( arguments )", true},
+		{&ast.CallMicroflowStmt{MicroflowName: ast.QualifiedName{Module: "M", Name: "Job"}, Queue: queue},
+			[3]int{9, 9, 0}, [3]int{9, 10, 0}, "call … in queue", false},
+		{&ast.CallJavaActionStmt{ActionName: ast.QualifiedName{Module: "M", Name: "JA"}, Queue: queue},
+			[3]int{9, 9, 0}, [3]int{9, 10, 0}, "call … in queue", false},
+		{&ast.ExecuteDatabaseQueryStmt{OutputVariable: "Rows", QueryName: "M.Db.Q"}, [3]int{9, 23, 0}, [3]int{9, 24, 0}, "execute database query", false},
+		{&ast.ExecuteDatabaseQueryStmt{OutputVariable: "Rows", QueryName: "M.Db.Q", ConnectionArguments: arg},
+			[3]int{11, 0, 0}, [3]int{11, 1, 0}, "execute database query … connection ( … )", false},
+	})
+	// A show page with no arguments, or passing the object `for $Object`, and a
+	// call outside a queue write none of these types: not gated on 9.0.4.
+	for _, st := range []ast.MicroflowStatement{
+		&ast.ShowPageStmt{PageName: ast.QualifiedName{Module: "M", Name: "P"}, ForObject: "Order"},
+		&ast.CallMicroflowStmt{MicroflowName: ast.QualifiedName{Module: "M", Name: "Job"}},
+	} {
+		prog := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"},
+			&ast.CreateMicroflowStmt{Body: []ast.MicroflowStatement{st}}}}
+		if vs := versionGateViolations(versionCtx(t, 9, 0, 4), prog); len(vs) != 0 {
+			t.Errorf("%T %+v reported on 9.0.4: %+v", st, st, vs)
+		}
 	}
 }

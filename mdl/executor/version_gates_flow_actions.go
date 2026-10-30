@@ -11,7 +11,7 @@ import "github.com/mendixlabs/mxcli/mdl/ast"
 // these name the statement first, in `create microflow|nanoflow` and in what
 // `alter microflow|nanoflow` splices in, wherever it sits (bodyContains).
 // Newest first, so a body holding several is refused naming the one whose
-// version covers the rest. A statement a nanoflow cannot hold is refused there
+// version covers the rest; the loops come last (see there). A statement a nanoflow cannot hold is refused there
 // by the nanoflow validation; matching it here as well costs nothing.
 var flowActionGates = []typeGate{
 	{
@@ -19,6 +19,16 @@ var flowActionGates = []typeGate{
 			"this version has no Microflows$TransformJsonAction: map the JSON with an import mapping, or upgrade the project"},
 		types: []string{"Microflows$TransformJsonAction"},
 		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.TransformJsonStmt); return ok },
+	},
+	{
+		versionGate: versionGate{"microflows", "execute_database_query_runtime_connection", "execute database query … connection ( … )",
+			"this version has no connection arguments on a database query (DatabaseConnector$ConnectionParameterMapping): set the connection on the database connection, or upgrade the project"},
+		types:      []string{"DatabaseConnector$ConnectionParameterMapping"},
+		properties: []string{"DatabaseConnector$ExecuteDatabaseQueryAction.ConnectionParameterMappings"},
+		match: func(st ast.MicroflowStatement) bool {
+			s, ok := st.(*ast.ExecuteDatabaseQueryStmt)
+			return ok && len(s.ConnectionArguments) > 0
+		},
 	},
 	{
 		// The body variable is written for an operation whose body is an export
@@ -93,11 +103,58 @@ var flowActionGates = []typeGate{
 		},
 	},
 	{
+		versionGate: versionGate{"microflows", "execute_database_query", "execute database query",
+			"this version has no database query action (DatabaseConnector$ExecuteDatabaseQueryAction): upgrade the project"},
+		types: []string{"DatabaseConnector$ExecuteDatabaseQueryAction", "DatabaseConnector$QueryParameterMapping"},
+		match: func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.ExecuteDatabaseQueryStmt); return ok },
+	},
+	{
+		versionGate: versionGate{"microflows", "queued_calls", "call … in queue",
+			"this version has no task queues on a call (Queues$QueueSettings): leave out `in queue`, or upgrade the project"},
+		types:      []string{"Queues$QueueSettings"},
+		properties: []string{"Microflows$MicroflowCall.QueueSettings", "Microflows$JavaActionCallAction.QueueSettings"},
+		match: func(st ast.MicroflowStatement) bool {
+			switch s := st.(type) {
+			case *ast.CallMicroflowStmt:
+				return s.Queue != nil
+			case *ast.CallJavaActionStmt:
+				return s.Queue != nil
+			}
+			return false
+		},
+	},
+	{
+		versionGate: versionGate{"microflows", "show_page_with_params", "show page … ( arguments )",
+			"this version passes no arguments to a page from a flow (Forms$PageParameterMapping): pass the object with `for $Object`, or upgrade the project"},
+		types:      []string{"Forms$PageParameterMapping"},
+		properties: []string{"Forms$FormSettings.ParameterMappings"},
+		match: func(st ast.MicroflowStatement) bool {
+			s, ok := st.(*ast.ShowPageStmt)
+			return ok && len(s.Arguments) > 0
+		},
+	},
+	{
 		versionGate: versionGate{"microflows", "list_find_filter_by_expression", "find / filter by expression (a list operation)",
 			"this version has no Microflows$FindByExpression or FilterByExpression: find or filter by a member " +
 				"(`find($List, Member = value)`), or upgrade the project"},
 		types: []string{"Microflows$FindByExpression", "Microflows$FilterByExpression"},
 		match: writesListExpressionOperation,
+	},
+	// Last, out of version order: a loop holds the activities it repeats, and
+	// one of those whose own floor is the later is the more useful refusal.
+	{
+		versionGate: versionGate{"microflows", "loop_over_list", "loop … in $List",
+			"this version stores a loop's list on the loop itself (before Microflows$IterableList), which mxcli does not write: upgrade the project"},
+		types:      []string{"Microflows$IterableList"},
+		properties: []string{"Microflows$LoopedActivity.LoopSource"},
+		match:      func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.LoopStmt); return ok },
+	},
+	{
+		versionGate: versionGate{"microflows", "while_loop", "while",
+			"this version has no while loop (Microflows$WhileLoopCondition): loop over a list, or upgrade the project"},
+		types:      []string{"Microflows$WhileLoopCondition"},
+		properties: []string{"Microflows$LoopedActivity.LoopSource"},
+		match:      func(st ast.MicroflowStatement) bool { _, ok := st.(*ast.WhileStmt); return ok },
 	},
 }
 

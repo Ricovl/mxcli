@@ -62,16 +62,18 @@ The tables below show exactly which features are available on each Mendix versio
 |---------|-----------|-----|-------|-------|-------|
 | Basic microflows | `CREATE MICROFLOW ... BEGIN ... END` | Yes | Yes | Yes | Yes |
 | Loop in branches | `LOOP inside IF/ELSE` | Yes | Yes | Yes | Yes |
+| Loops over a list, while loops | `LOOP $Item IN $List ...`, `WHILE ...` | 9.0.4+ | Yes | Yes | Yes |
+| Show page with arguments | `SHOW PAGE Module.Page (Param = $Value)` | 9.7+ | Yes | Yes | Yes |
+| Calls in a task queue | `CALL MICROFLOW ... IN QUEUE ...`, `CALL JAVA ACTION ... IN QUEUE ...` | 9.10+ | Yes | Yes | Yes |
 | Find and filter by expression | `FIND $List WHERE ...`, `FILTER $List WHERE ...` | 9.0.3+ | Yes | Yes | Yes |
 | Call external action | `CALL EXTERNAL ACTION Module.Service.Action (...)` | 9.19+ (with arguments: --) | Yes (with arguments: 10.2+) | Yes | Yes |
 | Range of a list | `RANGE $List OFFSET ... LIMIT ...` | 9.24+ | Yes | Yes | Yes |
 | SEND REST REQUEST | `SEND REST REQUEST Module.Service.Op` | -- | 10.1+ | Yes | Yes |
 | SEND REST REQUEST arguments, result, body | `... WITH (...)`, `$R = SEND REST REQUEST ...`, `... BODY $Var` | -- | 10.2+, 10.4+, 10.5+ | Yes | Yes |
 | Transform JSON with a data transformer | `$Out = TRANSFORM $Json WITH Module.Transformer` | -- | -- | -- | 11.4+ |
-| Execute database query | `EXECUTE DATABASE QUERY ...` | -- | -- | Yes | Yes |
-| Show page with params | `SHOW PAGE ... WITH PARAMS` | -- | -- | -- | Yes |
+| Execute database query | `EXECUTE DATABASE QUERY ...` | 9.24+ | Yes | Yes | Yes |
 | REST query parameters | `SEND REST REQUEST with QUERY params` | -- | -- | -- | Yes |
-| DB query runtime connection | `EXECUTE DATABASE QUERY CONNECTION ...` | -- | -- | -- | Yes |
+| DB query runtime connection | `EXECUTE DATABASE QUERY ... CONNECTION (...)` | -- | -- | -- | 11.1+ |
 
 Below its version, each of these is refused by `check -p` and by `exec` before
 anything is written, with MDL-VERSION01, wherever it sits in the flow and in what

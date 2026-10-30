@@ -47,6 +47,22 @@ features:
       min_version: "9.24.0"
       mdl: "$Page = RANGE $List OFFSET $Offset LIMIT $Amount;"
       notes: "Microflows$ListRange introduced in 9.24.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    loop_over_list:
+      min_version: "9.0.4"
+      mdl: "LOOP $Item IN $List BEGIN … END LOOP;"
+      notes: "Microflows$IterableList and LoopedActivity.LoopSource introduced in 9.0.4 (mendixmodelsdk 4.117.0); before, a loop stored its list on the activity itself, which mxcli does not write. The write refuses the loop below it; check -p names the statement first (ako/mxcli#1811)."
+    while_loop:
+      min_version: "9.0.4"
+      mdl: "WHILE condition BEGIN … END WHILE;"
+      notes: "Microflows$WhileLoopCondition introduced in 9.0.4 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    queued_calls:
+      min_version: "9.10.0"
+      mdl: "CALL MICROFLOW Module.Flow() IN QUEUE Module.Queue; CALL JAVA ACTION Module.Action() IN QUEUE Module.Queue;"
+      notes: "Queues$QueueSettings and the calls' QueueSettings introduced in 9.10.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    execute_database_query:
+      min_version: "9.24.0"
+      mdl: "$Rows = EXECUTE DATABASE QUERY Module.Connection.Query;"
+      notes: "DatabaseConnector$ExecuteDatabaseQueryAction and QueryParameterMapping introduced in 9.24.0 (mendixmodelsdk 4.117.0); mx 9.24.30 loads the action (CE1613 for a query that does not exist, not a load failure). The 10 and 11 rows said 10.6.0, a floor nothing measured (ako/mxcli#1811)."
 
   pages:
     basic:

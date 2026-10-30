@@ -84,8 +84,14 @@ func TestCheckVersionGates_WorkflowMicroflowActions(t *testing.T) {
 					len(vs) == 0 || !strings.Contains(vs[0].Message, strings.SplitN(err.Error(), "\n", 2)[0]) {
 					t.Errorf("%s %s (%T): exec's refusal %v differs from check's %+v", c.want, place.name, stmt, err, vs)
 				}
-				if vs := versionGateViolations(versionCtx(t, c.floor[0], c.floor[1], c.floor[2]), prog); len(vs) != 0 {
-					t.Errorf("%s %s (%T): reported at its floor %v: %+v", c.want, place.name, stmt, c.floor, vs)
+				// At its floor the action is not reported. A loop placement
+				// below 9.0.4 is — for the loop, gated itself since
+				// ako/mxcli#1811 — and nothing else.
+				for _, v := range versionGateViolations(versionCtx(t, c.floor[0], c.floor[1], c.floor[2]), prog) {
+					loop := strings.Contains(place.name, "loop") && c.floor[0] == 9 && c.floor[1] == 0 && c.floor[2] < 4
+					if !loop || !strings.Contains(v.Message, "loop … in $List requires") && !strings.Contains(v.Message, "while requires") {
+						t.Errorf("%s %s (%T): reported at its floor %v: %+v", c.want, place.name, stmt, c.floor, v)
+					}
 				}
 			}
 		}

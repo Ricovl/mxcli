@@ -82,11 +82,13 @@ features:
       min_version: "11.0.0"
       mdl: "SEND REST REQUEST with query parameters"
     execute_database_query:
-      min_version: "10.6.0"
+      min_version: "9.24.0"
       mdl: "EXECUTE DATABASE QUERY ..."
+      notes: "DatabaseConnector$ExecuteDatabaseQueryAction and QueryParameterMapping introduced in 9.24.0 (mendixmodelsdk 4.117.0); mx 9.24.30 loads the action (CE1613 for a query that does not exist, not a load failure). Was 10.6.0, a floor nothing measured (ako/mxcli#1811)."
     execute_database_query_runtime_connection:
-      min_version: "11.0.0"
+      min_version: "11.1.0"
       mdl: "EXECUTE DATABASE QUERY with runtime connection override"
+      notes: "DatabaseConnector$ConnectionParameterMapping and ExecuteDatabaseQueryAction.ConnectionParameterMappings introduced in 11.1.0 (mendixmodelsdk 4.117.0). Was 11.0.0 (ako/mxcli#1811)."
     loop_in_branch:
       min_version: "10.0.0"
       notes: "LOOP inside IF/ELSE branches"
@@ -122,6 +124,18 @@ features:
       min_version: "11.4.0"
       mdl: "$Out = TRANSFORM $Json WITH Module.Transformer;"
       notes: "Microflows$TransformJsonAction introduced in 11.4.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    loop_over_list:
+      min_version: "9.0.4"
+      mdl: "LOOP $Item IN $List BEGIN … END LOOP;"
+      notes: "Microflows$IterableList and LoopedActivity.LoopSource introduced in 9.0.4 (mendixmodelsdk 4.117.0); before, a loop stored its list on the activity itself, which mxcli does not write. The write refuses the loop below it; check -p names the statement first (ako/mxcli#1811)."
+    while_loop:
+      min_version: "9.0.4"
+      mdl: "WHILE condition BEGIN … END WHILE;"
+      notes: "Microflows$WhileLoopCondition introduced in 9.0.4 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    queued_calls:
+      min_version: "9.10.0"
+      mdl: "CALL MICROFLOW Module.Flow() IN QUEUE Module.Queue; CALL JAVA ACTION Module.Action() IN QUEUE Module.Queue;"
+      notes: "Queues$QueueSettings and the calls' QueueSettings introduced in 9.10.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
 
   pages:
     basic:
@@ -205,8 +219,9 @@ features:
       min_version: "10.6.0"
       mdl: "CREATE DATABASE CONNECTION Module.Name ..."
     database_connector_execute:
-      min_version: "10.6.0"
+      min_version: "9.24.0"
       mdl: "EXECUTE DATABASE QUERY in microflows"
+      notes: "The action microflows.execute_database_query gates: 9.24.0 (ako/mxcli#1811)."
     business_events:
       min_version: "10.0.0"
       mdl: "CREATE BUSINESS EVENT SERVICE Module.Name ..."
