@@ -529,7 +529,9 @@ func validateProgramWithWarnings(ctx *ExecContext, prog *ast.Program) ([]error, 
 	// MDL-RETRIEVE03 over an association: whether `retrieve $L from $h/M.A`
 	// binds a list depends on the association and on which end $h is, so the
 	// no-project rule cannot judge it. Using that list as an object built as
-	// CE0117 / CE7247 (mendixlabs/mxcli#1516).
+	// CE0117 / CE7247 (mendixlabs/mxcli#1516); using the one object a
+	// Reference gives from its FROM end — a self-reference always — as a list
+	// is MDL-RETRIEVE01, CE0013 / CE0097 / CE0100 (ako/mxcli#1793).
 	errors = append(errors, validateAssociationRetrieveListUse(ctx, prog, sc)...)
 	// Resolve the MEMBERS inside a widget's XPath constraint. The entity in
 	// `database from Mod.Entity` was resolved and the `where […]` was not, so a

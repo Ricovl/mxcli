@@ -14,10 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cmd_debug.go is slice 1 of the microflow debugger (see
+// cmd_debug.go is the microflow debugger's CLI (see
 // docs/11-proposals/PROPOSAL_microflow_debugger.md): connect to a runtime's
-// debugger and toggle it (status/enable/disable), starting a session on enable.
-// Breakpoints, paused-microflow inspection, and stepping are later slices.
+// debugger and toggle it (status/enable/disable), starting a session on enable;
+// set breakpoints by name, list and inspect paused flows, step and continue.
 
 var debugCmd = &cobra.Command{
 	Use:   "debug",
@@ -55,7 +55,7 @@ var debugStatusCmd = &cobra.Command{
 		fmt.Printf("Debug client connected: %v\n", st.ClientConnected)
 		fmt.Printf("Paused microflows: %d\n", st.NumberOfPausedMicroflows)
 		if st.NumberOfPausedMicroflows > 0 {
-			fmt.Println("\nNote: paused microflows hold their requests open until 'mxcli debug continue' (a later slice) or 'mxcli debug disable'.")
+			fmt.Println("\nNote: paused microflows hold their requests open until 'mxcli debug continue' (or 'continue --all') or 'mxcli debug disable'.")
 		}
 		return nil
 	},
@@ -76,7 +76,7 @@ var debugEnableCmd = &cobra.Command{
 			return fmt.Errorf("debugger enabled but starting a session failed: %w", err)
 		}
 		fmt.Println("Debugger enabled; debug session started.")
-		fmt.Println("Breakpoints/stepping arrive in a later slice; for now the session is ready.")
+		fmt.Println("Set a breakpoint with 'mxcli debug break <Module.Flow> --activity <#n|caption>'.")
 		fmt.Println("Remember to run 'mxcli debug disable' when done — a breakpoint pauses whoever hits it, the browser included.")
 		return nil
 	},
@@ -176,7 +176,7 @@ var debugBreakCmd = &cobra.Command{
 		if condition != "" {
 			fmt.Printf("  condition: %s\n", condition)
 		}
-		fmt.Println("Any execution that reaches it — including a browser request — pauses until 'continue' (a later slice) or 'mxcli debug disable'.")
+		fmt.Println("Any execution that reaches it — including a browser request — pauses until 'mxcli debug continue' or 'mxcli debug disable'.")
 		return nil
 	},
 }
@@ -289,6 +289,20 @@ var debugInspectCmd = &cobra.Command{
 			return err
 		}
 		asList, _ := cmd.Flags().GetBool("list")
+		if !asList {
+			// get_object takes only an object variable; a primitive (measured:
+			// a String, an enumeration) is refused ("The variable 'X' is not a
+			// Mendix object."), which printed as {} (ako/mxcli#1782). Its value
+			// is in the paused flow's state already, so print it from there.
+			// A variable not in that state (a nanoflow's, which lives in
+			// poll_events) still goes to get_object, refusal and all.
+			if paused, perr := c.PausedMicroflows(); perr == nil {
+				if v, typ, ok := pausedVariable(paused, debugID, args[0]); ok && typ != "object" && typ != "list" {
+					printJSON(v)
+					return nil
+				}
+			}
+		}
 		var raw []byte
 		if asList {
 			raw, err = c.GetList(debugID, args[0])
@@ -331,7 +345,7 @@ var debugStepCmd = &cobra.Command{
 }
 
 var debugContinueCmd = &cobra.Command{
-	Use:   "continue [--all]",
+	Use:   "continue [--flow <debug_id>] [--all]",
 	Short: "Resume a paused microflow (or all with --all)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := resolveDebuggerClient(cmd)
@@ -339,14 +353,24 @@ var debugContinueCmd = &cobra.Command{
 			return err
 		}
 		all, _ := cmd.Flags().GetBool("all")
-		if err := c.Continue(all); err != nil {
+		if all {
+			if err := c.ContinueAll(); err != nil {
+				return err
+			}
+			fmt.Println("Continued all paused microflows.")
+			return nil
+		}
+		// The runtime resumes one flow only by its debug_id; without one it
+		// refuses the request and the flow stays paused.
+		flow, _ := cmd.Flags().GetString("flow")
+		debugID, err := resolveDebugID(c, flow)
+		if err != nil {
 			return err
 		}
-		if all {
-			fmt.Println("Continued all paused microflows.")
-		} else {
-			fmt.Println("Continued.")
+		if err := c.Continue(debugID); err != nil {
+			return err
 		}
+		fmt.Printf("Continued (debug_id: %s).\n", debugID)
 		return nil
 	},
 }
@@ -508,6 +532,7 @@ func init() {
 	debugInspectCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
 	debugInspectCmd.Flags().Bool("list", false, "Inspect a list variable (uses get_list instead of get_object)")
 	debugStepCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
+	debugContinueCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
 	debugContinueCmd.Flags().Bool("all", false, "Continue all paused microflows, not just one")
 
 	debugCmd.AddCommand(debugStatusCmd)
@@ -521,5 +546,17 @@ func init() {
 	debugCmd.AddCommand(debugContinueCmd)
 	debugCmd.AddCommand(debugEnableCmd)
 	debugCmd.AddCommand(debugDisableCmd)
+	// Once a subcommand runs, its arguments were right: an error from there on
+	// is the runtime refusing a request or a flow that is not paused, and the
+	// usage text would bury the runtime's reason. Argument and flag mistakes
+	// fail before RunE and still print the usage.
+	for _, sub := range debugCmd.Commands() {
+		if run := sub.RunE; run != nil {
+			sub.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.SilenceUsage = true
+				return run(cmd, args)
+			}
+		}
+	}
 	rootCmd.AddCommand(debugCmd)
 }

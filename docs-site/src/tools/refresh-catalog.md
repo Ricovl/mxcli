@@ -71,7 +71,13 @@ mxcli -p app.mpr -c "REFRESH CATALOG FULL FORCE"
 
 The catalog is cached in `.mxcli/catalog.db` next to the MPR file. On subsequent refreshes, mxcli checks whether the project has changed and only rebuilds if necessary (unless `FORCE` is specified).
 
-A catalog with the MDL source index (`REFRESH CATALOG FULL SOURCE`) keeps it on every later rebuild, including the ones `SEARCH` and `SHOW REFERENCES` start when the project has changed. Those rebuilds describe again only the documents that changed, and the documents that reference them. Every other row is carried over from the cache, so a rebuild after one edit costs about as much as `REFRESH CATALOG FULL`. Everything is described again when something outside the described documents changes (a folder, a module, the project settings, a Java action), when another mxcli build wrote the cache, and with `FORCE`.
+A catalog with the MDL source index (`REFRESH CATALOG FULL SOURCE`) keeps it on every later rebuild, including the ones `SEARCH` and `SHOW REFERENCES` start when the project has changed. Those rebuilds describe again only the documents that changed, and the documents that reference them. An entity counts as changed when its own definition does, not when another entity of its module does; a change to an association or annotation describes every entity of that module again. Every other row is carried over from the cache, so a rebuild after one edit costs about as much as `REFRESH CATALOG FULL`. Everything is described again when something outside the described documents changes (a folder, a module, the project settings, a Java action), when another mxcli build wrote the cache, and with `FORCE`.
+
+### The unit store (MPR v2)
+
+An MPR v2 project keeps each document in its own file under `mprcontents/`, and a refresh reads all of them. mxcli keeps a compressed copy of those files in `.mxcli/cache/unit-contents.db` and reads a document from its own file only when the file has changed since mxcli last read it (its size or modification time differs, or the `.mpr` records another content hash). A refresh after a save therefore opens one or two files instead of thousands. That matters most on Windows, where a virus scanner inspects every file a process opens.
+
+The store is a cache: deleting it costs one slower refresh, and a store that cannot be read or written is ignored. It is about half the size of `mprcontents/`, and its directory has its own `.gitignore`, so it is never committed even where `.mxcli/` is not ignored.
 
 ## When to Refresh
 

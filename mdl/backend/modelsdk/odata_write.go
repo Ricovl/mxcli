@@ -34,6 +34,10 @@ func init() {
 	// every other part list in this document.
 	codec.RegisterListMarker("ODataPublish$PublishedMicroflow", 3)
 	codec.RegisterListMarker("ODataPublish$PublishedMicroflowParameter", 3)
+	// An action without parameters still writes the list, empty: Studio Pro
+	// serializes it on every action, and `mx convert -p -s` fills an absent one
+	// with [3] on 10.24.24, 11.13.0 and 11.15.0 (ako/mxcli#1805).
+	codec.RegisterMandatoryPropertyList("ODataPublish$PublishedMicroflow", "Parameters", 3)
 	// AllowedModuleRoles empties as marker 1, not 3 — it is a BY_NAME role list,
 	// not a part list. Without the entry, a service with no grants omits the key
 	// entirely, and since the document is serialized wholesale that DELETES the
@@ -464,13 +468,15 @@ func publishedMicroflowToGen(pm *model.PublishedMicroflow) element.Element {
 	addStr(g, "ExposedName", pm.ExposedName)
 	addStr(g, "AlternativeExposedName", "")
 	addStr(g, "Microflow", pm.Microflow)
-	if len(pm.Parameters) > 0 {
-		params := make([]element.Element, 0, len(pm.Parameters))
-		for _, p := range pm.Parameters {
-			params = append(params, publishedMicroflowParameterToGen(p))
-		}
-		addPartList(g, "Parameters", params)
+	// Written with no parameters too, as the empty list (registered mandatory
+	// in init): an action without the key and one with it are two
+	// property-name sets Mendix's merge engine refuses to compare
+	// (ako/mxcli#1805).
+	params := make([]element.Element, 0, len(pm.Parameters))
+	for _, p := range pm.Parameters {
+		params = append(params, publishedMicroflowParameterToGen(p))
 	}
+	addPartList(g, "Parameters", params)
 	if rt := dataTypeElement(pm.ReturnTypeKind, pm.ReturnTypeRef); rt != nil {
 		addPart(g, "ReturnType", rt)
 	}
@@ -552,18 +558,17 @@ func publishedEntitySetToGen(es *model.PublishedEntitySet, entityTypeID string) 
 	if entityTypeID != "" {
 		addIDRef(g, "EntityTypePointer", model.ID(entityTypeID))
 	}
-	if es.ReadMode != "" {
-		addPart(g, "ReadMode", odataReadModeToGen(es.ReadMode))
-	}
-	if es.InsertMode != "" {
-		addPart(g, "InsertMode", odataChangeModeToGen(es.InsertMode))
-	}
-	if es.UpdateMode != "" {
-		addPart(g, "UpdateMode", odataChangeModeToGen(es.UpdateMode))
-	}
-	if es.DeleteMode != "" {
-		addPart(g, "DeleteMode", odataChangeModeToGen(es.DeleteMode))
-	}
+	// All four modes, stated or not. Studio Pro writes every one on every entity
+	// set, so a set whose statement left one out had a property-name set Mendix's
+	// merge engine refuses to compare with its siblings' (ako/mxcli#1805). An
+	// unstated mode is the value Mendix gives the absent property — ReadSource
+	// and ChangeNotSupported, measured with `mx convert -p -s` on 10.24.24,
+	// 11.13.0 and 11.15.0, and what Studio Pro 11.14.0 creates — so writing it
+	// changes nothing the service does.
+	addPart(g, "ReadMode", odataReadModeToGen(es.ReadMode))
+	addPart(g, "InsertMode", odataChangeModeToGen(es.InsertMode))
+	addPart(g, "UpdateMode", odataChangeModeToGen(es.UpdateMode))
+	addPart(g, "DeleteMode", odataChangeModeToGen(es.DeleteMode))
 	return g
 }
 

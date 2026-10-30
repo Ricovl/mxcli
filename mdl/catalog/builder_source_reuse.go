@@ -3,8 +3,12 @@
 package catalog
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // Incremental CATALOG.SOURCE (ako/mxcli#1790).
@@ -16,8 +20,10 @@ import (
 // next build carries a document's row over when nothing its text depends on
 // has changed:
 //
-//   - its own unit's bytes are unchanged (an entity's unit is its module's
-//     domain model, so any change there re-describes all its entities);
+//   - its own unit's bytes are unchanged. An entity is not a unit: its basis
+//     is its own subtree of the domain model (#1803), and the rest of the
+//     domain model is a unit of its own that, when it changes, re-describes
+//     every entity in it;
 //   - no document it references changed: a describe resolves names against
 //     other documents (a called flow's return type, a data source's entity),
 //     so a document whose refs name a changed one is described again;
@@ -166,7 +172,89 @@ func (b *Builder) sourceBasis() map[string]string {
 			hashes[id] = hash + "|" + string(u.ContainerID)
 		}
 	}
+	b.entityBasis(hashes)
 	return hashes
+}
+
+// entityBasis splits each domain model's basis per entity (#1803). Adding an
+// attribute to one entity changes its domain model's unit, and with the unit
+// as the basis every entity of the module was described again, along with
+// everything that references any of them. An entity's describe reads only
+// its own subtree — attributes, rules, indexes, handlers and access rules all
+// live in it, and associations are not printed — so the entity is keyed on a
+// hash of that subtree and its container, and the domain model's own entry
+// covers the rest of it. A change there (an association, an annotation)
+// still re-describes every entity of the module: planSourceReuse treats the
+// domain model as each entity's parent.
+//
+// An entity whose subtree cannot be found keeps the whole domain model's
+// hash, so it is described again whenever anything in its module changes.
+func (b *Builder) entityBasis(hashes map[string]string) {
+	dms, err := b.cachedDomainModels()
+	if err != nil || len(dms) == 0 {
+		return
+	}
+	units, err := b.reader.ListRawUnitsByType("DomainModels$DomainModel")
+	if err != nil {
+		return
+	}
+	raw := map[string][]byte{}
+	for _, u := range units {
+		raw[string(u.ID)] = u.Contents
+	}
+	for _, dm := range dms {
+		dmID := string(dm.ID)
+		unitHash, ok := hashes[dmID]
+		if !ok {
+			continue
+		}
+		residual, entities, ok := splitDomainModel(raw[dmID])
+		for _, ent := range dm.Entities {
+			h, found := entities[ent.Name]
+			if !ok || !found {
+				h = unitHash
+			}
+			hashes[string(ent.ID)] = h + "|" + dmID
+		}
+		if ok {
+			hashes[dmID] = residual + "|" + string(dm.ContainerID)
+		}
+	}
+}
+
+// splitDomainModel hashes a domain model's entities by name, and everything
+// else in it as one residual. ok is false when the contents do not parse.
+func splitDomainModel(contents []byte) (residual string, entities map[string]string, ok bool) {
+	elems, err := bson.Raw(contents).Elements()
+	if err != nil {
+		return "", nil, false
+	}
+	rest := sha256.New()
+	entities = map[string]string{}
+	for _, e := range elems {
+		if e.Key() != "Entities" {
+			rest.Write(e)
+			continue
+		}
+		arr, isArr := e.Value().ArrayOK()
+		if !isArr {
+			return "", nil, false
+		}
+		vals, err := arr.Values()
+		if err != nil {
+			return "", nil, false
+		}
+		for _, v := range vals {
+			doc, isDoc := v.DocumentOK()
+			if !isDoc {
+				continue // the array's leading version marker
+			}
+			name, _ := doc.Lookup("Name").StringValueOK()
+			sum := sha256.Sum256(doc)
+			entities[name] = hex.EncodeToString(sum[:])
+		}
+	}
+	return hex.EncodeToString(rest.Sum(nil)), entities, true
 }
 
 // sourceReusePlan says, per item, whether its previous row can be carried
@@ -177,9 +265,11 @@ type sourceReusePlan struct {
 }
 
 // planSourceReuse decides which items keep their previous row. units maps
-// each item to the unit it is described from; hashes is every unit's content
-// hash now.
-func (b *Builder) planSourceReuse(items []sourceItem, units []string, hashes map[string]string) sourceReusePlan {
+// each item to the basis it is described from (its unit, or for an entity the
+// entity itself), parents to the unit that holds it when that is another one
+// ("" otherwise): a change to the parent changes the item. hashes is every
+// basis now.
+func (b *Builder) planSourceReuse(items []sourceItem, units, parents []string, hashes map[string]string) sourceReusePlan {
 	prev := b.prevSource
 	if prev == nil {
 		return sourceReusePlan{reason: "no previous source index"}
@@ -189,8 +279,11 @@ func (b *Builder) planSourceReuse(items []sourceItem, units []string, hashes map
 	}
 
 	itemUnit := map[string]bool{}
-	for _, u := range units {
+	for i, u := range units {
 		itemUnit[u] = true
+		if parents[i] != "" {
+			itemUnit[parents[i]] = true
+		}
 	}
 	changed := map[string]bool{}
 	for id, h := range hashes {
@@ -203,6 +296,9 @@ func (b *Builder) planSourceReuse(items []sourceItem, units []string, hashes map
 			changed[id] = true
 		}
 	}
+	changedItem := func(i int) bool {
+		return changed[units[i]] || (parents[i] != "" && changed[parents[i]])
+	}
 	for id := range changed {
 		if !itemUnit[id] && !prev.described[id] {
 			return sourceReusePlan{reason: "a unit other than a described document changed"}
@@ -213,7 +309,7 @@ func (b *Builder) planSourceReuse(items []sourceItem, units []string, hashes map
 	// from a changed unit, now and before (a rename or a delete).
 	var names []string
 	for i, it := range items {
-		if changed[units[i]] {
+		if changedItem(i) {
 			names = append(names, it.qn)
 		}
 	}
@@ -227,7 +323,7 @@ func (b *Builder) planSourceReuse(items []sourceItem, units []string, hashes map
 
 	plan := sourceReusePlan{reused: map[int]previousRow{}}
 	for i, it := range items {
-		if changed[units[i]] || dependents[it.qn] {
+		if changedItem(i) || dependents[it.qn] {
 			continue
 		}
 		row, ok := prev.rows[it.id]
@@ -278,13 +374,16 @@ func (b *Builder) sourceDependents(names []string) (map[string]bool, error) {
 
 // persistSourceBasis records what this build described from, so the next one
 // can tell what changed.
-func (b *Builder) persistSourceBasis(items []sourceItem, units []string, hashes map[string]string) error {
+func (b *Builder) persistSourceBasis(items []sourceItem, units, parents []string, hashes map[string]string) error {
 	if hashes == nil || b.sourceFingerprint == "" {
 		return nil
 	}
 	described := map[string]bool{}
-	for _, u := range units {
+	for i, u := range units {
 		described[u] = true
+		if parents[i] != "" {
+			described[parents[i]] = true
+		}
 	}
 	ustmt, err := b.tx.Prepare(`INSERT OR REPLACE INTO source_units (UnitId, Hash, Described) VALUES (?, ?, ?)`)
 	if err != nil {
@@ -319,13 +418,12 @@ func sourceReuseSummary(reused, described int) string {
 	return fmt.Sprintf("source: %d reused, %d described", reused, described)
 }
 
-// sourceUnitOf maps entity element IDs to their domain model's unit; every
-// other source document is its own unit.
-func sourceUnitOf(entityUnit map[string]string, it sourceItem) string {
+// sourceParentOf is the unit that holds an item when that is not the item
+// itself: an entity's domain model. Every other source document is its own
+// unit, and its basis is that unit.
+func sourceParentOf(entityUnit map[string]string, it sourceItem) string {
 	if it.objType == SourceEntity {
-		if u, ok := entityUnit[it.id]; ok {
-			return u
-		}
+		return entityUnit[it.id]
 	}
-	return it.id
+	return ""
 }

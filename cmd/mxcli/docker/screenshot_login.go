@@ -222,7 +222,7 @@ func LoginAndSaveStorage(opts LoginOptions) error {
 	}
 	cmd := exec.Command(node, scriptPath, pkgDir, opts.AppURL, opts.Username, opts.Password, opts.StoragePath)
 	// PLAYWRIGHT_BROWSERS_PATH resolves Chromium; NODE_PATH resolves Playwright.
-	cmd.Env = append(os.Environ(), "NODE_PATH="+playwrightNodePath(node))
+	cmd.Env = directRouteEnv(append(os.Environ(), "NODE_PATH="+playwrightNodePath(node)), opts.AppURL)
 	if exe := headlessShellPath(); exe != "" {
 		cmd.Env = append(cmd.Env, "MXCLI_CHROMIUM_EXE="+exe)
 	}
@@ -313,7 +313,7 @@ func SignOut(opts SignOutOptions) error {
 		timeout = 60 * time.Second
 	}
 	cmd := exec.Command(node, scriptPath, opts.AppURL, opts.StoragePath)
-	cmd.Env = append(os.Environ(), "NODE_PATH="+playwrightNodePath(node))
+	cmd.Env = directRouteEnv(append(os.Environ(), "NODE_PATH="+playwrightNodePath(node)), opts.AppURL)
 	if exe := headlessShellPath(); exe != "" {
 		cmd.Env = append(cmd.Env, "MXCLI_CHROMIUM_EXE="+exe)
 	}

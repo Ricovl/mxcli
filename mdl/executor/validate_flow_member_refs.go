@@ -70,6 +70,14 @@ func (r *flowMemberRefs) catalog() associationCatalog {
 // chain is entityQN's generalization chain through the script's declarations
 // and then the project.
 func (r *flowMemberRefs) chain(entityQN string) ([]string, bool) {
+	return scriptGeneralizationChain(r.ctx, r.sc, entityQN)
+}
+
+// scriptGeneralizationChain is entityQN's generalization chain, itself first,
+// through the entities the script declares and then the project's: a check
+// runs before the script's entities exist, so the project alone does not
+// know a specialization the same script creates.
+func scriptGeneralizationChain(ctx *ExecContext, sc *scriptContext, entityQN string) ([]string, bool) {
 	var chain []string
 	seen := map[string]bool{}
 	for qn := entityQN; qn != ""; {
@@ -77,12 +85,12 @@ func (r *flowMemberRefs) chain(entityQN string) ([]string, bool) {
 			return chain, false
 		}
 		seen[qn] = true
-		if r.sc != nil && r.sc.entities[qn] {
+		if sc != nil && sc.entities[qn] {
 			chain = append(chain, qn)
-			qn = r.sc.entityGeneralizations[strings.ToLower(qn)]
+			qn = sc.entityGeneralizations[strings.ToLower(qn)]
 			continue
 		}
-		rest, complete := generalizationChain(r.ctx, qn)
+		rest, complete := generalizationChain(ctx, qn)
 		return append(chain, rest...), complete
 	}
 	return chain, true

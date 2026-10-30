@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -154,8 +155,16 @@ end;
 `},
 		// A rename rewrites the callers too; the old name's row must go.
 		{"rename a flow", "rename microflow MyFirstModule.MF_Chain004 to MF_Chain004b;"},
-		// A domain model change re-describes its entities and what uses them.
+		// A domain model change re-describes the changed entity and what uses
+		// it, and not the module's other entities.
 		{"alter an entity", "alter entity FeedbackModule.Feedback add attribute IncrementalProbe: String;"},
+		{"alter one of two entities", "alter entity MyFirstModule.ProbeA add attribute Extra: String;"},
+		// An association lives in the domain model outside every entity: its
+		// change re-describes every entity of the module.
+		{"add an association", "create association MyFirstModule.ProbeA_ProbeB from MyFirstModule.ProbeA to MyFirstModule.ProbeB;"},
+		{"drop an association", "drop association MyFirstModule.ProbeA_ProbeB;"},
+		// The old name's row must go, and what printed it must follow.
+		{"rename an entity", "rename entity MyFirstModule.ProbeB to ProbeC;"},
 		// A new folder is a unit no describe covers: everything is described.
 		{"move a flow to a new folder", "move microflow MyFirstModule.MF_Chain001 to folder 'Probes';"},
 		// A move into an existing folder changes no unit's bytes, only its
@@ -164,6 +173,25 @@ end;
 		// A deleted document's row must not survive.
 		{"drop a flow", "drop microflow MyFirstModule.MF_Added;"},
 	}
+	// What a step's build must describe again, and what it must carry over:
+	// an entity's row depends on its own subtree only, so a change to one
+	// entity leaves its siblings alone (#1803), while a change to the rest of
+	// the domain model describes them all.
+	expect := map[string]struct{ described, kept []string }{
+		"alter an entity":           {[]string{"FeedbackModule.Feedback"}, []string{"FeedbackModule.ResponseHelper"}},
+		"alter one of two entities": {[]string{"MyFirstModule.ProbeA"}, []string{"MyFirstModule.ProbeB"}},
+		"add an association":        {[]string{"MyFirstModule.ProbeA", "MyFirstModule.ProbeB"}, nil},
+		"rename an entity":          {[]string{"MyFirstModule.ProbeC"}, nil},
+	}
+	var mu sync.Mutex
+	describedNow := map[string]bool{}
+	sourceDescribeHook = func(_, qn string) {
+		mu.Lock()
+		describedNow[qn] = true
+		mu.Unlock()
+	}
+	t.Cleanup(func() { sourceDescribeHook = nil })
+
 	reusedAny := false
 	for _, s := range steps {
 		if s.mdl != "" {
@@ -171,7 +199,18 @@ end;
 				t.Fatalf("%s: %v\n%s", s.name, err, out.String())
 			}
 		}
+		clear(describedNow)
 		got, buildOut := sourceBuild(t, exec, false)
+		for _, qn := range expect[s.name].described {
+			if !describedNow[qn] {
+				t.Errorf("%s: %s was carried over, want it described again", s.name, qn)
+			}
+		}
+		for _, qn := range expect[s.name].kept {
+			if describedNow[qn] {
+				t.Errorf("%s: %s was described again, want its row carried over", s.name, qn)
+			}
+		}
 		n := reusedCount(buildOut)
 		if n > 0 {
 			reusedAny = true
