@@ -167,27 +167,9 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pinned := append([]typeGate{
-		// ako/mxcli#1809: every statement that writes a workflow document.
-		{versionGate: workflowBasicGate("create workflow"), types: []string{"Workflows$Workflow"}},
-		{versionGate: waitForNotificationGate, types: []string{"Workflows$WaitForNotificationActivity"}},
-		{versionGate: waitForTimerGate, types: []string{"Workflows$WaitForTimerActivity"}},
-		{versionGate: timerBoundaryEventGate, types: []string{"Workflows$TimerBoundaryEvent"}},
-		{versionGate: interruptingTimerBoundaryEventGate, types: []string{
-			"Workflows$InterruptingTimerBoundaryEvent", "Workflows$NonInterruptingTimerBoundaryEvent"}},
-		{versionGate: workflowDefinitionSelectionGate, types: []string{
-			"Workflows$WorkflowDefinitionNameSelection", "Workflows$WorkflowDefinitionObjectSelection"}},
-	}, workflowActionGates...)
-	pinned = append(pinned, flowActionGates...)
-	for _, g := range workflowShapeGates {
-		pinned = append(pinned, g.typeGate)
-	}
-	for _, g := range documentTypeGates {
-		pinned = append(pinned, g.typeGate)
-	}
-	pinned = append(pinned, viewEntityGate)
-	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 || len(workflowShapeGates) == 0 {
-		t.Fatal("no workflow action, flow action or workflow shape gates")
+	pinned := allTypeGates()
+	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 || len(workflowShapeGates) == 0 || len(documentTypeGates) == 0 {
+		t.Fatal("no workflow action, flow action, workflow shape or document gates")
 	}
 	for _, g := range pinned {
 		if len(g.types) == 0 {
