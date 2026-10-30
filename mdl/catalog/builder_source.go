@@ -87,7 +87,9 @@ func (b *Builder) buildSource() error {
 	// Phase 1: Collect all items to describe (fast — uses cached lists)
 	var items []sourceItem
 
-	// Entities
+	// Entities. An entity is described from its module's domain model, the
+	// unit whose hash says whether it changed.
+	entityUnit := map[string]string{}
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
@@ -95,6 +97,7 @@ func (b *Builder) buildSource() error {
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			for _, ent := range dm.Entities {
 				items = append(items, sourceItem{SourceEntity, moduleName + "." + ent.Name, moduleName, string(ent.ID)})
+				entityUnit[string(ent.ID)] = string(dm.ID)
 			}
 		}
 	}
@@ -204,11 +207,26 @@ func (b *Builder) buildSource() error {
 		return nil
 	}
 
+	// Carry over the rows whose basis has not changed (#1790); describe the
+	// rest. Without unit hashes nothing is reused and nothing is recorded.
+	units := make([]string, len(items))
+	for i, it := range items {
+		units[i] = sourceUnitOf(entityUnit, it)
+	}
+	hashes := b.sourceBasis()
+	plan := b.planSourceReuse(items, units, hashes)
+	toDescribe := make([]sourceItem, 0, len(items))
+	for i, it := range items {
+		if _, ok := plan.reused[i]; !ok {
+			toDescribe = append(toDescribe, it)
+		}
+	}
+
 	// Phase 2: Generate MDL source in parallel. This is the slow phase on large
 	// projects (one describe per document), so report progress periodically —
 	// from a single ticker goroutine, the only caller of report() during the
 	// run, so the progress sink isn't written concurrently.
-	total := len(items)
+	total := len(toDescribe)
 	stop := make(chan struct{})
 	var done atomic.Int64
 	go func() {
@@ -224,7 +242,7 @@ func (b *Builder) buildSource() error {
 		}
 	}()
 
-	results, failures := runDescribes(items, b.describeFunc,
+	results, failures := runDescribes(toDescribe, b.describeFunc,
 		max(min(runtime.NumCPU(), 8), 1),
 		func(n int) { done.Store(int64(n)) })
 
@@ -248,7 +266,18 @@ func (b *Builder) buildSource() error {
 		stmt.Exec(res.item.qn, res.item.objType, res.text, res.item.moduleName, res.item.id)
 		count++
 	}
+	for i, row := range plan.reused {
+		it := items[i]
+		stmt.Exec(it.qn, it.objType, row.text, it.moduleName, it.id)
+		count++
+	}
+	if err := b.persistSourceBasis(items, units, hashes); err != nil {
+		return err
+	}
 
+	if len(plan.reused) > 0 {
+		b.report(sourceReuseSummary(len(plan.reused), len(toDescribe)), len(toDescribe))
+	}
 	b.report("source", count)
 
 	// Report what produced no row. Silence here is what let #912 sit unnoticed:

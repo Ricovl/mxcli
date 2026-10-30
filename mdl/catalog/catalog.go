@@ -446,7 +446,7 @@ func (c *Catalog) migrateIfSchemaMismatch() error {
 	for _, key := range []string{
 		MetaMprPath, MetaMprModTime, MetaMendixVersion,
 		MetaBuildMode, MetaBuildTime, MetaBuildDuration,
-		MetaGraphAnalysis, MetaGraphResolution,
+		MetaGraphAnalysis, MetaGraphResolution, MetaSourceFingerprint,
 	} {
 		if _, err := c.db.Exec(`DELETE FROM catalog_meta WHERE Key = ?`, key); err != nil {
 			return fmt.Errorf("clearing cache-info key %s: %w", key, err)

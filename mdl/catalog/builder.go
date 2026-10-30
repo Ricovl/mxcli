@@ -96,6 +96,12 @@ type Builder struct {
 	resolution      float64   // Leiden resolution for the graph-analysis pass
 	describeFunc    DescribeFunc
 
+	// prevSource is the last source build's rows and basis, and
+	// sourceFingerprint the mxcli build writing this one: together they let
+	// unchanged documents keep their rows (builder_source_reuse.go).
+	prevSource        *PreviousSource
+	sourceFingerprint string
+
 	// The project's DefaultLanguageCode, resolved once per build by
 	// defaultLanguage(). Texts (enumeration value captions today) are read in
 	// this language: see language.go.
