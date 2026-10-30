@@ -1,0 +1,199 @@
+mdl 1;
+-- ako/mxcli#1811: microflow activities and document shapes the write refuses
+-- below their Mendix version (canon.UndeclaredTypeError and the property
+-- floor, #1774) passed `mxcli check -p`, and exec refused them part-way
+-- through the script. On 9.24.30, before:
+--
+--   this Mendix 9.24.30 project cannot store Rest$RestOperation.Method
+--   (Mendix 10.4.0+); Rest$RestOperation.ResponseHandling (Mendix 10.3.0+) …
+--
+-- `check -p` and exec's pre-flight now report each with MDL-VERSION01. The
+-- floors are the write's — the latest type or property the shape stores —
+-- pinned to the Model SDK's data by TestTypeGates_FloorIsTheTypeIntroduction,
+-- and TestTypeGates_CoverEveryWrittenType fails for a written type above 9.0.0
+-- that no gate covers. The Mendix 11 shapes are in
+-- 1811-mendix-11-shapes-below-their-version.mdl.
+--
+--   find / filter … where                                   9.0.3
+--   loop over a list, while                                 9.0.4
+--   show page with arguments                                9.7
+--   create scheduled event                                  9.12
+--   a workflow parameter / a user task                      9.18 / 9.19
+--   range                                                   9.24
+--   create database connection (with a query)               10.0 (10.12)
+--   send rest request (result variable)                     10.1 (10.4)
+--   a consumed REST service's operation                     10.4
+--   a not-found page                                        10.13
+--   page variables                                          10.20
+--   create view entity (its source document)                10.21
+--
+-- EXPECTED: `mxcli check` passes this file. Measured on fresh apps
+-- (`mxcli new …`), check -p, exec, then mx check:
+--   9.24.30.51827    MDL-VERSION01 for statements 15 (database connection,
+--                    10.0), 16 (REST service, 10.1), 17 and 19 (send rest
+--                    request, 10.1), 21 (not-found page, 10.13), 22 (page
+--                    variable, 10.20) and 23 (view entity, 10.21); exec writes
+--                    nothing (App.mpr byte-identical). Before: only 16 and 23
+--                    (at 10.18); without those two, check -p passed the script
+--                    and exec refused the database connection at write time
+--                    ("cannot store DatabaseConnector$DatabaseConnection.
+--                    ConnectionInput (Mendix 10.0.0+); …DatabaseQuery.QueryType
+--                    (Mendix 10.12.0+) …"). Statements 1 to 14 alone (the 9.x
+--                    floors) pass check -p, exec writes them, mx check 0 errors.
+--   10.24.24.119653  none, before and after; exec writes everything, mx check
+--                    0 errors.
+
+create module Probe1811;
+
+create persistent entity Probe1811.Sale (
+  Code: String(20),
+  Amount: Decimal
+);
+
+create non-persistent entity Probe1811.Row (
+  Code: String(20)
+);
+
+create constant Probe1811.DbUrl ( Type: String, DefaultValue: 'jdbc:postgresql://localhost:5432/probe' );
+
+create microflow Probe1811.MF_FindFilter ($Sales: List of Probe1811.Sale)
+begin
+  $Big = find $Sales where $currentObject/Amount > 100;
+  $Small = filter $Sales where $currentObject/Amount <= 100;
+end;
+
+create microflow Probe1811.MF_Loops ($Sales: List of Probe1811.Sale)
+begin
+  declare $Count Integer = 0;
+  loop $Sale in $Sales
+  begin
+    set $Count = $Count + 1;
+  end loop;
+  while $Count > 0
+  begin
+    set $Count = $Count - 1;
+  end while;
+end;
+
+create page Probe1811.P_Sale (Title: 'Sale', Layout: Atlas_Core.Atlas_Default, Params: ($Sale: Probe1811.Sale)) {
+  layoutgrid lgSale {
+    row {
+      column (DesktopWidth: autofill) {
+        dataview dvSale (DataSource: $Sale) {
+          textbox txtCode (Attribute: Code)
+        }
+      }
+    }
+  }
+};
+
+create microflow Probe1811.MF_ShowSale ($Sale: Probe1811.Sale)
+begin
+  show page Probe1811.P_Sale(Sale = $Sale);
+end;
+
+create microflow Probe1811.MF_Job ()
+begin
+  log info node 'Probe1811' 'job';
+end;
+
+create scheduled event Probe1811.SE_Nightly (
+  Microflow: Probe1811.MF_Job,
+  Repeat: Daily,
+  HourOfDay: 4,
+  MinuteOfHour: 0,
+  TimeZone: Server,
+  Enabled: false
+);
+
+create microflow Probe1811.ACT_Review ($WorkflowContext: Probe1811.Sale)
+begin
+  log info node 'Probe1811' 'review';
+end;
+
+create page Probe1811.P_Task (Title: 'Task', Layout: Atlas_Core.Atlas_Default, Params: ($WorkflowUserTask: System.WorkflowUserTask)) {
+  dynamictext txtTask (Content: 'Review the sale')
+  actionbutton btnDone (Caption: 'Done', Action: complete task 'Done')
+};
+
+create workflow Probe1811.WF_Review
+  parameter $WorkflowContext: Probe1811.Sale
+  display 'Review'
+begin
+  call microflow Probe1811.ACT_Review as review;
+  user task approve 'Approve'
+    page Probe1811.P_Task
+    targeting users xpath [id = '[%CurrentUser%]']
+    outcomes 'Done' { };
+end workflow;
+
+create microflow Probe1811.MF_Range ($Sales: List of Probe1811.Sale)
+begin
+  $Page = range $Sales offset 0 limit 10;
+end;
+
+-- 10.0: the connection's input is a DatabaseConnector$ConnectionString;
+-- 10.12: a query's QueryType. (execute database query, 9.24, is left out:
+-- mx check wants the External Database Connector module for it.)
+create database connection Probe1811.Db (
+  Type: 'PostgreSQL',
+  ConnectionString: @Probe1811.DbUrl,
+  Username: @Probe1811.DbUrl,
+  Password: @Probe1811.DbUrl
+) {
+  query AllRows (
+    Sql: 'SELECT code FROM rows',
+    Returns: Probe1811.Row,
+    Map: (
+      Code = code
+    )
+  )
+};
+
+-- 10.4: every operation stores its method and response handling.
+create consumed rest service Probe1811.Api (
+  BaseUrl: 'https://example.com',
+  authentication: none
+)
+{
+  operation GetStatus (
+    method: get,
+    path: '/status',
+    headers: ('Accept': '*/*'),
+    response: none
+  )
+};
+
+create microflow Probe1811.MF_Rest ()
+begin
+  send rest request Probe1811.Api.GetStatus;
+end;
+
+create microflow Probe1811.MF_Spliced ()
+begin
+  declare $Marker String = 'before';
+end;
+
+alter microflow Probe1811.MF_Spliced {
+  insert after $Marker begin
+    send rest request Probe1811.Api.GetStatus;
+  end;
+};
+
+create page Probe1811.P_NotFound (Title: 'Not found', Layout: Atlas_Core.Atlas_Default) {
+  dynamictext txtNotFound (Content: 'Not found')
+};
+
+alter navigation Responsive {
+  set not found page Probe1811.P_NotFound;
+};
+
+alter page Probe1811.P_NotFound {
+  add variables $ShowHelp: boolean = false;
+};
+
+create view entity Probe1811.V_SaleCodes (
+  Code: String(20)
+) as (
+  select s.Code as Code from Probe1811.Sale as s
+);

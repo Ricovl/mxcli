@@ -1,0 +1,71 @@
+mdl 1;
+-- ako/mxcli#1811: the Mendix 11 shapes of the sweep, which a 10.24 project
+-- cannot store. Before, `mxcli check -p` passed each of them on 10.24.24 and
+-- the write refused it part-way through exec; now check -p and exec's
+-- pre-flight report MDL-VERSION01 for each, naming the version:
+--
+--   a REST operation's query parameter                      11.0
+--   execute database query … connection ( … )               11.1
+--   transform … with (a data transformer)                   11.4
+--
+-- (The 10.x and 9.x shapes are in 1811-actions-below-their-version.mdl.)
+--
+-- EXPECTED: `mxcli check` passes this file. Measured on a fresh 10.24.24.119653
+-- app: check -p reports statements 6, 7 and 8; exec writes nothing (the
+-- project is byte-identical); mx check 0 errors. Before: check -p clean, and exec refused the
+-- REST service at write time (Rest$RestOperation.QueryParameters, Mendix
+-- 11.0.0+), after writing the module and the entities.
+
+create module Probe1811m;
+
+create non-persistent entity Probe1811m.Row (
+  Code: String(20)
+);
+
+create constant Probe1811m.DbUrl ( Type: String, DefaultValue: 'jdbc:postgresql://localhost:5432/probe' );
+
+create database connection Probe1811m.Db (
+  Type: 'PostgreSQL',
+  ConnectionString: @Probe1811m.DbUrl,
+  Username: @Probe1811m.DbUrl,
+  Password: @Probe1811m.DbUrl
+) {
+  query ByCode (
+    Sql: 'SELECT code FROM rows WHERE code = {code}',
+    Parameters: ( code: string default 'x' ),
+    Returns: Probe1811m.Row,
+    Map: (
+      Code = code
+    )
+  )
+};
+
+create microflow Probe1811m.MF_Job ()
+begin
+  log info node 'Probe1811m' 'job';
+end;
+
+create consumed rest service Probe1811m.Search (
+  BaseUrl: 'https://example.com',
+  authentication: none
+)
+{
+  operation Find (
+    method: get,
+    path: '/search',
+    query: ($q: string),
+    response: none
+  )
+};
+
+create microflow Probe1811m.MF_QueryOverride ()
+begin
+  -- The query argument list is written out: with none, the connection
+  -- arguments are read as the query's (a parser issue outside this fix).
+  $Rows = execute database query Probe1811m.Db.ByCode (code = 'x') connection (Url = 'jdbc:postgresql://other:5432/probe');
+end;
+
+create microflow Probe1811m.MF_Transform ($Json: String)
+begin
+  $Out = transform $Json with Probe1811m.Flatten;
+end;

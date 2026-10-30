@@ -116,6 +116,13 @@ RETRIEVE $Lines FROM $Order/Sales.OrderLine_Order;
 RETRIEVE $Customer FROM $Order/Sales.Order_Customer;
 ```
 
+What it binds follows the association: from the FROM entity of a Reference, the one
+object it points at; from its TO entity, the list of objects pointing at it (one object
+when the owner is Both); over a Reference set, a list from either end. A self-reference
+is followed from its FROM end, so a Reference from an entity to itself gives the one
+object and a Reference set the list. `mxcli check -p --references` reports a list used
+as an object (MDL-RETRIEVE03) and an object used as a list (MDL-RETRIEVE01).
+
 The association path uses the format `$Variable/Module.AssociationName`. A bare
 name (`$Order/Order_Customer`) is resolved against the variable's entity — through
 its generalizations, from either end of the association — when exactly one

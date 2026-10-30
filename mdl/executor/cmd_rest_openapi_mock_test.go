@@ -43,15 +43,17 @@ const minimalOpenAPISpec = `{
 
 // newOpenAPIMockBackend returns a MockBackend pre-wired for OpenAPI import
 // tests: write-connected, a project version that satisfies the REST client
-// feature gate, and no pre-existing REST clients.
+// feature gates, and no pre-existing REST clients. 10.21 is the floor of the
+// stored OpenAPI document (Rest$OpenApiFile): the write refuses one on 10.6,
+// measured on a stamped project, and so does the gate (ako/mxcli#1811).
 func newOpenAPIMockBackend() *mock.MockBackend {
 	return &mock.MockBackend{
 		IsConnectedFunc: func() bool { return true },
 		ProjectVersionFunc: func() *types.ProjectVersion {
 			return &types.ProjectVersion{
-				ProductVersion: "10.6.0",
+				ProductVersion: "10.21.0",
 				MajorVersion:   10,
-				MinorVersion:   6,
+				MinorVersion:   21,
 				PatchVersion:   0,
 			}
 		},

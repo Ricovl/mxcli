@@ -640,7 +640,7 @@ func TestMxCheck_ViewEntitySimple(t *testing.T) {
 
 	env := setupTestEnv(t)
 	defer env.teardown()
-	env.requireMinVersion(t, 10, 18) // VIEW ENTITY requires 10.18+
+	env.requireMinVersion(t, 10, 21) // VIEW ENTITY requires 10.21+ (its source document, ako/mxcli#1811)
 
 	mod := testModule
 
@@ -695,7 +695,7 @@ func TestMxCheck_ViewEntityWithAggregates(t *testing.T) {
 
 	env := setupTestEnv(t)
 	defer env.teardown()
-	env.requireMinVersion(t, 10, 18) // VIEW ENTITY requires 10.18+
+	env.requireMinVersion(t, 10, 21) // VIEW ENTITY requires 10.21+ (its source document, ako/mxcli#1811)
 
 	mod := testModule
 

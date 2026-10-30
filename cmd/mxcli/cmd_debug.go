@@ -14,10 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cmd_debug.go is slice 1 of the microflow debugger (see
+// cmd_debug.go is the microflow debugger's CLI (see
 // docs/11-proposals/PROPOSAL_microflow_debugger.md): connect to a runtime's
-// debugger and toggle it (status/enable/disable), starting a session on enable.
-// Breakpoints, paused-microflow inspection, and stepping are later slices.
+// debugger and toggle it (status/enable/disable), starting a session on enable;
+// set breakpoints by name, list and inspect paused flows, step and continue.
 
 var debugCmd = &cobra.Command{
 	Use:   "debug",
@@ -55,7 +55,7 @@ var debugStatusCmd = &cobra.Command{
 		fmt.Printf("Debug client connected: %v\n", st.ClientConnected)
 		fmt.Printf("Paused microflows: %d\n", st.NumberOfPausedMicroflows)
 		if st.NumberOfPausedMicroflows > 0 {
-			fmt.Println("\nNote: paused microflows hold their requests open until 'mxcli debug continue' (a later slice) or 'mxcli debug disable'.")
+			fmt.Println("\nNote: paused microflows hold their requests open until 'mxcli debug continue' (or 'continue --all') or 'mxcli debug disable'.")
 		}
 		return nil
 	},
@@ -76,7 +76,7 @@ var debugEnableCmd = &cobra.Command{
 			return fmt.Errorf("debugger enabled but starting a session failed: %w", err)
 		}
 		fmt.Println("Debugger enabled; debug session started.")
-		fmt.Println("Breakpoints/stepping arrive in a later slice; for now the session is ready.")
+		fmt.Println("Set a breakpoint with 'mxcli debug break <Module.Flow> --activity <#n|caption>'.")
 		fmt.Println("Remember to run 'mxcli debug disable' when done — a breakpoint pauses whoever hits it, the browser included.")
 		return nil
 	},
@@ -176,7 +176,7 @@ var debugBreakCmd = &cobra.Command{
 		if condition != "" {
 			fmt.Printf("  condition: %s\n", condition)
 		}
-		fmt.Println("Any execution that reaches it — including a browser request — pauses until 'continue' (a later slice) or 'mxcli debug disable'.")
+		fmt.Println("Any execution that reaches it — including a browser request — pauses until 'mxcli debug continue' or 'mxcli debug disable'.")
 		return nil
 	},
 }

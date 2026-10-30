@@ -422,6 +422,22 @@ and a list parameter build. For one object, retrieve it from the database:
 retrieve $L from Mod.Line where [Mod.Line_Header = $h] first;
 ```
 
+The reverse is reported as **MDL-RETRIEVE01** (ako/mxcli#1793): the one object a
+Reference gives from its FROM entity, taken as a list. An aggregate of it (`count`, `sum`,
+…) is CE0013 "Input variable 'P' must be of type 'List'.", a list operation (`head`,
+`filter`, …) CE0097, a `loop` CE0100 and a list parameter CE0117 — measured on 11.13.0.
+A **self-reference** (`Mod.Order_Parent` from `Mod.Order` to `Mod.Order`) is always
+followed from its FROM end, from an `Order` and from a specialization of it alike: a
+Reference gives the one object, a Reference set the list. `range`, `add`, `remove` and
+`clear` over the object are not reported — mx check does not type their variable.
+
+```
+$P = retrieve over Mod.Order_Parent from $Order (a Mod.Order) is one Mod.Order — a
+Reference followed from its FROM end, which is how Mendix follows a self-reference — so
+`count` cannot take it: mxbuild rejects it with CE0013 "Input variable 'P' must be of
+type 'List'." [MDL-RETRIEVE01]
+```
+
 A flow already stored with such a member describes with a `-- WARNING` on the change
 line. `create or modify` will not splice over it: without the header it rebuilds the flow
 (which repairs it), and under `mdl 1;` it refuses with the drop-and-create advice.
