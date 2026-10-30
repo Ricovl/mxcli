@@ -1,0 +1,116 @@
+mdl 1;
+-- ako/mxcli#1787: the workflow microflow actions an older Mendix does not
+-- have passed `mxcli check -p`, and only the write refused them
+-- (canon.UndeclaredTypeError, #1774) — part-way through the script, after the
+-- statements before them were written; with --continue-on-error the rest ran
+-- without that microflow. On 9.24.30:
+--
+--   this Mendix 9.24.30 project cannot store Microflows$GetWorkflowsAction
+--   (Mendix 10.4.0+): the type did not exist yet in this version …
+--
+-- `check -p` and exec's pre-flight now refuse each with MDL-VERSION01, naming
+-- the statement and the version, wherever it sits in the microflow and in
+-- what an `alter microflow` inserts. Each floor is the type's introduction in
+-- mendixmodelsdk 4.117.0, pinned to the type data by
+-- TestTypeGates_FloorIsTheTypeIntroduction:
+--
+--   call workflow, set task outcome, open user task, open workflow   9.0.2
+--   workflow operation abort / restart                               9.2
+--   workflow operation pause / continue                              9.3
+--   get workflow data                                                9.10
+--   workflow operation retry / unpause                               9.12
+--   notify workflow                                                  10.0
+--   get workflows, get workflow activity records                     10.4
+--
+-- (lock / unlock workflow, 9.21, are gated at 10.0 by the selection that
+-- names their workflow: 1774-workflow-types-below-their-version.mdl.)
+--
+-- EXPECTED: `mxcli check` passes this file. Measured on fresh apps
+-- (`mxcli new … --skip-build`), check -p, exec, then mx check:
+--   9.24.30.51827    MDL-VERSION01 for WF_Notify (wait for notification,
+--                    #1774), MF_Notify (10.0), MF_GetWorkflows (10.4),
+--                    MF_ActivityRecords (10.4) and the alter microflow
+--                    (10.4); exec writes nothing (App.mpr byte-identical).
+--                    Before: only WF_Notify. Without WF_Notify, check -p
+--                    passed the script, and exec refused MF_Notify at write
+--                    time; --continue-on-error --no-check wrote the other
+--                    five statements, mx check 0 errors, so MF_Older's
+--                    actions (9.0.2 to 9.12) load on 9.24.
+--   10.24.24.119653  none, before and after; exec writes everything, mx
+--                    check 0 errors.
+
+create module Probe1787;
+
+create persistent entity Probe1787.Request (
+  Title: String(100)
+);
+
+create microflow Probe1787.ACT_Validate ($WorkflowContext: Probe1787.Request)
+begin
+  log info node 'Probe1787' 'validate';
+end;
+
+create workflow Probe1787.WF_Approve
+  parameter $WorkflowContext: Probe1787.Request
+  display 'Approve'
+begin
+  call microflow Probe1787.ACT_Validate as validate;
+end workflow;
+
+-- The target of `notify workflow`: a wait for notification is itself 10.0.
+create workflow Probe1787.WF_Notify
+  parameter $WorkflowContext: Probe1787.Request
+  display 'Notify'
+begin
+  wait for notification WaitForApproval;
+end workflow;
+
+-- 9.0.2 to 9.12: accepted on 9.24 and later. `set task outcome` draws the
+-- MDL-WORKFLOW10 warning; the claim it suggests
+-- (System.WorkflowUserTask_Assignees) is CE1613 on 9.24.30, so it is left out.
+create microflow Probe1787.MF_Older (
+  $Request: Probe1787.Request,
+  $Wf: System.Workflow,
+  $UserTask: System.WorkflowUserTask
+)
+begin
+  $Started = call workflow Probe1787.WF_Approve ($Request);
+  $Context = get workflow data $Wf as Probe1787.WF_Approve;
+  set task outcome $UserTask 'Approve';
+  open user task $UserTask;
+  open workflow $Wf;
+  workflow operation pause $Wf;
+  workflow operation continue $Wf;
+  workflow operation restart $Wf;
+  workflow operation abort $Wf reason 'no longer needed';
+  workflow operation retry $Wf;
+  workflow operation unpause $Wf;
+end;
+
+create microflow Probe1787.MF_Notify ($Wf: System.Workflow)
+returns Boolean as $Notified
+begin
+  $Notified = notify workflow $Wf target Probe1787.WF_Notify.WaitForApproval;
+  return $Notified;
+end;
+
+create microflow Probe1787.MF_GetWorkflows ($Request: Probe1787.Request)
+begin
+  $Workflows = get workflows for $Request;
+end;
+
+-- Nested in a decision: the gate walks branches, loops and error handlers.
+create microflow Probe1787.MF_ActivityRecords ($Wf: System.Workflow)
+begin
+  if $Wf != empty then
+    $Records = get workflow activity records $Wf;
+  end if;
+end;
+
+-- What an alter inserts is gated as the same statement in a create: MF_Older
+-- is accepted on 9.24, this insert into it is not.
+alter microflow Probe1787.MF_Older {
+  insert after $Started begin
+    $Running = get workflows for $Request;
+  end;
+};

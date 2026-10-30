@@ -49,9 +49,9 @@ Under the hood the debugger spans two runtime APIs, which `mxcli debug` hides:
 | `mxcli debug unbreak <Module.Flow> --activity <#n\|caption>` | Clear a breakpoint |
 | `mxcli debug breaks` | List the breakpoints set this session (name → object ID) |
 | `mxcli debug paused` | Paused microflows + full state (variables) |
-| `mxcli debug inspect <var> [--list] [--flow <debug_id>]` | Inspect one variable of a paused flow; `--list` inspects a list variable (`get_list`) |
+| `mxcli debug inspect <var> [--list] [--flow <debug_id>]` | Inspect one variable of a paused flow — an object's members, or a primitive's value (String, enumeration, …); `--list` inspects a list variable (`get_list`) |
 | `mxcli debug step [over\|into\|out] [--flow <debug_id>]` | Advance one step (default `over`) |
-| `mxcli debug continue [--all]` | Resume the paused flow (or all with `--all`) |
+| `mxcli debug continue [--flow <debug_id>] [--all]` | Resume the paused flow (or all with `--all`) |
 
 **Selecting an activity:** `--activity '#2'` (the index from `activities`) or a
 caption substring like `--activity 'Retrieve'` (case-insensitive; must match one).
@@ -108,3 +108,10 @@ server-side (browser console only) — only `INFO`/`WARNING`/`ERROR` reach `runt
   shutdown; a manual `enable` is your responsibility.
 - **Use the same `-p` for every command.** The session token and breakpoint record
   live under `<projectDir>/.mxcli/`.
+- **A request the runtime refuses is an error, with the runtime's reason** — for
+  example `the runtime refused add_breakpoint (status 2): Failed to parse
+  condition: …` for a bad `--if`. An activity or flow the *running* app does not
+  have yet (rebuild or restart after changing the model) and `Invalid session
+  token` (the runtime restarted, or another debugger such as Studio Pro started a
+  session — run `mxcli debug enable`) are the other common ones. A command that
+  printed success was accepted by the runtime.

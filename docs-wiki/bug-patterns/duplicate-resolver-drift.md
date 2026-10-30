@@ -116,6 +116,16 @@ source: the AST package's own declarations, `generated/metamodel`, a `go/parser`
 scan of the builders for the keys they read. The reliable version of this test is
 not "the lists agree" but "the list agrees with something nobody edits".
 
+**A version floor is two answers too.** The write refuses a type newer than the
+project from the Model SDK's data (`canon.UndeclaredTypeError`), and `check -p`
+refuses a statement from an `sdk/versions` row. Every type with a write floor and
+no gate is a script `check -p` passes and `exec` refuses part-way. That class has
+come back four times (#1434, #1771, #1774, #1787). In the last one, `alter
+microflow` had no `case` in the gate switch at all. The sweep starts from the
+types the converter writes, not from the statements someone remembered. The
+guard is the third source above: a test pins each type gate's row to
+`canon.TypeIntroduced`, which nobody edits by hand.
+
 **The tell is that the fix for the reported instance is obviously incomplete.**
 When a symptom's cause is "this switch was missing a case", the next question is
 how many other switches answer the same question — the answer has repeatedly been

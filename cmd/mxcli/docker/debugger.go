@@ -151,6 +151,11 @@ func (c *DebuggerClient) StartSession() (string, error) {
 //
 // A nanoflow breakpoint uses the nanoflow_name param, not microflow_name — the
 // runtime NPEs on the wrong key (findings — nanoflow debugging).
+//
+// condition is always sent, as "" for an unconditional breakpoint: the runtime
+// (11.13 and 11.15, measured) answers a request without it with
+// {"message":"Missing property: condition","status":2} and registers nothing
+// (ako/mxcli#1782).
 func (c *DebuggerClient) AddBreakpoint(flowName, objectID, condition string, nanoflow bool) error {
 	nameKey := "microflow_name"
 	if nanoflow {
@@ -159,9 +164,7 @@ func (c *DebuggerClient) AddBreakpoint(flowName, objectID, condition string, nan
 	params := map[string]any{
 		nameKey:     flowName,
 		"object_id": objectID,
-	}
-	if condition != "" {
-		params["condition"] = condition
+		"condition": condition,
 	}
 	_, err := c.post("add_breakpoint", true, params)
 	return err
@@ -219,14 +222,20 @@ func (c *DebuggerClient) Step(kind, debugID string) error {
 	return err
 }
 
-// Continue resumes execution: the current paused flow, or all paused flows when
-// all is true.
-func (c *DebuggerClient) Continue(all bool) error {
-	action := "continue"
-	if all {
-		action = "continue_all"
+// Continue resumes one paused flow (by its debug_id). The runtime requires the
+// debug_id: continue without it is refused with "Missing property: debug_id"
+// and the flow stays paused (11.13 and 11.15, measured — ako/mxcli#1782).
+func (c *DebuggerClient) Continue(debugID string) error {
+	if debugID == "" {
+		return fmt.Errorf("continue needs the paused flow's debug_id (see 'mxcli debug paused')")
 	}
-	_, err := c.post(action, true, nil)
+	_, err := c.post("continue", true, map[string]any{"debug_id": debugID})
+	return err
+}
+
+// ContinueAll resumes every paused flow.
+func (c *DebuggerClient) ContinueAll() error {
+	_, err := c.post("continue_all", true, nil)
 	return err
 }
 
@@ -266,7 +275,8 @@ func (c *DebuggerClient) clearToken() {
 
 // post drives the /debugger/ plane. The envelope is {action, session_token?,
 // params}; params is always serialized (the runtime rejects a missing params
-// with "Missing property"). Returns the raw "result" object from the response.
+// with "Missing property"). Returns the raw "result" object from the response,
+// or a *DebuggerError when the reply's status says the runtime refused it.
 func (c *DebuggerClient) post(action string, withToken bool, params map[string]any) (json.RawMessage, error) {
 	if params == nil {
 		params = map[string]any{}
@@ -311,10 +321,45 @@ func (c *DebuggerClient) post(action string, withToken bool, params map[string]a
 	}
 
 	var env struct {
-		Result json.RawMessage `json:"result"`
+		Result  json.RawMessage `json:"result"`
+		Status  *int            `json:"status"`
+		Message string          `json:"message"`
 	}
 	if err := json.Unmarshal(respBody, &env); err != nil {
 		return nil, fmt.Errorf("decoding debugger response: %w (body: %s)", err, strings.TrimSpace(string(respBody)))
 	}
+	// The runtime answers a refusal with HTTP 200 too; only the envelope says so.
+	// A missing status is not a refusal (see DebuggerError).
+	if env.Status != nil && *env.Status != 0 {
+		return nil, &DebuggerError{Action: action, Status: *env.Status, Message: env.Message}
+	}
 	return env.Result, nil
+}
+
+// DebuggerError is the runtime refusing a /debugger/ request. The endpoint
+// answers HTTP 200 either way, so only the reply envelope tells them apart:
+// success is {"result":…,"status":0}, a refusal {"result":{},"message":…,
+// "status":2} — every reply measured on Mendix 11.13 and 11.15 carries a status,
+// and every refusal seen was 2. Any non-zero status is treated as a refusal; a
+// reply with no status at all is not, so a runtime that leaves it out still
+// works. Ignoring the envelope is how `debug break` printed "Breakpoint set"
+// over "Missing property: condition" (ako/mxcli#1782).
+type DebuggerError struct {
+	Action  string // the debugger action that was refused
+	Status  int    // the envelope status (non-zero)
+	Message string // the runtime's reason, verbatim; may be empty
+}
+
+func (e *DebuggerError) Error() string {
+	msg := e.Message
+	if msg == "" {
+		msg = "no message"
+	}
+	s := fmt.Sprintf("the runtime refused %s (status %d): %s", e.Action, e.Status, msg)
+	// A token the runtime does not know: it restarted, or another debug session
+	// started since (one session at a time — starting one invalidates the last).
+	if strings.Contains(e.Message, "session token") {
+		s += " -- the debug session is gone (the runtime restarted, or another debugger started a session); run 'mxcli debug enable' for a new one"
+	}
+	return s
 }

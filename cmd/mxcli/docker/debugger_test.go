@@ -15,15 +15,42 @@ import (
 // debuggerTestServer stubs BOTH planes on one httptest server, routed by path:
 // "/" is the M2EE admin plane, "/debugger/" is the debugger endpoint. It records
 // what it received so tests can assert the envelope and auth.
+//
+// The /debugger/ half answers the way a Mendix 11.13/11.15 runtime does, measured
+// against both (ako/mxcli#1782): every reply is HTTP 200, success is
+// {"result":…,"status":0}, and a rejection is {"result":{},"message":…,"status":2}.
+// A request missing a property the runtime requires is rejected with the
+// runtime's own "Missing property: <name>" — add_breakpoint without condition and
+// continue without debug_id among them.
 type debuggerTestServer struct {
 	*httptest.Server
 	adminActions []string
 	enablePass   string // password seen on enable_debugger
 	dbgActions   []string
-	dbgAuth      string         // X-Debugger-Authentication seen on the last /debugger/ call
-	dbgHadParams bool           // whether the last /debugger/ body had a params key
-	dbgToken     string         // session_token seen on the last /debugger/ call
-	dbgParams    map[string]any // params of the last /debugger/ call
+	dbgAuth      string            // X-Debugger-Authentication seen on the last /debugger/ call
+	dbgHadParams bool              // whether the last /debugger/ body had a params key
+	dbgToken     string            // session_token seen on the last /debugger/ call
+	dbgParams    map[string]any    // params of the last /debugger/ call
+	reject       map[string]string // action -> message to reject it with (status 2)
+}
+
+// debuggerRequiredParams are the properties the runtime refuses a request
+// without (each measured: omitting it yields "Missing property: <name>").
+var debuggerRequiredParams = map[string][]string{
+	"add_breakpoint":    {"object_id", "condition"},
+	"remove_breakpoint": {"object_id"},
+	"get_object":        {"debug_id", "variable_name"},
+	"get_list":          {"debug_id", "variable_name"},
+	"step_over":         {"debug_id"},
+	"step_into":         {"debug_id"},
+	"step_out":          {"debug_id"},
+	"continue":          {"debug_id"},
+}
+
+// debuggerRejection is the runtime's rejection envelope, verbatim in shape.
+func debuggerRejection(message string) []byte {
+	b, _ := json.Marshal(map[string]any{"result": map[string]any{}, "message": message, "status": 2})
+	return b
 }
 
 func newDebuggerTestServer(t *testing.T) (*debuggerTestServer, DebuggerOptions) {
@@ -45,11 +72,21 @@ func newDebuggerTestServer(t *testing.T) (*debuggerTestServer, DebuggerOptions) 
 			if tok, ok := body["session_token"]; ok {
 				_ = json.Unmarshal(tok, &ts.dbgToken)
 			}
+			if msg, ok := ts.reject[action]; ok {
+				_, _ = w.Write(debuggerRejection(msg))
+				return
+			}
+			for _, key := range debuggerRequiredParams[action] {
+				if _, ok := ts.dbgParams[key]; !ok {
+					_, _ = w.Write(debuggerRejection("Missing property: " + key))
+					return
+				}
+			}
 			switch action {
 			case "start_session":
-				_, _ = w.Write([]byte(`{"result":{"session_token":"tok-123","runtime_version":"11.6"}}`))
+				_, _ = w.Write([]byte(`{"result":{"session_token":"tok-123","runtime_version":"11.15.0","paused_microflows":[]},"status":0}`))
 			default:
-				_, _ = w.Write([]byte(`{"result":{}}`))
+				_, _ = w.Write([]byte(`{"result":{},"status":0}`))
 			}
 			return
 		}
@@ -189,7 +226,12 @@ func TestDebugger_AddBreakpoint(t *testing.T) {
 	}
 }
 
-func TestDebugger_AddBreakpointOmitsEmptyCondition(t *testing.T) {
+// An unconditional breakpoint still sends condition, as the empty string. The
+// runtime (11.13 and 11.15, measured) refuses add_breakpoint without it —
+// {"message":"Missing property: condition","status":2} — and registers nothing,
+// so a breakpoint set this way never paused (ako/mxcli#1782,
+// mendixlabs/mxcli#1676).
+func TestDebugger_AddBreakpointSendsEmptyCondition(t *testing.T) {
 	ts, opts := newDebuggerTestServer(t)
 	c := NewDebuggerClient(opts)
 	if _, err := c.StartSession(); err != nil {
@@ -198,8 +240,12 @@ func TestDebugger_AddBreakpointOmitsEmptyCondition(t *testing.T) {
 	if err := c.AddBreakpoint("M.F", "guid-2", "", false); err != nil {
 		t.Fatalf("AddBreakpoint: %v", err)
 	}
-	if _, ok := ts.dbgParams["condition"]; ok {
-		t.Errorf("empty condition must be omitted, got %v", ts.dbgParams["condition"])
+	cond, ok := ts.dbgParams["condition"]
+	if !ok {
+		t.Fatalf("add_breakpoint params = %v: condition is missing, which the runtime rejects with \"Missing property: condition\"", ts.dbgParams)
+	}
+	if cond != "" {
+		t.Errorf("condition = %v, want the empty string for an unconditional breakpoint", cond)
 	}
 }
 
@@ -257,23 +303,33 @@ func TestDebugger_StepActions(t *testing.T) {
 	}
 }
 
+// continue names the flow it resumes. The runtime (11.13 and 11.15, measured)
+// rejects continue without debug_id — {"message":"Missing property: debug_id",
+// "status":2} — and the flow stays paused, which `debug continue` reported as
+// "Continued." (ako/mxcli#1782). continue_all takes no flow.
 func TestDebugger_Continue(t *testing.T) {
 	ts, opts := newDebuggerTestServer(t)
 	c := NewDebuggerClient(opts)
 	if _, err := c.StartSession(); err != nil {
 		t.Fatalf("StartSession: %v", err)
 	}
-	if err := c.Continue(false); err != nil {
+	if err := c.Continue("dbg-9"); err != nil {
 		t.Fatalf("Continue: %v", err)
 	}
 	if got := ts.dbgActions[len(ts.dbgActions)-1]; got != "continue" {
-		t.Errorf("Continue(false) = %q, want continue", got)
+		t.Errorf("Continue = %q, want continue", got)
 	}
-	if err := c.Continue(true); err != nil {
-		t.Fatalf("Continue(all): %v", err)
+	if ts.dbgParams["debug_id"] != "dbg-9" {
+		t.Errorf("continue params = %v, want debug_id dbg-9 (the runtime rejects continue without it: \"Missing property: debug_id\")", ts.dbgParams)
+	}
+	if err := c.ContinueAll(); err != nil {
+		t.Fatalf("ContinueAll: %v", err)
 	}
 	if got := ts.dbgActions[len(ts.dbgActions)-1]; got != "continue_all" {
-		t.Errorf("Continue(true) = %q, want continue_all", got)
+		t.Errorf("ContinueAll = %q, want continue_all", got)
+	}
+	if err := c.Continue(""); err == nil {
+		t.Error("Continue without a debug_id should fail before reaching the runtime")
 	}
 }
 
@@ -361,5 +417,132 @@ func TestDebugger_AuthFailure(t *testing.T) {
 	}
 	if got := err.Error(); !strings.Contains(got, "auth failed") || !strings.Contains(got, "debug enable") {
 		t.Errorf("error = %q, want it to mention auth + how to enable", got)
+	}
+}
+
+// The reported symptom (ako/mxcli#1782, mendixlabs/mxcli#1676): the runtime
+// refuses a debugger request with HTTP 200 and a non-zero envelope status, and
+// `debug break` printed "Breakpoint set" over it. Every client call must return
+// that refusal as an error carrying the runtime's message, so no `mxcli debug`
+// command can report success over it.
+func TestDebugger_RejectionReachesTheCaller(t *testing.T) {
+	// Each message is one the runtime gave for that action, measured on 11.15.
+	const (
+		badToken  = "Could not read session token: Invalid session token."
+		badFlowID = "Could not find microflow/nanoflow in debug with id: dbg-9"
+	)
+	cases := []struct {
+		action string
+		msg    string
+		call   func(c *DebuggerClient) error
+	}{
+		{"add_breakpoint", "Missing property: condition", func(c *DebuggerClient) error { return c.AddBreakpoint("M.F", "guid-1", "", false) }},
+		{"remove_breakpoint", badToken, func(c *DebuggerClient) error { return c.RemoveBreakpoint("guid-1") }},
+		{"get_paused_microflows", badToken, func(c *DebuggerClient) error { _, err := c.PausedMicroflows(); return err }},
+		{"poll_events", badToken, func(c *DebuggerClient) error { _, err := c.PollEvents(); return err }},
+		{"get_object", "The variable 'Greeting' is not a Mendix object.", func(c *DebuggerClient) error { _, err := c.GetObject("dbg-9", "Greeting"); return err }},
+		{"get_list", "The variable 'Greeting' is not a list of Mendix objects.", func(c *DebuggerClient) error { _, err := c.GetList("dbg-9", "Greeting"); return err }},
+		{"step_over", badFlowID, func(c *DebuggerClient) error { return c.Step("over", "dbg-9") }},
+		{"step_into", badFlowID, func(c *DebuggerClient) error { return c.Step("into", "dbg-9") }},
+		{"step_out", badFlowID, func(c *DebuggerClient) error { return c.Step("out", "dbg-9") }},
+		{"continue", badFlowID, func(c *DebuggerClient) error { return c.Continue("dbg-9") }},
+		{"continue_all", "Could not find any paused microflows/nanoflows to continue.", func(c *DebuggerClient) error { return c.ContinueAll() }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.action, func(t *testing.T) {
+			ts, opts := newDebuggerTestServer(t)
+			c := NewDebuggerClient(opts)
+			if _, err := c.StartSession(); err != nil {
+				t.Fatalf("StartSession: %v", err)
+			}
+			ts.reject = map[string]string{tc.action: tc.msg}
+			err := tc.call(c)
+			if err == nil {
+				t.Fatalf("%s: the runtime answered {\"message\":%q,\"status\":2} and the client reported success", tc.action, tc.msg)
+			}
+			if !strings.Contains(err.Error(), tc.msg) {
+				t.Errorf("%s error = %q, want the runtime's message %q", tc.action, err, tc.msg)
+			}
+			if !strings.Contains(err.Error(), tc.action) {
+				t.Errorf("%s error = %q, want it to name the action", tc.action, err)
+			}
+		})
+	}
+}
+
+// start_session's refusal surfaces the runtime's message too, rather than a
+// generic "returned no session_token".
+func TestDebugger_StartSessionRejection(t *testing.T) {
+	ts, opts := newDebuggerTestServer(t)
+	ts.reject = map[string]string{"start_session": "Debugger is not enabled"}
+	_, err := NewDebuggerClient(opts).StartSession()
+	if err == nil || !strings.Contains(err.Error(), "Debugger is not enabled") {
+		t.Fatalf("StartSession error = %v, want the runtime's message", err)
+	}
+}
+
+// A session token the runtime no longer knows (it restarted, or another debug
+// session started since) is refused with no result at all, verbatim below as
+// measured on 11.13. The error names the runtime's message and how to get a
+// fresh session.
+func TestDebugger_InvalidSessionToken(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"message":"Could not read session token: Invalid session token.","status":2}`))
+	}))
+	defer ts.Close()
+	tokenPath := filepath.Join(t.TempDir(), "debug-session.token")
+	if err := os.WriteFile(tokenPath, []byte("0c1b2d3e-0000-4000-8000-000000000000"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c := NewDebuggerClient(DebuggerOptions{AppURL: ts.URL, TokenPath: tokenPath})
+	if err := c.LoadToken(); err != nil {
+		t.Fatal(err)
+	}
+	err := c.AddBreakpoint("M.F", "guid-1", "", false)
+	if err == nil {
+		t.Fatal("a refused session token must fail the call")
+	}
+	if got := err.Error(); !strings.Contains(got, "Invalid session token") || !strings.Contains(got, "debug enable") {
+		t.Errorf("error = %q, want the runtime's message and the 'mxcli debug enable' remedy", got)
+	}
+}
+
+// What success looks like: status 0 (every reply measured on 11.13 and 11.15
+// carries it), or no status at all. A reply without a status is not a refusal,
+// so a runtime that omits it keeps working; any non-zero status is one, with
+// or without a message.
+func TestDebugger_EnvelopeStatus(t *testing.T) {
+	cases := []struct {
+		name    string
+		body    string
+		wantErr string // "" = success
+	}{
+		{"status 0", `{"result":{"paused_microflows":[]},"status":0}`, ""},
+		{"no status", `{"result":{"paused_microflows":[]}}`, ""},
+		{"status 2 with message", `{"result":{},"message":"Unknown action: frobnicate","status":2}`, "Unknown action: frobnicate"},
+		{"non-zero status without message", `{"result":{},"status":1}`, "status 1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer ts.Close()
+			c := NewDebuggerClient(DebuggerOptions{AppURL: ts.URL})
+			c.token = "tok-123"
+			raw, err := c.PausedMicroflows()
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("PausedMicroflows: %v", err)
+				}
+				if !strings.Contains(string(raw), "paused_microflows") {
+					t.Errorf("result = %s, want the result object", raw)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %v, want it to contain %q", err, tc.wantErr)
+			}
+		})
 	}
 }

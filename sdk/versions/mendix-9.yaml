@@ -65,6 +65,26 @@ features:
       min_version: "9.22.0"
       mdl: "MULTI USER TASK Vote 'Vote' PAGE M.TaskPage OUTCOMES 'Yes' { } 'No' { };"
       notes: "Before 10.12 a Workflows$UserTask whose UserTaskCompletion is a MultiInputCompletion, introduced with consensus and veto in 9.22.0 (mendixmodelsdk 4.117.0; ako/mxcli#1771)."
+    workflow_microflow_actions:
+      min_version: "9.0.2"
+      mdl: "CALL WORKFLOW Module.WF ($Ctx); SET TASK OUTCOME $Task 'Approve'; OPEN USER TASK $Task; OPEN WORKFLOW $Wf;"
+      notes: "Microflows$WorkflowCallAction, SetTaskOutcomeAction, OpenUserTaskAction and OpenWorkflowAction introduced in 9.0.2 with workflows (mendixmodelsdk 4.117.0). The write refuses each type below it (canon.UndeclaredTypeError); check -p names the statement first (ako/mxcli#1787)."
+    workflow_operations:
+      min_version: "9.2.0"
+      mdl: "WORKFLOW OPERATION ABORT $Wf REASON '…'; WORKFLOW OPERATION RESTART $Wf;"
+      notes: "Microflows$WorkflowOperationAction, AbortOperation and RestartOperation introduced in 9.2.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    workflow_operation_pause_continue:
+      min_version: "9.3.0"
+      mdl: "WORKFLOW OPERATION PAUSE $Wf; WORKFLOW OPERATION CONTINUE $Wf;"
+      notes: "Microflows$PauseOperation and ContinueOperation introduced in 9.3.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    get_workflow_data:
+      min_version: "9.10.0"
+      mdl: "$Data = GET WORKFLOW DATA $Wf AS Module.WF;"
+      notes: "Microflows$GetWorkflowDataAction introduced in 9.10.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    workflow_operation_retry_unpause:
+      min_version: "9.12.0"
+      mdl: "WORKFLOW OPERATION RETRY $Wf; WORKFLOW OPERATION UNPAUSE $Wf;"
+      notes: "Microflows$RetryOperation and UnpauseOperation introduced in 9.12.0, replacing ResumeOperation (9.3.0 to 9.11; mendixmodelsdk 4.117.0; ako/mxcli#1787)."
 
   navigation:
     profiles:
