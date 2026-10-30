@@ -154,14 +154,20 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		}
 		return gates
 	case *ast.CreateNanoflowStmt:
-		// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
-		// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
-		// while the activity and its other two modes go back further. Gate the
-		// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
-		if bodyUsesUnsynchronized(s.Body) {
-			return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
-				"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+		return nanoflowBodyGates(s.Body)
+	case *ast.AlterFlowStmt:
+		// What an insert or a replace splices in is gated as the same
+		// statements in a `create` are; a drop writes nothing new. Without
+		// this, check -p passed an alter that the write then refused
+		// (ako/mxcli#1787).
+		var inserted []ast.MicroflowStatement
+		for _, op := range s.Operations {
+			inserted = append(inserted, op.Body...)
 		}
+		if s.Nanoflow {
+			return nanoflowBodyGates(inserted)
+		}
+		return microflowBodyGates(inserted)
 	case *ast.CreateWorkflowStmt:
 		var gates []versionGate
 		if len(s.EventHandlers) > 0 {
@@ -286,7 +292,8 @@ func workflowTypeGates(activities []ast.WorkflowActivityNode, insertedEvents []s
 
 // microflowBodyGates are the gates of the activities in a microflow body,
 // nested ones included (bodyContains walks branches, loops and error
-// handlers).
+// handlers): what `create microflow` declares and what `alter microflow`
+// splices in.
 func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 	var gates []versionGate
 	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
@@ -305,6 +312,20 @@ func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 		}
 	}
 	return gates
+}
+
+// nanoflowBodyGates are the gates of the activities in a nanoflow body, as
+// microflowBodyGates are a microflow's.
+func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+	// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
+	// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
+	// while the activity and its other two modes go back further. Gate the
+	// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
+	if bodyUsesUnsynchronized(body) {
+		return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
+			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+	}
+	return nil
 }
 
 // typeGate is a gate whose floor is the introduction of the storage $Types

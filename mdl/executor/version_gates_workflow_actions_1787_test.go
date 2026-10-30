@@ -16,8 +16,9 @@ import (
 // refused only by the write (canon.UndeclaredTypeError), part-way through a
 // script that `mxcli check -p` had passed. Each is now refused by check -p and
 // by exec's pre-flight with MDL-VERSION01, naming the statement and the
-// version, wherever it sits in the body. Each floor is its type's
-// introduction in mendixmodelsdk 4.117.0:
+// version, wherever it sits in the body, in `create microflow` and in what
+// `alter microflow` inserts. Each floor is its type's introduction in
+// mendixmodelsdk 4.117.0:
 //
 //	call workflow, set task outcome, open user task, open workflow  9.0.2
 //	workflow operation abort / restart                              9.2.0
@@ -65,6 +66,11 @@ func TestCheckVersionGates_WorkflowMicroflowActions(t *testing.T) {
 		} {
 			for _, stmt := range []ast.Statement{
 				&ast.CreateMicroflowStmt{Name: ast.QualifiedName{Module: "M", Name: "MF"}, Body: place.body},
+				&ast.AlterFlowStmt{Name: ast.QualifiedName{Module: "M", Name: "MF"}, Operations: []*ast.AlterFlowOperation{
+					{Op: ast.AlterFlowInsertAfter, Target: "$X", Body: place.body}}},
+				&ast.AlterFlowStmt{Name: ast.QualifiedName{Module: "M", Name: "MF"}, Operations: []*ast.AlterFlowOperation{
+					{Op: ast.AlterFlowDrop, Target: "$Y"},
+					{Op: ast.AlterFlowReplace, Target: "$X", Body: place.body}}},
 			} {
 				prog := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"}, stmt}}
 				vs := versionGateViolations(versionCtx(t, c.below[0], c.below[1], c.below[2]), prog)
@@ -83,6 +89,62 @@ func TestCheckVersionGates_WorkflowMicroflowActions(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// An `alter microflow` is gated on what it inserts, and on nothing else: a
+// drop, or a fragment with no gated action, passes on 9.0.0 — and an alter
+// nanoflow that inserts `synchronize unsynchronized` is gated as create
+// nanoflow is.
+func TestCheckVersionGates_AlterFlowGatesWhatItInserts(t *testing.T) {
+	plain := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"},
+		&ast.AlterFlowStmt{Operations: []*ast.AlterFlowOperation{
+			{Op: ast.AlterFlowDrop, Target: "$X"},
+			{Op: ast.AlterFlowInsertBefore, Target: "$Y", Body: []ast.MicroflowStatement{&ast.LogStmt{}}},
+		}}}}
+	if vs := versionGateViolations(versionCtx(t, 9, 0, 0), plain); len(vs) != 0 {
+		t.Errorf("an alter microflow inserting no gated action reported on 9.0.0: %+v", vs)
+	}
+	unsync := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"},
+		&ast.AlterFlowStmt{Nanoflow: true, Operations: []*ast.AlterFlowOperation{
+			{Op: ast.AlterFlowReplaceBody, Target: "loop $It in $List", Body: []ast.MicroflowStatement{
+				&ast.SynchronizeStmt{SyncType: "Unsynchronized"}}}}}}}
+	if vs := versionGateViolations(versionCtx(t, 9, 3, 0), unsync); len(vs) != 1 || !strings.Contains(vs[0].Message, "synchronize unsynchronized") {
+		t.Errorf("alter nanoflow inserting synchronize unsynchronized on 9.3: %+v", vs)
+	}
+	if vs := versionGateViolations(versionCtx(t, 9, 4, 0), unsync); len(vs) != 0 {
+		t.Errorf("alter nanoflow inserting synchronize unsynchronized on 9.4: %+v", vs)
+	}
+	// The other microflow body gates reach an alter too: send email (11.13)
+	// and a lock naming its workflow (10.0).
+	for _, c := range []struct {
+		stmt  ast.MicroflowStatement
+		below [3]int
+		want  string
+	}{
+		{&ast.SendEmailStmt{}, [3]int{11, 12, 0}, "send email"},
+		{&ast.LockWorkflowStmt{Workflow: "M.WF"}, [3]int{9, 24, 30}, "lock workflow / unlock workflow on a workflow"},
+	} {
+		prog := &ast.Program{Statements: []ast.Statement{&ast.CreateModuleStmt{Name: "M"},
+			&ast.AlterFlowStmt{Operations: []*ast.AlterFlowOperation{{Op: ast.AlterFlowInsertAfter, Target: "$X",
+				Body: []ast.MicroflowStatement{c.stmt}}}}}}
+		if vs := versionGateViolations(versionCtx(t, c.below[0], c.below[1], c.below[2]), prog); len(vs) != 1 || !strings.Contains(vs[0].Message, c.want) {
+			t.Errorf("alter microflow inserting %T on %v: %+v", c.stmt, c.below, vs)
+		}
+	}
+}
+
+// exec reaches `alter microflow` without the pre-flight too (the REPL,
+// --no-check): its handler refuses the gated insert before it reads, let
+// alone writes, the stored flow — the mock backend's microflow calls are not
+// configured, so reaching one would fail with another error.
+func TestExecAlterFlow_RefusesAGatedInsertBeforeReading(t *testing.T) {
+	stmt := &ast.AlterFlowStmt{Name: ast.QualifiedName{Module: "M", Name: "MF"}, Operations: []*ast.AlterFlowOperation{
+		{Op: ast.AlterFlowInsertAfter, Target: "$X", Body: []ast.MicroflowStatement{
+			&ast.GetWorkflowsStmt{OutputVariable: "Wfs", WorkflowContextVariableName: "Ctx"}}}}}
+	err := execAlterFlow(versionCtx(t, 9, 24, 30), stmt)
+	if err == nil || !strings.Contains(err.Error(), "get workflows requires Mendix 10.4.0+ (project is") {
+		t.Fatalf("alter microflow inserting get workflows on 9.24.30: %v", err)
 	}
 }
 

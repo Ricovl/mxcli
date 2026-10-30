@@ -144,8 +144,9 @@ version ("this Mendix 9.24.30 project cannot store
 Workflows$WaitForNotificationActivity (Mendix 10.0.0+)"). The versions are each
 type's own, from the Mendix Model SDK. Below their versions, the wait
 activities, the timer boundary events, a lock or unlock naming a workflow, and
-the workflow actions of a microflow are also refused up front, by `check -p`
-and by `exec` before anything is written, with MDL-VERSION01
+the workflow actions of a microflow (in `create microflow` and in what `alter
+microflow` inserts) are also refused up front, by `check -p` and by `exec`
+before anything is written, with MDL-VERSION01
 ([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). Before this, such a type was written, and the project did not load
 (`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
 Where an older version stores the same thing in another shape (the parallel
