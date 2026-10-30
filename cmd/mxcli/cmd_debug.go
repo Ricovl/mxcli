@@ -331,7 +331,7 @@ var debugStepCmd = &cobra.Command{
 }
 
 var debugContinueCmd = &cobra.Command{
-	Use:   "continue [--all]",
+	Use:   "continue [--flow <debug_id>] [--all]",
 	Short: "Resume a paused microflow (or all with --all)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := resolveDebuggerClient(cmd)
@@ -339,14 +339,24 @@ var debugContinueCmd = &cobra.Command{
 			return err
 		}
 		all, _ := cmd.Flags().GetBool("all")
-		if err := c.Continue(all); err != nil {
+		if all {
+			if err := c.ContinueAll(); err != nil {
+				return err
+			}
+			fmt.Println("Continued all paused microflows.")
+			return nil
+		}
+		// The runtime resumes one flow only by its debug_id; without one it
+		// refuses the request and the flow stays paused.
+		flow, _ := cmd.Flags().GetString("flow")
+		debugID, err := resolveDebugID(c, flow)
+		if err != nil {
 			return err
 		}
-		if all {
-			fmt.Println("Continued all paused microflows.")
-		} else {
-			fmt.Println("Continued.")
+		if err := c.Continue(debugID); err != nil {
+			return err
 		}
+		fmt.Printf("Continued (debug_id: %s).\n", debugID)
 		return nil
 	},
 }
@@ -508,6 +518,7 @@ func init() {
 	debugInspectCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
 	debugInspectCmd.Flags().Bool("list", false, "Inspect a list variable (uses get_list instead of get_object)")
 	debugStepCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
+	debugContinueCmd.Flags().String("flow", "", "Which paused microflow (debug_id); defaults to the only paused one")
 	debugContinueCmd.Flags().Bool("all", false, "Continue all paused microflows, not just one")
 
 	debugCmd.AddCommand(debugStatusCmd)

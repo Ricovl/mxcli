@@ -303,23 +303,33 @@ func TestDebugger_StepActions(t *testing.T) {
 	}
 }
 
+// continue names the flow it resumes. The runtime (11.13 and 11.15, measured)
+// rejects continue without debug_id — {"message":"Missing property: debug_id",
+// "status":2} — and the flow stays paused, which `debug continue` reported as
+// "Continued." (ako/mxcli#1782). continue_all takes no flow.
 func TestDebugger_Continue(t *testing.T) {
 	ts, opts := newDebuggerTestServer(t)
 	c := NewDebuggerClient(opts)
 	if _, err := c.StartSession(); err != nil {
 		t.Fatalf("StartSession: %v", err)
 	}
-	if err := c.Continue(false); err != nil {
+	if err := c.Continue("dbg-9"); err != nil {
 		t.Fatalf("Continue: %v", err)
 	}
 	if got := ts.dbgActions[len(ts.dbgActions)-1]; got != "continue" {
-		t.Errorf("Continue(false) = %q, want continue", got)
+		t.Errorf("Continue = %q, want continue", got)
 	}
-	if err := c.Continue(true); err != nil {
-		t.Fatalf("Continue(all): %v", err)
+	if ts.dbgParams["debug_id"] != "dbg-9" {
+		t.Errorf("continue params = %v, want debug_id dbg-9 (the runtime rejects continue without it: \"Missing property: debug_id\")", ts.dbgParams)
+	}
+	if err := c.ContinueAll(); err != nil {
+		t.Fatalf("ContinueAll: %v", err)
 	}
 	if got := ts.dbgActions[len(ts.dbgActions)-1]; got != "continue_all" {
-		t.Errorf("Continue(true) = %q, want continue_all", got)
+		t.Errorf("ContinueAll = %q, want continue_all", got)
+	}
+	if err := c.Continue(""); err == nil {
+		t.Error("Continue without a debug_id should fail before reaching the runtime")
 	}
 }
 

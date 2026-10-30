@@ -51,7 +51,7 @@ Under the hood the debugger spans two runtime APIs, which `mxcli debug` hides:
 | `mxcli debug paused` | Paused microflows + full state (variables) |
 | `mxcli debug inspect <var> [--list] [--flow <debug_id>]` | Inspect one variable of a paused flow; `--list` inspects a list variable (`get_list`) |
 | `mxcli debug step [over\|into\|out] [--flow <debug_id>]` | Advance one step (default `over`) |
-| `mxcli debug continue [--all]` | Resume the paused flow (or all with `--all`) |
+| `mxcli debug continue [--flow <debug_id>] [--all]` | Resume the paused flow (or all with `--all`) |
 
 **Selecting an activity:** `--activity '#2'` (the index from `activities`) or a
 caption substring like `--activity 'Retrieve'` (case-insensitive; must match one).

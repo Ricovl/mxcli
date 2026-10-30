@@ -222,14 +222,20 @@ func (c *DebuggerClient) Step(kind, debugID string) error {
 	return err
 }
 
-// Continue resumes execution: the current paused flow, or all paused flows when
-// all is true.
-func (c *DebuggerClient) Continue(all bool) error {
-	action := "continue"
-	if all {
-		action = "continue_all"
+// Continue resumes one paused flow (by its debug_id). The runtime requires the
+// debug_id: continue without it is refused with "Missing property: debug_id"
+// and the flow stays paused (11.13 and 11.15, measured — ako/mxcli#1782).
+func (c *DebuggerClient) Continue(debugID string) error {
+	if debugID == "" {
+		return fmt.Errorf("continue needs the paused flow's debug_id (see 'mxcli debug paused')")
 	}
-	_, err := c.post(action, true, nil)
+	_, err := c.post("continue", true, map[string]any{"debug_id": debugID})
+	return err
+}
+
+// ContinueAll resumes every paused flow.
+func (c *DebuggerClient) ContinueAll() error {
+	_, err := c.post("continue_all", true, nil)
 	return err
 }
 
