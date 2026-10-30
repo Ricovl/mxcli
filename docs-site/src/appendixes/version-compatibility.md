@@ -117,7 +117,7 @@ body on Mendix 10 too, and Studio Pro could not open the project.
 
 | Feature | MDL Syntax | 9.x | 10.0+ |
 |---------|-----------|-----|-------|
-| Basic workflows | `CREATE WORKFLOW` | Yes | Yes |
+| Basic workflows | `CREATE WORKFLOW`, `ALTER WORKFLOW` | 9.0.2+ | Yes |
 | User tasks | `USER TASK ... OUTCOMES (...)` | Yes | Yes |
 | Multi-user tasks | `MULTI USER TASK ...` | 9.22+ | Yes |
 | Multi-user task rules majority and threshold | `DECIDE BY MAJORITY ...`, `DECIDE BY THRESHOLD ...` | No | Yes |
@@ -147,7 +147,9 @@ activities, the timer boundary events, a lock or unlock naming a workflow, and
 the workflow actions of a microflow (in `create microflow` and in what `alter
 microflow` inserts) are also refused up front, by `check -p` and by `exec`
 before anything is written, with MDL-VERSION01
-([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). Before this, such a type was written, and the project did not load
+([ako/mxcli#1787](https://github.com/ako/mxcli/issues/1787)). So is a workflow itself on 9.0.0 and 9.0.1, which
+predate Workflows$Workflow (9.0.2): `create workflow`, `create or modify
+workflow` and `alter workflow` ([ako/mxcli#1809](https://github.com/ako/mxcli/issues/1809)). Before this, such a type was written, and the project did not load
 (`TypeCacheUnknownTypeException`, [ako/mxcli#1774](https://github.com/ako/mxcli/issues/1774)).
 Where an older version stores the same thing in another shape (the parallel
 split's end marker, user tasks), that shape is written instead, as listed under

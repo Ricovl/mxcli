@@ -160,6 +160,8 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 		t.Fatal(err)
 	}
 	pinned := append([]typeGate{
+		// ako/mxcli#1809: every statement that writes a workflow document.
+		{versionGate: workflowBasicGate("create workflow"), types: []string{"Workflows$Workflow"}},
 		{versionGate: waitForNotificationGate, types: []string{"Workflows$WaitForNotificationActivity"}},
 		{versionGate: waitForTimerGate, types: []string{"Workflows$WaitForTimerActivity"}},
 		{versionGate: timerBoundaryEventGate, types: []string{"Workflows$TimerBoundaryEvent"}},

@@ -169,7 +169,9 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		}
 		return microflowBodyGates(inserted)
 	case *ast.CreateWorkflowStmt:
-		var gates []versionGate
+		// `create or modify workflow` is this statement too: it writes the
+		// same Workflows$Workflow (ako/mxcli#1809).
+		gates := []versionGate{workflowBasicGate("create workflow")}
 		if len(s.EventHandlers) > 0 {
 			gates = append(gates, versionGate{"workflows", "event_handlers", "on workflow events",
 				"remove the `on … workflow event` clauses, or upgrade the project"})
@@ -203,9 +205,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		gates = append(gates, workflowTypeGates(activities, nil)...)
 		return append(gates, userTaskGates(activities)...)
 	case *ast.AlterWorkflowStmt:
-		// Workflows require Mendix 9.12+.
-		gates := []versionGate{{"workflows", "basic", "alter workflow",
-			"upgrade your project to Mendix 9.12+ to use workflows"}}
+		gates := []versionGate{workflowBasicGate("alter workflow")}
 		added := alterWorkflowAddedActivities(s)
 		if workflowUsesAgentTask(added) {
 			gates = append(gates, agentTaskGate)
@@ -223,6 +223,15 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		return append(gates, userTaskGates(added)...)
 	}
 	return nil
+}
+
+// workflowBasicGate is the gate of every statement that writes a workflow
+// document: Workflows$Workflow is a 9.0.2 type, and the write refuses it below
+// that (ako/mxcli#1809). The hint names no version; the message states the
+// registry's floor.
+func workflowBasicGate(statement string) versionGate {
+	return versionGate{"workflows", "basic", statement,
+		"this version has no workflows (Workflows$Workflow): upgrade the project"}
 }
 
 // The gates of the workflow activity and event TYPES mxcli writes that an

@@ -1,0 +1,50 @@
+mdl 1;
+-- ako/mxcli#1809: Workflows$Workflow is a 9.0.2 type (mendixmodelsdk
+-- 4.117.0), and the write refuses it below that (canon.UndeclaredTypeError,
+-- #1774). The `workflows basic` floor said 9.0.0 and only `alter workflow`
+-- applied it, so on 9.0.0 or 9.0.1 `create workflow` passed `mxcli check -p`
+-- and the write then refused it part-way through the script:
+--
+--   this Mendix 9.0.1 project cannot store Workflows$Flow (Mendix 9.0.2+);
+--   Workflows$Workflow (Mendix 9.0.2+): the types did not exist yet …
+--
+-- `check -p` and exec's pre-flight now report MDL-VERSION01 for each of the
+-- three statements below ("create workflow requires Mendix 9.0.2+"), and the
+-- floor is pinned to the type data by TestTypeGates_FloorIsTheTypeIntroduction.
+--
+-- EXPECTED: `mxcli check` passes this file. Measured (no 9.0.x mxbuild is
+-- cached, so the 9.0.1 run is a 9.24.30 app whose _MetaData version was set to
+-- 9.0.1.0, which is all the gate and the write read):
+--   9.0.1 (stamped)  before: check -p clean; exec refused WF_Basic at write
+--                    time ("cannot store … Workflows$Workflow (Mendix
+--                    9.0.2+)"). After: MDL-VERSION01 for statements 4, 5 and
+--                    6; exec writes nothing (App.mpr byte-identical).
+--   9.24.30.51827    none, before and after; exec writes everything, mx
+--                    check 0 errors.
+
+create module Probe1809;
+
+create persistent entity Probe1809.Request (
+  Title: String(100)
+);
+
+create microflow Probe1809.ACT_Validate ($WorkflowContext: Probe1809.Request)
+begin
+  log info node 'Probe1809' 'validate';
+end;
+
+create workflow Probe1809.WF_Basic
+  parameter $WorkflowContext: Probe1809.Request
+  display 'Basic'
+begin
+  call microflow Probe1809.ACT_Validate as validate;
+end workflow;
+
+create or modify workflow Probe1809.WF_Basic
+  parameter $WorkflowContext: Probe1809.Request
+  display 'Basic'
+begin
+  call microflow Probe1809.ACT_Validate as validate;
+end workflow;
+
+alter workflow Probe1809.WF_Basic { set (Display: 'Basic, altered'); };

@@ -205,8 +205,9 @@ features:
 
   workflows:
     basic:
-      min_version: "9.0.0"
+      min_version: "9.0.2"
       mdl: "CREATE WORKFLOW Module.Name ..."
+      notes: "Workflows$Workflow introduced in 9.0.2 (mendixmodelsdk 4.117.0); the CDN lists mxbuild 9.0.0 and 9.0.1, which have no workflows. The write refuses the type below it (canon.UndeclaredTypeError); create workflow, create or modify workflow and alter workflow are refused by check -p first (ako/mxcli#1809)."
     parallel_split:
       min_version: "9.0.0"
     user_task:
