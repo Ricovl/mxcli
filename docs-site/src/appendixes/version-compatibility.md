@@ -54,7 +54,7 @@ The tables below show exactly which features are available on each Mendix versio
 | Calculated attributes | `CALCULATED BY Module.Microflow` | Yes | Yes | Yes | Yes |
 | Entity generalization | `EXTENDS Module.ParentEntity` | Yes | Yes | Yes | Yes |
 | ALTER ENTITY | `ALTER ENTITY ... ADD/DROP/RENAME` | -- | Yes | Yes | Yes |
-| View entities | `CREATE VIEW ENTITY ... AS SELECT` | -- | -- | Yes | Yes |
+| View entities | `CREATE VIEW ENTITY ... AS SELECT` | -- | -- | 10.21+ | Yes |
 
 ### Microflows
 
@@ -96,6 +96,8 @@ the write refused them part-way through the script
 | Page parameters (entity) | `Params: ( $Item: Module.Entity )` | 9.4+ | Yes | Yes | Yes |
 | Page parameters (primitive) | `Params: ( $Qty: Integer )` | -- | -- | -- | 11.6+ |
 | Page variables | `Variables: ( ... )` | -- | 10.20+ | 10.20+ | Yes |
+| Snippet parameters | `CREATE SNIPPET ... (Params: ( ... ))` | 9.21+ | Yes | Yes | Yes |
+| Workflow actions on a button | `action: open user task`, `open workflow`, `call workflow ...`; `complete task '...'` | 9.0.2+; 9.19+ | Yes | Yes | Yes |
 | Design properties (Atlas v3) | `DesignProperties: (...)` | -- | -- | -- | Yes |
 
 ::: tip Widget Templates
@@ -116,10 +118,16 @@ Pluggable widget templates are currently extracted from Mendix 11.6. When used o
 | Feature | MDL Syntax | 10.0+ | 10.1+ | 10.4+ | 10.6+ | 11.0+ |
 |---------|-----------|-------|-------|-------|-------|-------|
 | OData client | `CREATE CONSUMED ODATA SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| Business events | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
-| REST client (basic) | `CREATE CONSUMED REST SERVICE ... ( ... ) { OPERATION ... }` | -- | Yes | Yes | Yes | Yes |
+| Business events (9.24+) | `CREATE BUSINESS EVENT SERVICE` | Yes | Yes | Yes | Yes | Yes |
+| REST client with no operation | `CREATE CONSUMED REST SERVICE ... ( ... ) { }` | -- | Yes | Yes | Yes | Yes |
+| REST client basic authentication | `authentication: basic (...)` | -- | 10.2+ | Yes | Yes | Yes |
+| REST client operations | `... { OPERATION ... }` | -- | -- | Yes | Yes | Yes |
+| REST client from an OpenAPI document | `CREATE CONSUMED REST SERVICE ... ( OpenAPI: ... )` | -- | -- | -- | 10.21+ | Yes |
 | REST client headers | `Headers: ('Name': 'Value')` | -- | -- | Yes | Yes | Yes |
-| Database Connector | `CREATE DATABASE CONNECTION` | -- | -- | -- | Yes | Yes |
+| Database Connector | `CREATE DATABASE CONNECTION` | Yes | Yes | Yes | Yes | Yes |
+| Database Connector queries | `CREATE DATABASE CONNECTION ... { QUERY ... }` | -- | -- | -- | 10.12+ | Yes |
+| Scheduled events | `CREATE SCHEDULED EVENT ... ( Repeat: ... )` | Yes (9.12+) | Yes | Yes | Yes | Yes |
+| Module JAR dependencies, exclusions | `ALTER MODULE ... ADD JAR DEPENDENCY`, `... ADD EXCLUSION` | Yes; 10.12+ | Yes | Yes | Yes | Yes |
 | REST client query params | `QUERY $param: Type` | -- | -- | -- | -- | Yes |
 
 A REST client operation's `body: json from $X` is stored as Mendix 11's JSON
@@ -194,6 +202,15 @@ longer loaded, and 11.1 and 11.2 failed `mx check` with CE6671 and CE6689
 | Navigation profiles | `ALTER NAVIGATION ...` | Yes | Yes |
 | Menu items | `MENU ITEM ...` | Yes | Yes |
 | Home pages | `HOME PAGE Module.Page` | Yes | Yes |
+| A progressive web app's settings | `PROGRESSIVE WEB APP ( ... )` | 9.0.3+ | Yes |
+| A native profile's home page | `CREATE OR MODIFY NAVIGATION NativePhone HOME PAGE ...` | 9.4+ | Yes |
+| Menu item icons | `MENU ITEM '...' ( ..., Icon: Module.Collection.icon )` | 9.20+ | Yes |
+| A not-found page | `NOT FOUND PAGE Module.Page` | No | 10.13+ |
+
+Each "+" version above that is not a whole major is the Model SDK's version of a
+type or property mxcli writes for the feature, with no older shape; below it,
+`check -p` and `exec` refuse the statement with MDL-VERSION01 before anything is
+written ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)).
 
 ### OQL (View Entity queries)
 
@@ -219,7 +236,7 @@ The Mendix metamodel evolves across versions. The reflection data shows ~42% typ
 
 ### View Entities (10.x vs 11.x)
 
-View entities exist in both 10.18+ and 11.x, but the BSON structure differs. In Mendix 10.x, the `OqlViewEntitySource` object has an `Oql` field that stores the OQL query inline (in addition to the separate `ViewEntitySourceDocument`). Mendix 11.0 removed the inline `Oql` field. The writer detects the project version and includes the inline field for 10.x projects.
+View entities arrived in Mendix 10.18 with the query stored inline. mxcli stores it in a separate `ViewEntitySourceDocument`, which the entity's source names; both are 10.21 types, so `create view entity` needs 10.21 and is refused by `check -p` below it ([ako/mxcli#1811](https://github.com/ako/mxcli/issues/1811)); before, `check -p` passed it on 10.18 to 10.20 and the write refused it. The BSON structure also differs between 10.x and 11.x. In Mendix 10.x, the `OqlViewEntitySource` object has an `Oql` field that stores the OQL query inline (in addition to the separate `ViewEntitySourceDocument`). Mendix 11.0 removed the inline `Oql` field. The writer detects the project version and includes the inline field for 10.x projects.
 
 ### Page Parameters (9.4+, with an 11.5 tail)
 

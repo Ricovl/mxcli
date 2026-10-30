@@ -72,6 +72,18 @@ features:
       min_version: "9.4.0"
       mdl: "CREATE PAGE Module.Name (Params: ($P: Module.Entity)) { ... }"
       notes: "Pages$PageParameter and Page.parameters introduced in 9.4.0 (mendixmodelsdk StructureVersionInfo)"
+    workflow_page_actions:
+      min_version: "9.0.2"
+      mdl: "action: open user task | open workflow | call workflow Module.WF"
+      notes: "Forms$OpenUserTaskClientAction, OpenWorkflowClientAction and CallWorkflowClientAction introduced in 9.0.2 with workflows (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    complete_task_action:
+      min_version: "9.19.0"
+      mdl: "action: complete task 'Outcome'"
+      notes: "Forms$SetTaskOutcomeClientAction is 9.0.2, but the OutcomeValue mxcli writes is 9.19.0 (mendixmodelsdk 4.117.0); below, the write refuses the page (ako/mxcli#1811)."
+    snippet_parameters:
+      min_version: "9.21.0"
+      mdl: "CREATE SNIPPET Module.Name (Params: ($P: Module.Entity)) { … }"
+      notes: "Forms$SnippetParameter and Snippet.Parameters introduced in 9.21.0 (mendixmodelsdk 4.117.0). A snippet call writes a mapping only for a parameter the called snippet declares, so it cannot reach an older project (ako/mxcli#1811)."
 
   security:
     module_roles:
@@ -147,3 +159,27 @@ features:
       min_version: "9.0.0"
     home_pages:
       min_version: "9.0.0"
+    progressive_web_app:
+      min_version: "9.0.3"
+      mdl: "CREATE OR MODIFY NAVIGATION Profile PROGRESSIVE WEB APP ( Precaching: true )"
+      notes: "Navigation$ProgressiveWebAppSettings introduced in 9.0.3 (mendixmodelsdk 4.117.0); `progressive web app off` writes none (ako/mxcli#1811)."
+    native_home_page:
+      min_version: "9.4.0"
+      mdl: "CREATE OR MODIFY NAVIGATION NativePhone HOME PAGE Module.Page"
+      notes: "Navigation$NativeHomePage and NativeNavigationProfile.NativeHomePage introduced in 9.4.0 (mendixmodelsdk 4.117.0); the native profile itself is older (ako/mxcli#1811)."
+    menu_item_icons:
+      min_version: "9.20.0"
+      mdl: "MENU ITEM 'Home' ( OnClick: …, Icon: Module.Collection.icon )"
+      notes: "Forms$IconCollectionIcon introduced in 9.20.0 with icon collections (mendixmodelsdk 4.117.0); `Icon:` names an icon collection entry and nothing else (ako/mxcli#1811)."
+
+  scheduled_events:
+    schedules:
+      min_version: "9.12.0"
+      mdl: "CREATE SCHEDULED EVENT Module.Name ( Microflow: …, Repeat: Daily, … )"
+      notes: "ScheduledEvents$MinuteSchedule … YearWeekdaySchedule, ScheduledEvent.Schedule and OnOverlap introduced in 9.12.0 (mendixmodelsdk 4.117.0); before, an event has only an interval, which mxcli does not write (ako/mxcli#1811)."
+
+  integration:
+    business_events:
+      min_version: "9.24.0"
+      mdl: "CREATE BUSINESS EVENT SERVICE Module.Name ..."
+      notes: "BusinessEvents$BusinessEventService and its children introduced in 9.24.0 (mendixmodelsdk 4.117.0). mx 9.24.30 loads a service mxcli writes; its errors there are the content (the Business Events module, an attribute's length). The 10 and 11 rows said 10.0.0 (ako/mxcli#1811)."

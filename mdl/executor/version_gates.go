@@ -33,6 +33,12 @@ type versionGate struct {
 // (requireMessageDefinitionDocuments on a drop/alter of a document that is not
 // there), stays with its handler: check cannot know it from the script.
 func statementVersionGates(stmt ast.Statement) []versionGate {
+	return append(statementCaseGates(stmt), documentGates(stmt)...)
+}
+
+// statementCaseGates are the gates statementVersionGates names case by case;
+// documentTypeGates add the document shapes (ako/mxcli#1811).
+func statementCaseGates(stmt ast.Statement) []versionGate {
 	switch s := stmt.(type) {
 	case *ast.CreateRestClientStmt:
 		return []versionGate{{"integration", "rest_client_basic", "create rest client",
@@ -74,8 +80,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 					"On an earlier version, model the buckets as your own entity and target user tasks with a microflow."}}
 		}
 	case *ast.CreateViewEntityStmt:
-		gates := []versionGate{{"domain_model", "view_entities", "create view entity",
-			"upgrade your project to 10.18+ or use a regular entity with a microflow data source"}}
+		gates := []versionGate{viewEntityGate.versionGate}
 		// An OQL comment — `--` or `/* */`, anywhere in the query — is CE0174
 		// "Error(s) in OQL query: The '-' part is incomplete or incorrect" below
 		// the floor. The query now keeps a comment before its first token or
@@ -225,6 +230,18 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		return append(gates, workflowShapeGatesOf(s)...)
 	}
 	return nil
+}
+
+// viewEntityGate is the gate of `create view entity`. Its floor is the latest
+// of what the write stores for one: the query in a separate
+// DomainModels$ViewEntitySourceDocument, which the entity's source names
+// (OqlViewEntitySource.SourceDocument), both 10.21 — not 10.18, where the
+// OQL was inline and the write refuses the document (ako/mxcli#1811).
+var viewEntityGate = typeGate{
+	versionGate: versionGate{"domain_model", "view_entities", "create view entity",
+		"use a regular entity with a microflow data source, or upgrade the project"},
+	types:      []string{"DomainModels$ViewEntitySourceDocument", "DomainModels$OqlViewEntitySource"},
+	properties: []string{"DomainModels$OqlViewEntitySource.SourceDocument"},
 }
 
 // workflowBasicGate is the gate of every statement that writes a workflow

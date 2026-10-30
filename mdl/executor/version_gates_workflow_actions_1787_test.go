@@ -182,6 +182,10 @@ func TestTypeGates_FloorIsTheTypeIntroduction(t *testing.T) {
 	for _, g := range workflowShapeGates {
 		pinned = append(pinned, g.typeGate)
 	}
+	for _, g := range documentTypeGates {
+		pinned = append(pinned, g.typeGate)
+	}
+	pinned = append(pinned, viewEntityGate)
 	if len(workflowActionGates) == 0 || len(flowActionGates) == 0 || len(workflowShapeGates) == 0 {
 		t.Fatal("no workflow action, flow action or workflow shape gates")
 	}
