@@ -243,8 +243,65 @@ func parseCmp(s *Stream, ctx Context) (RobustExpr, []Hint) {
 	hints = append(hints, h...)
 	if op == "=" || op == "!=" {
 		hints = append(hints, checkEnumComparedToString(left, right, ctx, opTok)...)
+		hints = append(hints, checkStringFuncComparedWithEmpty(left, right, op, ctx, opTok)...)
 	}
 	return &BinExpr{Op: op, L: left, R: right}, hints
+}
+
+// neverEmptyStringFuncs are the String built-ins whose result is never
+// `empty`: given `empty`, the empty string or blanks, each returns the empty
+// string or text. Measured on the
+// Mendix 10.18.5 runtime with `mxcli test --local` (mendixlabs/mxcli#580), with
+// the bare variable as the control that does compare equal to `empty`. Add a
+// function only once it has been measured.
+var neverEmptyStringFuncs = map[string]bool{
+	"trim":        true,
+	"toLowerCase": true,
+	"toUpperCase": true,
+	"substring":   true,
+	"replaceAll":  true,
+	"toString":    true,
+}
+
+// checkStringFuncComparedWithEmpty emits E015 for `trim($v) != empty`: the
+// result can never be `empty`, so the comparison is constant — `!=` always
+// true, `=` always false. The model is valid and builds, which is why it is a
+// warning; the logic is what is wrong, and the blank-check the author meant is
+// trim($v) compared with the empty string literal, which also covers `empty`
+// since trim(empty) is the empty string.
+func checkStringFuncComparedWithEmpty(left, right RobustExpr, op string, ctx Context, opTok Token) []Hint {
+	call := neverEmptyCallAgainstEmpty(left, right)
+	if call == nil {
+		call = neverEmptyCallAgainstEmpty(right, left)
+	}
+	if call == nil {
+		return nil
+	}
+	always := "true"
+	if op == "=" {
+		always = "false"
+	}
+	return []Hint{{
+		Code: "E015", Slug: "string-func-vs-empty", Severity: hints.SeverityWarning,
+		Where:    hintsLocation(ctx, opTok.Pos),
+		YouWrote: call.Name + "(...) " + op + " empty",
+		Problem: call.Name + "() never returns empty — for an empty input it returns '' — " +
+			"so this comparison is always " + always + ".",
+		Fix: "Compare with '' instead: " + call.Name + "(...) " + op + " ''",
+	}}
+}
+
+// neverEmptyCallAgainstEmpty returns side as a never-empty String call when
+// other is the `empty` keyword, and nil otherwise.
+func neverEmptyCallAgainstEmpty(side, other RobustExpr) *CallExpr {
+	if _, ok := unwrapParens(other).(*EmptyExpr); !ok {
+		return nil
+	}
+	call, ok := unwrapParens(side).(*CallExpr)
+	if !ok || call.Qualified || !neverEmptyStringFuncs[call.Name] {
+		return nil
+	}
+	return call
 }
 
 // checkEnumComparedToString emits E001 for `$obj/EnumAttr = 'Value'`.

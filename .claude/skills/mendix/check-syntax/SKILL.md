@@ -11,15 +11,15 @@ description: "Validate MDL with `mxcli check` before presenting or executing it,
 | lines | section |
 |---|---|
 | 29-35 | When to Use This Skill |
-| 36-286 | `exec` refuses what `check` rejects |
-| 287-422 | Pre-Flight Validation Checklist |
-| 423-458 | Two rules that only real validation used to catch |
-| 459-505 | Validation Workflow |
-| 506-527 | Script Execution Behavior |
-| 528-588 | Script Organization |
-| 589-641 | Troubleshooting Parse Errors |
-| 642-699 | Studio Pro MCP — Verification Only |
-| 700-705 | Related Skills |
+| 36-293 | `exec` refuses what `check` rejects |
+| 294-429 | Pre-Flight Validation Checklist |
+| 430-465 | Two rules that only real validation used to catch |
+| 466-512 | Validation Workflow |
+| 513-534 | Script Execution Behavior |
+| 535-595 | Script Organization |
+| 596-648 | Troubleshooting Parse Errors |
+| 649-706 | Studio Pro MCP — Verification Only |
+| 707-712 | Related Skills |
 
 <!-- /skill-index -->
 # MDL Syntax Validation Skill
@@ -271,6 +271,13 @@ reported by `check`:
   (CE0109). Write `RETURNS void`, or give the alias the type it holds.
 - **`empty($List)`** — E014. `empty` is a Mendix **keyword**, not a function, so
   the parser stops at the `(`. Write `$List = empty` or `length($List) = 0`.
+
+A **warning** rather than a refusal, because the model is valid and builds:
+
+- **`trim($v) != empty`** — E015. A String function (`trim`, `toLowerCase`,
+  `toUpperCase`, `substring`, `replaceAll`, `toString`) returns `''` for an
+  empty input, never `empty`, so the comparison is constant. Write
+  `trim($v) != ''`, which also covers an empty `$v`.
 
 **One thing to know about hint ordering**: the reference check runs before
 expression checking and **exits on its first error**, so an unrelated mistake
