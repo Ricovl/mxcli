@@ -32,6 +32,49 @@ func associationRetrieveYieldsList(refSet, ownerBoth, fromToSide bool) bool {
 	return fromToSide && !ownerBoth
 }
 
+// assocRetrieveEnd is the end of an association a retrieve over it starts from.
+type assocRetrieveEnd int
+
+const (
+	assocEndNone      assocRetrieveEnd = iota // the start is no end of it, as far as is known
+	assocEndFrom                              // the FROM end: the association's parent, the foreign-key owner
+	assocEndTo                                // the TO end: its child
+	assocEndAmbiguous                         // a specialization of both ends of an association between two entities
+)
+
+// associationRetrieveEnd decides which end `retrieve $X from $Start/Assoc`
+// starts from, given whether $Start holds (a specialization of) the
+// association's FROM entity and its TO entity. It is the one answer the full
+// build (addRetrieveAction) and a spliced fragment (associationRetrieveType)
+// take, each asking "is it a" of its own view of the project.
+//
+// A self-reference has the start at both ends, and the stored
+// AssociationRetrieveSource records no direction (only the start variable and
+// the association): Mendix follows it from its FROM end, so a Reference gives
+// the object it holds and a Reference set the list. Measured on 11.13.0
+// (ako/mxcli#1777, #1793): over M.Order_Parent from M.Order to M.Order a
+// `change` of the output builds, while `count` is CE0013 "Input variable 'P'
+// must be of type 'List'.", a loop CE0100 "'P' is of type M.Order, but should
+// be of type List.", from an M.Order and from a specialization of it alike.
+// Owner Both on a self-reference is CE0002, so the one-to-one case does not
+// arise. A start that is a specialization of both ends of an association
+// between two different entities is ambiguous: which end Mendix takes there is
+// not measured.
+func associationRetrieveEnd(isFrom, isTo, selfReference bool) assocRetrieveEnd {
+	switch {
+	case isFrom && isTo:
+		if selfReference {
+			return assocEndFrom
+		}
+		return assocEndAmbiguous
+	case isTo:
+		return assocEndTo
+	case isFrom:
+		return assocEndFrom
+	}
+	return assocEndNone
+}
+
 // validateAssociationRetrieveListUse is MDL-RETRIEVE03 for a retrieve over an
 // association. The no-project rule judges only database retrieves, because
 // whether `retrieve $L from $h/M.A` binds a list or an object depends on the
