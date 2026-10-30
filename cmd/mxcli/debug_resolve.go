@@ -224,6 +224,36 @@ func extractPausedFromEvents(raw []byte) []pausedFlowSummary {
 	return out
 }
 
+// pausedVariable finds one in-scope variable of a paused flow in the
+// get_paused_microflows result: {"paused_microflows":[{"debug_id":…,
+// "variables":{"<name>":{"type":"string","value":"hello"},…}}]} on 11.15. It
+// returns the variable's entry and its "type" ("object", "string", "enum", …).
+// Parsed as defensively as extractPausedFlows; not found is (nil, "", false).
+func pausedVariable(raw []byte, debugID, name string) (json.RawMessage, string, bool) {
+	var v any
+	if json.Unmarshal(raw, &v) != nil {
+		return nil, "", false
+	}
+	for _, it := range firstList(v) {
+		m, ok := it.(map[string]any)
+		if !ok || firstString(m, "debug_id", "debugId", "id") != debugID {
+			continue
+		}
+		vars, _ := m["variables"].(map[string]any)
+		entry, ok := vars[name].(map[string]any)
+		if !ok {
+			return nil, "", false
+		}
+		b, err := json.Marshal(entry)
+		if err != nil {
+			return nil, "", false
+		}
+		typ, _ := entry["type"].(string)
+		return b, typ, true
+	}
+	return nil, "", false
+}
+
 // firstList returns v if it is an array, else the first array value found among a
 // map's values (one level deep).
 func firstList(v any) []any {

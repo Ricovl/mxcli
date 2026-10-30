@@ -96,3 +96,70 @@ func TestDebugContinue_ResumesThePausedFlowByDebugID(t *testing.T) {
 		t.Errorf("output = %q, want it to name the flow it continued", out)
 	}
 }
+
+// inspectStub answers get_object the way 11.15 does: an object variable gets
+// its members, anything else is refused as "not a Mendix object".
+func inspectStub(t *testing.T) *debugRuntimeStub {
+	return newDebugRuntimeStub(t, func(action string, params map[string]any) string {
+		switch action {
+		case "get_paused_microflows":
+			return pausedACTDebug
+		case "poll_events":
+			return `{"result":{"events":[]},"status":0}`
+		case "get_object":
+			if params["variable_name"] == "currentUser" {
+				return `{"result":{"object":{"members":{"Name":{"type":"string","value":"MxAdmin"}},"id":"13792273858822669","state":"NORMAL","entity":"System.User"}},"status":0}`
+			}
+			return `{"result":{},"message":"The variable '` + params["variable_name"].(string) + `' is not a Mendix object.","status":2}`
+		}
+		return `{"result":{},"status":0}`
+	})
+}
+
+// `debug inspect` of a String variable printed {} (ako/mxcli#1782): get_object
+// refuses a primitive ("The variable 'Greeting' is not a Mendix object."), and
+// the refusal's empty result was printed as the value. A primitive's value is
+// in the paused flow's state already; inspect prints it from there.
+func TestDebugInspect_PrimitiveVariablePrintsItsValue(t *testing.T) {
+	stub := inspectStub(t)
+	out, err := runDebug(t, stub, "inspect", "Greeting", "--flow", "dbg-1")
+	if err != nil {
+		t.Fatalf("debug inspect Greeting: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"value": "hello"`) || !strings.Contains(out, `"type": "string"`) {
+		t.Errorf("output = %q, want the String variable's type and value", out)
+	}
+	for _, a := range stub.actions {
+		if a == "get_object" {
+			t.Errorf("a primitive must not be sent to get_object, which refuses it; requests = %v", stub.actions)
+		}
+	}
+}
+
+// An object variable still goes to get_object, which returns its members.
+func TestDebugInspect_ObjectVariableUsesGetObject(t *testing.T) {
+	stub := inspectStub(t)
+	out, err := runDebug(t, stub, "inspect", "currentUser", "--flow", "dbg-1")
+	if err != nil {
+		t.Fatalf("debug inspect currentUser: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, `"MxAdmin"`) {
+		t.Errorf("output = %q, want the object's members from get_object", out)
+	}
+	if last := stub.actions[len(stub.actions)-1]; last != "get_object" {
+		t.Errorf("last request = %q, want get_object", last)
+	}
+}
+
+// A variable the paused flow does not have is the runtime's call to make:
+// get_object refuses it, and that refusal is the error.
+func TestDebugInspect_UnknownVariableIsTheRuntimesRefusal(t *testing.T) {
+	stub := inspectStub(t)
+	out, err := runDebug(t, stub, "inspect", "Nope", "--flow", "dbg-1")
+	if err == nil {
+		t.Fatalf("debug inspect Nope succeeded, want the runtime's refusal\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "The variable 'Nope'") {
+		t.Errorf("error = %v, want the runtime's message", err)
+	}
+}

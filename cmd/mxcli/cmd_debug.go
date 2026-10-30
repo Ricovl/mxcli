@@ -289,6 +289,20 @@ var debugInspectCmd = &cobra.Command{
 			return err
 		}
 		asList, _ := cmd.Flags().GetBool("list")
+		if !asList {
+			// get_object takes only an object variable; a primitive (measured:
+			// a String, an enumeration) is refused ("The variable 'X' is not a
+			// Mendix object."), which printed as {} (ako/mxcli#1782). Its value
+			// is in the paused flow's state already, so print it from there.
+			// A variable not in that state (a nanoflow's, which lives in
+			// poll_events) still goes to get_object, refusal and all.
+			if paused, perr := c.PausedMicroflows(); perr == nil {
+				if v, typ, ok := pausedVariable(paused, debugID, args[0]); ok && typ != "object" && typ != "list" {
+					printJSON(v)
+					return nil
+				}
+			}
+		}
 		var raw []byte
 		if asList {
 			raw, err = c.GetList(debugID, args[0])
