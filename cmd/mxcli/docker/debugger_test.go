@@ -15,15 +15,42 @@ import (
 // debuggerTestServer stubs BOTH planes on one httptest server, routed by path:
 // "/" is the M2EE admin plane, "/debugger/" is the debugger endpoint. It records
 // what it received so tests can assert the envelope and auth.
+//
+// The /debugger/ half answers the way a Mendix 11.13/11.15 runtime does, measured
+// against both (ako/mxcli#1782): every reply is HTTP 200, success is
+// {"result":…,"status":0}, and a rejection is {"result":{},"message":…,"status":2}.
+// A request missing a property the runtime requires is rejected with the
+// runtime's own "Missing property: <name>" — add_breakpoint without condition and
+// continue without debug_id among them.
 type debuggerTestServer struct {
 	*httptest.Server
 	adminActions []string
 	enablePass   string // password seen on enable_debugger
 	dbgActions   []string
-	dbgAuth      string         // X-Debugger-Authentication seen on the last /debugger/ call
-	dbgHadParams bool           // whether the last /debugger/ body had a params key
-	dbgToken     string         // session_token seen on the last /debugger/ call
-	dbgParams    map[string]any // params of the last /debugger/ call
+	dbgAuth      string            // X-Debugger-Authentication seen on the last /debugger/ call
+	dbgHadParams bool              // whether the last /debugger/ body had a params key
+	dbgToken     string            // session_token seen on the last /debugger/ call
+	dbgParams    map[string]any    // params of the last /debugger/ call
+	reject       map[string]string // action -> message to reject it with (status 2)
+}
+
+// debuggerRequiredParams are the properties the runtime refuses a request
+// without (each measured: omitting it yields "Missing property: <name>").
+var debuggerRequiredParams = map[string][]string{
+	"add_breakpoint":    {"object_id", "condition"},
+	"remove_breakpoint": {"object_id"},
+	"get_object":        {"debug_id", "variable_name"},
+	"get_list":          {"debug_id", "variable_name"},
+	"step_over":         {"debug_id"},
+	"step_into":         {"debug_id"},
+	"step_out":          {"debug_id"},
+	"continue":          {"debug_id"},
+}
+
+// debuggerRejection is the runtime's rejection envelope, verbatim in shape.
+func debuggerRejection(message string) []byte {
+	b, _ := json.Marshal(map[string]any{"result": map[string]any{}, "message": message, "status": 2})
+	return b
 }
 
 func newDebuggerTestServer(t *testing.T) (*debuggerTestServer, DebuggerOptions) {
@@ -45,11 +72,21 @@ func newDebuggerTestServer(t *testing.T) (*debuggerTestServer, DebuggerOptions) 
 			if tok, ok := body["session_token"]; ok {
 				_ = json.Unmarshal(tok, &ts.dbgToken)
 			}
+			if msg, ok := ts.reject[action]; ok {
+				_, _ = w.Write(debuggerRejection(msg))
+				return
+			}
+			for _, key := range debuggerRequiredParams[action] {
+				if _, ok := ts.dbgParams[key]; !ok {
+					_, _ = w.Write(debuggerRejection("Missing property: " + key))
+					return
+				}
+			}
 			switch action {
 			case "start_session":
-				_, _ = w.Write([]byte(`{"result":{"session_token":"tok-123","runtime_version":"11.6"}}`))
+				_, _ = w.Write([]byte(`{"result":{"session_token":"tok-123","runtime_version":"11.15.0","paused_microflows":[]},"status":0}`))
 			default:
-				_, _ = w.Write([]byte(`{"result":{}}`))
+				_, _ = w.Write([]byte(`{"result":{},"status":0}`))
 			}
 			return
 		}
@@ -189,7 +226,12 @@ func TestDebugger_AddBreakpoint(t *testing.T) {
 	}
 }
 
-func TestDebugger_AddBreakpointOmitsEmptyCondition(t *testing.T) {
+// An unconditional breakpoint still sends condition, as the empty string. The
+// runtime (11.13 and 11.15, measured) refuses add_breakpoint without it —
+// {"message":"Missing property: condition","status":2} — and registers nothing,
+// so a breakpoint set this way never paused (ako/mxcli#1782,
+// mendixlabs/mxcli#1676).
+func TestDebugger_AddBreakpointSendsEmptyCondition(t *testing.T) {
 	ts, opts := newDebuggerTestServer(t)
 	c := NewDebuggerClient(opts)
 	if _, err := c.StartSession(); err != nil {
@@ -198,8 +240,12 @@ func TestDebugger_AddBreakpointOmitsEmptyCondition(t *testing.T) {
 	if err := c.AddBreakpoint("M.F", "guid-2", "", false); err != nil {
 		t.Fatalf("AddBreakpoint: %v", err)
 	}
-	if _, ok := ts.dbgParams["condition"]; ok {
-		t.Errorf("empty condition must be omitted, got %v", ts.dbgParams["condition"])
+	cond, ok := ts.dbgParams["condition"]
+	if !ok {
+		t.Fatalf("add_breakpoint params = %v: condition is missing, which the runtime rejects with \"Missing property: condition\"", ts.dbgParams)
+	}
+	if cond != "" {
+		t.Errorf("condition = %v, want the empty string for an unconditional breakpoint", cond)
 	}
 }
 

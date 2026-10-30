@@ -151,6 +151,11 @@ func (c *DebuggerClient) StartSession() (string, error) {
 //
 // A nanoflow breakpoint uses the nanoflow_name param, not microflow_name — the
 // runtime NPEs on the wrong key (findings — nanoflow debugging).
+//
+// condition is always sent, as "" for an unconditional breakpoint: the runtime
+// (11.13 and 11.15, measured) answers a request without it with
+// {"message":"Missing property: condition","status":2} and registers nothing
+// (ako/mxcli#1782).
 func (c *DebuggerClient) AddBreakpoint(flowName, objectID, condition string, nanoflow bool) error {
 	nameKey := "microflow_name"
 	if nanoflow {
@@ -159,9 +164,7 @@ func (c *DebuggerClient) AddBreakpoint(flowName, objectID, condition string, nan
 	params := map[string]any{
 		nameKey:     flowName,
 		"object_id": objectID,
-	}
-	if condition != "" {
-		params["condition"] = condition
+		"condition": condition,
 	}
 	_, err := c.post("add_breakpoint", true, params)
 	return err
