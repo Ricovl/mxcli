@@ -33,6 +33,12 @@ type versionGate struct {
 // (requireMessageDefinitionDocuments on a drop/alter of a document that is not
 // there), stays with its handler: check cannot know it from the script.
 func statementVersionGates(stmt ast.Statement) []versionGate {
+	return append(statementCaseGates(stmt), documentGates(stmt)...)
+}
+
+// statementCaseGates are the gates statementVersionGates names case by case;
+// documentTypeGates add the document shapes (ako/mxcli#1811).
+func statementCaseGates(stmt ast.Statement) []versionGate {
 	switch s := stmt.(type) {
 	case *ast.CreateRestClientStmt:
 		return []versionGate{{"integration", "rest_client_basic", "create rest client",
@@ -74,8 +80,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 					"On an earlier version, model the buckets as your own entity and target user tasks with a microflow."}}
 		}
 	case *ast.CreateViewEntityStmt:
-		gates := []versionGate{{"domain_model", "view_entities", "create view entity",
-			"upgrade your project to 10.18+ or use a regular entity with a microflow data source"}}
+		gates := []versionGate{viewEntityGate.versionGate}
 		// An OQL comment — `--` or `/* */`, anywhere in the query — is CE0174
 		// "Error(s) in OQL query: The '-' part is incomplete or incorrect" below
 		// the floor. The query now keeps a comment before its first token or
@@ -144,7 +149,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 	case *ast.CreateSnippetStmtV3, *ast.AlterPageStmt:
 		return flowReturnsGates(s)
 	case *ast.CreateMicroflowStmt:
-		gates := microflowBodyGates(s.Body)
+		gates := microflowBodyGates(s.Parameters, s.Body)
 		// Deep links are Mendix 10.6+. Gated on the clause being STATED, not on
 		// the resulting value: a rewrite that carries a stored URL forward on
 		// an older project preserves what is already there.
@@ -154,7 +159,7 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 		}
 		return gates
 	case *ast.CreateNanoflowStmt:
-		return nanoflowBodyGates(s.Body)
+		return nanoflowBodyGates(s.Parameters, s.Body)
 	case *ast.AlterFlowStmt:
 		// What an insert or a replace splices in is gated as the same
 		// statements in a `create` are; a drop writes nothing new. Without
@@ -165,11 +170,13 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			inserted = append(inserted, op.Body...)
 		}
 		if s.Nanoflow {
-			return nanoflowBodyGates(inserted)
+			return nanoflowBodyGates(nil, inserted)
 		}
-		return microflowBodyGates(inserted)
+		return microflowBodyGates(nil, inserted)
 	case *ast.CreateWorkflowStmt:
-		var gates []versionGate
+		// `create or modify workflow` is this statement too: it writes the
+		// same Workflows$Workflow (ako/mxcli#1809).
+		gates := []versionGate{workflowBasicGate("create workflow")}
 		if len(s.EventHandlers) > 0 {
 			gates = append(gates, versionGate{"workflows", "event_handlers", "on workflow events",
 				"remove the `on … workflow event` clauses, or upgrade the project"})
@@ -201,11 +208,10 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			gates = append(gates, notificationEventsGate)
 		}
 		gates = append(gates, workflowTypeGates(activities, nil)...)
-		return append(gates, userTaskGates(activities)...)
+		gates = append(gates, userTaskGates(activities)...)
+		return append(gates, workflowShapeGatesOf(s)...)
 	case *ast.AlterWorkflowStmt:
-		// Workflows require Mendix 9.12+.
-		gates := []versionGate{{"workflows", "basic", "alter workflow",
-			"upgrade your project to Mendix 9.12+ to use workflows"}}
+		gates := []versionGate{workflowBasicGate("alter workflow")}
 		added := alterWorkflowAddedActivities(s)
 		if workflowUsesAgentTask(added) {
 			gates = append(gates, agentTaskGate)
@@ -220,9 +226,31 @@ func statementVersionGates(stmt ast.Statement) []versionGate {
 			}
 		}
 		gates = append(gates, workflowTypeGates(added, inserted)...)
-		return append(gates, userTaskGates(added)...)
+		gates = append(gates, userTaskGates(added)...)
+		return append(gates, workflowShapeGatesOf(s)...)
 	}
 	return nil
+}
+
+// viewEntityGate is the gate of `create view entity`. Its floor is the latest
+// of what the write stores for one: the query in a separate
+// DomainModels$ViewEntitySourceDocument, which the entity's source names
+// (OqlViewEntitySource.SourceDocument), both 10.21 — not 10.18, where the
+// OQL was inline and the write refuses the document (ako/mxcli#1811).
+var viewEntityGate = typeGate{
+	versionGate: versionGate{"domain_model", "view_entities", "create view entity",
+		"use a regular entity with a microflow data source, or upgrade the project"},
+	types:      []string{"DomainModels$ViewEntitySourceDocument", "DomainModels$OqlViewEntitySource"},
+	properties: []string{"DomainModels$OqlViewEntitySource.SourceDocument"},
+}
+
+// workflowBasicGate is the gate of every statement that writes a workflow
+// document: Workflows$Workflow is a 9.0.2 type, and the write refuses it below
+// that (ako/mxcli#1809). The hint names no version; the message states the
+// registry's floor.
+func workflowBasicGate(statement string) versionGate {
+	return versionGate{"workflows", "basic", statement,
+		"this version has no workflows (Workflows$Workflow): upgrade the project"}
 }
 
 // The gates of the workflow activity and event TYPES mxcli writes that an
@@ -293,8 +321,8 @@ func workflowTypeGates(activities []ast.WorkflowActivityNode, insertedEvents []s
 // microflowBodyGates are the gates of the activities in a microflow body,
 // nested ones included (bodyContains walks branches, loops and error
 // handlers): what `create microflow` declares and what `alter microflow`
-// splices in.
-func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+// splices in. params are the microflow's when the statement declares them.
+func microflowBodyGates(params []ast.MicroflowParam, body []ast.MicroflowStatement) []versionGate {
 	var gates []versionGate
 	// SEND EMAIL writes the 11.13+ shape (StringTemplate subject and
 	// bodies); an older project stores a different EmailMessage, or no
@@ -311,21 +339,22 @@ func microflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 			gates = append(gates, g.versionGate)
 		}
 	}
-	return gates
+	return append(gates, flowGates(params, body)...)
 }
 
 // nanoflowBodyGates are the gates of the activities in a nanoflow body, as
 // microflowBodyGates are a microflow's.
-func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
+func nanoflowBodyGates(params []ast.MicroflowParam, body []ast.MicroflowStatement) []versionGate {
+	var gates []versionGate
 	// SYNCHRONIZE UNSYNCHRONIZED is the one mode with a floor inside
 	// Mendix 9: SynchronizationType.Unsynchronized was introduced in 9.4.0,
 	// while the activity and its other two modes go back further. Gate the
 	// mode, not the statement, so a 9.0-9.3 project keeps `synchronize all`.
 	if bodyUsesUnsynchronized(body) {
-		return []versionGate{{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
-			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"}}
+		gates = append(gates, versionGate{"microflows", "synchronize_unsynchronized", "synchronize unsynchronized",
+			"use `synchronize all` or `synchronize $Var`, or upgrade the project to 9.4+"})
 	}
-	return nil
+	return append(gates, flowGates(params, body)...)
 }
 
 // typeGate is a gate whose floor is the introduction of the storage $Types
@@ -336,8 +365,12 @@ func nanoflowBodyGates(body []ast.MicroflowStatement) []versionGate {
 type typeGate struct {
 	versionGate
 	// types are the storage $Types the statement writes; the floor is the
-	// latest of their introductions.
+	// latest of their introductions and of properties'.
 	types []string
+	// properties are the "Type.Key" properties the statement writes a value
+	// to whose introduction is later than the types': the write refuses a
+	// value below it (canon.StripUndeclaredProperties), as it refuses a type.
+	properties []string
 	// match reports a statement in a flow body that writes them.
 	match func(ast.MicroflowStatement) bool
 }

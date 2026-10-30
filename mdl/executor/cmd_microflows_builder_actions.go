@@ -1257,9 +1257,20 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// — where HttpRequest extends HttpMessage and HttpHeaders has child
 		// HttpMessage — are still classified as reverse traversal (which returns
 		// a list, so the output variable is typed accordingly below).
+		//
+		// Which end it starts from is the rule a spliced fragment and check
+		// --references take (associationRetrieveEndFrom). A self-reference is
+		// followed from its FROM end, never the child side: it used to be read
+		// as a reverse traversal, typed as a list unless an object use followed,
+		// and a list use of it was written and failed the build with CE0013 /
+		// CE0097 / CE0100 (ako/mxcli#1793, measured on 11.13.0). A specialization
+		// of both ends of an association between two entities stays read from
+		// the child side, as before: which end Mendix takes there is not
+		// measured, and the fragment and the check leave it untyped.
+		startEnd := fb.associationRetrieveEndFrom(startVarType, assocInfo)
 		startsFromChildSide := assocInfo != nil &&
 			assocInfo.childEntityQN != "" &&
-			fb.entityIsSubtypeOf(startVarType, assocInfo.childEntityQN)
+			(startEnd == assocEndTo || startEnd == assocEndAmbiguous)
 
 		// The `$var/Module.Assoc` syntax is a retrieve-by-association (in-memory).
 		// Keep it as an AssociationRetrieveSource — that is what preserves the
@@ -1272,6 +1283,8 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// SINGLE object in Mendix (mxbuild reports CE0100 when it feeds a loop or
 		// aggregate), so there is no in-memory way to obtain the list — fall back
 		// to a DatabaseRetrieveSource. Object usage stays an association retrieve.
+		// A self-reference is never a reverse traversal (startsFromChildSide), so
+		// it never takes this branch.
 		expandReverseReference := assocInfo != nil &&
 			assocInfo.Type == domainmodel.AssociationTypeReference &&
 			assocInfo.Owner == domainmodel.AssociationOwnerBoth &&
@@ -2904,19 +2917,31 @@ func (fb *flowBuilder) lookupAssociation(moduleName, assocName string) *assocLoo
 	return nil
 }
 
+// associationRetrieveEndFrom is the end of info a retrieve over it starts from
+// when its start variable holds startType, by associationRetrieveEnd — the
+// rule the full build, a spliced fragment and check --references share. A
+// self-reference is followed from its FROM end (ako/mxcli#1793).
+func (fb *flowBuilder) associationRetrieveEndFrom(startType string, info *assocLookupResult) assocRetrieveEnd {
+	if info == nil {
+		return assocEndNone
+	}
+	return associationRetrieveEnd(
+		fb.entityIsSubtypeOf(startType, info.parentEntityQN),
+		fb.entityIsSubtypeOf(startType, info.childEntityQN),
+		info.parentEntityQN != "" && info.parentEntityQN == info.childEntityQN)
+}
+
 // associationRetrieveType is what `retrieve $X from $Start/assocQN` binds when
 // $Start holds startType ("Module.Entity"): the list or the object at the
-// other end, by associationRetrieveYieldsList — the answer addRetrieveAction
-// and check --references take. Mind the inversion: an association's parent is
-// its FROM end and its child the TO end, so a retrieve from the TO end yields
-// the FROM entity. A self-reference is followed from its FROM end: the stored
-// retrieve records no direction, and Mendix reads it that way — the object a
-// reference holds, the list a reference set holds (measured on 11.13.0,
-// ako/mxcli#1777: a change on it builds, a count of it is CE0013 "Input
-// variable 'P' must be of type 'List'."). "" when it cannot be established: the
-// association or the start unknown, the start a list, the start no end of it,
-// or a specialization of both ends of an association between two entities,
-// where which end it starts from is not known.
+// other end, by associationRetrieveEndFrom and associationRetrieveYieldsList —
+// the answer addRetrieveAction and check --references take. Mind the
+// inversion: an association's parent is its FROM end and its child the TO end,
+// so a retrieve from the TO end yields the FROM entity. A self-reference is
+// followed from its FROM end: the object a reference holds, the list a
+// reference set holds (measured on 11.13.0, ako/mxcli#1777). "" when it cannot
+// be established: the association or the start unknown, the start a list, the
+// start no end of it, or a specialization of both ends of an association
+// between two entities, where which end it starts from is not known.
 func (fb *flowBuilder) associationRetrieveType(startType, assocQN string) string {
 	if startType == "" || strings.HasPrefix(startType, "List of ") {
 		return ""
@@ -2930,15 +2955,13 @@ func (fb *flowBuilder) associationRetrieveType(startType, assocQN string) string
 		return ""
 	}
 	refSet := info.Type == domainmodel.AssociationTypeReferenceSet
-	fromTo := fb.entityIsSubtypeOf(startType, info.childEntityQN)
-	fromFrom := fb.entityIsSubtypeOf(startType, info.parentEntityQN)
-	switch {
-	case fromTo && fromFrom:
-		if info.parentEntityQN != info.childEntityQN {
-			return ""
-		}
-		fromTo = false // a self-reference: from the FROM end
-	case !fromTo && !fromFrom:
+	var fromTo bool
+	switch fb.associationRetrieveEndFrom(startType, info) {
+	case assocEndFrom:
+		fromTo = false
+	case assocEndTo:
+		fromTo = true
+	default:
 		return ""
 	}
 	other := info.childEntityQN

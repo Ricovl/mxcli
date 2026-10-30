@@ -318,7 +318,13 @@ func ProbePages(opts ProbeOptions) ([]PageSignals, error) {
 		timeout = 60*time.Second + time.Duration(len(opts.Pages))*perPage
 	}
 	cmd := exec.Command(node, scriptPath, reqPath)
-	cmd.Env = append(os.Environ(), "NODE_PATH="+playwrightNodePath(node))
+	// An app on this machine is reached directly, whatever name it is checked
+	// by: its dev channel must not be sent to an egress proxy (ako/mxcli#1800).
+	pageURLs := make([]string, len(opts.Pages))
+	for i, pg := range opts.Pages {
+		pageURLs[i] = pg.URL
+	}
+	cmd.Env = directRouteEnv(append(os.Environ(), "NODE_PATH="+playwrightNodePath(node)), pageURLs...)
 	out := &syncBuffer{}
 	cmd.Stdout, cmd.Stderr = out, out
 

@@ -17,9 +17,9 @@ description: "Build, run and validate a Mendix app in Docker from inside a devco
 | 86-113 | Creating an Empty Mendix App |
 | 114-274 | Step-by-Step Workflow |
 | 275-305 | Common Workflow: Edit, Rebuild, Test |
-| 306-417 | Hot Reload |
-| 418-436 | Environment Variables |
-| 437-457 | Troubleshooting |
+| 306-419 | Hot Reload |
+| 420-438 | Environment Variables |
+| 439-459 | Troubleshooting |
 
 <!-- /skill-index -->
 # Docker Build & Run Skill
@@ -386,6 +386,8 @@ The Mendix runtime exposes a WebSocket at `ws://localhost:8080/mxdevtools/` (on 
 | `update_styling` | Hot-reloads CSS without page reload |
 
 When `reload_model` is called, a new `set_deployment_id` is pushed to browsers, triggering automatic refresh. This is why you don't need to manually refresh the browser after `docker reload`.
+
+**A 502 on this channel is a proxy, not the runtime.** The runtime serves it on every host name the app is reached by. But a browser in an environment that sets `https_proxy` sends `ws://` to that proxy (Chromium prefers the HTTPS proxy for a WebSocket) unless the host is in `no_proxy`. An app checked by its own name — `http://frontend.local:8180/`, an `/etc/hosts` entry for `127.0.0.1` — then loads directly while `ws://frontend.local:8180/mxdevtools/` fails with `Unexpected response code: 502`, and auto-refresh and styling hot reload never reach that tab. The browser `mxcli playwright check`, `--page-check` and `--screenshot` start adds such a host to `no_proxy` itself (ako/mxcli#1800). A browser or `playwright-cli` session of your own needs the name added to `no_proxy`.
 
 ### When to Use `reload` vs `run`
 
