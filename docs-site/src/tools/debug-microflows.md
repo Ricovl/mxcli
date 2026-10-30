@@ -108,3 +108,10 @@ server-side (browser console only) — only `INFO`/`WARNING`/`ERROR` reach `runt
   shutdown; a manual `enable` is your responsibility.
 - **Use the same `-p` for every command.** The session token and breakpoint record
   live under `<projectDir>/.mxcli/`.
+- **A request the runtime refuses is an error, with the runtime's reason** — for
+  example `the runtime refused add_breakpoint (status 2): Failed to parse
+  condition: …` for a bad `--if`. An activity or flow the *running* app does not
+  have yet (rebuild or restart after changing the model) and `Invalid session
+  token` (the runtime restarted, or another debugger such as Studio Pro started a
+  session — run `mxcli debug enable`) are the other common ones. A command that
+  printed success was accepted by the runtime.

@@ -16,9 +16,9 @@ description: "Drive the Mendix runtime's microflow and nanoflow debugger from th
 | 62-81 | The loop |
 | 82-101 | Commands |
 | 102-132 | Nanoflows (client-side) |
-| 133-149 | Gotchas |
-| 150-157 | Validation checklist |
-| 158-160 | Microflow/nanoflow debugger (`mxcli debug`) |
+| 133-156 | Gotchas |
+| 157-164 | Validation checklist |
+| 165-167 | Microflow/nanoflow debugger (`mxcli debug`) |
 
 <!-- /skill-index -->
 # Debug Microflows — `mxcli debug`
@@ -146,6 +146,13 @@ name.
    `--debug-pass` (or `MXCLI_APP_URL` / `MXCLI_ADMIN_PASS` / `MXCLI_DEBUG_PASS`)
    default to a `run --local` runtime; set them to debug a differently-configured
    or remote runtime.
+6. **A refused request fails with the runtime's reason** — e.g. `the runtime
+   refused add_breakpoint (status 2): Failed to parse condition: …`. The usual
+   ones: a bad `--if` expression; an activity or flow the *running* app does not
+   have yet (rebuild/restart after changing the model); `Invalid session token`
+   (the runtime restarted, or another debugger such as Studio Pro started a
+   session — run `mxcli debug enable`). A command that printed success did reach
+   the runtime and was accepted.
 
 ## Validation checklist
 
