@@ -546,5 +546,17 @@ func init() {
 	debugCmd.AddCommand(debugContinueCmd)
 	debugCmd.AddCommand(debugEnableCmd)
 	debugCmd.AddCommand(debugDisableCmd)
+	// Once a subcommand runs, its arguments were right: an error from there on
+	// is the runtime refusing a request or a flow that is not paused, and the
+	// usage text would bury the runtime's reason. Argument and flag mistakes
+	// fail before RunE and still print the usage.
+	for _, sub := range debugCmd.Commands() {
+		if run := sub.RunE; run != nil {
+			sub.RunE = func(cmd *cobra.Command, args []string) error {
+				cmd.SilenceUsage = true
+				return run(cmd, args)
+			}
+		}
+	}
 	rootCmd.AddCommand(debugCmd)
 }

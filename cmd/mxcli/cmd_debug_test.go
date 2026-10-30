@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -161,5 +162,37 @@ func TestDebugInspect_UnknownVariableIsTheRuntimesRefusal(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "The variable 'Nope'") {
 		t.Errorf("error = %v, want the runtime's message", err)
+	}
+}
+
+// A request the runtime refused is not a usage mistake: the command line was
+// right, so the refusal is printed without the usage text, which used to bury
+// it under thirty lines of flags. Misuse — a missing argument — still prints
+// the usage.
+func TestDebug_RefusalPrintsNoUsage(t *testing.T) {
+	// cobra writes the error to the err writer and the usage to the out one.
+	var stderr bytes.Buffer
+	rootCmd.SetErr(&stderr)
+	rootCmd.SetOut(&stderr)
+	t.Cleanup(func() { rootCmd.SetErr(nil); rootCmd.SetOut(nil) })
+
+	stub := inspectStub(t)
+	if _, err := runDebug(t, stub, "inspect", "Nope", "--flow", "dbg-1"); err == nil {
+		t.Fatal("debug inspect Nope succeeded, want the runtime's refusal")
+	}
+	if strings.Contains(stderr.String(), "Usage:") {
+		t.Errorf("a runtime refusal printed the usage text:\n%s", stderr.String())
+	}
+
+	// The silencing is set on the command as its RunE starts, which is per
+	// process in the CLI (one command per run); undo it to stand for a new run.
+	debugInspectCmd.SilenceUsage = false
+	t.Cleanup(func() { debugInspectCmd.SilenceUsage = false })
+	stderr.Reset()
+	if _, err := runDebug(t, stub, "inspect"); err == nil {
+		t.Fatal("debug inspect with no variable succeeded, want an argument error")
+	}
+	if !strings.Contains(stderr.String(), "Usage:") {
+		t.Errorf("a missing argument should still print the usage, got:\n%s", stderr.String())
 	}
 }
