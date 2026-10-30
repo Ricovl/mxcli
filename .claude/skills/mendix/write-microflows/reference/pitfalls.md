@@ -494,6 +494,36 @@ log info node 'Orders' 'Order ' + $Order/Number + ' shipped';
 A template kept in a variable cannot be filled by `with (…)` at run time: write the
 template in the statement, or build the whole text in the expression.
 
+### 17. A String Function Never Returns `empty`
+
+`trim`, `toLowerCase`, `toUpperCase`, `substring`, `replaceAll` and `toString` return
+`''` for an `empty` input, never `empty` (measured on the Mendix 10.18.5 runtime). So
+comparing their result with `empty` is constant: `!= empty` is always true, and a
+blank value goes down the "has text" branch. `check` warns (E015).
+
+```mdl
+-- ❌ WRONG: always true — trim(empty) and trim('   ') are both ''
+declare $HasText boolean = trim($Value) != empty;
+
+-- ✅ CORRECT: trim(empty) is '', so this covers empty, '' and blanks
+declare $HasText boolean = trim($Value) != '';
+```
+
+### 18. Concatenating `empty` Gives the Text `null`
+
+`+` turns an `empty` String operand into the four characters `null`, not `''`:
+`'[' + $Value + ']'` with an empty `$Value` is `[null]` (measured on the Mendix 10.18.5
+runtime). A label built from an attribute that may be empty shows "null" to the user.
+`check` cannot know whether a value will be empty, so it does not warn — guard it:
+
+```mdl
+-- ❌ WRONG: shows 'Customer: null' when Name is empty
+declare $Label string = 'Customer: ' + $Customer/Name;
+
+-- ✅ CORRECT
+declare $Label string = if $Customer/Name != empty then 'Customer: ' + $Customer/Name else 'Customer: ';
+```
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:
