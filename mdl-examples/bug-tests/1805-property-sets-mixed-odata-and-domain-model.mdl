@@ -1,0 +1,98 @@
+mdl 1;
+-- ako/mxcli#1805: on a Mendix 11.14.0 project mxcli wrote, `mxcli fix
+-- property-sets` reported seven property names the elements of a type
+-- disagree on, among them
+--
+--   MIXED  ODataPublish$EntitySet.ReadMode: on 42 of 60 element(s); without it: … [ODataPublish$PublishedODataService2 F1AdminApi]
+--   MIXED  ODataPublish$PublishedMicroflow.Parameters: on 2 of 5 element(s); only on: … [ODataPublish$PublishedODataService2 F1OpsApi]
+--   MIXED  DomainModels$NoGeneralization.HasOwnerAttr: on 81 of 84 element(s); without it: … [DomainModels$DomainModel]
+--   MIXED  DomainModels$DateTimeAttributeType.LocalizeDate: on 15 of 16 element(s); without it: … [DomainModels$DomainModel]
+--
+-- An entity set whose statement states no mode was written without ReadMode,
+-- InsertMode, UpdateMode and DeleteMode, and an action whose microflow takes
+-- no parameters without Parameters. Studio Pro writes all five on every
+-- element; `mx convert -p -s` fills an absent one with ReadSource,
+-- ChangeNotSupported and the empty list, which is what is now written.
+--
+-- The domain-model names are not written by this script: no writer of today
+-- leaves them out. They are elements an older mxcli stored, which every later
+-- write passed through; measured rows now fill them, on the next write of their
+-- domain model or with `mxcli fix property-sets`. The statements below run
+-- every domain-model write path, so a regression in one of them shows here.
+--
+-- Run on a fresh app (10.24.24, 11.13.0 or 11.15.0), then:
+--   mxcli fix property-sets --dry-run -p App.mpr   -> no MIXED line
+--   mx convert -p -s on a copy                      -> adds no key to anything mxcli wrote
+--   mx check                                        -> 0 errors
+
+create module Bug1805;
+create module Bug1805b;
+
+-- Domain model: create, create or modify, add / modify attribute, association,
+-- an alter that rewrites a sibling, rename, move.
+create persistent entity Bug1805.Plain (Code: String(50) unique error message 'Code is unique', At: DateTime);
+create persistent entity Bug1805.Audited (Code: String(50) unique error message 'Code is unique', CreatedDate: AutoCreatedDate, ChangedDate: AutoChangedDate);
+create non-persistent entity Bug1805.Transient (WhenAt: DateTime);
+create or modify persistent entity Bug1805.Plain (Code: String(50) unique error message 'Code is unique', At: DateTime, Extra: Integer);
+alter entity Bug1805.Plain add attribute Later: DateTime;
+alter entity Bug1805.Plain modify attribute Later: DateTime not localized;
+create association Bug1805.Plain_Audited from Bug1805.Plain to Bug1805.Audited;
+alter entity Bug1805.Audited set documentation 'Rewrites the domain model around Plain.';
+rename entity Bug1805.Transient to Transient2;
+create persistent entity Bug1805.Mover (D: DateTime);
+move entity Bug1805.Mover to Bug1805b;
+
+-- Published OData: an entity set with every mode stated and one with none; an
+-- action with a parameter and one without.
+create microflow Bug1805.Act_NoParams () returns Boolean as $Ok
+begin
+  declare $Ok Boolean = true;
+  return $Ok;
+end;
+
+create microflow Bug1805.Act_Params ($Note: String) returns Boolean as $Ok
+begin
+  declare $Ok Boolean = true;
+  return $Ok;
+end;
+
+create published odata service Bug1805.Api (
+  path: 'odata/bug1805/',
+  version: '1.0.0',
+  ODataVersion: OData4,
+  namespace: 'Bug1805.Api',
+  Authentication: (basic)
+)
+{
+  publish entity Bug1805.Plain as 'Plains' (
+    ReadMode: source, InsertMode: source, UpdateMode: source, DeleteMode: source
+  )
+  expose ( Code as 'code' (KEY, Filterable, Sortable) );
+
+  publish entity Bug1805.Audited as 'Auditeds'
+  expose ( Code as 'code' (KEY, Filterable, Sortable) );
+
+  publish microflow Bug1805.Act_NoParams as 'NoParams';
+  publish microflow Bug1805.Act_Params as 'WithParams';
+};
+
+-- The modify path writes the same converter's output over the stored service.
+create or modify published odata service Bug1805.Api (
+  path: 'odata/bug1805/',
+  version: '1.0.1',
+  ODataVersion: OData4,
+  namespace: 'Bug1805.Api',
+  Authentication: (basic)
+)
+{
+  publish entity Bug1805.Plain as 'Plains' (
+    ReadMode: source, InsertMode: source, UpdateMode: source, DeleteMode: source
+  )
+  expose ( Code as 'code' (KEY, Filterable, Sortable) );
+
+  publish entity Bug1805.Audited as 'Auditeds'
+  expose ( Code as 'code' (KEY, Filterable, Sortable) );
+
+  publish microflow Bug1805.Act_NoParams as 'NoParams';
+  publish microflow Bug1805.Act_Params as 'WithParams';
+};

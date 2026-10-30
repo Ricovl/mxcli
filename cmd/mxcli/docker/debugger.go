@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-// debugger.go is slice 1 of the Mendix microflow debugger (see
-// docs/11-proposals/PROPOSAL_microflow_debugger.md). It covers the two-plane
-// wiring only: the M2EE admin plane toggles the debugger on/off and reports
-// status, and the app's /debugger/ endpoint starts a debug session. Breakpoints,
-// paused-microflow inspection, and stepping are later slices.
+// debugger.go is the client of the Mendix microflow debugger (see
+// docs/11-proposals/PROPOSAL_microflow_debugger.md). It speaks two planes: the
+// M2EE admin plane toggles the debugger on/off and reports status, and the
+// app's /debugger/ endpoint runs the session — breakpoints, paused-flow
+// inspection, stepping and continue.
 //
 // Two APIs, two auth schemes:
 //
@@ -42,9 +42,10 @@ type DebuggerOptions struct {
 	// TokenPath, when set, caches the session token across invocations (the CLI
 	// is one-shot per command). Empty keeps the token in memory only.
 	TokenPath string
-	// Timeout bounds a single debugger HTTP request (default 30s). Note: a
-	// breakpoint-driven call in a later slice can block far longer while paused —
-	// those will use their own timeout.
+	// Timeout bounds a single debugger HTTP request (default 30s). It must stay
+	// above poll_events' long poll, which the runtime holds for about 25 s when
+	// nothing is pending: a poll the client abandons loses the event delivered
+	// into it (measured for ako/mxcli#1782; see ako/mxcli#1812).
 	Timeout time.Duration
 }
 

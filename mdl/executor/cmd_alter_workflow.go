@@ -23,8 +23,8 @@ func execAlterWorkflow(ctx *ExecContext, s *ast.AlterWorkflowStmt) error {
 		return mdlerrors.NewNotConnectedWrite()
 	}
 
-	// Version pre-check: workflows require Mendix 9.12+, and the added
-	// activities need their own features (statementVersionGates).
+	// Version pre-check: the workflow document's own floor, and the added
+	// activities' features (statementVersionGates).
 	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
