@@ -10,6 +10,7 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/pages"
 )
@@ -74,6 +75,17 @@ func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
 
 // ListSnippets reads snippet units (count + identity is what SHOW MODULES needs;
 // the widget tree is not converted).
+// ListPageHeaders lists every page's ID, container, name and Excluded flag
+// without decoding any page.
+func (b *Backend) ListPageHeaders() ([]types.DocumentHeader, error) {
+	return documentHeaders[*genPg.Page](b)
+}
+
+// ListSnippetHeaders is ListPageHeaders for snippets.
+func (b *Backend) ListSnippetHeaders() ([]types.DocumentHeader, error) {
+	return documentHeaders[*genPg.Snippet](b)
+}
+
 func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
 	units, err := mprread.ListUnitsWithContainerCached[*genPg.Snippet](b.reader)
 	if err != nil {

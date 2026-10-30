@@ -728,15 +728,53 @@ func buildPageQualifiedNames(ctx *ExecContext) map[string]bool {
 	if err != nil {
 		return result
 	}
-	pgs, err := ctx.Backend.ListPages()
+	hs, err := pageHeaders(ctx)
 	if err != nil {
 		return result
 	}
-	for _, p := range pgs {
-		qn := h.GetQualifiedName(p.ContainerID, p.Name)
-		result[qn] = true
+	for _, p := range hs {
+		result[h.GetQualifiedName(p.ContainerID, p.Name)] = true
 	}
 	return result
+}
+
+// pageHeaderLister lists page and snippet headers without decoding them.
+type pageHeaderLister interface {
+	ListPageHeaders() ([]types.DocumentHeader, error)
+	ListSnippetHeaders() ([]types.DocumentHeader, error)
+}
+
+// pageHeaders is every page's header, decoding no page where the backend can
+// avoid it.
+func pageHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
+	if l, ok := ctx.Backend.(pageHeaderLister); ok {
+		return l.ListPageHeaders()
+	}
+	pgs, err := ctx.Backend.ListPages()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(pgs))
+	for i, p := range pgs {
+		out[i] = types.DocumentHeader{ID: p.ID, ContainerID: p.ContainerID, Name: p.Name, Excluded: p.Excluded}
+	}
+	return out, nil
+}
+
+// snippetHeaders is pageHeaders for snippets.
+func snippetHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
+	if l, ok := ctx.Backend.(pageHeaderLister); ok {
+		return l.ListSnippetHeaders()
+	}
+	sns, err := ctx.Backend.ListSnippets()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(sns))
+	for i, s := range sns {
+		out[i] = types.DocumentHeader{ID: s.ID, ContainerID: s.ContainerID, Name: s.Name, Excluded: s.Excluded}
+	}
+	return out, nil
 }
 
 // buildSnippetQualifiedNames returns a set of all snippet qualified names in the project.
@@ -746,11 +784,11 @@ func buildSnippetQualifiedNames(ctx *ExecContext) map[string]bool {
 	if err != nil {
 		return result
 	}
-	snippets, err := ctx.Backend.ListSnippets()
+	hs, err := snippetHeaders(ctx)
 	if err != nil {
 		return result
 	}
-	for _, s := range snippets {
+	for _, s := range hs {
 		qn := h.GetQualifiedName(s.ContainerID, s.Name)
 		result[qn] = true
 	}
