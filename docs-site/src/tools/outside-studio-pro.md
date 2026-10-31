@@ -27,13 +27,20 @@ mxcli fix hashes -p app.mpr --repair   # rewrite mismatched hashes from the file
 
 The repair treats the files as the source of truth and never changes them. It
 updates every hash in one SQLite transaction, and, like every mxcli write, is
-refused while Studio Pro has the project open (the `.mpr.lock` beside it). An
-MPR v1 project keeps unit contents inside the `.mpr`, has no index to drift,
-and the command says so.
+refused while Studio Pro has the project open (the `.mpr.lock` beside it).
+
+An MPR v1 project (below Mendix 10.18) keeps each unit's contents inside the
+`.mpr`, in the same row as its `ContentsHash`, and Studio Pro fills the hash
+there too, with the same formula over the stored contents. No file can drift
+from it, but mxcli before this release replaced a unit's contents and left the
+old hash in place, or stored none for a new unit. On v1 the command compares
+each hash with the contents beside it, reports `MISMATCH` only, and `--repair`
+rewrites the hash from the contents.
 
 `mxcli exec` and `mxcli docker check` run the verify too and print a one-line
 warning when it finds a mismatch or a missing file. It never fails them;
-measured on a 900-unit project, the whole verify takes about 0.2 s.
+measured on a 900-unit project, the whole verify takes about 0.2 s. They skip
+MPR v1, where the verify reads every unit's contents.
 
 ## Property names Studio Pro's merge compares: `mxcli fix property-sets`
 
@@ -72,6 +79,19 @@ the old random GUID and still finds the role by name, so renaming the role
 there still deletes its row and the user assignments that are not demo users. A unit holding a *value* in a
 key its version does not declare is reported and left alone, and, like every
 mxcli write, the command is refused while Studio Pro has the project open.
+
+The values the command adds were measured with Mendix's own tools on specific
+Mendix versions. A key that no measurement covers on your version is not
+filled, but the command still finds it. Studio Pro writes the same property
+names on every element of a type, so the command also lists each name that
+some elements of a type carry and others lack:
+
+```
+  MIXED     Microflows$Nanoflow.ExportLevel: on 14 of 15 element(s); without it: 71e6faf6-… [Microflows$Nanoflow ACT_Login]
+```
+
+It leaves those names as they are and exits 1. Report them with your Mendix
+version so the value can be measured.
 
 ### The repair reaches forward, not back
 
@@ -196,8 +216,10 @@ In order it:
 1. repairs ContentsHash mismatches from the files on disk (`MISSING` and
    `ORPHAN` entries have no automatic repair and refuse the commit);
 2. stages everything, then unstages the files Studio Pro never commits:
-   `project-settings.user.json`, `*.mpr.lock`, `*.mpr.bak`, `.mendix-cache/`,
-   `deployment/`, `theme-cache/`, `.mxcli/`;
+   `project-settings.user.json`, `*.mpr.lock`, `*.mpr.bak`, and the project's
+   own `.mendix-cache/`, `deployment/`, `theme-cache/` and `.mxcli/`, the
+   folders Studio Pro, mxbuild and mxcli create beside the `.mpr`. A folder of
+   the same name further down, such as `resources/deployment/`, is committed;
 3. runs `git commit` with your message and your git identity;
 4. computes the mx_metadata note from the new commit and attaches it, and
    prints the `git push origin <branch> refs/notes/mx_metadata` command —
@@ -208,7 +230,8 @@ The commit is refused while Studio Pro has the project open (the `.mpr.lock`
 beside it), and during an unresolved merge — `git add -A` would otherwise
 commit the conflict markers. `--dry-run` verifies and reports (including
 ContentsHash drift, which it does not repair — a dry run writes nothing),
-stages, reports what it would commit, and unstages again without committing.
+and reports what it would commit without committing. It stages into a copy of
+the index, so whatever you had staged is left exactly as it was.
 
 ## Auditing a repository: `mxcli git doctor`
 
@@ -225,12 +248,23 @@ mxcli git doctor --fix --version 10.21.0
 | Check | `--fix` |
 |-------|---------|
 | local git config: `core.autocrlf=False` (a checkout must not rewrite line endings inside `.mxunit` files), `mendix.commits-since-gc`, `mendix.lineEndingResetDone` | sets them |
-| the remote URL: Studio Pro can only use HTTPS | rewrites SSH (`git@host:org/app.git`, `ssh://…`) to HTTPS; other non-HTTPS URLs are reported unchanged |
+| the remote URL as configured: Studio Pro can only use HTTPS | rewrites SSH (`git@host:org/app.git`, `ssh://…`) to HTTPS; other non-HTTPS URLs are reported unchanged. A `url.<base>.insteadOf` rule in your git config that makes git use another URL is reported, and left alone |
 | the remote's `refs/notes/mx_metadata` | reported only — push the notes ref together with the branch |
+| the local `refs/notes/mx_metadata` holds the remote's notes: `git clone` and a plain `git fetch` never fetch them, so a fresh clone or a CI checkout has none | fetches them, as a fast-forward only; refused when the local ref has notes the remote does not |
 | each commit on the checked-out branch and its mx_metadata note: missing notes make Studio Pro show `(unknown)`; a malformed note it cannot read at all | computes real notes from the model (`-p`), falling back to a template note with a `--version` ModelerVersion where the model at a commit cannot be read (MPR v1 history, a revision without the `.mpr`); when no version is known the newest valid note in history supplies it |
 
 Notes Studio Pro wrote are never touched, with or without `--fix`. `--fix`
 does not push.
+
+The commits are judged only once the local notes ref holds the remote's. Until
+then the report names the unfetched ref and the command that fetches it, rather
+than calling every commit the remote annotates unannotated. In CI, fetch the
+notes before the audit:
+
+```bash
+git fetch origin refs/notes/mx_metadata:refs/notes/mx_metadata
+mxcli git doctor -p app.mpr
+```
 
 ## Commit metadata: `mxcli git note`
 

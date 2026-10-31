@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mendixlabs/mxcli/mdl/langver"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
 )
 
@@ -36,7 +37,7 @@ func TestThrowsCatchesEveryCallKind(t *testing.T) {
 		t.Run(c.kind, func(t *testing.T) {
 			tc := parseOne(t, "/**\n * @test it raises\n * @throws 'Only http and https csv urls are supported'\n */\n"+c.stmt+"\n/\n")
 			assertHandled(t, "endpoint runner", GenerateTestFlows(&TestSuite{Name: "s", Tests: []TestCase{tc}}), c.stmt)
-			assertHandled(t, "legacy runner", GenerateTestRunner(&TestSuite{Name: "s", Tests: []TestCase{tc}}), c.stmt)
+			assertHandled(t, "legacy runner", GenerateTestRunner(&TestSuite{Name: "s", Tests: []TestCase{tc}}), legacyStmt(c.stmt))
 		})
 	}
 }
@@ -53,7 +54,7 @@ func TestVerdictCatchesEveryCallKind(t *testing.T) {
 			if !strings.Contains(mdl, verdictFailPrefix+"exception during execution: ") {
 				t.Errorf("no FAIL verdict in the handler:\n%s", mdl)
 			}
-			assertHandled(t, "legacy runner", GenerateTestRunner(&TestSuite{Name: "s", Tests: []TestCase{tc}}), c.stmt)
+			assertHandled(t, "legacy runner", GenerateTestRunner(&TestSuite{Name: "s", Tests: []TestCase{tc}}), legacyStmt(c.stmt))
 		})
 	}
 }
@@ -77,4 +78,14 @@ func assertHandled(t *testing.T, runner, mdl, stmt string) {
 	if _, errs := visitor.Build(mdl); len(errs) > 0 {
 		t.Errorf("%s: generated MDL does not parse: %v\n%s", runner, errs[0], mdl)
 	}
+}
+
+// legacyStmt is stmt as the legacy runner writes it for the suite's first test:
+// that runner compiles every test into one flow, so it renames the variable a
+// call defines with the test's suffix. These statements used to be matched
+// unrenamed, which held only because a lower-case `call` was not renamed
+// (TestLegacyRunnerRenamesLowerCaseAssignments) — nor, in any case, `send rest
+// request` or `execute database query` (ako/mxcli#1775).
+func legacyStmt(stmt string) string {
+	return renameVariables(stmt, extractVariableNames(stmt, langver.V0), "_1")
 }

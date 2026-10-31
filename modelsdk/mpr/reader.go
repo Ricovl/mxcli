@@ -13,7 +13,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/modelsdk/mpr/version"
 
 	_ "modernc.org/sqlite"
@@ -42,11 +41,6 @@ type Reader struct {
 	// Cache for unit metadata to avoid repeated file reads
 	unitCache      []cachedUnit
 	unitCacheValid bool
-	// unitIndex outlives InvalidateCache, so a rebuild re-reads only changed
-	// units (reader_unit_index.go). MPR v2 only.
-	unitIndex       map[string]unitIndexEntry
-	unitIndexLoaded bool
-	headerReads     atomic.Int64
 
 	// Lazily-built lightweight index of "$Type\x00QualifiedName" to unit
 	// metadata. Building it reads each BSON header once but does not decode any
@@ -74,6 +68,16 @@ type Reader struct {
 	decodedMu sync.RWMutex
 	decoded   map[string]any
 
+	// v2Types is MPR v2's unit-type index (reader_units_v2.go): ContentsHash
+	// → $Type, loaded from .mxcli/ on first use. v2Hashes is every hash the
+	// Unit table held at the last rebuild — what a persisted index keeps.
+	// v2TypesMu guards these and the unit cache rebuild.
+	v2TypesMu     sync.Mutex
+	v2Types       map[string]unitIndexEntry
+	v2TypesLoaded bool
+	v2TypesDirty  bool
+	v2Hashes      map[string]struct{}
+
 	// contentCache stores raw BSON bytes per unit ID (MPR v2 only).
 	// Populated on first read while caching is on (EnableContentCache, or a
 	// CacheUnitReads scope); cleared by InvalidateCache, which every write
@@ -84,14 +88,15 @@ type Reader struct {
 	// when the last one closes. -1 means EnableContentCache turned it on for
 	// the reader's lifetime, which no scope ends.
 	cacheScopes int
-	// stampsMemo is UnitStamps' answer while a CacheUnitReads scope is open,
-	// so the passes in one scope stat the unit files once. Cleared by any
-	// write and when the outermost scope closes.
-	stampsMemo []types.UnitStamp
 
 	// fileReads counts unit files read from mprcontents/ — what the content
 	// cache saves. Read by tests (mendixlabs/mxcli#1272).
 	fileReads atomic.Int64
+
+	// store is MPR v2's persisted copy of the units (reader_unit_store.go),
+	// made on first use; nil for v1 and for a reader with no project path.
+	storeOnce sync.Once
+	store     *unitStore
 
 	// overlay holds unit bytes injected by BufferedUnitStore so that reads
 	// within the same import file see buffered (uncommitted) writes.
@@ -117,8 +122,10 @@ type cachedUnit struct {
 	ContainerID     string
 	ContainmentName string
 	Type            string
-	Name            string
-	Excluded        bool
+	// Name and Excluded are the unit's top-level properties, known without
+	// opening its file once the index has seen its bytes (reader_units_v2.go).
+	Name     string
+	Excluded bool
 }
 
 type nameIndexEntry struct {
@@ -266,8 +273,63 @@ func (r *Reader) ListUnitHashes() (map[string]string, error) {
 	return result, nil
 }
 
+// UnitContentHashes returns a hash of every unit's current contents, keyed by
+// unit ID: what changed between two calls is the units whose hash differs. On
+// MPR v2 it is the Unit table's ContentsHash, which every v2 writer keeps in
+// step with the file, so no file is opened; a unit without one is hashed from
+// its file. On v1 it is computed from the blob, because mxcli wrote v1 units
+// without updating their hash before ako/mxcli#1159, and a stale hash would
+// say an edited unit is unchanged. Units held in memory are hashed as held.
+func (r *Reader) UnitContentHashes() (map[string]string, error) {
+	query := `SELECT UnitID, COALESCE(ContentsHash, '') FROM Unit`
+	if r.version != MPRVersionV2 {
+		query = `SELECT UnitID, Contents FROM Unit`
+	}
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query unit hashes: %w", err)
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	var missing []string
+	for rows.Next() {
+		var blob, value []byte
+		if err := rows.Scan(&blob, &value); err != nil {
+			return nil, fmt.Errorf("scan unit hash: %w", err)
+		}
+		id := blobToUUID(blob)
+		switch held, ok := r.overlaid(id); {
+		case ok:
+			result[id] = contentsHash(held)
+		case r.version != MPRVersionV2:
+			result[id] = contentsHash(value)
+		case len(value) == 0:
+			missing = append(missing, id)
+		default:
+			result[id] = string(value)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, id := range missing {
+		contents, err := r.readMprContents(id)
+		if err != nil {
+			continue
+		}
+		result[id] = contentsHash(contents)
+	}
+	return result, nil
+}
+
 // Close closes the reader and releases resources.
 func (r *Reader) Close() error {
+	r.v2TypesMu.Lock()
+	r.persistUnitTypeIndex()
+	r.v2TypesMu.Unlock()
+	if store := r.unitStore(); store != nil {
+		store.close()
+	}
 	if r.db != nil && r.ownsDB {
 		return r.db.Close()
 	}
@@ -439,6 +501,19 @@ func (r *Reader) ClearAllOverlays() {
 
 // GetRawUnitBytes returns the raw BSON bytes for a unit identified by its UUID string.
 func (r *Reader) GetRawUnitBytes(unitID string) ([]byte, error) {
+	return r.rawUnitBytes(r.db, unitID)
+}
+
+// rowQuerier is what reading one unit's v1 contents needs: *sql.DB and *sql.Tx
+// both satisfy it.
+type rowQuerier interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+// rawUnitBytes is GetRawUnitBytes with the v1 query run on q. A caller holding a
+// transaction must pass it: the pool has one connection (OpenWithOptions), the
+// transaction owns it, and a read through r.db would wait for it forever.
+func (r *Reader) rawUnitBytes(q rowQuerier, unitID string) ([]byte, error) {
 	// Fast path: return buffered bytes injected by BufferedUnitStore if present.
 	if len(r.overlay) > 0 {
 		if data, ok := r.overlay[unitID]; ok {
@@ -464,7 +539,7 @@ func (r *Reader) GetRawUnitBytes(unitID string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid unit ID: %s", unitID)
 	}
 	var contents []byte
-	err := r.db.QueryRow("SELECT Contents FROM Unit WHERE UnitID = ?", blob).Scan(&contents)
+	err := q.QueryRow("SELECT Contents FROM Unit WHERE UnitID = ?", blob).Scan(&contents)
 	if err != nil {
 		return nil, fmt.Errorf("unit not found: %s", unitID)
 	}

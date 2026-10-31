@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/mendixlabs/mxcli/mdl/translations"
-	"github.com/mendixlabs/mxcli/model"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
@@ -23,8 +22,8 @@ func (b *Builder) buildStrings() error {
 	}
 
 	stmt, err := b.tx.Prepare(`
-		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -32,13 +31,11 @@ func (b *Builder) buildStrings() error {
 	defer stmt.Close()
 
 	count := 0
-	// unit is the document whose rows are being inserted; each loop sets it.
-	var unit string
 	insert := func(qn, objType, value, ctx, lang, elementID, module string) {
 		if value == "" {
 			return
 		}
-		stmt.Exec(qn, objType, value, ctx, lang, elementID, module, unit)
+		stmt.Exec(qn, objType, value, ctx, lang, elementID, module)
 		count++
 	}
 
@@ -49,28 +46,29 @@ func (b *Builder) buildStrings() error {
 	// which holds a plain Text and cannot carry a translation).
 
 	// Page URL (no language)
-	// Only the changed pages in an incremental refresh.
 	pageList, err := b.cachedPages()
 	if err == nil {
 		for _, pg := range pageList {
+			if !b.own(string(pg.ID)) {
+				continue
+			}
 			if pg.URL == "" {
 				continue
 			}
-			unit = string(pg.ID)
 			moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			insert(moduleName+"."+pg.Name, "PAGE", pg.URL, "page_url", "", string(pg.ID), moduleName)
 		}
+		b.disown()
 	}
 
 	// Extract from microflows — using cached list
 	mfList, err := b.cachedMicroflows()
 	if err == nil {
 		for _, mf := range mfList {
-			if !b.wants(string(mf.ID)) {
+			if !b.own(string(mf.ID)) {
 				continue
 			}
-			unit = string(mf.ID)
 			moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + mf.Name
@@ -85,16 +83,16 @@ func (b *Builder) buildStrings() error {
 			}
 			extractLogNodeNames(mf.ObjectCollection, qn, "MICROFLOW", moduleName, insert)
 		}
+		b.disown()
 	}
 
 	// Extract from workflows — using cached list
-	var wfList []*workflows.Workflow
-	if !b.incremental() {
-		wfList, err = b.cachedWorkflows()
-	}
+	wfList, err := b.cachedWorkflows()
 	if err == nil {
 		for _, wf := range wfList {
-			unit = string(wf.ID)
+			if !b.own(string(wf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + wf.Name
@@ -114,16 +112,16 @@ func (b *Builder) buildStrings() error {
 				extractWorkflowFlowStrings(wf.Flow, qn, moduleName, insert)
 			}
 		}
+		b.disown()
 	}
 
 	// Extract from published REST services
-	var prsServices []*model.PublishedRestService
-	if !b.incremental() {
-		prsServices, err = b.reader.ListPublishedRestServices()
-	}
+	prsServices, err := b.lister().ListPublishedRestServices()
 	if err == nil {
 		for _, svc := range prsServices {
-			unit = string(svc.ID)
+			if !b.own(string(svc.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			qn := moduleName + "." + svc.Name
@@ -145,9 +143,10 @@ func (b *Builder) buildStrings() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
-	b.buildTranslatableStrings(insert, func(id string) { unit = id })
+	b.buildTranslatableStrings(insert)
 
 	docRows, err := b.buildDocumentationStrings()
 	if err != nil {
@@ -190,42 +189,31 @@ func (b *Builder) buildStrings() error {
 // another project's snapshot does not index that project's text under this one.
 func (b *Builder) buildDocumentationStrings() (int, error) {
 	_, snapshotID := b.snapshotMeta()
-	// Filled by BuildIncremental; empty (and unread) in a full build.
-	if err := createIncrementalTables(b.tx); err != nil {
-		return 0, err
-	}
 
 	res, err := b.tx.Exec(`
-		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName, UnitId)
+		INSERT INTO strings (QualifiedName, ObjectType, StringValue, StringContext, Language, ElementId, ModuleName)
 		SELECT QualifiedName, ObjectType, Description, 'documentation', '', Id,
-		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END,
-		       COALESCE((SELECT UnitId FROM entities_data e WHERE e.Id = objects.Id),
-		                (SELECT UnitId FROM associations_data a WHERE a.Id = objects.Id), Id)
+		       CASE WHEN ObjectType = 'MODULE' THEN Name ELSE ModuleName END
 		FROM objects
 		WHERE Description <> '' AND SnapshotId = ?1
 		  AND ObjectType NOT IN ('MICROFLOW', 'WORKFLOW', 'CONTRACT_ENTITY')
-		  AND (?2 = '' OR Id IN (SELECT UnitId FROM incremental_units)
-		       OR ObjectType IN ('ENTITY', 'ASSOCIATION') AND ModuleName IN (SELECT Name FROM incremental_modules))
 		UNION ALL
-		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName, UnitId
+		SELECT EntityQualifiedName || '.' || Name, 'ATTRIBUTE', Description, 'documentation', '', Id, ModuleName
 		FROM attributes_data
 		WHERE Description <> '' AND SnapshotId = ?1
-		  AND (?2 = '' OR UnitId IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName, UnitId
+		SELECT MicroflowQualifiedName || '.' || Name, 'MICROFLOW_PARAMETER', Description, 'documentation', '', Id, ModuleName
 		FROM microflow_parameters_data
 		WHERE Description <> '' AND SnapshotId = ?1
-		  AND (?2 = '' OR MicroflowId IN (SELECT UnitId FROM incremental_units))
 		UNION ALL
-		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName, JavaActionId
+		SELECT QualifiedName, 'JAVA_ACTION_PARAMETER', Description, 'documentation', '', Id, ModuleName
 		FROM java_action_parameters_data
-		WHERE Description <> '' AND SnapshotId = ?1 AND ?2 = ''
+		WHERE Description <> '' AND SnapshotId = ?1
 		UNION ALL
-		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name, Id
+		SELECT QualifiedName, 'MODULE', DomainModelDocumentation, 'domain_model_documentation', '', Id, Name
 		FROM modules_data
 		WHERE DomainModelDocumentation <> '' AND SnapshotId = ?1
-		  AND (?2 = '' OR Id IN (SELECT Id FROM incremental_modules))
-	`, snapshotID, b.incrementalFlag())
+	`, snapshotID)
 	if err != nil {
 		return 0, err
 	}
@@ -254,17 +242,19 @@ func (b *Builder) buildDocumentationStrings() (int, error) {
 // changes them — the same split this is closing.
 // The caller's insert closure counts the rows it writes, so nothing is counted
 // here — doing both reported twice the rows the table actually holds.
-func (b *Builder) buildTranslatableStrings(insert func(string, string, string, string, string, string, string), setUnit func(string)) {
-	units, err := b.rawUnits("")
+func (b *Builder) buildTranslatableStrings(insert func(string, string, string, string, string, string, string)) {
+	units, err := b.lister().ListRawUnitsByType("")
 	if err != nil {
 		return
 	}
 
 	for _, u := range units {
+		if !b.ownRows(string(u.ID)) {
+			continue
+		}
 		if len(u.Contents) == 0 {
 			continue
 		}
-		setUnit(string(u.ID))
 		var named struct {
 			Name string `bson:"Name"`
 		}
@@ -280,6 +270,7 @@ func (b *Builder) buildTranslatableStrings(insert func(string, string, string, s
 			insert(r.QualifiedName, r.ObjectType, r.StringValue, r.StringContext, r.Language, r.ElementID, r.ModuleName)
 		}
 	}
+	b.disown()
 }
 
 // stringRow is one row of the strings index.

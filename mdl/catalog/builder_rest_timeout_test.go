@@ -72,7 +72,7 @@ func TestActivitiesCarryTheRestCallTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.tx = tx
+	b.tx = wrapTx(tx)
 	if err := b.buildMicroflows(); err != nil {
 		t.Fatalf("buildMicroflows: %v", err)
 	}

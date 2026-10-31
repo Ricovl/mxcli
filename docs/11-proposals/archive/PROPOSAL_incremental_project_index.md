@@ -1,6 +1,6 @@
 ---
 title: Incremental project index — persist the unit index, rebuild the catalog per changed unit
-status: draft
+status: superseded
 date: 2026-10-14
 related:
   - PROPOSAL_agent_loop_efficiency.md
@@ -8,7 +8,11 @@ related:
 
 # Proposal: Incremental project index
 
-**Status:** Draft
+> **Status: Superseded** by upstream's ContentsHash unit index (ako/mxcli#1791)
+> and [ADR-0014](../../13-decisions/0014-incremental-catalog-builds.md)
+> (incremental catalog builds), which replaced this branch's stat-keyed index
+> and UnitId columns.
+
 **Date:** 2026-10-14
 
 ## Problem Statement

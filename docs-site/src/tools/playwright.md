@@ -129,6 +129,31 @@ Module.Page"`) against the user role's (`describe user role R`).
 
 A warning banner or validation message is shown but does not fail the page.
 
+### An app on this machine, by its own host name, behind a proxy
+
+An app on this machine is reached directly, whatever name the URL gives it. This
+matters where the environment sets a proxy — a dev container, a Claude Code
+session — and the app is checked by a host name of its own, such as an
+`/etc/hosts` entry `frontend.local` for `127.0.0.1` (the usual way to give two
+local apps separate cookie jars). Chromium takes its proxy from `http_proxy` /
+`https_proxy`, and for a WebSocket it prefers the HTTPS proxy even for `ws://`.
+With only `https_proxy` set and `no_proxy` listing `localhost` and `127.0.0.1`,
+the page loaded directly while the runtime's dev channel,
+`ws://frontend.local:8180/mxdevtools/`, went to the proxy, which cannot reach
+this machine and answered 502. A page that rendered failed on two console errors
+(ako/mxcli#1800):
+
+```
+  ERR    WebSocket connection to 'ws://frontend.local:8180/mxdevtools/' failed: Error during WebSocket handshake: Unexpected response code: 502
+```
+
+The browser that `playwright check`, `run --page-check` and `run --screenshot`
+start now adds a host that resolves only to this machine (loopback, or an address
+of one of its interfaces) to `no_proxy`. Nothing is ignored: the channel connects,
+as it does on `127.0.0.1`, and a console error the page does have still fails it.
+A remote URL, such as a `--hub` preview, still goes through the proxy. A browser
+of your own needs the same entry in `no_proxy`.
+
 ### Signing in
 
 | Flags | Signs in as |

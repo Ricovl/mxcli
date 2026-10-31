@@ -112,7 +112,7 @@ func TestWidgetWithDatasourceAndClickRefsBothMicroflows(t *testing.T) {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx:       tx,
+		tx:       wrapTx(tx),
 		fullMode: true,
 	}
 	if err := b.buildPages(); err != nil {
@@ -131,14 +131,5 @@ func TestWidgetWithDatasourceAndClickRefsBothMicroflows(t *testing.T) {
 		if got[want] != 1 || len(got) != 1 {
 			t.Errorf("refs to %s = %v, want exactly one %v", mf, got, want)
 		}
-	}
-	// An incremental refresh drops a page's refs by UnitId; one without it
-	// would outlive every later edit of the page.
-	var stray int
-	if err := cat.CatalogDB().QueryRow(`SELECT COUNT(*) FROM refs WHERE SourceName = 'Tmp.Overview' AND COALESCE(UnitId, '') <> 'pg-1'`).Scan(&stray); err != nil {
-		t.Fatal(err)
-	}
-	if stray > 0 {
-		t.Errorf("%d of the page's refs carry no UnitId", stray)
 	}
 }

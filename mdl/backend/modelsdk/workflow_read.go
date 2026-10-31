@@ -8,7 +8,6 @@ import (
 	"github.com/mendixlabs/mxcli/modelsdk/element"
 	genMf "github.com/mendixlabs/mxcli/modelsdk/gen/microflows"
 	genWf "github.com/mendixlabs/mxcli/modelsdk/gen/workflows"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"github.com/mendixlabs/mxcli/sdk/workflows"
 )
 
@@ -26,7 +25,7 @@ import (
 // path that reaches this method reads them. Unrecognised activity types decode to
 // a GenericWorkflowActivity carrying their $Type, so no activity is silently dropped.
 func (b *Backend) ListWorkflows() ([]*workflows.Workflow, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genWf.Workflow](b.reader)
+	units, err := listUnitsCached[*genWf.Workflow](b)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +191,14 @@ func workflowActivityFromGen(el element.Element) workflows.WorkflowActivity {
 			t.Page = taskPageName(a.TaskPage())
 		}
 		t.Outcomes = userTaskOutcomesFromGen(a.OutcomesItems())
+		// Below 10.12 a multi-user task is a UserTask whose completion holds
+		// what MultiUserTaskActivity holds itself from 10.12 (ako/mxcli#1771).
+		if mc, ok := a.UserTaskCompletion().(*genWf.MultiInputCompletion); ok && mc != nil {
+			t.IsMulti = true
+			t.AwaitAllUsers = mc.AwaitAllUsers()
+			t.CompletionCriteria = completionCriteriaFromGen(mc.CompletionCriteria(), t.Outcomes)
+			t.TargetUserInput = targetUserInputFromGen(mc.TargetUserInput())
+		}
 		return t
 	case *genWf.SingleUserTaskActivity:
 		t := &workflows.UserTask{

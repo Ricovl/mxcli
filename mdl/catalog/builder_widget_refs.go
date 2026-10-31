@@ -57,19 +57,15 @@ package catalog
 // four sibling projections in buildReferences. Per-instance rows would say
 // nothing SHOW REFERENCES or SHOW IMPACT could use, and CATALOG.WIDGETS already
 // holds the instances.
-func insertWidgetRefs(tx CatalogTx, projectID, snapshotID, incremental string) (int, error) {
-	if err := createIncrementalTables(tx); err != nil {
-		return 0, err
-	}
+func insertWidgetRefs(tx *builderTx, projectID, snapshotID string) (int, error) {
 	res, err := tx.Exec(
-		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
+		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 		 SELECT DISTINCT w.ContainerType, '', w.ContainerQualifiedName,
-		        ?, d.WidgetId, d.MdlName, ?, w.ModuleName, ?, ?, w.UnitId
+		        ?, d.WidgetId, d.MdlName, ?, w.ModuleName, ?, ?
 		 FROM widgets_data w
 		 JOIN widget_definitions_data d ON d.WidgetId = w.WidgetType
-		 WHERE w.ContainerQualifiedName != '' AND d.MdlName != ''
-		   AND (? = '' OR w.UnitId IN (SELECT UnitId FROM incremental_units))`,
-		RefObjectWidget, RefKindWidget, projectID, snapshotID, incremental)
+		 WHERE w.ContainerQualifiedName != '' AND d.MdlName != ''`,
+		RefObjectWidget, RefKindWidget, projectID, snapshotID)
 	if err != nil {
 		return 0, err
 	}

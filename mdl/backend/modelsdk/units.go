@@ -5,6 +5,10 @@ package modelsdkbackend
 import (
 	"fmt"
 
+	"github.com/mendixlabs/mxcli/mdl/backend"
+	"github.com/mendixlabs/mxcli/modelsdk/element"
+	"github.com/mendixlabs/mxcli/modelsdk/mprread"
+
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -56,7 +60,39 @@ func (b *Backend) UpdateRawUnitOwningStorageGUIDs(unitID string, contents []byte
 // dedicated typed reader (e.g. JavaScript actions, data transformers). Delegates
 // to the codec reader.
 func (b *Backend) ListRawUnitsByType(typePrefix string) ([]*types.RawUnit, error) {
-	return b.reader.ListRawUnitsByType(typePrefix)
+	return b.reader.ListRawUnitsByTypeWhere(typePrefix, b.unitScope)
+}
+
+// WithUnitScope returns a read view of the backend whose document lists hold
+// only the units keep accepts, and which reads no other unit's contents on
+// MPR v2. Everything else — single-document reads, settings, the unit
+// table — is the backend's. A catalog build that rebuilds a few units lists
+// through it, so it decodes those and not the project (ako/mxcli#1804).
+//
+// The view shares the backend's reader; it is for reading, and writes
+// through it are not counted in the backend's write statistics.
+func (b *Backend) WithUnitScope(keep func(unitID string) bool) backend.FullBackend {
+	view := *b
+	view.unitScope = keep
+	return &view
+}
+
+// listUnits decodes the units of type T the backend reads: every one, or
+// those in its unit scope (WithUnitScope).
+func listUnits[T element.Element](b *Backend) ([]mprread.Unit[T], error) {
+	if b.unitScope != nil {
+		return mprread.ListUnitsWithContainerIn[T](b.reader, b.unitScope)
+	}
+	return mprread.ListUnitsWithContainer[T](b.reader)
+}
+
+// listUnitsCached is listUnits through the reader's decode memo when unscoped:
+// for read-only callers, under ListUnitsWithContainerCached's rules.
+func listUnitsCached[T element.Element](b *Backend) ([]mprread.Unit[T], error) {
+	if b.unitScope != nil {
+		return mprread.ListUnitsWithContainerIn[T](b.reader, b.unitScope)
+	}
+	return mprread.ListUnitsWithContainerCached[T](b.reader)
 }
 
 func (b *Backend) ListUnits() ([]*types.UnitInfo, error) {
@@ -90,6 +126,13 @@ func (b *Backend) ListFolders() ([]*types.FolderInfo, error) {
 		})
 	}
 	return out, nil
+}
+
+// UnitContentHashes returns a hash of every unit's current contents, keyed by
+// unit ID, so a caller can tell which units changed since it last looked (the
+// catalog's incremental source index, ako/mxcli#1790).
+func (b *Backend) UnitContentHashes() (map[string]string, error) {
+	return b.reader.UnitContentHashes()
 }
 
 // AddRawUnit inserts a new unit verbatim.

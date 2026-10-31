@@ -139,6 +139,30 @@ func TestExtractPausedFromEvents(t *testing.T) {
 	}
 }
 
+func TestPausedVariable(t *testing.T) {
+	// get_paused_microflows' result with two flows paused (11.15 shape).
+	raw := []byte(`{"paused_microflows":[
+		{"debug_id":"d-1","microflow_name":"M.A","variables":{"Greeting":{"type":"string","value":"hello"},"Thing":{"id":"1","type":"object","entity":"M.Thing"}}},
+		{"debug_id":"d-2","microflow_name":"M.B","variables":{"Greeting":{"type":"string","value":"other flow"}}}
+	]}`)
+	v, typ, ok := pausedVariable(raw, "d-1", "Greeting")
+	if !ok || typ != "string" || string(v) != `{"type":"string","value":"hello"}` {
+		t.Errorf("Greeting of d-1 = %s %q %v, want its own string entry", v, typ, ok)
+	}
+	if _, typ, ok := pausedVariable(raw, "d-1", "Thing"); !ok || typ != "object" {
+		t.Errorf("Thing type = %q %v, want object", typ, ok)
+	}
+	if _, _, ok := pausedVariable(raw, "d-1", "Nope"); ok {
+		t.Error("an unknown variable must not be found")
+	}
+	if _, _, ok := pausedVariable(raw, "d-3", "Greeting"); ok {
+		t.Error("a variable of another flow must not be found")
+	}
+	if _, _, ok := pausedVariable([]byte(`not json`), "d-1", "Greeting"); ok {
+		t.Error("invalid json must not be found")
+	}
+}
+
 func TestBreakpointRegistry_UpsertRemove(t *testing.T) {
 	var bps []localBreakpoint
 	bps = upsertBreakpoint(bps, localBreakpoint{Microflow: "M.F", Activity: "A", ObjectID: "g1"})

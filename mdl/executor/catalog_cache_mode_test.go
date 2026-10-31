@@ -4,7 +4,6 @@ package executor
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,28 +82,15 @@ func cachedRowCount(t *testing.T, cachePath, table string) int {
 	return n
 }
 
-// touchProject makes the cached catalog stale, as a save in Studio Pro, an
-// `mxcli exec` or a branch switch does: the project file's mtime moves (what a
-// catalog without unit stamps checks), and the stamps record the domain models
-// as changed, so the refresh is a full rebuild rather than an incremental one.
+// touchProject moves the project file's mtime forward, which is what makes the
+// cache invalid — the everyday trigger being a save in Studio Pro, an `mxcli
+// exec`, or a branch switch between two mxcli commands.
 func touchProject(t *testing.T, exec *Executor) {
 	t.Helper()
 	ctx := exec.newExecContext(context.Background())
 	future := time.Now().Add(2 * time.Second)
 	if err := os.Chtimes(ctx.MprPath, future, future); err != nil {
 		t.Fatalf("touch project: %v", err)
-	}
-	cachePath := getCachePath(ctx)
-	if _, err := os.Stat(cachePath); err != nil {
-		return
-	}
-	db, err := sql.Open("sqlite", cachePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`UPDATE unit_stamps SET Size = -1 WHERE Type = 'DomainModels$DomainModel'`); err != nil {
-		t.Fatalf("mark stamps stale: %v", err)
 	}
 }
 

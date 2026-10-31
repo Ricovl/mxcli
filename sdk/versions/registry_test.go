@@ -73,9 +73,10 @@ func TestIsAvailable(t *testing.T) {
 		version    SemVer
 		want       bool
 	}{
-		// View entities require 10.18+
-		{"domain_model", "view_entities", SemVer{10, 18, 0}, true},
-		{"domain_model", "view_entities", SemVer{10, 17, 0}, false},
+		// View entities require 10.21+: the source document mxcli writes is
+		// a 10.21 type (ako/mxcli#1811), though Mendix had them from 10.18.
+		{"domain_model", "view_entities", SemVer{10, 21, 0}, true},
+		{"domain_model", "view_entities", SemVer{10, 20, 0}, false},
 		{"domain_model", "view_entities", SemVer{11, 0, 0}, true},
 		// Basic entities available in 9.x+
 		{"domain_model", "entities", SemVer{9, 0, 0}, true},

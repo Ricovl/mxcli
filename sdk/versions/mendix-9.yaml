@@ -35,6 +35,34 @@ features:
       min_version: "9.7.0"
       mdl: "SHOW PAGE Module.PageName WITH PARAMS ..."
       notes: "Pages$PageSettings.parameterMappings introduced in 9.7.0 (mendixmodelsdk StructureVersionInfo)"
+    list_find_filter_by_expression:
+      min_version: "9.0.3"
+      mdl: "$Found = FIND $List WHERE expression; $Kept = FILTER $List WHERE expression;"
+      notes: "Microflows$FindByExpression and FilterByExpression introduced in 9.0.3 (mendixmodelsdk 4.117.0); `BY Member = value` writes Microflows$Find/Filter, which every version has. The write refuses each type below it (canon.UndeclaredTypeError); check -p names the statement first (ako/mxcli#1811)."
+    call_external_action:
+      min_version: "9.19.0"
+      mdl: "CALL EXTERNAL ACTION Module.Service.Action ();"
+      notes: "Microflows$CallExternalAction introduced in 9.19.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    list_range:
+      min_version: "9.24.0"
+      mdl: "$Page = RANGE $List OFFSET $Offset LIMIT $Amount;"
+      notes: "Microflows$ListRange introduced in 9.24.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    loop_over_list:
+      min_version: "9.0.4"
+      mdl: "LOOP $Item IN $List BEGIN … END LOOP;"
+      notes: "Microflows$IterableList and LoopedActivity.LoopSource introduced in 9.0.4 (mendixmodelsdk 4.117.0); before, a loop stored its list on the activity itself, which mxcli does not write. The write refuses the loop below it; check -p names the statement first (ako/mxcli#1811)."
+    while_loop:
+      min_version: "9.0.4"
+      mdl: "WHILE condition BEGIN … END WHILE;"
+      notes: "Microflows$WhileLoopCondition introduced in 9.0.4 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    queued_calls:
+      min_version: "9.10.0"
+      mdl: "CALL MICROFLOW Module.Flow() IN QUEUE Module.Queue; CALL JAVA ACTION Module.Action() IN QUEUE Module.Queue;"
+      notes: "Queues$QueueSettings and the calls' QueueSettings introduced in 9.10.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    execute_database_query:
+      min_version: "9.24.0"
+      mdl: "$Rows = EXECUTE DATABASE QUERY Module.Connection.Query;"
+      notes: "DatabaseConnector$ExecuteDatabaseQueryAction and QueryParameterMapping introduced in 9.24.0 (mendixmodelsdk 4.117.0); mx 9.24.30 loads the action (CE1613 for a query that does not exist, not a load failure). The 10 and 11 rows said 10.6.0, a floor nothing measured (ako/mxcli#1811)."
 
   pages:
     basic:
@@ -44,6 +72,18 @@ features:
       min_version: "9.4.0"
       mdl: "CREATE PAGE Module.Name (Params: ($P: Module.Entity)) { ... }"
       notes: "Pages$PageParameter and Page.parameters introduced in 9.4.0 (mendixmodelsdk StructureVersionInfo)"
+    workflow_page_actions:
+      min_version: "9.0.2"
+      mdl: "action: open user task | open workflow | call workflow Module.WF"
+      notes: "Forms$OpenUserTaskClientAction, OpenWorkflowClientAction and CallWorkflowClientAction introduced in 9.0.2 with workflows (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    complete_task_action:
+      min_version: "9.19.0"
+      mdl: "action: complete task 'Outcome'"
+      notes: "Forms$SetTaskOutcomeClientAction is 9.0.2, but the OutcomeValue mxcli writes is 9.19.0 (mendixmodelsdk 4.117.0); below, the write refuses the page (ako/mxcli#1811)."
+    snippet_parameters:
+      min_version: "9.21.0"
+      mdl: "CREATE SNIPPET Module.Name (Params: ($P: Module.Entity)) { … }"
+      notes: "Forms$SnippetParameter and Snippet.Parameters introduced in 9.21.0 (mendixmodelsdk 4.117.0). A snippet call writes a mapping only for a parameter the called snippet declares, so it cannot reach an older project (ako/mxcli#1811)."
 
   security:
     module_roles:
@@ -55,12 +95,62 @@ features:
 
   workflows:
     basic:
-      min_version: "9.0.0"
+      min_version: "9.0.2"
       mdl: "CREATE WORKFLOW Module.Name ..."
+      notes: "Workflows$Workflow introduced in 9.0.2 (mendixmodelsdk 4.117.0); the CDN lists mxbuild 9.0.0 and 9.0.1, which have no workflows. The write refuses the type below it (canon.UndeclaredTypeError); create workflow, create or modify workflow and alter workflow are refused by check -p first (ako/mxcli#1809)."
     parallel_split:
       min_version: "9.0.0"
     user_task:
-      min_version: "9.0.0"
+      min_version: "9.19.0"
+      notes: "Workflows$UserTask is 9.0.2, but the outcome value (Workflows$UserTaskOutcome.Value) mxcli writes is 9.19.0, its task page 9.11.0 and its on-created event 9.0.5 (mendixmodelsdk 4.117.0). Measured on stamped 9.x projects: the write refuses a user task below 9.19 (ako/mxcli#1811)."
+    multi_user_task:
+      min_version: "9.22.0"
+      mdl: "MULTI USER TASK Vote 'Vote' PAGE M.TaskPage OUTCOMES 'Yes' { } 'No' { };"
+      notes: "Before 10.12 a Workflows$UserTask whose UserTaskCompletion is a MultiInputCompletion, introduced with consensus and veto in 9.22.0 (mendixmodelsdk 4.117.0; ako/mxcli#1771)."
+    workflow_microflow_actions:
+      min_version: "9.0.2"
+      mdl: "CALL WORKFLOW Module.WF ($Ctx); SET TASK OUTCOME $Task 'Approve'; OPEN USER TASK $Task; OPEN WORKFLOW $Wf;"
+      notes: "Microflows$WorkflowCallAction, SetTaskOutcomeAction, OpenUserTaskAction and OpenWorkflowAction introduced in 9.0.2 with workflows (mendixmodelsdk 4.117.0). The write refuses each type below it (canon.UndeclaredTypeError); check -p names the statement first (ako/mxcli#1787)."
+    workflow_operations:
+      min_version: "9.2.0"
+      mdl: "WORKFLOW OPERATION ABORT $Wf REASON '…'; WORKFLOW OPERATION RESTART $Wf;"
+      notes: "Microflows$WorkflowOperationAction, AbortOperation and RestartOperation introduced in 9.2.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    workflow_operation_pause_continue:
+      min_version: "9.3.0"
+      mdl: "WORKFLOW OPERATION PAUSE $Wf; WORKFLOW OPERATION CONTINUE $Wf;"
+      notes: "Microflows$PauseOperation and ContinueOperation introduced in 9.3.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    get_workflow_data:
+      min_version: "9.10.0"
+      mdl: "$Data = GET WORKFLOW DATA $Wf AS Module.WF;"
+      notes: "Microflows$GetWorkflowDataAction introduced in 9.10.0 (mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    workflow_operation_retry_unpause:
+      min_version: "9.12.0"
+      mdl: "WORKFLOW OPERATION RETRY $Wf; WORKFLOW OPERATION UNPAUSE $Wf;"
+      notes: "Microflows$RetryOperation and UnpauseOperation introduced in 9.12.0, replacing ResumeOperation (9.3.0 to 9.11; mendixmodelsdk 4.117.0; ako/mxcli#1787)."
+    jump_to:
+      min_version: "9.0.5"
+      mdl: "JUMP TO Activity;"
+      notes: "Workflows$JumpToActivity introduced in 9.0.5 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    call_workflow_activity:
+      min_version: "9.6.0"
+      mdl: "CALL WORKFLOW Module.WF;  (an activity of a workflow)"
+      notes: "Workflows$CallWorkflowActivity is 9.0.2, but the ParameterExpression mxcli writes is 9.6.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    overview_page:
+      min_version: "9.11.0"
+      mdl: "OVERVIEW PAGE Module.Page"
+      notes: "Workflow.AdminPage, a Workflows$PageReference, introduced in 9.11.0 (mendixmodelsdk 4.117.0); before, the property was OverviewPage, which mxcli does not write (ako/mxcli#1811)."
+    annotations:
+      min_version: "9.15.0"
+      mdl: "ANNOTATION '…' (on a workflow or an activity)"
+      notes: "Workflows$Annotation and Workflow.Annotation introduced in 9.15.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
+    workflow_parameter:
+      min_version: "9.18.0"
+      mdl: "PARAMETER $WorkflowContext: Module.Entity"
+      notes: "Workflows$Parameter is 9.6.0, its Entity 9.10.0 and its Name 9.18.0 (mendixmodelsdk 4.117.0); mxcli writes all three. Measured on stamped 9.x projects: below 9.18 the write refuses every workflow with a parameter (ako/mxcli#1811)."
+    call_workflow_parameter_mappings:
+      min_version: "9.18.0"
+      mdl: "CALL WORKFLOW Module.WF (WorkflowContext = $Expr);  (an activity of a workflow)"
+      notes: "Workflows$WorkflowCallParameterMapping and CallWorkflowActivity.ParameterMappings introduced in 9.18.0 (mendixmodelsdk 4.117.0; ako/mxcli#1811)."
 
   navigation:
     profiles:
@@ -69,3 +159,27 @@ features:
       min_version: "9.0.0"
     home_pages:
       min_version: "9.0.0"
+    progressive_web_app:
+      min_version: "9.0.3"
+      mdl: "CREATE OR MODIFY NAVIGATION Profile PROGRESSIVE WEB APP ( Precaching: true )"
+      notes: "Navigation$ProgressiveWebAppSettings introduced in 9.0.3 (mendixmodelsdk 4.117.0); `progressive web app off` writes none (ako/mxcli#1811)."
+    native_home_page:
+      min_version: "9.4.0"
+      mdl: "CREATE OR MODIFY NAVIGATION NativePhone HOME PAGE Module.Page"
+      notes: "Navigation$NativeHomePage and NativeNavigationProfile.NativeHomePage introduced in 9.4.0 (mendixmodelsdk 4.117.0); the native profile itself is older (ako/mxcli#1811)."
+    menu_item_icons:
+      min_version: "9.20.0"
+      mdl: "MENU ITEM 'Home' ( OnClick: …, Icon: Module.Collection.icon )"
+      notes: "Forms$IconCollectionIcon introduced in 9.20.0 with icon collections (mendixmodelsdk 4.117.0); `Icon:` names an icon collection entry and nothing else (ako/mxcli#1811)."
+
+  scheduled_events:
+    schedules:
+      min_version: "9.12.0"
+      mdl: "CREATE SCHEDULED EVENT Module.Name ( Microflow: …, Repeat: Daily, … )"
+      notes: "ScheduledEvents$MinuteSchedule … YearWeekdaySchedule, ScheduledEvent.Schedule and OnOverlap introduced in 9.12.0 (mendixmodelsdk 4.117.0); before, an event has only an interval, which mxcli does not write (ako/mxcli#1811)."
+
+  integration:
+    business_events:
+      min_version: "9.24.0"
+      mdl: "CREATE BUSINESS EVENT SERVICE Module.Name ..."
+      notes: "BusinessEvents$BusinessEventService and its children introduced in 9.24.0 (mendixmodelsdk 4.117.0). mx 9.24.30 loads a service mxcli writes; its errors there are the content (the Business Events module, an attribute's length). The 10 and 11 rows said 10.0.0 (ako/mxcli#1811)."

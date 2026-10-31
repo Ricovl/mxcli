@@ -9,8 +9,8 @@
 -- printed 393: every listing typed each unit by reading its file, and every
 -- write made the next listing do it again.
 --
--- Fix: unit types are indexed by each file's size and mtime and persisted to
--- .mxcli/unit-index, so only a changed unit is opened. Measured
+-- Fix: unit types are indexed by the Unit table's ContentsHash and persisted
+-- to .mxcli/unit-types.idx, so only a unit whose hash is new is opened. Measured
 -- on testdata/pedapp (375 unit files) with strace: distinct .mxunit files
 -- opened by the describe 375 -> 117, the rest being the folders, microflows,
 -- modules and domain models the describe itself reads.

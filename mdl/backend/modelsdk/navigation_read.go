@@ -14,7 +14,6 @@ import (
 	genPages "github.com/mendixlabs/mxcli/modelsdk/gen/pages"
 	genTexts "github.com/mendixlabs/mxcli/modelsdk/gen/texts"
 	mmpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -27,7 +26,7 @@ import (
 // metamodel uses canonical names (e.g. page actions read PageSettings, not
 // FormSettings; captions read Texts$Translation items).
 func (b *Backend) GetNavigation() (*types.NavigationDocument, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genNav.NavigationDocument](b.reader)
+	units, err := listUnitsCached[*genNav.NavigationDocument](b)
 	if err != nil {
 		return nil, err
 	}

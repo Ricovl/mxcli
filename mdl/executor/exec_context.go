@@ -178,6 +178,10 @@ type ExecContext struct {
 	// "by name", which is every interactive DESCRIBE.
 	describeID model.ID
 
+	// catalogForce is REFRESH CATALOG … FORCE: the build describes every
+	// document again instead of carrying unchanged rows over (#1790).
+	catalogForce bool
+
 	// lastWriteStats is the storage write watermark as of the previous
 	// ReportMutation call (or of this context's construction, i.e. the start of
 	// the statement). Its only use is telling "Modified X" from "X was already

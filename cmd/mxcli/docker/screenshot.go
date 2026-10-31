@@ -87,7 +87,9 @@ func CaptureScreenshot(opts ScreenshotOptions) error {
 
 	args := append(append([]string{}, prefix...), screenshotArgs(opts)...)
 	cmd := exec.Command(bin, args...)
-	cmd.Env = os.Environ() // carries PLAYWRIGHT_BROWSERS_PATH
+	// os.Environ carries PLAYWRIGHT_BROWSERS_PATH; a page on this machine is
+	// reached directly, not through an egress proxy (ako/mxcli#1800).
+	cmd.Env = directRouteEnv(os.Environ(), opts.URL)
 	out := &syncBuffer{}
 	cmd.Stdout = out
 	cmd.Stderr = out

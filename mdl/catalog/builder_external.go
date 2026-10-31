@@ -3,6 +3,7 @@
 package catalog
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"strings"
@@ -13,7 +14,7 @@ import (
 // buildExternalEntities populates the external_entities catalog table
 // from domain model entities that have an OData remote entity source.
 func (b *Builder) buildExternalEntities() error {
-	domainModels, err := b.reader.ListDomainModels()
+	domainModels, err := b.cachedDomainModels()
 	if err != nil {
 		return err
 	}
@@ -34,6 +35,9 @@ func (b *Builder) buildExternalEntities() error {
 
 	count := 0
 	for _, dm := range domainModels {
+		if !b.own(string(dm.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(dm.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -83,6 +87,7 @@ func (b *Builder) buildExternalEntities() error {
 			count++
 		}
 	}
+	b.disown()
 
 	b.report("External Entities", count)
 	return nil
@@ -91,11 +96,7 @@ func (b *Builder) buildExternalEntities() error {
 // buildExternalActions populates the external_actions catalog table
 // by scanning all microflows and nanoflows for CallExternalAction activities.
 func (b *Builder) buildExternalActions() error {
-	mfs, err := b.cachedMicroflows()
-	if err != nil {
-		return err
-	}
-	nfs, err := b.cachedNanoflows()
+	mfs, nfs, err := b.externalActionFlows()
 	if err != nil {
 		return err
 	}
@@ -207,6 +208,43 @@ func (b *Builder) buildExternalActions() error {
 
 	b.report("External Actions", len(actionMap))
 	return nil
+}
+
+// callExternalActionType is the storage name of a call-external-action action.
+const callExternalActionType = "Microflows$CallExternalAction"
+
+// externalActionFlows lists the flows that may call an external action. The
+// table aggregates over every flow, so it is rebuilt every time; an
+// incremental build decodes only the flows whose stored bytes name the action
+// type, keeping their order, instead of every flow in the project.
+func (b *Builder) externalActionFlows() ([]*microflows.Microflow, []*microflows.Nanoflow, error) {
+	if b.list == b.reader || b.scopedReader == nil {
+		mfs, err := b.cachedMicroflows()
+		if err != nil {
+			return nil, nil, err
+		}
+		nfs, err := b.cachedNanoflows()
+		return mfs, nfs, err
+	}
+	calling := map[string]bool{}
+	for _, typeName := range []string{"Microflows$Microflow", "Microflows$Nanoflow"} {
+		units, err := b.reader.ListRawUnitsByType(typeName)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, u := range units {
+			if bytes.Contains(u.Contents, []byte(callExternalActionType)) {
+				calling[string(u.ID)] = true
+			}
+		}
+	}
+	view := b.scopedReader(func(id string) bool { return calling[id] })
+	mfs, err := view.ListMicroflows()
+	if err != nil {
+		return nil, nil, err
+	}
+	nfs, err := view.ListNanoflows()
+	return mfs, nfs, err
 }
 
 // isODataEntitySource reports whether an entity's Source marks it as consumed

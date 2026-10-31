@@ -64,7 +64,7 @@ func serviceRefsFixture(t *testing.T, r *mock.MockBackend) *Catalog {
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 	for _, step := range []struct {
 		name  string
@@ -80,7 +80,7 @@ func serviceRefsFixture(t *testing.T, r *mock.MockBackend) *Catalog {
 		}
 	}
 
-	stmt, err := tx.Prepare(`
+	stmt, err := b.tx.Prepare(`
 		INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)

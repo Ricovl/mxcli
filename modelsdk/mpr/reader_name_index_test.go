@@ -4,6 +4,7 @@ package mpr
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +24,8 @@ func TestGetUnitByName_IndexesHeadersAndLoadsOneUnit(t *testing.T) {
 			UnitID BLOB PRIMARY KEY NOT NULL,
 			ContainerID BLOB,
 			ContainmentName TEXT,
-			Contents BLOB
+			Contents BLOB,
+			ContentsHash TEXT
 		)
 	`); err != nil {
 		t.Fatal(err)
@@ -75,7 +77,8 @@ func TestGetUnitByName_V2RetainsOnlyHeaders(t *testing.T) {
 		CREATE TABLE Unit (
 			UnitID BLOB PRIMARY KEY NOT NULL,
 			ContainerID BLOB,
-			ContainmentName TEXT
+			ContainmentName TEXT,
+			ContentsHash TEXT
 		)
 	`); err != nil {
 		t.Fatal(err)
@@ -89,6 +92,9 @@ func TestGetUnitByName_V2RetainsOnlyHeaders(t *testing.T) {
 	insertV2NamedUnit(t, db, contentsDir, moduleID, rootID, "Projects$ModuleImpl", "Sales")
 	insertV2NamedUnit(t, db, contentsDir, folderID, moduleID, "Projects$Folder", "Processes")
 	wantContents := insertV2NamedUnit(t, db, contentsDir, microflowID, folderID, "Microflows$Microflow", "Run")
+	for i := range 2 * unitTypeIndexPersistAfter {
+		insertV2NamedUnit(t, db, contentsDir, fmt.Sprintf("00000000-0000-0000-0001-%012d", i), folderID, "Microflows$Microflow", fmt.Sprintf("Other%d", i))
+	}
 
 	r := &Reader{db: db, version: MPRVersionV2, contentsDir: contentsDir}
 	r.EnableContentCache()
@@ -102,12 +108,13 @@ func TestGetUnitByName_V2RetainsOnlyHeaders(t *testing.T) {
 	if string(unit.Contents) != string(wantContents) {
 		t.Fatal("direct V2 lookup returned the wrong contents")
 	}
-	if len(r.contentCache) != 1 {
-		t.Fatalf("content cache contains %d units, want only the selected unit", len(r.contentCache))
+	// Building the index caches at most the first units it reads, not all.
+	if n := len(r.contentCache); n > unitTypeIndexPersistAfter+1 {
+		t.Fatalf("content cache contains %d units, want at most %d", n, unitTypeIndexPersistAfter+1)
 	}
 	foundHeader := false
 	for _, header := range r.unitCache {
-		if header.Type == "Microflows$Microflow" {
+		if header.ID == microflowID {
 			foundHeader = true
 			if header.Name != "Run" {
 				t.Fatalf("cached microflow header name = %q", header.Name)
@@ -249,7 +256,8 @@ func TestHeaderHierarchy_ModuleAndContainers(t *testing.T) {
 			UnitID BLOB PRIMARY KEY NOT NULL,
 			ContainerID BLOB,
 			ContainmentName TEXT,
-			Contents BLOB
+			Contents BLOB,
+			ContentsHash TEXT
 		)
 	`); err != nil {
 		t.Fatal(err)
@@ -308,7 +316,8 @@ func TestHeaderHierarchy_ReadsNoContentsOnceBuilt(t *testing.T) {
 		CREATE TABLE Unit (
 			UnitID BLOB PRIMARY KEY NOT NULL,
 			ContainerID BLOB,
-			ContainmentName TEXT
+			ContainmentName TEXT,
+			ContentsHash TEXT
 		)
 	`); err != nil {
 		t.Fatal(err)

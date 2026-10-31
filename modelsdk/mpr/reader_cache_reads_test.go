@@ -56,10 +56,12 @@ func TestCacheUnitReads_ReadsEachFileOnce(t *testing.T) {
 		t.Errorf("cached: two listings read the file %d time(s), want 1", n)
 	}
 
+	// Released, each read checks the file again: it is opened, or served by
+	// the persisted store after a stat says it is unchanged (#1804).
 	release()
-	before = r.fileReads.Load()
+	before = r.fileReads.Load() + r.UnitStoreHits()
 	listTwice(t, r)
-	if n := r.fileReads.Load() - before; n < 2 {
+	if n := r.fileReads.Load() + r.UnitStoreHits() - before; n < 2 {
 		t.Errorf("released: two listings read the file %d time(s), want >= 2 (the cache must not outlive the pass)", n)
 	}
 }

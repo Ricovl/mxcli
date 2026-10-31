@@ -108,35 +108,16 @@ func (r *Reader) ListUnits() ([]*UnitInfo, error) {
 
 // ListFolders returns all project folders with their names.
 func (r *Reader) ListFolders() ([]*FolderInfo, error) {
-	if hs, ok, err := r.cachedUnitsOfType("Projects$Folder"); ok {
-		if err != nil {
-			return nil, err
-		}
-		result := make([]*FolderInfo, 0, len(hs))
-		for _, h := range hs {
-			result = append(result, &FolderInfo{ID: h.ID, ContainerID: h.ContainerID, Name: h.Name})
-		}
-		return result, nil
-	}
-	units, err := r.listUnitsByType("Projects$Folder")
+	units, err := r.ListUnitHeaders("Projects$Folder")
 	if err != nil {
 		return nil, err
 	}
-	var result []*FolderInfo
+	result := make([]*FolderInfo, 0, len(units))
 	for _, u := range units {
-		name := ""
-		if len(u.Contents) > 0 {
-			var raw map[string]any
-			if err := bsoncompat.UnmarshalDocMap(u.Contents, &raw); err == nil {
-				if n, ok := raw["Name"].(string); ok {
-					name = n
-				}
-			}
-		}
 		result = append(result, &FolderInfo{
 			ID:          u.ID,
 			ContainerID: u.ContainerID,
-			Name:        name,
+			Name:        u.Name,
 		})
 	}
 	return result, nil

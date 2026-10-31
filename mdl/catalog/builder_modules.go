@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
+
 	"github.com/mendixlabs/mxcli/sdk/domainmodel"
 	"github.com/mendixlabs/mxcli/sdk/javaactions"
 )
@@ -19,11 +21,22 @@ func (b *Builder) buildModules() error {
 	// The domain model's documentation, by module. A module has no
 	// documentation of its own; its domain model does, and nothing read it.
 	// A failed domain-model read costs the column, not the module list.
+	// The modules are rebuilt every time, and an incremental build decodes
+	// only the domain models it rebuilds: it reads every domain model's
+	// stored Documentation instead.
 	dmDocs := map[string]string{}
-	if dms, err := b.cachedDomainModels(); err == nil {
-		for _, dm := range dms {
-			if dm.Documentation != "" {
-				dmDocs[string(b.hierarchy.findModuleID(dm.ContainerID))] = dm.Documentation
+	if b.scope == nil {
+		if dms, err := b.cachedDomainModels(); err == nil {
+			for _, dm := range dms {
+				if dm.Documentation != "" {
+					dmDocs[string(b.hierarchy.findModuleID(dm.ContainerID))] = dm.Documentation
+				}
+			}
+		}
+	} else if units, err := b.reader.ListRawUnitsByType("DomainModels$DomainModel"); err == nil {
+		for _, u := range units {
+			if doc, ok := bson.Raw(u.Contents).Lookup("Documentation").StringValueOK(); ok && doc != "" {
+				dmDocs[string(b.hierarchy.findModuleID(u.ContainerID))] = doc
 			}
 		}
 	}
@@ -79,25 +92,25 @@ func (b *Builder) buildEntities() error {
 		return err
 	}
 
-	entityStmt, err := b.prepareUnit(`
+	entityStmt, err := b.tx.Prepare(`
 		INSERT INTO entities_data (Id, Name, QualifiedName, ModuleName, Folder, EntityType,
 			Description, Generalization, AttributeCount, AssociationCount,
 			AccessRuleCount, ValidationRuleCount, HasEventHandlers,
 			HasCreatedDate, HasChangedDate, HasOwner, HasChangedBy,
 			IsExternal, ExternalService,
-			ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer entityStmt.Close()
 
-	attrStmt, err := b.prepareUnit(`
+	attrStmt, err := b.tx.Prepare(`
 		INSERT INTO attributes_data (Id, Name, EntityId, EntityQualifiedName, ModuleName,
 			DataType, EnumerationQualifiedName, Length, IsUnique, IsRequired, DefaultValue,
-			IsCalculated, Description, ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			IsCalculated, Description, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -109,8 +122,7 @@ func (b *Builder) buildEntities() error {
 	entityCount := 0
 	attrCount := 0
 	for _, dm := range domainModels {
-		b.unit = string(dm.ID)
-		if !b.wants(string(dm.ID)) {
+		if !b.own(string(dm.ID)) {
 			continue
 		}
 		// Get module name using hierarchy
@@ -257,6 +269,7 @@ func (b *Builder) buildEntities() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Entities", entityCount)
 	b.report("Attributes", attrCount)
@@ -305,6 +318,9 @@ func (b *Builder) buildEnumerations() error {
 	lang := b.defaultLanguage()
 
 	for _, enum := range enums {
+		if !b.own(string(enum.ID)) {
+			continue
+		}
 		// Get module name using hierarchy
 		moduleID := b.hierarchy.findModuleID(enum.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -365,6 +381,7 @@ func (b *Builder) buildEnumerations() error {
 			valueCount++
 		}
 	}
+	b.disown()
 
 	b.report("Enumerations", len(enums))
 	b.report("Enumeration values", valueCount)
@@ -400,7 +417,7 @@ func catalogCodeActionType(t interface{ TypeString() string }) string {
 }
 
 func (b *Builder) buildJavaActions() error {
-	actions, err := b.reader.ListJavaActionsFull()
+	actions, err := b.lister().ListJavaActionsFull()
 	if err != nil {
 		return err
 	}
@@ -431,6 +448,9 @@ func (b *Builder) buildJavaActions() error {
 	paramCount := 0
 
 	for _, ja := range actions {
+		if !b.own(string(ja.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(ja.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + ja.Name
@@ -483,6 +503,7 @@ func (b *Builder) buildJavaActions() error {
 			paramCount++
 		}
 	}
+	b.disown()
 
 	b.report("Java Actions", len(actions))
 	if paramCount > 0 {
@@ -492,7 +513,7 @@ func (b *Builder) buildJavaActions() error {
 }
 
 func (b *Builder) buildODataClients() error {
-	services, err := b.reader.ListConsumedODataServices()
+	services, err := b.lister().ListConsumedODataServices()
 	if err != nil {
 		return err
 	}
@@ -511,6 +532,9 @@ func (b *Builder) buildODataClients() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -541,13 +565,14 @@ func (b *Builder) buildODataClients() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("OData Clients", len(services))
 	return nil
 }
 
 func (b *Builder) buildODataServices() error {
-	services, err := b.reader.ListPublishedODataServices()
+	services, err := b.lister().ListPublishedODataServices()
 	if err != nil {
 		return err
 	}
@@ -566,6 +591,9 @@ func (b *Builder) buildODataServices() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -595,6 +623,7 @@ func (b *Builder) buildODataServices() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("OData Services", len(services))
 	return nil
@@ -621,6 +650,9 @@ func (b *Builder) buildBusinessEventServices() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + svc.Name
@@ -672,6 +704,7 @@ func (b *Builder) buildBusinessEventServices() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("Business Event Services", len(services))
 	return nil
@@ -700,6 +733,9 @@ func (b *Builder) buildBusinessEvents() error {
 
 	count := 0
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		svcQN := moduleName + "." + svc.Name
@@ -772,6 +808,7 @@ func (b *Builder) buildBusinessEvents() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Business Events", count)
 	return nil
@@ -797,6 +834,9 @@ func (b *Builder) buildDatabaseConnections() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, conn := range connections {
+		if !b.own(string(conn.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(conn.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + conn.Name
@@ -816,6 +856,7 @@ func (b *Builder) buildDatabaseConnections() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("Database Connections", len(connections))
 	return nil
@@ -841,6 +882,9 @@ func (b *Builder) buildJarDependencies() error {
 
 	count := 0
 	for _, ms := range allSettings {
+		if !b.own(string(ms.ID)) {
+			continue
+		}
 		moduleName := b.hierarchy.getModuleName(ms.ContainerID)
 		for _, dep := range ms.JarDependencies {
 			coordinate := dep.GroupID + ":" + dep.ArtifactID
@@ -864,13 +908,14 @@ func (b *Builder) buildJarDependencies() error {
 			count++
 		}
 	}
+	b.disown()
 
 	b.report("JAR Dependencies", count)
 	return nil
 }
 
 func (b *Builder) buildJsonStructures() error {
-	structures, err := b.reader.ListJsonStructures()
+	structures, err := b.lister().ListJsonStructures()
 	if err != nil {
 		return err
 	}
@@ -889,6 +934,9 @@ func (b *Builder) buildJsonStructures() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, js := range structures {
+		if !b.own(string(js.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(js.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + js.Name
@@ -919,13 +967,14 @@ func (b *Builder) buildJsonStructures() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("JSON Structures", len(structures))
 	return nil
 }
 
 func (b *Builder) buildImportMappings() error {
-	mappings, err := b.reader.ListImportMappings()
+	mappings, err := b.lister().ListImportMappings()
 	if err != nil {
 		return err
 	}
@@ -944,6 +993,9 @@ func (b *Builder) buildImportMappings() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, im := range mappings {
+		if !b.own(string(im.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(im.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + im.Name
@@ -973,13 +1025,14 @@ func (b *Builder) buildImportMappings() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("Import Mappings", len(mappings))
 	return nil
 }
 
 func (b *Builder) buildExportMappings() error {
-	mappings, err := b.reader.ListExportMappings()
+	mappings, err := b.lister().ListExportMappings()
 	if err != nil {
 		return err
 	}
@@ -998,6 +1051,9 @@ func (b *Builder) buildExportMappings() error {
 	projectID, snapshotID := b.snapshotMeta()
 
 	for _, em := range mappings {
+		if !b.own(string(em.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(em.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + em.Name
@@ -1028,6 +1084,7 @@ func (b *Builder) buildExportMappings() error {
 			return err
 		}
 	}
+	b.disown()
 
 	b.report("Export Mappings", len(mappings))
 	return nil

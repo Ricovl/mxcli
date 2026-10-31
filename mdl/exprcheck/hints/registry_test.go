@@ -5,7 +5,7 @@ package hints
 import "testing"
 
 func TestRegistry_AllCodesPresent(t *testing.T) {
-	want := []string{"E001", "E002", "E003", "E004", "E005", "E006", "E007", "E008", "E009", "E010", "E011", "E012"}
+	want := []string{"E001", "E002", "E003", "E004", "E005", "E006", "E007", "E008", "E009", "E010", "E011", "E012", "E015"}
 	for _, c := range want {
 		e, ok := Registry.Lookup(c)
 		if !ok {

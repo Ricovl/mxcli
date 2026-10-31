@@ -10,7 +10,7 @@ import (
 
 // buildRestClients populates the rest_clients and rest_operations catalog tables.
 func (b *Builder) buildRestClients() error {
-	services, err := b.reader.ListConsumedRestServices()
+	services, err := b.lister().ListConsumedRestServices()
 	if err != nil {
 		return err
 	}
@@ -41,6 +41,9 @@ func (b *Builder) buildRestClients() error {
 
 	opCount := 0
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + svc.Name
@@ -97,6 +100,7 @@ func (b *Builder) buildRestClients() error {
 			opCount++
 		}
 	}
+	b.disown()
 
 	b.report("REST Clients", len(services))
 	if opCount > 0 {
@@ -108,7 +112,7 @@ func (b *Builder) buildRestClients() error {
 // publishedRestRef is one published REST operation → microflow edge. sourceID is
 // the operation's synthetic catalog id, so the emitted edge joins back to
 // published_rest_operations_data rather than only naming the operation in prose.
-type publishedRestRef struct{ sourceID, qualifiedName, moduleName, microflow, unit string }
+type publishedRestRef struct{ owner, sourceID, qualifiedName, moduleName, microflow string }
 
 // publishedRestOpName renders the name a published operation is known by in the
 // reference graph. The empty parts are dropped rather than left as runs of
@@ -126,7 +130,7 @@ func publishedRestOpName(service, resource, method, path string) string {
 
 // buildPublishedRestServices populates the published_rest_services and published_rest_operations catalog tables.
 func (b *Builder) buildPublishedRestServices() error {
-	services, err := b.reader.ListPublishedRestServices()
+	services, err := b.lister().ListPublishedRestServices()
 	if err != nil {
 		return err
 	}
@@ -157,6 +161,9 @@ func (b *Builder) buildPublishedRestServices() error {
 
 	totalOps := 0
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(svc.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + svc.Name
@@ -223,7 +230,7 @@ func (b *Builder) buildPublishedRestServices() error {
 				// name would collide with every other unnamed target in refs.
 				if op.Microflow != "" {
 					b.publishedRestRefs = append(b.publishedRestRefs, publishedRestRef{
-						unit:     string(svc.ID),
+						owner:    b.currentOwner(),
 						sourceID: opID,
 						// The resource is part of what makes an operation unique:
 						// two resources of one service can both expose GET on the
@@ -236,6 +243,7 @@ func (b *Builder) buildPublishedRestServices() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Published REST Services", len(services))
 	if totalOps > 0 {

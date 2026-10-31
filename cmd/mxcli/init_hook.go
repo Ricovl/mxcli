@@ -61,6 +61,22 @@ MPR='%s'
 TAG="${MXCLI_TAG:-%s}"
 STAMP=.ai-context/mxcli-tooling.json
 
+# The platform as the release assets name it. Under Git Bash, MSYS2 and Cygwin
+# 'uname -s' is MINGW64_NT-10.0-26200 and the like, and the Windows assets end
+# in .exe (mendixlabs/mxcli#1680) - so there the binary is ./mxcli.exe, which
+# cmd and PowerShell can run as well as Git Bash.
+os=$(uname -s | tr 'A-Z' 'a-z')
+exe=
+case "$os" in
+  mingw*|msys*|cygwin*) os=windows; exe=.exe ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch=amd64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) arch=$(uname -m) ;;
+esac
+MXCLI=./mxcli$exe
+
 # stamp_field KEY: a string field of the tooling stamp, or nothing.
 stamp_field() {
   [ -f "$STAMP" ] || return 0
@@ -125,12 +141,12 @@ older_than_stamp() {
 }
 
 stale=
-if [ -x ./mxcli ] && older_than_stamp ./mxcli; then
-  echo "./mxcli is $(bin_version ./mxcli), older than the mxcli that wrote this project's tooling ($(stamp_field version)) — replacing it." >&2
+if [ -x "$MXCLI" ] && older_than_stamp "$MXCLI"; then
+  echo "$MXCLI is $(bin_version "$MXCLI"), older than the mxcli that wrote this project's tooling ($(stamp_field version)) — replacing it." >&2
   stale=1
 fi
 
-if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
+if [ ! -x "$MXCLI" ] || [ -n "$stale" ]; then
   # Prefer a copy that is already on this machine. Some environments ship mxcli
   # pre-installed on PATH, and the bootstrap instructions have you delete the
   # hardlink 'mxcli new' left in the project — after which this guard could
@@ -146,40 +162,38 @@ if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
   # leaves ./mxcli working, which is what the rest of this script and the
   # project's own CLAUDE.md assume.
   onpath=$(command -v mxcli 2>/dev/null || true)
-  if [ -n "$onpath" ] && [ -x "$onpath" ] && [ "$onpath" != "./mxcli" ] && [ "$onpath" != "$PWD/mxcli" ]; then
+  if [ -n "$onpath" ] && [ -x "$onpath" ] && [ "$onpath" != "./mxcli" ] && [ "$onpath" != "$PWD/mxcli" ] && [ "$onpath" != "$PWD/mxcli$exe" ]; then
     if older_than_stamp "$onpath"; then
       echo "mxcli on PATH (${onpath}) is $(bin_version "$onpath"), older than this project's tooling ($(stamp_field version)) — not linking it; downloading ${TAG} instead." >&2
     else
       echo "mxcli found on PATH (${onpath}) — linking it in rather than downloading."
-      rm -f ./mxcli
-      ln -f "$onpath" ./mxcli 2>/dev/null ||
-        ln -sf "$onpath" ./mxcli 2>/dev/null ||
-        cp "$onpath" ./mxcli
-      chmod +x ./mxcli 2>/dev/null || true
+      # On Windows also the ./mxcli that 'mxcli new' leaves there: it is the
+      # Linux build, and beside ./mxcli.exe it shadows it for './mxcli'.
+      rm -f ./mxcli "$MXCLI"
+      ln -f "$onpath" "$MXCLI" 2>/dev/null ||
+        ln -sf "$onpath" "$MXCLI" 2>/dev/null ||
+        cp "$onpath" "$MXCLI"
+      chmod +x "$MXCLI" 2>/dev/null || true
       stale=
     fi
   fi
 fi
 
-if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
-  os=$(uname -s | tr 'A-Z' 'a-z')
-  case "$(uname -m)" in
-    x86_64|amd64) arch=amd64 ;;
-    arm64|aarch64) arch=arm64 ;;
-    *) arch=$(uname -m) ;;
-  esac
-  url="https://github.com/mendixlabs/mxcli/releases/download/${TAG}/mxcli-${os}-${arch}"
+if [ ! -x "$MXCLI" ] || [ -n "$stale" ]; then
+  url="https://github.com/mendixlabs/mxcli/releases/download/${TAG}/mxcli-${os}-${arch}${exe}"
   echo "Downloading mxcli ${TAG} for ${os}/${arch}..."
-  # Into a temporary file, then renamed over ./mxcli: writing straight to
-  # ./mxcli would write THROUGH a symlink into the PATH binary it points at,
-  # and a failed download would leave no binary at all.
+  # Into a temporary file, then renamed over the binary: writing straight to
+  # it would write THROUGH a symlink into the PATH binary it points at, and a
+  # failed download would leave no binary at all.
   if curl -fsSL -o ./mxcli.download "$url"; then
     chmod +x ./mxcli.download
-    mv -f ./mxcli.download ./mxcli
+    # The Linux ./mxcli 'mxcli new' leaves on Windows would shadow ./mxcli.exe.
+    [ -z "$exe" ] || rm -f ./mxcli
+    mv -f ./mxcli.download "$MXCLI"
   else
     rm -f ./mxcli.download
     echo "Could not download mxcli from ${url}." >&2
-    if [ ! -x ./mxcli ]; then
+    if [ ! -x "$MXCLI" ]; then
       echo "Fetch it manually, or set MXCLI_TAG to a released version." >&2
       exit 1
     fi
@@ -187,8 +201,8 @@ if [ ! -x ./mxcli ] || [ -n "$stale" ]; then
   fi
 fi
 
-if older_than_stamp ./mxcli; then
-  echo "WARNING: ./mxcli ($(bin_version ./mxcli)) is still older than this project's tooling ($(stamp_field version))." >&2
+if older_than_stamp "$MXCLI"; then
+  echo "WARNING: $MXCLI ($(bin_version "$MXCLI")) is still older than this project's tooling ($(stamp_field version))." >&2
   echo "  Set MXCLI_TAG to $(stamp_field version) or newer (or 'nightly') and re-run this script." >&2
 fi
 
@@ -199,7 +213,7 @@ fi
 # the same confidence as current guidance. Quiet when already current; refuses
 # (rather than downgrades) when the binary is older than the tooling; never
 # fatal, since a refresh must not block the session.
-./mxcli init --sync-skills . || true
+"$MXCLI" init --sync-skills . || true
 
 # Cache MxBuild + the runtime and provision the database. Not exec'd: the
 # hook runs this script under '|| true' so a failure never blocks the session,
@@ -209,7 +223,7 @@ fi
 log=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/mxcli-bootstrap.$$.log")
 st="$log.status"
 rm -f "$st"
-{ ./mxcli run --local --setup --ensure-db -p "$MPR" 2>&1 || echo "$?" >"$st"; } | tee "$log"
+{ "$MXCLI" run --local --setup --ensure-db -p "$MPR" 2>&1 || echo "$?" >"$st"; } | tee "$log"
 status=0
 [ -f "$st" ] && status=$(cat "$st")
 if [ "$status" -ne 0 ]; then

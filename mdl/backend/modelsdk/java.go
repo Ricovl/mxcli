@@ -4,7 +4,6 @@ package modelsdkbackend
 
 import (
 	genJA "github.com/mendixlabs/mxcli/modelsdk/gen/javaactions"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
@@ -16,7 +15,7 @@ import (
 // listing. The rich parsed form (sdk/javaactions.JavaAction, with parameters and
 // return types) is ListJavaActionsFull, deferred to a later phase.
 func (b *Backend) ListJavaActions() ([]*types.JavaAction, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genJA.JavaAction](b.reader)
+	units, err := listUnitsCached[*genJA.JavaAction](b)
 	if err != nil {
 		return nil, err
 	}

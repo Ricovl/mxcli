@@ -7,13 +7,6 @@ package catalog
 //
 // History:
 //
-//	30 (incremental refresh): unit_stamps records each MPR v2 unit's stamp,
-//	    and the per-document tables an incremental refresh rebuilds (flows,
-//	    domain models, pages, snippets, widgets, refs, permissions, xpath,
-//	    strings) gain UnitId, the unit each row was built from. A cached
-//	    catalog has neither, so it could never refresh incrementally and
-//	    would keep checking freshness by the .mpr mtime alone.
-//	    30, not 26: 26 to 29 were taken upstream in parallel.
 //	29 (service microflow edges): refs gains the edges from an integration
 //	    service to the microflows it runs — a published OData resource's
 //	    read/change microflows, its actions and authentication microflow, a
@@ -163,7 +156,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "30"
+const CatalogSchemaVersion = "29"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -194,19 +187,6 @@ func (c *Catalog) createTables() error {
 		`CREATE TABLE IF NOT EXISTS catalog_meta (
 			Key TEXT PRIMARY KEY,
 			Value TEXT
-		)`,
-
-		// Each MPR v2 unit file's stamp when the catalog was built: what an
-		// incremental refresh diffs against (Builder.BuildIncremental).
-		`CREATE TABLE IF NOT EXISTS unit_stamps (
-			UnitId TEXT PRIMARY KEY,
-			Type TEXT,
-			ContainerId TEXT,
-			Size INTEGER,
-			MtimeNs INTEGER,
-			-- Content digest of a racily clean unit (MtimeNs -1), whose mtime
-			-- cannot be trusted.
-			Digest TEXT
 		)`,
 
 		`CREATE TABLE IF NOT EXISTS projects (
@@ -284,7 +264,6 @@ func (c *Catalog) createTables() error {
 			HasChangedBy INTEGER DEFAULT 0,
 			IsExternal INTEGER DEFAULT 0,
 			ExternalService TEXT,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -321,7 +300,6 @@ func (c *Catalog) createTables() error {
 			FromDeleteBehavior TEXT DEFAULT '',
 			ToDeleteErrorMessage TEXT DEFAULT '',
 			FromDeleteErrorMessage TEXT DEFAULT '',
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -346,7 +324,6 @@ func (c *Catalog) createTables() error {
 			DefaultValue TEXT,
 			IsCalculated INTEGER DEFAULT 0,
 			Description TEXT,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -367,7 +344,6 @@ func (c *Catalog) createTables() error {
 			TotalActivityCount INTEGER DEFAULT 0,
 			Complexity INTEGER DEFAULT 1,
 			Excluded BOOLEAN DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -399,7 +375,6 @@ func (c *Catalog) createTables() error {
 			ParameterType TEXT,
 			Description TEXT,
 			Ordinal INTEGER DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -419,7 +394,6 @@ func (c *Catalog) createTables() error {
 			ParameterCount INTEGER DEFAULT 0,
 			WidgetCount INTEGER DEFAULT 0,
 			Excluded BOOLEAN DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -435,7 +409,6 @@ func (c *Catalog) createTables() error {
 			Description TEXT,
 			ParameterCount INTEGER DEFAULT 0,
 			WidgetCount INTEGER DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -761,7 +734,6 @@ func (c *Catalog) createTables() error {
 			WithEvents INTEGER DEFAULT 0,
 			RetrieveSource TEXT DEFAULT '',
 			QueueRef TEXT DEFAULT '',
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -836,7 +808,6 @@ func (c *Catalog) createTables() error {
 			-- only microflow, nanoflow and workflow calls can.
 			ActionType TEXT,
 			HasConfirmation INTEGER DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -860,7 +831,6 @@ func (c *Catalog) createTables() error {
 			ModuleName TEXT,
 			Folder TEXT,
 			Description TEXT,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1000,7 +970,6 @@ func (c *Catalog) createTables() error {
 			Microflow TEXT,
 			RaiseErrorOnFalse INTEGER DEFAULT 0,
 			PassEventObject INTEGER DEFAULT 0,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1265,7 +1234,6 @@ func (c *Catalog) createTables() error {
 			TargetName TEXT NOT NULL,
 			RefKind TEXT NOT NULL,
 			ModuleName TEXT,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1280,7 +1248,6 @@ func (c *Catalog) createTables() error {
 			XPathConstraint TEXT,
 			DefaultMemberAccessRights TEXT,
 			ModuleName TEXT,
-			UnitId TEXT, -- the unit (document) the row was built from
 			ProjectId TEXT,
 			SnapshotId TEXT
 		)`,
@@ -1551,8 +1518,46 @@ func (c *Catalog) createTables() error {
 			StringContext,
 			Language,
 			ElementId,
-			ModuleName,
-			UnitId UNINDEXED
+			ModuleName
+		)`,
+
+		// What the source rows were described from: every unit's content
+		// hash at the time, whether it held a described document, and which
+		// document came from which unit. The next source build compares and
+		// re-describes only what changed (builder_source_reuse.go, #1790). A
+		// cache without them reuses nothing, so they need no schema bump.
+		// Which unit each row came from, as rowid ranges per table; every
+		// unit's basis (content hash and container) and whether a per-unit
+		// pass reads it; and the qualified names each unit's rows carry. The
+		// next build rebuilds only the changed units and the documents that
+		// name them, and copies the rest (builder_incremental.go, #1804). A
+		// cache without them carries nothing, so they need no schema bump.
+		`CREATE TABLE IF NOT EXISTS catalog_row_owners (
+			TableName TEXT NOT NULL,
+			UnitId TEXT NOT NULL,
+			FirstRow INTEGER NOT NULL,
+			LastRow INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS catalog_units (
+			UnitId TEXT PRIMARY KEY,
+			Basis TEXT NOT NULL,
+			Owned INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS catalog_unit_names (
+			UnitId TEXT NOT NULL,
+			QualifiedName TEXT NOT NULL
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS source_units (
+			UnitId TEXT PRIMARY KEY,
+			Hash TEXT NOT NULL,
+			Described INTEGER NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS source_elements (
+			ElementId TEXT NOT NULL,
+			UnitId TEXT NOT NULL,
+			QualifiedName TEXT NOT NULL,
+			ObjectType TEXT NOT NULL
 		)`,
 
 		`CREATE VIRTUAL TABLE IF NOT EXISTS source USING fts5(

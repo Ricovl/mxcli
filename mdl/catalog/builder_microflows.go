@@ -48,21 +48,21 @@ func (b *Builder) buildMicroflows() error {
 		return err
 	}
 
-	mfStmt, err := b.prepareUnit(`
+	mfStmt, err := b.tx.Prepare(`
 		INSERT INTO microflows_data (Id, Name, QualifiedName, ModuleName, Folder, MicroflowType,
 			Description, ReturnType, ParameterCount, ActivityCount, TotalActivityCount,
-			Complexity, Excluded, ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			Complexity, Excluded, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
 	}
 	defer mfStmt.Close()
 
-	paramStmt, err := b.prepareUnit(`
+	paramStmt, err := b.tx.Prepare(`
 		INSERT INTO microflow_parameters_data (Id, MicroflowId, MicroflowQualifiedName,
-			ModuleName, Name, ParameterType, Description, Ordinal, ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ModuleName, Name, ParameterType, Description, Ordinal, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -70,24 +70,23 @@ func (b *Builder) buildMicroflows() error {
 	defer paramStmt.Close()
 
 	// Prepare activity statement only in full mode
-	var actStmt rowStmt
+	var actStmt *Stmt
 	if b.fullMode {
-		prepared, err := b.prepareUnit(`
+		actStmt, err = b.tx.Prepare(`
 			INSERT INTO activities_data (Id, Name, Caption, ActivityType, Sequence, MicroflowId, MicroflowQualifiedName,
 				ModuleName, Folder, EntityRef, ActionType, ServiceRef, ActionRef,
 				UseRequestTimeout, TimeoutExpression, Description,
 				ParentLoopId, LoopDepth,
 				AutoGenerateCaption, ConditionExpression, ConditionRule, ErrorHandlingType,
 				LogLevel, LogNodeExpression, LogMessage, CommitType, WithEvents, RetrieveSource,
-				QueueRef, ProjectId, SnapshotId, UnitId)
+				QueueRef, ProjectId, SnapshotId)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer prepared.Close()
-		actStmt = prepared
+		defer actStmt.Close()
 	}
 
 	// A delete names a variable, not an entity; its EntityRef is resolved the
@@ -137,7 +136,9 @@ func (b *Builder) buildMicroflows() error {
 
 	// Process microflows
 	for _, mf := range mfs {
-		b.unit = string(mf.ID)
+		if !b.own(string(mf.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -182,17 +183,20 @@ func (b *Builder) buildMicroflows() error {
 		// Insert activities only in full mode
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(mf.ID), qualifiedName, moduleName, mf.ObjectCollection,
-				buildVarEntityMap(mf.Parameters, mf.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(mf.Parameters, mf.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}
 			actCount += n
 		}
 	}
+	b.disown()
 
 	// Process nanoflows
 	for _, nf := range nfs {
-		b.unit = string(nf.ID)
+		if !b.own(string(nf.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(nf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -236,13 +240,14 @@ func (b *Builder) buildMicroflows() error {
 		// Insert activities only in full mode
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(nf.ID), qualifiedName, moduleName, nf.ObjectCollection,
-				buildVarEntityMap(nf.Parameters, nf.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(nf.Parameters, nf.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}
 			actCount += n
 		}
 	}
+	b.disown()
 
 	// Process rules. Their bodies are walked for activities in full mode like
 	// any other flow; the reference edges out of those bodies are emitted by
@@ -250,7 +255,9 @@ func (b *Builder) buildMicroflows() error {
 	// object but whose body is not walked reports every document it calls as
 	// dead, which is worse than not knowing about rules at all.
 	for _, rule := range rules {
-		b.unit = string(rule.ID)
+		if !b.own(string(rule.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(rule.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + rule.Name
@@ -286,13 +293,14 @@ func (b *Builder) buildMicroflows() error {
 
 		if b.fullMode {
 			n, err := insertFlowActivities(actStmt, string(rule.ID), qualifiedName, moduleName, rule.ObjectCollection,
-				buildVarEntityMap(rule.Parameters, rule.ObjectCollection, assocs), projectID, snapshotID)
+				buildVarEntityMap(rule.Parameters, rule.ObjectCollection, assocs, b.probe(siteAssocEnds)), projectID, snapshotID)
 			if err != nil {
 				return err
 			}
 			actCount += n
 		}
 	}
+	b.disown()
 
 	b.report("Microflows", mfCount)
 	b.report("Nanoflows", nfCount)
@@ -531,7 +539,7 @@ func calculateRuleComplexity(rule *microflows.Rule) int {
 //
 // varEntity is the flow's variable→entity map (buildVarEntityMap), which a
 // delete's EntityRef is resolved through.
-func insertFlowActivities(stmt rowStmt, flowID, qualifiedName, moduleName string,
+func insertFlowActivities(stmt *Stmt, flowID, qualifiedName, moduleName string,
 	oc *microflows.MicroflowObjectCollection, varEntity map[string]string, projectID, snapshotID string) (int, error) {
 	if stmt == nil || oc == nil {
 		return 0, nil

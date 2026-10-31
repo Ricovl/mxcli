@@ -13,7 +13,7 @@ import (
 // buildContractEntities parses cached $metadata from consumed OData services
 // and populates the contract_entities and contract_actions catalog tables.
 func (b *Builder) buildContractEntities() error {
-	services, err := b.reader.ListConsumedODataServices()
+	services, err := b.lister().ListConsumedODataServices()
 	if err != nil {
 		return err
 	}
@@ -47,6 +47,9 @@ func (b *Builder) buildContractEntities() error {
 	actionCount := 0
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		if svc.Metadata == "" {
 			continue
 		}
@@ -121,6 +124,7 @@ func (b *Builder) buildContractEntities() error {
 			actionCount++
 		}
 	}
+	b.disown()
 
 	b.report("Contract Entities", entityCount)
 	if actionCount > 0 {
@@ -180,6 +184,9 @@ func (b *Builder) buildContractMessages() error {
 	count := 0
 
 	for _, svc := range services {
+		if !b.own(string(svc.ID)) {
+			continue
+		}
 		if svc.Document == "" {
 			continue
 		}
@@ -231,6 +238,7 @@ func (b *Builder) buildContractMessages() error {
 			count++
 		}
 	}
+	b.disown()
 
 	b.report("Contract Messages", count)
 	return nil

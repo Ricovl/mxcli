@@ -17,6 +17,7 @@ import (
 // Collected while the service builders catalogue the services, and emitted by
 // buildReferences, like scheduledEventRefs and publishedRestRefs.
 type serviceMicroflowRef struct {
+	owner                                                         string
 	sourceType, sourceID, sourceName, moduleName, microflow, kind string
 }
 
@@ -34,6 +35,7 @@ func (b *Builder) addServiceMicroflowRefs(sourceType string, sourceID model.ID, 
 		}
 		seen[mf] = true
 		b.serviceMicroflowRefs = append(b.serviceMicroflowRefs, serviceMicroflowRef{
+			owner:      b.currentOwner(),
 			sourceType: sourceType,
 			sourceID:   string(sourceID),
 			sourceName: sourceName,
@@ -72,10 +74,11 @@ func odataModeMicroflow(mode string) string {
 }
 
 // extractServiceMicroflowRefs emits the edges the service builders collected.
-func (b *Builder) extractServiceMicroflowRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractServiceMicroflowRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.serviceMicroflowRefs {
-		b.unit = r.sourceID // the service document is its unit
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			r.sourceType, r.sourceID, r.sourceName,
 			RefObjectMicroflow, "", r.microflow,

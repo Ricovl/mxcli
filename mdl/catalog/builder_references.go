@@ -43,6 +43,7 @@ const (
 	RefKindType       = "type"       // An attribute, parameter or variable is typed as an enumeration
 	RefKindValue      = "value"      // An expression names an enumeration value
 	RefKindMapping    = "mapping"    // An import or export mapping maps an entity
+	RefKindSplit      = "split"      // A decision branches on an object being a specialization
 )
 
 // RefKinds is every value that reaches refs.RefKind. It is the vocabulary a
@@ -59,7 +60,7 @@ var RefKinds = []string{
 	RefKindCalculate, RefKindReturn, RefKindSchedule, RefKindValidate,
 	RefKindWidget, RefKindSettings, RefKindSync, RefKindPublish,
 	RefKindEvent, RefKindMember, RefKindXPath, RefKindType,
-	RefKindValue, RefKindMapping,
+	RefKindValue, RefKindMapping, RefKindSplit,
 }
 
 // Object types recorded in refs.SourceType and refs.TargetType — the catalog's
@@ -191,6 +192,37 @@ func collectRuleCalls(oc *microflows.MicroflowObjectCollection) []string {
 			out = append(out, collectRuleCalls(o.ObjectCollection)...)
 		}
 	}
+	return out
+}
+
+// collectInheritanceCases returns the entity of every branch of an
+// inheritance split (`split type $x when Module.Entity`), once each,
+// recursing into loops. The split is no activity and names the entity only
+// on its outgoing flows, so without this a flow that branches on a
+// specialization had no edge to it: `show references` missed the flow, and
+// the incremental catalog build could not tell it depends on the entity's
+// module (found by the ref coverage trace, ako/mxcli#1804).
+func collectInheritanceCases(oc *microflows.MicroflowObjectCollection) []string {
+	if oc == nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	var walk func(*microflows.MicroflowObjectCollection)
+	walk = func(c *microflows.MicroflowObjectCollection) {
+		for _, f := range c.Flows {
+			if ic, ok := f.CaseValue.(*microflows.InheritanceCase); ok && ic.EntityQualifiedName != "" && !seen[ic.EntityQualifiedName] {
+				seen[ic.EntityQualifiedName] = true
+				out = append(out, ic.EntityQualifiedName)
+			}
+		}
+		for _, obj := range c.Objects {
+			if l, ok := obj.(*microflows.LoopedActivity); ok && l.ObjectCollection != nil {
+				walk(l.ObjectCollection)
+			}
+		}
+	}
+	walk(oc)
 	return out
 }
 
@@ -346,7 +378,7 @@ type assocEnds struct{ From, To string }
 // A variable can be defined after the object that uses it in collection order
 // (Objects is not flow order), so the walk repeats until nothing new is mapped;
 // each pass only adds entries, so it ends within one pass per variable.
-func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.MicroflowObjectCollection, assocs map[string]assocEnds) map[string]string {
+func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.MicroflowObjectCollection, assocs map[string]assocEnds, probe func(string)) map[string]string {
 	norm := func(v string) string { return strings.TrimPrefix(v, "$") }
 	varEntity := map[string]string{}
 	for _, p := range params {
@@ -379,6 +411,9 @@ func buildVarEntityMap(params []*microflows.MicroflowParameter, oc *microflows.M
 					case *microflows.DatabaseRetrieveSource:
 						added = set(a.OutputVariable, src.EntityQualifiedName) || added
 					case *microflows.AssociationRetrieveSource:
+						if probe != nil {
+							probe(src.AssociationQualifiedName)
+						}
 						added = set(a.OutputVariable, associationTarget(assocs[src.AssociationQualifiedName], varEntity[norm(src.StartVariable)])) || added
 					}
 				}
@@ -412,20 +447,45 @@ func associationTarget(ends assocEnds, start string) string {
 }
 
 // associationEnds maps every association's qualified name to its endpoint
-// entities, for resolving an association retrieve's output variable.
+// entities, for resolving an association retrieve's output variable. An
+// incremental build reads the associations buildAssociations wrote, which
+// hold every module's while the domain models listed are only the rebuilt
+// ones. There, an end that did not resolve to an entity is stored as its ID, which
+// has no dot, and is "" here; a cross-module association's TO end is stored
+// as the qualified name the model holds.
 func (b *Builder) associationEnds() map[string]assocEnds {
 	out := map[string]assocEnds{}
-	dms, err := b.cachedDomainModels()
+	if b.scope == nil {
+		dms, err := b.cachedDomainModels()
+		if err != nil {
+			return out
+		}
+		for _, dm := range dms {
+			moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
+			for _, a := range dm.Associations {
+				out[moduleName+"."+a.Name] = assocEnds{From: b.resolveEntityID(a.ParentID), To: b.resolveEntityID(a.ChildID)}
+			}
+			for _, ca := range dm.CrossAssociations {
+				out[moduleName+"."+ca.Name] = assocEnds{From: b.resolveEntityID(ca.ParentID), To: ca.ChildRef}
+			}
+		}
+		return out
+	}
+	rows, err := b.tx.Query(`SELECT QualifiedName, FromEntity, ToEntity FROM associations_data`)
 	if err != nil {
 		return out
 	}
-	for _, dm := range dms {
-		moduleName := b.hierarchy.getModuleName(b.hierarchy.findModuleID(dm.ContainerID))
-		for _, a := range dm.Associations {
-			out[moduleName+"."+a.Name] = assocEnds{From: b.resolveEntityID(a.ParentID), To: b.resolveEntityID(a.ChildID)}
+	defer rows.Close()
+	end := func(name string) string {
+		if !strings.Contains(name, ".") {
+			return ""
 		}
-		for _, ca := range dm.CrossAssociations {
-			out[moduleName+"."+ca.Name] = assocEnds{From: b.resolveEntityID(ca.ParentID), To: ca.ChildRef}
+		return name
+	}
+	for rows.Next() {
+		var qn, from, to string
+		if rows.Scan(&qn, &from, &to) == nil {
+			out[qn] = assocEnds{From: end(from), To: end(to)}
 		}
 	}
 	return out
@@ -437,14 +497,10 @@ func (b *Builder) buildReferences() error {
 	if !b.fullMode {
 		return nil
 	}
-	// The widget projections below filter on it; empty in a full build.
-	if err := createIncrementalTables(b.tx); err != nil {
-		return err
-	}
 
-	stmt, err := b.prepareUnit(`
-		INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	stmt, err := b.tx.Prepare(`
+		INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -487,9 +543,12 @@ func (b *Builder) buildReferences() error {
 		acts := collectActionActivities(oc)
 		// Intra-flow variable→entity map so change/delete (which operate on a
 		// variable, not a named entity) can resolve their target.
-		varEntity := buildVarEntityMap(params, oc, assocs)
+		varEntity := buildVarEntityMap(params, oc, assocs, b.probe(siteAssocEnds))
 		for _, rule := range collectRuleCalls(oc) {
 			emit(RefObjectRule, rule, RefKindCall)
+		}
+		for _, entity := range collectInheritanceCases(oc) {
+			emit(RefObjectEntity, entity, RefKindSplit)
 		}
 		for _, act := range acts {
 			if tt, tn, rk, ok := microflowActionRef(act.Action); ok {
@@ -510,18 +569,24 @@ func (b *Builder) buildReferences() error {
 		return err
 	}
 	for _, mf := range mfs {
-		b.unit = string(mf.ID)
+		if !b.own(string(mf.ID)) {
+			continue
+		}
 		emitActionRefs(RefObjectMicroflow, string(mf.ID), mf.ContainerID, mf.Name, mf.Parameters, mf.ReturnType, mf.ObjectCollection)
 	}
+	b.disown()
 
 	// Extract nanoflow references — nanoflows also call microflows/nanoflows,
 	// show pages, retrieve, etc.
 	nfs, err := b.cachedNanoflows()
 	if err == nil {
 		for _, nf := range nfs {
-			b.unit = string(nf.ID)
+			if !b.own(string(nf.ID)) {
+				continue
+			}
 			emitActionRefs(RefObjectNanoflow, string(nf.ID), nf.ContainerID, nf.Name, nf.Parameters, nf.ReturnType, nf.ObjectCollection)
 		}
+		b.disown()
 	}
 
 	// Extract rule references. A rule's body calls microflows, retrieves and
@@ -532,17 +597,19 @@ func (b *Builder) buildReferences() error {
 	rules, err := b.cachedRules()
 	if err == nil {
 		for _, rule := range rules {
-			b.unit = string(rule.ID)
+			if !b.own(string(rule.ID)) {
+				continue
+			}
 			emitActionRefs(RefObjectRule, string(rule.ID), rule.ContainerID, rule.Name, rule.Parameters, rule.ReturnType, rule.ObjectCollection)
 		}
+		b.disown()
 	}
 
 	// Extract entity references (generalization) — using cached list
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
-			b.unit = string(dm.ID)
-			if !b.wants(string(dm.ID)) {
+			if !b.own(string(dm.ID)) {
 				continue
 			}
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
@@ -605,13 +672,16 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	// Extract page references (layout, datasources, parameters) — using cached list
 	pageList, err := b.cachedPages()
 	if err == nil {
 		for _, pg := range pageList {
-			b.unit = string(pg.ID)
+			if !b.own(string(pg.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + pg.Name
@@ -643,6 +713,7 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 
 		// Widget references: page → entity (datasource) and page → microflow /
 		// nanoflow (action). Projected from the widgets table, which buildPages
@@ -660,11 +731,10 @@ func (b *Builder) buildReferences() error {
 		}
 		for _, p := range widgetProjections {
 			res, perr := b.tx.Exec(
-				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
-				 SELECT DISTINCT ContainerType, '', ContainerQualifiedName, ?, '', `+p.col+`, ?, ModuleName, ?, ?, UnitId
-				 FROM widgets_data WHERE `+p.col+` != ''
-				   AND (? = '' OR UnitId IN (SELECT UnitId FROM incremental_units))`,
-				p.targetType, p.refKind, projectID, snapshotID, b.incrementalFlag())
+				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
+				 SELECT DISTINCT ContainerType, '', ContainerQualifiedName, ?, '', `+p.col+`, ?, ModuleName, ?, ?
+				 FROM widgets_data WHERE `+p.col+` != ''`,
+				p.targetType, p.refKind, projectID, snapshotID)
 			if perr == nil {
 				if n, e := res.RowsAffected(); e == nil {
 					refCount += int(n)
@@ -679,11 +749,12 @@ func (b *Builder) buildReferences() error {
 		// keeps the projection's one-edge-per-page shape when another widget's
 		// column already made the edge.
 		for _, r := range b.widgetExtraRefs {
+			b.as(r.owner)
 			res, xerr := b.tx.Exec(
-				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
-				 SELECT ?, '', ?, ?, '', ?, ?, ?, ?, ?, ?
+				`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
+				 SELECT ?, '', ?, ?, '', ?, ?, ?, ?, ?
 				 WHERE NOT EXISTS (SELECT 1 FROM refs WHERE SourceType = ? AND SourceName = ? AND TargetType = ? AND TargetName = ? AND RefKind = ? AND SnapshotId = ?)`,
-				r.containerType, r.containerQN, r.targetType, r.targetName, r.refKind, r.moduleName, projectID, snapshotID, r.unit,
+				r.containerType, r.containerQN, r.targetType, r.targetName, r.refKind, r.moduleName, projectID, snapshotID,
 				r.containerType, r.containerQN, r.targetType, r.targetName, r.refKind, snapshotID)
 			if xerr == nil {
 				if n, e := res.RowsAffected(); e == nil {
@@ -691,32 +762,18 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 
 		// Page/snippet -> widget definition. buildWidgetDefinitions runs before
 		// this pass, so the join target is populated.
-		if n, werr := insertWidgetRefs(b.tx, projectID, snapshotID, b.incrementalFlag()); werr == nil {
+		if n, werr := insertWidgetRefs(b.tx, projectID, snapshotID); werr == nil {
 			refCount += n
 		}
-	}
-
-	// An incremental refresh rebuilds flows, domain models, pages and snippets
-	// only: the rows above, the edges collected from the changed domain models,
-	// and their member and XPath refs. Nothing below comes from those documents.
-	if b.incremental() {
-		refCount += b.extractRegexRuleRefs(stmt, projectID, snapshotID)
-		refCount += b.extractEventHandlerRefs(stmt, projectID, snapshotID)
-		refCount += b.extractEnumerationTypeRefs(projectID, snapshotID)
-		idx := b.loadMemberRefIndex()
-		refCount += b.extractMemberRefs(stmt, idx, projectID, snapshotID)
-		refCount += b.extractXPathRefs(stmt, idx, projectID, snapshotID)
-		b.report("References", refCount)
-		return nil
 	}
 
 	// Extract navigation references (home pages, menu items, login pages)
 	nav, err := b.reader.GetNavigation()
 	if err == nil {
-		b.unit = string(nav.ID)
 		for _, profile := range nav.Profiles {
 			sourceName := "Navigation." + profile.Name
 
@@ -803,7 +860,9 @@ func (b *Builder) buildReferences() error {
 	wfs, wfErr := b.cachedWorkflows()
 	if wfErr == nil {
 		for _, wf := range wfs {
-			b.unit = string(wf.ID)
+			if !b.own(string(wf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + wf.Name
@@ -818,6 +877,7 @@ func (b *Builder) buildReferences() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	// Scheduled events run a microflow. Without this edge the microflow looks
@@ -880,10 +940,11 @@ func (b *Builder) buildReferences() error {
 // same transaction.
 // extractRegexRuleRefs emits one `validate` edge per attribute validation rule
 // that uses a regular expression, from the entity to the regex document.
-func (b *Builder) extractRegexRuleRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractRegexRuleRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.regexRuleRefs {
-		b.unit = r.unit
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectEntity, "", r.entityQualifiedName,
 			RefObjectRegularExpression, "", r.regexQualifiedName,
@@ -895,10 +956,11 @@ func (b *Builder) extractRegexRuleRefs(stmt rowStmt, projectID, snapshotID strin
 	return count
 }
 
-func (b *Builder) extractScheduledEventRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractScheduledEventRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.scheduledEventRefs {
-		b.unit = r.unit
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectScheduledEvent, "", r.qualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -921,10 +983,11 @@ func (b *Builder) extractScheduledEventRefs(stmt rowStmt, projectID, snapshotID 
 //
 // The edges are collected by buildPublishedRestServices, which runs earlier in
 // the same transaction.
-func (b *Builder) extractPublishedRestRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractPublishedRestRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.publishedRestRefs {
-		b.unit = r.unit
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectPublishedRestOperation, r.sourceID, r.qualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -948,10 +1011,11 @@ func (b *Builder) extractPublishedRestRefs(stmt rowStmt, projectID, snapshotID s
 //
 // The edges are collected by buildEntityEventHandlers, which runs earlier in
 // the same transaction.
-func (b *Builder) extractEventHandlerRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractEventHandlerRefs(stmt *Stmt, projectID, snapshotID string) int {
+	defer b.disown()
 	count := 0
 	for _, r := range b.eventHandlerRefs {
-		b.unit = r.unit
+		b.as(r.owner)
 		if _, err := stmt.Exec(
 			RefObjectEntity, "", r.entityQualifiedName,
 			RefObjectMicroflow, "", r.microflow,
@@ -964,7 +1028,7 @@ func (b *Builder) extractEventHandlerRefs(stmt rowStmt, projectID, snapshotID st
 }
 
 // extractMenuItemRefs extracts page and microflow references from menu items recursively.
-func (b *Builder) extractMenuItemRefs(stmt rowStmt, items []*types.NavMenuItem, sourceName, projectID, snapshotID string) int {
+func (b *Builder) extractMenuItemRefs(stmt *Stmt, items []*types.NavMenuItem, sourceName, projectID, snapshotID string) int {
 	refCount := 0
 	for _, item := range items {
 		if item.Page != "" {
@@ -991,7 +1055,7 @@ func (b *Builder) extractMenuItemRefs(stmt rowStmt, items []*types.NavMenuItem, 
 }
 
 // extractWidgetRefs extracts entity and microflow references from a widget and its children.
-func (b *Builder) extractWidgetRefs(stmt rowStmt, w pages.Widget, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractWidgetRefs(stmt *Stmt, w pages.Widget, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if w == nil {
 		return 0
 	}
@@ -1065,7 +1129,7 @@ func (b *Builder) extractWidgetRefs(stmt rowStmt, w pages.Widget, sourceType, so
 }
 
 // extractWidgetObjectRefs extracts refs from a pluggable widget's WidgetObject.
-func (b *Builder) extractWidgetObjectRefs(stmt rowStmt, obj *pages.WidgetObject, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractWidgetObjectRefs(stmt *Stmt, obj *pages.WidgetObject, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if obj == nil {
 		return 0
 	}
@@ -1130,7 +1194,7 @@ func (b *Builder) extractWidgetObjectRefs(stmt rowStmt, obj *pages.WidgetObject,
 }
 
 // extractDataSourceRefs extracts entity and microflow references from a datasource.
-func (b *Builder) extractDataSourceRefs(stmt rowStmt, ds pages.DataSource, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
+func (b *Builder) extractDataSourceRefs(stmt *Stmt, ds pages.DataSource, sourceType, sourceID, sourceQN, moduleName, projectID, snapshotID string) int {
 	if ds == nil {
 		return 0
 	}
@@ -1228,6 +1292,7 @@ func (b *Builder) resolveEntityID(entityID model.ID) string {
 	if err != nil {
 		return ""
 	}
+	b.dependsOn(siteEntityByID, qualifiedName)
 	return qualifiedName
 }
 
@@ -1255,6 +1320,7 @@ func (b *Builder) resolveMicroflowID(mfID model.ID) string {
 	if err != nil {
 		return ""
 	}
+	b.dependsOn(siteFlowByID, qualifiedName)
 	return qualifiedName
 }
 
@@ -1280,12 +1346,11 @@ var projectSettingsMicroflowRefs = []struct {
 // The source is the SETTING, not the project, so `show references to <microflow>`
 // names which setting depends on it — which is the thing you need before dropping
 // it, and what `describe settings` would otherwise be the only way to learn.
-func (b *Builder) extractProjectSettingsRefs(stmt rowStmt, projectID, snapshotID string) int {
+func (b *Builder) extractProjectSettingsRefs(stmt *Stmt, projectID, snapshotID string) int {
 	ps, err := b.reader.GetProjectSettings()
 	if err != nil || ps == nil || ps.Model == nil {
 		return 0 // a project may have no settings document; not an error
 	}
-	b.unit = string(ps.ID)
 	count := 0
 	for _, s := range projectSettingsMicroflowRefs {
 		target := strings.TrimSpace(s.value(ps.Model))

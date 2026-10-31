@@ -13,7 +13,6 @@ import (
 	genJson "github.com/mendixlabs/mxcli/modelsdk/gen/jsonstructures"
 	genPrj "github.com/mendixlabs/mxcli/modelsdk/gen/projects"
 	genXml "github.com/mendixlabs/mxcli/modelsdk/gen/xmlschemas"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // ListImportMappings reads every ImportMappings$ImportMapping unit and converts
@@ -24,7 +23,7 @@ import (
 // catalog only reads the top-level element count, and no other path reaches
 // this method.
 func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genImp.ImportMapping](b.reader)
+	units, err := listUnitsCached[*genImp.ImportMapping](b)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +65,7 @@ func (b *Backend) ListImportMappings() ([]*model.ImportMapping, error) {
 // MessageDefinition/NullValueOption and the root mapping Elements). Deep
 // mapping-element trees are not surfaced (see ListImportMappings).
 func (b *Backend) ListExportMappings() ([]*model.ExportMapping, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genExp.ExportMapping](b.reader)
+	units, err := listUnitsCached[*genExp.ExportMapping](b)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +111,7 @@ func (b *Backend) ListExportMappings() ([]*model.ExportMapping, error) {
 // not parse, so only the fields that identify the document are converted. Its
 // one job is resolving a mapping's `with xml schema` reference (ako/mxcli#259).
 func (b *Backend) ListXmlSchemas() ([]*types.XmlSchema, error) {
-	units, err := mprread.ListUnitsWithContainer[*genXml.XmlSchema](b.reader)
+	units, err := listUnits[*genXml.XmlSchema](b)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +137,7 @@ func (b *Backend) ListXmlSchemas() ([]*types.XmlSchema, error) {
 // catalog consumes (Name/Documentation/JsonSnippet/ExportLevel/Excluded and the
 // element tree with children).
 func (b *Backend) ListJsonStructures() ([]*types.JsonStructure, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genJson.JsonStructure](b.reader)
+	units, err := listUnitsCached[*genJson.JsonStructure](b)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +195,7 @@ func jsonElementFromGen(g *genJson.JsonElement) *types.JsonElement {
 // (ExportLevel→"Source", ProtectedModuleType→"AddOn", Version→"1.0.0") is
 // preserved.
 func (b *Backend) ListModuleSettings() ([]*types.ModuleSettings, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPrj.ModuleSettings](b.reader)
+	units, err := listUnitsCached[*genPrj.ModuleSettings](b)
 	if err != nil {
 		return nil, err
 	}

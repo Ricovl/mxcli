@@ -24,8 +24,22 @@ import (
 // by ListPageTemplates — this used to include them, to match legacy's
 // prefix-matched `Forms$Page` query, which made `show modules` report 46 pages
 // for a module with none.
+// ListPageHeaders lists every page's ID, container, name and Excluded flag
+// without decoding any page.
+func (b *Backend) ListPageHeaders() ([]types.DocumentHeader, error) {
+	hs, err := mprread.ListUnitHeaders[*genPg.Page](b.reader)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(hs))
+	for i, h := range hs {
+		out[i] = types.DocumentHeader(h)
+	}
+	return out, nil
+}
+
 func (b *Backend) ListPages() ([]*pages.Page, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.Page](b.reader)
+	units, err := listUnitsCached[*genPg.Page](b)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +56,7 @@ func (b *Backend) ListPages() ([]*pages.Page, error) {
 // rather than FormCall, nothing consumes it yet, and a half-converted tree would
 // compare equal to a different one.
 func (b *Backend) ListPageTemplates() ([]*pages.PageTemplate, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.PageTemplate](b.reader)
+	units, err := listUnitsCached[*genPg.PageTemplate](b)
 	if err != nil {
 		return nil, err
 	}
@@ -75,19 +89,13 @@ func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
 
 // ListSnippets reads snippet units (count + identity is what SHOW MODULES needs;
 // the widget tree is not converted).
-// ListPageHeaders lists every page's ID, container, name and Excluded flag
-// without decoding any page.
-func (b *Backend) ListPageHeaders() ([]types.DocumentHeader, error) {
-	return documentHeaders[*genPg.Page](b)
-}
-
 // ListSnippetHeaders is ListPageHeaders for snippets.
 func (b *Backend) ListSnippetHeaders() ([]types.DocumentHeader, error) {
 	return documentHeaders[*genPg.Snippet](b)
 }
 
 func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.Snippet](b.reader)
+	units, err := listUnitsCached[*genPg.Snippet](b)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +153,7 @@ func snippetFromGen(sn *genPg.Snippet, containerID model.ID) *pages.Snippet {
 // lists them (name + scalar metadata) so SHOW / DESCRIBE BUILDING BLOCK work on
 // this engine too; the widget tree is read separately via GetRawUnit (shared).
 func (b *Backend) ListBuildingBlocks() ([]*pages.BuildingBlock, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.BuildingBlock](b.reader)
+	units, err := listUnitsCached[*genPg.BuildingBlock](b)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +258,7 @@ func textElementToModel(el element.Element) *model.Text {
 // builder's resolveLayout matches a layout by name + module to bind a page's
 // FormCall, so the header is all it needs.
 func (b *Backend) ListLayouts() ([]*pages.Layout, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genPg.Layout](b.reader)
+	units, err := listUnitsCached[*genPg.Layout](b)
 	if err != nil {
 		return nil, err
 	}

@@ -14,6 +14,7 @@ import (
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
+	"github.com/mendixlabs/mxcli/sdk/javaactions"
 	"github.com/mendixlabs/mxcli/sdk/microflows"
 )
 
@@ -33,6 +34,11 @@ func execAlterFlow(ctx *ExecContext, s *ast.AlterFlowStmt) error {
 	}
 	// An annotation the fragment's builder would drop (mendixlabs/mxcli#1597).
 	if err := validateAlterFlowRules(s); err != nil {
+		return err
+	}
+	// An action the project's version does not have, in what the statement
+	// splices in: statementVersionGates (ako/mxcli#1787).
+	if err := checkVersionGates(ctx, s); err != nil {
 		return err
 	}
 	a, err := loadAlterFlow(ctx, s)
@@ -151,6 +157,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 			if err := a.setNodeNotes(ctx, mut, op, target); err != nil {
 				return fail(err)
 			}
+			a.noteEdited(op)
 			continue
 		}
 		if op.SetCondition {
@@ -164,6 +171,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 			a.noteRewritten(target, "if "+expr)
+			a.noteEdited(op)
 			continue
 		}
 		if ret, ok := returnValueEdit(op, target); ok {
@@ -177,6 +185,7 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 				return fail(err)
 			}
 			a.noteRewritten(target, "return "+value)
+			a.noteEdited(op)
 			continue
 		}
 		frag, vars, err := a.buildFragmentVars(ctx, op.Body)
@@ -234,7 +243,11 @@ func (a *alterFlowContext) applyTo(ctx *ExecContext, mut backend.MicroflowMutato
 					return nil
 				})
 			}
-			err = mut.Replace(target.ID, frag)
+			if err = mut.Replace(target.ID, frag); err == nil && mut.EditedInPlace(target.ID) {
+				// One activity of the same kind: the stored one, edited
+				// (ako/mxcli#1761).
+				a.noteEdited(op)
+			}
 		default:
 			err = fmt.Errorf("unknown operation")
 		}
@@ -309,6 +322,21 @@ type alterFlowContext struct {
 	// each (ako/mxcli#1695). nil until then — and for the patch of a `create or
 	// modify`, which states its notes and has none to resolve.
 	storedNotes map[string]*microflows.Annotation
+
+	// edited are the replace operations that edited the stored node in place
+	// — a decision's condition, a return's value, a node's notes, an activity
+	// replaced by one of the same kind — so that it kept its $ID, as against
+	// one whose target was swapped for new elements (ako/mxcli#1761). The
+	// report of a `create or modify` tells the two apart.
+	edited map[*ast.AlterFlowOperation]bool
+}
+
+// noteEdited records that op edited its stored target in place.
+func (a *alterFlowContext) noteEdited(op *ast.AlterFlowOperation) {
+	if a.edited == nil {
+		a.edited = map[*ast.AlterFlowOperation]bool{}
+	}
+	a.edited[op] = true
 }
 
 // candidatesOf returns the stored candidates with the given $IDs.
@@ -963,7 +991,19 @@ func (a *alterFlowContext) storedVariables(ctx *ExecContext) (varTypes, declared
 	for _, p := range a.mf.Parameters {
 		add(p.Name, p.Type)
 	}
+	// What is typed from another variable — a retrieve over an association
+	// from its start, a loop's iterator or a list operation's output from its
+	// list — is typed once the rest are, below; so is a Java action's result,
+	// which a list argument can type and another origin can contradict.
+	deps := storedDependents{}
+	fb := &flowBuilder{backend: ctx.Backend}
 	for _, c := range a.cands {
+		if loop, ok := c.Object.(*microflows.LoopedActivity); ok {
+			if src, ok := loop.LoopSource.(*microflows.IterableList); ok {
+				deps.add(src.VariableName, storedDependent{how: dependsOnList, list: listResultElement, from: src.ListVariableName})
+			}
+			continue
+		}
 		act, ok := c.Object.(*microflows.ActionActivity)
 		if !ok || c.OutputVariable == "" {
 			continue
@@ -981,7 +1021,13 @@ func (a *alterFlowContext) storedVariables(ctx *ExecContext) (varTypes, declared
 			}
 		case *microflows.RetrieveAction:
 			// A database retrieve names its entity; one over an association
-			// depends on which side it starts from and stays untyped here.
+			// yields an end of it, which depends on the end it starts from
+			// and is typed below (ako/mxcli#1769).
+			if src, ok := x.Source.(*microflows.AssociationRetrieveSource); ok {
+				declared[c.OutputVariable] = "Unknown"
+				deps.add(c.OutputVariable, storedDependent{how: dependsOnAssociation, from: src.StartVariable, assoc: src.AssociationQualifiedName})
+				break
+			}
 			src, ok := x.Source.(*microflows.DatabaseRetrieveSource)
 			entity := ""
 			if ok {
@@ -1002,7 +1048,7 @@ func (a *alterFlowContext) storedVariables(ctx *ExecContext) (varTypes, declared
 			// A call's result has the called microflow's return type.
 			var rt microflows.DataType
 			if x.MicroflowCall != nil {
-				rt = (&flowBuilder{backend: ctx.Backend}).lookupMicroflowReturnType(x.MicroflowCall.Microflow)
+				rt = fb.lookupMicroflowReturnType(x.MicroflowCall.Microflow)
 			}
 			switch rt.(type) {
 			case *microflows.ObjectType, *microflows.ListType:
@@ -1010,11 +1056,166 @@ func (a *alterFlowContext) storedVariables(ctx *ExecContext) (varTypes, declared
 			default:
 				declared[c.OutputVariable] = "Unknown"
 			}
+		case *microflows.ListOperationAction:
+			// The output holds what the operation keeps of its input list,
+			// as the full build types it (ako/mxcli#1777); a contains or an
+			// equals holds a Boolean.
+			declared[c.OutputVariable] = "Unknown"
+			if r := listOperationResult(x.Operation); r != listResultNone {
+				deps.add(c.OutputVariable, storedDependent{how: dependsOnList, list: r, from: listOperationInput(x.Operation)})
+			}
+		case *microflows.AggregateListAction:
+			declared[c.OutputVariable] = aggregateResultType(x.Function, x.ReduceReturnType)
+		case *microflows.JavaActionCallAction:
+			// The result has the action's declared return type, read the
+			// way the full build reads it (ako/mxcli#1777); a list of a type
+			// parameter takes the list an argument holds.
+			declared[c.OutputVariable] = "Unknown"
+			var ja *javaactions.JavaAction
+			if fb.backend != nil && x.JavaAction != "" {
+				ja, _ = fb.backend.ReadJavaActionByName(x.JavaAction)
+			}
+			switch {
+			case ja == nil:
+			case returnsTypeParameterList(ja):
+				deps.add(c.OutputVariable, storedDependent{how: dependsOnFirstList, from: strings.Join(storedArgVariables(x), ",")})
+			default:
+				if t := javaActionResultType(ja, nil, nil); t != "" {
+					deps.add(c.OutputVariable, storedDependent{how: dependsOnNothing, typ: t})
+				}
+			}
 		default:
 			declared[c.OutputVariable] = "Unknown"
 		}
 	}
+	deps.typeAll(fb, varTypes, declared)
 	return varTypes, declared
+}
+
+// storedArgVariable is an argument a stored Java action call passes as a
+// variable as it stands: `$Lines`.
+var storedArgVariable = regexp.MustCompile(`^\$([A-Za-z_][A-Za-z0-9_]*)$`)
+
+// storedArgVariables are the variables a stored Java action call passes as
+// arguments as they stand, in the order it stores them: what
+// javaActionArgVariables is to the statement the full build reads.
+func storedArgVariables(x *microflows.JavaActionCallAction) []string {
+	var vars []string
+	for _, m := range x.ParameterMappings {
+		if v, ok := m.Value.(*microflows.BasicCodeActionParameterValue); ok {
+			if sub := storedArgVariable.FindStringSubmatch(strings.TrimSpace(v.Argument)); sub != nil {
+				vars = append(vars, sub[1])
+			}
+		}
+	}
+	return vars
+}
+
+// storedDependent is a stored variable whose type follows from another's, or
+// is one a different origin of the same name can contradict; how says which.
+type storedDependent struct {
+	how storedDependence
+	// from is the variable it follows from; for dependsOnFirstList, the
+	// variables a Java action call passes, comma-separated.
+	from string
+	// assoc is the association a retrieve follows (dependsOnAssociation).
+	assoc string
+	// list is what it holds of the list from holds (dependsOnList).
+	list listResult
+	// typ is its type outright (dependsOnNothing).
+	typ string
+}
+
+// storedDependence is how a stored dependent's type follows.
+type storedDependence int
+
+const (
+	// dependsOnList: from a list, by list — a loop's iterator holds an
+	// element of the list it walks, a list operation's output the list or
+	// an element of it (listOperationResult).
+	dependsOnList storedDependence = iota
+	// dependsOnAssociation: the output of a retrieve over assoc from the
+	// variable from (flowBuilder.associationRetrieveType).
+	dependsOnAssociation
+	// dependsOnFirstList: the result of a Java action returning a list of
+	// its type parameter, the list the first of from that holds one holds
+	// (javaActionResultType).
+	dependsOnFirstList
+	// dependsOnNothing: typ, a Java action's declared return type.
+	dependsOnNothing
+)
+
+// storedDependents are the stored flow's dependent variables by name. A name
+// two of them give different origins is nil: which one a fragment means
+// depends on where it goes (two loops can share an iterator name, two loop
+// bodies a list operation's output), and a guess would qualify a member with
+// the wrong entity. It stays untyped and the member is refused. Two origins
+// that say the same — a head and a find of one list, two calls returning one
+// entity — are one.
+type storedDependents map[string]*storedDependent
+
+func (d storedDependents) add(name string, dep storedDependent) {
+	if name == "" {
+		return
+	}
+	if old, seen := d[name]; seen {
+		if old == nil || *old != dep {
+			d[name] = nil
+		}
+		return
+	}
+	d[name] = &dep
+}
+
+// typeAll types every dependent whose origin is typed — a parameter, a
+// database retrieve, another dependent — whatever order the stored flow lists
+// them in, until a pass types nothing new. A name the rest of the stored flow
+// already types keeps that type.
+func (d storedDependents) typeAll(fb *flowBuilder, varTypes, declared map[string]string) {
+	for progress := true; progress; {
+		progress = false
+		for name, dep := range d {
+			if dep == nil {
+				continue
+			}
+			if _, typed := varTypes[name]; typed {
+				continue
+			}
+			if t := d.typeOf(fb, dep, varTypes); t != "" {
+				varTypes[name] = t
+				delete(declared, name)
+				progress = true
+			}
+		}
+	}
+}
+
+// typeOf is the type dep gives its variable with varTypes as typed so far,
+// through the full build's own typing; "" while what it follows from is not
+// typed, or when it holds no entity.
+func (d storedDependents) typeOf(fb *flowBuilder, dep *storedDependent, varTypes map[string]string) string {
+	switch dep.how {
+	case dependsOnNothing:
+		return dep.typ
+	case dependsOnFirstList:
+		// The first argument that holds a list, once each of them that
+		// another dependent may still type is typed.
+		args := strings.Split(dep.from, ",")
+		for _, v := range args {
+			if _, typed := varTypes[v]; !typed && d[v] != nil {
+				return ""
+			}
+		}
+		return firstListType(args, varTypes)
+	}
+	from, ok := varTypes[dep.from]
+	if !ok {
+		return ""
+	}
+	if dep.how == dependsOnAssociation {
+		return fb.associationRetrieveType(from, dep.assoc)
+	}
+	return dep.list.typeFrom(from)
 }
 
 // systemVariables are in scope everywhere they exist at all; the platform

@@ -5,11 +5,14 @@ package mpr
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -78,6 +81,96 @@ func (r *Reader) ListUnitsByType(typePrefix string) ([]UnitRef, error) {
 	return result, nil
 }
 
+// UnitHeaderRef is a unit's identity and its top-level Name and Excluded.
+type UnitHeaderRef struct {
+	ID          string
+	ContainerID string
+	Name        string
+	Excluded    bool
+}
+
+// ListUnitHeaders lists the units of exactly typeName with their Name and
+// Excluded. On MPR v2 these come from the unit index, so a unit whose bytes the
+// index has seen is not opened: naming every folder or microflow used to open
+// every one of their files on each call (ako/mxcli#1791). MPR v1 reads the
+// blobs, which live in the one database file.
+func (r *Reader) ListUnitHeaders(typeName string) ([]UnitHeaderRef, error) {
+	if r.version != MPRVersionV2 {
+		units, err := r.listUnitsByType(typeName)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]UnitHeaderRef, 0, len(units))
+		for _, u := range units {
+			e := unitIndexEntryOf(u.Contents)
+			out = append(out, UnitHeaderRef{ID: u.ID, ContainerID: u.ContainerID, Name: e.Name, Excluded: e.Excluded})
+		}
+		return out, nil
+	}
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return nil, err
+		}
+	}
+	var out []UnitHeaderRef
+	for _, cu := range r.unitCache {
+		if cu.Type != typeName {
+			continue
+		}
+		name, excluded := cu.Name, cu.Excluded
+		if held, ok := r.overlaid(cu.ID); ok {
+			// Held after the cache was built: the held bytes are the unit now.
+			e := unitIndexEntryOf(held)
+			if e.Type != typeName {
+				continue
+			}
+			name, excluded = e.Name, e.Excluded
+		}
+		out = append(out, UnitHeaderRef{ID: cu.ID, ContainerID: cu.ContainerID, Name: name, Excluded: excluded})
+	}
+	return out, nil
+}
+
+// UnitByID returns the unit whose ID is id, reading that unit's contents only.
+// ok is false when the project has no such unit. A unit's ID is its
+// document's $ID, so a lookup of one document by ID needs no listing: the
+// catalog's source build described each microflow through a listing of them
+// all and opened millions of files on a large project (ako/mxcli#1789).
+func (r *Reader) UnitByID(id string) (unit UnitRef, ok bool, err error) {
+	if r.version != MPRVersionV2 {
+		return r.unitByIDV1(id)
+	}
+	h, found, err := r.UnitHeaderByID(id)
+	if err != nil || !found {
+		return UnitRef{}, false, err
+	}
+	contents, err := r.readMprContents(h.ID)
+	if err != nil {
+		return UnitRef{}, false, err
+	}
+	return UnitRef{ID: h.ID, ContainerID: h.ContainerID, Type: h.Type, Contents: contents}, true, nil
+}
+
+// unitByIDV1 is UnitByID on MPR v1, where the contents are a column.
+func (r *Reader) unitByIDV1(id string) (UnitRef, bool, error) {
+	blob := uuidToBlob(id)
+	if blob == nil {
+		return UnitRef{}, false, nil
+	}
+	var containerID, contents []byte
+	err := r.db.QueryRow("SELECT ContainerID, Contents FROM Unit WHERE UnitID = ?", blob).Scan(&containerID, &contents)
+	if errors.Is(err, sql.ErrNoRows) {
+		return UnitRef{}, false, nil
+	}
+	if err != nil {
+		return UnitRef{}, false, err
+	}
+	if held, ok := r.overlaid(id); ok {
+		contents = held
+	}
+	return UnitRef{ID: id, ContainerID: blobToUUID(containerID), Type: getTypeFromContents(contents), Contents: contents}, true, nil
+}
+
 // ListUnitsByTypeInContainer returns the units of exactly typeName whose
 // ContainerID is containerID, reading the contents of those units only: a
 // lookup of one module's domain model must not read every module's
@@ -98,6 +191,43 @@ func (r *Reader) ListUnitsByTypeInContainer(typeName, containerID string) ([]Uni
 		result[i] = UnitRef{ID: u.ID, ContainerID: u.ContainerID, Type: u.Type, Contents: u.Contents}
 	}
 	return result, nil
+}
+
+// ListUnitsByTypeWhere is ListUnitsByType for the units whose ID keep
+// accepts. On v2 the others' contents are never read: a catalog build that
+// rebuilds a few units reads only those (ako/mxcli#1804).
+func (r *Reader) ListUnitsByTypeWhere(typeName string, keep func(id string) bool) ([]UnitRef, error) {
+	units, err := r.listUnitsByTypeWhere(typeName, keep)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]UnitRef, len(units))
+	for i, u := range units {
+		result[i] = UnitRef{ID: u.ID, ContainerID: u.ContainerID, Type: u.Type, Contents: u.Contents}
+	}
+	return result, nil
+}
+
+// listUnitsByTypeWhere is listUnitsByType for the units keep accepts (nil
+// keeps all), filtered before any v2 contents are read.
+func (r *Reader) listUnitsByTypeWhere(typeName string, keep func(id string) bool) ([]rawUnit, error) {
+	if keep == nil {
+		return r.listUnitsByType(typeName)
+	}
+	if r.version == MPRVersionV2 {
+		return r.listUnitsByTypeV2Where(typeName, "", keep)
+	}
+	units, err := r.listUnitsByTypeV1(typeName)
+	if err != nil {
+		return nil, err
+	}
+	kept := units[:0]
+	for _, u := range units {
+		if keep(u.ID) {
+			kept = append(kept, u)
+		}
+	}
+	return kept, nil
 }
 
 // listUnitsByType returns all units of exactly the given storage type. An empty
@@ -134,26 +264,6 @@ func (r *Reader) listUnitTypes() ([]rawUnit, error) {
 	return units, nil
 }
 
-// cachedUnitsOfType returns the MPR v2 unit cache's entries of one type, which
-// carry the name without reading any file; ok is false on MPR v1.
-func (r *Reader) cachedUnitsOfType(typeName string) (_ []cachedUnit, ok bool, err error) {
-	if r.version != MPRVersionV2 {
-		return nil, false, nil
-	}
-	if !r.unitCacheValid {
-		if err := r.buildUnitCache(); err != nil {
-			return nil, true, err
-		}
-	}
-	var out []cachedUnit
-	for _, cu := range r.unitCache {
-		if cu.Type == typeName {
-			out = append(out, cu)
-		}
-	}
-	return out, true, nil
-}
-
 // listUnitsByTypeV2 handles MPR v2 format (contents in mprcontents folder).
 // Uses caching to avoid reading every file for each query.
 func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
@@ -163,6 +273,12 @@ func (r *Reader) listUnitsByTypeV2(typeName string) ([]rawUnit, error) {
 // listUnitsByTypeV2In is listUnitsByTypeV2 restricted to one container ("" for
 // any), filtered before any contents are read.
 func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, error) {
+	return r.listUnitsByTypeV2Where(typeName, containerID, nil)
+}
+
+// listUnitsByTypeV2Where is listUnitsByTypeV2In for the units keep accepts
+// (nil keeps all).
+func (r *Reader) listUnitsByTypeV2Where(typeName, containerID string, keep func(id string) bool) ([]rawUnit, error) {
 	if !r.unitCacheValid {
 		if err := r.buildUnitCache(); err != nil {
 			return nil, err
@@ -173,6 +289,9 @@ func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, e
 	var units []rawUnit
 	for _, cu := range r.unitCache {
 		if containerID != "" && cu.ContainerID != containerID {
+			continue
+		}
+		if keep != nil && !keep(cu.ID) {
 			continue
 		}
 		if typeName == "" || cu.Type == typeName {
@@ -192,11 +311,12 @@ func (r *Reader) listUnitsByTypeV2In(typeName, containerID string) ([]rawUnit, e
 	return units, nil
 }
 
-// buildUnitCache builds the unit metadata cache, reading only units whose
-// file changed since the unit index stamped it.
+// buildUnitCache reads all unit metadata once and caches it. A unit's $Type
+// comes from the type index when its ContentsHash is known there, so only new
+// and changed units are opened (reader_units_v2.go, mendixlabs/mxcli#1603).
 func (r *Reader) buildUnitCache() error {
 	rows, err := r.db.Query(`
-		SELECT UnitID, ContainerID, ContainmentName
+		SELECT UnitID, ContainerID, ContainmentName, COALESCE(ContentsHash, '')
 		FROM Unit
 	`)
 	if err != nil {
@@ -204,73 +324,72 @@ func (r *Reader) buildUnitCache() error {
 	}
 	defer rows.Close()
 
-	prev := r.loadUnitIndex()
-	next := make(map[string]unitIndexEntry, len(prev))
-	racyAfter := time.Now().Add(-racyMargin).UnixNano()
-	changed := false
+	r.v2TypesMu.Lock()
+	defer r.v2TypesMu.Unlock()
+	r.contentMu.Lock()
+	scoped := r.cacheScopes > 0
+	r.contentMu.Unlock()
 
 	r.unitCache = nil
+	hashes := make(map[string]struct{})
+	store := r.unitStore()
+	rowHashes := make(map[string]string)
+	opened := 0
 	for rows.Next() {
 		var unitID, containerID []byte
-		var containmentName string
+		var containmentName, hash string
 
-		if err := rows.Scan(&unitID, &containerID, &containmentName); err != nil {
+		if err := rows.Scan(&unitID, &containerID, &containmentName, &hash); err != nil {
 			return fmt.Errorf("failed to scan unit row: %w", err)
 		}
 
 		unitUUID := blobToUUID(unitID)
-		fi, err := os.Stat(r.unitFilePath(unitUUID))
-		if err != nil {
-			continue
+		rowHashes[unitUUID] = hash
+		if store != nil {
+			store.noteRowHash(unitUUID, hash)
 		}
-		size, mtime := fi.Size(), fi.ModTime().UnixNano()
-		e, known := prev[unitUUID]
-		if !known || e.Size != size || e.MtimeNs != mtime || e.Racy {
-			// Uncached: index construction must not fill the content cache.
-			contents, err := r.readMprContentsUncached(unitUUID)
+		var entry unitIndexEntry
+		if held, ok := r.overlaid(unitUUID); ok {
+			// Bytes held in memory are what the unit is now; its stored hash
+			// describes the file it will replace.
+			entry = unitIndexEntryOf(held)
+		} else if known, ok := r.knownUnit(hash); ok {
+			entry = known
+		} else {
+			// The few units a warm index misses are read again soon, so they are
+			// cached. A cold build caches them all only inside a CacheUnitReads
+			// scope, which ends; the daemon's lasting cache stops early instead.
+			contents, err := r.readUnit(unitUUID, scoped || opened < unitTypeIndexPersistAfter)
 			if err != nil {
 				continue
 			}
-			r.headerReads.Add(1)
-			e = unitIndexEntry{
-				Type:     getTypeFromContents(contents),
-				Name:     getNameFromContents(contents),
-				Excluded: isExcludedUnit(contents),
-				Size:     size,
-				MtimeNs:  mtime,
-				Hash:     contentsHashOf(contents),
-			}
-			changed = true
+			opened++
+			entry = unitIndexEntryOf(contents)
+			r.learnUnit(contentsHash(contents), entry)
 		}
-		e.Racy = mtime > racyAfter
-		next[unitUUID] = e
-
-		cu := cachedUnit{
+		if hash != "" {
+			hashes[hash] = struct{}{}
+		}
+		r.unitCache = append(r.unitCache, cachedUnit{
 			ID:              unitUUID,
 			ContainerID:     blobToUUID(containerID),
 			ContainmentName: containmentName,
-			Type:            e.Type,
-			Name:            e.Name,
-			Excluded:        e.Excluded,
-		}
-		// A held write (writer_deferred.go) wins; the index stays disk-true.
-		if held, ok := r.overlaid(unitUUID); ok {
-			cu.Type = getTypeFromContents(held)
-			cu.Name = getNameFromContents(held)
-			cu.Excluded = isExcludedUnit(held)
-		}
-		r.unitCache = append(r.unitCache, cu)
+			Type:            entry.Type,
+			Name:            entry.Name,
+			Excluded:        entry.Excluded,
+		})
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("failed to read unit rows: %w", err)
+		return fmt.Errorf("failed to scan units: %w", err)
 	}
 
-	if len(next) != len(prev) {
-		changed = true // units removed (or the first build)
+	if store != nil {
+		store.setRowHashes(rowHashes)
 	}
-	r.unitIndex = next
-	if changed {
-		r.saveUnitIndex()
+	first := r.v2Hashes == nil
+	r.v2Hashes = hashes
+	if first || opened >= unitTypeIndexPersistAfter {
+		r.persistUnitTypeIndex()
 	}
 	r.unitCacheValid = true
 	return nil
@@ -298,7 +417,6 @@ func (r *Reader) InvalidateCache() {
 	if r.contentCache != nil {
 		clear(r.contentCache)
 	}
-	r.stampsMemo = nil
 	r.contentMu.Unlock()
 }
 
@@ -338,13 +456,18 @@ func (r *Reader) CacheUnitReads() (release func()) {
 	return func() {
 		once.Do(func() {
 			r.contentMu.Lock()
-			defer r.contentMu.Unlock()
-			if r.cacheScopes <= 0 {
-				return
+			last := false
+			if r.cacheScopes > 0 {
+				if r.cacheScopes--; r.cacheScopes == 0 {
+					r.contentCache = nil
+					last = true
+				}
 			}
-			if r.cacheScopes--; r.cacheScopes == 0 {
-				r.contentCache = nil
-				r.stampsMemo = nil
+			r.contentMu.Unlock()
+			// A pass over the project has just read what it needed: keep it
+			// for the next process (reader_unit_store.go).
+			if store := r.unitStore(); last && store != nil {
+				store.flush()
 			}
 		})
 	}
@@ -354,6 +477,29 @@ func (r *Reader) CacheUnitReads() (release func()) {
 // mprcontents/. For tests.
 func (r *Reader) UnitFileReads() int64 { return r.fileReads.Load() }
 
+// UnitStoreHits is how many unit reads this reader served from the persisted
+// store instead of a file. For tests.
+func (r *Reader) UnitStoreHits() int64 {
+	if store := r.unitStore(); store != nil {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		return store.hits
+	}
+	return 0
+}
+
+// unitStore is the reader's persisted unit store, or nil when there is none:
+// MPR v1 holds its units in the .mpr, and a reader without a project path
+// has nowhere to keep one.
+func (r *Reader) unitStore() *unitStore {
+	r.storeOnce.Do(func() {
+		if r.version == MPRVersionV2 && r.contentsDir != "" {
+			r.store = newUnitStore(r.path)
+		}
+	})
+	return r.store
+}
+
 // readMprContents reads content from the mprcontents folder for v2 format.
 // The path is: mprcontents/XX/YY/UUID.mxunit where XX and YY are first two chars of UUID.
 //
@@ -362,6 +508,12 @@ func (r *Reader) UnitFileReads() int64 { return r.fileReads.Load() }
 // caller gets bytes of its own, as os.ReadFile gave it, so one that edits them
 // cannot change what the next caller reads.
 func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
+	return r.readUnit(unitUUID, true)
+}
+
+// readUnit is readMprContents; with fill false it does not add the unit to
+// the content cache, so building the index does not hold every unit it reads.
+func (r *Reader) readUnit(unitUUID string, fill bool) ([]byte, error) {
 	if len(unitUUID) < 4 {
 		return nil, fmt.Errorf("invalid unit UUID: %s", unitUUID)
 	}
@@ -375,31 +527,10 @@ func (r *Reader) readMprContents(unitUUID string) ([]byte, error) {
 
 	r.contentMu.Lock()
 	cached, ok := r.contentCache[unitUUID]
-	caching := r.contentCache != nil
+	caching := r.contentCache != nil && fill
 	r.contentMu.Unlock()
 	if ok {
 		return bytes.Clone(cached), nil
-	}
-
-	data, err := r.readMprContentsUncached(unitUUID)
-	if err != nil {
-		return nil, err
-	}
-	r.fileReads.Add(1)
-
-	if caching {
-		r.contentMu.Lock()
-		if r.contentCache != nil {
-			r.contentCache[unitUUID] = bytes.Clone(data)
-		}
-		r.contentMu.Unlock()
-	}
-	return data, nil
-}
-
-func (r *Reader) readMprContentsUncached(unitUUID string) ([]byte, error) {
-	if len(unitUUID) < 4 {
-		return nil, fmt.Errorf("invalid unit UUID: %s", unitUUID)
 	}
 
 	// Build path: mprcontents/XX/YY/UUID.mxunit
@@ -409,7 +540,52 @@ func (r *Reader) readMprContentsUncached(unitUUID string) ([]byte, error) {
 		unitUUID[2:4],
 		unitUUID+".mxunit",
 	)
-	return os.ReadFile(path)
+	// An unchanged unit is read from the persisted store rather than its
+	// own file, which on Windows is what a virus scanner inspects (#1804).
+	store := r.unitStore()
+	var fi os.FileInfo
+	if store != nil {
+		stored, info, ok := store.lookup(unitUUID, path)
+		if ok {
+			if caching {
+				r.contentMu.Lock()
+				if r.contentCache != nil {
+					r.contentCache[unitUUID] = bytes.Clone(stored)
+				}
+				r.contentMu.Unlock()
+			}
+			return stored, nil
+		}
+		fi = info
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	r.fileReads.Add(1)
+
+	// One copy serves both the in-memory cache and the store: neither hands
+	// out the bytes it holds, only copies of them.
+	held := bytes.Clone(data)
+	if caching {
+		r.contentMu.Lock()
+		if r.contentCache != nil {
+			r.contentCache[unitUUID] = held
+		}
+		r.contentMu.Unlock()
+	}
+	if store != nil {
+		store.record(unitUUID, fi, held)
+	}
+	return data, nil
+}
+
+// contentsHash is a unit's ContentsHash as Studio Pro and the writer compute
+// it: base64(SHA-256(contents)).
+func contentsHash(contents []byte) string {
+	sum := sha256.Sum256(contents)
+	return base64.StdEncoding.EncodeToString(sum[:])
 }
 
 // getTypeFromContents extracts the $Type field from BSON contents.
@@ -430,16 +606,29 @@ func getTypeFromContents(contents []byte) string {
 	return s
 }
 
-func getNameFromContents(contents []byte) string {
-	if len(contents) == 0 {
-		return ""
+// RawUnitInfo contains information about a raw unit for BSON debugging.
+// Aliased to mdl/types.RawUnitInfo so reader_raw.go methods and modelsdk/codec
+// consumers share a single concrete struct.
+type RawUnitInfo = types.RawUnitInfo
+
+// cachedUnitsOfType returns the MPR v2 unit cache's entries of one type, which
+// carry the name without reading any file; ok is false on MPR v1.
+func (r *Reader) cachedUnitsOfType(typeName string) (_ []cachedUnit, ok bool, err error) {
+	if r.version != MPRVersionV2 {
+		return nil, false, nil
 	}
-	val, err := bson.Raw(contents).LookupErr("Name")
-	if err != nil {
-		return ""
+	if !r.unitCacheValid {
+		if err := r.buildUnitCache(); err != nil {
+			return nil, true, err
+		}
 	}
-	name, _ := val.StringValueOK()
-	return name
+	var out []cachedUnit
+	for _, cu := range r.unitCache {
+		if cu.Type == typeName {
+			out = append(out, cu)
+		}
+	}
+	return out, true, nil
 }
 
 // buildUnitNameIndex builds the qualified-name index from top-level BSON
@@ -641,26 +830,6 @@ func (r *Reader) GetUnitByTypeName(typeName, qualifiedName string) (*UnitRef, er
 	return first, nil
 }
 
-// isExcludedUnit reports a unit's top-level Excluded flag without decoding the
-// rest of the document.
-func isExcludedUnit(contents []byte) bool {
-	val, err := bson.Raw(contents).LookupErr("Excluded")
-	if err != nil {
-		return false
-	}
-	excluded, _ := val.BooleanOK()
-	return excluded
-}
-
-// UnitHeaderInfo is a unit's header as the index holds it: no contents.
-type UnitHeaderInfo struct {
-	ID          string
-	ContainerID string
-	Type        string
-	Name        string
-	Excluded    bool
-}
-
 // UnitHeadersOfType returns the header of every unit whose $Type is typeName,
 // from the index: no unit is read. The slice is shared; callers must not
 // modify it.
@@ -685,11 +854,6 @@ func (r *Reader) UnitHeaderByID(unitID string) (UnitHeaderInfo, bool, error) {
 	return h, ok, nil
 }
 
-// RawUnitInfo contains information about a raw unit for BSON debugging.
-// Aliased to mdl/types.RawUnitInfo so reader_raw.go methods and modelsdk/codec
-// consumers share a single concrete struct.
-type RawUnitInfo = types.RawUnitInfo
-
 // DecodedUnits returns the memoized decoded units for a BSON $Type, if any.
 // The value is an opaque []mprread.Unit[T]; see
 // mprread.ListUnitsWithContainerCached, the only intended caller.
@@ -709,4 +873,36 @@ func (r *Reader) SetDecodedUnits(typeName string, v any) {
 		r.decoded = make(map[string]any)
 	}
 	r.decoded[typeName] = v
+}
+
+func getNameFromContents(contents []byte) string {
+	if len(contents) == 0 {
+		return ""
+	}
+	val, err := bson.Raw(contents).LookupErr("Name")
+	if err != nil {
+		return ""
+	}
+	name, _ := val.StringValueOK()
+	return name
+}
+
+// isExcludedUnit reports a unit's top-level Excluded flag without decoding the
+// rest of the document.
+func isExcludedUnit(contents []byte) bool {
+	val, err := bson.Raw(contents).LookupErr("Excluded")
+	if err != nil {
+		return false
+	}
+	excluded, _ := val.BooleanOK()
+	return excluded
+}
+
+// UnitHeaderInfo is a unit's header as the index holds it: no contents.
+type UnitHeaderInfo struct {
+	ID          string
+	ContainerID string
+	Type        string
+	Name        string
+	Excluded    bool
 }

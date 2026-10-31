@@ -29,6 +29,7 @@ The target may also be an attribute (`Module.Entity.Attribute`), an enumeration,
 | `type` | an attribute, parameter or variable is typed as the enumeration |
 | `value` | an expression names the enumeration value |
 | `mapping` | an import or export mapping maps the entity |
+| `split` | a microflow, nanoflow or rule branches on an object being the entity (an inheritance split) |
 
 `IMPACT OF` an enumeration includes the uses of each of its values, with a `Target` column naming which one.
 

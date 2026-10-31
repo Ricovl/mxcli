@@ -57,6 +57,7 @@ func decodeOne[T element.Element](r *mmpr.Reader, unitID string) (T, error) {
 		return zero, fmt.Errorf("read unit %s: %w", unitID, err)
 	}
 	dec := codec.NewDecoder(codec.DefaultRegistry)
+	unitsDecoded.Add(1)
 	elem, err := dec.Decode(bson.Raw(raw))
 	if err != nil {
 		return zero, fmt.Errorf("decode unit %s: %w", unitID, err)
@@ -703,6 +704,7 @@ func ListModules(r *mmpr.Reader) ([]Unit[*genProj.Module], error) {
 		if ref.Type != typeName {
 			continue
 		}
+		unitsDecoded.Add(1)
 		elem, err := dec.Decode(bson.Raw(ref.Contents))
 		if err != nil {
 			return nil, fmt.Errorf("decode module %s: %w", ref.ID, err)

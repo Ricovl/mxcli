@@ -56,12 +56,19 @@ debugger state only:
 | Action | Params | Notes |
 |---|---|---|
 | `start_session` | `{breakpoints: []}` | **no token**; response has `result.session_token` |
-| `add_breakpoint` | `{microflow_name, object_id, condition?}` | `object_id` = activity model GUID |
+| `add_breakpoint` | `{microflow_name, object_id, condition}` | `object_id` = activity model GUID; `condition` is required, `""` for none (a nanoflow uses `nanoflow_name`) |
 | `remove_breakpoint` | `{object_id}` | |
 | `get_paused_microflows` | `{}` | flows + all in-scope variables |
-| `get_object` | `{debug_id, variable_name}` | inspect one variable |
+| `get_object` | `{debug_id, variable_name}` | inspect one **object** variable; a primitive is refused, its value is in `get_paused_microflows` |
 | `step_over` / `step_into` / `step_out` | `{debug_id}` | |
-| `continue` / `continue_all` | `{}` | resume |
+| `continue` | `{debug_id}` | resume one paused flow |
+| `continue_all` | `{}` | resume every paused flow; refused when none is paused |
+
+Every reply is HTTP 200; success or refusal is only in the envelope —
+`{"result":…,"status":0}` or `{"result":{},"message":…,"status":2}`. Measured on runtimes
+11.13.0 and 11.15.0 (ako/mxcli#1782): the table above first listed `condition` as
+optional and `continue` with `{}`, and both are refused ("Missing property: condition",
+"Missing property: debug_id").
 
 Auth quirk (documented): the debugger endpoint accepts only
 `X-Debugger-Authentication: base64(pass)` — raw password, `Basic`, and `Bearer` all 401,

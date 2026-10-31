@@ -74,6 +74,17 @@ type memberRefIndex struct {
 	enumValues     map[string]bool // "Mod.Enum.Value"
 	entities       map[string]bool
 	generalization map[string]string // entity -> the entity it specializes
+
+	// probe, when set, is told every name looked up, found or not: the
+	// document being walked depends on it (builder_coverage.go).
+	probe func(name string)
+}
+
+// read reports a lookup of name to the probe.
+func (idx *memberRefIndex) read(name string) {
+	if idx.probe != nil {
+		idx.probe(name)
+	}
 }
 
 // loadMemberRefIndex reads the name sets from the tables buildEntities,
@@ -125,6 +136,7 @@ func (idx *memberRefIndex) resolveAttribute(entity, name string) (string, bool) 
 	seen := map[string]bool{}
 	for e := entity; e != "" && !seen[e]; e = idx.generalization[e] {
 		seen[e] = true
+		idx.read(e + "." + name)
 		if _, ok := idx.attributes[e+"."+name]; ok {
 			return e + "." + name, true
 		}
@@ -184,6 +196,7 @@ func memberRefsInUnit(contents []byte, sourceType string, idx *memberRefIndex) [
 		// A whole-string match is a structured reference: MemberChange.Attribute,
 		// AttributeRef.Attribute, EntityRefStep.Association, EnumerationType.Enumeration,
 		// ObjectMappingElement.Entity.
+		idx.read(v)
 		switch {
 		case hasKey(idx.attributes, v):
 			set.add(RefObjectAttribute, v, RefKindMember)
@@ -295,6 +308,9 @@ func scanPaths(text, context string, idx *memberRefIndex, emit func(targetType, 
 				lit.WriteByte(text[j])
 				j++
 			}
+			if pendingEnum != "" {
+				idx.read(pendingEnum + "." + lit.String())
+			}
 			if pendingEnum != "" && idx.enumValues[pendingEnum+"."+lit.String()] {
 				emit(RefObjectEnumerationValue, pendingEnum+"."+lit.String())
 			}
@@ -363,6 +379,7 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 	segs := strings.Split(chunk, "/")
 	for n, seg := range segs {
 		pendingEnum, endEntity = "", ""
+		idx.read(seg)
 		switch {
 		case seg == "":
 			cur = ""
@@ -396,7 +413,9 @@ func resolvePath(chunk, context string, idx *memberRefIndex, emit func(targetTyp
 
 // extractMemberRefs walks every document of the types in memberRefSourceTypes
 // and emits its member, enumeration and mapping-entity edges.
-func (b *Builder) extractMemberRefs(stmt rowStmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractMemberRefs(stmt *Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
+	idx.probe = b.probe(siteMemberRefs)
+	defer func() { idx.probe = nil }()
 	unitTypes := make([]string, 0, len(memberRefSourceTypes))
 	for t := range memberRefSourceTypes {
 		unitTypes = append(unitTypes, t)
@@ -406,12 +425,14 @@ func (b *Builder) extractMemberRefs(stmt rowStmt, idx *memberRefIndex, projectID
 	count := 0
 	for _, unitType := range unitTypes {
 		sourceType := memberRefSourceTypes[unitType]
-		units, err := b.rawUnits(unitType)
+		units, err := b.lister().ListRawUnitsByType(unitType)
 		if err != nil {
 			continue
 		}
 		for _, u := range units {
-			b.unit = string(u.ID)
+			if !b.ownRows(string(u.ID)) {
+				continue
+			}
 			// ListRawUnitsByType matches a PREFIX: Forms$Page also returns
 			// Forms$PageTemplate units, which are not pages.
 			if u.Type != unitType || len(u.Contents) == 0 {
@@ -433,6 +454,7 @@ func (b *Builder) extractMemberRefs(stmt rowStmt, idx *memberRefIndex, projectID
 				}
 			}
 		}
+		b.disown()
 	}
 	return count
 }
@@ -441,16 +463,12 @@ func (b *Builder) extractMemberRefs(stmt rowStmt, idx *memberRefIndex, projectID
 // enumeration one of its attributes is typed as. Without it an enumeration had
 // no inbound edge at all, and `impact` on it answered "not referenced".
 func (b *Builder) extractEnumerationTypeRefs(projectID, snapshotID string) int {
-	if createIncrementalTables(b.tx) != nil {
-		return 0
-	}
 	res, err := b.tx.Exec(
-		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId, UnitId)
-		 SELECT DISTINCT ?, COALESCE(EntityId, ''), EntityQualifiedName, ?, '', EnumerationQualifiedName, ?, ModuleName, ?, ?, UnitId
+		`INSERT INTO refs (SourceType, SourceId, SourceName, TargetType, TargetId, TargetName, RefKind, ModuleName, ProjectId, SnapshotId)
+		 SELECT DISTINCT ?, COALESCE(EntityId, ''), EntityQualifiedName, ?, '', EnumerationQualifiedName, ?, ModuleName, ?, ?
 		 FROM attributes_data
-		 WHERE EnumerationQualifiedName IS NOT NULL AND EnumerationQualifiedName != ''
-		   AND (?6 = '' OR UnitId IN (SELECT UnitId FROM incremental_units))`,
-		RefObjectEntity, RefObjectEnumeration, RefKindType, projectID, snapshotID, b.incrementalFlag())
+		 WHERE EnumerationQualifiedName IS NOT NULL AND EnumerationQualifiedName != ''`,
+		RefObjectEntity, RefObjectEnumeration, RefKindType, projectID, snapshotID)
 	if err != nil {
 		return 0
 	}
@@ -473,17 +491,17 @@ var xpathSourceTypes = map[string]string{
 // enumeration values each recorded XPath constraint names, resolved against the
 // constraint's target entity. buildXPathExpressions runs before buildReferences
 // so the table is populated.
-func (b *Builder) extractXPathRefs(stmt rowStmt, idx *memberRefIndex, projectID, snapshotID string) int {
+func (b *Builder) extractXPathRefs(stmt *Stmt, idx *memberRefIndex, projectID, snapshotID string) int {
 	rows, err := b.tx.Query(`SELECT DocumentType, DocumentId, DocumentQualifiedName, COALESCE(TargetEntity, ''),
-		XPathExpression, COALESCE(ModuleName, ''), COALESCE(UnitId, '') FROM xpath_expressions_data ORDER BY Id`)
+		XPathExpression, COALESCE(ModuleName, '') FROM xpath_expressions_data ORDER BY Id`)
 	if err != nil {
 		return 0
 	}
-	type xp struct{ docType, docID, docQN, target, xpath, module, unit string }
+	type xp struct{ docType, docID, docQN, target, xpath, module string }
 	var all []xp
 	for rows.Next() {
 		var r xp
-		if rows.Scan(&r.docType, &r.docID, &r.docQN, &r.target, &r.xpath, &r.module, &r.unit) == nil {
+		if rows.Scan(&r.docType, &r.docID, &r.docQN, &r.target, &r.xpath, &r.module) == nil {
 			all = append(all, r)
 		}
 	}
@@ -493,10 +511,9 @@ func (b *Builder) extractXPathRefs(stmt rowStmt, idx *memberRefIndex, projectID,
 	written := map[string]bool{}
 	for _, r := range all {
 		sourceType, ok := xpathSourceTypes[r.docType]
-		if !ok || !b.wants(r.unit) {
+		if !ok {
 			continue
 		}
-		b.unit = r.unit
 		sourceID := r.docID
 		if r.docType == "DOMAIN_MODEL" {
 			sourceID = ""

@@ -5,7 +5,6 @@ package catalog
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/modelsdk/bsoncompat"
 	"strings"
 
@@ -29,14 +28,14 @@ func (b *Builder) buildXPathExpressions() error {
 		return nil
 	}
 
-	stmt, err := b.prepareUnit(`
+	stmt, err := b.tx.Prepare(`
 		INSERT INTO xpath_expressions_data (
 			Id, DocumentType, DocumentId, DocumentQualifiedName,
 			ComponentType, ComponentId, ComponentName,
 			XPathExpression, TargetEntity, ReferencedEntities,
 			IsParameterized, UsageType, ModuleName,
 			ProjectId, SnapshotId
-		, UnitId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -50,7 +49,9 @@ func (b *Builder) buildXPathExpressions() error {
 	mfs, err := b.cachedMicroflows()
 	if err == nil {
 		for _, mf := range mfs {
-			b.unit = string(mf.ID)
+			if !b.own(string(mf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(mf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + mf.Name
@@ -58,12 +59,15 @@ func (b *Builder) buildXPathExpressions() error {
 			count += b.extractMicroflowXPath(stmt, mf.ObjectCollection, "MICROFLOW", string(mf.ID), sourceQN, moduleName,
 				projectID, snapshotID)
 		}
+		b.disown()
 	}
 
 	nfs, err := b.cachedNanoflows()
 	if err == nil {
 		for _, nf := range nfs {
-			b.unit = string(nf.ID)
+			if !b.own(string(nf.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(nf.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 			sourceQN := moduleName + "." + nf.Name
@@ -71,14 +75,14 @@ func (b *Builder) buildXPathExpressions() error {
 			count += b.extractMicroflowXPath(stmt, nf.ObjectCollection, "NANOFLOW", string(nf.ID), sourceQN, moduleName,
 				projectID, snapshotID)
 		}
+		b.disown()
 	}
 
 	// 2. Extract from entity access rules
 	dms, err := b.cachedDomainModels()
 	if err == nil {
 		for _, dm := range dms {
-			b.unit = string(dm.ID)
-			if !b.wants(string(dm.ID)) {
+			if !b.own(string(dm.ID)) {
 				continue
 			}
 			moduleID := b.hierarchy.findModuleID(dm.ContainerID)
@@ -105,18 +109,21 @@ func (b *Builder) buildXPathExpressions() error {
 				}
 			}
 		}
+		b.disown()
 	}
 
 	// 3. Extract from page/snippet data sources by scanning raw BSON
 	// The page parser only reads metadata, not the widget tree, so we scan the
 	// raw BSON documents for XPathConstraint fields at any nesting depth.
 	for _, typePrefix := range []string{"Forms$Page", "Pages$Page", "Forms$Snippet", "Pages$Snippet"} {
-		rawPages, err := b.rawPageUnits(typePrefix)
+		rawPages, err := b.lister().ListRawUnitsByType(typePrefix)
 		if err != nil {
 			continue
 		}
 		for _, ru := range rawPages {
-			b.unit = string(ru.ID)
+			if !b.own(string(ru.ID)) {
+				continue
+			}
 			moduleID := b.hierarchy.findModuleID(ru.ContainerID)
 			moduleName := b.hierarchy.getModuleName(moduleID)
 
@@ -137,6 +144,7 @@ func (b *Builder) buildXPathExpressions() error {
 			count += scanBSONForXPath(stmt, raw, docType, string(ru.ID), sourceQN, moduleName,
 				projectID, snapshotID)
 		}
+		b.disown()
 	}
 
 	b.report("XPath Expressions", count)
@@ -144,7 +152,7 @@ func (b *Builder) buildXPathExpressions() error {
 }
 
 // extractMicroflowXPath extracts XPath constraints from microflow/nanoflow actions.
-func (b *Builder) extractMicroflowXPath(stmt rowStmt,
+func (b *Builder) extractMicroflowXPath(stmt *Stmt,
 	oc *microflows.MicroflowObjectCollection, docType, docID, docQN, moduleName,
 	projectID, snapshotID string) int {
 
@@ -196,7 +204,7 @@ func (b *Builder) extractMicroflowXPath(stmt rowStmt,
 // scanBSONForXPath recursively scans a BSON map for XPathConstraint fields
 // and inserts records into the xpath_expressions table.
 // This works on raw BSON data, avoiding the need for a full widget tree parser.
-func scanBSONForXPath(stmt rowStmt, raw map[string]any,
+func scanBSONForXPath(stmt *Stmt, raw map[string]any,
 	docType, docID, docQN, moduleName,
 	projectID, snapshotID string) int {
 
@@ -405,14 +413,4 @@ func boolToInt(v bool) int {
 		return 1
 	}
 	return 0
-}
-
-// rawPageUnits is ListRawUnitsByType, limited to the changed units when
-// incremental, which match their exact type. Only for speed: a re-scanned
-// unchanged page would insert rows whose Id already exists, and be refused.
-func (b *Builder) rawPageUnits(typePrefix string) ([]*types.RawUnit, error) {
-	if b.incremental() {
-		return b.rawUnits(typePrefix)
-	}
-	return b.reader.ListRawUnitsByType(typePrefix)
 }

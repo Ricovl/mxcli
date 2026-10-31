@@ -20,11 +20,11 @@ func (b *Builder) buildPages() error {
 		return err
 	}
 
-	pageStmt, err := b.prepareUnit(`
+	pageStmt, err := b.tx.Prepare(`
 		INSERT INTO pages_data (Id, Name, QualifiedName, ModuleName, Folder, Title, URL, LayoutRef,
 			Description, ParameterCount, WidgetCount, Excluded,
-			ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -32,20 +32,19 @@ func (b *Builder) buildPages() error {
 	defer pageStmt.Close()
 
 	// Prepare widget statement only in full mode
-	var widgetStmt rowStmt
+	var widgetStmt *Stmt
 	if b.fullMode {
-		prepared, err := b.prepareUnit(`
+		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
 				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
-				ProjectId, SnapshotId, UnitId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ProjectId, SnapshotId)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer prepared.Close()
-		widgetStmt = prepared
+		defer widgetStmt.Close()
 	}
 
 	projectID, snapshotID := b.snapshotMeta()
@@ -54,7 +53,9 @@ func (b *Builder) buildPages() error {
 	widgetCount := 0
 
 	for _, pg := range pageList {
-		b.unit = string(pg.ID)
+		if !b.own(string(pg.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(pg.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -132,6 +133,7 @@ func (b *Builder) buildPages() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Pages", pageCount)
 	if b.fullMode {
@@ -141,17 +143,17 @@ func (b *Builder) buildPages() error {
 }
 
 func (b *Builder) buildSnippets() error {
-	// Get all snippets (only the changed ones in an incremental refresh)
-	snippetList, err := b.cachedSnippets()
+	// Get all snippets
+	snippetList, err := b.lister().ListSnippets()
 	if err != nil {
 		return err
 	}
 
-	snippetStmt, err := b.prepareUnit(`
+	snippetStmt, err := b.tx.Prepare(`
 		INSERT INTO snippets_data (Id, Name, QualifiedName, ModuleName, Folder, Description,
 			ParameterCount, WidgetCount,
-			ProjectId, SnapshotId, UnitId)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ProjectId, SnapshotId)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return err
@@ -161,20 +163,19 @@ func (b *Builder) buildSnippets() error {
 	// Snippet widgets feed the same widgets_data table as page widgets (full mode
 	// only), with ContainerType=SNIPPET, so the refs projection in buildReferences
 	// emits snippet → entity/microflow/nanoflow edges automatically.
-	var widgetStmt rowStmt
+	var widgetStmt *Stmt
 	if b.fullMode {
-		prepared, err := b.prepareUnit(`
+		widgetStmt, err = b.tx.Prepare(`
 			INSERT INTO widgets_data (Id, Name, WidgetType, ContainerId, ContainerQualifiedName, ContainerType,
 				ModuleName, Folder, EntityRef, AttributeRef, MicroflowRef, NanoflowRef, PageRef, Description,
 				ParentWidgetId, Depth, Class, Style, DynamicClasses, ActionType, HasConfirmation,
-				ProjectId, SnapshotId, UnitId)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				ProjectId, SnapshotId)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`)
 		if err != nil {
 			return err
 		}
-		defer prepared.Close()
-		widgetStmt = prepared
+		defer widgetStmt.Close()
 	}
 
 	projectID, snapshotID := b.snapshotMeta()
@@ -182,7 +183,9 @@ func (b *Builder) buildSnippets() error {
 	count := 0
 	widgetCount := 0
 	for _, sn := range snippetList {
-		b.unit = string(sn.ID)
+		if !b.own(string(sn.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(sn.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -229,6 +232,7 @@ func (b *Builder) buildSnippets() error {
 			}
 		}
 	}
+	b.disown()
 
 	b.report("Snippets", count)
 	if b.fullMode {
@@ -244,7 +248,7 @@ func (b *Builder) buildSnippets() error {
 // the raw unit's top-level Widgets array (same shape as a snippet), so it is
 // only available in full mode.
 func (b *Builder) buildBuildingBlocks() error {
-	blocks, err := b.reader.ListBuildingBlocks()
+	blocks, err := b.lister().ListBuildingBlocks()
 	if err != nil {
 		return err
 	}
@@ -264,6 +268,9 @@ func (b *Builder) buildBuildingBlocks() error {
 
 	count := 0
 	for _, bb := range blocks {
+		if !b.own(string(bb.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(bb.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + bb.Name
@@ -293,6 +300,7 @@ func (b *Builder) buildBuildingBlocks() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Building blocks", count)
 	return nil
@@ -917,7 +925,7 @@ const (
 
 func (b *Builder) buildLayouts() error {
 	// Get all layouts
-	layoutList, err := b.reader.ListLayouts()
+	layoutList, err := b.lister().ListLayouts()
 	if err != nil {
 		return err
 	}
@@ -936,6 +944,9 @@ func (b *Builder) buildLayouts() error {
 
 	count := 0
 	for _, l := range layoutList {
+		if !b.own(string(l.ID)) {
+			continue
+		}
 		// Get module name
 		moduleID := b.hierarchy.findModuleID(l.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
@@ -958,6 +969,7 @@ func (b *Builder) buildLayouts() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Layouts", count)
 	return nil
@@ -966,9 +978,9 @@ func (b *Builder) buildLayouts() error {
 // widgetExtraRef is a page/snippet → document edge a widget makes that its
 // single widgets_data column does not carry (see rawWidgetInfo.AllRefs).
 type widgetExtraRef struct {
+	owner                                  string
 	containerType, containerQN, moduleName string
 	targetType, targetName, refKind        string
-	unit                                   string
 }
 
 // collectWidgetExtraRefs records, for buildReferences, every name in w.AllRefs
@@ -981,7 +993,7 @@ func (b *Builder) collectWidgetExtraRefs(containerType, containerQN, moduleName 
 				continue
 			}
 			b.widgetExtraRefs = append(b.widgetExtraRefs, widgetExtraRef{
-				containerType, containerQN, moduleName, targetType, n, refKind, b.unit,
+				b.currentOwner(), containerType, containerQN, moduleName, targetType, n, refKind,
 			})
 		}
 	}

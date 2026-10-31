@@ -94,7 +94,7 @@ func docFixture(t *testing.T, word string) *Catalog {
 			containerParent: map[model.ID]model.ID{"dm-sales": modID},
 			folderNames:     map[model.ID]string{},
 		},
-		tx: tx,
+		tx: wrapTx(tx),
 	}
 	// In the order Build runs them: strings reads the tables the others fill.
 	for _, step := range []struct {

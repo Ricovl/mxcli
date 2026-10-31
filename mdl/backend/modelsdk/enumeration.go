@@ -5,7 +5,6 @@ package modelsdkbackend
 import (
 	genEnum "github.com/mendixlabs/mxcli/modelsdk/gen/enumerations"
 	"github.com/mendixlabs/mxcli/modelsdk/meta"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 
 	"github.com/mendixlabs/mxcli/model"
 )
@@ -15,7 +14,7 @@ import (
 // relies on the gen/texts package being registered (blank-imported in page.go).
 
 func (b *Backend) ListEnumerations() ([]*model.Enumeration, error) {
-	units, err := mprread.ListUnitsWithContainerCached[*genEnum.Enumeration](b.reader)
+	units, err := listUnitsCached[*genEnum.Enumeration](b)
 	if err != nil {
 		return nil, err
 	}

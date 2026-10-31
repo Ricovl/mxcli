@@ -33,8 +33,7 @@ func listMicroflows(ctx *ExecContext, moduleName string) error {
 		}
 	}
 
-	// Get all microflows
-	microflows, err := ctx.Backend.ListMicroflows()
+	microflows, err := microflowsInModule(ctx, h, moduleName)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
 	}
@@ -1637,6 +1636,9 @@ func microflowBodyWarnings(
 	var voids *voidCodeActions
 	if ctx != nil && ctx.Backend != nil {
 		voids = newVoidCodeActions(nil, func() backend.FullBackend { return ctx.Backend })
+		if h, err := getHierarchy(ctx); err == nil && h != nil {
+			voids.microflowNames = func() map[model.ID]string { return getMicroflowNames(ctx, h) }
+		}
 	}
 	out = append(out, duplicateOutputVariableWarnings(mf.ObjectCollection, voids.actionIsVoidCall)...)
 	out = append(out, irreducibleGraphWarnings(mf.ObjectCollection, declaredCrossed)...)

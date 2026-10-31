@@ -94,11 +94,17 @@ func openPedAppCopy(t *testing.T) (*Executor, *bytes.Buffer, string) {
 	return exec, out, dir
 }
 
-// projectFiles hashes every file of the project by content.
+// projectFiles hashes every file of the project by content. The unit store
+// under .mxcli/cache/ is left out: it is a cache of what was read, which a
+// read-only command refreshes, not part of the project (ako/mxcli#1804).
 func projectFiles(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	files := map[string]string{}
+	cache := filepath.Join(dir, ".mxcli", "cache")
 	err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err == nil && info.IsDir() && p == cache {
+			return filepath.SkipDir
+		}
 		if err != nil || info.IsDir() {
 			return err
 		}

@@ -305,8 +305,9 @@ inserted, dropped, moved (dropped and inserted again) or replaced by one or more
 others (ako/mxcli#1693), and one replaced by one of the same kind in place
 (ako/mxcli#1106). The new activities are laid out among the body's nodes; when the
 body no longer fits, the loop box grows on its far side and what is drawn past the
-loop moves along. Only the changed activities get new `$ID`s — the loop, the rest of
-its body and everything outside it keep theirs. The loop's iterator is in scope, and
+loop moves along. Only the new activities get new `$ID`s — one replaced by the same
+kind of activity is the stored one edited and keeps its `$ID` and its action's
+(ako/mxcli#1761); the loop, the rest of its body and everything outside it keep theirs. The loop's iterator is in scope, and
 a nested loop's body is edited the same way. `create or modify` does this for a body
 whose statements change; `alter` for an activity of the body addressed by its handle.
 
@@ -492,6 +493,36 @@ log info node 'Orders' 'Order ' + $Order/Number + ' shipped';
 
 A template kept in a variable cannot be filled by `with (…)` at run time: write the
 template in the statement, or build the whole text in the expression.
+
+### 17. A String Function Never Returns `empty`
+
+`trim`, `toLowerCase`, `toUpperCase`, `substring`, `replaceAll` and `toString` return
+`''` for an `empty` input, never `empty` (measured on the Mendix 10.18.5 runtime). So
+comparing their result with `empty` is constant: `!= empty` is always true, and a
+blank value goes down the "has text" branch. `check` warns (E015).
+
+```mdl
+-- ❌ WRONG: always true — trim(empty) and trim('   ') are both ''
+declare $HasText boolean = trim($Value) != empty;
+
+-- ✅ CORRECT: trim(empty) is '', so this covers empty, '' and blanks
+declare $HasText boolean = trim($Value) != '';
+```
+
+### 18. Concatenating `empty` Gives the Text `null`
+
+`+` turns an `empty` String operand into the four characters `null`, not `''`:
+`'[' + $Value + ']'` with an empty `$Value` is `[null]` (measured on the Mendix 10.18.5
+runtime). A label built from an attribute that may be empty shows "null" to the user.
+`check` cannot know whether a value will be empty, so it does not warn — guard it:
+
+```mdl
+-- ❌ WRONG: shows 'Customer: null' when Name is empty
+declare $Label string = 'Customer: ' + $Customer/Name;
+
+-- ✅ CORRECT
+declare $Label string = if $Customer/Name != empty then 'Customer: ' + $Customer/Name else 'Customer: ';
+```
 
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 

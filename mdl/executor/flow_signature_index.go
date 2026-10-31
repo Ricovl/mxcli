@@ -7,18 +7,18 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 )
 
 // The flow signature index: what check reads of every stored microflow and
 // nanoflow — name, excluded flag, allowed roles, parameters and return entity —
 // and, for MDL-SEC22, a microflow's ApplyEntityAccess and the flows it calls —
-// stamped with the unit file's size and mtime and persisted in
-// .mxcli/flow-signatures. A flow whose file still matches its stamp is not
-// decoded again; on a 23k-unit app decoding every flow's signature twice was a
-// third of check.
+// keyed by the unit's ContentsHash and persisted in .mxcli/flow-signatures. A
+// flow whose hash is unchanged is not decoded again; on a 23k-unit app
+// decoding every flow's signature twice was a third of check.
 
-const flowIndexFormat = 2
+const flowIndexFormat = 3
 
 // indexedFlow is one flow's index entry.
 type indexedFlow struct {
@@ -29,10 +29,9 @@ type indexedFlow struct {
 	Sig      flowSignature
 	EA       bool          // microflows: ApplyEntityAccess
 	Calls    []indexedCall // microflows: called microflows and rules
-	Size     int64
-	MtimeNs  int64
+	Hash     string
 
-	containerID model.ID // from the current stamp, never persisted
+	containerID model.ID // from the current header, never persisted
 }
 
 type indexedCall struct{ Kind, Name string }
@@ -42,17 +41,43 @@ type persistedFlowIndex struct {
 	Flows  map[string]indexedFlow
 }
 
-// storedFlowIndex returns every stored flow, decoding only the ones whose unit
-// file changed since the index recorded it. ok is false when the backend has
-// no unit stamps (MPR v1), and callers then list the flows as before.
+// unitHashBackend reports every unit's ContentsHash (the modelsdk backend).
+type unitHashBackend interface {
+	UnitContentHashes() (map[string]string, error)
+	ListNanoflowHeaders() ([]types.DocumentHeader, error)
+}
+
+// storedFlowIndex returns every stored flow, decoding only the ones whose
+// contents changed since the index recorded them. ok is false when the
+// backend cannot report unit hashes, and callers then list the flows as before.
 func storedFlowIndex(ctx *ExecContext) (flows []indexedFlow, ok bool) {
-	b, isStamper := ctx.Backend.(unitStampBackend)
-	if !isStamper {
+	b, isHasher := ctx.Backend.(unitHashBackend)
+	if !isHasher {
 		return nil, false
 	}
-	stamps, err := b.UnitStamps()
-	if err != nil || len(stamps) == 0 {
+	hashes, err := b.UnitContentHashes()
+	if err != nil || len(hashes) == 0 {
 		return nil, false
+	}
+	mfs, err := microflowHeaders(ctx)
+	if err != nil {
+		return nil, false
+	}
+	nfs, err := b.ListNanoflowHeaders()
+	if err != nil {
+		return nil, false
+	}
+	type current struct {
+		kind      string
+		container model.ID
+		hash      string
+	}
+	now := make(map[string]current, len(mfs)+len(nfs))
+	for _, h := range mfs {
+		now[string(h.ID)] = current{"microflow", h.ContainerID, hashes[string(h.ID)]}
+	}
+	for _, h := range nfs {
+		now[string(h.ID)] = current{"nanoflow", h.ContainerID, hashes[string(h.ID)]}
 	}
 
 	var known map[string]indexedFlow
@@ -62,35 +87,29 @@ func storedFlowIndex(ctx *ExecContext) (flows []indexedFlow, ok bool) {
 		known = loadFlowIndex(ctx)
 	}
 
-	next := make(map[string]indexedFlow, len(known))
+	next := make(map[string]indexedFlow, len(now))
 	var stale []string
-	for _, s := range stamps {
-		kind := flowKindOf(s.Type)
-		if kind == "" {
+	for id, c := range now {
+		e, have := known[id]
+		if !have || c.hash == "" || e.Hash != c.hash || e.Kind != c.kind {
+			stale = append(stale, id)
 			continue
 		}
-		e, have := known[s.ID]
-		if !have || s.MtimeNs == -1 || e.Size != s.Size || e.MtimeNs != s.MtimeNs {
-			stale = append(stale, s.ID)
-			continue
-		}
-		e.containerID = model.ID(s.ContainerID)
-		next[s.ID] = e
+		e.containerID = c.container
+		next[id] = e
 	}
 	if len(stale) > 0 {
 		fresh, err := decodeFlowEntries(ctx, stale)
 		if err != nil {
 			return nil, false
 		}
-		byID := map[string]indexedFlow{}
 		for id, e := range fresh {
-			byID[id] = e
-		}
-		for _, s := range stamps {
-			if e, ok := byID[s.ID]; ok {
-				e.Size, e.MtimeNs, e.containerID = s.Size, s.MtimeNs, model.ID(s.ContainerID)
-				next[s.ID] = e
+			c, ok := now[id]
+			if !ok {
+				continue
 			}
+			e.Hash, e.containerID = c.hash, c.container
+			next[id] = e
 		}
 		saveFlowIndex(ctx, next)
 	}

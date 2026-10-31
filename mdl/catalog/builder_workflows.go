@@ -32,6 +32,9 @@ func (b *Builder) buildWorkflows() error {
 
 	count := 0
 	for _, wf := range wfs {
+		if !b.own(string(wf.ID)) {
+			continue
+		}
 		moduleID := b.hierarchy.findModuleID(wf.ContainerID)
 		moduleName := b.hierarchy.getModuleName(moduleID)
 		qualifiedName := moduleName + "." + wf.Name
@@ -66,6 +69,7 @@ func (b *Builder) buildWorkflows() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Workflows", count)
 	return nil

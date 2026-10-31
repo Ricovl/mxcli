@@ -24,7 +24,7 @@ import (
 // events drive complexity). Full per-activity detail (DESCRIBE) is a later phase.
 
 func (b *Backend) ListMicroflows() ([]*microflows.Microflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMf.Microflow](b.reader)
+	units, err := listUnits[*genMf.Microflow](b)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +54,11 @@ func (b *Backend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, err
 // Excluded flag without decoding any flow.
 func (b *Backend) ListMicroflowHeaders() ([]types.DocumentHeader, error) {
 	return documentHeaders[*genMf.Microflow](b)
+}
+
+// ListNanoflowHeaders is ListMicroflowHeaders for nanoflows.
+func (b *Backend) ListNanoflowHeaders() ([]types.DocumentHeader, error) {
+	return documentHeaders[*genMf.Nanoflow](b)
 }
 
 // documentHeaders lists the headers of every unit of type T from the reader's
@@ -124,7 +129,7 @@ func (b *Backend) IsRule(qualifiedName string) (bool, error) {
 }
 
 func (b *Backend) ListNanoflows() ([]*microflows.Nanoflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMf.Nanoflow](b.reader)
+	units, err := listUnits[*genMf.Nanoflow](b)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +194,7 @@ func nanoflowFromGen(nf *genMf.Nanoflow, containerID model.ID) *microflows.Nanof
 // so it is deliberately absent from ListMicroflows — SHOW MICROFLOWS lists
 // microflows only, as it already does for nanoflows and workflows.
 func (b *Backend) ListRules() ([]*microflows.Rule, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMf.Rule](b.reader)
+	units, err := listUnits[*genMf.Rule](b)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +206,7 @@ func (b *Backend) ListRules() ([]*microflows.Rule, error) {
 }
 
 func (b *Backend) GetRule(id model.ID) (*microflows.Rule, error) {
-	units, err := mprread.ListUnitsWithContainer[*genMf.Rule](b.reader)
+	units, err := listUnits[*genMf.Rule](b)
 	if err != nil {
 		return nil, err
 	}

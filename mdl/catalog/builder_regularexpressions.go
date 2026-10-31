@@ -16,7 +16,7 @@ import (
 // from what is stored — notably the pattern's BSON key, which modelsdk/gen gets
 // wrong (see mdl/regularexpressions).
 func (b *Builder) buildRegularExpressions() error {
-	units, err := b.reader.ListRawUnitsByType(regex.TypeName)
+	units, err := b.lister().ListRawUnitsByType(regex.TypeName)
 	if err != nil {
 		return err
 	}
@@ -36,6 +36,9 @@ func (b *Builder) buildRegularExpressions() error {
 
 	count := 0
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc bson.M
 		if err := bsoncompat.UnmarshalDocM(u.Contents, &doc); err != nil {
 			continue
@@ -56,6 +59,7 @@ func (b *Builder) buildRegularExpressions() error {
 		}
 		count++
 	}
+	b.disown()
 
 	b.report("Regular Expressions", count)
 	return b.collectRegexRuleRefs()
@@ -63,7 +67,7 @@ func (b *Builder) buildRegularExpressions() error {
 
 // regexRuleRef is one entity → regular-expression edge, held until
 // buildReferences.
-type regexRuleRef struct{ entityQualifiedName, moduleName, regexQualifiedName, unit string }
+type regexRuleRef struct{ owner, entityQualifiedName, moduleName, regexQualifiedName string }
 
 // collectRegexRuleRefs walks stored domain models for attribute validation
 // rules of type DomainModels$RegExRuleInfo and records the regex each one uses.
@@ -78,11 +82,14 @@ type regexRuleRef struct{ entityQualifiedName, moduleName, regexQualifiedName, u
 // restricted to ENTITY/MICROFLOW/NANOFLOW/PAGE/SNIPPET, so a regex was never
 // reported dead in the first place.
 func (b *Builder) collectRegexRuleRefs() error {
-	units, err := b.rawUnits("DomainModels$DomainModel")
+	units, err := b.lister().ListRawUnitsByType("DomainModels$DomainModel")
 	if err != nil {
 		return nil // domain models are catalogued elsewhere; a read failure is reported there
 	}
 	for _, u := range units {
+		if !b.own(string(u.ID)) {
+			continue
+		}
 		var doc bson.M
 		if bsoncompat.UnmarshalDocM(u.Contents, &doc) != nil {
 			continue
@@ -100,14 +107,15 @@ func (b *Builder) collectRegexRuleRefs() error {
 			}
 			for _, target := range regexRuleTargets(em["ValidationRules"]) {
 				b.regexRuleRefs = append(b.regexRuleRefs, regexRuleRef{
+					owner:               b.currentOwner(),
 					entityQualifiedName: moduleName + "." + entityName,
 					moduleName:          moduleName,
 					regexQualifiedName:  target,
-					unit:                string(u.ID),
 				})
 			}
 		}
 	}
+	b.disown()
 	return nil
 }
 

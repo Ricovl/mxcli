@@ -1257,9 +1257,20 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// — where HttpRequest extends HttpMessage and HttpHeaders has child
 		// HttpMessage — are still classified as reverse traversal (which returns
 		// a list, so the output variable is typed accordingly below).
+		//
+		// Which end it starts from is the rule a spliced fragment and check
+		// --references take (associationRetrieveEndFrom). A self-reference is
+		// followed from its FROM end, never the child side: it used to be read
+		// as a reverse traversal, typed as a list unless an object use followed,
+		// and a list use of it was written and failed the build with CE0013 /
+		// CE0097 / CE0100 (ako/mxcli#1793, measured on 11.13.0). A specialization
+		// of both ends of an association between two entities stays read from
+		// the child side, as before: which end Mendix takes there is not
+		// measured, and the fragment and the check leave it untyped.
+		startEnd := fb.associationRetrieveEndFrom(startVarType, assocInfo)
 		startsFromChildSide := assocInfo != nil &&
 			assocInfo.childEntityQN != "" &&
-			fb.entityIsSubtypeOf(startVarType, assocInfo.childEntityQN)
+			(startEnd == assocEndTo || startEnd == assocEndAmbiguous)
 
 		// The `$var/Module.Assoc` syntax is a retrieve-by-association (in-memory).
 		// Keep it as an AssociationRetrieveSource — that is what preserves the
@@ -1272,6 +1283,8 @@ func (fb *flowBuilder) addRetrieveAction(s *ast.RetrieveStmt) model.ID {
 		// SINGLE object in Mendix (mxbuild reports CE0100 when it feeds a loop or
 		// aggregate), so there is no in-memory way to obtain the list — fall back
 		// to a DatabaseRetrieveSource. Object usage stays an association retrieve.
+		// A self-reference is never a reverse traversal (startsFromChildSide), so
+		// it never takes this branch.
 		expandReverseReference := assocInfo != nil &&
 			assocInfo.Type == domainmodel.AssociationTypeReference &&
 			assocInfo.Owner == domainmodel.AssociationOwnerBoth &&
@@ -1941,21 +1954,10 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 		ErrorHandlingType: fb.ehType(s.ErrorHandling),
 	}
 
-	// Track output variable type for operations that preserve/produce list types
+	// The output holds what the operation keeps of its input list.
 	if fb.varTypes != nil && s.OutputVariable != "" && s.InputVariable != "" {
-		inputType := fb.varTypes[s.InputVariable]
-		switch s.Operation {
-		case ast.ListOpFilter, ast.ListOpSort, ast.ListOpTail, ast.ListOpUnion, ast.ListOpIntersect, ast.ListOpSubtract, ast.ListOpRange:
-			// These operations preserve the list type
-			if inputType != "" {
-				fb.varTypes[s.OutputVariable] = inputType
-			}
-		case ast.ListOpHead, ast.ListOpFind:
-			// These return a single element (remove "List of " prefix)
-			if after, ok := strings.CutPrefix(inputType, "List of "); ok {
-				fb.varTypes[s.OutputVariable] = after
-			}
-			// CONTAINS and EQUALS return Boolean, no need to track
+		if t := listOperationResult(operation).typeFrom(fb.varTypes[s.InputVariable]); t != "" {
+			fb.varTypes[s.OutputVariable] = t
 		}
 	}
 
@@ -1975,6 +1977,80 @@ func (fb *flowBuilder) addListOperationAction(s *ast.ListOperationStmt) model.ID
 	fb.posX += fb.spacing
 	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.OutputVariable)
 	return activity.ID
+}
+
+// listResult is what a list operation's output holds, as against the list it
+// reads.
+type listResult int
+
+const (
+	listResultNone    listResult = iota // a Boolean: contains, equals
+	listResultList                      // the list itself: filter, sort, tail, union, intersect, subtract, range
+	listResultElement                   // one object of it: head, find
+)
+
+// listOperationResult says what op's output holds. It reads the operation,
+// not the statement, so a stored list operation's output can be typed the way
+// the full build (addListOperationAction) types it (ako/mxcli#1777).
+func listOperationResult(op microflows.ListOperation) listResult {
+	switch op.(type) {
+	case *microflows.FilterOperation, *microflows.FilterByAttributeOperation, *microflows.SortOperation,
+		*microflows.TailOperation, *microflows.UnionOperation, *microflows.IntersectOperation,
+		*microflows.SubtractOperation, *microflows.ListRangeOperation:
+		return listResultList
+	case *microflows.HeadOperation, *microflows.FindOperation, *microflows.FindByAttributeOperation:
+		return listResultElement
+	}
+	return listResultNone
+}
+
+// typeFrom is the type an output holding r has when the list it reads has
+// inputType ("List of Module.Entity"); "" when that is not known or the
+// output holds no entity.
+func (r listResult) typeFrom(inputType string) string {
+	switch r {
+	case listResultList:
+		return inputType
+	case listResultElement:
+		if elem, ok := strings.CutPrefix(inputType, "List of "); ok {
+			return elem
+		}
+	}
+	return ""
+}
+
+// listOperationInput is the list op reads: the first of the two a union,
+// intersect, subtract or equals reads, whose type the output takes.
+func listOperationInput(op microflows.ListOperation) string {
+	switch o := op.(type) {
+	case *microflows.HeadOperation:
+		return o.ListVariable
+	case *microflows.TailOperation:
+		return o.ListVariable
+	case *microflows.FindOperation:
+		return o.ListVariable
+	case *microflows.FilterOperation:
+		return o.ListVariable
+	case *microflows.FindByAttributeOperation:
+		return o.ListVariable
+	case *microflows.FilterByAttributeOperation:
+		return o.ListVariable
+	case *microflows.SortOperation:
+		return o.ListVariable
+	case *microflows.ListRangeOperation:
+		return o.ListVariable
+	case *microflows.ContainsOperation:
+		return o.ListVariable
+	case *microflows.UnionOperation:
+		return o.ListVariable1
+	case *microflows.IntersectOperation:
+		return o.ListVariable1
+	case *microflows.SubtractOperation:
+		return o.ListVariable1
+	case *microflows.EqualsOperation:
+		return o.ListVariable1
+	}
+	return ""
 }
 
 func (fb *flowBuilder) listAttributeOperation(s *ast.ListOperationStmt, filter bool) microflows.ListOperation {
@@ -2117,23 +2193,9 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 	}
 
 	// Declare the result so a later SET on it is accepted, as the validate path
-	// already does (mendixlabs/mxcli#1413). SUM/MIN/MAX follow the attribute's
-	// type, which is not resolved here, so they stay Unknown.
+	// already does (mendixlabs/mxcli#1413).
 	if fb.declaredVars != nil && s.OutputVariable != "" {
-		resultType := "Unknown"
-		switch s.Operation {
-		case ast.AggregateCount:
-			resultType = "Integer"
-		case ast.AggregateAverage:
-			resultType = "Decimal"
-		case ast.AggregateAll, ast.AggregateAny:
-			resultType = "Boolean"
-		case ast.AggregateReduce:
-			if s.ReturnType != nil {
-				resultType = s.ReturnType.Kind.String()
-			}
-		}
-		fb.declaredVars[s.OutputVariable] = resultType
+		fb.declaredVars[s.OutputVariable] = aggregateResultType(action.Function, action.ReduceReturnType)
 	}
 
 	activity := &microflows.ActionActivity{
@@ -2152,6 +2214,28 @@ func (fb *flowBuilder) addAggregateListAction(s *ast.AggregateListStmt) model.ID
 	fb.posX += fb.spacing
 	fb.finishCustomErrorHandler(activity.ID, activityX, s.ErrorHandling, s.OutputVariable)
 	return activity.ID
+}
+
+// aggregateResultType is the primitive an aggregate's output holds: Integer
+// for a count, Decimal for an average, Boolean for all and any, a reduce's
+// return type. A sum, minimum or maximum follows the attribute's type, which
+// is not resolved here, so it is Unknown. It reads the action, not the
+// statement, so a stored aggregate's output can be typed the way the full
+// build (addAggregateListAction) types it (ako/mxcli#1777).
+func aggregateResultType(fn microflows.AggregateFunction, reduceReturnType microflows.DataType) string {
+	switch fn {
+	case microflows.AggregateFunctionCount:
+		return "Integer"
+	case microflows.AggregateFunctionAverage:
+		return "Decimal"
+	case microflows.AggregateFunctionAll, microflows.AggregateFunctionAny:
+		return "Boolean"
+	case microflows.AggregateFunctionReduce:
+		if reduceReturnType != nil {
+			return reduceReturnType.GetTypeName()
+		}
+	}
+	return "Unknown"
 }
 
 // addCreateListAction creates a CREATE LIST OF statement.
@@ -2831,6 +2915,63 @@ func (fb *flowBuilder) lookupAssociation(moduleName, assocName string) *assocLoo
 		}
 	}
 	return nil
+}
+
+// associationRetrieveEndFrom is the end of info a retrieve over it starts from
+// when its start variable holds startType, by associationRetrieveEnd — the
+// rule the full build, a spliced fragment and check --references share. A
+// self-reference is followed from its FROM end (ako/mxcli#1793).
+func (fb *flowBuilder) associationRetrieveEndFrom(startType string, info *assocLookupResult) assocRetrieveEnd {
+	if info == nil {
+		return assocEndNone
+	}
+	return associationRetrieveEnd(
+		fb.entityIsSubtypeOf(startType, info.parentEntityQN),
+		fb.entityIsSubtypeOf(startType, info.childEntityQN),
+		info.parentEntityQN != "" && info.parentEntityQN == info.childEntityQN)
+}
+
+// associationRetrieveType is what `retrieve $X from $Start/assocQN` binds when
+// $Start holds startType ("Module.Entity"): the list or the object at the
+// other end, by associationRetrieveEndFrom and associationRetrieveYieldsList —
+// the answer addRetrieveAction and check --references take. Mind the
+// inversion: an association's parent is its FROM end and its child the TO end,
+// so a retrieve from the TO end yields the FROM entity. A self-reference is
+// followed from its FROM end: the object a reference holds, the list a
+// reference set holds (measured on 11.13.0, ako/mxcli#1777). "" when it cannot
+// be established: the association or the start unknown, the start a list, the
+// start no end of it, or a specialization of both ends of an association
+// between two entities, where which end it starts from is not known.
+func (fb *flowBuilder) associationRetrieveType(startType, assocQN string) string {
+	if startType == "" || strings.HasPrefix(startType, "List of ") {
+		return ""
+	}
+	module, name, ok := strings.Cut(assocQN, ".")
+	if !ok || module == "" || name == "" {
+		return ""
+	}
+	info := fb.lookupAssociation(module, name)
+	if info == nil || info.parentEntityQN == "" || info.childEntityQN == "" {
+		return ""
+	}
+	refSet := info.Type == domainmodel.AssociationTypeReferenceSet
+	var fromTo bool
+	switch fb.associationRetrieveEndFrom(startType, info) {
+	case assocEndFrom:
+		fromTo = false
+	case assocEndTo:
+		fromTo = true
+	default:
+		return ""
+	}
+	other := info.childEntityQN
+	if fromTo {
+		other = info.parentEntityQN
+	}
+	if associationRetrieveYieldsList(refSet, info.Owner == domainmodel.AssociationOwnerBoth, fromTo) {
+		return "List of " + other
+	}
+	return other
 }
 
 // qualifyIteratorAttributes rewrites a bare attribute name in a FILTER/FIND

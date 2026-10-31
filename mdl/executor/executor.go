@@ -68,11 +68,12 @@ type executorCache struct {
 	// retaining decoded domain models would consume substantially more memory.
 	entityNames     map[model.ID]string          // entity ID -> "Module.EntityName"
 	entityEnumAttrs map[string]map[string]string // entity name -> attribute -> enum name
+	microflowNames  map[model.ID]string          // microflow ID -> "Module.MicroflowName"
 	pageNames       map[model.ID]string          // page ID -> "Module.PageName"
 	layoutNames     map[model.ID]string          // layout ID -> "Module.LayoutName"
 
 	// flowIndex holds the flow signature index between calls in a run; each
-	// call still checks every entry against its unit's stamp.
+	// call still checks every entry against its unit's hash.
 	flowIndex map[string]indexedFlow
 }
 
@@ -117,6 +118,28 @@ type droppedUnitInfo struct {
 	ID           model.ID
 	ContainerID  model.ID
 	AllowedRoles []model.ID
+}
+
+// getMicroflowNames returns the microflow name lookup map, using the pre-warmed cache if available.
+func getMicroflowNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
+	if ctx.Cache != nil && len(ctx.Cache.microflowNames) > 0 {
+		return ctx.Cache.microflowNames
+	}
+	microflowNames := make(map[model.ID]string)
+	mfs, err := microflowHeaders(ctx)
+	if err != nil {
+		if ctx.Logger != nil {
+			ctx.Logger.Warn("getMicroflowNames: ListMicroflows failed", "error", err)
+		}
+		return microflowNames
+	}
+	for _, mf := range mfs {
+		microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
+	}
+	if ctx.Cache != nil {
+		ctx.Cache.microflowNames = microflowNames
+	}
+	return microflowNames
 }
 
 // getEntityNames returns the entity name lookup map, using the pre-warmed cache if available.
@@ -171,7 +194,7 @@ func getPageNames(ctx *ExecContext, h *ContainerHierarchy) map[model.ID]string {
 		return ctx.Cache.pageNames
 	}
 	pageNames := make(map[model.ID]string)
-	pgs, err := ctx.Backend.ListPages()
+	pgs, err := pageHeaders(ctx)
 	if err != nil {
 		if ctx.Logger != nil {
 			ctx.Logger.Warn("getPageNames: ListPages failed", "error", err)
@@ -337,6 +360,12 @@ type Executor struct {
 	untimedMu        sync.Mutex                         // protects untimed
 	untimed          *untimedWork                       // the running statement's untimed-work tracker (see untimed_work.go)
 	catalogGen       uint64                             // monotonic generation counter for catalog swaps
+
+	// Files changed beside the model (ako/mxcli#1618): a program run's, for
+	// its summary line, and whether the caller wants them reported at all —
+	// not when its writes are temporary (SetSourceFileReport).
+	sourceFiles        sourceFileLog
+	noSourceFileReport bool
 }
 
 // New creates a new executor with the given output writer.
@@ -847,11 +876,18 @@ func (e *Executor) beginTally() bool {
 	if e.tally == nil {
 		e.tally = &mutationTally{}
 	}
-	return e.tally.begin()
+	owns := e.tally.begin()
+	if owns {
+		e.sourceFiles.begin()
+	}
+	return owns
 }
 
-// flushTally writes the run's one-line summary and stands the tally down.
+// flushTally writes the run's one-line summaries and stands the tally down.
+// The files changed beside the model come last: what to stage is the line a
+// reader should finish on.
 func (e *Executor) flushTally() {
 	e.tally.flush(e.output)
+	e.sourceFiles.flush(e.output)
 	e.tally.end()
 }

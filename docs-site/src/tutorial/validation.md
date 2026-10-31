@@ -44,7 +44,7 @@ This catches everything Level 1 catches, plus:
 - Page layouts that don't exist in the project
 - Association endpoints pointing to missing entities
 - A plain `create` whose name already exists in the project
-- A statement the project's Mendix version cannot store (`MDL-VERSION01`, e.g. `create view entity` below 10.18) — the same version gates `exec` refuses with
+- A statement the project's Mendix version cannot store (`MDL-VERSION01`, e.g. `create view entity` below 10.21) — the same version gates `exec` refuses with
 
 This is the check you should run before executing a script. It's fast (reads the project but doesn't modify it) and catches most mistakes.
 
@@ -98,7 +98,7 @@ This runs Mendix's own `mx check` tool on a temporary copy of the project. It pe
 
 - BSON serialization errors (malformed internal data)
 - Security configuration problems (missing access rules, CE0066 errors)
-- Widget definition mismatches (CE0463 errors)
+- Widget definition mismatches (CE0463 errors), each labelled either a *stale widget definition*, which `mxcli fix widgets` clears, or one that *persists after update-widgets*
 - Missing required properties on widgets
 - Broken cross-references between documents
 

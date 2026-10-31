@@ -51,6 +51,19 @@ version you actually have at the moment you create the widget.
    rules** and applies them, so a freshly-created widget carries exactly the defaults
    Studio Pro would give it.
 
+   A property the widget hides must hold its default, or the build fails with CE0463.
+   So a hidden property you leave out is written at its default; one you set to its
+   default draws an MDL-WIDGET10 warning (the value is ignored); and one you set to
+   anything else is an MDL-WIDGET10 **error**, which `exec` refuses before writing.
+   `describe` leaves out a hidden property that holds its default. For example, a
+   Timeline grouped by `'day'` hides `groupByMonthOptions`, and one with
+   `customVisualization: true` hides both format enumerations.
+
+   This only covers rules mxcli recognises. `mxcli widget describe <name> -p app.mpr`
+   ends with "*N* of *M* editor hide-rules recognized". A rule it cannot read hides
+   nothing as far as `check` knows, so a value set behind one reaches `mx check`
+   unwarned.
+
 The result: widgets created by mxcli open cleanly across Mendix 10.x and 11.x with the
 widget packages bundled with those releases — verified on Mendix 11.12 with Data
 Widgets 3.4: a project authored entirely by mxcli reports **0** CE0463.
@@ -90,9 +103,11 @@ This changed during the beta. Earlier builds rebuilt every pluggable widget of a
 rewritten page from the installed `.mpk`, so re-running `describe` output also
 upgraded it — and usually cleared its CE0463 — while silently resetting whatever the
 statement could not say (a specialized column binding, a row click). If a script
-relied on that side effect to clear CE0463, run `mxcli fix widgets` instead;
-`mxcli docker check` passing is not enough, because it updates the widgets of a
-temporary copy only (`--no-update-widgets` checks the project as stored).
+relied on that side effect to clear CE0463, run `mxcli fix widgets` instead.
+`mxcli docker check` checks the project as stored and labels each CE0463 a widget
+resync would clear as a *stale widget definition*, so it shows which ones
+`mxcli fix widgets` fixes (`--update-widgets` checks a resynced copy only, and
+hides them).
 
 **Two widgets do not yet author cleanly against Data Widgets 3.10+.** Freshly created
 `gallery` and `dropdownfilter` widgets produce CE0463 on those packages; `datagrid2`,

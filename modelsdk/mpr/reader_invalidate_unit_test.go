@@ -5,9 +5,37 @@ package mpr
 import (
 	"bytes"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
+	"time"
 )
+
+// copyV2Fixture copies the expr-checker project with every file's mtime set
+// an hour back, so nothing is racily clean, and an empty .mxcli/ to persist in.
+func copyV2Fixture(t *testing.T) (mprPath string, units []string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS("../../testdata/expr-checker")); err != nil {
+		t.Fatalf("copy fixture: %v", err)
+	}
+	_ = os.RemoveAll(filepath.Join(dir, ".mxcli"))
+	if err := os.Mkdir(filepath.Join(dir, ".mxcli"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Hour)
+	_ = filepath.WalkDir(filepath.Join(dir, "mprcontents"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasSuffix(p, ".mxunit") {
+			units = append(units, p)
+			_ = os.Chtimes(p, old, old)
+		}
+		return nil
+	})
+	return filepath.Join(dir, "minimal.mpr"), units
+}
 
 // unitCacheSnapshot is the unit cache as sorted lines, order-independent.
 func unitCacheSnapshot(t *testing.T, r *Reader) []string {

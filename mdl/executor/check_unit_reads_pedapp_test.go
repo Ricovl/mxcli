@@ -70,15 +70,15 @@ func TestCheckPasses_ReadEachUnitFileOnce(t *testing.T) {
 		t.Fatalf("parse: %v", errs[0])
 	}
 
-	// Even without the cache, the verdict pass reads fewer files than the
-	// project has: its lookups by name and ID answer from the reader's header
-	// index and read only the units they return. It read 2,928 files of 381
-	// when each lookup filtered every microflow on disk; restoring that scan in
-	// ListMicroflowsNamed alone fails this.
+	// Control: the verdict pass without the cache reads the re-declared flows
+	// over and over. It used to read more files than the project has; since
+	// the unit index names flows without opening them (ako/mxcli#1791) it
+	// reads only flows it looks up, but each of them several times — 103
+	// reads for these 12 flows, against 12 with the cache.
 	before := unitFileReads(t, exec)
 	CheckFlowVerdicts(exec.newExecContext(context.Background()), prog)
-	if reads := unitFileReads(t, exec) - before; reads > int64(units) {
-		t.Errorf("the uncached verdict pass read %d unit files; the project has %d", reads, units)
+	if reads := unitFileReads(t, exec) - before; reads <= 2*n {
+		t.Fatalf("control: the uncached verdict pass read %d files for %d flows; the bound below would prove nothing", reads, n)
 	}
 
 	passes := []struct {
@@ -95,6 +95,9 @@ func TestCheckPasses_ReadEachUnitFileOnce(t *testing.T) {
 		p.run()
 		if reads := unitFileReads(t, exec) - before; reads > int64(units) {
 			t.Errorf("%s read %d unit files for %d re-declared flows; the project has %d", p.name, reads, n, units)
+		}
+		if reads := unitFileReads(t, exec) - before; p.name == "CheckFlowVerdicts" && reads > n {
+			t.Errorf("%s read %d unit files for %d re-declared flows; each needs reading once", p.name, reads, n)
 		}
 	}
 

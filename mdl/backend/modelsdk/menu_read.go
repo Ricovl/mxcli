@@ -8,7 +8,6 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 	genMenus "github.com/mendixlabs/mxcli/modelsdk/gen/menus"
-	"github.com/mendixlabs/mxcli/modelsdk/mprread"
 )
 
 // ListMenuDocuments reads every standalone Menus$MenuDocument unit.
@@ -22,7 +21,7 @@ func (b *Backend) ListMenuDocuments() ([]*types.MenuDocument, error) {
 	if b.reader == nil {
 		return nil, fmt.Errorf("ListMenuDocuments: not connected")
 	}
-	units, err := mprread.ListUnitsWithContainerCached[*genMenus.MenuDocument](b.reader)
+	units, err := listUnitsCached[*genMenus.MenuDocument](b)
 	if err != nil {
 		return nil, err
 	}

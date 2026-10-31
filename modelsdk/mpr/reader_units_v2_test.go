@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
@@ -16,9 +15,9 @@ import (
 // mendixlabs/mxcli#1603: on MPR v2 the first listing of a process opened every
 // unit file in mprcontents/ to learn its $Type, and threw the bytes away —
 // `describe microflow` read 393 of a blank app's 394 files — and every write
-// made the next listing do it again. The unit index (reader_unit_index.go)
-// keys each unit's $Type by its file's size and mtime, so only a changed unit
-// is opened, and it is persisted under .mxcli/ so the next process starts warm.
+// made the next listing do it again. The type index is keyed by the Unit
+// table's ContentsHash, so only a unit whose hash it has not seen is opened,
+// and it is persisted under .mxcli/ so the next process starts warm.
 
 // v2Project is a minimal MPR v2 project on disk: a Unit table plus one
 // .mxunit file per unit, laid out as Studio Pro lays them out.
@@ -48,26 +47,9 @@ func newV2Project(t *testing.T) *v2Project {
 	`); err != nil {
 		t.Fatalf("create Unit table: %v", err)
 	}
-	if err := os.Mkdir(filepath.Join(root, ".mxcli"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	p.db = db
 	return p
 }
-
-// stampAge sets a unit file's mtime that far back, out of the racily-clean
-// window: a file written this instant is re-read every time, which would let
-// every test here pass without the index.
-func (p *v2Project) stampAge(t *testing.T, id string, age time.Duration) {
-	t.Helper()
-	at := time.Now().Add(-age)
-	if err := os.Chtimes(p.unitPath(id), at, at); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// opened is every unit file the reader read: to index it or to return it.
-func opened(r *Reader) int64 { return r.UnitFileReads() + r.UnitHeaderReads() }
 
 // add stores a unit the way the reader finds it: the file under the path
 // readMprContents builds from the cache's ID, the row with its ContentsHash.
@@ -87,7 +69,6 @@ func (p *v2Project) add(t *testing.T, i int, typ string) string {
 		blob, uuidToBlob("11111111-2222-3333-4444-555555555555"), hashOf(doc)); err != nil {
 		t.Fatalf("insert unit row: %v", err)
 	}
-	p.stampAge(t, id, time.Hour)
 	return id
 }
 
@@ -103,7 +84,6 @@ func (p *v2Project) rewrite(t *testing.T, id string, doc []byte) {
 	if err := os.WriteFile(p.unitPath(id), doc, 0o644); err != nil {
 		t.Fatalf("rewrite unit: %v", err)
 	}
-	p.stampAge(t, id, 30*time.Minute)
 	if _, err := p.db.Exec(`UPDATE Unit SET ContentsHash = ? WHERE UnitID = ?`, hashOf(doc), uuidToBlob(id)); err != nil {
 		t.Fatalf("update hash: %v", err)
 	}
@@ -160,7 +140,7 @@ func TestListUnitsV2_SecondProcessOpensOnlyTheMatches(t *testing.T) {
 		t.Fatalf("first reader listed %d modules, want 1", got)
 	}
 	// The cold reader has no choice: it has never seen these hashes.
-	if got := opened(first); got < n {
+	if got := first.UnitFileReads(); got < n {
 		t.Fatalf("control: the cold listing read %d files, want >= %d (the fixture does not exercise the index)", got, n)
 	}
 
@@ -168,7 +148,7 @@ func TestListUnitsV2_SecondProcessOpensOnlyTheMatches(t *testing.T) {
 	if got := len(listModules(t, second)); got != 1 {
 		t.Fatalf("second reader listed %d modules, want 1", got)
 	}
-	if got := opened(second); got != 1 {
+	if got := second.UnitFileReads(); got != 1 {
 		t.Errorf("a listing of one module in a fresh process read %d unit files, want 1 (#1603: every unit was opened to learn its $Type)", got)
 	}
 }
@@ -182,15 +162,15 @@ func TestListUnitsV2_RebuildAfterWriteOpensOnlyTheChange(t *testing.T) {
 
 	p.add(t, n+1, "Microflows$Microflow") // a new unit
 	r.InvalidateCache()
-	before := opened(r)
+	before := r.UnitFileReads()
 	listModules(t, r)
-	if got := opened(r) - before; got != 2 {
+	if got := r.UnitFileReads() - before; got != 2 {
 		t.Errorf("a listing after one insert read %d unit files, want 2 (the new unit to type it, the module to return it)", got)
 	}
 }
 
-// A unit whose bytes change type — mxcli re-types elements in place (#503) —
-// is listed under its new type.
+// The index is keyed by content, not by unit: a unit whose bytes change type
+// — mxcli re-types elements in place (#503) — is listed under its new type.
 func TestListUnitsV2_RetypedUnitIsSeenUnderItsNewType(t *testing.T) {
 	p, _ := seedProject(t, 3)
 	r := p.reader()
@@ -212,11 +192,28 @@ func TestListUnitsV2_RetypedUnitIsSeenUnderItsNewType(t *testing.T) {
 	}
 }
 
+// A unit with no ContentsHash cannot be keyed, so it is read every time — the
+// pre-index behaviour, never a wrong type.
+func TestListUnitsV2_UnhashedUnitIsAlwaysRead(t *testing.T) {
+	p, _ := seedProject(t, 3)
+	if _, err := p.db.Exec(`UPDATE Unit SET ContentsHash = ''`); err != nil {
+		t.Fatal(err)
+	}
+	listModules(t, p.reader())
+	r := p.reader()
+	if got := len(listModules(t, r)); got != 1 {
+		t.Fatalf("listed %d modules, want 1", got)
+	}
+	if got := r.UnitFileReads(); got < 4 {
+		t.Errorf("unhashed units read %d times, want every unit typed from its file (>= 4)", got)
+	}
+}
+
 // A corrupt index file is a cold start, not an error and not a wrong answer.
 func TestListUnitsV2_CorruptIndexIsIgnored(t *testing.T) {
 	p, _ := seedProject(t, 3)
 	listModules(t, p.reader())
-	idx := filepath.Join(p.root, ".mxcli", "unit-index")
+	idx := filepath.Join(p.root, ".mxcli", unitTypeIndexName)
 	if _, err := os.Stat(idx); err != nil {
 		t.Fatalf("the index was not persisted at %s: %v", idx, err)
 	}
@@ -228,9 +225,10 @@ func TestListUnitsV2_CorruptIndexIsIgnored(t *testing.T) {
 	}
 }
 
-// A unit file changed behind the Unit table's back (a writer between its file
-// rename and its hash update, a rolled-back write, a checkout) is typed by what
-// the file holds, both ways: the index does not trust the row's hash.
+// A reader that catches a unit between a writer's file rename and its hash
+// update sees new bytes under the old hash. Learning that pair would list the
+// unit under the wrong type once the old bytes are back — a rolled-back write,
+// a checkout — so the index learns the hash of what it read.
 func TestListUnitsV2_FileAheadOfItsHashTeachesNothingWrong(t *testing.T) {
 	p, _ := seedProject(t, 3)
 	unit := p.add(t, 10, "Microflows$Microflow")
@@ -242,7 +240,6 @@ func TestListUnitsV2_FileAheadOfItsHashTeachesNothingWrong(t *testing.T) {
 	if err := os.WriteFile(p.unitPath(unit), typedDoc(t, "Projects$ModuleImpl", "Midway"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p.stampAge(t, unit, 30*time.Minute)
 	if got := len(listModules(t, p.reader())); got != 2 {
 		t.Fatalf("listed %d modules mid-write, want 2 (the file is what is read)", got)
 	}
@@ -250,7 +247,6 @@ func TestListUnitsV2_FileAheadOfItsHashTeachesNothingWrong(t *testing.T) {
 	if err := os.WriteFile(p.unitPath(unit), stored, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	p.stampAge(t, unit, 20*time.Minute)
 	if got := len(listModules(t, p.reader())); got != 1 {
 		t.Errorf("listed %d modules after the write was undone, want 1: the index learnt the stale hash with the new type", got)
 	}

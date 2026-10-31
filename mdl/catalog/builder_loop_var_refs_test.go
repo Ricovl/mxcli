@@ -54,7 +54,7 @@ func TestBuildVarEntityMap_LoopIteratorAndAssociationRetrieve(t *testing.T) {
 		// A loop over a list whose entity is unknown maps nothing.
 		iterLoop("l3", "$Untyped", "X"),
 	}}
-	got := buildVarEntityMap([]*microflows.MicroflowParameter{listParam("Orders", "T.Order")}, oc, ends)
+	got := buildVarEntityMap([]*microflows.MicroflowParameter{listParam("Orders", "T.Order")}, oc, ends, nil)
 	want := map[string]string{
 		"Orders": "T.Order", "Order": "T.Order",
 		"Cust": "T.Customer", "CustOrders": "T.Order", "Sibling": "T.Order",

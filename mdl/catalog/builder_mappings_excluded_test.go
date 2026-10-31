@@ -38,7 +38,7 @@ func twinBuilder(t *testing.T, reader *mock.MockBackend, describe DescribeFunc) 
 			containerParent: map[model.ID]model.ID{},
 			folderNames:     map[model.ID]string{},
 		},
-		tx:           tx,
+		tx:           wrapTx(tx),
 		sourceMode:   describe != nil,
 		describeFunc: describe,
 	}

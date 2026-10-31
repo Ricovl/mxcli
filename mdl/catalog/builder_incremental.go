@@ -3,449 +3,657 @@
 package catalog
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
-	"time"
-
-	"github.com/mendixlabs/mxcli/mdl/types"
-	"github.com/mendixlabs/mxcli/model"
-	"github.com/mendixlabs/mxcli/sdk/microflows"
-	"github.com/mendixlabs/mxcli/sdk/pages"
+	"os"
+	"sort"
+	"strings"
 )
 
-// Incremental refresh: when only existing flows changed since the catalog was
-// built, their rows are deleted and rebuilt instead of the whole catalog.
-// See docs/11-proposals/PROPOSAL_incremental_project_index.md, step 5.
-
-// incrementalTypes are the unit types an incremental refresh adds, rebuilds
-// and removes per unit; a domain model is rebuilt per module, and an added or
-// removed folder holds no rows. Any other change needs a full build.
-var incrementalTypes = map[string]bool{
-	"Microflows$Microflow": true,
-	"Microflows$Nanoflow":  true,
-	"Microflows$Rule":      true,
-	"Forms$Page":           true,
-	"Forms$Snippet":        true,
-}
-
-// domainModelType is rebuilt per module: an edit, not an add or remove (which
-// comes with a module added or removed).
-const domainModelType = "DomainModels$DomainModel"
-
-// createIncrementalTables makes the temp tables the builders' SQL filters on;
-// empty in a full build.
-func createIncrementalTables(tx CatalogTx) error {
-	for _, q := range []string{
-		`CREATE TEMP TABLE IF NOT EXISTS incremental_units (UnitId TEXT PRIMARY KEY)`,
-		`CREATE TEMP TABLE IF NOT EXISTS incremental_modules (Name TEXT, Id TEXT)`,
-	} {
-		if _, err := tx.Exec(q); err != nil {
-			return err
+// deserializeConn replaces conn's main database with data.
+func deserializeConn(conn *sql.Conn, data []byte) error {
+	return conn.Raw(func(dc any) error {
+		d, ok := dc.(interface{ Deserialize([]byte) error })
+		if !ok {
+			return fmt.Errorf("the SQLite driver cannot deserialize")
 		}
-	}
-	return nil
-}
-
-// UnitTables are the tables whose rows carry UnitId, the unit they were built
-// from; an incremental refresh deletes a changed unit's rows from each.
-var UnitTables = []string{
-	"microflows_data", "microflow_parameters_data", "activities_data",
-	"entities_data", "attributes_data", "associations_data", "entity_event_handlers_data",
-	"pages_data", "snippets_data", "widgets_data",
-	"xpath_expressions_data", "permissions", "refs", "strings",
-}
-
-// maxIncrementalUnits bounds an incremental refresh; past it a full build is
-// as cheap and simpler.
-const maxIncrementalUnits = 200
-
-func (b *Builder) incremental() bool { return b.only != nil }
-
-// incrementalFlag is "1" during an incremental refresh, for SQL that filters on it.
-func (b *Builder) incrementalFlag() string {
-	if b.incremental() {
-		return "1"
-	}
-	return ""
-}
-
-// wants reports whether a unit's rows are being (re)built.
-func (b *Builder) wants(unitID string) bool { return b.only == nil || b.only[unitID] }
-
-// rawUnits is ListRawUnitsByType, limited to the changed units when incremental.
-func (b *Builder) rawUnits(typeName string) ([]*types.RawUnit, error) {
-	if !b.incremental() {
-		return b.reader.ListRawUnitsByType(typeName)
-	}
-	r, ok := b.reader.(interface {
-		GetRawUnitBytes(model.ID) ([]byte, error)
+		return d.Deserialize(data)
 	})
-	if !ok {
-		return nil, fmt.Errorf("reader cannot read units by ID")
-	}
-	var out []*types.RawUnit
-	for _, s := range b.onlyStamps {
-		if typeName != "" && s.Type != typeName {
-			continue
-		}
-		contents, err := r.GetRawUnitBytes(model.ID(s.ID))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, &types.RawUnit{ID: model.ID(s.ID), ContainerID: model.ID(s.ContainerID), Type: s.Type, Contents: contents})
-	}
-	return out, nil
 }
 
-// changedFlows decodes only the changed documents of one kind. Never nil: a nil
-// cache means "not loaded" and would load every flow.
-func changedFlows[T any](b *Builder, typeName string, get func(model.ID) (T, error)) ([]T, error) {
-	out := []T{}
-	for _, s := range b.onlyStamps {
-		if s.Type != typeName {
-			continue
-		}
-		v, err := get(model.ID(s.ID))
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, nil
+// Incremental catalog builds (ako/mxcli#1804).
+//
+// A refresh rebuilt every table from every unit after any save, which on a
+// large project is seconds of decoding and inserting rows that are exactly
+// the rows already in the cache. A build now records which unit each row came
+// from (builderTx), and the next build rebuilds only:
+//
+//   - the units whose contents or container changed, were added or removed;
+//   - the units holding a document whose refs name one of them, before or
+//     after the change: a pass resolves names against other documents (an
+//     association's ends, a called flow, an attribute's type), so a document
+//     that names a changed one may write different rows. A specialization
+//     counts as naming whatever its generalization holds, transitively,
+//     because member names resolve through the inheritance chain.
+//
+// The build starts from the cached catalog itself, loaded into memory, and
+// drops the rows of those units and the rows written by no unit (project-wide
+// passes, projections over other tables), which it produces again. Every
+// other unit's rows stay where they are: nothing is copied, decoded or
+// re-indexed for them.
+//
+// Anything the plan cannot vouch for makes it a full build, as before: a
+// change to a unit no per-unit pass reads (project settings, security, a
+// module or folder), another build mode or mxcli build, a schema change, a
+// row written for a document the pass was skipping. Reuse is only ever an
+// optimisation of a full build, never a different answer — the tests compare
+// every table of an incremental build with a forced full one.
+
+// MetaCatalogFingerprint records which mxcli build wrote the catalog's rows.
+const MetaCatalogFingerprint = "catalog_fingerprint"
+
+// SetPreviousCatalog gives the build the cached catalog it may carry rows
+// over from.
+func (b *Builder) SetPreviousCatalog(path string) {
+	b.prevCatalogPath = path
 }
 
-// SetStamps gives a full build the unit stamps it is made from, taken before
-// any unit is read, so a change during the build shows up next time.
-func (b *Builder) SetStamps(stamps []types.UnitStamp) { b.stamps = stamps }
-
-func (b *Builder) writeStamps(stamps []types.UnitStamp) error {
-	stmt, err := b.tx.Prepare(`INSERT OR REPLACE INTO unit_stamps (UnitId, Type, ContainerId, Size, MtimeNs, Digest) VALUES (?, ?, ?, ?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, s := range stamps {
-		digest := ""
-		if s.MtimeNs == -1 {
-			digest = b.unitDigest(s.ID)
-		}
-		if _, err := stmt.Exec(s.ID, s.Type, s.ContainerID, s.Size, s.MtimeNs, digest); err != nil {
-			return err
-		}
-	}
-	return nil
+// SetScopedReader supplies the view an incremental build lists documents
+// from: one holding only the units keep accepts, which reads and decodes no
+// other. Without it the build lists every document and skips the ones whose
+// rows it carries.
+func (b *Builder) SetScopedReader(f func(keep func(unitID string) bool) CatalogReader) {
+	b.scopedReader = f
 }
 
-// unitDigest hashes a unit's file contents; "" when the reader cannot.
-func (b *Builder) unitDigest(id string) string {
-	if d, ok := b.reader.(interface{ UnitContentDigest([]string) string }); ok {
-		return d.UnitContentDigest([]string{id})
-	}
-	return ""
+// SetFingerprint identifies the mxcli build writing the catalog: rows written
+// by another build are never carried over, since it may write them
+// differently.
+func (b *Builder) SetFingerprint(fp string) {
+	b.fingerprint = fp
 }
 
-// StampDiff is how a catalog's unit stamps differ from the current ones.
-type StampDiff struct {
-	Identical bool              // the catalog is current
-	Changed   []types.UnitStamp // flows and domain models to rebuild
-	Removed   []string          // flows whose rows to delete
-	Reason    string            // set when only a full build will do
+// BuildStats says how the last Build went.
+type BuildStats struct {
+	Incremental bool   // rows of unchanged units were carried over
+	Reason      string // why the build was full, when it was
+	Rebuilt     int    // units whose rows were produced again
+	Carried     int    // units whose rows were copied
+	Rounds      int    // incremental passes run (a second one widens the scope)
 }
 
-// DiffStamps compares the catalog's stored unit stamps with now. A racily
-// clean stored stamp is compared by content, through digest. ok is false when
-// the catalog has no stamps (MPR v1, or built before they existed).
-func (c *Catalog) DiffStamps(now []types.UnitStamp, digest func(id string) string) (d StampDiff, ok bool) {
-	type stored struct {
-		types.UnitStamp
-		digest string
-	}
-	old := map[string]stored{}
-	rows, err := c.db.Query(`SELECT UnitId, Type, ContainerId, Size, MtimeNs, COALESCE(Digest, '') FROM unit_stamps`)
-	if err != nil {
-		return d, false
-	}
-	for rows.Next() {
-		var st stored
-		if rows.Scan(&st.ID, &st.Type, &st.ContainerID, &st.Size, &st.MtimeNs, &st.digest) == nil {
-			old[st.ID] = st
-		}
-	}
-	rows.Close()
-	if len(old) == 0 || len(now) == 0 {
-		return d, false
-	}
-
-	identical := len(old) == len(now)
-	seen := make(map[string]bool, len(now))
-	for _, n := range now {
-		seen[n.ID] = true
-		o, ok := old[n.ID]
-		same := ok && o.Type == n.Type && o.ContainerID == n.ContainerID && o.Size == n.Size &&
-			(o.MtimeNs != -1 && o.MtimeNs == n.MtimeNs || o.MtimeNs == -1 && o.digest != "" && o.digest == digest(n.ID))
-		if same {
-			continue
-		}
-		identical = false
-		switch {
-		case !ok && incrementalTypes[n.Type]:
-			d.Changed = append(d.Changed, n)
-		case !ok && n.Type == "Projects$Folder":
-		case !ok:
-			d.Reason = "a non-flow unit was added"
-		case incrementalTypes[n.Type] && o.Type == n.Type:
-			d.Changed = append(d.Changed, n)
-		case n.Type == domainModelType && o.Type == n.Type && o.ContainerID == n.ContainerID:
-			d.Changed = append(d.Changed, n) // rebuilt per module
-		default:
-			d.Reason = "a non-flow unit changed or moved"
-		}
-	}
-	for id, o := range old {
-		if seen[id] {
-			continue
-		}
-		identical = false
-		switch {
-		case incrementalTypes[o.Type]:
-			d.Removed = append(d.Removed, id)
-		case o.Type == "Projects$Folder":
-		default:
-			d.Reason = "a non-flow unit was removed"
-		}
-	}
-	d.Identical = identical
-	return d, true
+// Stats reports how the last Build went.
+func (b *Builder) Stats() BuildStats {
+	return b.stats
 }
 
-// PlanIncremental diffs the catalog's stamps against now and returns the
-// units to rebuild and to delete, or the reason only a full build will do.
-func (b *Builder) PlanIncremental(now []types.UnitStamp) (changed []types.UnitStamp, removed []string, reason string) {
-	d, ok := b.catalog.DiffStamps(now, b.unitDigest)
+// own marks the rows written from here on as coming from unit, and reports
+// whether this build writes them. It is false for a unit whose rows were
+// carried over: the pass skips the document.
+func (b *Builder) own(unit string) bool {
+	if b.rows == nil {
+		b.rows = newRowOwners()
+	}
+	b.rows.owned[unit] = true
+	if b.scope != nil && !b.scope[unit] {
+		b.rows.owner = skippedOwner
+		return false
+	}
+	b.rows.owner = unit
+	return true
+}
+
+// currentOwner is the unit the rows being written now come from, for a pass
+// that collects rows a later one writes.
+func (b *Builder) currentOwner() string {
+	if b.rows == nil {
+		return ""
+	}
+	return b.rows.owner
+}
+
+// as marks the rows written from here on as coming from owner, which a pass
+// recorded when it collected them: a unit in scope, or "" for project-wide.
+func (b *Builder) as(owner string) {
+	if b.rows != nil {
+		b.rows.owner = owner
+	}
+}
+
+// ownRows is own for a pass that walks units of every type (the strings
+// index): it attributes the unit's rows to it without counting the unit as
+// one a per-unit pass reads. A unit only such a walk visits — the project
+// settings, a module, a folder — is read by project-wide passes too, and a
+// change to it still makes the build a full one.
+func (b *Builder) ownRows(unit string) bool {
+	if b.rows == nil {
+		b.rows = newRowOwners()
+	}
+	if b.scope != nil && !b.scope[unit] {
+		b.rows.owner = skippedOwner
+		return false
+	}
+	b.rows.owner = unit
+	return true
+}
+
+// disown marks the rows written from here on as project-wide.
+func (b *Builder) disown() {
+	if b.rows != nil {
+		b.rows.owner = ""
+	}
+}
+
+// buildMode is the mode name the cache records for this build.
+func (b *Builder) buildMode() string {
 	switch {
-	case !ok:
-		return nil, nil, "catalog has no unit stamps"
-	case d.Reason != "":
-		return nil, nil, d.Reason
-	case len(d.Changed)+len(d.Removed) > maxIncrementalUnits:
-		return nil, nil, "too many units changed"
+	case b.sourceMode:
+		return "source"
+	case b.fullMode:
+		return "full"
 	}
-	var n int
-	if b.catalog.db.QueryRow(`SELECT COUNT(*) FROM external_actions_data`).Scan(&n) == nil && n > 0 {
-		return nil, nil, "project calls external actions (aggregated across flows)"
-	}
-	b.stamps = now
-	b.removed = d.Removed
-	return d.Changed, d.Removed, ""
+	return "fast"
 }
 
-// BuildIncremental rebuilds the rows of the changed flows in the catalog's own
-// database, in one transaction.
-func (b *Builder) BuildIncremental(changed []types.UnitStamp, progress ProgressFunc) error {
-	start := time.Now()
-	b.progress = progress
-	b.only = map[string]bool{}
-	b.onlyStamps = changed
-	ids := make([]any, 0, len(changed)+len(b.removed))
-	for _, s := range changed {
-		b.only[s.ID] = true
-		ids = append(ids, s.ID)
-	}
-	for _, id := range b.removed {
-		ids = append(ids, id)
-	}
-	if err := b.loadActiveSnapshot(); err != nil {
-		return err
-	}
-	if err := b.buildHierarchy(); err != nil {
-		return fmt.Errorf("failed to build hierarchy: %w", err)
-	}
-	if r, ok := b.reader.(interface {
-		GetMicroflow(model.ID) (*microflows.Microflow, error)
-		GetNanoflow(model.ID) (*microflows.Nanoflow, error)
-		GetRule(model.ID) (*microflows.Rule, error)
-	}); ok {
-		var err error
-		if b.microflowCache, err = changedFlows(b, "Microflows$Microflow", r.GetMicroflow); err != nil {
-			return err
-		}
-		if b.nanoflowCache, err = changedFlows(b, "Microflows$Nanoflow", r.GetNanoflow); err != nil {
-			return err
-		}
-		if b.ruleCache, err = changedFlows(b, "Microflows$Rule", r.GetRule); err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("reader cannot read flows by ID")
-	}
-	if r, ok := b.reader.(interface {
-		GetPage(model.ID) (*pages.Page, error)
-		GetSnippet(model.ID) (*pages.Snippet, error)
-	}); ok {
-		var err error
-		if b.pageCache, err = changedFlows(b, "Forms$Page", r.GetPage); err != nil {
-			return err
-		}
-		if b.snippetCache, err = changedFlows(b, "Forms$Snippet", r.GetSnippet); err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("reader cannot read pages by ID")
-	}
-
-	tx, err := b.catalog.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if tx != nil {
-			tx.Rollback()
-		}
-	}()
-	b.tx = tx
-
-	if len(ids) == 0 {
-		return b.commitStamps(tx)
-	}
-	if err := createIncrementalTables(tx); err != nil {
-		return err
-	}
-	for _, q := range []string{`DELETE FROM incremental_units`, `DELETE FROM incremental_modules`} {
-		if _, err := tx.Exec(q); err != nil {
-			return err
-		}
-	}
-	for _, id := range ids {
-		if _, err := tx.Exec(`INSERT INTO incremental_units (UnitId) VALUES (?)`, id); err != nil {
-			return err
-		}
-	}
-	dmSteps, err := b.prepareDomainModels(tx, changed)
-	if err != nil {
-		return err
-	}
-	for _, table := range UnitTables {
-		del := `DELETE FROM ` + table + ` WHERE UnitId IN (SELECT UnitId FROM incremental_units)`
-		if _, err := tx.Exec(del); err != nil {
-			return fmt.Errorf("%s: %w", del, err)
-		}
-	}
-
-	for _, step := range append(dmSteps, []struct {
-		name string
-		run  func() error
-	}{
-		{"microflows", b.buildMicroflows},
-		{"pages", b.buildPages},
-		{"snippets", b.buildSnippets},
-		{"xpath expressions", b.buildXPathExpressions},
-		{"permissions", b.buildPermissions},
-		{"references", b.buildReferences},
-		{"strings", b.buildStrings},
-	}...) {
-		if err := step.run(); err != nil {
-			return fmt.Errorf("failed to build %s: %w", step.name, err)
-		}
-	}
-	if err := b.commitStamps(tx); err != nil {
-		return err
-	}
-	tx = nil
-	b.report(fmt.Sprintf("Incremental refresh of %d unit(s) (%.1fs)", len(ids), time.Since(start).Seconds()), len(ids))
-	return nil
-}
-
-// commitStamps writes the current stamps and commits.
-func (b *Builder) commitStamps(tx CatalogTx) error {
-	if _, err := tx.Exec(`DELETE FROM unit_stamps`); err != nil {
-		return err
-	}
-	if err := b.writeStamps(b.stamps); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	b.tx = nil
-	return b.catalog.SetMeta(MetaBuildTime, time.Now().Format(time.RFC3339))
-}
-
-type incrementalStep = struct {
-	name string
-	run  func() error
-}
-
-// prepareDomainModels records the modules of the changed domain models and
-// returns the builder steps that rebuild their rows, which run before the flow
-// steps (the member-ref index reads their entities).
-func (b *Builder) prepareDomainModels(tx CatalogTx, changed []types.UnitStamp) ([]incrementalStep, error) {
-	var modules [][2]string
-	for _, s := range changed {
-		if s.Type == domainModelType {
-			id := b.hierarchy.findModuleID(model.ID(s.ContainerID))
-			modules = append(modules, [2]string{b.hierarchy.getModuleName(id), string(id)})
-		}
-	}
-	if len(modules) == 0 {
+// unitBasis is what a unit's rows depend on of the unit itself: its content
+// hash and its container. The container is a column of the Unit table, not
+// part of the bytes, and rows print the folder and module. Nil when the
+// reader cannot hash units, which carries and records nothing.
+func (b *Builder) unitBasis() (map[string]string, map[string]string) {
+	h, ok := b.reader.(unitHasher)
+	if !ok {
 		return nil, nil
 	}
-	for _, m := range modules {
-		if _, err := tx.Exec(`INSERT INTO incremental_modules (Name, Id) VALUES (?, ?)`, m[0], m[1]); err != nil {
-			return nil, err
+	hashes, err := h.UnitContentHashes()
+	if err != nil {
+		return nil, nil
+	}
+	units, err := b.reader.ListUnits()
+	if err != nil {
+		return nil, nil
+	}
+	types := map[string]string{}
+	for _, u := range units {
+		id := string(u.ID)
+		types[id] = u.Type
+		if hash, ok := hashes[id]; ok {
+			hashes[id] = hash + "|" + string(u.ContainerID)
 		}
 	}
-	const inMods = `(SELECT Name FROM incremental_modules)`
-	external := `SELECT COUNT(*) FROM entities_data WHERE IsExternal = 1 AND ModuleName IN ` + inMods
-	var n int
-	if err := tx.QueryRow(external).Scan(&n); err != nil || n > 0 {
-		return nil, fmt.Errorf("a changed domain model has external entities")
-	}
-	// The module's domain-model documentation row belongs to the module unit;
-	// every other row of the domain model goes with its UnitId.
-	del := `DELETE FROM strings WHERE StringContext = 'domain_model_documentation' AND UnitId IN (SELECT Id FROM incremental_modules)`
-	if _, err := tx.Exec(del); err != nil {
-		return nil, fmt.Errorf("%s: %w", del, err)
-	}
-	return []incrementalStep{
-		{"entities", b.buildEntities},
-		{"external entities check", func() error {
-			if err := tx.QueryRow(external).Scan(&n); err != nil || n > 0 {
-				return fmt.Errorf("a changed domain model has external entities")
-			}
-			return nil
-		}},
-		{"associations", b.buildAssociations},
-		{"entity event handlers", b.buildEntityEventHandlers},
-		{"regular expression rules", b.collectRegexRuleRefs},
-		{"module documentation", b.updateModuleDocumentation},
-	}, nil
+	return hashes, types
 }
 
-// updateModuleDocumentation sets modules_data's domain-model documentation for
-// the changed domain models' modules.
-func (b *Builder) updateModuleDocumentation() error {
-	dms, err := b.cachedDomainModels()
+// incrementalPlan is what an incremental build rebuilds.
+type incrementalPlan struct {
+	scope   map[string]bool // units whose rows are produced again
+	changed map[string]bool // units changed, added or removed
+	added   map[string]bool // units the previous build did not know
+}
+
+// prevCatalog is the previous catalog's basis.
+type prevCatalog struct {
+	basis map[string]string
+	owned map[string]bool
+}
+
+// loadPrevious reads the cached catalog and plans the build from it, on a
+// scratch in-memory copy; it returns the bytes the build loads to build on,
+// or says why the build has to be a full one. Planning from the bytes the
+// build then keeps means a cache another process replaces meanwhile cannot
+// be planned from one version and built on another.
+func (b *Builder) loadPrevious(ctx context.Context) ([]byte, *incrementalPlan, string) {
+	data, err := os.ReadFile(b.prevCatalogPath)
+	if err != nil {
+		return nil, nil, "no cache to carry from"
+	}
+	scratch, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		return nil, nil, err.Error()
+	}
+	defer scratch.Close()
+	conn, err := scratch.Conn(ctx)
+	if err != nil {
+		return nil, nil, err.Error()
+	}
+	defer conn.Close()
+	if err := deserializeConn(conn, data); err != nil {
+		return nil, nil, "cannot load the cache: " + err.Error()
+	}
+	plan, reason := b.planFrom(ctx, conn)
+	return data, plan, reason
+}
+
+// planFrom plans the build from the previous catalog on conn.
+func (b *Builder) planFrom(ctx context.Context, conn *sql.Conn) (*incrementalPlan, string) {
+	meta := func(key string) string {
+		var v string
+		_ = conn.QueryRowContext(ctx, `SELECT Value FROM catalog_meta WHERE Key = ?`, key).Scan(&v)
+		return v
+	}
+	switch {
+	case meta(MetaSchemaVersion) != CatalogSchemaVersion:
+		return nil, "the cache has another schema version"
+	case meta(MetaCatalogFingerprint) != b.fingerprint:
+		return nil, "the cache was written by another mxcli build"
+	case meta(MetaBuildMode) != b.buildMode():
+		return nil, "the cache was built in another mode"
+	}
+	var snap string
+	_ = conn.QueryRowContext(ctx, `SELECT SnapshotId FROM snapshots`).Scan(&snap)
+	if b.snapshot == nil || snap != b.snapshot.ID {
+		return nil, "the cache records another snapshot"
+	}
+
+	p := &prevCatalog{basis: map[string]string{}, owned: map[string]bool{}}
+	rows, err := conn.QueryContext(ctx, `SELECT UnitId, Basis, Owned FROM catalog_units`)
+	if err != nil {
+		return nil, "the cache records no unit basis"
+	}
+	for rows.Next() {
+		var id, basis string
+		var owned int
+		if err := rows.Scan(&id, &basis, &owned); err != nil {
+			rows.Close()
+			return nil, err.Error()
+		}
+		p.basis[id] = basis
+		p.owned[id] = owned != 0
+	}
+	rows.Close()
+	if len(p.basis) == 0 {
+		return nil, "the cache records no unit basis"
+	}
+	b.prevOwned = p.owned
+	return b.planIncremental(querier(ctx, conn.QueryContext), p)
+}
+
+// planIncremental decides which units to rebuild, or says why the build has
+// to be full. q reads the previous catalog.
+func (b *Builder) planIncremental(q queryFunc, prev *prevCatalog) (*incrementalPlan, string) {
+	plan := &incrementalPlan{scope: map[string]bool{}, changed: map[string]bool{}, added: map[string]bool{}}
+	for id, basis := range b.basis {
+		old, ok := prev.basis[id]
+		if !ok {
+			plan.changed[id] = true
+			plan.added[id] = true
+		} else if old != basis {
+			plan.changed[id] = true
+		}
+	}
+	for id := range prev.basis {
+		if _, ok := b.basis[id]; !ok {
+			plan.changed[id] = true
+		}
+	}
+	for id := range plan.changed {
+		if !plan.added[id] && !prev.owned[id] {
+			return nil, fmt.Sprintf("a %s changed", b.unitKind(id))
+		}
+		plan.scope[id] = true
+	}
+	if len(plan.changed) == 0 {
+		return plan, ""
+	}
+	names, err := unitNames(q, plan.changed)
+	if err != nil {
+		return nil, "the cache records no unit names: " + err.Error()
+	}
+	deps, err := dependentUnits(q, names)
+	if err != nil {
+		return nil, "the cache's references are unreadable: " + err.Error()
+	}
+	for id := range deps {
+		plan.scope[id] = true
+	}
+	return plan, ""
+}
+
+// queryFunc runs a query on the connection or transaction a step has.
+type queryFunc func(query string, args ...any) (*sql.Rows, error)
+
+func querier(ctx context.Context, f func(context.Context, string, ...any) (*sql.Rows, error)) queryFunc {
+	return func(query string, args ...any) (*sql.Rows, error) { return f(ctx, query, args...) }
+}
+
+// verifyIncremental checks an incremental attempt before it commits. It
+// returns why the build has to be a full one, or the units the plan missed:
+// those holding a document that names what a changed unit is called now (a
+// rename, or a document added under a name others already used).
+func (b *Builder) verifyIncremental(plan *incrementalPlan) (map[string]bool, string) {
+	for id := range plan.changed {
+		if _, exists := b.basis[id]; exists && !b.rows.owned[id] {
+			return nil, fmt.Sprintf("a %s changed", b.unitKind(id))
+		}
+	}
+	q := queryFunc(b.tx.CatalogTx.Query)
+	names, err := unitNames(q, plan.changed)
+	if err != nil {
+		return nil, err.Error()
+	}
+	deps, err := dependentUnits(q, names)
+	if err != nil {
+		return nil, err.Error()
+	}
+	more := map[string]bool{}
+	for id := range deps {
+		if !plan.scope[id] {
+			more[id] = true
+		}
+	}
+	return more, ""
+}
+
+// incrementalSummary is the progress line for a build that carried rows.
+func incrementalSummary(s BuildStats) string {
+	return fmt.Sprintf("incremental: %d units rebuilt, %d carried over", s.Rebuilt, s.Carried)
+}
+
+// unitKind names a unit's type for a progress line.
+func (b *Builder) unitKind(id string) string {
+	if t := b.unitTypes[id]; t != "" {
+		return t
+	}
+	return "unit"
+}
+
+// unitNames is the qualified names the given units' rows carry (an
+// entity's, an association's, a microflow's).
+func unitNames(q queryFunc, units map[string]bool) ([]string, error) {
+	rows, err := q(`SELECT UnitId, QualifiedName FROM catalog_unit_names`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id, qn string
+		if err := rows.Scan(&id, &qn); err != nil {
+			return nil, err
+		}
+		if units[id] {
+			out = append(out, qn)
+		}
+	}
+	return out, rows.Err()
+}
+
+// dependentUnits is the units holding a document whose refs name one of
+// names or a member of one (`M.E.Attr` under `M.E`). Specializations are
+// followed first: a document naming `M.Sub.Attr` may resolve it on Sub's
+// generalization.
+func dependentUnits(q queryFunc, names []string) (map[string]bool, error) {
+	g, err := loadRefGraph(q)
+	if err != nil {
+		return nil, err
+	}
+	return g.dependents(names), nil
+}
+
+// refGraph is the refs and unit names the plan follows, read once.
+type refGraph struct {
+	refs    []graphRef
+	unitOf  map[string][]string // qualified name -> units whose rows carry it
+	namesOf map[string][]string // unit -> qualified names its rows carry
+}
+
+type graphRef struct{ source, target, kind string }
+
+func loadRefGraph(q queryFunc) (*refGraph, error) {
+	g := &refGraph{unitOf: map[string][]string{}, namesOf: map[string][]string{}}
+	rows, err := q(`SELECT SourceName, TargetName, RefKind FROM refs`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var r graphRef
+		if err := rows.Scan(&r.source, &r.target, &r.kind); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		g.refs = append(g.refs, r)
+	}
+	rows.Close()
+
+	owners, err := q(`SELECT UnitId, QualifiedName FROM catalog_unit_names`)
+	if err != nil {
+		return nil, err
+	}
+	defer owners.Close()
+	for owners.Next() {
+		var id, qn string
+		if err := owners.Scan(&id, &qn); err != nil {
+			return nil, err
+		}
+		g.unitOf[qn] = append(g.unitOf[qn], id)
+		g.namesOf[id] = append(g.namesOf[id], qn)
+	}
+	return g, owners.Err()
+}
+
+// dependents is dependentUnits on a loaded graph.
+func (g *refGraph) dependents(names []string) map[string]bool {
+	named := map[string]bool{}
+	for _, n := range names {
+		if n != "" {
+			named[n] = true
+		}
+	}
+	for grew := true; grew; {
+		grew = false
+		for _, r := range g.refs {
+			if r.kind == RefKindGeneralize && named[r.target] && !named[r.source] {
+				named[r.source] = true
+				grew = true
+			}
+		}
+	}
+	isNamed := func(target string) bool {
+		for {
+			if named[target] {
+				return true
+			}
+			i := strings.LastIndexByte(target, '.')
+			if i < 0 {
+				return false
+			}
+			target = target[:i]
+		}
+	}
+	sources := map[string]bool{}
+	for _, r := range g.refs {
+		if isNamed(r.target) {
+			sources[r.source] = true
+		}
+	}
+	for n := range named {
+		sources[n] = true // a specialization is rebuilt itself
+	}
+	out := map[string]bool{}
+	for qn := range sources {
+		for _, id := range g.unitOf[qn] {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// clearCatalog empties every table of a catalog loaded from the cache, so a
+// full build starts from what a fresh one would: no rows, no AUTOINCREMENT
+// counters, and only the schema version in catalog_meta.
+func clearCatalog(tx CatalogTx) error {
+	rows, err := tx.Query(`SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
 	if err != nil {
 		return err
 	}
-	for _, dm := range dms {
-		if !b.wants(string(dm.ID)) {
+	type table struct {
+		name    string
+		virtual bool
+	}
+	var tables []table
+	for rows.Next() {
+		var name string
+		var ddl sql.NullString
+		if err := rows.Scan(&name, &ddl); err != nil {
+			rows.Close()
+			return err
+		}
+		tables = append(tables, table{name, strings.HasPrefix(strings.ToUpper(ddl.String), "CREATE VIRTUAL TABLE")})
+	}
+	rows.Close()
+	// A full-text table's shadow tables are emptied through the table.
+	shadow := map[string]bool{}
+	for _, t := range tables {
+		if t.virtual {
+			for _, suffix := range []string{"_data", "_idx", "_content", "_docsize", "_config"} {
+				shadow[t.name+suffix] = true
+			}
+		}
+	}
+	for _, t := range tables {
+		if shadow[t.name] {
 			continue
 		}
-		if _, err := b.tx.Exec(`UPDATE modules_data SET DomainModelDocumentation = ? WHERE Id = ?`,
-			dm.Documentation, string(b.hierarchy.findModuleID(dm.ContainerID))); err != nil {
+		stmt := `DELETE FROM "` + t.name + `"`
+		if t.name == "catalog_meta" {
+			stmt += ` WHERE Key != '` + MetaSchemaVersion + `'`
+		}
+		if _, err := tx.Exec(stmt); err != nil {
+			return fmt.Errorf("empty %s: %w", t.name, err)
+		}
+	}
+	var seq int
+	if tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'sqlite_sequence'`).Scan(&seq) == nil && seq > 0 {
+		if _, err := tx.Exec(`DELETE FROM sqlite_sequence`); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// loadActiveSnapshot points the builder at the catalog's existing snapshot,
-// whose ID every row carries.
-func (b *Builder) loadActiveSnapshot() error {
-	var id string
-	if err := b.catalog.db.QueryRow(`SELECT SnapshotId FROM snapshots WHERE IsActive = 1 LIMIT 1`).Scan(&id); err != nil {
-		return fmt.Errorf("catalog has no active snapshot: %w", err)
+// dropRebuiltRows deletes, from the previous catalog the build starts from,
+// the rows of the units in scope and the rows no unit wrote, and records the
+// ranges of every row it keeps under its unit. It returns how many units'
+// rows were kept.
+func (b *Builder) dropRebuiltRows() (int, error) {
+	type rng struct {
+		table, owner string
+		first, last  int64
 	}
-	b.snapshot = &Snapshot{ID: id}
-	return nil
+	rows, err := b.txQuery(`SELECT TableName, UnitId, FirstRow, LastRow FROM catalog_row_owners ORDER BY TableName, FirstRow`)
+	if err != nil {
+		return 0, err
+	}
+	var all []rng
+	for rows.Next() {
+		var r rng
+		if err := rows.Scan(&r.table, &r.owner, &r.first, &r.last); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		all = append(all, r)
+	}
+	rows.Close()
+
+	kept := map[string]bool{}
+	for _, r := range all {
+		if r.owner != "" && !b.scope[r.owner] {
+			b.rows.add(r.table, r.owner, r.first, r.last)
+			kept[r.owner] = true
+			continue
+		}
+		if _, err := b.tx.CatalogTx.Exec(`DELETE FROM "`+r.table+`" WHERE rowid BETWEEN ? AND ?`, r.first, r.last); err != nil {
+			return 0, fmt.Errorf("drop rows of %s: %w", r.table, err)
+		}
+	}
+	// What records the build rather than the project is written again, and
+	// the graph analysis, which AddGraphAnalysis writes outside a build.
+	for _, stmt := range []string{
+		`DELETE FROM communities_data`,
+		`DELETE FROM graph_cycles_data`,
+		`DELETE FROM graph_module_cycles_data`,
+		`DELETE FROM graph_layers_data`,
+		`DELETE FROM graph_centrality_data`,
+		`DELETE FROM projects`,
+		`DELETE FROM snapshots`,
+		`DELETE FROM catalog_row_owners`,
+		`DELETE FROM catalog_units`,
+		`DELETE FROM catalog_unit_names`,
+		`DELETE FROM catalog_meta WHERE Key IN ('` + MetaGraphAnalysis + `', '` + MetaGraphResolution + `', '` + MetaSourceFingerprint + `', '` + MetaCatalogFingerprint + `')`,
+	} {
+		if _, err := b.tx.CatalogTx.Exec(stmt); err != nil {
+			return 0, err
+		}
+	}
+	return len(kept), nil
+}
+
+func (b *Builder) txQuery(query string, args ...any) (*sql.Rows, error) {
+	return b.tx.CatalogTx.Query(query, args...)
+}
+
+// persistOwners records what the next build needs to carry from this one:
+// the unit each row range came from, every unit's basis and whether a
+// per-unit pass reads it, the names each unit's rows carry, and which mxcli
+// build wrote them.
+func (b *Builder) persistOwners() error {
+	if b.basis == nil || b.fingerprint == "" {
+		return nil
+	}
+	exec := b.tx.CatalogTx.Exec
+	ins, err := b.tx.CatalogTx.Prepare(`INSERT INTO catalog_row_owners (TableName, UnitId, FirstRow, LastRow) VALUES (?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer ins.Close()
+	tables := make([]string, 0, len(b.rows.ranges))
+	for t := range b.rows.ranges {
+		tables = append(tables, t)
+	}
+	sort.Strings(tables)
+	for _, t := range tables {
+		for _, r := range b.rows.ranges[t] {
+			// A project-wide range ("") is recorded too: the next build
+			// drops those rows and writes them again.
+			if _, err := ins.Exec(t, r.owner, r.first, r.last); err != nil {
+				return err
+			}
+		}
+	}
+
+	units, err := b.tx.CatalogTx.Prepare(`INSERT INTO catalog_units (UnitId, Basis, Owned) VALUES (?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer units.Close()
+	for id, basis := range b.basis {
+		owned := 0
+		// A unit outside the scope was not listed, so this build did not
+		// visit it; it is unchanged, and so is whether a pass reads it.
+		if b.rows.owned[id] || (b.scope != nil && !b.scope[id] && b.prevOwned[id]) {
+			owned = 1
+		}
+		if _, err := units.Exec(id, basis, owned); err != nil {
+			return err
+		}
+	}
+
+	// The names each unit's rows carry, from every table with a
+	// QualifiedName column.
+	for _, t := range tables {
+		var has int
+		if err := b.tx.CatalogTx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?, 'main') WHERE name = 'QualifiedName'`, t).Scan(&has); err != nil {
+			return err
+		}
+		if has == 0 {
+			continue
+		}
+		if _, err := exec(`INSERT INTO catalog_unit_names (UnitId, QualifiedName)
+			SELECT DISTINCT o.UnitId, t.QualifiedName FROM catalog_row_owners o CROSS JOIN main.` + t + ` t
+			WHERE o.TableName = '` + t + `' AND o.UnitId != '' AND t.rowid BETWEEN o.FirstRow AND o.LastRow AND t.QualifiedName IS NOT NULL`); err != nil {
+			return err
+		}
+	}
+	_, err = exec(`INSERT OR REPLACE INTO catalog_meta (Key, Value) VALUES (?, ?)`, MetaCatalogFingerprint, b.fingerprint)
+	return err
 }

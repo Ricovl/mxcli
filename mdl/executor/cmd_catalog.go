@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/mendixlabs/mxcli/mdl/ast"
+	"github.com/mendixlabs/mxcli/mdl/backend"
 	"github.com/mendixlabs/mxcli/mdl/catalog"
 	mdlerrors "github.com/mendixlabs/mxcli/mdl/errors"
-	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
 )
 
@@ -304,9 +304,8 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 
 	// Try to load from cache first
 	cachePath := getCachePath(ctx)
-	stamps := currentStamps(ctx) // one stat pass for the check and the refresh
 	if cachePath != "" {
-		valid, _ := cacheValidity(ctx, cachePath, requiredMode, stamps)
+		valid, _ := isCacheValid(ctx, cachePath, requiredMode)
 		if valid {
 			return loadCachedCatalog(ctx, cachePath)
 		}
@@ -315,10 +314,6 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 	// Guard against building without a connection.
 	if !ctx.Connected() {
 		return mdlerrors.NewNotConnected()
-	}
-
-	if cachePath != "" && refreshCatalogIncrementally(ctx, cachePath, requiredMode, stamps) {
-		return nil
 	}
 
 	// A rebuild that is going to pay the full-mode cost anyway rebuilds at the
@@ -358,53 +353,6 @@ func ensureCatalog(ctx *ExecContext, full bool) error {
 	return buildCatalog(ctx, full, isSource, false, 0)
 }
 
-// refreshCatalogIncrementally updates a stale cached catalog in place when only
-// existing flows changed (catalog.Builder.PlanIncremental), and reports whether
-// it did. Anything else falls through to a full rebuild.
-func refreshCatalogIncrementally(ctx *ExecContext, cachePath, requiredMode string, stamps []types.UnitStamp) bool {
-	if v := strings.TrimSpace(os.Getenv("MXCLI_CATALOG_INCREMENTAL")); v == "0" || strings.EqualFold(v, "false") {
-		return false
-	}
-	if _, err := os.Stat(cachePath); err != nil {
-		return false
-	}
-	cat, err := catalog.NewFromFile(cachePath)
-	if err != nil {
-		return false
-	}
-	info, err := cat.GetCacheInfo()
-	if err != nil || len(stamps) == 0 || info.MprPath != ctx.MprPath || info.GraphAnalysis ||
-		info.BuildMode == "source" || catalogModeRank(requiredMode) > catalogModeRank(info.BuildMode) {
-		cat.Close()
-		return false
-	}
-	builder := catalog.NewBuilder(cat, ctx.Backend)
-	builder.SetFullMode(info.BuildMode == "full")
-	changed, _, reason := builder.PlanIncremental(stamps)
-	if reason != "" {
-		if ctx.Logger != nil {
-			ctx.Logger.Info("catalog: full rebuild", "reason", reason)
-		}
-		cat.Close()
-		return false
-	}
-	if err := builder.BuildIncremental(changed, func(table string, count int) {
-		if !ctx.Quiet {
-			fmt.Fprintf(ctx.progress(), "✓ %s\n", table)
-		}
-	}); err != nil {
-		if ctx.Logger != nil {
-			ctx.Logger.Warn("catalog: incremental refresh failed", "error", err)
-		}
-		cat.Close()
-		return false
-	}
-	_ = cat.SetMeta(catalog.MetaMprModTime, getMprModTime(ctx).Format(time.RFC3339))
-	cat.SetBuilt(true)
-	ctx.Catalog = cat
-	return true
-}
-
 // implicitCatalogBuildHook, when set, runs at the start of every implicit
 // catalog rebuild, and the function it returns at the end. Tests use it to
 // make a build outlast a short timeout and to wait for an abandoned one.
@@ -432,43 +380,8 @@ func getMprModTime(ctx *ExecContext) time.Time {
 	return info.ModTime()
 }
 
-// unitStampBackend is a backend that can stamp MPR v2 unit files.
-type unitStampBackend interface {
-	UnitStamps() ([]types.UnitStamp, error)
-	UnitContentDigest(ids []string) string
-}
-
-// currentStamps is every MPR v2 unit's stamp now; nil for MPR v1 or a backend
-// without them, which then fall back to the .mpr mtime.
-func currentStamps(ctx *ExecContext) []types.UnitStamp {
-	b, ok := ctx.Backend.(unitStampBackend)
-	if !ok {
-		return nil
-	}
-	stamps, err := b.UnitStamps()
-	if err != nil {
-		return nil
-	}
-	return stamps
-}
-
-// unitDigest hashes one unit's contents, for racily clean stamps.
-func unitDigest(ctx *ExecContext) func(string) string {
-	return func(id string) string {
-		if b, ok := ctx.Backend.(unitStampBackend); ok {
-			return b.UnitContentDigest([]string{id})
-		}
-		return ""
-	}
-}
-
 // isCacheValid checks if the cached catalog is still valid.
 func isCacheValid(ctx *ExecContext, cachePath string, requiredMode string) (bool, string) {
-	return cacheValidity(ctx, cachePath, requiredMode, currentStamps(ctx))
-}
-
-// cacheValidity is isCacheValid with the unit stamps already taken.
-func cacheValidity(ctx *ExecContext, cachePath, requiredMode string, stamps []types.UnitStamp) (bool, string) {
 	// Check if cache file exists
 	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
 		return false, "cache file does not exist"
@@ -491,14 +404,9 @@ func cacheValidity(ctx *ExecContext, cachePath, requiredMode string, stamps []ty
 		return false, "MPR path changed"
 	}
 
-	// On MPR v2 a document can change without the .mpr changing (git pull,
-	// branch switch), so the unit stamps decide. MPR v1, and a catalog built
-	// before stamps existed, fall back to the .mpr mtime.
-	if d, ok := cat.DiffStamps(stamps, unitDigest(ctx)); ok {
-		if !d.Identical {
-			return false, "project files modified"
-		}
-	} else if info.MprModTime.Unix() != getMprModTime(ctx).Unix() {
+	// Check MPR modification time (compare Unix seconds to handle timezone/precision issues)
+	currentModTime := getMprModTime(ctx)
+	if info.MprModTime.Unix() != currentModTime.Unix() {
 		return false, "project file modified"
 	}
 
@@ -575,6 +483,12 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	if isSource || communities {
 		full = true // both imply full (they read refs/source built in full mode)
 	}
+	// A build writes nothing to the project, and its passes read the same
+	// documents again and again — the source describes list whole document
+	// types per document. Each unit file is read from disk once (#1789): an
+	// open is cheap on macOS and expensive where every one is scanned
+	// (Windows Defender), which made one refresh take hours there.
+	defer ctx.CacheUnitReads()()
 
 	if carry, res := carryGraphAnalysis(cachedCatalogInfo(ctx), full, communities); carry {
 		communities, resolution = true, res
@@ -593,8 +507,6 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		}
 	}
 	start := time.Now()
-	// Taken before building, so a change during the build shows up next time.
-	stamps := currentStamps(ctx)
 
 	// Create new catalog
 	cat, err := catalog.New()
@@ -609,7 +521,21 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	// Build catalog
 	builder := catalog.NewBuilder(cat, ctx.Backend)
 	builder.SetFullMode(full)
-	builder.SetStamps(stamps)
+	// Rows of units nothing has changed under are copied from the cached
+	// catalog, which every save makes stale (#1804). FORCE builds everything,
+	// as does a cache another mxcli build or another mode wrote.
+	builder.SetFingerprint(sourceFingerprint())
+	if !ctx.catalogForce {
+		builder.SetPreviousCatalog(getCachePath(ctx))
+	}
+	// The rebuilt units are listed through a view that decodes only them.
+	if s, ok := ctx.Backend.(interface {
+		WithUnitScope(func(string) bool) backend.FullBackend
+	}); ok {
+		builder.SetScopedReader(func(keep func(string) bool) catalog.CatalogReader {
+			return s.WithUnitScope(keep)
+		})
+	}
 	if communities {
 		builder.SetCommunitiesMode(true, resolution)
 	}
@@ -617,14 +543,30 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 		builder.SetSourceMode(true)
 		preWarmCache(ctx)
 		builder.SetDescribeFunc(func(objectType string, qualifiedName string, id string) (string, error) {
+			if hook := sourceDescribeHook; hook != nil {
+				hook(objectType, qualifiedName)
+			}
 			return captureDescribeParallel(ctx, objectType, qualifiedName, model.ID(id))
 		})
+		// Rows of documents nothing has changed under are carried over from
+		// the cached index, which every save makes stale (#1790). FORCE
+		// describes everything, as does a cache another mxcli build wrote.
+		fp := sourceFingerprint()
+		builder.SetSourceFingerprint(fp)
+		if !ctx.catalogForce {
+			if prev, _ := catalog.LoadPreviousSource(getCachePath(ctx), fp); prev != nil {
+				builder.SetPreviousSource(prev)
+			}
+		}
 	}
 	// Supply built-in widget definitions (hand-crafted COMBOBOX, GALLERY,
 	// DATAGRID, filter widgets, …) for the widget_definitions catalog table.
 	// Project-level widgets (widgets/*.mpk) are added by the catalog builder
 	// itself by reading the filesystem.
 	builder.SetBuiltinWidgetMetas(builtinWidgetMetas())
+	if hook := catalogBuilderHook; hook != nil {
+		hook(builder)
+	}
 	// Per-table lines are the only sign of life during a build that takes
 	// minutes on a large app (18 on a 140MB one), so quiet mode moves them off
 	// stdout rather than dropping them: `search -q --format names` promises one
@@ -640,6 +582,9 @@ func buildCatalog(ctx *ExecContext, full, isSource, communities bool, resolution
 	if err != nil {
 		cat.Close()
 		return mdlerrors.NewBackend("build catalog", err)
+	}
+	if hook := catalogBuildHook; hook != nil {
+		hook(builder.Stats())
 	}
 
 	elapsed := time.Since(start)
@@ -795,6 +740,9 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 		ctx.Catalog = nil
 	}
 
+	ctx.catalogForce = stmt.Force
+	defer func() { ctx.catalogForce = false }()
+
 	// Handle background mode — clone ctx so the goroutine doesn't race
 	// with the main dispatch loop (which may syncBack and mutate fields).
 	if stmt.Background {
@@ -845,6 +793,37 @@ func execRefreshCatalogStmt(ctx *ExecContext, stmt *ast.RefreshCatalogStmt) erro
 	// Rebuild the catalog
 	return buildCatalog(ctx, full, source, stmt.Communities, stmt.Resolution)
 }
+
+// sourceDescribeHook, when set, sees every document a source build describes
+// rather than carries over. Tests use it to name what an incremental build
+// described again; it runs on the describe workers, so it must be safe for
+// concurrent use.
+var sourceDescribeHook func(objectType, qualifiedName string)
+
+// sourceFingerprint identifies the running mxcli build, so source rows are
+// only reused by the build that described them: another version may describe
+// the same document differently. The executable's path, size and modification
+// time change with every build, released or local, without needing version
+// stamping. "" (no executable to stat) reuses nothing.
+func sourceFingerprint() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s|%d|%d", exe, fi.Size(), fi.ModTime().UnixNano())
+}
+
+// catalogBuildHook, when set, is told how each catalog build went. Tests use
+// it to tell an incremental build from a full one.
+var catalogBuildHook func(catalog.BuildStats)
+
+// catalogBuilderHook, when set, is handed each catalog builder before it
+// builds. Tests use it to trace the reads a build makes (ref coverage).
+var catalogBuilderHook func(*catalog.Builder)
 
 // execRefreshCatalog handles REFRESH CATALOG [FULL] command (legacy signature).
 func execRefreshCatalog(ctx *ExecContext, full bool) error {
@@ -1142,12 +1121,27 @@ func preWarmCache(ctx *ExecContext) {
 		return
 	}
 
-	// Build the entity-name and enum-attribute lookups in one domain-model pass.
-	getEntityNames(ctx, h)
+	// Build entity name lookup
+	ctx.Cache.entityNames = make(map[model.ID]string)
+	dms, _ := ctx.Backend.ListDomainModels()
+	for _, dm := range dms {
+		modName := h.GetModuleName(dm.ContainerID)
+		for _, ent := range dm.Entities {
+			ctx.Cache.entityNames[ent.ID] = modName + "." + ent.Name
+		}
+	}
+
+	// Build microflow name lookup. Headers, not decoded flows: a refresh that
+	// describes a few documents need not decode every flow first (#1804).
+	ctx.Cache.microflowNames = make(map[model.ID]string)
+	mfs, _ := microflowHeaders(ctx)
+	for _, mf := range mfs {
+		ctx.Cache.microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
+	}
 
 	// Build page name lookup
 	ctx.Cache.pageNames = make(map[model.ID]string)
-	pgs, _ := ctx.Backend.ListPages()
+	pgs, _ := pageHeaders(ctx)
 	for _, pg := range pgs {
 		ctx.Cache.pageNames[pg.ID] = h.GetQualifiedName(pg.ContainerID, pg.Name)
 	}

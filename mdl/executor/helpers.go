@@ -594,6 +594,37 @@ func nanoflowsNamedIn(b backend.FullBackend, name string) ([]*microflows.Nanoflo
 	return out, nil
 }
 
+// microflowsInModule is the microflows of one module, or of the project when
+// moduleName is "". A module's are found by their headers and decoded one by
+// one, so `show microflows in M` decodes M's microflows, not the project's
+// (ako/mxcli#1791).
+func microflowsInModule(ctx *ExecContext, h *ContainerHierarchy, moduleName string) ([]*microflows.Microflow, error) {
+	if moduleName == "" {
+		return ctx.Backend.ListMicroflows()
+	}
+	if _, ok := ctx.Backend.(microflowLookup); !ok {
+		return ctx.Backend.ListMicroflows()
+	}
+	hs, err := microflowHeaders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*microflows.Microflow
+	for _, hd := range hs {
+		if h.GetModuleName(h.FindModuleID(hd.ContainerID)) != moduleName {
+			continue
+		}
+		mf, err := ctx.Backend.GetMicroflow(hd.ID)
+		if err != nil {
+			return nil, err
+		}
+		if mf != nil {
+			out = append(out, mf)
+		}
+	}
+	return out, nil
+}
+
 // flowSignatureLister is a backend that can list flows without decoding their
 // bodies (the modelsdk backend).
 type flowSignatureLister interface {
@@ -633,6 +664,25 @@ func microflowHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
 	out := make([]types.DocumentHeader, len(all))
 	for i, mf := range all {
 		out[i] = types.DocumentHeader{ID: mf.ID, ContainerID: mf.ContainerID, Name: mf.Name, Excluded: mf.Excluded}
+	}
+	return out, nil
+}
+
+// pageHeaders lists every page's ID, container and name: without decoding a
+// page on the modelsdk backend.
+func pageHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
+	if l, ok := ctx.Backend.(interface {
+		ListPageHeaders() ([]types.DocumentHeader, error)
+	}); ok {
+		return l.ListPageHeaders()
+	}
+	all, err := ctx.Backend.ListPages()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]types.DocumentHeader, len(all))
+	for i, pg := range all {
+		out[i] = types.DocumentHeader{ID: pg.ID, ContainerID: pg.ContainerID, Name: pg.Name, Excluded: pg.Excluded}
 	}
 	return out, nil
 }
@@ -742,23 +792,6 @@ func buildPageQualifiedNames(ctx *ExecContext) map[string]bool {
 type pageHeaderLister interface {
 	ListPageHeaders() ([]types.DocumentHeader, error)
 	ListSnippetHeaders() ([]types.DocumentHeader, error)
-}
-
-// pageHeaders is every page's header, decoding no page where the backend can
-// avoid it.
-func pageHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
-	if l, ok := ctx.Backend.(pageHeaderLister); ok {
-		return l.ListPageHeaders()
-	}
-	pgs, err := ctx.Backend.ListPages()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]types.DocumentHeader, len(pgs))
-	for i, p := range pgs {
-		out[i] = types.DocumentHeader{ID: p.ID, ContainerID: p.ContainerID, Name: p.Name, Excluded: p.Excluded}
-	}
-	return out, nil
 }
 
 // snippetHeaders is pageHeaders for snippets.

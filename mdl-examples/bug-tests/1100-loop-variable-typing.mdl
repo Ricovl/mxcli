@@ -86,15 +86,21 @@ end;
 -- A loop over an association retrieve. The iterator is typed from the entity at
 -- the far end of Request_Reporter, which is resolved rather than read off the
 -- statement — an expression path does not spell its intermediate entity.
-create or modify microflow Probe.SUB_LoopAssoc ($Req: Probe.Request)
+--
+-- It starts from the Reporter, the association's TO entity, which is what makes
+-- it a list: the Requests pointing at it. This loop used to start from $Req, the
+-- FROM entity, which gives the ONE Reporter — mx check failed it with CE0100
+-- "'reps' is of type Probe.Reporter, but should be of type List." (measured on
+-- 11.13.0), and check -p reports it as MDL-RETRIEVE01 since ako/mxcli#1793.
+create or modify microflow Probe.SUB_LoopAssoc ($Rep: Probe.Reporter)
 returns String
 begin
-  declare $emails String = '';
-  retrieve $reps from $Req/Probe.Request_Reporter;
-  loop $rep in $reps begin
-    set $emails = $emails + $rep/Email;
+  declare $codes String = '';
+  retrieve $reqs from $Rep/Probe.Request_Reporter;
+  loop $r in $reqs begin
+    set $codes = $codes + $r/Code;
   end loop;
-  return $emails;
+  return $codes;
 end;
 
 -- A loop over a filtered list: FILTER carries the element type through, so the

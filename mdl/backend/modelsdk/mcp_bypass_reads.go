@@ -63,7 +63,7 @@ func (b *Backend) GetDomainModelByID(id model.ID) (*domainmodel.DomainModel, err
 // single-item read return something subtly different from the same item in a
 // listing.
 func (b *Backend) GetWorkflow(id model.ID) (*workflows.Workflow, error) {
-	units, err := mprread.ListUnitsWithContainer[*genWf.Workflow](b.reader)
+	units, err := listUnits[*genWf.Workflow](b)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (b *Backend) GetWorkflow(id model.ID) (*workflows.Workflow, error) {
 // than about the convention; GetNavigation keeps its first-one shortcut, since
 // changing that is a separate decision with its own callers.
 func (b *Backend) ListNavigationDocuments() ([]*types.NavigationDocument, error) {
-	units, err := mprread.ListUnitsWithContainer[*genNav.NavigationDocument](b.reader)
+	units, err := listUnits[*genNav.NavigationDocument](b)
 	if err != nil {
 		return nil, err
 	}
