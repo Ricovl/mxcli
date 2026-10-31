@@ -2,6 +2,8 @@
 
 package mpr
 
+import "strings"
+
 // InvalidateUnit is InvalidateCache for a write to one unit: on MPR v2 it
 // re-reads that unit's row and file into the unit cache and the name index
 // instead of dropping them, so the next lookup does not rebuild either from
@@ -73,8 +75,12 @@ func (r *Reader) InvalidateUnit(unitID string) {
 	}
 	r.patchNameIndex(old, now)
 	r.decodedMu.Lock()
-	delete(r.decoded, oldType)
-	delete(r.decoded, cu.Type)
+	for key := range r.decoded {
+		// A type's memo, or one of its per-container memos ("type\x00container").
+		if t, _, _ := strings.Cut(key, "\x00"); t == oldType || t == cu.Type {
+			delete(r.decoded, key)
+		}
+	}
 	r.decodedMu.Unlock()
 	r.contentMu.Lock()
 	delete(r.contentCache, id)

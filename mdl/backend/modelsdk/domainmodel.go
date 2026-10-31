@@ -220,7 +220,7 @@ func (b *Backend) lazyPersistabilityIndex(ownID model.ID, own *genDm.DomainModel
 			ix.add(module, own)
 			return
 		}
-		units, err := mprread.ListUnitsInContainer[*genDm.DomainModel](b.reader, id)
+		units, err := mprread.ListUnitsInContainerCached[*genDm.DomainModel](b.reader, id)
 		if err != nil {
 			return
 		}
@@ -268,7 +268,7 @@ func (ix *persistabilityIndex) link(qn string) (persistabilityLink, bool) {
 // member assignment, and decoding every module's domain model each time made
 // a script's cost members × domain models (mendixlabs/mxcli#1616).
 func (b *Backend) GetDomainModel(moduleID model.ID) (*domainmodel.DomainModel, error) {
-	units, err := mprread.ListUnitsInContainer[*genDm.DomainModel](b.reader, moduleID)
+	units, err := mprread.ListUnitsInContainerCached[*genDm.DomainModel](b.reader, moduleID)
 	if err != nil {
 		return nil, err
 	}

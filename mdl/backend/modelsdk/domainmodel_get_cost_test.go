@@ -48,7 +48,8 @@ func TestGetDomainModel_ReadsOnlyItsModulesDomainModel(t *testing.T) {
 	if _, err := b.GetDomainModel(mod.ID); err != nil {
 		t.Fatalf("GetDomainModel: %v", err)
 	}
-	if reads := b.UnitFileReads() - before; reads != 1 {
+	// One read, or none once the module's domain model is memoized.
+	if reads := b.UnitFileReads() - before; reads > 1 {
 		t.Errorf("GetDomainModel of one module read %d unit files; the project has %d domain models, and it needs one", reads, stored)
 	}
 }

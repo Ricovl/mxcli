@@ -206,6 +206,27 @@ func ListUnitsInContainer[T element.Element](r *mmpr.Reader, containerID model.I
 	return decodeUnits[T](refs, typeName, nil)
 }
 
+// ListUnitsInContainerCached is ListUnitsInContainer through the decode memo,
+// per container: a describe sweep asks for the same module's domain model once
+// per flow it rebuilds. Read-only callers, as for ListUnitsWithContainerCached.
+func ListUnitsInContainerCached[T element.Element](r *mmpr.Reader, containerID model.ID) ([]Unit[T], error) {
+	if decodeCacheDisabled() {
+		return ListUnitsInContainer[T](r, containerID)
+	}
+	key := bsonTypeName[T]() + "\x00" + string(containerID)
+	if v, ok := r.DecodedUnits(key); ok {
+		if hit, ok := v.([]Unit[T]); ok {
+			return hit, nil
+		}
+	}
+	out, err := ListUnitsInContainer[T](r, containerID)
+	if err != nil {
+		return nil, err
+	}
+	r.SetDecodedUnits(key, out)
+	return out, nil
+}
+
 // UnitByID decodes the unit of type T whose ID is id, reading that unit only.
 // ok is false when there is no such unit or it is not a T.
 func UnitByID[T element.Element](r *mmpr.Reader, id model.ID) (unit Unit[T], ok bool, err error) {
