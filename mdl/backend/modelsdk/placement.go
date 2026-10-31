@@ -7,7 +7,6 @@ import (
 
 	"github.com/mendixlabs/mxcli/mdl/types"
 	"github.com/mendixlabs/mxcli/model"
-	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // MoveDocument reparents a top-level document unit. See
@@ -93,21 +92,13 @@ func (b *Backend) eachDocumentUnit(visit func(*types.DocumentUnit) bool) error {
 		if u.ContainmentName != "Documents" {
 			continue
 		}
-		raw, err := b.reader.GetRawUnitBytes(u.ID)
-		if err != nil || len(raw) == 0 {
+		// Only the top-level Name is needed, and the unit index holds it:
+		// reading every document for it was most of a module-wide describe.
+		h, ok, err := b.reader.UnitHeaderByID(u.ID)
+		if err != nil || !ok || h.Name == "" {
 			continue
 		}
-		// Only the top-level Name is needed: unmarshalling the whole document
-		// to read it was most of a module-wide describe's time on a large
-		// project. An invalid document is skipped, as the decode skipped it.
-		doc := bson.Raw(raw)
-		if doc.Validate() != nil {
-			continue
-		}
-		name, _ := doc.Lookup("Name").StringValueOK()
-		if name == "" {
-			continue
-		}
+		name := h.Name
 		if !visit(&types.DocumentUnit{
 			ID:          model.ID(u.ID),
 			ContainerID: model.ID(u.ContainerID),
