@@ -212,8 +212,21 @@ create or modify page MyFirstModule.ProbePage (Title: 'P2', Layout: Atlas_Core.A
   }
 };
 `},
-		{name: "move a flow to a new folder", mdl: "move microflow MyFirstModule.MF_Chain001 to folder 'Probes';", full: true},
+		{name: "move a flow to a new folder", mdl: "move microflow MyFirstModule.MF_Chain001 to folder 'Probes';"},
 		{name: "move a flow into that folder", mdl: "move microflow MyFirstModule.MF_Chain002 to folder 'Probes';"},
+		{name: "create a flow in new nested folders", mdl: `mdl 1;
+create microflow MyFirstModule.MF_Nested () returns Boolean
+folder 'Probes/Deep/Deeper'
+begin
+  return true;
+end;
+`},
+		// Every document below a moved folder prints a new folder path.
+		{name: "move a folder", mdl: "move folder MyFirstModule.Probes to folder 'Moved';"},
+		// And a new module and qualified name: callers name them by it.
+		{name: "move a folder to another module", mdl: "move folder MyFirstModule.Moved to FeedbackModule;"},
+		{name: "drop an emptied folder", mdl: `move microflow FeedbackModule.MF_Nested to folder 'Kept';
+drop folder 'Moved/Probes/Deep/Deeper' in FeedbackModule;`},
 		{name: "drop a flow", mdl: "drop microflow MyFirstModule.MF_Added;"},
 		// The page still names the flow it no longer finds. Created again,
 		// the flow is a unit the previous catalog never knew, so only the

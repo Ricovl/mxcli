@@ -7,6 +7,9 @@ package catalog
 //
 // History:
 //
+//	30 (incremental folders): catalog_units gains Type, so the next build
+//	    knows a removed unit was a folder and rebuilds what was below it
+//	    instead of making the build a full one.
 //	29 (service microflow edges): refs gains the edges from an integration
 //	    service to the microflows it runs — a published OData resource's
 //	    read/change microflows, its actions and authentication microflow, a
@@ -156,7 +159,7 @@ package catalog
 //	    SnapshotSource / SourceId / SourceBranch / SourceRevision columns
 //	    from every row (issue #576).
 //	1 — initial flat schema with denormalized snapshot columns on every row.
-const CatalogSchemaVersion = "29"
+const CatalogSchemaVersion = "30"
 
 // MetaSchemaVersion is the catalog_meta key that records the schema version
 // the cache was built against.
@@ -1541,7 +1544,8 @@ func (c *Catalog) createTables() error {
 		`CREATE TABLE IF NOT EXISTS catalog_units (
 			UnitId TEXT PRIMARY KEY,
 			Basis TEXT NOT NULL,
-			Owned INTEGER NOT NULL
+			Owned INTEGER NOT NULL,
+			Type TEXT NOT NULL DEFAULT ''
 		)`,
 		`CREATE TABLE IF NOT EXISTS catalog_unit_names (
 			UnitId TEXT NOT NULL,

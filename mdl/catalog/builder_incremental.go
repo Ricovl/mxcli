@@ -159,29 +159,54 @@ func (b *Builder) buildMode() string {
 // unitBasis is what a unit's rows depend on of the unit itself: its content
 // hash and its container. The container is a column of the Unit table, not
 // part of the bytes, and rows print the folder and module. Nil when the
-// reader cannot hash units, which carries and records nothing.
-func (b *Builder) unitBasis() (map[string]string, map[string]string) {
+// reader cannot hash units, which carries and records nothing. It also
+// returns each unit's type and container.
+func (b *Builder) unitBasis() (basis, types, parents map[string]string) {
 	h, ok := b.reader.(unitHasher)
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	hashes, err := h.UnitContentHashes()
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	units, err := b.reader.ListUnits()
 	if err != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	types := map[string]string{}
+	types, parents = map[string]string{}, map[string]string{}
 	for _, u := range units {
 		id := string(u.ID)
 		types[id] = u.Type
+		parents[id] = string(u.ContainerID)
 		if hash, ok := hashes[id]; ok {
 			hashes[id] = hash + "|" + string(u.ContainerID)
 		}
 	}
-	return hashes, types
+	return hashes, types, parents
+}
+
+const folderType = "Projects$Folder"
+
+// folderDescendants is every unit below the given folders, nested folders
+// included: a folder's name and place are in the folder path, module and
+// qualified name of every document under it.
+func (b *Builder) folderDescendants(folders map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	if len(folders) == 0 {
+		return out
+	}
+	for id := range b.unitParents {
+		seen := 0
+		for p := b.unitParents[id]; p != "" && seen < 64; p = b.unitParents[p] {
+			if folders[p] {
+				out[id] = true
+				break
+			}
+			seen++
+		}
+	}
+	return out
 }
 
 // incrementalPlan is what an incremental build rebuilds.
@@ -195,6 +220,7 @@ type incrementalPlan struct {
 type prevCatalog struct {
 	basis map[string]string
 	owned map[string]bool
+	types map[string]string
 }
 
 // loadPrevious reads the cached catalog and plans the build from it, on a
@@ -245,20 +271,21 @@ func (b *Builder) planFrom(ctx context.Context, conn *sql.Conn) (*incrementalPla
 		return nil, "the cache records another snapshot"
 	}
 
-	p := &prevCatalog{basis: map[string]string{}, owned: map[string]bool{}}
-	rows, err := conn.QueryContext(ctx, `SELECT UnitId, Basis, Owned FROM catalog_units`)
+	p := &prevCatalog{basis: map[string]string{}, owned: map[string]bool{}, types: map[string]string{}}
+	rows, err := conn.QueryContext(ctx, `SELECT UnitId, Basis, Owned, Type FROM catalog_units`)
 	if err != nil {
 		return nil, "the cache records no unit basis"
 	}
 	for rows.Next() {
-		var id, basis string
+		var id, basis, typ string
 		var owned int
-		if err := rows.Scan(&id, &basis, &owned); err != nil {
+		if err := rows.Scan(&id, &basis, &owned, &typ); err != nil {
 			rows.Close()
 			return nil, err.Error()
 		}
 		p.basis[id] = basis
 		p.owned[id] = owned != 0
+		p.types[id] = typ
 	}
 	rows.Close()
 	if len(p.basis) == 0 {
@@ -286,8 +313,19 @@ func (b *Builder) planIncremental(q queryFunc, prev *prevCatalog) (*incrementalP
 			plan.changed[id] = true
 		}
 	}
+	// A folder has no rows of its own; a renamed or moved one changes what
+	// every unit below it prints, so those are rebuilt as changed.
+	folders := map[string]bool{}
 	for id := range plan.changed {
-		if !plan.added[id] && !prev.owned[id] {
+		if b.unitTypes[id] == folderType || prev.types[id] == folderType {
+			folders[id] = true
+		}
+	}
+	for id := range b.folderDescendants(folders) {
+		plan.changed[id] = true
+	}
+	for id := range plan.changed {
+		if !plan.added[id] && !prev.owned[id] && !folders[id] && b.unitTypes[id] != folderType {
 			return nil, fmt.Sprintf("a %s changed", b.unitKind(id))
 		}
 		plan.scope[id] = true
@@ -322,7 +360,7 @@ func querier(ctx context.Context, f func(context.Context, string, ...any) (*sql.
 // rename, or a document added under a name others already used).
 func (b *Builder) verifyIncremental(plan *incrementalPlan) (map[string]bool, string) {
 	for id := range plan.changed {
-		if _, exists := b.basis[id]; exists && !b.rows.owned[id] {
+		if _, exists := b.basis[id]; exists && !b.rows.owned[id] && b.unitTypes[id] != folderType {
 			return nil, fmt.Sprintf("a %s changed", b.unitKind(id))
 		}
 	}
@@ -621,7 +659,7 @@ func (b *Builder) persistOwners() error {
 		}
 	}
 
-	units, err := b.tx.CatalogTx.Prepare(`INSERT INTO catalog_units (UnitId, Basis, Owned) VALUES (?, ?, ?)`)
+	units, err := b.tx.CatalogTx.Prepare(`INSERT INTO catalog_units (UnitId, Basis, Owned, Type) VALUES (?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -633,7 +671,7 @@ func (b *Builder) persistOwners() error {
 		if b.rows.owned[id] || (b.scope != nil && !b.scope[id] && b.prevOwned[id]) {
 			owned = 1
 		}
-		if _, err := units.Exec(id, basis, owned); err != nil {
+		if _, err := units.Exec(id, basis, owned, b.unitTypes[id]); err != nil {
 			return err
 		}
 	}

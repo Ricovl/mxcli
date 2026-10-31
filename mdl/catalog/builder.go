@@ -114,6 +114,7 @@ type Builder struct {
 	fingerprint     string
 	basis           map[string]string
 	unitTypes       map[string]string
+	unitParents     map[string]string // unit -> container, for a folder's descendants
 	scope           map[string]bool
 	rows            *rowOwners
 	stats           BuildStats
@@ -525,7 +526,7 @@ func (b *Builder) Build(progress ProgressFunc) error {
 		return fmt.Errorf("failed to build hierarchy: %w", err)
 	}
 	if b.fingerprint != "" {
-		b.basis, b.unitTypes = b.unitBasis()
+		b.basis, b.unitTypes, b.unitParents = b.unitBasis()
 	}
 
 	sdb, ok := b.catalog.db.(*SqliteCatalogDB)

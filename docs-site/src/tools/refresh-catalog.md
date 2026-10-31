@@ -75,14 +75,15 @@ The catalog is cached in `.mxcli/catalog.db` next to the MPR file. On subsequent
 
 A rebuild after a save does not start from scratch. The cache records which document every row came from, and the next rebuild of the same level (fast, `FULL` or `FULL SOURCE`) starts from the cached catalog and produces again only the rows of:
 
-- the documents that changed, were added or were deleted (a document moved to another existing folder counts as changed);
+- the documents that changed, were added or were deleted (a document moved to another folder counts as changed);
+- every document below a folder that was renamed, moved or deleted, since it prints the folder's path, and a move to another module changes its qualified name;
 - the documents whose references name one of them, before or after the change. A document's rows can depend on what it names: what a delete removes depends on the association it retrieved over. A specialization counts as naming what its generalization holds.
 
 The rows of every other document stay as they are, and only the documents being rebuilt are read and decoded. On a 4,753-document project a refresh after one edit takes under a second, against several seconds for a full build. The progress output then shows one line, `incremental: N units rebuilt, M carried over`, instead of a count per table.
 
 The rebuild is a full one, as before, when:
 
-- something changes that no per-document pass reads: a folder, a module, the project settings, the security settings or the navigation;
+- something changes that no per-document pass reads: a module, the project settings, the security settings or the navigation;
 - the cache was written by another mxcli build or at another level;
 - `FORCE` is given.
 
