@@ -217,6 +217,23 @@ func (w *Writer) BeginWriteTransaction() (*WriteTransaction, error) {
 	}, nil
 }
 
+// storedBytes reads a unit as this transaction sees it, which is what a write
+// in it has to be reconciled against. On v1 that is a read through wt.tx: the
+// pool's one connection is the one wt.tx holds, so reading through the reader
+// waited for it forever, and the transaction's own reads see its writes. On v2
+// the transaction's own write sits in a temp file until Commit, so the latest
+// pending file for the unit comes first; reconciling against the committed
+// .mxunit instead elided A → B → A's second write and committed B.
+func (wt *WriteTransaction) storedBytes(unitID string) ([]byte, error) {
+	blob := uuidToBlob(unitID)
+	for i := len(wt.pendingFiles) - 1; i >= 0; i-- {
+		if pf := wt.pendingFiles[i]; bytes.Equal(uuidToBlob(pf.unitID), blob) {
+			return os.ReadFile(pf.tempPath)
+		}
+	}
+	return wt.writer.reader.rawUnitBytes(wt.tx, unitID)
+}
+
 // WriteUnit writes a unit within the transaction.
 // The actual file write is deferred until Commit.
 func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
@@ -225,11 +242,8 @@ func (wt *WriteTransaction) WriteUnit(unitID string, contents []byte) error {
 	// out would mean the codec engine's own document writes kept churning while
 	// UpdateRawUnit's stopped — a difference no caller could reason about.
 	//
-	// The stored bytes are read through the transaction. On v1 they are in the
-	// database, and the pool's one connection is the one wt.tx holds: reading
-	// through the reader waited for it forever.
-	stored := func(id string) ([]byte, error) { return wt.writer.reader.rawUnitBytes(wt.tx, id) }
-	contents, unchanged, err := wt.writer.reconcileAgainst(unitID, contents, stored)
+	// The stored bytes are the transaction's view of the unit (storedBytes).
+	contents, unchanged, err := wt.writer.reconcileAgainst(unitID, contents, wt.storedBytes)
 	if err != nil {
 		return err
 	}
@@ -564,7 +578,7 @@ func (w *Writer) insertUnit(unitID, containerID, containmentName, unitType strin
 		return fmt.Errorf("invalid container ID (not a valid UUID): %q", containerID)
 	}
 
-	contents, normErr := w.normalizePropertySets(unitID, contents)
+	contents, normErr := w.normalizeForStorage(unitID, contents)
 	if normErr != nil {
 		return normErr
 	}
@@ -732,7 +746,7 @@ func (w *Writer) reconcileAgainst(unitID string, contents []byte, readStored fun
 	w.writesOffered++
 	// Normalised before comparing, so a rebuild of a Studio Pro document that
 	// differed from it only by the properties the writer leaves out is elided.
-	contents, err = w.normalizePropertySets(unitID, contents)
+	contents, err = w.normalizeForStorage(unitID, contents)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1035,7 +1049,7 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 	return nil
 }
 
-// normalizePropertySets gives every element exactly the property set Studio
+// normalizeForStorage gives every element exactly the property set Studio
 // Pro writes for its $Type on this project's version: keys the version does not
 // declare yet are stripped when empty and refused when they hold a value
 // (canon.StripUndeclaredProperties), then missing ones are added
@@ -1044,6 +1058,17 @@ func (w *Writer) UpdateUnitContainer(unitID, newContainerID string) error {
 // because a key too many or too few from ANY writer makes the document
 // unopenable or unmergeable (mendixlabs/mxcli#1373), and a fix per writer is
 // the list that never ends.
-func (w *Writer) normalizePropertySets(unitID string, contents []byte) ([]byte, error) {
-	return normalizePropertySetsFor(w.reader.ProjectVersion(), unitID, contents)
+//
+// Every registered list then gets the marker Studio Pro writes for it
+// (canon.NormalizeListMarkers). The encoder writes that marker for a list it
+// builds; a list a rewrite passes through as stored bytes — an unchanged
+// pluggable widget, an existing element's clean property, a mutator's in-place
+// edit — kept whatever an older build wrote, on every later rewrite
+// (ako/mxcli#1640).
+func (w *Writer) normalizeForStorage(unitID string, contents []byte) ([]byte, error) {
+	out, err := normalizePropertySetsFor(w.reader.ProjectVersion(), unitID, contents)
+	if err != nil {
+		return nil, err
+	}
+	return canon.NormalizeListMarkers(out), nil
 }

@@ -20,6 +20,9 @@ type PageParameterSpec struct {
 	Name          string
 	PrimitiveType string
 	EntityName    string
+	// Optional writes a page parameter with IsRequired false (11.5+,
+	// mendixlabs/mxcli#1640). A snippet parameter has no such flag.
+	Optional bool
 }
 
 const (
@@ -566,6 +569,13 @@ type ObjectListItemProperty struct {
 	// staticName) must serialize as an empty ClientTemplate or Studio Pro flags
 	// CE0463 "widget definition changed". Chart series (9a).
 	EmptyTemplate bool
+	// EmptyText, on a texttemplate operation with an empty TextTemplate, writes
+	// a ClientTemplate whose text is ONE empty translation in the authoring
+	// language — what the statement said — rather than none. A text with no
+	// translation reads, to a rewrite, as one MDL could not express, and
+	// canon.CarryTranslations carries the stored one back: `Caption: ''` on a
+	// data grid column could never clear a stored caption.
+	EmptyText bool
 }
 
 // DataGridColumnSpec carries pre-resolved column data for DataGrid2 construction.

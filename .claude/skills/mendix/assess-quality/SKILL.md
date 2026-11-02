@@ -12,14 +12,14 @@ description: "Audit a Mendix project against best practices for naming, security
 |---|---|
 | 29-36 | When to Use This Skill |
 | 37-96 | Assessment Workflow |
-| 97-353 | Quality Guidelines Reference |
-| 354-364 | Assessment Report Template |
-| 365-377 | Executive Summary |
-| 378-388 | project Metrics |
-| 389-401 | Automated Findings |
-| 402-421 | Manual Review Findings |
-| 422-437 | Recommendations |
-| 438-448 | Sources |
+| 97-356 | Quality Guidelines Reference |
+| 357-367 | Assessment Report Template |
+| 368-380 | Executive Summary |
+| 381-391 | project Metrics |
+| 392-404 | Automated Findings |
+| 405-424 | Manual Review Findings |
+| 425-440 | Recommendations |
+| 441-451 | Sources |
 
 <!-- /skill-index -->
 # Assess Mendix Project Quality
@@ -152,7 +152,7 @@ After reviewing automated results, assess the following areas manually. The guid
 
 ### C. Security
 
-**Enforced by rules:** SEC001-SEC010, CONV006, CONV007, CONV008, MPR007
+**Enforced by rules:** SEC001-SEC011, CONV006, CONV007, CONV008, MPR007
 
 #### C.1 Entity Access
 
@@ -160,6 +160,8 @@ After reviewing automated results, assess the following areas manually. The guid
 |-----------|------|----------|
 | All persistent entities must have access rules | SEC001 | Critical |
 | Every role that opens a page can read the entities its grids, galleries and combo boxes list (else it renders empty at Production) | SEC010 | High |
+| Every association a page data source's XPath crosses is readable by the roles that open the page, on the entity the step starts from (else the page fails to open at Production) | SEC011 | High |
+| Every page a user role can reach shows only attributes and entities that role may read (else mxbuild fails with CE2729) | SEC012 | High |
 | Do not grant Create or Delete rights on entity access rules | CONV006 | High |
 | All entity access rules should have XPath constraints | CONV007 | High |
 | Set default access rights to None | Manual check | High |
@@ -200,7 +202,7 @@ The Dutch Institute for Vulnerability Disclosure (DIVD) found widespread authori
 
 ### D. Maintainability
 
-**Enforced by rules:** QUAL001-QUAL004, CONV009, CONV012, CONV014, CONV020, MPR002, MPR004, MPR006
+**Enforced by rules:** QUAL001-QUAL004, CONV009, CONV012, CONV014, CONV020, CONV021, MPR002, MPR004, MPR006
 
 | Guideline | Rule/Check | Threshold |
 |-----------|-----------|-----------|
@@ -212,6 +214,7 @@ The Dutch Institute for Vulnerability Disclosure (DIVD) found widespread authori
 | Caption on exclusive splits | CONV012 | All decision points must have captions |
 | No "Continue" error handling | CONV014 | Never swallow errors silently |
 | No created object silently discarded | CONV020 | A persistent object created without commit is committed, returned or passed on |
+| Commit on the create/change, not after it | CONV021 | No Create/Change object activity directly followed by a Commit of the same object |
 | ACT_ microflows: thin controllers | CONV010 | Only page activities + submicroflow calls |
 
 **Manual checks:**
@@ -440,7 +443,7 @@ Overall Score: [X]/100 (from `mxcli report`)
 This skill incorporates guidelines from:
 - **Conventions.pdf** — Squad Apps internal best practices (14 categories, 80+ guidelines)
 - **CONV001-CONV017 lint rules** — Automated checks derived from Conventions.pdf
-- **MPR001-MPR007, SEC001-SEC010** — Built-in linter rules
+- **MPR001-MPR007, SEC001-SEC011** — Built-in linter rules
 - **ARCH, DESIGN, QUAL series** — Starlark architecture/quality rules
 - **Mendix Performance Best Practices** — Official Mendix documentation on performance optimization
 - **Mendix Security Best Practices** — Official Mendix documentation on security configuration

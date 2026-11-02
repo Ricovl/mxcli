@@ -16,6 +16,7 @@ import (
 	"github.com/mendixlabs/mxcli/mdl/executor"
 	"github.com/mendixlabs/mxcli/mdl/repl"
 	"github.com/mendixlabs/mxcli/mdl/visitor"
+	mpr "github.com/mendixlabs/mxcli/modelsdk/mpr"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,10 @@ func main() {
 	// Show warning banner unless --quiet, -q, --help, -h, or --version is passed
 	if !shouldSuppressWarning() {
 		fmt.Fprint(os.Stderr, warningBanner)
+		// The first command on a project (after an upgrade, or on a fresh
+		// clone) opens every unit file to build the unit index; say so
+		// rather than stall unexplained (ako/mxcli#1806).
+		mpr.ColdUnitIndexNotice = os.Stderr
 	}
 
 	// Open the process session before cobra sees argv. Cobra validates a
@@ -173,9 +178,6 @@ beta language; --mdl 0 starts them in the alpha language, and in the REPL an
 		globalJSONFlag, _ = cmd.Flags().GetBool("json")
 		globalMCPURL, _ = cmd.Flags().GetString("mcp")
 		globalMCPDial, _ = cmd.Flags().GetString("mcp-dial")
-		globalMCPConcord, _ = cmd.Flags().GetString("mcp-concord")
-		globalMCPConcordDial, _ = cmd.Flags().GetString("mcp-concord-dial")
-		globalMCPSave, _ = cmd.Flags().GetBool("mcp-save")
 		globalMCPCheck, _ = cmd.Flags().GetBool("mcp-check")
 		globalMCPRun, _ = cmd.Flags().GetBool("mcp-run")
 		globalMCPVerbose, _ = cmd.Flags().GetBool("mcp-verbose")
@@ -243,15 +245,12 @@ var globalJSONFlag bool
 // routes model writes to a live Studio Pro while reads come from the local
 // .mpr given by -p. See docs/11-proposals/PROPOSAL_mcp_backend.md.
 var (
-	globalMCPURL         string
-	globalMCPDial        string
-	globalMCPConcord     string
-	globalMCPConcordDial string
-	globalMCPSave        bool
-	globalMCPCheck       bool
-	globalMCPRun         bool
-	globalMCPVerbose     bool
-	globalMCPTrace       bool
+	globalMCPURL     string
+	globalMCPDial    string
+	globalMCPCheck   bool
+	globalMCPRun     bool
+	globalMCPVerbose bool
+	globalMCPTrace   bool
 )
 
 // resolveFormat returns the effective output format for a command.
@@ -351,11 +350,8 @@ func init() {
 	rootCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
 	rootCmd.PersistentFlags().String("mcp", "", "Route model writes to a live Studio Pro MCP server (e.g. http://localhost:7782/mcp); reads come from -p")
 	rootCmd.PersistentFlags().String("mcp-dial", "", "Override the TCP address dialed for --mcp (e.g. host.docker.internal:7782 from a devcontainer)")
-	rootCmd.PersistentFlags().String("mcp-concord", "", "Optional second MCP server (Concord) for capabilities the built-in server lacks: delete, save, validate, run (e.g. http://localhost:7783/mcp)")
-	rootCmd.PersistentFlags().String("mcp-concord-dial", "", "Override the TCP address dialed for --mcp-concord")
-	rootCmd.PersistentFlags().Bool("mcp-save", false, "After the command, save all changes in Studio Pro via Concord (requires --mcp-concord; the built-in server has no save tool)")
-	rootCmd.PersistentFlags().Bool("mcp-check", false, "After the command, run Studio Pro's model consistency check via Concord and print the report (requires --mcp-concord)")
-	rootCmd.PersistentFlags().Bool("mcp-run", false, "After the command, start the app in Studio Pro via Concord (run_app) and print its URL (requires --mcp-concord)")
+	rootCmd.PersistentFlags().Bool("mcp-check", false, "After the command, run Studio Pro's project-wide error check (ped_check_errors, Studio Pro 11.15+) and print the report")
+	rootCmd.PersistentFlags().Bool("mcp-run", false, "After the command, start the app in Studio Pro (mendix_app handler, Studio Pro 11.16+) and print its URL")
 	rootCmd.PersistentFlags().Bool("mcp-verbose", false, "Print each PED tool call the MCP backend makes (requires --mcp)")
 	rootCmd.PersistentFlags().Bool("mcp-trace", false, "Print each MDL command with the PED tool calls it makes (implies --mcp-verbose; requires --mcp)")
 	rootCmd.PersistentFlags().String("engine", "", "Deprecated and ignored: there is one model engine. Kept so scripts pinning the old one keep running.")
@@ -413,6 +409,8 @@ func init() {
 	lintCmd.Flags().StringSliceP("rules", "r", nil, "Only run these rule IDs (e.g. -r MPR001 -r SEC001)")
 	lintCmd.Flags().StringSliceP("modules", "m", nil, "Only lint the specified modules (comma-separated or repeated)")
 	lintCmd.Flags().StringSliceP("documents", "d", nil, "Only lint these documents, by qualified name (e.g. Sales.ACT_Order); comma-separated or repeated")
+	lintCmd.Flags().String("baseline", "", "Report only findings not recorded in this baseline file (exit code follows the new ones)")
+	lintCmd.Flags().Bool("update-baseline", false, "Record the current findings in the --baseline file instead of comparing")
 
 	// Report command flags
 	reportCmd.Flags().StringP("format", "f", "markdown", "Output format: markdown, json, html")

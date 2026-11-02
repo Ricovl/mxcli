@@ -53,26 +53,7 @@ func (b *Backend) ListMicroflowsNamed(name string) ([]*microflows.Microflow, err
 // ListMicroflowHeaders lists every microflow's ID, container, name and
 // Excluded flag without decoding any flow.
 func (b *Backend) ListMicroflowHeaders() ([]types.DocumentHeader, error) {
-	return documentHeaders[*genMf.Microflow](b)
-}
-
-// ListNanoflowHeaders is ListMicroflowHeaders for nanoflows.
-func (b *Backend) ListNanoflowHeaders() ([]types.DocumentHeader, error) {
-	return documentHeaders[*genMf.Nanoflow](b)
-}
-
-// documentHeaders lists the headers of every unit of type T from the reader's
-// index, decoding none.
-func documentHeaders[T element.Element](b *Backend) ([]types.DocumentHeader, error) {
-	hs, err := mprread.ListUnitHeaders[T](b.reader)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]types.DocumentHeader, len(hs))
-	for i, h := range hs {
-		out[i] = types.DocumentHeader(h)
-	}
-	return out, nil
+	return unitHeaders[*genMf.Microflow](b)
 }
 
 // GetMicroflow reads and decodes only the unit with that ID.
@@ -140,27 +121,19 @@ func (b *Backend) ListNanoflows() ([]*microflows.Nanoflow, error) {
 	return out, nil
 }
 
-// GetNanoflow reads and decodes only the unit with that ID.
+// GetNanoflow decodes the nanoflow whose ID is id, and no other (#1850).
 func (b *Backend) GetNanoflow(id model.ID) (*microflows.Nanoflow, error) {
-	unit, err := mprread.GetUnitByID[*genMf.Nanoflow](b.reader, id)
-	if err != nil || unit == nil {
+	u, ok, err := mprread.UnitByID[*genMf.Nanoflow](b.reader, id)
+	if err != nil || !ok {
 		return nil, err
 	}
-	return nanoflowFromGen(unit.Element, unit.ContainerID), nil
+	return nanoflowFromGen(u.Element, u.ContainerID), nil
 }
 
-// ListNanoflowsNamed is ListNanoflows for the nanoflows whose local name is
-// name, in every module: only those are read and decoded.
-func (b *Backend) ListNanoflowsNamed(name string) ([]*microflows.Nanoflow, error) {
-	units, err := mprread.ListUnitsNamed[*genMf.Nanoflow](b.reader, name)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*microflows.Nanoflow, 0, len(units))
-	for _, u := range units {
-		out = append(out, nanoflowFromGen(u.Element, u.ContainerID))
-	}
-	return out, nil
+// ListNanoflowHeaders lists every nanoflow's ID, container, name and Excluded
+// flag without decoding any flow.
+func (b *Backend) ListNanoflowHeaders() ([]types.DocumentHeader, error) {
+	return unitHeaders[*genMf.Nanoflow](b)
 }
 
 // nanoflowFromGen mirrors microflowFromGen — nanoflows share the same parameter,

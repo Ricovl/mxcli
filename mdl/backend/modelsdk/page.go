@@ -27,15 +27,7 @@ import (
 // ListPageHeaders lists every page's ID, container, name and Excluded flag
 // without decoding any page.
 func (b *Backend) ListPageHeaders() ([]types.DocumentHeader, error) {
-	hs, err := mprread.ListUnitHeaders[*genPg.Page](b.reader)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]types.DocumentHeader, len(hs))
-	for i, h := range hs {
-		out[i] = types.DocumentHeader(h)
-	}
-	return out, nil
+	return unitHeaders[*genPg.Page](b)
 }
 
 func (b *Backend) ListPages() ([]*pages.Page, error) {
@@ -78,22 +70,17 @@ func pageTemplateFromGen(pt *genPg.PageTemplate, containerID model.ID) *pages.Pa
 	return out
 }
 
-// GetPage reads and decodes only the unit with that ID.
+// GetPage decodes the page whose ID is id, and no other (#1850).
 func (b *Backend) GetPage(id model.ID) (*pages.Page, error) {
-	unit, err := mprread.GetUnitByID[*genPg.Page](b.reader, id)
-	if err != nil || unit == nil {
+	u, ok, err := mprread.UnitByID[*genPg.Page](b.reader, id)
+	if err != nil || !ok {
 		return nil, err
 	}
-	return pageFromGen(unit.Element, unit.ContainerID), nil
+	return pageFromGen(u.Element, u.ContainerID), nil
 }
 
 // ListSnippets reads snippet units (count + identity is what SHOW MODULES needs;
 // the widget tree is not converted).
-// ListSnippetHeaders is ListPageHeaders for snippets.
-func (b *Backend) ListSnippetHeaders() ([]types.DocumentHeader, error) {
-	return documentHeaders[*genPg.Snippet](b)
-}
-
 func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
 	units, err := listUnitsCached[*genPg.Snippet](b)
 	if err != nil {
@@ -101,32 +88,45 @@ func (b *Backend) ListSnippets() ([]*pages.Snippet, error) {
 	}
 	out := make([]*pages.Snippet, 0, len(units))
 	for _, u := range units {
-		out = append(out, snippetFromGen(u.Element, u.ContainerID))
+		out = append(out, snippetFromGen(u))
 	}
 	return out, nil
 }
 
-// GetSnippet reads and decodes only the unit with that ID.
+// GetSnippet decodes the snippet whose ID is id, and no other (#1850). nil when
+// there is none.
 func (b *Backend) GetSnippet(id model.ID) (*pages.Snippet, error) {
-	unit, err := mprread.GetUnitByID[*genPg.Snippet](b.reader, id)
-	if err != nil || unit == nil {
+	u, ok, err := mprread.UnitByID[*genPg.Snippet](b.reader, id)
+	if err != nil || !ok {
 		return nil, err
 	}
-	return snippetFromGen(unit.Element, unit.ContainerID), nil
+	return snippetFromGen(u), nil
 }
 
-func snippetFromGen(sn *genPg.Snippet, containerID model.ID) *pages.Snippet {
+// ListSnippetHeaders lists every snippet's ID, container, name and Excluded
+// flag without decoding any snippet.
+func (b *Backend) ListSnippetHeaders() ([]types.DocumentHeader, error) {
+	return unitHeaders[*genPg.Snippet](b)
+}
+
+// ListLayoutHeaders lists every layout's ID, container, name and Excluded flag
+// without decoding any layout.
+func (b *Backend) ListLayoutHeaders() ([]types.DocumentHeader, error) {
+	return unitHeaders[*genPg.Layout](b)
+}
+
+func snippetFromGen(u mprread.Unit[*genPg.Snippet]) *pages.Snippet {
 	s := &pages.Snippet{
-		ContainerID:   containerID,
-		Name:          sn.Name(),
-		Documentation: sn.Documentation(),
-		Excluded:      sn.Excluded(),
+		ContainerID:   u.ContainerID,
+		Name:          u.Element.Name(),
+		Documentation: u.Element.Documentation(),
+		Excluded:      u.Element.Excluded(),
 	}
-	s.ID = model.ID(sn.ID())
+	s.ID = model.ID(u.Element.ID())
 	// Populate declared parameters — the page builder reads these to validate
 	// and wire SNIPPETCALL argument mappings (without them every parameterised
 	// snippet call writes an empty argument → CE1571 in Studio Pro).
-	for _, el := range sn.ParametersItems() {
+	for _, el := range u.Element.ParametersItems() {
 		sp, ok := el.(*genPg.SnippetParameter)
 		if !ok {
 			continue
@@ -206,7 +206,7 @@ func pageFromGen(p *genPg.Page, containerID model.ID) *pages.Page {
 			ContainerID:  out.ID,
 			Name:         gp.Name(),
 			DefaultValue: gp.DefaultValue(),
-			IsRequired:   gp.IsRequired(),
+			IsRequired:   pageParameterIsRequired(gp),
 		}
 		pp.ID = model.ID(gp.ID())
 		// Object parameters carry an entity (rendered as the qualified entity
@@ -264,18 +264,22 @@ func (b *Backend) ListLayouts() ([]*pages.Layout, error) {
 	}
 	out := make([]*pages.Layout, 0, len(units))
 	for _, u := range units {
-		l := &pages.Layout{
-			ContainerID:   u.ContainerID,
-			Name:          u.Element.Name(),
-			Documentation: u.Element.Documentation(),
-			LayoutType:    layoutTypeOf(u.Element),
-			Native:        layoutIsNative(u.Element),
-			Class:         appearanceClassOf(u.Element),
-		}
-		l.ID = model.ID(u.Element.ID())
-		out = append(out, l)
+		out = append(out, layoutFromGen(u))
 	}
 	return out, nil
+}
+
+func layoutFromGen(u mprread.Unit[*genPg.Layout]) *pages.Layout {
+	l := &pages.Layout{
+		ContainerID:   u.ContainerID,
+		Name:          u.Element.Name(),
+		Documentation: u.Element.Documentation(),
+		LayoutType:    layoutTypeOf(u.Element),
+		Native:        layoutIsNative(u.Element),
+		Class:         appearanceClassOf(u.Element),
+	}
+	l.ID = model.ID(u.Element.ID())
+	return l
 }
 
 // appearanceClassOf reads the layout's own CSS class.
@@ -322,17 +326,13 @@ func layoutIsNative(l *genPg.Layout) bool {
 }
 
 // GetLayout returns a single layout by ID (shallow).
+// GetLayout decodes the layout whose ID is id, and no other (#1850).
 func (b *Backend) GetLayout(id model.ID) (*pages.Layout, error) {
-	layouts, err := b.ListLayouts()
-	if err != nil {
+	u, ok, err := mprread.UnitByID[*genPg.Layout](b.reader, id)
+	if err != nil || !ok {
 		return nil, err
 	}
-	for _, l := range layouts {
-		if l.ID == id {
-			return l, nil
-		}
-	}
-	return nil, nil
+	return layoutFromGen(u), nil
 }
 
 // LayoutPlaceholders returns the placeholder names a layout declares.
@@ -358,4 +358,22 @@ func (b *Backend) PageLayoutName(id model.ID) (string, error) {
 		return "", err
 	}
 	return backend.PageLayoutNameFromRaw(raw), nil
+}
+
+// pageParameterIsRequired is a stored page parameter's IsRequired. The property
+// is Mendix 11.5+ (mendixlabs/mxcli#1640): a parameter stored without it — every
+// one below 11.5 — is required, and only a stored false is optional. The gen
+// accessor alone reads an absent key as false, which would make every older
+// parameter look optional.
+func pageParameterIsRequired(gp *genPg.PageParameter) bool {
+	raw := gp.Raw()
+	if raw == nil {
+		return gp.IsRequired()
+	}
+	v, err := raw.LookupErr("IsRequired")
+	if err != nil {
+		return true
+	}
+	b, ok := v.BooleanOK()
+	return !ok || b
 }

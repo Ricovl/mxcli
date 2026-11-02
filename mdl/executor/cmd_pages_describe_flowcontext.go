@@ -106,7 +106,7 @@ func flowReturnEntity(ctx *ExecContext, kind, qualifiedName string) string {
 		}
 	case "nanoflow":
 		_, local, _ := strings.Cut(qualifiedName, ".")
-		nfs, err := nanoflowsNamedIn(ctx.Backend, local)
+		nfs, err := nanoflowsNamed(ctx.Backend, local)
 		if err != nil {
 			return ""
 		}

@@ -411,7 +411,7 @@ log error 'Error message';
 
 -- With node name
 log info node 'OrderService' 'Processing order';
-log warning node 'ValidationService' 'Invalid data detected';
+log warning node 'ValidationService' 'Item {1} is invalid' with ({1} = $Nr);  -- a { is {n} or {{ (CE0712, pitfalls §19)
 
 -- With variables (use concatenation)
 log info node 'OrderService' 'Order processed: ' + $OrderNumber;
@@ -645,7 +645,7 @@ $var/Module.AssociationName/attribute   -- Chained
 
 ### Annotation Pattern
 ```mdl
-@position(200, 200)          -- optional: omit it and mxcli lays the flow out; to re-arrange an existing flow run `mxcli layout flows`
+@position(200, 200)          -- optional: omit it and mxcli lays the flow out in the project's layout-config.yaml style (never imitate a style with @position; keep, never hand-write, a `@mxcli-layout:` doc line); to re-arrange an existing flow run `mxcli layout flows`
 @caption 'Persist order'
 @color Green
 @annotation 'Note about the next activity'

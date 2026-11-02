@@ -27,8 +27,8 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	// Find the page
-	allPages, err := ctx.Backend.ListPages()
+	// Find the page: only the pages of this name are decoded (#1850).
+	allPages, err := pagesWhere(ctx.Backend, func(n string) bool { return n == name.Name })
 	if err != nil {
 		return mdlerrors.NewBackend("list pages", err)
 	}
@@ -138,7 +138,12 @@ func describePage(ctx *ExecContext, name ast.QualifiedName) error {
 		params := []string{}
 		for _, p := range foundPage.Parameters {
 			typeName := pageParamTypeMDL(p)
-			params = append(params, fmt.Sprintf("$%s: %s", p.Name, typeName))
+			decl := fmt.Sprintf("$%s: %s", p.Name, typeName)
+			// An 11.5+ parameter the page can be opened without (#1640).
+			if !p.IsRequired {
+				decl += " optional"
+			}
+			params = append(params, decl)
 		}
 		props = append(props, fmt.Sprintf("Params: ( %s )", strings.Join(params, ", ")))
 	}
@@ -236,8 +241,8 @@ func describeSnippet(ctx *ExecContext, name ast.QualifiedName) error {
 		return mdlerrors.NewBackend("build hierarchy", err)
 	}
 
-	// Find the snippet
-	allSnippets, err := ctx.Backend.ListSnippets()
+	// Find the snippet: only the snippets of this name are decoded (#1850).
+	allSnippets, err := snippetsNamed(ctx.Backend, name.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list snippets", err)
 	}

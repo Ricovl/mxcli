@@ -671,12 +671,14 @@ func microflowHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
 // pageHeaders lists every page's ID, container and name: without decoding a
 // page on the modelsdk backend.
 func pageHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
-	if l, ok := ctx.Backend.(interface {
-		ListPageHeaders() ([]types.DocumentHeader, error)
-	}); ok {
+	return pageHeadersOf(ctx.Backend)
+}
+
+func pageHeadersOf(be backend.FullBackend) ([]types.DocumentHeader, error) {
+	if l, ok := be.(pageHeaderLister); ok {
 		return l.ListPageHeaders()
 	}
-	all, err := ctx.Backend.ListPages()
+	all, err := be.ListPages()
 	if err != nil {
 		return nil, err
 	}
@@ -788,28 +790,6 @@ func buildPageQualifiedNames(ctx *ExecContext) map[string]bool {
 	return result
 }
 
-// pageHeaderLister lists page and snippet headers without decoding them.
-type pageHeaderLister interface {
-	ListPageHeaders() ([]types.DocumentHeader, error)
-	ListSnippetHeaders() ([]types.DocumentHeader, error)
-}
-
-// snippetHeaders is pageHeaders for snippets.
-func snippetHeaders(ctx *ExecContext) ([]types.DocumentHeader, error) {
-	if l, ok := ctx.Backend.(pageHeaderLister); ok {
-		return l.ListSnippetHeaders()
-	}
-	sns, err := ctx.Backend.ListSnippets()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]types.DocumentHeader, len(sns))
-	for i, s := range sns {
-		out[i] = types.DocumentHeader{ID: s.ID, ContainerID: s.ContainerID, Name: s.Name, Excluded: s.Excluded}
-	}
-	return out, nil
-}
-
 // buildSnippetQualifiedNames returns a set of all snippet qualified names in the project.
 func buildSnippetQualifiedNames(ctx *ExecContext) map[string]bool {
 	result := make(map[string]bool)
@@ -817,7 +797,7 @@ func buildSnippetQualifiedNames(ctx *ExecContext) map[string]bool {
 	if err != nil {
 		return result
 	}
-	hs, err := snippetHeaders(ctx)
+	hs, err := snippetHeaders(ctx.Backend)
 	if err != nil {
 		return result
 	}

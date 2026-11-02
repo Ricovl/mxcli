@@ -364,11 +364,14 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	// Cached for the run; read-only here.
 	entityNames := getEntityNames(ctx, h)
 
-	var microflowNames map[model.ID]string
+	// Build microflow/nanoflow name lookup (used for call actions)
+	microflowNames, err := flowNames(ctx, h, true)
+	if err != nil {
+		return mdlerrors.NewBackend("list flows", err)
+	}
 
-	// Find the nanoflow
-	// Only the nanoflows of this name are decoded, not every nanoflow.
-	allNanoflows, err := nanoflowsNamedIn(ctx.Backend, name.Name)
+	// Find the nanoflow: only the nanoflows of this name are decoded (#1850).
+	allNanoflows, err := nanoflowsNamed(ctx.Backend, name.Name)
 	if err != nil {
 		return mdlerrors.NewBackend("list nanoflows", err)
 	}
@@ -446,6 +449,8 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 	wrapperMf := &microflows.Microflow{
 		ReturnType:       targetNf.ReturnType,
 		ObjectCollection: targetNf.ObjectCollection,
+		// The describer reads the layout style the nanoflow records (#1832).
+		Documentation: targetNf.Documentation,
 	}
 	prevDescribingReturnValue := ctx.DescribingMicroflowHasReturnValue
 	ctx.DescribingMicroflowHasReturnValue = microflowHasReturnValue(wrapperMf)
@@ -462,6 +467,7 @@ func describeNanoflow(ctx *ExecContext, name ast.QualifiedName) error {
 				ReturnType:         targetNf.ReturnType,
 				ReturnVariableName: targetNf.ReturnVariableName,
 				ObjectCollection:   targetNf.ObjectCollection,
+				Documentation:      targetNf.Documentation,
 			}, name, entityNames, microflowNames)()
 		}
 		activityLines := formatMicroflowActivities(ctx, wrapperMf, entityNames, microflowNames)
@@ -533,8 +539,11 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 	// Cached for the run; read-only here.
 	entityNames := getEntityNames(ctx, h)
 
-	// Only the nanoflows of this name are decoded, not every nanoflow.
-	allNanoflows, err := nanoflowsNamedIn(ctx.Backend, name.Name)
+	microflowNames, err := flowNames(ctx, h, true)
+	if err != nil {
+		return "", nil, mdlerrors.NewBackend("list flows", err)
+	}
+	allNanoflows, err := nanoflowsNamed(ctx.Backend, name.Name)
 	if err != nil {
 		return "", nil, mdlerrors.NewBackend("list nanoflows", err)
 	}
@@ -553,7 +562,7 @@ func describeNanoflowToString(ctx *ExecContext, name ast.QualifiedName) (string,
 
 	// Wrap nanoflow as a Microflow so renderMicroflowMDL can handle it
 	sourceMap := make(map[string]elkSourceRange)
-	mdl := renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(targetNf), name, entityNames, nil, sourceMap)
+	mdl := renderMicroflowMDL(ctx, "nanoflow", nanoflowAsMicroflow(targetNf), name, entityNames, microflowNames, sourceMap)
 	return mdl, sourceMap, nil
 }
 
@@ -761,6 +770,7 @@ func formatMicroflowActivities(
 	if mf.ObjectCollection == nil {
 		return []string{"-- debug: ObjectCollection is nil"}
 	}
+	defer ctx.describingFlowLayout(mf.Documentation)()
 
 	// Build activity map by ID for flow traversal
 	activityMap := make(map[model.ID]microflows.MicroflowObject)
@@ -947,6 +957,7 @@ func formatMicroflowBodyWithSourceMap(
 	sourceMap map[string]elkSourceRange,
 	headerLineCount int,
 ) (warnings, body []string) {
+	defer ctx.describingFlowLayout(mf.Documentation)()
 	if mf.ObjectCollection == nil {
 		return nil, []string{"-- debug: ObjectCollection is nil"}
 	}
@@ -1481,14 +1492,9 @@ func describeRule(ctx *ExecContext, name ast.QualifiedName) error {
 
 	// A rule's body can call microflows, so the call-target lookup is the same
 	// one the microflow describer builds.
-	// Names only, so headers: no microflow is decoded.
-	microflowNames := make(map[model.ID]string)
-	allMicroflows, err := microflowHeaders(ctx)
+	microflowNames, err := flowNames(ctx, h, false)
 	if err != nil {
 		return mdlerrors.NewBackend("list microflows", err)
-	}
-	for _, mf := range allMicroflows {
-		microflowNames[mf.ID] = h.GetQualifiedName(mf.ContainerID, mf.Name)
 	}
 
 	allRules, err := ctx.Backend.ListRules()
