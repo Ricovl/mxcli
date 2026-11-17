@@ -1,0 +1,592 @@
+{
+ "runs": 1,
+ "alerts": null,
+ "series": [
+  {
+   "session": "small",
+   "step": "(session-weighted total)",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 83273.38999999998,
+     "ratio": 0.7748418326728184
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "open-cold",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 131.471,
+     "ratio": 1.008107411108604
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "open",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 42.854,
+     "ratio": 0.9832507342143905
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "domain",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 567.998,
+     "ratio": 0.32229742039160447
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "microflows",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 388.775,
+     "ratio": 0.2649919617507502
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "pages",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 1304.765,
+     "ratio": 0.31607588570208944
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "describe",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 101.06,
+     "ratio": 0.9004555039297484
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "catalog",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 164.506,
+     "ratio": 1.0192192840896095
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "catalog-full",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 893.621,
+     "ratio": 1.0105188860562628
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "query",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 64.367,
+     "ratio": 0.954504337510195
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "check",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 268.392,
+     "ratio": 0.6975649411027103
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "single-edit",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 277.667,
+     "ratio": 0.8964777199609074
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "catalog-after-edit",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 162.092,
+     "ratio": 1.0363218857440089
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "bulk-alter",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 932.894,
+     "ratio": 0.2985203540705517
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "re-exec",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 491.246,
+     "ratio": 0.23260581579477446
+    }
+   ]
+  },
+  {
+   "session": "small",
+   "step": "rename",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 391.66,
+     "ratio": 0.9088187861841724
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "(session-weighted total)",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 119280.832,
+     "ratio": 0.5955349737281688
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "open-cold",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 247.11,
+     "ratio": 1.0049329597351737
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "open",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 51.597,
+     "ratio": 0.9559572301425663
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "domain",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 661.039,
+     "ratio": 0.2253310855523366
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "microflows",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 840.33,
+     "ratio": 0.17508844745033816
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "pages",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 1549.286,
+     "ratio": 0.1523695762110066
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "describe",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 118.807,
+     "ratio": 0.8724413176797828
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "catalog",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 246.94,
+     "ratio": 0.9656957827556001
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "catalog-full",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 2848.059,
+     "ratio": 1.0031163635813776
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "query",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 60.604,
+     "ratio": 0.9726629982724423
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "check",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 404.133,
+     "ratio": 0.46834634371316813
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "single-edit",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 394.857,
+     "ratio": 0.8050945706677097
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "catalog-after-edit",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 232.029,
+     "ratio": 1.0536996594188692
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "bulk-alter",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 1112.813,
+     "ratio": 0.17926229465943785
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "re-exec",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 647.53,
+     "ratio": 0.15349626461284685
+    }
+   ]
+  },
+  {
+   "session": "large",
+   "step": "rename",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 782.835,
+     "ratio": 0.9435507334222331
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "(session-weighted total)",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 4481.889,
+     "ratio": 0.037217802846984976
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "check-cold",
+   "statements": 1,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 1232.9,
+     "ratio": 0.6214812680837206
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "check-one",
+   "statements": 1,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 442.801,
+     "ratio": 0.39405255659887434
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "check-batch",
+   "statements": 100,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 836.219,
+     "ratio": 0.36389291295271803
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "exec-batch",
+   "statements": 100,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 907.825,
+     "ratio": 0.022840565518639912
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "re-exec-batch",
+   "statements": 100,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 493.637,
+     "ratio": 0.013287215708065448
+    }
+   ]
+  },
+  {
+   "session": "scale",
+   "step": "new-batch",
+   "statements": 100,
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 568.507,
+     "ratio": 0.014955119672892812
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "(session-weighted total)",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 1485350.1449999998
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "mx-check",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 5463.824,
+     "ratio": 1.085267261401179
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "build",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 40815.97,
+     "ratio": 1.0188018651233581
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "boot",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 22828.656
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "page-check",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 2709.296
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "hot-apply",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 4326.603
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "test-attach",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 97.415
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "apply-entity",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 14771.934
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "stop",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 527.595
+    }
+   ]
+  },
+  {
+   "session": "runtime",
+   "step": "test-cold",
+   "points": [
+    {
+     "date": "2026-11-17T10:29:41Z",
+     "commit": "4fe3aa9",
+     "wall_ms": 18762.717
+    }
+   ]
+  }
+ ]
+}
